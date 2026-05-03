@@ -387,6 +387,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         )}
 
         <div className="flex flex-col gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={toggleUnread}>
+            <Mail className="mr-2 h-4 w-4" />
+            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? "Marcar como lida" : "Marcar como não lida"}
+          </Button>
           <Button variant="outline" size="sm" onClick={toggleArchive}>
             {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />Desarquivar</> : <><Archive className="mr-2 h-4 w-4" />Arquivar</>}
           </Button>
