@@ -8,3 +8,15 @@ verify_jwt = false
 
 [functions.evolution-test]
 verify_jwt = false
+
+[functions.ai-auto-reply]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-embed]
+verify_jwt = false
+
+[functions.ai-ingest-document]
+verify_jwt = false
