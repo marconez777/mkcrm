@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, ExternalLink } from "lucide-react";
+import { CalendarIcon, ChevronDown, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { CustomFieldDef, Lead } from "@/types/crm";
@@ -32,24 +29,28 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
   }
 
   function set(key: string, v: any) {
-    const next = { ...values, [key]: v };
-    save(next);
+    save({ ...values, [key]: v });
   }
 
   if (fields.length === 0) return null;
 
   return (
-    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Principal</div>
-      {fields.map((f) => (
-        <div key={f.id} className="grid grid-cols-[110px_1fr] items-center gap-2">
-          <Label className="text-xs text-muted-foreground">{f.label}</Label>
-          <FieldInput field={f} value={values[f.field_key]} onChange={(v) => set(f.field_key, v)} />
-        </div>
-      ))}
+    <div className="rounded-md border bg-muted/10 px-3 py-2">
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Principal</div>
+      <div className="divide-y divide-border/30">
+        {fields.map((f) => (
+          <div key={f.id} className="grid min-h-[28px] grid-cols-[110px_1fr] items-center gap-2 py-1">
+            <span className="truncate text-xs text-muted-foreground">{f.label}</span>
+            <FieldInput field={f} value={values[f.field_key]} onChange={(v) => set(f.field_key, v)} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+const nakedInput =
+  "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:outline-none";
 
 function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: any; onChange: (v: any) => void }) {
   const [local, setLocal] = useState<any>(value ?? "");
@@ -60,11 +61,11 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "url":
       return (
         <div className="flex items-center gap-1">
-          <Input
+          <input
             value={local}
             onChange={(e) => setLocal(e.target.value)}
             onBlur={() => onChange(local || null)}
-            className="h-8 text-sm"
+            className={cn(nakedInput, local && "underline decoration-primary/40 underline-offset-2")}
             placeholder="..."
           />
           {field.field_type === "url" && local && (
@@ -81,28 +82,42 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={() => onChange(local || null)}
-          className="min-h-[60px] text-sm"
+          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          placeholder="..."
         />
       );
 
     case "number":
-    case "currency":
       return (
-        <Input
+        <input
           type="number"
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={() => onChange(local === "" ? null : Number(local))}
-          className="h-8 text-sm"
-          placeholder={field.field_type === "currency" ? "R$ 0" : "0"}
+          className={cn(nakedInput, local !== "" && "underline decoration-primary/40 underline-offset-2")}
+          placeholder="0"
         />
+      );
+
+    case "currency":
+      return (
+        <div className="flex items-center gap-1">
+          <span className="text-sm text-muted-foreground">R$</span>
+          <input
+            type="number"
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={() => onChange(local === "" ? null : Number(local))}
+            className={cn(nakedInput, local !== "" && "underline decoration-primary/40 underline-offset-2")}
+            placeholder="0"
+          />
+        </div>
       );
 
     case "boolean":
       return (
-        <div className="flex items-center gap-2">
-          <Switch checked={!!value} onCheckedChange={onChange} />
-          <span className="text-xs text-muted-foreground">{value ? "Sim" : "Não"}</span>
+        <div className="flex items-center justify-end">
+          <Switch checked={!!value} onCheckedChange={onChange} className="scale-75" />
         </div>
       );
 
@@ -112,10 +127,20 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
       return (
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("h-8 justify-start text-xs font-normal", !d && "text-muted-foreground")}>
-              <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-              {d ? format(d, field.field_type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy") : "..."}
-            </Button>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-1.5 text-left text-sm hover:text-primary",
+                !d && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="h-3.5 w-3.5 opacity-70" />
+              {d && (
+                <span className="underline decoration-primary/40 underline-offset-2">
+                  {format(d, field.field_type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy")}
+                </span>
+              )}
+            </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <Calendar
@@ -127,7 +152,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             />
             {field.field_type === "datetime" && d && (
               <div className="border-t p-2">
-                <Input
+                <input
                   type="time"
                   value={format(d, "HH:mm")}
                   onChange={(e) => {
@@ -135,7 +160,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                     const nd = new Date(d); nd.setHours(h || 0, m || 0, 0, 0);
                     onChange(nd.toISOString());
                   }}
-                  className="h-8 text-xs"
+                  className="w-full rounded border bg-background px-2 py-1 text-xs"
                 />
               </div>
             )}
@@ -147,7 +172,14 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "select":
       return (
         <Select value={value ?? "__none"} onValueChange={(v) => onChange(v === "__none" ? null : v)}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="..." /></SelectTrigger>
+          <SelectTrigger
+            className={cn(
+              "h-auto border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
+              !value && "text-muted-foreground"
+            )}
+          >
+            <SelectValue placeholder="Selecione" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none">—</SelectItem>
             {(field.options ?? []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -160,13 +192,24 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
       return (
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-auto min-h-8 justify-start py-1 text-left text-xs font-normal">
-              {arr.length === 0 ? <span className="text-muted-foreground">...</span> : (
+            <button
+              type="button"
+              className={cn(
+                "flex w-full items-center justify-between gap-1 text-left text-sm hover:text-primary",
+                arr.length === 0 && "text-muted-foreground"
+              )}
+            >
+              {arr.length === 0 ? (
+                <span>Selecione</span>
+              ) : (
                 <span className="flex flex-wrap gap-1">
-                  {arr.map(v => <span key={v} className="rounded bg-muted px-1.5 py-0.5">{v}</span>)}
+                  {arr.map((v) => (
+                    <span key={v} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{v}</span>
+                  ))}
                 </span>
               )}
-            </Button>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+            </button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="start">
             <div className="space-y-1.5">
@@ -177,7 +220,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(c) => {
-                        const next = c ? [...arr, o] : arr.filter(x => x !== o);
+                        const next = c ? [...arr, o] : arr.filter((x) => x !== o);
                         onChange(next.length ? next : null);
                       }}
                     />
