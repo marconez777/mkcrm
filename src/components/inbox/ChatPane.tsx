@@ -68,6 +68,9 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [composerSeed, setComposerSeed] = useState<{ text: string; n: number } | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const leadIdRef = useRef(lead.id);
