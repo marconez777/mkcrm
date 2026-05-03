@@ -297,7 +297,21 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     if (error) toast.error("Falha: " + error.message);
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
-  async function suggest() {
+  async function backfillFull() {
+    if (backfilling) return;
+    setBackfilling(true);
+    toast.info("Importando histórico completo… isso pode levar alguns minutos.");
+    const { data, error } = await supabase.functions.invoke("evolution-sync-lead", {
+      body: { lead_id: lead.id, full: true, silent: true },
+    });
+    setBackfilling(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message || (data as any)?.error));
+    } else {
+      const d = data as any;
+      toast.success(`Histórico importado: ${d?.imported ?? 0} novas (${d?.total ?? 0} verificadas em ${d?.pages ?? 0} páginas)`);
+    }
+  }
     setLoadingSuggest(true);
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "suggest" } });
     setLoadingSuggest(false);
