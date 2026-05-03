@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Loader2, Phone, Mail, Building2, Trash2 } from "lucide-react";
+import { Send, Loader2, Phone, Mail, Building2, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
 
