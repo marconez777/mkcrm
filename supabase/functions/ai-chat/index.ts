@@ -248,6 +248,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    await logUsage({
+      agent_id, lead_id, thread_id: threadId, model: agent.model,
+      input_tokens: totalIn || null, output_tokens: totalOut || null, total_tokens: totalTok || null,
+      latency_ms: Date.now() - startedAt,
+      tools_called: usedTools.length,
+      replied: !!finalContent,
+      status: "success",
+    });
+
     return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools });
   } catch (e) {
     console.error("ai-chat", e);
