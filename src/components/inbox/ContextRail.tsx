@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Attendant, Lead, LeadEvent, Stage } from "@/types/crm";
+import type { Attendant, CustomFieldDef, Lead, LeadEvent, Stage } from "@/types/crm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import CustomFieldsPanel from "./CustomFieldsPanel";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -29,6 +30,7 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
   const [aiHistory, setAiHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([]);
 
   useEffect(() => {
     setForm(lead);
@@ -38,15 +40,17 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   useEffect(() => {
     let active = true;
     (async () => {
-      const [{ data: ev }, { data: ag }, { data: cfg }] = await Promise.all([
+      const [{ data: ev }, { data: ag }, { data: cfg }, { data: defs }] = await Promise.all([
         supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(5),
         supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
         supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
+        supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
       ]);
       if (!active) return;
       if (ev) setEvents(ev as LeadEvent[]);
       setAgents(ag ?? []);
       setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
+      setCustomDefs((defs ?? []) as any);
     })();
     return () => { active = false; };
   }, [lead.id]);
@@ -232,6 +236,12 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
             />
           </div>
         </div>
+
+        <CustomFieldsPanel
+          lead={lead}
+          fields={customDefs}
+          onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
+        />
 
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">

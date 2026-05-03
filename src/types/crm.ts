@@ -1,3 +1,16 @@
+export type FieldType =
+  | "text" | "textarea" | "number" | "currency" | "date" | "datetime"
+  | "boolean" | "select" | "multiselect" | "url";
+
+export type CustomFieldDef = {
+  id: string;
+  label: string;
+  field_key: string;
+  field_type: FieldType;
+  options: string[] | null;
+  position: number;
+};
+
 export type Stage = {
   id: string;
   name: string;
@@ -25,6 +38,7 @@ export type Lead = {
   created_at: string;
   updated_at: string;
   archived_at?: string | null;
+  custom_fields?: Record<string, any>;
 };
 
 export type Message = {

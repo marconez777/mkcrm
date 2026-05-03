@@ -11,6 +11,7 @@ import Automations from "./pages/Automations";
 import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
 import Settings from "./pages/Settings";
+import SettingsCustomFields from "./pages/SettingsCustomFields";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/templates" element={<Templates />} />
             <Route path="/metrics" element={<Metrics />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/fields" element={<SettingsCustomFields />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppShell>
