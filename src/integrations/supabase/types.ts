@@ -16,36 +16,51 @@ export type Database = {
     Tables: {
       ai_agents: {
         Row: {
+          api_key: string | null
+          base_url: string | null
           created_at: string
           description: string | null
+          embedding_api_key: string | null
+          embedding_model: string | null
           enabled: boolean
           id: string
           model: string
           name: string
+          provider: string
           system_prompt: string
           temperature: number
           tools: Json
           updated_at: string
         }
         Insert: {
+          api_key?: string | null
+          base_url?: string | null
           created_at?: string
           description?: string | null
+          embedding_api_key?: string | null
+          embedding_model?: string | null
           enabled?: boolean
           id?: string
           model?: string
           name: string
+          provider?: string
           system_prompt: string
           temperature?: number
           tools?: Json
           updated_at?: string
         }
         Update: {
+          api_key?: string | null
+          base_url?: string | null
           created_at?: string
           description?: string | null
+          embedding_api_key?: string | null
+          embedding_model?: string | null
           enabled?: boolean
           id?: string
           model?: string
           name?: string
+          provider?: string
           system_prompt?: string
           temperature?: number
           tools?: Json
