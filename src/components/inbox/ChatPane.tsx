@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { Link } from "react-router-dom";
+import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
+import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
 
@@ -302,22 +304,16 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } });
     setSyncing(false);
     if (error) toast.error("Falha: " + error.message);
-    else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
+    else toast.success(`Sincronizado: ${(data as SyncLeadResult | null)?.imported ?? 0} mensagens`);
   }
   async function backfillFull() {
     if (backfilling) return;
     setBackfilling(true);
     setBackfillProgress({ pages: 0, lastPageItems: 0, imported: 0, total: 0 });
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-sync-lead`;
-      const { data: { session } } = await supabase.auth.getSession();
-      const resp = await fetch(url, {
+      const resp = await fetch(`${FUNCTIONS_URL}/evolution-sync-lead`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers: await getFunctionHeaders(),
         body: JSON.stringify({ lead_id: lead.id, full: true, silent: true }),
       });
       if (!resp.ok || !resp.body) {
@@ -327,7 +323,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       const reader = resp.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
-      let finalEvt: any = null;
+      let finalEvt: Extract<BackfillProgressEvent, { type: "done" }> | null = null;
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -338,7 +334,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
           buf = buf.slice(nl + 1);
           if (!line) continue;
           try {
-            const evt = JSON.parse(line);
+            const evt = JSON.parse(line) as BackfillProgressEvent;
             if (evt.type === "page") {
               setBackfillProgress({
                 pages: evt.page, lastPageItems: evt.items,

@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_lead_events_lead_created ON public.lead_events(lead_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_events_type_created ON public.lead_events(type, created_at DESC);
