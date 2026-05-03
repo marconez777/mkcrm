@@ -130,6 +130,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const topSentinelRef = useRef<HTMLDivElement>(null);
+  const scrollToMsgRef = useRef<((id: string) => void) | null>(null);
 
   // Load most recent page
   useEffect(() => {
@@ -245,9 +246,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }
 
   function pulseAndScroll(messageId: string) {
-    const node = document.querySelector<HTMLElement>(`[data-msg-id="${messageId}"]`);
-    if (!node) return;
-    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToMsgRef.current?.(messageId);
     setPulseId(messageId);
     setTimeout(() => setPulseId((p) => (p === messageId ? null : p)), 1600);
   }
