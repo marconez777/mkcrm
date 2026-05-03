@@ -31,11 +31,11 @@ function StatusTicks({ m }: { m: Message }) {
 }
 
 // Fields that actually affect rendering — ignore noisy ones like `raw`
-const MERGE_KEYS: (keyof Message)[] = [
+const MERGE_KEYS = [
   "content", "status", "delivery_status", "reply_to_external_id",
-  "timestamp", "message_type", "from_me", "media_url", "media_mime",
+  "timestamp", "message_type", "from_me",
   "external_id", "client_message_id", "last_error",
-];
+] as const;
 
 function mergeMessage(prev: Message[], row: Message): Message[] {
   const idx = prev.findIndex(
@@ -95,8 +95,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       }
     })();
 
-    // Background reconcile (non-blocking)
-    supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } }).catch(() => {});
+    // No auto-sync: webhook keeps the chat live. User can press refresh in the header.
 
     const ch = supabase
       .channel(`msg-${lead.id}-${Math.random().toString(36).slice(2)}`)
