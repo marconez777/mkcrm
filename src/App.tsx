@@ -8,6 +8,8 @@ import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
 import Automations from "./pages/Automations";
+import Templates from "./pages/Templates";
+import Metrics from "./pages/Metrics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
