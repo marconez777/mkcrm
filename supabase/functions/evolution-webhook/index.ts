@@ -1,5 +1,5 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
-import { corsHeaders, json, sb, ingestMessage, phoneFromJid } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, ingestMessage, phoneFromJid, loadInstanceByToken } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -12,20 +12,15 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const token = url.searchParams.get("token");
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("webhook_token")
-      .eq("id", 1)
-      .single();
-    if (!settings || token !== settings.webhook_token) {
+    const token = url.searchParams.get("token") ?? "";
+    const instance = await loadInstanceByToken(token);
+    if (!instance) {
       return json({ error: "Invalid token" }, 401);
     }
 
     body = await req.json();
     eventType = String(body.event || "unknown").toUpperCase().replace(/\./g, "_");
 
-    // Audit FIRST — even if processing fails, we have the payload
     const { data: audit } = await supabase
       .from("webhook_events")
       .insert({ event_type: eventType, payload: body, source: "webhook" })
@@ -39,7 +34,7 @@ Deno.serve(async (req) => {
     if (eventType === "MESSAGES_UPSERT") {
       for (const it of items) {
         try {
-          const res = await ingestMessage(it, "webhook");
+          const res = await ingestMessage(it, "webhook", { instanceId: instance.id });
           if ("lead_id" in res) leadIdForAudit = res.lead_id;
         } catch (e) {
           console.error("ingest error", e);
@@ -71,9 +66,9 @@ Deno.serve(async (req) => {
       const state = items[0]?.state ?? body.data?.state;
       if (state) {
         await supabase
-          .from("settings")
+          .from("whatsapp_instances")
           .update({ connection_state: String(state) })
-          .eq("id", 1);
+          .eq("id", instance.id);
       }
     }
 

@@ -15,19 +15,37 @@ export function useHealth() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      // Aggregate health across all configured WhatsApp instances.
       const { data } = await supabase
-        .from("settings")
-        .select("connection_state, last_health_check, webhook_ok, webhook_last_error, last_poll_at")
-        .eq("id", 1)
-        .single();
-      if (active && data) setHealth(data as HealthStatus);
+        .from("whatsapp_instances")
+        .select("connection_state, last_health_check, webhook_ok, webhook_last_error, last_poll_at, is_default")
+        .order("is_default", { ascending: false });
+      if (!active) return;
+      if (!data || data.length === 0) {
+        setHealth(null);
+        return;
+      }
+      // Prefer default; aggregate webhook_ok = all OK; pick latest health check.
+      const def = data[0] as any;
+      const allOk = data.every((d: any) => d.webhook_ok === true);
+      const latest = data.reduce((acc: any, d: any) =>
+        !acc?.last_health_check || (d.last_health_check && d.last_health_check > acc.last_health_check) ? d : acc,
+      data[0]);
+      const firstError = data.find((d: any) => d.webhook_last_error)?.webhook_last_error ?? null;
+      setHealth({
+        connection_state: def.connection_state,
+        last_health_check: latest.last_health_check,
+        webhook_ok: allOk,
+        webhook_last_error: firstError,
+        last_poll_at: latest.last_poll_at,
+      });
     };
     load();
     const ch = supabase
       .channel(`health-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "settings" },
+        { event: "UPDATE", schema: "public", table: "whatsapp_instances" },
         load,
       )
       .subscribe();

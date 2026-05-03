@@ -1,5 +1,5 @@
 // On-demand reconciliation for a single lead — fetches recent history and upserts.
-import { corsHeaders, json, sb, loadSettings, evoFetch, ingestMessage } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, loadInstance, evoFetch, ingestMessage } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -9,22 +9,20 @@ Deno.serve(async (req) => {
     const { lead_id, silent = false } = await req.json();
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
-    const settings = await loadSettings();
-    if (!settings?.evolution_url || !settings.evolution_api_key || !settings.evolution_instance) {
-      return json({ error: "Evolution não configurada" }, 400);
-    }
-
     const { data: lead } = await supabase
       .from("leads")
-      .select("phone")
+      .select("phone, whatsapp_instance_id")
       .eq("id", lead_id)
       .single();
     if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
+    const instance = await loadInstance(lead.whatsapp_instance_id);
+    if (!instance) return json({ error: "Nenhuma instância WhatsApp configurada" }, 400);
+
     const remoteJid = `${lead.phone}@s.whatsapp.net`;
     const resp = await evoFetch(
-      settings,
-      `/chat/findMessages/${encodeURIComponent(settings.evolution_instance)}`,
+      instance,
+      `/chat/findMessages/${encodeURIComponent(instance.evolution_instance)}`,
       {
         method: "POST",
         body: JSON.stringify({ where: { key: { remoteJid } } }),
@@ -37,7 +35,6 @@ Deno.serve(async (req) => {
     const data = await resp.json().catch(() => ({}));
     const items: any[] = Array.isArray(data) ? data : (data?.messages?.records ?? data?.records ?? data?.messages ?? []);
 
-    // Only ingest items newer than what we already have locally
     const { data: lastLocal } = await supabase
       .from("messages")
       .select("timestamp")
@@ -51,11 +48,8 @@ Deno.serve(async (req) => {
     for (const it of items.slice(-50)) {
       try {
         const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
-        if (lastTs && itTs && itTs <= lastTs) {
-          // older than what we have — let idempotency handle it but skip cheaply
-          continue;
-        }
-        const r = await ingestMessage(it, "sync", { silent });
+        if (lastTs && itTs && itTs <= lastTs) continue;
+        const r = await ingestMessage(it, "sync", { silent, instanceId: instance.id });
         if ((r as any)?.isNew) imported++;
       } catch (e) {
         console.error("sync ingest", e);
