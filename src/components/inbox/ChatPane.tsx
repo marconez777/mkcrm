@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
-  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History,
+  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
 } from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useHealth } from "@/hooks/useHealth";
+import { Link } from "react-router-dom";
 
 const PAGE_SIZE = 50;
 
