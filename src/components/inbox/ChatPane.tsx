@@ -466,6 +466,16 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       </header>
 
+      {disconnected && (
+        <div className="flex items-center justify-between gap-2 border-b bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+          <div className="flex items-center gap-2">
+            <WifiOff className="h-3.5 w-3.5" />
+            <span>WhatsApp desconectado — mensagens enviadas podem falhar.</span>
+          </div>
+          <Link to="/settings" className="font-medium underline-offset-2 hover:underline">Configurar</Link>
+        </div>
+      )}
+
       {backfillProgress && (
         <div className="border-b bg-primary/5 px-3 py-2">
           <div className="mb-1 flex items-center justify-between text-[11px]">
