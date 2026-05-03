@@ -532,114 +532,26 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       )}
 
-      <div
-        ref={scrollerRef}
+      <VirtualizedMessages
+        scrollerRef={scrollerRef}
         onScroll={onScroll}
-        className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
-        style={{ background: "hsl(var(--chat-bg))" }}
-      >
-        {!loaded && (
-          <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
-          </div>
-        )}
-
-        <div ref={topSentinelRef} />
-        {loadingMore && (
-          <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
-            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
-          </div>
-        )}
-        {loaded && !hasMore && messages.length > 0 && (
-          <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
-        )}
-
-        {loaded && messages.length === 0 && (
-          <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
-        )}
-
-        <div className="space-y-1">
-          {grouped.map((g: any) => {
-            if (g.kind === "date") {
-              return (
-                <div key={g.key} className="sticky top-1 z-10 my-3 flex items-center justify-center pointer-events-none">
-                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
-                    {g.label}
-                  </span>
-                </div>
-              );
-            }
-            const m: Message = g.m;
-            const failed = m.status === "failed";
-            const pending = m.status === "pending";
-            const replied = m.reply_to_external_id
-              ? messages.find((x) => x.external_id === m.reply_to_external_id)
-              : null;
-            const isMatch = searchTerm && (m.content ?? "").toLowerCase().includes(searchTerm.toLowerCase());
-            const isActiveMatch = isMatch && matches[activeMatch]?.id === m.id;
-            const pulsing = pulseId === m.id;
-            return (
-              <div
-                key={g.key}
-                data-msg-id={m.id}
-                className={cn("group flex items-end gap-1", m.from_me ? "justify-end" : "justify-start", g.grouped ? "mt-0.5" : "mt-2")}
-              >
-                {!m.from_me && (
-                  <button onClick={() => setReplyTo(m)}
-                    className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-                    title="Responder"><Reply className="h-3 w-3" /></button>
-                )}
-                <div
-                  className={cn(
-                    "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
-                    failed && "ring-1 ring-destructive",
-                    pending && "opacity-70",
-                    isActiveMatch && "ring-2 ring-amber-400",
-                    pulsing && "ring-2 ring-primary animate-pulse",
-                  )}
-                  style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
-                >
-                  {replied && (
-                    <button
-                      onClick={() => pulseAndScroll(replied.id)}
-                      className="mb-1 block w-full border-l-2 border-primary/60 pl-2 text-left text-[11px] text-muted-foreground line-clamp-2 hover:text-foreground"
-                      title="Ir para mensagem original"
-                    >
-                      {replied.content || `[${replied.message_type}]`}
-                    </button>
-                  )}
-                  <div className="whitespace-pre-wrap break-words">
-                    {searchTerm && m.content
-                      ? highlight(m.content, searchTerm, isActiveMatch)
-                      : (m.content || `[${m.message_type}]`)}
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
-                    <span>{fmtTime(m.timestamp)}</span>
-                    <StatusTicks m={m} />
-                    {failed && (
-                      <button onClick={() => resend(m)} className="ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
-                        <RotateCw className="h-3 w-3" /> reenviar
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {m.from_me && (
-                  <button onClick={() => setReplyTo(m)}
-                    className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-                    title="Responder"><Reply className="h-3 w-3" /></button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {!stickToBottom && newCount > 0 && (
-          <button onClick={jumpToBottom}
-            className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
-            <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
-          </button>
-        )}
-      </div>
+        loaded={loaded}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        topSentinelRef={topSentinelRef}
+        grouped={grouped}
+        messages={messages}
+        searchTerm={searchTerm}
+        matches={matches}
+        activeMatch={activeMatch}
+        pulseId={pulseId}
+        setReplyTo={setReplyTo}
+        pulseAndScroll={pulseAndScroll}
+        resend={resend}
+        stickToBottom={stickToBottom}
+        newCount={newCount}
+        jumpToBottom={jumpToBottom}
+      />
 
       {replyTo && (
         <div className="flex items-start gap-2 border-t bg-muted/30 px-4 py-2 text-xs">
