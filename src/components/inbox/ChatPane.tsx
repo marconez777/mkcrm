@@ -100,6 +100,8 @@ function highlight(text: string, term: string, isActive: boolean) {
 }
 
 export default function ChatPane({ lead }: { lead: Lead }) {
+  const { overall: healthStatus } = useHealth();
+  const disconnected = healthStatus === "down" || healthStatus === "unknown";
   const [messages, setMessages] = useState<Message[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(true);
