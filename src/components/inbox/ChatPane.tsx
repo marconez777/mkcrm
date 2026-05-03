@@ -30,13 +30,18 @@ function StatusTicks({ m }: { m: Message }) {
   return <Check className="h-3 w-3 opacity-60" />;
 }
 
+// Fields that actually affect rendering — ignore noisy ones like `raw`
+const MERGE_KEYS: (keyof Message)[] = [
+  "content", "status", "delivery_status", "reply_to_external_id",
+  "timestamp", "message_type", "from_me", "media_url", "media_mime",
+  "external_id", "client_message_id", "last_error",
+];
+
 function mergeMessage(prev: Message[], row: Message): Message[] {
-  // Match by id, or by client_message_id (optimistic → real upgrade)
   const idx = prev.findIndex(
     (m) => m.id === row.id || (!!row.client_message_id && m.client_message_id === row.client_message_id),
   );
   if (idx === -1) {
-    // Insert keeping timestamp order
     const arr = prev.slice();
     let i = arr.length;
     while (i > 0 && arr[i - 1].timestamp > row.timestamp) i--;
@@ -44,8 +49,12 @@ function mergeMessage(prev: Message[], row: Message): Message[] {
     return arr;
   }
   const cur = prev[idx] as any;
-  let changed = false;
-  for (const k in row) if ((row as any)[k] !== cur[k]) { changed = true; break; }
+  let changed = cur.id !== row.id; // optimistic → real upgrade
+  if (!changed) {
+    for (const k of MERGE_KEYS) {
+      if ((row as any)[k] !== cur[k]) { changed = true; break; }
+    }
+  }
   if (!changed) return prev;
   const copy = prev.slice();
   copy[idx] = { ...cur, ...row };
