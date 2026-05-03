@@ -219,6 +219,63 @@ export type Database = {
           },
         ]
       }
+      ai_usage: {
+        Row: {
+          agent_id: string | null
+          automation_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          input_tokens: number | null
+          latency_ms: number | null
+          lead_id: string | null
+          model: string
+          operation: string
+          output_tokens: number | null
+          replied: boolean
+          status: string
+          thread_id: string | null
+          tools_called: number
+          total_tokens: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          automation_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          lead_id?: string | null
+          model: string
+          operation?: string
+          output_tokens?: number | null
+          replied?: boolean
+          status?: string
+          thread_id?: string | null
+          tools_called?: number
+          total_tokens?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          automation_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          lead_id?: string | null
+          model?: string
+          operation?: string
+          output_tokens?: number | null
+          replied?: boolean
+          status?: string
+          thread_id?: string | null
+          tools_called?: number
+          total_tokens?: number | null
+        }
+        Relationships: []
+      }
       attendants: {
         Row: {
           color: string
@@ -498,6 +555,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_templates: {
+        Row: {
+          content: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          shortcut: string | null
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          shortcut?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          shortcut?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: []
       }
       messages: {
         Row: {
