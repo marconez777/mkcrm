@@ -586,3 +586,198 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     </div>
   );
 }
+
+// ---- Virtualized message list ---------------------------------------------
+
+type GroupedItem =
+  | { kind: "date"; label: string; key: string }
+  | { kind: "msg"; m: Message; grouped: boolean; key: string };
+
+function VirtualizedMessages(props: {
+  scrollerRef: React.RefObject<HTMLDivElement>;
+  onScroll: () => void;
+  loaded: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+  topSentinelRef: React.RefObject<HTMLDivElement>;
+  grouped: GroupedItem[];
+  messages: Message[];
+  searchTerm: string;
+  matches: Message[];
+  activeMatch: number;
+  pulseId: string | null;
+  setReplyTo: (m: Message) => void;
+  pulseAndScroll: (id: string) => void;
+  resend: (m: Message) => void;
+  stickToBottom: boolean;
+  newCount: number;
+  jumpToBottom: () => void;
+}) {
+  const {
+    scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
+    messages, searchTerm, matches, activeMatch, pulseId,
+    setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom,
+  } = props;
+
+  const virtualizer = useVirtualizer({
+    count: grouped.length,
+    getScrollElement: () => scrollerRef.current,
+    estimateSize: (i) => (grouped[i]?.kind === "date" ? 32 : 64),
+    overscan: 12,
+    getItemKey: (i) => grouped[i]?.key ?? i,
+  });
+
+  // Re-measure after layout when grouped changes (status/text updates)
+  useLayoutEffect(() => { virtualizer.measure(); }, [grouped.length]);
+
+  const items = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  return (
+    <div
+      ref={scrollerRef}
+      onScroll={onScroll}
+      className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
+      style={{ background: "hsl(var(--chat-bg))" }}
+    >
+      {!loaded && (
+        <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
+        </div>
+      )}
+
+      <div ref={topSentinelRef} />
+      {loadingMore && (
+        <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
+          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
+        </div>
+      )}
+      {loaded && !hasMore && messages.length > 0 && (
+        <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
+      )}
+      {loaded && messages.length === 0 && (
+        <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
+      )}
+
+      <div style={{ height: totalSize, width: "100%", position: "relative" }}>
+        {items.map((vi) => {
+          const g = grouped[vi.index];
+          if (!g) return null;
+          return (
+            <div
+              key={vi.key}
+              ref={virtualizer.measureElement}
+              data-index={vi.index}
+              style={{
+                position: "absolute", top: 0, left: 0, right: 0,
+                transform: `translateY(${vi.start}px)`,
+              }}
+            >
+              {g.kind === "date" ? (
+                <div className="my-2 flex items-center justify-center pointer-events-none">
+                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                    {g.label}
+                  </span>
+                </div>
+              ) : (
+                <MessageRow
+                  m={g.m}
+                  grouped={g.grouped}
+                  messages={messages}
+                  searchTerm={searchTerm}
+                  matches={matches}
+                  activeMatch={activeMatch}
+                  pulseId={pulseId}
+                  setReplyTo={setReplyTo}
+                  pulseAndScroll={pulseAndScroll}
+                  resend={resend}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!stickToBottom && newCount > 0 && (
+        <button onClick={jumpToBottom}
+          className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
+          <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MessageRow(props: {
+  m: Message;
+  grouped: boolean;
+  messages: Message[];
+  searchTerm: string;
+  matches: Message[];
+  activeMatch: number;
+  pulseId: string | null;
+  setReplyTo: (m: Message) => void;
+  pulseAndScroll: (id: string) => void;
+  resend: (m: Message) => void;
+}) {
+  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend } = props;
+  const failed = m.status === "failed";
+  const pending = m.status === "pending";
+  const replied = m.reply_to_external_id
+    ? messages.find((x) => x.external_id === m.reply_to_external_id)
+    : null;
+  const isMatch = searchTerm && (m.content ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+  const isActiveMatch = isMatch && matches[activeMatch]?.id === m.id;
+  const pulsing = pulseId === m.id;
+  return (
+    <div
+      data-msg-id={m.id}
+      className={cn("group flex items-end gap-1 px-0", m.from_me ? "justify-end" : "justify-start", grouped ? "pt-0.5" : "pt-2")}
+    >
+      {!m.from_me && (
+        <button onClick={() => setReplyTo(m)}
+          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
+          title="Responder"><Reply className="h-3 w-3" /></button>
+      )}
+      <div
+        className={cn(
+          "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
+          failed && "ring-1 ring-destructive",
+          pending && "opacity-70",
+          isActiveMatch && "ring-2 ring-amber-400",
+          pulsing && "ring-2 ring-primary animate-pulse",
+        )}
+        style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
+      >
+        {replied && (
+          <button
+            onClick={() => pulseAndScroll(replied.id)}
+            className="mb-1 block w-full border-l-2 border-primary/60 pl-2 text-left text-[11px] text-muted-foreground line-clamp-2 hover:text-foreground"
+            title="Ir para mensagem original"
+          >
+            {replied.content || `[${replied.message_type}]`}
+          </button>
+        )}
+        <div className="whitespace-pre-wrap break-words">
+          {searchTerm && m.content
+            ? highlight(m.content, searchTerm, !!isActiveMatch)
+            : (m.content || `[${m.message_type}]`)}
+        </div>
+        <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
+          <span>{fmtTime(m.timestamp)}</span>
+          <StatusTicks m={m} />
+          {failed && (
+            <button onClick={() => resend(m)} className="ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
+              <RotateCw className="h-3 w-3" /> reenviar
+            </button>
+          )}
+        </div>
+      </div>
+      {m.from_me && (
+        <button onClick={() => setReplyTo(m)}
+          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
+          title="Responder"><Reply className="h-3 w-3" /></button>
+      )}
+    </div>
+  );
+}
