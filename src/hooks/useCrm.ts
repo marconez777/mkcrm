@@ -37,7 +37,8 @@ function useRealtimeList<T extends { id: string }>(
     };
 
     (async () => {
-      const { data } = await supabase.from(table).select("*").order(orderBy as string);
+      const limit = table === "leads" ? 2000 : 500;
+      const { data } = await supabase.from(table).select("*").order(orderBy as string).limit(limit);
       if (!active) return;
       setItems(((data ?? []) as unknown as T[]).slice().sort(sortFn));
       setLoaded(true);

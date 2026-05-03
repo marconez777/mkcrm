@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
-  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History,
+  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
 } from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useHealth } from "@/hooks/useHealth";
+import { Link } from "react-router-dom";
 
 const PAGE_SIZE = 50;
 
@@ -98,6 +100,8 @@ function highlight(text: string, term: string, isActive: boolean) {
 }
 
 export default function ChatPane({ lead }: { lead: Lead }) {
+  const { overall: healthStatus } = useHealth();
+  const disconnected = healthStatus === "down" || healthStatus === "unknown";
   const [messages, setMessages] = useState<Message[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -461,6 +465,16 @@ export default function ChatPane({ lead }: { lead: Lead }) {
           </Button>
         </div>
       </header>
+
+      {disconnected && (
+        <div className="flex items-center justify-between gap-2 border-b bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+          <div className="flex items-center gap-2">
+            <WifiOff className="h-3.5 w-3.5" />
+            <span>WhatsApp desconectado — mensagens enviadas podem falhar.</span>
+          </div>
+          <Link to="/settings" className="font-medium underline-offset-2 hover:underline">Configurar</Link>
+        </div>
+      )}
 
       {backfillProgress && (
         <div className="border-b bg-primary/5 px-3 py-2">
