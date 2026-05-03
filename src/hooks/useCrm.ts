@@ -11,7 +11,7 @@ export function useStages() {
       if (active && data) setStages(data as Stage[]);
     };
     load();
-    const ch = supabase.channel("stages-rt").on("postgres_changes", { event: "*", schema: "public", table: "pipeline_stages" }, load).subscribe();
+    const ch = supabase.channel(`stages-rt-${Math.random().toString(36).slice(2)}`).on("postgres_changes", { event: "*", schema: "public", table: "pipeline_stages" }, load).subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, []);
   return { stages, setStages };
@@ -26,7 +26,7 @@ export function useLeads() {
       if (active && data) setLeads(data as Lead[]);
     };
     load();
-    const ch = supabase.channel("leads-rt").on("postgres_changes", { event: "*", schema: "public", table: "leads" }, load).subscribe();
+    const ch = supabase.channel(`leads-rt-${Math.random().toString(36).slice(2)}`).on("postgres_changes", { event: "*", schema: "public", table: "leads" }, load).subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, []);
   return { leads, setLeads };
