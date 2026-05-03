@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
@@ -31,6 +31,32 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   const [aiHistory, setAiHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([]);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string | null>(lead.ai_summary ?? null);
+
+  useEffect(() => { setSummary(lead.ai_summary ?? null); }, [lead.id, lead.ai_summary]);
+
+  async function generateSummary() {
+    setSummarizing(true);
+    const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "summary" } });
+    setSummarizing(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha IA: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    setSummary((data as any)?.summary ?? "");
+  }
+
+  async function togglePin() {
+    await patch({ pinned_at: lead.pinned_at ? null : (new Date().toISOString() as any) });
+  }
+  async function toggleUnread() {
+    if (lead.marked_unread || (lead.unread_count ?? 0) > 0) {
+      await patch({ marked_unread: false, unread_count: 0 } as any);
+    } else {
+      await patch({ marked_unread: true } as any);
+    }
+  }
 
   useEffect(() => {
     setForm(lead);
