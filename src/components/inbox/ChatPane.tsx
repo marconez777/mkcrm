@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
-  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon,
+  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History,
 } from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
