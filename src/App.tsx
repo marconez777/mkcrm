@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/inbox/:leadId" element={<Inbox />} />
             <Route path="/agents" element={<Agents />} />
+            <Route path="/automations" element={<Automations />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
