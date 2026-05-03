@@ -25,7 +25,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppShell>
-      </Sonner>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
