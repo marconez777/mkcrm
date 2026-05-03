@@ -9,7 +9,7 @@ import ChatPane from "@/components/inbox/ChatPane";
 import ContextRail from "@/components/inbox/ContextRail";
 import NewConversationDialog from "@/components/inbox/NewConversationDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { playPing } from "@/hooks/useUnreadTitle";
 
 export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
@@ -27,6 +27,7 @@ export default function InboxPage() {
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(true);
+  const [showList, setShowList] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
   const lastSeenRef = useRef<string | null>(null);
   const openLeadRef = useRef<string | undefined>(leadId);

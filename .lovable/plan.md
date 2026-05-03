@@ -1,51 +1,31 @@
-## Objetivo
+## Problemas
 
-Replicar a UX da imagem: cada lead exibe uma lista de campos personalizáveis (Interesse, Procedimentos, Data e horário, Teleconsulta?, Link de Consulta, Endereço, Desconto, Número do convênio, Pagamento, Origem, etc.) editáveis inline no painel direito do Inbox.
+1. **Filtros cortados** no topo da lista de conversas (ex.: "Em atendimento" aparece cortado).
+2. **Não há como fechar** o painel de perfil (direita) nem a lista de conversas (esquerda).
+3. Painel direito poderia recolher por seção, mas o usuário quer principalmente um botão de fechar o painel inteiro.
 
-A tabela `lead_custom_fields` (definições) e a coluna `leads.custom_fields` jsonb (valores) já existem — falta UI.
+## Mudanças
 
-## Escopo
+### 1. `src/pages/Inbox.tsx` — três painéis colapsáveis
+- Adicionar estado `showList` (default true) além do já existente `showContext`.
+- No header da área de chat, adicionar um botão à esquerda (`PanelLeftClose` / `PanelLeftOpen`) para esconder/mostrar a lista de conversas.
+- O botão à direita já existe (`PanelRightClose`) — manter.
+- Quando `showList` for false, ocultar o `<aside>` da lista no desktop.
+- Passar `onClose` para o `ContextRail` para permitir fechar o painel pelo próprio cabeçalho dele também.
 
-### 1. Página de configuração: Configurações → Campos do lead
-Nova rota `/settings/fields` (ou seção em página existente) para CRUD das definições em `lead_custom_fields`:
-- Lista ordenável (drag para reordenar `position`)
-- Para cada campo: `label`, `field_key` (auto a partir do label), `field_type`, `options` (quando aplicável)
-- Tipos suportados:
-  - `text` — input
-  - `number` — input numérico
-  - `currency` — input formatado R$
-  - `date` — date picker
-  - `datetime` — date + hora
-  - `boolean` — Sim/Não
-  - `select` — uma opção (com `options[]`)
-  - `multiselect` — várias opções (ex.: Origem com "Google - Ads" + "Indicação de Médico")
-  - `url` — link clicável quando preenchido
-- Botões: adicionar, editar, remover, reordenar
+### 2. `src/components/inbox/ContextRail.tsx` — botão fechar
+- Aceitar prop `onClose?: () => void`.
+- Adicionar um header sticky no topo do rail com título "Perfil" e um botão `X` que chama `onClose`.
+- (Os campos fixos — etapa, atendente, valor, e-mail, empresa, tags, notas — e os campos personalizados continuam visíveis abaixo.)
 
-### 2. Renderização no ContextRail (`src/components/inbox/ContextRail.tsx`)
-- Carregar `lead_custom_fields` ordenado por `position`
-- Abaixo dos campos fixos, renderizar dinamicamente cada definição lendo/gravando em `leads.custom_fields[field_key]`
-- Layout label-à-esquerda / valor-à-direita igual à imagem (linha por campo, compacto)
-- Edição inline (mesma UX dos campos atuais — debounce/onBlur grava `custom_fields` mesclado)
-- Tipos `select`/`multiselect` abrem dropdown; `boolean` mostra "Sim/Não"; `url` mostra "..." quando vazio e link quando preenchido; `date` abre calendário
+### 3. `src/components/inbox/ConversationList.tsx` — corrigir filtros cortados + colapsar
+- A linha de filtros de etapa/tags está com `overflow-x-auto` mas o último botão fica colado na borda direita; ajustar `pr-3` extra e garantir que o scroll funcione visualmente (já está, mas faltam dicas visuais — adicionar `mask`/fade opcional). O essencial: tornar a barra realmente rolável e adicionar `shrink-0` em todos os botões (já tem).
+- Aceitar prop `onCollapse?: () => void` e mostrar um botão `PanelLeftClose` ao lado de "Conversas" para esconder a própria lista (atalho redundante com o botão da chat header).
 
-### 3. Reorganização visual do painel
-- Manter no topo: avatar, nome, telefone, etiqueta da etapa
-- Seção "Principal" (corresponde à aba Principal da imagem) lista os campos customizados
-- Campos fixos atuais (etapa, atendente, valor, e-mail, empresa, tags, notas) ficam acima
-- Auto-resposta IA e Atividade recente continuam abaixo
-
-## Detalhes técnicos
-
-- Sem migrations novas — schema já comporta tudo
-- Ao salvar um campo: `update leads set custom_fields = custom_fields || jsonb_build_object(key, value) where id = ...` (no client: spread + update do objeto inteiro)
-- `field_key` validado: snake_case, único, gerado automaticamente do label (editável manualmente)
-- Componentes Shadcn existentes: Input, Select, Switch, Popover+Calendar, Textarea
-- Adicionar link no AppShell para a nova página de configuração
-- Tipagem auxiliar em `src/types/crm.ts` para `CustomFieldDef`
+## Resultado
+- Usuário pode esconder a lista (esquerda) e/ou o perfil (direita) independentemente, expandindo o chat.
+- Filtros longos rolam horizontalmente sem cortar conteúdo importante.
+- Ainda mantém os campos personalizados que adicionamos antes.
 
 ## Fora de escopo
-
-- Filtros de pipeline/inbox por campo customizado (futuro)
-- Validações por regex/required (futuro)
-- Importação em massa (futuro)
+- Reestruturar a lista em abas dentro do perfil (Principal / Mensagem Pro / Mídia / Estatísticas) como na imagem de referência — pode ser uma fase futura.
