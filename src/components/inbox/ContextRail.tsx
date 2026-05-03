@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
