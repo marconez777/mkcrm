@@ -258,6 +258,7 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
           )}
         </div>
 
+        {events.length > 0 && (
           <div>
             <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Atividade recente</div>
             <ul className="space-y-1.5 text-xs">
