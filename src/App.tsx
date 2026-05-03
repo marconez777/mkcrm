@@ -33,6 +33,8 @@ const App = () => (
             <Route path="/inbox/:leadId" element={<Inbox />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/automations" element={<Automations />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/metrics" element={<Metrics />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
