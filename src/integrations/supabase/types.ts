@@ -111,6 +111,7 @@ export type Database = {
           tags: string[]
           unread_count: number
           updated_at: string
+          whatsapp_instance_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -133,6 +134,7 @@ export type Database = {
           tags?: string[]
           unread_count?: number
           updated_at?: string
+          whatsapp_instance_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -155,6 +157,7 @@ export type Database = {
           tags?: string[]
           unread_count?: number
           updated_at?: string
+          whatsapp_instance_id?: string | null
         }
         Relationships: [
           {
@@ -169,6 +172,13 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -367,6 +377,60 @@ export type Database = {
           processed_at?: string | null
           received_at?: string
           source?: string
+        }
+        Relationships: []
+      }
+      whatsapp_instances: {
+        Row: {
+          connection_state: string | null
+          created_at: string
+          evolution_api_key: string
+          evolution_instance: string
+          evolution_url: string
+          id: string
+          is_default: boolean
+          last_health_check: string | null
+          last_poll_at: string | null
+          name: string
+          updated_at: string
+          webhook_last_error: string | null
+          webhook_last_set_at: string | null
+          webhook_ok: boolean | null
+          webhook_token: string
+        }
+        Insert: {
+          connection_state?: string | null
+          created_at?: string
+          evolution_api_key: string
+          evolution_instance: string
+          evolution_url: string
+          id?: string
+          is_default?: boolean
+          last_health_check?: string | null
+          last_poll_at?: string | null
+          name: string
+          updated_at?: string
+          webhook_last_error?: string | null
+          webhook_last_set_at?: string | null
+          webhook_ok?: boolean | null
+          webhook_token?: string
+        }
+        Update: {
+          connection_state?: string | null
+          created_at?: string
+          evolution_api_key?: string
+          evolution_instance?: string
+          evolution_url?: string
+          id?: string
+          is_default?: boolean
+          last_health_check?: string | null
+          last_poll_at?: string | null
+          name?: string
+          updated_at?: string
+          webhook_last_error?: string | null
+          webhook_last_set_at?: string | null
+          webhook_ok?: boolean | null
+          webhook_token?: string
         }
         Relationships: []
       }
