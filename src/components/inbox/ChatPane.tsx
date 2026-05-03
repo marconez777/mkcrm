@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
-  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon,
+  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History,
 } from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
@@ -103,6 +103,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
@@ -296,6 +297,21 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     if (error) toast.error("Falha: " + error.message);
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
+  async function backfillFull() {
+    if (backfilling) return;
+    setBackfilling(true);
+    toast.info("Importando histórico completo… isso pode levar alguns minutos.");
+    const { data, error } = await supabase.functions.invoke("evolution-sync-lead", {
+      body: { lead_id: lead.id, full: true, silent: true },
+    });
+    setBackfilling(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message || (data as any)?.error));
+    } else {
+      const d = data as any;
+      toast.success(`Histórico importado: ${d?.imported ?? 0} novas (${d?.total ?? 0} verificadas em ${d?.pages ?? 0} páginas)`);
+    }
+  }
   async function suggest() {
     setLoadingSuggest(true);
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "suggest" } });
@@ -390,7 +406,10 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             {loadingSuggest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             Sugerir
           </Button>
-          <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
+          <Button variant="ghost" size="icon" onClick={backfillFull} disabled={backfilling} title="Importar histórico completo do WhatsApp">
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar últimas mensagens">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
