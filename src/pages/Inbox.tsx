@@ -135,6 +135,7 @@ export default function InboxPage() {
           tagFilter={tagFilter}
           setTagFilter={setTagFilter}
           onNew={() => setNewOpen(true)}
+          loaded={leadsLoaded}
         />
       </aside>
 
