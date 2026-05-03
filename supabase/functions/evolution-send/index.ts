@@ -4,14 +4,13 @@ import { corsHeaders, json, sb, loadSettings, evoFetch } from "../_shared/evolut
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [0, 2000, 5000];
 
-async function attemptSend(settings: any, phone: string, text: string) {
+async function attemptSend(settings: any, phone: string, text: string, quotedId?: string | null) {
+  const body: any = { number: phone, text };
+  if (quotedId) body.quoted = { key: { id: quotedId } };
   return await evoFetch(
     settings,
     `/message/sendText/${encodeURIComponent(settings.evolution_instance)}`,
-    {
-      method: "POST",
-      body: JSON.stringify({ number: phone, text }),
-    },
+    { method: "POST", body: JSON.stringify(body) },
   );
 }
 
@@ -20,7 +19,7 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { lead_id, text, client_message_id } = await req.json();
+    const { lead_id, text, client_message_id, quoted_external_id } = await req.json();
     if (!lead_id || !text?.trim()) {
       return json({ error: "lead_id and text required" }, 400);
     }
@@ -63,6 +62,7 @@ Deno.serve(async (req) => {
           content: text,
           status: "pending",
           timestamp: nowIso,
+          reply_to_external_id: quoted_external_id ?? null,
         },
         { onConflict: "client_message_id" },
       )
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       if (BACKOFF_MS[attempt]) await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
       try {
-        const resp = await attemptSend(settings, lead.phone, text);
+        const resp = await attemptSend(settings, lead.phone, text, quoted_external_id);
         const data = await resp.json().catch(() => ({}));
         if (resp.ok) {
           result = data;

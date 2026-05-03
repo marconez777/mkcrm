@@ -100,6 +100,12 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
   const fromMe = !!item?.key?.fromMe;
   const externalId: string | null = item?.key?.id ?? null;
   const { type, content } = extractText(item.message);
+  // Reply context (quoted message)
+  const ctx = item?.message?.extendedTextMessage?.contextInfo
+    ?? item?.message?.imageMessage?.contextInfo
+    ?? item?.message?.videoMessage?.contextInfo
+    ?? item?.contextInfo;
+  const replyToExternalId: string | null = ctx?.stanzaId ?? null;
   const pushName = item?.pushName ?? null;
   const ts = item?.messageTimestamp
     ? new Date(Number(item.messageTimestamp) * 1000).toISOString()
@@ -167,6 +173,7 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
         content,
         timestamp: ts,
         raw: item,
+        reply_to_external_id: replyToExternalId,
         status: item?.status ? String(item.status).toLowerCase() : (fromMe ? "sent" : "received"),
       },
       { onConflict: "lead_id,external_id", ignoreDuplicates: false },
