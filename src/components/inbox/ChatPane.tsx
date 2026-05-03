@@ -103,6 +103,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
