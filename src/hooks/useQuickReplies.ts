@@ -24,7 +24,7 @@ export function applyVariables(template: string, ctx: { name?: string | null; ph
   const name = ctx.name || ctx.phone || "";
   const first = name.split(" ")[0] || "";
   return template
-    .replaceAll("{{nome}}", name)
-    .replaceAll("{{primeiro_nome}}", first)
-    .replaceAll("{{telefone}}", ctx.phone || "");
+    .split("{{nome}}").join(name)
+    .split("{{primeiro_nome}}").join(first)
+    .split("{{telefone}}").join(ctx.phone || "");
 }
