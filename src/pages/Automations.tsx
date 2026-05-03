@@ -294,6 +294,21 @@ export default function Automations() {
                   </select>
                 </div>
               )}
+
+              {selected.action_type === "send_template" && (
+                <div>
+                  <Label>Template</Label>
+                  <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={selected.action_config?.template_id ?? ""}
+                    onChange={(e) => updAction({ template_id: e.target.value })}>
+                    <option value="">— escolha —</option>
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}.
+                  </p>
+                </div>
+              )}
             </Card>
 
             <Card className="space-y-2 p-4">
