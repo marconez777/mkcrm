@@ -17,13 +17,6 @@ Deno.serve(async (req) => {
     const instance = await loadInstance(instanceId);
     if (!instance) return json({ error: "Nenhuma instância WhatsApp configurada" }, 400);
 
-    const { data: leads } = await supabase
-      .from("leads")
-      .select("id, phone")
-      .eq(instanceId ? "whatsapp_instance_id" : "id", instanceId ?? "id" as any) // no-op when no filter
-      .limit(limit);
-
-    // Above eq is awkward; do a safer query:
     const { data: allLeads } = instanceId
       ? await supabase.from("leads").select("id, phone").eq("whatsapp_instance_id", instanceId).limit(limit)
       : await supabase.from("leads").select("id, phone").limit(limit);
