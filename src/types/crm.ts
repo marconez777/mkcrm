@@ -1,3 +1,16 @@
+export type FieldType =
+  | "text" | "textarea" | "number" | "currency" | "date" | "datetime"
+  | "boolean" | "select" | "multiselect" | "url";
+
+export type CustomFieldDef = {
+  id: string;
+  label: string;
+  field_key: string;
+  field_type: FieldType;
+  options: string[] | null;
+  position: number;
+};
+
 export type Stage = {
   id: string;
   name: string;
