@@ -80,4 +80,6 @@ const NewConversationDialog = forwardRef<HTMLDivElement, Props>(function NewConv
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+export default NewConversationDialog;
