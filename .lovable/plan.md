@@ -1,22 +1,26 @@
-# Fase 2 — Concluída ✅
+# Fase 3 — Concluída ✅
 
 ## Backend
-- Tabelas: `ai_agents`, `ai_documents`, `ai_chunks (vector(768))`, `ai_threads`, `ai_messages`, `lead_ai_settings`, `stage_ai_defaults`.
-- RPC `match_chunks(query_embedding, agent_id, k)` para RAG por similaridade cosseno.
-- Edge functions:
-  - `ai-embed` — wrapper sobre Lovable AI Gateway (`google/text-embedding-004`).
-  - `ai-ingest-document` — chunking + embeddings em batch.
-  - `ai-chat` — RAG + contexto do lead + tool calling (`move_lead_stage`, `add_lead_note`, `set_lead_field`, `assign_attendant`), loop de até 5 turns, persistência em thread opcional.
-  - `ai-auto-reply` — disparado pelo webhook quando `isNew && !fromMe`, resolve agente por lead → estágio, monta últimas 20 msgs, chama `ai-chat`, envia via `evolution-send`.
-- Webhook: fire-and-forget de `ai-auto-reply` em mensagens novas inbound (via `EdgeRuntime.waitUntil`).
+- Tabelas: `automations` (regras: gatilho + ação + cooldown), `automation_runs` (auditoria por lead).
+- Edge function `automations-tick`:
+  - Gatilhos: `no_reply_after` (lead com última msg inbound há X horas, opcional por estágio), `stage_idle` (lead parado em estágio).
+  - Ações: `ai_followup` (chama `ai-chat` com instrução interna e envia via `evolution-send`), `move_stage`.
+  - Respeita cooldown por automação×lead, registra cada execução em `automation_runs`.
+- Cron `pg_cron` agendado para `*/5 * * * *` chamando `automations-tick`.
+- Edge function `ai-ingest-url`: baixa, faz strip de HTML e ingere texto na base de conhecimento (com chunking + embeddings).
 
 ## Frontend
-- Rota `/agents` com CRUD de agentes, base de conhecimento (ingest texto), e teste rápido in-line.
-- ContextRail do lead: bloco "Auto-resposta IA" com toggle + seleção de agente (escreve `lead_ai_settings`).
-- Item "Agentes IA" no menu lateral.
+- Página **/automations** com:
+  - Lista de automações + criar/editar/excluir + toggle ativa.
+  - Editor de gatilho (tipo + horas + estágio) e ação (agente + prompt ou estágio destino).
+  - Botão "Executar agora" (dispara `automations-tick` manualmente).
+  - Lista das últimas 20 execuções (lead, status, detalhe, timestamp).
+- Página **/agents**: novo input "Importar URL" que chama `ai-ingest-url`.
+- **ContextRail** (lead): botão "Ver histórico IA" mostra mensagens da última thread (`ai_threads` → `ai_messages`), incluindo chamadas de tool.
+- Item "Automações" no menu lateral.
 
-## Próximo (Fase 3 sugerido)
-- Cron de automações periódicas (follow-up automático).
-- UI de threads/histórico do agente por lead.
-- Upload de PDFs/URLs para a base de conhecimento (parsing).
-- RLS endurecida + Auth (quando o usuário decidir liberar acesso multiusuário).
+## Próximo (Fase 4 sugerido)
+- Ingest de PDF (parsing) e múltiplas URLs em batch.
+- Métricas de IA (custo, latência, taxa de resposta) por agente/automação.
+- Templates de mensagem com variáveis (ação `send_template`).
+- RLS endurecida + Auth (multiusuário).
