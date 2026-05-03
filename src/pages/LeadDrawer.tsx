@@ -58,13 +58,29 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   async function send() {
     if (!text.trim()) return;
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("evolution-send", { body: { lead_id: lead!.id, text } });
+    const cid = crypto.randomUUID();
+    const body = text;
+    setText("");
+    const { data, error } = await supabase.functions.invoke("evolution-send", { body: { lead_id: lead!.id, text: body, client_message_id: cid } });
     setSending(false);
     if (error || (data as any)?.error) {
       toast.error("Falha ao enviar: " + (error?.message || (data as any)?.error));
-      return;
     }
-    setText("");
+  }
+
+  async function resend(m: Message) {
+    const { error } = await supabase.functions.invoke("evolution-send", {
+      body: { lead_id: lead!.id, text: m.content ?? "", client_message_id: m.client_message_id ?? crypto.randomUUID() },
+    });
+    if (error) toast.error("Falha: " + error.message); else toast.success("Reenviando...");
+  }
+
+  async function syncHistory() {
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead!.id } });
+    setSyncing(false);
+    if (error) toast.error("Falha: " + error.message);
+    else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
 
   async function saveDetails() {
