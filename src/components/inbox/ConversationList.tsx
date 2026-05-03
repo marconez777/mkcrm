@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,12 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(sec / 86400)}d`;
 }
 
-function MsgTypeIcon({ type }: { type?: string | null }) {
-  if (type === "image" || type === "video") return <Image className="h-3 w-3 opacity-60" />;
-  if (type === "audio") return <Mic className="h-3 w-3 opacity-60" />;
-  if (type === "document") return <FileText className="h-3 w-3 opacity-60" />;
+const MsgTypeIcon = forwardRef<SVGSVGElement, { type?: string | null }>(function MsgTypeIcon({ type }, ref) {
+  if (type === "image" || type === "video") return <Image ref={ref} className="h-3 w-3 opacity-60" />;
+  if (type === "audio") return <Mic ref={ref} className="h-3 w-3 opacity-60" />;
+  if (type === "document") return <FileText ref={ref} className="h-3 w-3 opacity-60" />;
   return null;
-}
+});
 
 const filters: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Todas" },
