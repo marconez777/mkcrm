@@ -38,18 +38,21 @@ export default function Automations() {
   const [selected, setSelected] = useState<Automation | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
 
   const load = async () => {
-    const [{ data: a }, { data: ag }, { data: st }] = await Promise.all([
+    const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
       supabase.from("automations").select("*").order("created_at"),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name").order("position"),
+      supabase.from("message_templates").select("id, name").order("name"),
     ]);
     setList((a ?? []) as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
+    setTemplates(tp ?? []);
   };
   useEffect(() => { load(); }, []);
 
