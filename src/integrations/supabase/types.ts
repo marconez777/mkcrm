@@ -14,6 +14,211 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agents: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          model: string
+          name: string
+          system_prompt: string
+          temperature: number
+          tools: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          model?: string
+          name: string
+          system_prompt: string
+          temperature?: number
+          tools?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          model?: string
+          name?: string
+          system_prompt?: string
+          temperature?: number
+          tools?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_chunks: {
+        Row: {
+          agent_id: string | null
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          token_count: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          chunk_index?: number
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          token_count?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_chunks_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "ai_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_documents: {
+        Row: {
+          agent_id: string | null
+          content: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          source: string | null
+          title: string
+        }
+        Insert: {
+          agent_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          title: string
+        }
+        Update: {
+          agent_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_documents_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          role: string
+          thread_id: string
+          tool_call_id: string | null
+          tool_calls: Json | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          role: string
+          thread_id: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          thread_id?: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ai_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_threads: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          id: string
+          lead_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_threads_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_threads_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendants: {
         Row: {
           color: string
@@ -34,6 +239,48 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      lead_ai_settings: {
+        Row: {
+          agent_id: string | null
+          auto_reply: boolean
+          created_at: string
+          lead_id: string
+          paused_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          created_at?: string
+          lead_id: string
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          created_at?: string
+          lead_id?: string
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ai_settings_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_settings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_custom_fields: {
         Row: {
@@ -347,6 +594,39 @@ export type Database = {
         }
         Relationships: []
       }
+      stage_ai_defaults: {
+        Row: {
+          agent_id: string | null
+          auto_reply: boolean
+          stage_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          stage_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_ai_defaults_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_ai_defaults_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           error: string | null
@@ -443,6 +723,19 @@ export type Database = {
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
         Returns: undefined
+      }
+      match_chunks: {
+        Args: {
+          match_count?: number
+          p_agent_id: string
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          similarity: number
+        }[]
       }
     }
     Enums: {

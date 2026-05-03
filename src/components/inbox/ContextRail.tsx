@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -24,6 +25,8 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   const [tagInput, setTagInput] = useState("");
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
 
   useEffect(() => {
     setForm(lead);
@@ -33,16 +36,27 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data } = await supabase
-        .from("lead_events")
-        .select("*")
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (active && data) setEvents(data as LeadEvent[]);
+      const [{ data: ev }, { data: ag }, { data: cfg }] = await Promise.all([
+        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
+        supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
+      ]);
+      if (!active) return;
+      if (ev) setEvents(ev as LeadEvent[]);
+      setAgents(ag ?? []);
+      setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
     })();
     return () => { active = false; };
   }, [lead.id]);
+
+  async function saveAiCfg(next: { agent_id: string | null; auto_reply: boolean }) {
+    setAiCfg(next);
+    await supabase.from("lead_ai_settings").upsert({
+      lead_id: lead.id,
+      agent_id: next.agent_id,
+      auto_reply: next.auto_reply,
+    }, { onConflict: "lead_id" });
+  }
 
   async function patch(p: Partial<Lead>) {
     setForm((f) => ({ ...f, ...p }));
@@ -215,6 +229,33 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
               className="text-sm"
             />
           </div>
+        </div>
+
+        <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <Bot className="h-3 w-3" /> Auto-resposta IA
+            </Label>
+            <Switch
+              checked={aiCfg.auto_reply}
+              disabled={agents.length === 0}
+              onCheckedChange={(v) => saveAiCfg({ ...aiCfg, auto_reply: v })}
+            />
+          </div>
+          {agents.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">Crie um agente em Agentes IA para ativar.</p>
+          ) : (
+            <Select
+              value={aiCfg.agent_id ?? "__none"}
+              onValueChange={(v) => saveAiCfg({ ...aiCfg, agent_id: v === "__none" ? null : v })}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Agente" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Sem agente</SelectItem>
+                {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {events.length > 0 && (
