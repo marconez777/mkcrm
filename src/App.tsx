@@ -4,6 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppShell from "./components/AppShell";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./hooks/useAuth";
+import Auth from "./pages/Auth";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
@@ -25,22 +28,34 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <TitleSync />
       <BrowserRouter>
-        <AppShell>
+        <AuthProvider>
+          <TitleSync />
           <Routes>
-            <Route path="/" element={<Kanban />} />
-            <Route path="/inbox" element={<Inbox />} />
-            <Route path="/inbox/:leadId" element={<Inbox />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/automations" element={<Automations />} />
-            <Route path="/templates" element={<Templates />} />
-            <Route path="/metrics" element={<Metrics />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/settings/fields" element={<SettingsCustomFields />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route
+              path="*"
+              element={
+                <ProtectedRoute>
+                  <AppShell>
+                    <Routes>
+                      <Route path="/" element={<Kanban />} />
+                      <Route path="/inbox" element={<Inbox />} />
+                      <Route path="/inbox/:leadId" element={<Inbox />} />
+                      <Route path="/agents" element={<Agents />} />
+                      <Route path="/automations" element={<Automations />} />
+                      <Route path="/templates" element={<Templates />} />
+                      <Route path="/metrics" element={<Metrics />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/settings/fields" element={<SettingsCustomFields />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </AppShell>
+                </ProtectedRoute>
+              }
+            />
           </Routes>
-        </AppShell>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

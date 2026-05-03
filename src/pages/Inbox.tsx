@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useLeads, useStages } from "@/hooks/useCrm";
+import { useStages } from "@/hooks/useCrm";
+import { useLeadsPaginated } from "@/hooks/useLeadsPaginated";
 import { useAttendants } from "@/hooks/useAttendants";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/crm";
@@ -16,7 +17,7 @@ export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
 export type SortKey = "recent" | "unread" | "oldest";
 
 export default function InboxPage() {
-  const { leads, loaded: leadsLoaded } = useLeads();
+  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore } = useLeadsPaginated();
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
@@ -145,6 +146,9 @@ export default function InboxPage() {
             setTagFilter={setTagFilter}
             onNew={() => setNewOpen(true)}
             loaded={leadsLoaded}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMore}
             onCollapse={() => setShowList(false)}
           />
         </aside>

@@ -1,4 +1,5 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,9 +46,25 @@ export default function ConversationList(props: {
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
   onNew: () => void;
   loaded?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   onCollapse?: () => void;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) onLoadMore();
+    }, { root: scrollRef.current, rootMargin: "300px 0px 0px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [onLoadMore, hasMore, leads.length]);
 
   return (
     <>
@@ -130,7 +147,7 @@ export default function ConversationList(props: {
         )}
       </header>
 
-      <div className="scrollbar-thin flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="scrollbar-thin flex-1 overflow-y-auto">
         {!loaded && (
           <div className="p-8 text-center text-xs text-muted-foreground">Carregando…</div>
         )}
@@ -225,6 +242,12 @@ export default function ConversationList(props: {
             </div>
           );
         })}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex items-center justify-center py-3 text-[11px] text-muted-foreground">
+            {loadingMore && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {loadingMore ? "Carregando…" : ""}
+          </div>
+        )}
       </div>
     </>
   );
