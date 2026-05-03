@@ -30,6 +30,7 @@ const TRIGGERS = [
 const ACTIONS = [
   { id: "ai_followup", label: "Follow-up via IA" },
   { id: "move_stage", label: "Mover de estágio" },
+  { id: "send_template", label: "Enviar template" },
 ];
 
 export default function Automations() {
