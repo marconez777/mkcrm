@@ -50,8 +50,8 @@ export default function SettingsCustomFields() {
       id: "",
       label: "",
       field_key: "",
-      field_type: "text",
-      options: null,
+      field_type: "select",
+      options: [],
       position: items.length,
     } as any);
     setOpen(true);
