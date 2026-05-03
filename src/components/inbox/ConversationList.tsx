@@ -74,17 +74,6 @@ export default function ConversationList(props: {
             </Button>
           )}
         </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" title="Ordenar"><ArrowDownUp className="h-4 w-4" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => props.setSort("recent")}>Mais recentes</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => props.setSort("unread")}>Não lidas primeiro</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => props.setSort("oldest")}>Mais antigas</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input id="inbox-search" placeholder="Buscar (nome, telefone, mensagem)" value={props.q} onChange={(e) => props.setQ(e.target.value)} className="h-9 pl-8" />
