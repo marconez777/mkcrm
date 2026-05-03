@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Stage, Lead } from "@/types/crm";
+
+// Only these fields trigger a re-render in the UI; ignore updated_at and noisy internals
+const LEAD_RENDER_KEYS = [
+  "name", "phone", "last_message_at", "last_message_preview", "unread_count",
+  "stage_id", "attendant_id", "tags", "archived_at", "position", "deal_value",
+  "avatar_url", "email", "company", "notes",
+] as const;
+const STAGE_RENDER_KEYS = ["name", "color", "position"] as const;
 
 /**
  * Generic incremental realtime list hook.
@@ -10,6 +18,7 @@ import type { Stage, Lead } from "@/types/crm";
 function useRealtimeList<T extends { id: string }>(
   table: "pipeline_stages" | "leads",
   orderBy: keyof T & string,
+  renderKeys: readonly string[],
 ) {
   const [items, setItems] = useState<T[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -46,8 +55,11 @@ function useRealtimeList<T extends { id: string }>(
           if (idx === -1) return [...prev, row].sort(sortFn);
           const cur = prev[idx] as any;
           let changed = false;
-          for (const k in row) {
-            if ((row as any)[k] !== cur[k]) { changed = true; break; }
+          for (const k of renderKeys) {
+            const a = (row as any)[k], b = cur[k];
+            if (Array.isArray(a) && Array.isArray(b)) {
+              if (a.length !== b.length || a.some((v, i) => v !== b[i])) { changed = true; break; }
+            } else if (a !== b) { changed = true; break; }
           }
           if (!changed) return prev;
           const copy = prev.slice();
@@ -70,11 +82,11 @@ function useRealtimeList<T extends { id: string }>(
 }
 
 export function useStages() {
-  const { items, setItems, loaded } = useRealtimeList<Stage>("pipeline_stages", "position");
+  const { items, setItems, loaded } = useRealtimeList<Stage>("pipeline_stages", "position", STAGE_RENDER_KEYS);
   return { stages: items, setStages: setItems, loaded };
 }
 
 export function useLeads() {
-  const { items, setItems, loaded } = useRealtimeList<Lead>("leads", "position");
+  const { items, setItems, loaded } = useRealtimeList<Lead>("leads", "position", LEAD_RENDER_KEYS);
   return { leads: items, setLeads: setItems, loaded };
 }
