@@ -1,7 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3 } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const items = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
@@ -15,6 +17,7 @@ const items = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
+  const { user } = useAuth();
 
   const dotColor =
     overall === "ok"
@@ -68,13 +71,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <NavLink
           to="/settings"
-          className="mx-3 mb-3 flex items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
+          className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
           title={health?.webhook_last_error ?? label}
         >
           <span className={cn("h-2 w-2 rounded-full", dotColor)} />
           <Activity className="h-3 w-3" />
           <span className="flex-1 truncate">{label}</span>
         </NavLink>
+        {user && (
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="mx-3 mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
+            title={user.email ?? "Sair"}
+          >
+            <LogOut className="h-3 w-3" />
+            <span className="flex-1 truncate text-left">{user.email}</span>
+          </button>
+        )}
       </aside>
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>
