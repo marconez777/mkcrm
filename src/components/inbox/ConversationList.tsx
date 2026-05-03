@@ -93,13 +93,13 @@ export default function ConversationList(props: {
           ))}
         </div>
         {(stages.length > 0 || allTags.length > 0) && (
-          <div className="-mx-3 flex items-center gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
+          <div className="flex flex-wrap items-center gap-1 pb-1">
             <Filter className="h-3 w-3 shrink-0 text-muted-foreground" />
             <button
               onClick={() => props.setStageFilter(null)}
               className={cn(
-                "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                !props.stageFilter ? "border-primary text-primary" : "text-muted-foreground hover:bg-muted",
+                "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                !props.stageFilter ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
               )}
             >Todas etapas</button>
             {stages.map((s) => (
@@ -107,8 +107,8 @@ export default function ConversationList(props: {
                 key={s.id}
                 onClick={() => props.setStageFilter(props.stageFilter === s.id ? null : s.id)}
                 className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                  props.stageFilter === s.id ? "border-primary text-primary" : "text-muted-foreground hover:bg-muted",
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  props.stageFilter === s.id ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
                 )}
               >
                 <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: s.color }} />
@@ -120,8 +120,8 @@ export default function ConversationList(props: {
                 key={t}
                 onClick={() => props.setTagFilter(props.tagFilter === t ? null : t)}
                 className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                  props.tagFilter === t ? "border-primary text-primary" : "text-muted-foreground hover:bg-muted",
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  props.tagFilter === t ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
                 )}
               >#{t}</button>
             ))}
