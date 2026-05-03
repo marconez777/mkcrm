@@ -46,6 +46,27 @@ export default function Agents() {
   const [testInput, setTestInput] = useState("");
   const [testOutput, setTestOutput] = useState("");
   const [testing, setTesting] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [ingestingUrl, setIngestingUrl] = useState(false);
+
+  const ingestUrl = async () => {
+    if (!selected || !urlInput.trim()) return;
+    setIngestingUrl(true);
+    const { data, error } = await supabase.functions.invoke("ai-ingest-url", {
+      body: { agent_id: selected.id, url: urlInput.trim() },
+    });
+    setIngestingUrl(false);
+    if (error || (data as any)?.error) {
+      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      return;
+    }
+    toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
+    setUrlInput("");
+    const { data: docs } = await supabase
+      .from("ai_documents").select("id, title, source, created_at")
+      .eq("agent_id", selected.id).order("created_at", { ascending: false });
+    setDocs(docs ?? []);
+  };
 
   const load = async () => {
     const { data } = await supabase.from("ai_agents").select("*").order("created_at");
