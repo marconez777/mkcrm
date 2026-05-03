@@ -10,24 +10,31 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2 } from "lucide-react";
 
+type Provider = "openai" | "anthropic" | "google";
 type Agent = {
   id: string;
   name: string;
   description: string | null;
   system_prompt: string;
+  provider: Provider;
+  api_key: string | null;
+  base_url: string | null;
   model: string;
   temperature: number;
   enabled: boolean;
   tools: string[];
+  embedding_model: string | null;
+  embedding_api_key: string | null;
 };
 
-const MODELS = [
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-pro",
-  "openai/gpt-5-mini",
-  "openai/gpt-5",
-];
+const PROVIDER_MODELS: Record<Provider, string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
+  anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+  google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+};
+const PROVIDER_LABEL: Record<Provider, string> = {
+  openai: "OpenAI", anthropic: "Anthropic", google: "Google AI",
+};
 
 const TOOLS = [
   { id: "move_lead_stage", label: "Mover lead de estágio" },
@@ -151,10 +158,15 @@ export default function Agents() {
         name: selected.name,
         description: selected.description,
         system_prompt: selected.system_prompt,
+        provider: selected.provider,
+        api_key: selected.api_key,
+        base_url: selected.base_url,
         model: selected.model,
         temperature: selected.temperature,
         enabled: selected.enabled,
         tools: selected.tools,
+        embedding_model: selected.embedding_model,
+        embedding_api_key: selected.embedding_api_key,
       })
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
@@ -296,14 +308,52 @@ export default function Agents() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Modelo</Label>
+                  <Label>Provedor</Label>
                   <select
                     className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={selected.provider}
+                    onChange={(e) => {
+                      const p = e.target.value as Provider;
+                      setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] });
+                    }}
+                  >
+                    {(Object.keys(PROVIDER_MODELS) as Provider[]).map((p) => (
+                      <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Modelo</Label>
+                  <Input
+                    list={`models-${selected.provider}`}
                     value={selected.model}
                     onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                  >
-                    {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                  />
+                  <datalist id={`models-${selected.provider}`}>
+                    {PROVIDER_MODELS[selected.provider].map((m) => <option key={m} value={m} />)}
+                  </datalist>
+                </div>
+              </div>
+              <div>
+                <Label>API Key</Label>
+                <Input
+                  type="password"
+                  placeholder={selected.provider === "openai" ? "sk-..." : selected.provider === "anthropic" ? "sk-ant-..." : "AIza..."}
+                  value={selected.api_key ?? ""}
+                  onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Armazenada no banco. Usada para chat e (quando suportado) embeddings.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Base URL (opcional)</Label>
+                  <Input
+                    placeholder={selected.provider === "openai" ? "https://api.openai.com/v1" : ""}
+                    value={selected.base_url ?? ""}
+                    onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
+                  />
                 </div>
                 <div>
                   <Label>Temperatura</Label>
@@ -314,6 +364,22 @@ export default function Agents() {
                   />
                 </div>
               </div>
+              {selected.provider === "anthropic" && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                  <Label className="text-xs">Embeddings (Anthropic não fornece — use OpenAI)</Label>
+                  <Input
+                    type="password"
+                    placeholder="OpenAI key para embeddings (sk-...)"
+                    value={selected.embedding_api_key ?? ""}
+                    onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
+                  />
+                  <Input
+                    placeholder="text-embedding-3-small"
+                    value={selected.embedding_model ?? ""}
+                    onChange={(e) => setSelected({ ...selected, embedding_model: e.target.value })}
+                  />
+                </div>
+              )}
               <div>
                 <Label>Ferramentas habilitadas</Label>
                 <div className="mt-2 space-y-2">
