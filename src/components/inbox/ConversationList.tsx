@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle, PanelLeftClose } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -44,6 +44,7 @@ export default function ConversationList(props: {
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
   onNew: () => void;
   loaded?: boolean;
+  onCollapse?: () => void;
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true } = props;
 
@@ -67,6 +68,11 @@ export default function ConversationList(props: {
               <DropdownMenuItem onClick={() => props.setSort("oldest")}>Mais antigas</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {props.onCollapse && (
+            <Button size="icon" variant="ghost" onClick={props.onCollapse} title="Ocultar lista" className="hidden lg:inline-flex">
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

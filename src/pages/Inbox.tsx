@@ -9,7 +9,7 @@ import ChatPane from "@/components/inbox/ChatPane";
 import ContextRail from "@/components/inbox/ContextRail";
 import NewConversationDialog from "@/components/inbox/NewConversationDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { playPing } from "@/hooks/useUnreadTitle";
 
 export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
@@ -27,6 +27,7 @@ export default function InboxPage() {
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(true);
+  const [showList, setShowList] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
   const lastSeenRef = useRef<string | null>(null);
   const openLeadRef = useRef<string | undefined>(leadId);
@@ -114,39 +115,53 @@ export default function InboxPage() {
   return (
     <div className="flex h-full w-full overflow-hidden">
       {/* List */}
-      <aside
-        className={`flex w-full shrink-0 flex-col border-r bg-card lg:w-80 ${selected ? "hidden lg:flex" : "flex"}`}
-      >
-        <ConversationList
-          leads={filtered}
-          stages={stages}
-          attendants={attendants}
-          allTags={allTags}
-          selectedId={selected?.id ?? null}
-          onSelect={(l) => nav(`/inbox/${l.id}`)}
-          q={q}
-          setQ={setQ}
-          filter={filter}
-          setFilter={setFilter}
-          sort={sort}
-          setSort={setSort}
-          stageFilter={stageFilter}
-          setStageFilter={setStageFilter}
-          tagFilter={tagFilter}
-          setTagFilter={setTagFilter}
-          onNew={() => setNewOpen(true)}
-          loaded={leadsLoaded}
-        />
-      </aside>
+      {showList && (
+        <aside
+          className={`flex w-full shrink-0 flex-col border-r bg-card lg:w-80 ${selected ? "hidden lg:flex" : "flex"}`}
+        >
+          <ConversationList
+            leads={filtered}
+            stages={stages}
+            attendants={attendants}
+            allTags={allTags}
+            selectedId={selected?.id ?? null}
+            onSelect={(l) => nav(`/inbox/${l.id}`)}
+            q={q}
+            setQ={setQ}
+            filter={filter}
+            setFilter={setFilter}
+            sort={sort}
+            setSort={setSort}
+            stageFilter={stageFilter}
+            setStageFilter={setStageFilter}
+            tagFilter={tagFilter}
+            setTagFilter={setTagFilter}
+            onNew={() => setNewOpen(true)}
+            loaded={leadsLoaded}
+            onCollapse={() => setShowList(false)}
+          />
+        </aside>
+      )}
 
       {/* Chat */}
       <section className={`flex min-w-0 flex-1 flex-col ${!selected ? "hidden lg:flex" : "flex"}`}>
         {selected ? (
           <>
             <div className="flex items-center justify-between border-b bg-card px-3 py-2">
-              <Button variant="ghost" size="sm" onClick={() => nav("/inbox")} className="lg:hidden">
-                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => nav("/inbox")} className="lg:hidden">
+                  <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowList((v) => !v)}
+                  title={showList ? "Ocultar lista" : "Mostrar lista"}
+                  className="hidden lg:inline-flex"
+                >
+                  {showList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+                </Button>
+              </div>
               <div className="flex-1" />
               <Button
                 variant="ghost"
@@ -180,7 +195,7 @@ export default function InboxPage() {
       {/* Context */}
       {selected && showContext && (
         <aside className="hidden w-80 shrink-0 flex-col border-l bg-card lg:flex">
-          <ContextRail lead={selected} stages={stages} attendants={attendants} />
+          <ContextRail lead={selected} stages={stages} attendants={attendants} onClose={() => setShowContext(false)} />
         </aside>
       )}
 

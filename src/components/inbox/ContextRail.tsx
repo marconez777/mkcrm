@@ -20,7 +20,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-export default function ContextRail({ lead, stages, attendants }: { lead: Lead; stages: Stage[]; attendants: Attendant[] }) {
+export default function ContextRail({ lead, stages, attendants, onClose }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void }) {
   const nav = useNavigate();
   const [form, setForm] = useState<Partial<Lead>>(lead);
   const [tagInput, setTagInput] = useState("");
@@ -106,6 +106,14 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-3 py-2">
+        <div className="text-xs font-semibold text-muted-foreground">Perfil</div>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} title="Fechar perfil" className="h-7 w-7">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
       <div className="space-y-4 p-4">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
