@@ -1,16 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
-import { Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw, Reply, X, ChevronDown, Sparkles } from "lucide-react";
+import {
+  Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
+  Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon,
+} from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 50;
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
-
 function dateLabel(d: Date) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const x = new Date(d); x.setHours(0, 0, 0, 0);
@@ -18,6 +25,9 @@ function dateLabel(d: Date) {
   if (diff === 0) return "Hoje";
   if (diff === 1) return "Ontem";
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: diff > 300 ? "numeric" : undefined });
+}
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function StatusTicks({ m }: { m: Message }) {
@@ -30,7 +40,6 @@ function StatusTicks({ m }: { m: Message }) {
   return <Check className="h-3 w-3 opacity-60" />;
 }
 
-// Fields that actually affect rendering — ignore noisy ones like `raw`
 const MERGE_KEYS = [
   "content", "status", "delivery_status", "reply_to_external_id",
   "timestamp", "message_type", "from_me",
@@ -49,7 +58,7 @@ function mergeMessage(prev: Message[], row: Message): Message[] {
     return arr;
   }
   const cur = prev[idx] as any;
-  let changed = cur.id !== row.id; // optimistic → real upgrade
+  let changed = cur.id !== row.id;
   if (!changed) {
     for (const k of MERGE_KEYS) {
       if ((row as any)[k] !== cur[k]) { changed = true; break; }
@@ -61,9 +70,38 @@ function mergeMessage(prev: Message[], row: Message): Message[] {
   return copy;
 }
 
+// Highlight matched substrings with <mark>; first match in current message gets active style.
+function highlight(text: string, term: string, isActive: boolean) {
+  if (!term) return text;
+  const lower = text.toLowerCase();
+  const t = term.toLowerCase();
+  const out: any[] = [];
+  let i = 0;
+  let first = true;
+  while (i < text.length) {
+    const idx = lower.indexOf(t, i);
+    if (idx === -1) { out.push(text.slice(i)); break; }
+    if (idx > i) out.push(text.slice(i, idx));
+    out.push(
+      <mark
+        key={idx}
+        className={cn(
+          "rounded px-0.5",
+          isActive && first ? "bg-amber-400 text-black" : "bg-amber-200/70 text-black",
+        )}
+      >{text.slice(idx, idx + t.length)}</mark>,
+    );
+    first = false;
+    i = idx + t.length;
+  }
+  return out;
+}
+
 export default function ChatPane({ lead }: { lead: Lead }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -71,17 +109,24 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [composerSeed, setComposerSeed] = useState<{ text: string; n: number } | null>(null);
+
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeMatch, setActiveMatch] = useState(0);
+  const [pulseId, setPulseId] = useState<string | null>(null);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
-  const leadIdRef = useRef(lead.id);
-  leadIdRef.current = lead.id;
+  const topSentinelRef = useRef<HTMLDivElement>(null);
 
-  // Load history once + subscribe with incremental patches
+  // Load most recent page
   useEffect(() => {
     let active = true;
     setLoaded(false);
     setMessages([]);
     setSuggestions([]);
+    setHasMore(true);
     firstScrollRef.current = true;
 
     (async () => {
@@ -89,40 +134,73 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         .from("messages")
         .select("*")
         .eq("lead_id", lead.id)
-        .order("timestamp");
+        .order("timestamp", { ascending: false })
+        .limit(PAGE_SIZE);
       if (!active) return;
-      setMessages((data ?? []) as Message[]);
+      const arr = ((data ?? []) as Message[]).slice().reverse();
+      setMessages(arr);
+      setHasMore((data?.length ?? 0) === PAGE_SIZE);
       setLoaded(true);
-      // Idempotent unread reset — only write when needed (avoids realtime ping-pong)
       if ((lead.unread_count ?? 0) > 0) {
         supabase.from("leads").update({ unread_count: 0 }).eq("id", lead.id).then(() => {});
       }
     })();
 
-    // No auto-sync: webhook keeps the chat live. User can press refresh in the header.
-
     const ch = supabase
       .channel(`msg-${lead.id}-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
+      .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
-        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)),
-      )
-      .on(
-        "postgres_changes",
+        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)))
+      .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
-        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)),
-      )
-      .on(
-        "postgres_changes",
+        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)))
+      .on("postgres_changes",
         { event: "DELETE", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
-        (p) => setMessages((prev) => prev.filter((m) => m.id !== (p.old as any).id)),
-      )
+        (p) => setMessages((prev) => prev.filter((m) => m.id !== (p.old as any).id)))
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, [lead.id]);
 
-  // Auto-scroll: instant on first paint, smooth afterwards. Only after `loaded`.
+  // Load older page when sentinel hits top
+  const loadOlder = useCallback(async () => {
+    if (loadingMore || !hasMore || messages.length === 0) return;
+    setLoadingMore(true);
+    const oldest = messages[0].timestamp;
+    const el = scrollerRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const prevTop = el?.scrollTop ?? 0;
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("lead_id", lead.id)
+      .lt("timestamp", oldest)
+      .order("timestamp", { ascending: false })
+      .limit(PAGE_SIZE);
+    const older = ((data ?? []) as Message[]).slice().reverse();
+    if (older.length > 0) {
+      setMessages((prev) => [...older, ...prev]);
+      // Preserve scroll position after prepend
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.scrollTop = el.scrollHeight - prevHeight + prevTop;
+      });
+    }
+    setHasMore((data?.length ?? 0) === PAGE_SIZE);
+    setLoadingMore(false);
+  }, [lead.id, loadingMore, hasMore, messages]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) loadOlder();
+    }, { root: scrollerRef.current, rootMargin: "200px 0px 0px 0px" });
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [loaded, loadOlder]);
+
+  // Auto-scroll on new messages
   useEffect(() => {
     if (!loaded) return;
     const el = scrollerRef.current;
@@ -155,6 +233,45 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     setNewCount(0);
   }
 
+  function pulseAndScroll(messageId: string) {
+    const node = document.querySelector<HTMLElement>(`[data-msg-id="${messageId}"]`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPulseId(messageId);
+    setTimeout(() => setPulseId((p) => (p === messageId ? null : p)), 1600);
+  }
+
+  async function jumpToDate(date: Date) {
+    const start = new Date(date); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    // If we already loaded that day, just scroll to its first message.
+    const inMem = messages.find((m) => {
+      const t = new Date(m.timestamp);
+      return t >= start && t < end;
+    });
+    if (inMem) { pulseAndScroll(inMem.id); return; }
+    // Otherwise fetch a window around it and merge.
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("lead_id", lead.id)
+      .gte("timestamp", start.toISOString())
+      .order("timestamp", { ascending: true })
+      .limit(PAGE_SIZE);
+    const fetched = (data ?? []) as Message[];
+    if (fetched.length === 0) {
+      toast.info("Nenhuma mensagem nessa data");
+      return;
+    }
+    setMessages((prev) => {
+      const map = new Map(prev.map((m) => [m.id, m]));
+      fetched.forEach((m) => map.set(m.id, m));
+      return Array.from(map.values()).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    });
+    setHasMore(true);
+    requestAnimationFrame(() => pulseAndScroll(fetched[0].id));
+  }
+
   async function sendText(text: string) {
     const cid = crypto.randomUUID();
     const quoted = replyTo?.external_id ?? null;
@@ -166,14 +283,12 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       toast.error("Falha ao enviar: " + (error?.message || (data as any)?.error));
     }
   }
-
   async function resend(m: Message) {
     const { error } = await supabase.functions.invoke("evolution-send", {
       body: { lead_id: lead.id, text: m.content ?? "", client_message_id: m.client_message_id ?? crypto.randomUUID() },
     });
     if (error) toast.error("Falha: " + error.message);
   }
-
   async function syncHistory() {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } });
@@ -181,7 +296,6 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     if (error) toast.error("Falha: " + error.message);
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
-
   async function suggest() {
     setLoadingSuggest(true);
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "suggest" } });
@@ -192,6 +306,27 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     }
     setSuggestions((data as any)?.suggestions ?? []);
   }
+
+  // Search matches
+  const matches = useMemo(() => {
+    const t = searchTerm.trim().toLowerCase();
+    if (!t) return [] as Message[];
+    return messages.filter((m) => (m.content ?? "").toLowerCase().includes(t));
+  }, [messages, searchTerm]);
+
+  useEffect(() => { setActiveMatch(0); }, [searchTerm]);
+  useEffect(() => {
+    if (matches.length === 0) return;
+    const m = matches[Math.min(activeMatch, matches.length - 1)];
+    if (m) pulseAndScroll(m.id);
+  }, [activeMatch, matches.length]);
+
+  // Days that have messages — for calendar marking
+  const daysWithMessages = useMemo(() => {
+    const s = new Set<string>();
+    messages.forEach((m) => s.add(dayKey(new Date(m.timestamp))));
+    return s;
+  }, [messages]);
 
   const grouped = useMemo(() => {
     const out: any[] = [];
@@ -228,6 +363,29 @@ export default function ChatPane({ lead }: { lead: Lead }) {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost" size="icon"
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Buscar na conversa"
+            className={cn(searchOpen && "bg-accent")}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" title="Ir para data"><CalendarIcon className="h-4 w-4" /></Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-50" align="end">
+              <Calendar
+                mode="single"
+                onSelect={(d) => d && jumpToDate(d)}
+                modifiers={{ hasMsg: (d) => daysWithMessages.has(dayKey(d)) }}
+                modifiersClassNames={{ hasMsg: "font-bold text-primary underline underline-offset-4" }}
+                disabled={(d) => d > new Date()}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="ghost" size="sm" onClick={suggest} disabled={loadingSuggest} title="Sugerir respostas (IA)" className="gap-1 text-xs">
             {loadingSuggest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             Sugerir
@@ -237,6 +395,41 @@ export default function ChatPane({ lead }: { lead: Lead }) {
           </Button>
         </div>
       </header>
+
+      {searchOpen && (
+        <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-2">
+          <Search className="h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            autoFocus
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar mensagens…"
+            className="h-7 flex-1 text-xs"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (matches.length > 0) setActiveMatch((i) => (i + (e.shiftKey ? -1 : 1) + matches.length) % matches.length);
+              } else if (e.key === "Escape") {
+                setSearchOpen(false); setSearchTerm("");
+              }
+            }}
+          />
+          <span className="text-[11px] text-muted-foreground tabular-nums">
+            {matches.length === 0 ? (searchTerm ? "0" : "") : `${activeMatch + 1}/${matches.length}`}
+          </span>
+          <Button variant="ghost" size="icon" className="h-6 w-6"
+            onClick={() => matches.length && setActiveMatch((i) => (i - 1 + matches.length) % matches.length)}>
+            <ChevronUp className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6"
+            onClick={() => matches.length && setActiveMatch((i) => (i + 1) % matches.length)}>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSearchOpen(false); setSearchTerm(""); }}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
 
       <div
         ref={scrollerRef}
@@ -249,15 +442,29 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
           </div>
         )}
+
+        <div ref={topSentinelRef} />
+        {loadingMore && (
+          <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
+          </div>
+        )}
+        {loaded && !hasMore && messages.length > 0 && (
+          <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
+        )}
+
         {loaded && messages.length === 0 && (
           <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
         )}
+
         <div className="space-y-1">
           {grouped.map((g: any) => {
             if (g.kind === "date") {
               return (
-                <div key={g.key} className="my-3 flex items-center justify-center">
-                  <span className="rounded-full bg-card px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm">{g.label}</span>
+                <div key={g.key} className="sticky top-1 z-10 my-3 flex items-center justify-center pointer-events-none">
+                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                    {g.label}
+                  </span>
                 </div>
               );
             }
@@ -267,29 +474,44 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             const replied = m.reply_to_external_id
               ? messages.find((x) => x.external_id === m.reply_to_external_id)
               : null;
+            const isMatch = searchTerm && (m.content ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+            const isActiveMatch = isMatch && matches[activeMatch]?.id === m.id;
+            const pulsing = pulseId === m.id;
             return (
-              <div key={g.key} className={cn("group flex items-end gap-1", m.from_me ? "justify-end" : "justify-start", g.grouped ? "mt-0.5" : "mt-2")}>
+              <div
+                key={g.key}
+                data-msg-id={m.id}
+                className={cn("group flex items-end gap-1", m.from_me ? "justify-end" : "justify-start", g.grouped ? "mt-0.5" : "mt-2")}
+              >
                 {!m.from_me && (
-                  <button
-                    onClick={() => setReplyTo(m)}
+                  <button onClick={() => setReplyTo(m)}
                     className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-                    title="Responder"
-                  ><Reply className="h-3 w-3" /></button>
+                    title="Responder"><Reply className="h-3 w-3" /></button>
                 )}
                 <div
                   className={cn(
-                    "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm",
+                    "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
                     failed && "ring-1 ring-destructive",
                     pending && "opacity-70",
+                    isActiveMatch && "ring-2 ring-amber-400",
+                    pulsing && "ring-2 ring-primary animate-pulse",
                   )}
                   style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
                 >
                   {replied && (
-                    <div className="mb-1 border-l-2 border-primary/60 pl-2 text-[11px] text-muted-foreground line-clamp-2">
+                    <button
+                      onClick={() => pulseAndScroll(replied.id)}
+                      className="mb-1 block w-full border-l-2 border-primary/60 pl-2 text-left text-[11px] text-muted-foreground line-clamp-2 hover:text-foreground"
+                      title="Ir para mensagem original"
+                    >
                       {replied.content || `[${replied.message_type}]`}
-                    </div>
+                    </button>
                   )}
-                  <div className="whitespace-pre-wrap break-words">{m.content || `[${m.message_type}]`}</div>
+                  <div className="whitespace-pre-wrap break-words">
+                    {searchTerm && m.content
+                      ? highlight(m.content, searchTerm, isActiveMatch)
+                      : (m.content || `[${m.message_type}]`)}
+                  </div>
                   <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
                     <span>{fmtTime(m.timestamp)}</span>
                     <StatusTicks m={m} />
@@ -301,11 +523,9 @@ export default function ChatPane({ lead }: { lead: Lead }) {
                   </div>
                 </div>
                 {m.from_me && (
-                  <button
-                    onClick={() => setReplyTo(m)}
+                  <button onClick={() => setReplyTo(m)}
                     className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-                    title="Responder"
-                  ><Reply className="h-3 w-3" /></button>
+                    title="Responder"><Reply className="h-3 w-3" /></button>
                 )}
               </div>
             );
@@ -313,10 +533,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
 
         {!stickToBottom && newCount > 0 && (
-          <button
-            onClick={jumpToBottom}
-            className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md"
-          >
+          <button onClick={jumpToBottom}
+            className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
             <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
           </button>
         )}
