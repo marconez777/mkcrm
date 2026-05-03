@@ -38,6 +38,7 @@ export type Lead = {
   created_at: string;
   updated_at: string;
   archived_at?: string | null;
+  custom_fields?: Record<string, any>;
 };
 
 export type Message = {
