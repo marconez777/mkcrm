@@ -37,66 +37,119 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const lastTs = lastLocal?.timestamp ? new Date(lastLocal.timestamp).getTime() : 0;
 
+    // Streaming NDJSON for full backfill so the UI can show live progress.
+    if (full) {
+      const stream = new ReadableStream({
+        async start(controller) {
+          const enc = new TextEncoder();
+          const send = (obj: unknown) => controller.enqueue(enc.encode(JSON.stringify(obj) + "\n"));
+
+          let imported = 0;
+          let totalSeen = 0;
+          let pages = 0;
+
+          send({ type: "start", lead_id });
+
+          try {
+            for (let page = 1; page <= MAX_PAGES; page++) {
+              const resp = await evoFetch(
+                instance,
+                `/chat/findMessages/${encodeURIComponent(instance.evolution_instance)}`,
+                { method: "POST", body: JSON.stringify({ where: { key: { remoteJid } }, page, offset: PAGE_SIZE }) },
+              );
+              if (!resp.ok) {
+                const text = await resp.text();
+                send({ type: "error", page, status: resp.status, detail: text.slice(0, 200) });
+                if (page === 1) break;
+                break;
+              }
+              const data = await resp.json().catch(() => ({}));
+              const items: any[] = Array.isArray(data)
+                ? data
+                : (data?.messages?.records ?? data?.records ?? data?.messages ?? []);
+
+              pages++;
+              totalSeen += items.length;
+
+              let pageImported = 0;
+              for (const it of items) {
+                try {
+                  const r = await ingestMessage(it, "sync", { silent: true, instanceId: instance.id });
+                  if ((r as any)?.isNew) { imported++; pageImported++; }
+                } catch (e) { console.error("backfill ingest", e); }
+              }
+
+              send({ type: "page", page: pages, items: items.length, pageImported, imported, total: totalSeen });
+
+              if (items.length < PAGE_SIZE) break;
+            }
+
+            await supabase.from("webhook_events").insert({
+              event_type: "BACKFILL_LEAD",
+              source: "sync",
+              payload: { lead_id, imported, total: totalSeen, pages, full: true },
+              processed_at: new Date().toISOString(),
+              lead_id,
+            });
+
+            send({ type: "done", imported, total: totalSeen, pages });
+          } catch (e) {
+            send({ type: "error", detail: String(e) });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/x-ndjson",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // Incremental (single page) — original behavior
     let imported = 0;
     let totalSeen = 0;
     let pages = 0;
 
-    for (let page = 1; page <= (full ? MAX_PAGES : 1); page++) {
-      const resp = await evoFetch(
-        instance,
-        `/chat/findMessages/${encodeURIComponent(instance.evolution_instance)}`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            where: { key: { remoteJid } },
-            page,
-            offset: PAGE_SIZE,
-          }),
-        },
-      );
-      if (!resp.ok) {
-        const text = await resp.text();
-        if (page === 1) {
-          return json({ error: `findMessages ${resp.status}`, detail: text.slice(0, 300) }, 502);
+    const resp = await evoFetch(
+      instance,
+      `/chat/findMessages/${encodeURIComponent(instance.evolution_instance)}`,
+      { method: "POST", body: JSON.stringify({ where: { key: { remoteJid } }, page: 1, offset: PAGE_SIZE }) },
+    );
+    if (!resp.ok) {
+      const text = await resp.text();
+      return json({ error: `findMessages ${resp.status}`, detail: text.slice(0, 300) }, 502);
+    }
+    const data = await resp.json().catch(() => ({}));
+    const items: any[] = Array.isArray(data)
+      ? data
+      : (data?.messages?.records ?? data?.records ?? data?.messages ?? []);
+    pages = 1;
+    totalSeen = items.length;
+    for (const it of items) {
+      try {
+        if (lastTs) {
+          const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
+          if (itTs && itTs <= lastTs) continue;
         }
-        break; // partial success on later pages
-      }
-      const data = await resp.json().catch(() => ({}));
-      const items: any[] = Array.isArray(data)
-        ? data
-        : (data?.messages?.records ?? data?.records ?? data?.messages ?? []);
-
-      pages++;
-      totalSeen += items.length;
-      if (items.length === 0) break;
-
-      for (const it of items) {
-        try {
-          // In incremental mode, skip anything older-or-equal to local newest
-          if (!full && lastTs) {
-            const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
-            if (itTs && itTs <= lastTs) continue;
-          }
-          const r = await ingestMessage(it, "sync", { silent: full || silent, instanceId: instance.id });
-          if ((r as any)?.isNew) imported++;
-        } catch (e) {
-          console.error("sync ingest", e);
-        }
-      }
-
-      if (items.length < PAGE_SIZE) break; // last page
-      if (!full) break; // single page in incremental
+        const r = await ingestMessage(it, "sync", { silent, instanceId: instance.id });
+        if ((r as any)?.isNew) imported++;
+      } catch (e) { console.error("sync ingest", e); }
     }
 
     await supabase.from("webhook_events").insert({
-      event_type: full ? "BACKFILL_LEAD" : "SYNC_LEAD",
+      event_type: "SYNC_LEAD",
       source: "sync",
-      payload: { lead_id, imported, total: totalSeen, pages, full },
+      payload: { lead_id, imported, total: totalSeen, pages, full: false },
       processed_at: new Date().toISOString(),
       lead_id,
     });
 
-    return json({ ok: true, imported, total: totalSeen, pages, full });
+    return json({ ok: true, imported, total: totalSeen, pages, full: false });
   } catch (err) {
     console.error("sync-lead error", err);
     return json({ error: String(err) }, 500);
