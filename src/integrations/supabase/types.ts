@@ -14,7 +14,245 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendants: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      lead_custom_fields: {
+        Row: {
+          created_at: string
+          field_key: string
+          field_type: string
+          id: string
+          label: string
+          options: Json | null
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          field_key: string
+          field_type?: string
+          id?: string
+          label: string
+          options?: Json | null
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          field_key?: string
+          field_type?: string
+          id?: string
+          label?: string
+          options?: Json | null
+          position?: number
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          attendant_id: string | null
+          avatar_url: string | null
+          company: string | null
+          created_at: string
+          custom_fields: Json
+          deal_value: number | null
+          email: string | null
+          id: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          name: string | null
+          notes: string | null
+          phone: string
+          position: number
+          stage_changed_at: string
+          stage_id: string | null
+          tags: string[]
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          attendant_id?: string | null
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          custom_fields?: Json
+          deal_value?: number | null
+          email?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          name?: string | null
+          notes?: string | null
+          phone: string
+          position?: number
+          stage_changed_at?: string
+          stage_id?: string | null
+          tags?: string[]
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          attendant_id?: string | null
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          custom_fields?: Json
+          deal_value?: number | null
+          email?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string
+          position?: number
+          stage_changed_at?: string
+          stage_id?: string | null
+          tags?: string[]
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_attendant_id_fkey"
+            columns: ["attendant_id"]
+            isOneToOne: false
+            referencedRelation: "attendants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          external_id: string | null
+          from_me: boolean
+          id: string
+          lead_id: string
+          media_mime: string | null
+          media_url: string | null
+          message_type: string
+          raw: Json | null
+          status: string
+          timestamp: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          external_id?: string | null
+          from_me?: boolean
+          id?: string
+          lead_id: string
+          media_mime?: string | null
+          media_url?: string | null
+          message_type?: string
+          raw?: Json | null
+          status?: string
+          timestamp?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          external_id?: string | null
+          from_me?: boolean
+          id?: string
+          lead_id?: string
+          media_mime?: string | null
+          media_url?: string | null
+          message_type?: string
+          raw?: Json | null
+          status?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_stages: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          position: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string
+          evolution_api_key: string | null
+          evolution_instance: string | null
+          evolution_url: string | null
+          id: number
+          updated_at: string
+          webhook_token: string
+        }
+        Insert: {
+          created_at?: string
+          evolution_api_key?: string | null
+          evolution_instance?: string | null
+          evolution_url?: string | null
+          id?: number
+          updated_at?: string
+          webhook_token?: string
+        }
+        Update: {
+          created_at?: string
+          evolution_api_key?: string | null
+          evolution_instance?: string | null
+          evolution_url?: string | null
+          id?: number
+          updated_at?: string
+          webhook_token?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
