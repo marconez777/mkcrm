@@ -1,18 +1,22 @@
-# Fase 1 — Concluída ✅
+# Fase 2 — Concluída ✅
 
-- Extensões habilitadas: `pg_cron`, `pg_net`, `vector`, `pgcrypto`.
-- Tabela `whatsapp_instances` criada + backfill da `settings` atual como instância default.
-- `leads.whatsapp_instance_id` adicionada e backfilled.
-- Índices: `messages(lead_id, timestamp desc)`, único parcial `(lead_id, external_id)`, único parcial `client_message_id`, `leads(archived_at, last_message_at desc)`, `leads(stage_id, position)`, `leads(whatsapp_instance_id)`, `webhook_events(received_at desc)`.
-- `_shared/evolution.ts` agora expõe `loadInstance / loadInstanceByToken / loadAllInstances`. `ingestMessage` recebe `instanceId` e seta no lead novo.
-- `evolution-webhook` resolve a instância pelo token.
-- `evolution-send` e `evolution-sync-lead` resolvem a instância via `lead.whatsapp_instance_id` (fallback default).
-- `evolution-health` itera todas as instâncias, atualizando estado em cada linha.
-- `evolution-test` aceita `instance_id` opcional.
-- Frontend: `useHealth` agrega estado de todas as instâncias; `Settings` lê/grava na instância default em `whatsapp_instances`.
-- Cron `evolution-health-every-minute` agendado via `pg_cron` + `pg_net`.
+## Backend
+- Tabelas: `ai_agents`, `ai_documents`, `ai_chunks (vector(768))`, `ai_threads`, `ai_messages`, `lead_ai_settings`, `stage_ai_defaults`.
+- RPC `match_chunks(query_embedding, agent_id, k)` para RAG por similaridade cosseno.
+- Edge functions:
+  - `ai-embed` — wrapper sobre Lovable AI Gateway (`google/text-embedding-004`).
+  - `ai-ingest-document` — chunking + embeddings em batch.
+  - `ai-chat` — RAG + contexto do lead + tool calling (`move_lead_stage`, `add_lead_note`, `set_lead_field`, `assign_attendant`), loop de até 5 turns, persistência em thread opcional.
+  - `ai-auto-reply` — disparado pelo webhook quando `isNew && !fromMe`, resolve agente por lead → estágio, monta últimas 20 msgs, chama `ai-chat`, envia via `evolution-send`.
+- Webhook: fire-and-forget de `ai-auto-reply` em mensagens novas inbound (via `EdgeRuntime.waitUntil`).
 
-## Próximo (Fase 2)
-- Tabelas de IA: `ai_agents`, `ai_threads`, `ai_messages`, `ai_documents` + `embedding vector(1536)`.
-- Edge function `ai-chat` usando Lovable AI Gateway.
-- Hook de auto-resposta opt-in por lead/stage com checagem `isNew === true`.
+## Frontend
+- Rota `/agents` com CRUD de agentes, base de conhecimento (ingest texto), e teste rápido in-line.
+- ContextRail do lead: bloco "Auto-resposta IA" com toggle + seleção de agente (escreve `lead_ai_settings`).
+- Item "Agentes IA" no menu lateral.
+
+## Próximo (Fase 3 sugerido)
+- Cron de automações periódicas (follow-up automático).
+- UI de threads/histórico do agente por lead.
+- Upload de PDFs/URLs para a base de conhecimento (parsing).
+- RLS endurecida + Auth (quando o usuário decidir liberar acesso multiusuário).
