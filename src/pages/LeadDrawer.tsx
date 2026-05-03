@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Loader2, Phone, Mail, Building2, Trash2 } from "lucide-react";
+import { Send, Loader2, Phone, Mail, Building2, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
 
@@ -25,6 +25,8 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   const [form, setForm] = useState<Partial<Lead>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  const [syncing, setSyncing] = useState(false);
+
   useEffect(() => {
     if (!lead) return;
     setForm({
@@ -36,11 +38,14 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     const load = async () => {
       const { data } = await supabase.from("messages").select("*").eq("lead_id", lead.id).order("timestamp");
       if (active && data) setMessages(data as Message[]);
-      // mark read
       await supabase.from("leads").update({ unread_count: 0 }).eq("id", lead.id);
     };
     load();
-    const ch = supabase.channel(`msg-${lead.id}`).on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` }, load).subscribe();
+    // Reconcile against Evolution in background — catches messages the webhook missed
+    supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } }).catch(() => {});
+    const ch = supabase.channel(`msg-${lead.id}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` }, load)
+      .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, [lead?.id]);
 
@@ -53,13 +58,29 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   async function send() {
     if (!text.trim()) return;
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("evolution-send", { body: { lead_id: lead!.id, text } });
+    const cid = crypto.randomUUID();
+    const body = text;
+    setText("");
+    const { data, error } = await supabase.functions.invoke("evolution-send", { body: { lead_id: lead!.id, text: body, client_message_id: cid } });
     setSending(false);
     if (error || (data as any)?.error) {
       toast.error("Falha ao enviar: " + (error?.message || (data as any)?.error));
-      return;
     }
-    setText("");
+  }
+
+  async function resend(m: Message) {
+    const { error } = await supabase.functions.invoke("evolution-send", {
+      body: { lead_id: lead!.id, text: m.content ?? "", client_message_id: m.client_message_id ?? crypto.randomUUID() },
+    });
+    if (error) toast.error("Falha: " + error.message); else toast.success("Reenviando...");
+  }
+
+  async function syncHistory() {
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead!.id } });
+    setSyncing(false);
+    if (error) toast.error("Falha: " + error.message);
+    else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
 
   async function saveDetails() {
@@ -94,7 +115,12 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
               <div className="text-xs text-muted-foreground"><Phone className="mr-1 inline h-3 w-3" />{lead.phone}</div>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={remove}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={remove}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </div>
         </header>
 
         <Tabs defaultValue="chat" className="flex flex-1 flex-col overflow-hidden">
@@ -107,17 +133,29 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             <div ref={scrollerRef} className="scrollbar-thin flex-1 overflow-y-auto px-5 py-4" style={{ background: "hsl(var(--chat-bg))" }}>
               {messages.length === 0 && <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>}
               <div className="space-y-1.5">
-                {messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.from_me ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className="max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm"
-                      style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
-                    >
-                      <div className="whitespace-pre-wrap break-words">{m.content || `[${m.message_type}]`}</div>
-                      <div className="mt-0.5 text-right text-[10px] opacity-60">{fmtTime(m.timestamp)} {m.from_me && `· ${m.status}`}</div>
+                {messages.map((m) => {
+                  const failed = m.status === "failed";
+                  const pending = m.status === "pending";
+                  return (
+                    <div key={m.id} className={`flex ${m.from_me ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm ${failed ? "ring-1 ring-destructive" : ""} ${pending ? "opacity-70" : ""}`}
+                        style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
+                      >
+                        <div className="whitespace-pre-wrap break-words">{m.content || `[${m.message_type}]`}</div>
+                        <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
+                          {failed && <AlertCircle className="h-3 w-3 text-destructive" />}
+                          <span>{fmtTime(m.timestamp)}{m.from_me && ` · ${m.status}`}</span>
+                          {failed && (
+                            <button onClick={() => resend(m)} className="ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
+                              <RotateCw className="h-3 w-3" /> reenviar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="flex items-end gap-2 border-t bg-card p-3">

@@ -5,13 +5,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Copy, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff } from "lucide-react";
+import { useHealth } from "@/hooks/useHealth";
+import { Link } from "react-router-dom";
+
+function timeAgo(iso: string | null) {
+  if (!iso) return "nunca";
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return `há ${s}s`;
+  if (s < 3600) return `há ${Math.floor(s / 60)}min`;
+  return `há ${Math.floor(s / 3600)}h`;
+}
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [healing, setHealing] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; state?: string; error?: string } | null>(null);
+  const [counts, setCounts] = useState<{ failed: number; events24h: number; pollErrors24h: number }>({
+    failed: 0,
+    events24h: 0,
+    pollErrors24h: 0,
+  });
+  const { health, overall } = useHealth();
   const [form, setForm] = useState({
     evolution_url: "",
     evolution_api_key: "",
@@ -39,6 +56,25 @@ export default function SettingsPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    const load = async () => {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const [{ count: failed }, { count: events24h }, { count: pollErrors24h }] = await Promise.all([
+        supabase.from("messages").select("id", { count: "exact", head: true }).eq("status", "failed"),
+        supabase.from("webhook_events").select("id", { count: "exact", head: true }).gte("received_at", since),
+        supabase.from("webhook_events").select("id", { count: "exact", head: true }).gte("received_at", since).not("error", "is", null),
+      ]);
+      setCounts({
+        failed: failed ?? 0,
+        events24h: events24h ?? 0,
+        pollErrors24h: pollErrors24h ?? 0,
+      });
+    };
+    load();
+    const i = setInterval(load, 30000);
+    return () => clearInterval(i);
+  }, []);
+
   async function save() {
     setSaving(true);
     const { error } = await supabase.from("settings").update({
@@ -60,7 +96,20 @@ export default function SettingsPage() {
     setTestResult(data as any);
   }
 
+  async function runHealth() {
+    setHealing(true);
+    const { data, error } = await supabase.functions.invoke("evolution-health");
+    setHealing(false);
+    if (error) toast.error("Erro: " + error.message);
+    else toast.success(`Health: ${(data as any)?.connectionState ?? "?"} | webhook ${(data as any)?.webhookOk ? "OK" : "off"}`);
+  }
+
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+
+  const dotClass =
+    overall === "ok" ? "bg-emerald-500" :
+    overall === "warn" ? "bg-amber-500" :
+    overall === "down" ? "bg-destructive" : "bg-muted-foreground";
 
   return (
     <div className="h-full overflow-auto">
@@ -69,6 +118,71 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold">Configurações</h1>
           <p className="mt-1 text-sm text-muted-foreground">Conecte sua instância da Evolution API.</p>
         </div>
+
+        {/* Painel de Saúde */}
+        <Card className="space-y-3 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <Activity className="h-4 w-4" /> Saúde da Conexão
+            </h2>
+            <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
+              {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
+              Verificar agora
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md border p-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {health?.connection_state === "open" ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                Estado
+              </div>
+              <div className="mt-1 flex items-center gap-2 font-medium">
+                <span className={`h-2 w-2 rounded-full ${dotClass}`} />
+                {health?.connection_state ?? "desconhecido"}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                último check {timeAgo(health?.last_health_check ?? null)}
+              </div>
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">Webhook</div>
+              <div className="mt-1 flex items-center gap-2 font-medium">
+                {health?.webhook_ok ? (
+                  <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Ativo</>
+                ) : (
+                  <><AlertCircle className="h-3 w-3 text-destructive" /> Inativo</>
+                )}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {health?.webhook_last_error
+                  ? <span className="text-destructive">{health.webhook_last_error.slice(0, 60)}</span>
+                  : "auto-reativa a cada 60s"}
+              </div>
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">Eventos 24h</div>
+              <div className="mt-1 text-lg font-semibold">{counts.events24h}</div>
+              {counts.pollErrors24h > 0 && (
+                <div className="mt-1 text-[11px] text-amber-600">{counts.pollErrors24h} c/ erro</div>
+              )}
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">Mensagens falhas</div>
+              <div className="mt-1 text-lg font-semibold">{counts.failed}</div>
+              {counts.failed > 0 && (
+                <Link to="/inbox" className="mt-1 block text-[11px] text-primary underline">Ver na caixa</Link>
+              )}
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            Watchdog roda a cada 60s: verifica conexão, reativa webhook se cair, e busca mensagens dos últimos 10 min via polling pra reconciliar eventos perdidos.
+          </p>
+        </Card>
 
         <Card className="space-y-4 p-6">
           <h2 className="text-base font-semibold">Evolution API</h2>
@@ -102,8 +216,8 @@ export default function SettingsPage() {
         <Card className="space-y-3 p-6">
           <h2 className="text-base font-semibold">Webhook</h2>
           <p className="text-sm text-muted-foreground">
-            Cole esta URL no painel da Evolution (Instance → Webhook) e marque os eventos:
-            <strong> MESSAGES_UPSERT</strong>, <strong>MESSAGES_UPDATE</strong>, <strong>CONTACTS_UPSERT</strong>.
+            O watchdog configura este webhook automaticamente a cada 60s. Se preferir colar manual no painel da Evolution, use a URL abaixo com os eventos:
+            <strong> MESSAGES_UPSERT</strong>, <strong>MESSAGES_UPDATE</strong>, <strong>CONTACTS_UPSERT</strong>, <strong>CONNECTION_UPDATE</strong>.
           </p>
           <div className="flex items-center gap-2">
             <Input readOnly value={webhookUrl} className="font-mono text-xs" />

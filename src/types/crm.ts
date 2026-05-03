@@ -30,11 +30,14 @@ export type Message = {
   id: string;
   lead_id: string;
   external_id: string | null;
+  client_message_id?: string | null;
   from_me: boolean;
   message_type: string;
   content: string | null;
   status: string;
   timestamp: string;
+  retry_count?: number;
+  last_error?: string | null;
 };
 
 export type Attendant = { id: string; name: string; color: string };

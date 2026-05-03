@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useHealth } from "@/hooks/useHealth";
 
 const items = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
@@ -9,6 +10,26 @@ const items = [
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { overall, health } = useHealth();
+
+  const dotColor =
+    overall === "ok"
+      ? "bg-emerald-500"
+      : overall === "warn"
+      ? "bg-amber-500"
+      : overall === "down"
+      ? "bg-destructive"
+      : "bg-muted-foreground";
+
+  const label =
+    overall === "ok"
+      ? "Conectado"
+      : overall === "warn"
+      ? "Conectando"
+      : overall === "down"
+      ? "Desconectado"
+      : "Sem dados";
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -41,9 +62,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 py-4 text-[11px] text-sidebar-foreground/40">
-          MVP · uso pessoal
-        </div>
+        <NavLink
+          to="/settings"
+          className="mx-3 mb-3 flex items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
+          title={health?.webhook_last_error ?? label}
+        >
+          <span className={cn("h-2 w-2 rounded-full", dotColor)} />
+          <Activity className="h-3 w-3" />
+          <span className="flex-1 truncate">{label}</span>
+        </NavLink>
       </aside>
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>
