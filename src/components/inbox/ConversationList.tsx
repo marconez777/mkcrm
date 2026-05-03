@@ -42,8 +42,9 @@ export default function ConversationList(props: {
   stageFilter: string | null; setStageFilter: (v: string | null) => void;
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
   onNew: () => void;
+  loaded?: boolean;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true } = props;
 
   return (
     <>
@@ -122,7 +123,10 @@ export default function ConversationList(props: {
       </header>
 
       <div className="scrollbar-thin flex-1 overflow-y-auto">
-        {leads.length === 0 && (
+        {!loaded && (
+          <div className="p-8 text-center text-xs text-muted-foreground">Carregando…</div>
+        )}
+        {loaded && leads.length === 0 && (
           <div className="p-8 text-center text-xs text-muted-foreground">Nenhuma conversa.</div>
         )}
         {leads.map((l) => {
