@@ -29,7 +29,7 @@ function useRealtimeList<T extends { id: string }>(
     (async () => {
       const { data } = await supabase.from(table).select("*").order(orderBy as string);
       if (!active) return;
-      setItems(((data ?? []) as T[]).slice().sort(sortFn));
+      setItems(((data ?? []) as unknown as T[]).slice().sort(sortFn));
       setLoaded(true);
     })();
 
