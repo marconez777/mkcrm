@@ -113,11 +113,11 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }
 
   const grouped = useMemo(() => {
-    const out: { kind: "date"; label: string; key: string }[] | any[] = [];
+    const out: any[] = [];
     let lastDate = "";
     let lastAuthor: boolean | null = null;
     let lastTs = 0;
-    messages.forEach((m, i) => {
+    messages.forEach((m) => {
       const d = new Date(m.timestamp);
       const dKey = d.toDateString();
       if (dKey !== lastDate) {
@@ -126,8 +126,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         lastAuthor = null;
       }
       const ts = d.getTime();
-      const grouped = lastAuthor === m.from_me && ts - lastTs < 2 * 60 * 1000;
-      out.push({ kind: "msg", m, grouped, key: m.id });
+      const isGrouped = lastAuthor === m.from_me && ts - lastTs < 2 * 60 * 1000;
+      out.push({ kind: "msg", m, grouped: isGrouped, key: m.id });
       lastAuthor = m.from_me;
       lastTs = ts;
     });
