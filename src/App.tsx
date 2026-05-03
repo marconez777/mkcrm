@@ -11,16 +11,22 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+import { useUnreadTitle } from "./hooks/useUnreadTitle";
+
+const TitleSync = () => { useUnreadTitle(); return null; };
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <TitleSync />
       <BrowserRouter>
         <AppShell>
           <Routes>
             <Route path="/" element={<Kanban />} />
             <Route path="/inbox" element={<Inbox />} />
+            <Route path="/inbox/:leadId" element={<Inbox />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
