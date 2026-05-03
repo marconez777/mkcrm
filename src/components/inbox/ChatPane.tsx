@@ -81,6 +81,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     let active = true;
     setLoaded(false);
     setMessages([]);
+    setSuggestions([]);
     firstScrollRef.current = true;
 
     (async () => {
@@ -179,6 +180,17 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     setSyncing(false);
     if (error) toast.error("Falha: " + error.message);
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
+  }
+
+  async function suggest() {
+    setLoadingSuggest(true);
+    const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "suggest" } });
+    setLoadingSuggest(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha IA: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    setSuggestions((data as any)?.suggestions ?? []);
   }
 
   const grouped = useMemo(() => {
