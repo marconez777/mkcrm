@@ -28,6 +28,7 @@ const App = () => (
             <Route path="/" element={<Kanban />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/inbox/:leadId" element={<Inbox />} />
+            <Route path="/agents" element={<Agents />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
