@@ -158,10 +158,15 @@ export default function Agents() {
         name: selected.name,
         description: selected.description,
         system_prompt: selected.system_prompt,
+        provider: selected.provider,
+        api_key: selected.api_key,
+        base_url: selected.base_url,
         model: selected.model,
         temperature: selected.temperature,
         enabled: selected.enabled,
         tools: selected.tools,
+        embedding_model: selected.embedding_model,
+        embedding_api_key: selected.embedding_api_key,
       })
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
