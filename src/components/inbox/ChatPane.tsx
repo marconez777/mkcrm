@@ -550,6 +550,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         stickToBottom={stickToBottom}
         newCount={newCount}
         jumpToBottom={jumpToBottom}
+        scrollToMsgRef={scrollToMsgRef}
       />
 
       {replyTo && (
@@ -611,11 +612,12 @@ function VirtualizedMessages(props: {
   stickToBottom: boolean;
   newCount: number;
   jumpToBottom: () => void;
+  scrollToMsgRef: React.MutableRefObject<((id: string) => void) | null>;
 }) {
   const {
     scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
     messages, searchTerm, matches, activeMatch, pulseId,
-    setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom,
+    setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom, scrollToMsgRef,
   } = props;
 
   const virtualizer = useVirtualizer({
@@ -628,6 +630,15 @@ function VirtualizedMessages(props: {
 
   // Re-measure after layout when grouped changes (status/text updates)
   useLayoutEffect(() => { virtualizer.measure(); }, [grouped.length]);
+
+  // Expose imperative scroll-to-message to parent
+  useEffect(() => {
+    scrollToMsgRef.current = (id: string) => {
+      const idx = grouped.findIndex((g) => g.kind === "msg" && g.m.id === id);
+      if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
+    };
+    return () => { scrollToMsgRef.current = null; };
+  }, [grouped, virtualizer, scrollToMsgRef]);
 
   const items = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
