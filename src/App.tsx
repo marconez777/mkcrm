@@ -7,6 +7,7 @@ import AppShell from "./components/AppShell";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
+import Automations from "./pages/Automations";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
