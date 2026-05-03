@@ -35,7 +35,23 @@ Deno.serve(async (req) => {
       for (const it of items) {
         try {
           const res = await ingestMessage(it, "webhook", { instanceId: instance.id });
-          if ("lead_id" in res) leadIdForAudit = res.lead_id;
+          if ("lead_id" in res) {
+            leadIdForAudit = res.lead_id;
+            // Fire-and-forget auto-reply only for genuinely new inbound messages
+            if ((res as any).isNew && !it?.key?.fromMe) {
+              const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+                },
+                body: JSON.stringify({ lead_id: res.lead_id }),
+              }).catch((e) => console.error("auto-reply trigger failed", e));
+              // @ts-ignore EdgeRuntime is available in Deno deploy
+              if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
+            }
+          }
         } catch (e) {
           console.error("ingest error", e);
         }
