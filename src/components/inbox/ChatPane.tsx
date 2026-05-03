@@ -30,46 +30,104 @@ function StatusTicks({ m }: { m: Message }) {
   return <Check className="h-3 w-3 opacity-60" />;
 }
 
+function mergeMessage(prev: Message[], row: Message): Message[] {
+  // Match by id, or by client_message_id (optimistic → real upgrade)
+  const idx = prev.findIndex(
+    (m) => m.id === row.id || (!!row.client_message_id && m.client_message_id === row.client_message_id),
+  );
+  if (idx === -1) {
+    // Insert keeping timestamp order
+    const arr = prev.slice();
+    let i = arr.length;
+    while (i > 0 && arr[i - 1].timestamp > row.timestamp) i--;
+    arr.splice(i, 0, row);
+    return arr;
+  }
+  const cur = prev[idx] as any;
+  let changed = false;
+  for (const k in row) if ((row as any)[k] !== cur[k]) { changed = true; break; }
+  if (!changed) return prev;
+  const copy = prev.slice();
+  copy[idx] = { ...cur, ...row };
+  return copy;
+}
+
 export default function ChatPane({ lead }: { lead: Lead }) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const firstScrollRef = useRef(true);
+  const leadIdRef = useRef(lead.id);
+  leadIdRef.current = lead.id;
 
+  // Load history once + subscribe with incremental patches
   useEffect(() => {
     let active = true;
-    const load = async () => {
+    setLoaded(false);
+    setMessages([]);
+    firstScrollRef.current = true;
+
+    (async () => {
       const { data } = await supabase
         .from("messages")
         .select("*")
         .eq("lead_id", lead.id)
         .order("timestamp");
-      if (active && data) setMessages(data as Message[]);
-      await supabase.from("leads").update({ unread_count: 0 }).eq("id", lead.id);
-    };
-    load();
+      if (!active) return;
+      setMessages((data ?? []) as Message[]);
+      setLoaded(true);
+      // Idempotent unread reset — only write when needed (avoids realtime ping-pong)
+      if ((lead.unread_count ?? 0) > 0) {
+        supabase.from("leads").update({ unread_count: 0 }).eq("id", lead.id).then(() => {});
+      }
+    })();
+
+    // Background reconcile (non-blocking)
     supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } }).catch(() => {});
+
     const ch = supabase
       .channel(`msg-${lead.id}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
-        load,
+        { event: "INSERT", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
+        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)),
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
+        (p) => setMessages((prev) => mergeMessage(prev, p.new as Message)),
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` },
+        (p) => setMessages((prev) => prev.filter((m) => m.id !== (p.old as any).id)),
       )
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, [lead.id]);
 
+  // Auto-scroll: instant on first paint, smooth afterwards. Only after `loaded`.
   useEffect(() => {
+    if (!loaded) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    if (firstScrollRef.current) {
+      el.scrollTop = el.scrollHeight;
+      firstScrollRef.current = false;
+      setNewCount(0);
+      return;
+    }
     if (stickToBottom) {
-      scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       setNewCount(0);
     } else {
       setNewCount((c) => c + 1);
     }
-  }, [messages.length]);
+  }, [messages.length, loaded]);
 
   function onScroll() {
     const el = scrollerRef.current;
