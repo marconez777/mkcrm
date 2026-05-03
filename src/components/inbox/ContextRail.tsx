@@ -237,6 +237,12 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
           </div>
         </div>
 
+        <CustomFieldsPanel
+          lead={lead}
+          fields={customDefs}
+          onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
+        />
+
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
