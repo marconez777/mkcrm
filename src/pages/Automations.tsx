@@ -30,6 +30,7 @@ const TRIGGERS = [
 const ACTIONS = [
   { id: "ai_followup", label: "Follow-up via IA" },
   { id: "move_stage", label: "Mover de estágio" },
+  { id: "send_template", label: "Enviar template" },
 ];
 
 export default function Automations() {
@@ -37,18 +38,21 @@ export default function Automations() {
   const [selected, setSelected] = useState<Automation | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
 
   const load = async () => {
-    const [{ data: a }, { data: ag }, { data: st }] = await Promise.all([
+    const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
       supabase.from("automations").select("*").order("created_at"),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name").order("position"),
+      supabase.from("message_templates").select("id, name").order("name"),
     ]);
     setList((a ?? []) as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
+    setTemplates(tp ?? []);
   };
   useEffect(() => { load(); }, []);
 
@@ -288,6 +292,21 @@ export default function Automations() {
                     <option value="">— escolha —</option>
                     {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                </div>
+              )}
+
+              {selected.action_type === "send_template" && (
+                <div>
+                  <Label>Template</Label>
+                  <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={selected.action_config?.template_id ?? ""}
+                    onChange={(e) => updAction({ template_id: e.target.value })}>
+                    <option value="">— escolha —</option>
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}.
+                  </p>
                 </div>
               )}
             </Card>

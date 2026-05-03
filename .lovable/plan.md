@@ -1,26 +1,25 @@
-# Fase 3 — Concluída ✅
+# Fase 4 — Concluída ✅
 
 ## Backend
-- Tabelas: `automations` (regras: gatilho + ação + cooldown), `automation_runs` (auditoria por lead).
-- Edge function `automations-tick`:
-  - Gatilhos: `no_reply_after` (lead com última msg inbound há X horas, opcional por estágio), `stage_idle` (lead parado em estágio).
-  - Ações: `ai_followup` (chama `ai-chat` com instrução interna e envia via `evolution-send`), `move_stage`.
-  - Respeita cooldown por automação×lead, registra cada execução em `automation_runs`.
-- Cron `pg_cron` agendado para `*/5 * * * *` chamando `automations-tick`.
-- Edge function `ai-ingest-url`: baixa, faz strip de HTML e ingere texto na base de conhecimento (com chunking + embeddings).
+- Tabelas:
+  - `message_templates` (nome, atalho, conteúdo, variáveis, descrição) — para mensagens parametrizadas.
+  - `ai_usage` (modelo, tokens entrada/saída/total, latência ms, status, tools chamadas, replied) — métricas por chamada de IA.
+- Edge functions:
+  - `ai-ingest-pdf`: recebe PDF em base64, extrai texto via `unpdf`, faz chunking + embeddings.
+  - `ai-ingest-urls`: ingestão em lote (até 50 URLs/chamada) — chama `ai-ingest-url` por URL.
+  - `ai-chat`: agora registra cada chamada em `ai_usage` (tokens, latência, tools, status, erros).
+  - `automations-tick`: nova ação `send_template` (interpola variáveis do lead e envia via `evolution-send`).
+- Helper compartilhado `_shared/metrics.ts` (`logUsage`).
 
 ## Frontend
-- Página **/automations** com:
-  - Lista de automações + criar/editar/excluir + toggle ativa.
-  - Editor de gatilho (tipo + horas + estágio) e ação (agente + prompt ou estágio destino).
-  - Botão "Executar agora" (dispara `automations-tick` manualmente).
-  - Lista das últimas 20 execuções (lead, status, detalhe, timestamp).
-- Página **/agents**: novo input "Importar URL" que chama `ai-ingest-url`.
-- **ContextRail** (lead): botão "Ver histórico IA" mostra mensagens da última thread (`ai_threads` → `ai_messages`), incluindo chamadas de tool.
-- Item "Automações" no menu lateral.
+- **/templates**: CRUD de templates de mensagem com inserção rápida de variáveis (`{{nome}}`, `{{primeiro_nome}}`, `{{telefone}}`, `{{email}}`, `{{empresa}}`).
+- **/metrics**: dashboard de IA (24h / 7d / 30d) com cards (chamadas, respondeu, tokens, latência média, tools, erros), tabela "por agente" e últimas 30 chamadas.
+- **/agents**: agora aceita upload de PDF e importação em lote de URLs (uma por linha).
+- **/automations**: nova opção "Enviar template" no editor de ação (com select de template).
+- Sidebar: novos itens "Templates" e "Métricas IA".
 
-## Próximo (Fase 4 sugerido)
-- Ingest de PDF (parsing) e múltiplas URLs em batch.
-- Métricas de IA (custo, latência, taxa de resposta) por agente/automação.
-- Templates de mensagem com variáveis (ação `send_template`).
-- RLS endurecida + Auth (multiusuário).
+## Próximo (sugerido — Fase 5)
+- Auth multiusuário + RLS endurecida (papéis: admin/atendente).
+- Audit log e exportação de métricas (CSV).
+- Suporte a OCR em imagens recebidas (use `google/gemini-3-flash-preview` para vision).
+- Throttle/retry centralizado para o gateway de IA.

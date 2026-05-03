@@ -8,6 +8,8 @@ import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
 import Automations from "./pages/Automations";
+import Templates from "./pages/Templates";
+import Metrics from "./pages/Metrics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -31,6 +33,8 @@ const App = () => (
             <Route path="/inbox/:leadId" element={<Inbox />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/automations" element={<Automations />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/metrics" element={<Metrics />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

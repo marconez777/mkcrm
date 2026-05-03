@@ -48,6 +48,51 @@ export default function Agents() {
   const [testing, setTesting] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [ingestingUrl, setIngestingUrl] = useState(false);
+  const [batchUrls, setBatchUrls] = useState("");
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [pdfRunning, setPdfRunning] = useState(false);
+
+  const ingestPdf = async (file: File) => {
+    if (!selected) return;
+    setPdfRunning(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = (reader.result as string).split(",")[1];
+      const { data, error } = await supabase.functions.invoke("ai-ingest-pdf", {
+        body: { agent_id: selected.id, title: file.name, file_base64: b64 },
+      });
+      setPdfRunning(false);
+      if (error || (data as any)?.error) {
+        toast.error("Erro PDF: " + (error?.message ?? (data as any)?.error));
+        return;
+      }
+      toast.success(`PDF ingerido (${(data as any)?.chunks} chunks, ${(data as any)?.pages} páginas)`);
+      const { data: docs } = await supabase
+        .from("ai_documents").select("id, title, source, created_at")
+        .eq("agent_id", selected.id).order("created_at", { ascending: false });
+      setDocs(docs ?? []);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const ingestBatch = async () => {
+    if (!selected) return;
+    const urls = batchUrls.split(/\s+/).filter((u) => u.startsWith("http"));
+    if (urls.length === 0) return toast.error("Cole uma URL por linha");
+    setBatchRunning(true);
+    const { data, error } = await supabase.functions.invoke("ai-ingest-urls", {
+      body: { agent_id: selected.id, urls },
+    });
+    setBatchRunning(false);
+    if (error) return toast.error(error.message);
+    const d = data as any;
+    toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
+    setBatchUrls("");
+    const { data: docs } = await supabase
+      .from("ai_documents").select("id, title, source, created_at")
+      .eq("agent_id", selected.id).order("created_at", { ascending: false });
+    setDocs(docs ?? []);
+  };
 
   const ingestUrl = async () => {
     if (!selected || !urlInput.trim()) return;
@@ -313,6 +358,35 @@ export default function Agents() {
                   {ingestingUrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Importar URL
                 </Button>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs">Importar várias URLs (uma por linha)</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="https://exemplo.com/a&#10;https://exemplo.com/b"
+                  value={batchUrls}
+                  onChange={(e) => setBatchUrls(e.target.value)}
+                />
+                <Button onClick={ingestBatch} disabled={batchRunning} size="sm" variant="secondary">
+                  {batchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Importar lote
+                </Button>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs">Importar PDF</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  disabled={pdfRunning}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) ingestPdf(f);
+                    e.target.value = "";
+                  }}
+                />
+                {pdfRunning && <p className="text-xs text-muted-foreground"><Loader2 className="inline h-3 w-3 animate-spin" /> Processando PDF...</p>}
               </div>
 
               <div className="space-y-1">

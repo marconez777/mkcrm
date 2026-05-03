@@ -24,5 +24,11 @@ verify_jwt = false
 [functions.ai-ingest-url]
 verify_jwt = false
 
+[functions.ai-ingest-urls]
+verify_jwt = false
+
+[functions.ai-ingest-pdf]
+verify_jwt = false
+
 [functions.automations-tick]
 verify_jwt = false
