@@ -1,6 +1,7 @@
 // AI chat with RAG and tool calling. Used by both UI testing and auto-reply.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type ChatMessage } from "../_shared/ai.ts";
+import { logUsage } from "../_shared/metrics.ts";
 
 const TOOL_DEFINITIONS: Record<string, any> = {
   move_lead_stage: {
