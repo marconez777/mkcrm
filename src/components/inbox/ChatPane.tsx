@@ -406,7 +406,10 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             {loadingSuggest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             Sugerir
           </Button>
-          <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
+          <Button variant="ghost" size="icon" onClick={backfillFull} disabled={backfilling} title="Importar histórico completo do WhatsApp">
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar últimas mensagens">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
