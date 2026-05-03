@@ -251,6 +251,16 @@ export default function SettingsPage() {
           </div>
         </Card>
 
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold">Campos personalizados do lead</div>
+              <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+            </div>
+            <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
+          </div>
+        </Card>
+
         <QuickRepliesCard />
       </div>
     </div>
