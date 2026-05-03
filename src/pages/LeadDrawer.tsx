@@ -25,6 +25,8 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   const [form, setForm] = useState<Partial<Lead>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  const [syncing, setSyncing] = useState(false);
+
   useEffect(() => {
     if (!lead) return;
     setForm({
@@ -36,11 +38,14 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     const load = async () => {
       const { data } = await supabase.from("messages").select("*").eq("lead_id", lead.id).order("timestamp");
       if (active && data) setMessages(data as Message[]);
-      // mark read
       await supabase.from("leads").update({ unread_count: 0 }).eq("id", lead.id);
     };
     load();
-    const ch = supabase.channel(`msg-${lead.id}`).on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` }, load).subscribe();
+    // Reconcile against Evolution in background — catches messages the webhook missed
+    supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } }).catch(() => {});
+    const ch = supabase.channel(`msg-${lead.id}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `lead_id=eq.${lead.id}` }, load)
+      .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
   }, [lead?.id]);
 
