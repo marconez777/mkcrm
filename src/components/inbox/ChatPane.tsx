@@ -312,6 +312,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       toast.success(`Histórico importado: ${d?.imported ?? 0} novas (${d?.total ?? 0} verificadas em ${d?.pages ?? 0} páginas)`);
     }
   }
+  async function suggest() {
     setLoadingSuggest(true);
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "suggest" } });
     setLoadingSuggest(false);
