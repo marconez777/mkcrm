@@ -37,6 +37,7 @@ export default function SettingsPage() {
     evolution_instance: "",
     webhook_token: "",
   });
+  const [instanceId, setInstanceId] = useState<string | null>(null);
 
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const webhookUrl = form.webhook_token
@@ -45,8 +46,13 @@ export default function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("settings").select("*").eq("id", 1).single();
+      const { data } = await supabase
+        .from("whatsapp_instances")
+        .select("*")
+        .eq("is_default", true)
+        .maybeSingle();
       if (data) {
+        setInstanceId(data.id);
         setForm({
           evolution_url: data.evolution_url ?? "",
           evolution_api_key: data.evolution_api_key ?? "",
@@ -79,15 +85,31 @@ export default function SettingsPage() {
 
   async function save() {
     setSaving(true);
-    const { error } = await supabase.from("settings").update({
-      evolution_url: form.evolution_url.trim() || null,
-      evolution_api_key: form.evolution_api_key.trim() || null,
-      evolution_instance: form.evolution_instance.trim() || null,
-    }).eq("id", 1);
+    const payload = {
+      evolution_url: form.evolution_url.trim(),
+      evolution_api_key: form.evolution_api_key.trim(),
+      evolution_instance: form.evolution_instance.trim(),
+    };
+    let error;
+    if (instanceId) {
+      ({ error } = await supabase.from("whatsapp_instances").update(payload).eq("id", instanceId));
+    } else {
+      const { data, error: insErr } = await supabase
+        .from("whatsapp_instances")
+        .insert({ ...payload, name: payload.evolution_instance || "default", is_default: true })
+        .select("id, webhook_token")
+        .single();
+      error = insErr;
+      if (data) {
+        setInstanceId(data.id);
+        setForm((f) => ({ ...f, webhook_token: data.webhook_token }));
+      }
+    }
     setSaving(false);
     if (error) toast.error("Erro ao salvar: " + error.message);
     else toast.success("Configurações salvas");
   }
+
 
   async function test() {
     setTesting(true);
