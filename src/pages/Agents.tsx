@@ -302,6 +302,19 @@ export default function Agents() {
                 {ingesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                 Adicionar à base
               </Button>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Input
+                  placeholder="https://exemplo.com/faq"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                />
+                <Button onClick={ingestUrl} disabled={ingestingUrl} size="sm" variant="secondary">
+                  {ingestingUrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Importar URL
+                </Button>
+              </div>
+
               <div className="space-y-1">
                 {docs.map((d) => (
                   <div key={d.id} className="flex items-center justify-between rounded border bg-muted/40 px-3 py-2 text-sm">
