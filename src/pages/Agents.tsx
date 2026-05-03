@@ -303,14 +303,52 @@ export default function Agents() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Modelo</Label>
+                  <Label>Provedor</Label>
                   <select
                     className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={selected.provider}
+                    onChange={(e) => {
+                      const p = e.target.value as Provider;
+                      setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] });
+                    }}
+                  >
+                    {(Object.keys(PROVIDER_MODELS) as Provider[]).map((p) => (
+                      <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Modelo</Label>
+                  <Input
+                    list={`models-${selected.provider}`}
                     value={selected.model}
                     onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                  >
-                    {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                  />
+                  <datalist id={`models-${selected.provider}`}>
+                    {PROVIDER_MODELS[selected.provider].map((m) => <option key={m} value={m} />)}
+                  </datalist>
+                </div>
+              </div>
+              <div>
+                <Label>API Key</Label>
+                <Input
+                  type="password"
+                  placeholder={selected.provider === "openai" ? "sk-..." : selected.provider === "anthropic" ? "sk-ant-..." : "AIza..."}
+                  value={selected.api_key ?? ""}
+                  onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Armazenada no banco. Usada para chat e (quando suportado) embeddings.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Base URL (opcional)</Label>
+                  <Input
+                    placeholder={selected.provider === "openai" ? "https://api.openai.com/v1" : ""}
+                    value={selected.base_url ?? ""}
+                    onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
+                  />
                 </div>
                 <div>
                   <Label>Temperatura</Label>
@@ -321,6 +359,22 @@ export default function Agents() {
                   />
                 </div>
               </div>
+              {selected.provider === "anthropic" && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                  <Label className="text-xs">Embeddings (Anthropic não fornece — use OpenAI)</Label>
+                  <Input
+                    type="password"
+                    placeholder="OpenAI key para embeddings (sk-...)"
+                    value={selected.embedding_api_key ?? ""}
+                    onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
+                  />
+                  <Input
+                    placeholder="text-embedding-3-small"
+                    value={selected.embedding_model ?? ""}
+                    onChange={(e) => setSelected({ ...selected, embedding_model: e.target.value })}
+                  />
+                </div>
+              )}
               <div>
                 <Label>Ferramentas habilitadas</Label>
                 <div className="mt-2 space-y-2">
