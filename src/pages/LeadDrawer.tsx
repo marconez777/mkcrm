@@ -115,7 +115,12 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
               <div className="text-xs text-muted-foreground"><Phone className="mr-1 inline h-3 w-3" />{lead.phone}</div>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={remove}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={remove}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </div>
         </header>
 
         <Tabs defaultValue="chat" className="flex flex-1 flex-col overflow-hidden">
