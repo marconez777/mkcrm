@@ -129,6 +129,43 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
     return { ok: true };
   }
 
+  if (a.action_type === "send_template") {
+    const templateId = a.action_config?.template_id;
+    if (!templateId) return { ok: false, detail: "missing template_id" };
+    const { data: tpl } = await supabase
+      .from("message_templates")
+      .select("content")
+      .eq("id", templateId)
+      .maybeSingle();
+    if (!tpl) return { ok: false, detail: "template not found" };
+
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("name, phone, email, company")
+      .eq("id", leadId)
+      .single();
+    const name = lead?.name || lead?.phone || "";
+    const first = name.split(" ")[0] || "";
+    const text = (tpl.content as string)
+      .split("{{nome}}").join(name)
+      .split("{{primeiro_nome}}").join(first)
+      .split("{{telefone}}").join(lead?.phone ?? "")
+      .split("{{email}}").join(lead?.email ?? "")
+      .split("{{empresa}}").join(lead?.company ?? "");
+
+    const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      },
+      body: JSON.stringify({ lead_id: leadId, text, client_message_id: crypto.randomUUID() }),
+    });
+    if (!sendResp.ok) return { ok: false, detail: `send ${sendResp.status}` };
+    return { ok: true, detail: text.slice(0, 200) };
+  }
+
   return { ok: false, detail: `unknown action ${a.action_type}` };
 }
 
