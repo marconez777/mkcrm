@@ -360,6 +360,35 @@ export default function Agents() {
                 </Button>
               </div>
 
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs">Importar várias URLs (uma por linha)</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="https://exemplo.com/a&#10;https://exemplo.com/b"
+                  value={batchUrls}
+                  onChange={(e) => setBatchUrls(e.target.value)}
+                />
+                <Button onClick={ingestBatch} disabled={batchRunning} size="sm" variant="secondary">
+                  {batchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Importar lote
+                </Button>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs">Importar PDF</Label>
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  disabled={pdfRunning}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) ingestPdf(f);
+                    e.target.value = "";
+                  }}
+                />
+                {pdfRunning && <p className="text-xs text-muted-foreground"><Loader2 className="inline h-3 w-3 animate-spin" /> Processando PDF...</p>}
+              </div>
+
               <div className="space-y-1">
                 {docs.map((d) => (
                   <div key={d.id} className="flex items-center justify-between rounded border bg-muted/40 px-3 py-2 text-sm">
