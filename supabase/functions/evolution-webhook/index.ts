@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
         if (externalId && status) {
           await supabase
             .from("messages")
-            .update({ status: String(status).toLowerCase() })
+            .update({ delivery_status: String(status).toLowerCase() })
             .eq("external_id", externalId);
         }
       }

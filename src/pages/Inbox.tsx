@@ -1,74 +1,191 @@
-import { useState } from "react";
-import { useLeads } from "@/hooks/useCrm";
-import LeadDrawer from "./LeadDrawer";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useLeads, useStages } from "@/hooks/useCrm";
+import { useAttendants } from "@/hooks/useAttendants";
+import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/crm";
-import { Search, MessageCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import ConversationList from "@/components/inbox/ConversationList";
+import ChatPane from "@/components/inbox/ChatPane";
+import ContextRail from "@/components/inbox/ContextRail";
+import NewConversationDialog from "@/components/inbox/NewConversationDialog";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
+import { playPing } from "@/hooks/useUnreadTitle";
 
-function timeAgo(iso: string | null) {
-  if (!iso) return "";
-  const sec = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (sec < 60) return "agora";
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
-  return `${Math.floor(sec / 86400)}d`;
-}
+export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
+export type SortKey = "recent" | "unread" | "oldest";
 
 export default function InboxPage() {
   const { leads } = useLeads();
+  const { stages } = useStages();
+  const { attendants } = useAttendants();
+  const nav = useNavigate();
+  const { leadId } = useParams();
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState<Lead | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [showContext, setShowContext] = useState(true);
+  const [newOpen, setNewOpen] = useState(false);
+  const lastSeenRef = useRef<string | null>(null);
 
-  const sorted = [...leads]
-    .filter((l) => !q || (l.name?.toLowerCase().includes(q.toLowerCase()) || l.phone.includes(q)))
-    .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
+  // Ping on incoming messages when tab not focused
+  useEffect(() => {
+    const ch = supabase
+      .channel(`inbox-ping-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: "from_me=eq.false" },
+        (payload) => {
+          const m = payload.new as any;
+          if (lastSeenRef.current === m.id) return;
+          lastSeenRef.current = m.id;
+          if (document.hidden) playPing();
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    leads.forEach((l) => (l.tags ?? []).forEach((t) => s.add(t)));
+    return Array.from(s).sort();
+  }, [leads]);
+
+  const filtered = useMemo(() => {
+    const ql = q.trim().toLowerCase();
+    let arr = leads.filter((l) => {
+      if (filter === "archived") {
+        if (!l.archived_at) return false;
+      } else if (l.archived_at) return false;
+      if (filter === "unread" && (l.unread_count ?? 0) <= 0) return false;
+      if (filter === "unassigned" && l.attendant_id) return false;
+      if (stageFilter && l.stage_id !== stageFilter) return false;
+      if (tagFilter && !(l.tags ?? []).includes(tagFilter)) return false;
+      if (ql) {
+        const hay = `${l.name ?? ""} ${l.phone} ${l.last_message_preview ?? ""}`.toLowerCase();
+        if (!hay.includes(ql)) return false;
+      }
+      return true;
+    });
+    if (sort === "oldest") {
+      arr.sort((a, b) => (a.last_message_at ?? "").localeCompare(b.last_message_at ?? ""));
+    } else if (sort === "unread") {
+      arr.sort((a, b) => {
+        if ((b.unread_count ?? 0) !== (a.unread_count ?? 0)) return (b.unread_count ?? 0) - (a.unread_count ?? 0);
+        return (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "");
+      });
+    } else {
+      arr.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
+    }
+    return arr;
+  }, [leads, q, filter, stageFilter, tagFilter, sort]);
+
+  const selected: Lead | null = useMemo(
+    () => leads.find((l) => l.id === leadId) ?? null,
+    [leads, leadId],
+  );
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "/") {
+        e.preventDefault();
+        (document.getElementById("inbox-search") as HTMLInputElement | null)?.focus();
+      } else if (e.key === "Escape") {
+        if (selected) nav("/inbox");
+      } else if (e.key === "j" || e.key === "k") {
+        const idx = filtered.findIndex((l) => l.id === selected?.id);
+        const next = e.key === "j" ? idx + 1 : idx - 1;
+        if (next >= 0 && next < filtered.length) nav(`/inbox/${filtered[next].id}`);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, selected, nav]);
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="border-b bg-card px-6 py-3">
-        <h1 className="text-lg font-semibold">Conversas</h1>
-        <div className="relative mt-2">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou telefone" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
-        </div>
-      </header>
-      <div className="scrollbar-thin flex-1 overflow-y-auto">
-        {sorted.length === 0 && (
-          <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+    <div className="flex h-full w-full overflow-hidden">
+      {/* List */}
+      <aside
+        className={`flex w-full shrink-0 flex-col border-r bg-card lg:w-80 ${selected ? "hidden lg:flex" : "flex"}`}
+      >
+        <ConversationList
+          leads={filtered}
+          stages={stages}
+          attendants={attendants}
+          allTags={allTags}
+          selectedId={selected?.id ?? null}
+          onSelect={(l) => nav(`/inbox/${l.id}`)}
+          q={q}
+          setQ={setQ}
+          filter={filter}
+          setFilter={setFilter}
+          sort={sort}
+          setSort={setSort}
+          stageFilter={stageFilter}
+          setStageFilter={setStageFilter}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          onNew={() => setNewOpen(true)}
+        />
+      </aside>
+
+      {/* Chat */}
+      <section className={`flex min-w-0 flex-1 flex-col ${!selected ? "hidden lg:flex" : "flex"}`}>
+        {selected ? (
+          <>
+            <div className="flex items-center justify-between border-b bg-card px-3 py-2">
+              <Button variant="ghost" size="sm" onClick={() => nav("/inbox")} className="lg:hidden">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+              </Button>
+              <div className="flex-1" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowContext((v) => !v)}
+                title={showContext ? "Ocultar contexto" : "Mostrar contexto"}
+                className="hidden lg:inline-flex"
+              >
+                {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              </Button>
+            </div>
+            <ChatPane lead={selected} />
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-center text-sm text-muted-foreground">
             <div>
-              <MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-30" />
-              Nenhuma conversa ainda.<br />Aguardando mensagens da Evolution.
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <Plus className="h-6 w-6 opacity-40" />
+              </div>
+              Selecione uma conversa à esquerda
+              <div className="mt-3">
+                <Button size="sm" variant="outline" onClick={() => setNewOpen(true)}>
+                  <Plus className="mr-1 h-4 w-4" /> Nova conversa
+                </Button>
+              </div>
             </div>
           </div>
         )}
-        {sorted.map((l) => {
-          const initials = (l.name || l.phone).slice(0, 2).toUpperCase();
-          return (
-            <button
-              key={l.id}
-              onClick={() => setOpen(l)}
-              className="flex w-full items-start gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/50"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                {initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium">{l.name || l.phone}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{timeAgo(l.last_message_at)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="line-clamp-1 text-xs text-muted-foreground">{l.last_message_preview || "—"}</span>
-                  {l.unread_count > 0 && (
-                    <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{l.unread_count}</span>
-                  )}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <LeadDrawer lead={open} onClose={() => setOpen(null)} />
+      </section>
+
+      {/* Context */}
+      {selected && showContext && (
+        <aside className="hidden w-80 shrink-0 flex-col border-l bg-card lg:flex">
+          <ContextRail lead={selected} stages={stages} attendants={attendants} />
+        </aside>
+      )}
+
+      <NewConversationDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={(lid) => { setNewOpen(false); nav(`/inbox/${lid}`); }}
+        defaultStageId={stages[0]?.id ?? null}
+      />
     </div>
   );
 }

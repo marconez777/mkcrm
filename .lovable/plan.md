@@ -1,97 +1,109 @@
+# Plano — Evolução do módulo de Conversas
 
-# Camada de resiliência production-grade para Evolution API
+Hoje o `/inbox` é uma lista simples + drawer modal. Vamos transformar numa central de atendimento estilo WhatsApp Web / Chatwoot, sem perder a leveza atual.
 
-Entendido — vamos tratar como produção real, não MVP. A pesquisa que você trouxe é precisa: 90% dos problemas de CRM com Evolution vêm de eventos não entregues, webhook que se desativa sozinho, e duplicações em reconnect. Abaixo, a defesa em camadas que vou implementar. Cada item ataca um ou mais dos bugs que você listou.
+## 1. Novo layout — 3 painéis fixos
 
-## Princípio: nunca confiar só no webhook
-
-A Evolution **vai** falhar em algum momento. Nossa estratégia: webhook é o caminho rápido (tempo real), mas **toda mensagem é também reconciliada por polling**. Se um caminho falha, o outro entrega. E ambos passam por dedup forte no banco.
-
-## O que vamos construir
-
-### 1. Watchdog automático (resolve #1, #3, #6, #7)
-Edge function `evolution-health` rodando via `pg_cron` **a cada 60 segundos**:
-- `GET /instance/connectionState/{instance}` — registra estado em `settings.connection_state`. Se `close` por >2 min, gera alerta crítico no app.
-- `GET /webhook/find/{instance}` — se o webhook estiver desativado, com URL errada, ou faltando algum evento essencial, **reativa automaticamente** via `POST /webhook/set/{instance}`. Mata o bug v2.2.3 (toggle desliga sozinho) e regressões pós-update.
-- Atualiza `settings.last_health_check`, `settings.webhook_ok`, `settings.connection_state`.
-
-### 2. Polling de reconciliação (resolve #2, #4 — eventos perdidos)
-A mesma `evolution-health`, ao rodar, chama `POST /chat/findMessages/{instance}` filtrando mensagens dos **últimos 10 minutos**. Faz upsert em `messages` com índice único — o que já estava entra silenciosamente; o que faltou aparece. Janela de 10 min cobre folga de cron, restart, e atrasos da Evolution.
-
-### 3. Reconciliação on-demand por lead (resolve #4 em tempo real)
-Ao abrir o `LeadDrawer`, dispara `evolution-sync-lead` em paralelo: busca últimas 50 mensagens daquele número e faz upsert. Se algo sumiu naquela conversa específica, aparece no momento que o atendente abre.
-
-### 4. Envio resiliente com fila e retry (resolve #5)
-`evolution-send` reescrita:
-- Cria a mensagem no banco com `status='pending'` **antes** de chamar a Evolution (atendente já vê na UI).
-- Retry exponencial: 3 tentativas (0s, 2s, 5s) em 5xx/408/429/erro de rede.
-- Sucesso → `status='sent'`. Falha total → `status='failed'` + UI mostra ícone vermelho + botão "Reenviar".
-- Idempotência: gera `client_message_id` (UUID) para evitar duplicar se a Evolution responder após timeout.
-
-### 5. Deduplicação real no banco (resolve #5 — duplicações em reconnect)
-```sql
-CREATE UNIQUE INDEX messages_lead_external_unique
-  ON messages(lead_id, external_id) WHERE external_id IS NOT NULL;
-CREATE UNIQUE INDEX messages_client_id_unique
-  ON messages(client_message_id) WHERE client_message_id IS NOT NULL;
-```
-Sem índice único de verdade, `onConflict` do supabase-js não dedupa de forma confiável.
-
-### 6. Auditoria de webhook events
-Tabela nova `webhook_events(id, event_type, payload, received_at, processed_at, error, lead_id)`. Toda chamada do webhook é gravada **antes** do processamento. Benefícios:
-- Diagnóstico: "essa msg chegou mas falhou no parsing?"
-- Replay: botão "reprocessar" eventos com erro.
-- Métrica: quantos eventos/min, taxa de erro.
-- Limpeza automática (>14 dias).
-
-### 7. Painel de saúde na UI
-Nova seção em **Configurações** (e badge no header):
-- Estado da conexão (verde/amarelo/vermelho) com tempo desde último heartbeat.
-- Webhook OK? Eventos corretos configurados?
-- Mensagens recebidas/enviadas nas últimas 24h.
-- Mensagens com `status='failed'` (acionável).
-- Botões: "Reativar webhook agora", "Sincronizar últimas 24h", "Ver eventos do webhook".
-
-### 8. Alertas (opcional mas recomendado)
-Quando `connection_state='close'` por >5 min ou taxa de erro >10%, envia notificação. No MVP: badge persistente vermelho no app. Posso adicionar e-mail depois se quiser.
-
-### 9. Lock de processamento (resolve race conditions)
-O `unread_count` atualmente tem race condition (lê depois escreve). Trocar por função RPC atômica:
-```sql
-CREATE FUNCTION increment_unread(lead_id uuid) RETURNS void ...
+```text
+┌──────────────┬────────────────────────────┬──────────────┐
+│  Lista de    │   Chat (mensagens)         │  Contexto    │
+│  conversas   │                            │  do lead     │
+│  + filtros   │   header + bubbles + input │  (etapa,     │
+│              │                            │   tags,      │
+│  280px       │   flex-1                   │   notas)     │
+│              │                            │  320px       │
+└──────────────┴────────────────────────────┴──────────────┘
 ```
 
-### 10. Observabilidade
-- Logs estruturados em todas edge functions (JSON com `event_id`, `lead_id`, `phone`, `latency_ms`).
-- Página `/admin/logs` mostrando últimas 100 chamadas de webhook + erros.
+- Acaba o `Sheet` overlay no inbox (mantemos o drawer só no Kanban).
+- Painel da direita é colapsável (`>` no header) para telas menores.
+- Em viewport < 1024px: vira navegação por etapas (lista → chat → contexto) com botão "voltar".
 
-## Resumo técnico
+## 2. Lista de conversas — mais útil
 
-**Migrations:**
-- `messages`: + `client_message_id uuid`, `retry_count int`, índices únicos parciais.
-- `settings`: + `connection_state`, `last_health_check`, `webhook_ok`, `webhook_last_error`.
-- Tabela nova `webhook_events`.
-- RPC `increment_unread(lead_id)`.
+- **Filtros rápidos no topo**: Todas / Não lidas / Minhas / Sem atribuição.
+- **Filtro por etapa do pipeline** (chips horizontais) e **por tag**.
+- **Ordenação**: mais recente / não lidas primeiro / mais antigas.
+- **Busca**: já existe, manter mas debounce 200ms; também busca em conteúdo da última mensagem.
+- Cada item ganha:
+  - badge da **etapa atual** (cor da stage),
+  - **avatar do atendente** atribuído,
+  - ícone do tipo da última mensagem (texto / imagem / áudio),
+  - status de envio quando última msg foi nossa (✓ enviado, ✗ falhou).
+- **Hover actions**: marcar não lida, arquivar (soft-flag), atribuir atendente.
+- **Botão "Nova conversa"** (+): modal pedindo telefone + mensagem inicial → chama `evolution-send`.
 
-**Edge functions:**
-- `evolution-health` (nova, agendada): connection check + webhook self-heal + polling reconciliação 10 min.
-- `evolution-sync-lead` (nova): reconciliação por lead.
-- `evolution-send` (reescrita): pending→retry→sent/failed, idempotente.
-- `evolution-webhook` (reforçada): grava em `webhook_events`, dedup via índice, RPC atômico.
+## 3. Painel central — chat melhorado
 
-**Cron:** `pg_cron` + `pg_net` chamando `evolution-health` a cada 60s. Vou criar o SQL do agendamento via insert tool (não migration, porque tem URL/token específicos do projeto).
+- **Separadores de data** ("Hoje", "Ontem", "12 mar").
+- **Agrupamento de bolhas** consecutivas do mesmo autor (sem repetir hora em todas).
+- **Status ticks** estilo WhatsApp: relógio (pending), ✓ (sent), ✓✓ (delivered/read quando vier do webhook).
+- **Reply preview** quando a mensagem do Evolution tiver `contextInfo.quotedMessage`.
+- **Mídia**: render de imagem inline (se `media_url`), player de áudio, link clicável para documento. (Mantemos placeholder `[image]` quando sem URL — não vamos subir storage agora.)
+- **Auto-scroll inteligente**: só rola se já estava no fim; senão mostra pílula "↓ N novas mensagens".
+- **Indicador de digitação** (placeholder visual, ativado quando webhook `presence.update` chegar — adicionamos handler).
+- **Highlight de mensagens não lidas**: linha "Novas mensagens" antes da primeira não lida.
 
-**Frontend:**
-- `Settings.tsx`: card de saúde + auditoria.
-- `LeadDrawer.tsx`: sync ao abrir + botão reenviar.
-- `AppShell.tsx`: badge global de status.
-- Nova página `/admin/events` com webhook events.
+## 4. Composer (caixa de envio)
 
-## Limites honestos
+- **Auto-resize** do textarea (já é `Textarea`, melhorar limites).
+- **Atalho** `Ctrl/Cmd+Enter` para enviar (mantém Enter para enviar, Shift+Enter quebra linha).
+- **Emoji picker** (`emoji-mart` ou implementação leve com lista curada).
+- **Quick replies / Respostas rápidas**: comando `/` abre menu com mensagens salvas.
+  - Nova tabela `quick_replies (id, shortcut, content, created_at)`.
+  - CRUD em **Configurações → Respostas rápidas**.
+- **Variáveis** nas quick replies: `{{nome}}`, `{{primeiro_nome}}` interpolados ao inserir.
+- **Contador de caracteres** discreto.
+- Botão de anexo desabilitado com tooltip "Em breve" (deixamos pronto pra fase 2 com Storage).
 
-- Se a Evolution **nem recebeu** a msg do WhatsApp (sessão Baileys derrubada pela Meta), nada na nossa camada resolve — mas o watchdog detecta e te avisa em <2 min, e o polling pega assim que voltar.
-- Se a VPS da Evolution cair, idem — alerta visual imediato.
-- Mudanças do Baileys/Meta exigem update da Evolution (fora do nosso código).
+## 5. Painel direito — contexto do lead
 
-## Próximo passo
-Aprovando, eu executo nesta ordem: (1) migrations e índices, (2) edge functions novas + reescrita das existentes, (3) cron job, (4) UI de saúde + auditoria, (5) testes manuais com você (derruba webhook propositalmente, vê reativar; manda msg com instância parada, vê fila pending).
+Versão enxuta da aba "Detalhes" de hoje, sempre visível:
+- Avatar, nome editável inline, telefone (com botão copiar).
+- **Etapa do pipeline** (Select) — muda na hora.
+- **Atendente atribuído** (Select).
+- **Valor do negócio** inline.
+- **Tags** com chips removíveis + input para adicionar.
+- **Notas** (textarea com auto-save debounce 800ms).
+- **Histórico curto**: últimas 5 mudanças de etapa (precisa de tabela `lead_events` — cria agora).
+- Botão "Excluir lead" no final.
+
+## 6. Notificações & UX
+
+- **Som curto** (Web Audio, sem asset externo) ao chegar mensagem nova quando aba não está focada.
+- **Title flash** (`(3) Zappy CRM`) com contagem global de não lidas.
+- **Notificação do navegador** (com permissão pedida no primeiro uso, via toggle em Configurações).
+- **Atalhos de teclado**: `J/K` próxima/anterior conversa, `/` foca busca, `Esc` fecha contexto.
+
+## 7. Backend / dados
+
+Migrations novas:
+- `quick_replies` (id, shortcut text unique, content text, created_at).
+- `lead_events` (id, lead_id, type text, payload jsonb, created_at) + trigger em `leads` que registra mudança de `stage_id` e `attendant_id`.
+- Coluna `leads.archived_at timestamptz null` (soft archive).
+- Coluna `messages.delivery_status text` (`sent|delivered|read|failed`) — separa do `status` interno (`pending|sent|failed`); webhook atualiza quando vier `messages.update`.
+- Coluna `messages.reply_to_external_id text` para preview de citação.
+
+Edge functions:
+- Atualizar `evolution-webhook` para processar `messages.update` (status delivered/read), `presence.update` (digitando) e `contextInfo.quotedMessage` (reply).
+- Endpoint `evolution-send` aceita `quoted_external_id` opcional.
+
+## 8. Detalhes técnicos
+
+- Componentes novos: `inbox/ConversationList.tsx`, `inbox/ConversationListItem.tsx`, `inbox/Filters.tsx`, `inbox/ChatPane.tsx`, `inbox/MessageBubble.tsx`, `inbox/Composer.tsx`, `inbox/QuickReplyMenu.tsx`, `inbox/EmojiPicker.tsx`, `inbox/ContextRail.tsx`, `inbox/NewConversationDialog.tsx`.
+- `LeadDrawer.tsx` continua existindo só para o Kanban.
+- Hook novo `useConversations({filter, search, sort})` encapsula query + realtime + ordenação derivada.
+- Hook novo `useTypingPresence(leadId)` para indicador.
+- Hook `useUnreadTitle()` global aplicado em `App.tsx`.
+- Som: `new AudioContext()` + oscillator curto (sem dependência nem asset).
+- Em mobile: `useMediaQuery('(min-width: 1024px)')` controla painéis.
+- Estado de "conversa selecionada" via URL `/inbox/:leadId` para deep-link e back/forward do navegador.
+
+## 9. Fora de escopo (próximas fases)
+
+- Upload real de mídia (precisa Storage bucket + signed URLs).
+- Login multi-usuário (continua sem auth, atendentes são apenas labels).
+- Relatórios / SLA / tempo de resposta.
+- Chatbot / IA de sugestão de resposta.
+
+Ao aprovar, sigo nessa ordem: migrations → webhook update → componentes do inbox → composer/quick replies → contexto → notificações.

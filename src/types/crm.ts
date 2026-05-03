@@ -24,6 +24,7 @@ export type Lead = {
   stage_changed_at: string;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 };
 
 export type Message = {
@@ -35,9 +36,21 @@ export type Message = {
   message_type: string;
   content: string | null;
   status: string;
+  delivery_status?: string | null;
+  reply_to_external_id?: string | null;
   timestamp: string;
   retry_count?: number;
   last_error?: string | null;
 };
 
 export type Attendant = { id: string; name: string; color: string };
+
+export type QuickReply = { id: string; shortcut: string; content: string };
+
+export type LeadEvent = {
+  id: string;
+  lead_id: string;
+  type: string;
+  payload: any;
+  created_at: string;
+};
