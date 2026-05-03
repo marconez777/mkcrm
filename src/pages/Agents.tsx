@@ -283,107 +283,134 @@ export default function Agents() {
               </div>
             </div>
 
-            <Card className="space-y-4 p-4">
-              <div className="flex items-center justify-between">
-                <Label>Ativo</Label>
-                <Switch
-                  checked={selected.enabled}
-                  onCheckedChange={(v) => setSelected({ ...selected, enabled: v })}
-                />
-              </div>
-              <div>
-                <Label>Descrição</Label>
-                <Input
-                  value={selected.description ?? ""}
-                  onChange={(e) => setSelected({ ...selected, description: e.target.value })}
-                  placeholder="Para que serve este agente?"
-                />
-              </div>
-              <div>
-                <Label>Prompt do sistema</Label>
-                <Textarea
-                  rows={8}
-                  value={selected.system_prompt}
-                  onChange={(e) => setSelected({ ...selected, system_prompt: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Provedor</Label>
-                  <select
-                    className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-                    value={selected.provider}
-                    onChange={(e) => {
-                      const p = e.target.value as Provider;
-                      setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] });
-                    }}
-                  >
-                    {(Object.keys(PROVIDER_MODELS) as Provider[]).map((p) => (
-                      <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label>Modelo</Label>
-                  <Input
-                    list={`models-${selected.provider}`}
-                    value={selected.model}
-                    onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                  />
-                  <datalist id={`models-${selected.provider}`}>
-                    {PROVIDER_MODELS[selected.provider].map((m) => <option key={m} value={m} />)}
-                  </datalist>
-                </div>
-              </div>
-              <div>
-                <Label>API Key</Label>
-                <Input
-                  type="password"
-                  placeholder={selected.provider === "openai" ? "sk-..." : selected.provider === "anthropic" ? "sk-ant-..." : "AIza..."}
-                  value={selected.api_key ?? ""}
-                  onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Armazenada no banco. Usada para chat e (quando suportado) embeddings.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Base URL (opcional)</Label>
-                  <Input
-                    placeholder={selected.provider === "openai" ? "https://api.openai.com/v1" : ""}
-                    value={selected.base_url ?? ""}
-                    onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Temperatura</Label>
-                  <Input
-                    type="number" step="0.1" min="0" max="2"
-                    value={selected.temperature}
-                    onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              {selected.provider === "anthropic" && (
-                <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                  <Label className="text-xs">Embeddings (Anthropic não fornece — use OpenAI)</Label>
-                  <Input
-                    type="password"
-                    placeholder="OpenAI key para embeddings (sk-...)"
-                    value={selected.embedding_api_key ?? ""}
-                    onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
-                  />
-                  <Input
-                    placeholder="text-embedding-3-small"
-                    value={selected.embedding_model ?? ""}
-                    onChange={(e) => setSelected({ ...selected, embedding_model: e.target.value })}
-                  />
-                </div>
-              )}
-              <div>
-                <Label>Ferramentas habilitadas</Label>
-                <div className="mt-2 space-y-2">
+            <Accordion type="multiple" defaultValue={["general"]} className="space-y-3">
+              <AccordionItem value="general" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <SettingsIcon className="h-4 w-4" /> Geral
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4 pb-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Ativo</Label>
+                    <Switch
+                      checked={selected.enabled}
+                      onCheckedChange={(v) => setSelected({ ...selected, enabled: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Descrição</Label>
+                    <Input
+                      value={selected.description ?? ""}
+                      onChange={(e) => setSelected({ ...selected, description: e.target.value })}
+                      placeholder="Para que serve este agente?"
+                    />
+                  </div>
+                  <div>
+                    <Label>Prompt do sistema</Label>
+                    <Textarea
+                      rows={8}
+                      value={selected.system_prompt}
+                      onChange={(e) => setSelected({ ...selected, system_prompt: e.target.value })}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="provider" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <KeyRound className="h-4 w-4" /> Provedor & API key
+                    <Badge variant="outline" className="ml-2 text-[10px]">{PROVIDER_LABEL[selected.provider]}</Badge>
+                    {!selected.api_key && <Badge variant="destructive" className="text-[10px]">sem key</Badge>}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4 pb-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Provedor</Label>
+                      <select
+                        className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        value={selected.provider}
+                        onChange={(e) => {
+                          const p = e.target.value as Provider;
+                          setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] });
+                        }}
+                      >
+                        {(Object.keys(PROVIDER_MODELS) as Provider[]).map((p) => (
+                          <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Modelo</Label>
+                      <Input
+                        list={`models-${selected.provider}`}
+                        value={selected.model}
+                        onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                      />
+                      <datalist id={`models-${selected.provider}`}>
+                        {PROVIDER_MODELS[selected.provider].map((m) => <option key={m} value={m} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>API Key</Label>
+                    <Input
+                      type="password"
+                      placeholder={selected.provider === "openai" ? "sk-..." : selected.provider === "anthropic" ? "sk-ant-..." : "AIza..."}
+                      value={selected.api_key ?? ""}
+                      onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Armazenada no banco. Usada para chat e (quando suportado) embeddings.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Base URL (opcional)</Label>
+                      <Input
+                        placeholder={selected.provider === "openai" ? "https://api.openai.com/v1" : ""}
+                        value={selected.base_url ?? ""}
+                        onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Temperatura</Label>
+                      <Input
+                        type="number" step="0.1" min="0" max="2"
+                        value={selected.temperature}
+                        onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  {selected.provider === "anthropic" && (
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      <Label className="text-xs">Embeddings (Anthropic não fornece — use OpenAI)</Label>
+                      <Input
+                        type="password"
+                        placeholder="OpenAI key para embeddings (sk-...)"
+                        value={selected.embedding_api_key ?? ""}
+                        onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
+                      />
+                      <Input
+                        placeholder="text-embedding-3-small"
+                        value={selected.embedding_model ?? ""}
+                        onChange={(e) => setSelected({ ...selected, embedding_model: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="tools" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Wrench className="h-4 w-4" /> Ferramentas
+                    <Badge variant="outline" className="ml-2 text-[10px]">{selected.tools.length}</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-2 pb-4">
                   {TOOLS.map((t) => (
                     <label key={t.id} className="flex items-center gap-2 text-sm">
                       <Switch
@@ -393,98 +420,126 @@ export default function Agents() {
                       {t.label}
                     </label>
                   ))}
-                </div>
-              </div>
-            </Card>
+                </AccordionContent>
+              </AccordionItem>
 
-            <Card className="space-y-3 p-4">
-              <h3 className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4" /> Base de conhecimento</h3>
-              <Input
-                placeholder="Título"
-                value={docTitle}
-                onChange={(e) => setDocTitle(e.target.value)}
-              />
-              <Textarea
-                rows={5}
-                placeholder="Cole aqui o texto (FAQ, política, procedimento...)"
-                value={docContent}
-                onChange={(e) => setDocContent(e.target.value)}
-              />
-              <Button onClick={ingest} disabled={ingesting} size="sm">
-                {ingesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                Adicionar à base
-              </Button>
+              <AccordionItem value="kb" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <FileText className="h-4 w-4" /> Base de conhecimento
+                    <Badge variant="outline" className="ml-2 text-[10px]">{docs.length}</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-2 pb-4">
+                  <Accordion type="multiple" className="space-y-2">
+                    <AccordionItem value="text" className="rounded border bg-muted/20 px-3">
+                      <AccordionTrigger className="py-2 text-sm hover:no-underline">Texto manual</AccordionTrigger>
+                      <AccordionContent className="space-y-2 pb-3">
+                        <Input placeholder="Título" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
+                        <Textarea
+                          rows={5}
+                          placeholder="Cole aqui o texto (FAQ, política, procedimento...)"
+                          value={docContent}
+                          onChange={(e) => setDocContent(e.target.value)}
+                        />
+                        <Button onClick={ingest} disabled={ingesting} size="sm">
+                          {ingesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                          Adicionar à base
+                        </Button>
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <div className="flex gap-2 pt-2 border-t">
-                <Input
-                  placeholder="https://exemplo.com/faq"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                />
-                <Button onClick={ingestUrl} disabled={ingestingUrl} size="sm" variant="secondary">
-                  {ingestingUrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Importar URL
-                </Button>
-              </div>
+                    <AccordionItem value="url" className="rounded border bg-muted/20 px-3">
+                      <AccordionTrigger className="py-2 text-sm hover:no-underline">Importar URL</AccordionTrigger>
+                      <AccordionContent className="space-y-2 pb-3">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="https://exemplo.com/faq"
+                            value={urlInput}
+                            onChange={(e) => setUrlInput(e.target.value)}
+                          />
+                          <Button onClick={ingestUrl} disabled={ingestingUrl} size="sm" variant="secondary">
+                            {ingestingUrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Importar
+                          </Button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <div className="space-y-2 pt-2 border-t">
-                <Label className="text-xs">Importar várias URLs (uma por linha)</Label>
-                <Textarea
-                  rows={3}
-                  placeholder="https://exemplo.com/a&#10;https://exemplo.com/b"
-                  value={batchUrls}
-                  onChange={(e) => setBatchUrls(e.target.value)}
-                />
-                <Button onClick={ingestBatch} disabled={batchRunning} size="sm" variant="secondary">
-                  {batchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Importar lote
-                </Button>
-              </div>
+                    <AccordionItem value="batch" className="rounded border bg-muted/20 px-3">
+                      <AccordionTrigger className="py-2 text-sm hover:no-underline">Importar lote de URLs</AccordionTrigger>
+                      <AccordionContent className="space-y-2 pb-3">
+                        <Textarea
+                          rows={3}
+                          placeholder="https://exemplo.com/a&#10;https://exemplo.com/b"
+                          value={batchUrls}
+                          onChange={(e) => setBatchUrls(e.target.value)}
+                        />
+                        <Button onClick={ingestBatch} disabled={batchRunning} size="sm" variant="secondary">
+                          {batchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Importar lote
+                        </Button>
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <div className="space-y-2 pt-2 border-t">
-                <Label className="text-xs">Importar PDF</Label>
-                <Input
-                  type="file"
-                  accept="application/pdf"
-                  disabled={pdfRunning}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) ingestPdf(f);
-                    e.target.value = "";
-                  }}
-                />
-                {pdfRunning && <p className="text-xs text-muted-foreground"><Loader2 className="inline h-3 w-3 animate-spin" /> Processando PDF...</p>}
-              </div>
+                    <AccordionItem value="pdf" className="rounded border bg-muted/20 px-3">
+                      <AccordionTrigger className="py-2 text-sm hover:no-underline">Importar PDF</AccordionTrigger>
+                      <AccordionContent className="space-y-2 pb-3">
+                        <Input
+                          type="file"
+                          accept="application/pdf"
+                          disabled={pdfRunning}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) ingestPdf(f);
+                            e.target.value = "";
+                          }}
+                        />
+                        {pdfRunning && <p className="text-xs text-muted-foreground"><Loader2 className="inline h-3 w-3 animate-spin" /> Processando PDF...</p>}
+                      </AccordionContent>
+                    </AccordionItem>
 
-              <div className="space-y-1">
-                {docs.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between rounded border bg-muted/40 px-3 py-2 text-sm">
-                    <span className="truncate">{d.title}</span>
-                    <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
-                {docs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento ainda.</p>}
-              </div>
-            </Card>
+                    <AccordionItem value="docs" className="rounded border bg-muted/20 px-3">
+                      <AccordionTrigger className="py-2 text-sm hover:no-underline">Documentos ({docs.length})</AccordionTrigger>
+                      <AccordionContent className="space-y-1 pb-3">
+                        {docs.map((d) => (
+                          <div key={d.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
+                            <span className="truncate">{d.title}</span>
+                            <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                        {docs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento ainda.</p>}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </AccordionContent>
+              </AccordionItem>
 
-            <Card className="space-y-3 p-4">
-              <h3 className="flex items-center gap-2 font-semibold"><Send className="h-4 w-4" /> Testar agente</h3>
-              <Textarea
-                rows={2}
-                placeholder="Pergunte algo..."
-                value={testInput}
-                onChange={(e) => setTestInput(e.target.value)}
-              />
-              <Button onClick={test} disabled={testing} size="sm">
-                {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Enviar
-              </Button>
-              {testOutput && (
-                <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{testOutput}</div>
-              )}
-            </Card>
+              <AccordionItem value="test" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <FlaskConical className="h-4 w-4" /> Testar agente
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4">
+                  <Textarea
+                    rows={2}
+                    placeholder="Pergunte algo..."
+                    value={testInput}
+                    onChange={(e) => setTestInput(e.target.value)}
+                  />
+                  <Button onClick={test} disabled={testing} size="sm">
+                    {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar
+                  </Button>
+                  {testOutput && (
+                    <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{testOutput}</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
         )}
       </main>
