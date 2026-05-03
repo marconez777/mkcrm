@@ -27,6 +27,8 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   const [savingNotes, setSavingNotes] = useState(false);
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
+  const [aiHistory, setAiHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     setForm(lead);
