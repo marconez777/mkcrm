@@ -7,6 +7,7 @@ import AppShell from "./components/AppShell";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
+import Automations from "./pages/Automations";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/inbox/:leadId" element={<Inbox />} />
             <Route path="/agents" element={<Agents />} />
+            <Route path="/automations" element={<Automations />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

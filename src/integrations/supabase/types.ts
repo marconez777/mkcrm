@@ -240,6 +240,75 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_runs: {
+        Row: {
+          automation_id: string
+          created_at: string
+          detail: string | null
+          id: string
+          lead_id: string
+          status: string
+        }
+        Insert: {
+          automation_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          lead_id: string
+          status?: string
+        }
+        Update: {
+          automation_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          lead_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      automations: {
+        Row: {
+          action_config: Json
+          action_type: string
+          cooldown_hours: number
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          name: string
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type: string
+          cooldown_hours?: number
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          cooldown_hours?: number
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null

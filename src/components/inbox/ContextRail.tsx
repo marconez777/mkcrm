@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -27,6 +27,8 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   const [savingNotes, setSavingNotes] = useState(false);
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
+  const [aiHistory, setAiHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     setForm(lead);
@@ -255,6 +257,43 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
                 {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          )}
+
+          <button
+            onClick={async () => {
+              const next = !showHistory;
+              setShowHistory(next);
+              if (next && aiHistory.length === 0) {
+                const { data: thr } = await supabase
+                  .from("ai_threads").select("id").eq("lead_id", lead.id)
+                  .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+                if (thr?.id) {
+                  const { data: msgs } = await supabase
+                    .from("ai_messages").select("role, content, tool_calls, created_at")
+                    .eq("thread_id", thr.id).order("created_at", { ascending: true }).limit(50);
+                  setAiHistory(msgs ?? []);
+                }
+              }
+            }}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            <History className="h-3 w-3" />
+            {showHistory ? "Ocultar histórico IA" : "Ver histórico IA"}
+          </button>
+          {showHistory && (
+            <div className="space-y-1.5 rounded border bg-background p-2 max-h-64 overflow-y-auto">
+              {aiHistory.length === 0 && <p className="text-[11px] text-muted-foreground">Sem histórico ainda.</p>}
+              {aiHistory.map((m, i) => (
+                <div key={i} className="text-[11px]">
+                  <span className="font-semibold">
+                    {m.role === "assistant" ? "🤖" : m.role === "tool" ? "🔧" : m.role === "user" ? "👤" : m.role}
+                  </span>{" "}
+                  {m.tool_calls
+                    ? <span className="text-muted-foreground italic">tool: {(m.tool_calls as any)?.[0]?.function?.name}</span>
+                    : <span className="whitespace-pre-wrap">{m.content?.slice(0, 280)}</span>}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
