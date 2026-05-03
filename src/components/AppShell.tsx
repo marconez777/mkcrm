@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 
@@ -7,6 +7,7 @@ const items = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
   { to: "/inbox", label: "Conversas", icon: Inbox },
   { to: "/agents", label: "Agentes IA", icon: Bot },
+  { to: "/automations", label: "Automações", icon: Zap },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
