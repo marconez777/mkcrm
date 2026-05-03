@@ -20,7 +20,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-export default function ContextRail({ lead, stages, attendants }: { lead: Lead; stages: Stage[]; attendants: Attendant[] }) {
+export default function ContextRail({ lead, stages, attendants, onClose }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void }) {
   const nav = useNavigate();
   const [form, setForm] = useState<Partial<Lead>>(lead);
   const [tagInput, setTagInput] = useState("");
