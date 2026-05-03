@@ -462,6 +462,30 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       </header>
 
+      {backfillProgress && (
+        <div className="border-b bg-primary/5 px-3 py-2">
+          <div className="mb-1 flex items-center justify-between text-[11px]">
+            <span className="flex items-center gap-1.5 font-medium text-primary">
+              {backfilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <History className="h-3 w-3" />}
+              {backfilling ? "Importando histórico…" : "Importação concluída"}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              Página {backfillProgress.pages} · {backfillProgress.lastPageItems} msgs/pág · {backfillProgress.imported} novas / {backfillProgress.total} verificadas
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn("h-full bg-primary transition-all", backfilling && "animate-pulse")}
+              style={{
+                width: backfilling
+                  ? `${Math.min(95, 10 + backfillProgress.pages * 5)}%`
+                  : "100%",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {searchOpen && (
         <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-2">
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
