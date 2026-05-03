@@ -177,6 +177,8 @@ Deno.serve(async (req) => {
     // Multi-turn tool loop (max 5 iterations)
     let finalContent = "";
     let usedTools: any[] = [];
+    let totalIn = 0, totalOut = 0, totalTok = 0;
+    const startedAt = Date.now();
     for (let iter = 0; iter < 5; iter++) {
       const resp = await chatCompletion({
         model: agent.model,
@@ -184,13 +186,26 @@ Deno.serve(async (req) => {
         temperature: Number(agent.temperature) || 0.7,
         tools: tools.length > 0 ? tools : undefined,
       });
-      if (resp.status === 429) return json({ error: "Rate limit exceeded, tente novamente." }, 429);
-      if (resp.status === 402) return json({ error: "Créditos esgotados na Lovable AI." }, 402);
+      if (resp.status === 429) {
+        await logUsage({ agent_id, lead_id, model: agent.model, status: "rate_limit", latency_ms: Date.now() - startedAt });
+        return json({ error: "Rate limit exceeded, tente novamente." }, 429);
+      }
+      if (resp.status === 402) {
+        await logUsage({ agent_id, lead_id, model: agent.model, status: "no_credits", latency_ms: Date.now() - startedAt });
+        return json({ error: "Créditos esgotados na Lovable AI." }, 402);
+      }
       if (!resp.ok) {
         const t = await resp.text();
+        await logUsage({ agent_id, lead_id, model: agent.model, status: "error", error: `gateway ${resp.status}`, latency_ms: Date.now() - startedAt });
         return json({ error: `AI gateway ${resp.status}`, detail: t.slice(0, 300) }, 502);
       }
       const data = await resp.json();
+      const u = data?.usage;
+      if (u) {
+        totalIn += u.prompt_tokens ?? 0;
+        totalOut += u.completion_tokens ?? 0;
+        totalTok += u.total_tokens ?? 0;
+      }
       const choice = data?.choices?.[0]?.message;
       if (!choice) break;
 
