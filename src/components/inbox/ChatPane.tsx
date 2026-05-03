@@ -303,16 +303,60 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   async function backfillFull() {
     if (backfilling) return;
     setBackfilling(true);
-    toast.info("Importando histórico completo… isso pode levar alguns minutos.");
-    const { data, error } = await supabase.functions.invoke("evolution-sync-lead", {
-      body: { lead_id: lead.id, full: true, silent: true },
-    });
-    setBackfilling(false);
-    if (error || (data as any)?.error) {
-      toast.error("Falha: " + (error?.message || (data as any)?.error));
-    } else {
-      const d = data as any;
-      toast.success(`Histórico importado: ${d?.imported ?? 0} novas (${d?.total ?? 0} verificadas em ${d?.pages ?? 0} páginas)`);
+    setBackfillProgress({ pages: 0, lastPageItems: 0, imported: 0, total: 0 });
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-sync-lead`;
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ lead_id: lead.id, full: true, silent: true }),
+      });
+      if (!resp.ok || !resp.body) {
+        const t = await resp.text().catch(() => "");
+        throw new Error(`HTTP ${resp.status} ${t.slice(0, 200)}`);
+      }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let finalEvt: any = null;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          try {
+            const evt = JSON.parse(line);
+            if (evt.type === "page") {
+              setBackfillProgress({
+                pages: evt.page, lastPageItems: evt.items,
+                imported: evt.imported, total: evt.total,
+              });
+            } else if (evt.type === "done") {
+              finalEvt = evt;
+            } else if (evt.type === "error") {
+              toast.error("Erro na importação: " + (evt.detail ?? evt.status));
+            }
+          } catch { /* ignore parse */ }
+        }
+      }
+      if (finalEvt) {
+        toast.success(`Histórico importado: ${finalEvt.imported} novas (${finalEvt.total} em ${finalEvt.pages} páginas)`);
+      }
+    } catch (e: any) {
+      toast.error("Falha: " + (e?.message ?? String(e)));
+    } finally {
+      setBackfilling(false);
+      // Keep progress visible briefly so users see the final numbers
+      setTimeout(() => setBackfillProgress(null), 4000);
     }
   }
   async function suggest() {
