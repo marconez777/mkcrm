@@ -1,25 +1,49 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const BASE = "Zappy CRM";
 
 export function useUnreadTitle() {
+  const totalRef = useRef(0);
+
   useEffect(() => {
-    let total = 0;
     const apply = () => {
-      document.title = total > 0 ? `(${total}) ${BASE}` : BASE;
+      document.title = totalRef.current > 0 ? `(${totalRef.current}) ${BASE}` : BASE;
     };
-    const load = async () => {
+
+    let active = true;
+    (async () => {
       const { data } = await supabase.from("leads").select("unread_count");
-      total = (data ?? []).reduce((s: number, r: any) => s + (r.unread_count ?? 0), 0);
+      if (!active) return;
+      totalRef.current = (data ?? []).reduce(
+        (s: number, r: any) => s + (r.unread_count ?? 0),
+        0,
+      );
       apply();
-    };
-    load();
+    })();
+
     const ch = supabase
       .channel(`unread-title-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, load)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads" }, (p) => {
+        totalRef.current += (p.new as any).unread_count ?? 0;
+        apply();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "leads" }, (p) => {
+        const newU = (p.new as any).unread_count ?? 0;
+        const oldU = (p.old as any)?.unread_count ?? 0;
+        if (newU === oldU) return;
+        totalRef.current += newU - oldU;
+        if (totalRef.current < 0) totalRef.current = 0;
+        apply();
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "leads" }, (p) => {
+        totalRef.current -= (p.old as any)?.unread_count ?? 0;
+        if (totalRef.current < 0) totalRef.current = 0;
+        apply();
+      })
       .subscribe();
-    return () => { supabase.removeChannel(ch); document.title = BASE; };
+
+    return () => { active = false; supabase.removeChannel(ch); document.title = BASE; };
   }, []);
 }
 

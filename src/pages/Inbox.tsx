@@ -16,7 +16,7 @@ export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
 export type SortKey = "recent" | "unread" | "oldest";
 
 export default function InboxPage() {
-  const { leads } = useLeads();
+  const { leads, loaded: leadsLoaded } = useLeads();
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
@@ -29,8 +29,10 @@ export default function InboxPage() {
   const [showContext, setShowContext] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
   const lastSeenRef = useRef<string | null>(null);
+  const openLeadRef = useRef<string | undefined>(leadId);
+  openLeadRef.current = leadId;
 
-  // Ping on incoming messages when tab not focused
+  // Ping on incoming messages when tab not focused (and not the open chat)
   useEffect(() => {
     const ch = supabase
       .channel(`inbox-ping-${Math.random().toString(36).slice(2)}`)
@@ -41,6 +43,7 @@ export default function InboxPage() {
           const m = payload.new as any;
           if (lastSeenRef.current === m.id) return;
           lastSeenRef.current = m.id;
+          if (m.lead_id === openLeadRef.current) return;
           if (document.hidden) playPing();
         },
       )
@@ -132,6 +135,7 @@ export default function InboxPage() {
           tagFilter={tagFilter}
           setTagFilter={setTagFilter}
           onNew={() => setNewOpen(true)}
+          loaded={leadsLoaded}
         />
       </aside>
 
