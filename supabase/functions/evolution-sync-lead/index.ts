@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { lead_id } = await req.json();
+    const { lead_id, silent = false } = await req.json();
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
     const settings = await loadSettings();
@@ -37,11 +37,26 @@ Deno.serve(async (req) => {
     const data = await resp.json().catch(() => ({}));
     const items: any[] = Array.isArray(data) ? data : (data?.messages?.records ?? data?.records ?? data?.messages ?? []);
 
+    // Only ingest items newer than what we already have locally
+    const { data: lastLocal } = await supabase
+      .from("messages")
+      .select("timestamp")
+      .eq("lead_id", lead_id)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastTs = lastLocal?.timestamp ? new Date(lastLocal.timestamp).getTime() : 0;
+
     let imported = 0;
     for (const it of items.slice(-50)) {
       try {
-        await ingestMessage(it, "sync");
-        imported++;
+        const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
+        if (lastTs && itTs && itTs <= lastTs) {
+          // older than what we have — let idempotency handle it but skip cheaply
+          continue;
+        }
+        const r = await ingestMessage(it, "sync", { silent });
+        if ((r as any)?.isNew) imported++;
       } catch (e) {
         console.error("sync ingest", e);
       }
