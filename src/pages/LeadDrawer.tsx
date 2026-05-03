@@ -133,17 +133,29 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             <div ref={scrollerRef} className="scrollbar-thin flex-1 overflow-y-auto px-5 py-4" style={{ background: "hsl(var(--chat-bg))" }}>
               {messages.length === 0 && <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>}
               <div className="space-y-1.5">
-                {messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.from_me ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className="max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm"
-                      style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
-                    >
-                      <div className="whitespace-pre-wrap break-words">{m.content || `[${m.message_type}]`}</div>
-                      <div className="mt-0.5 text-right text-[10px] opacity-60">{fmtTime(m.timestamp)} {m.from_me && `· ${m.status}`}</div>
+                {messages.map((m) => {
+                  const failed = m.status === "failed";
+                  const pending = m.status === "pending";
+                  return (
+                    <div key={m.id} className={`flex ${m.from_me ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm ${failed ? "ring-1 ring-destructive" : ""} ${pending ? "opacity-70" : ""}`}
+                        style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
+                      >
+                        <div className="whitespace-pre-wrap break-words">{m.content || `[${m.message_type}]`}</div>
+                        <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
+                          {failed && <AlertCircle className="h-3 w-3 text-destructive" />}
+                          <span>{fmtTime(m.timestamp)}{m.from_me && ` · ${m.status}`}</span>
+                          {failed && (
+                            <button onClick={() => resend(m)} className="ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
+                              <RotateCw className="h-3 w-3" /> reenviar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="flex items-end gap-2 border-t bg-card p-3">
