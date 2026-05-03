@@ -91,8 +91,13 @@ export const REQUIRED_EVENTS = [
  * Idempotent — relies on unique indexes on (lead_id, external_id) and client_message_id.
  * Used by both the realtime webhook and the polling reconciler.
  */
-export async function ingestMessage(item: any, source: "webhook" | "poll" | "sync") {
+export async function ingestMessage(
+  item: any,
+  source: "webhook" | "poll" | "sync",
+  opts: { silent?: boolean } = {},
+) {
   const supabase = sb();
+  const silent = !!opts.silent;
   const remoteJid = item?.key?.remoteJid;
   const phone = phoneFromJid(remoteJid);
   if (!phone) return { skipped: true, reason: "no-phone" };
@@ -100,7 +105,6 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
   const fromMe = !!item?.key?.fromMe;
   const externalId: string | null = item?.key?.id ?? null;
   const { type, content } = extractText(item.message);
-  // Reply context (quoted message)
   const ctx = item?.message?.extendedTextMessage?.contextInfo
     ?? item?.message?.imageMessage?.contextInfo
     ?? item?.message?.videoMessage?.contextInfo
@@ -110,6 +114,7 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
   const ts = item?.messageTimestamp
     ? new Date(Number(item.messageTimestamp) * 1000).toISOString()
     : new Date().toISOString();
+  const newStatus = item?.status ? String(item.status).toLowerCase() : (fromMe ? "sent" : "received");
 
   // Find or create lead
   let { data: lead } = await supabase
@@ -118,6 +123,7 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
     .eq("phone", phone)
     .maybeSingle();
 
+  let createdLead = false;
   if (!lead) {
     const { data: stage } = await supabase
       .from("pipeline_stages")
@@ -133,52 +139,87 @@ export async function ingestMessage(item: any, source: "webhook" | "poll" | "syn
         stage_id: stage?.id ?? null,
         last_message_at: ts,
         last_message_preview: content?.slice(0, 120) ?? null,
-        unread_count: fromMe ? 0 : 1,
+        unread_count: fromMe || silent ? 0 : 1,
       })
       .select("id, name")
       .single();
     if (error) throw error;
     lead = created;
-  } else {
-    if (pushName && !(lead as any).name) {
-      await supabase.from("leads").update({ name: pushName }).eq("id", lead.id);
+    createdLead = true;
+  } else if (pushName && !(lead as any).name) {
+    await supabase.from("leads").update({ name: pushName }).eq("id", lead.id);
+  }
+
+  // Idempotency check on existing message
+  let existing: any = null;
+  if (externalId) {
+    const { data } = await supabase
+      .from("messages")
+      .select("id, content, status, reply_to_external_id, message_type")
+      .eq("lead_id", lead!.id)
+      .eq("external_id", externalId)
+      .maybeSingle();
+    existing = data;
+  }
+
+  let isNewMessage = false;
+  if (existing) {
+    // Only update if a relevant field actually changed — avoids realtime ping-pong
+    const changed =
+      existing.content !== content ||
+      existing.status !== newStatus ||
+      existing.reply_to_external_id !== replyToExternalId ||
+      existing.message_type !== type;
+    if (changed) {
+      const { error: updErr } = await supabase
+        .from("messages")
+        .update({
+          content,
+          message_type: type,
+          status: newStatus,
+          reply_to_external_id: replyToExternalId,
+        })
+        .eq("id", existing.id);
+      if (updErr) throw updErr;
     }
-    if (!fromMe) {
-      // Atomic increment + preview update via RPC
+  } else {
+    const { error: insErr } = await supabase.from("messages").insert({
+      lead_id: lead!.id,
+      external_id: externalId,
+      from_me: fromMe,
+      message_type: type,
+      content,
+      timestamp: ts,
+      raw: item,
+      reply_to_external_id: replyToExternalId,
+      status: newStatus,
+    });
+    if (insErr) {
+      // Race: unique violation — treat as already ingested
+      if (!String(insErr.message ?? "").toLowerCase().includes("duplicate")) throw insErr;
+    } else {
+      isNewMessage = true;
+    }
+  }
+
+  // Lead counters: only mutate when a brand-new message arrived
+  if (isNewMessage && !createdLead) {
+    if (!fromMe && !silent) {
       await supabase.rpc("increment_unread", {
-        p_lead_id: lead.id,
+        p_lead_id: lead!.id,
         p_preview: content?.slice(0, 120) ?? null,
         p_ts: ts,
       });
-    } else {
+    } else if (!silent) {
       await supabase
         .from("leads")
         .update({
           last_message_at: ts,
           last_message_preview: content?.slice(0, 120) ?? null,
         })
-        .eq("id", lead.id);
+        .eq("id", lead!.id);
     }
   }
 
-  // Upsert message — unique index handles dedup across webhook + poll
-  const { error: upErr } = await supabase
-    .from("messages")
-    .upsert(
-      {
-        lead_id: lead!.id,
-        external_id: externalId,
-        from_me: fromMe,
-        message_type: type,
-        content,
-        timestamp: ts,
-        raw: item,
-        reply_to_external_id: replyToExternalId,
-        status: item?.status ? String(item.status).toLowerCase() : (fromMe ? "sent" : "received"),
-      },
-      { onConflict: "lead_id,external_id", ignoreDuplicates: false },
-    );
-  if (upErr) throw upErr;
-
-  return { lead_id: lead!.id, external_id: externalId, source };
+  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage };
 }

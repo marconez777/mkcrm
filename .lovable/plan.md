@@ -1,64 +1,41 @@
-# Plano — Estabilizar Conversas (sem piscar / sem instabilidade de não lidas)
+# Estabilizar abertura de conversas (sem piscar)
 
-## Diagnóstico
+## Causa raiz
 
-Hoje toda mudança no realtime dispara um **refetch completo** da tabela inteira:
+Ao abrir qualquer conversa, o `ChatPane` dispara em background `evolution-sync-lead`, que **re-ingere as últimas 50 mensagens** do Evolution. O `ingestMessage` compartilhado:
 
-- `useLeads()` → a cada INSERT/UPDATE/DELETE em `leads` rebusca **todos** os leads. Como `evolution-send`, `increment_unread`, `evolution-webhook` e `ChatPane` (zera `unread_count`) atualizam `leads` várias vezes por mensagem, a lista é reconstruída 3-5x por mensagem → pisca.
-- `useStages()` idem.
-- `ChatPane` faz a mesma coisa em `messages` (refetch completo a cada evento).
-- `useUnreadTitle` também escuta `leads` inteiro e refaz a soma a cada evento.
-- `Inbox` recalcula `filtered` (sort + filter) a cada uma dessas reconstruções, e o efeito de `messages.length` dispara `setStickToBottom` que mexe no DOM mid-render.
-- `unread_count = 0` é gravado **toda vez** que o `ChatPane` recarrega — mesmo quando já era 0 — gerando UPDATE → realtime → refetch → loop visível.
+1. Faz `upsert` em `messages` com `ignoreDuplicates: false` → cada linha existente recebe UPDATE → realtime envia evento UPDATE para todas as 50 → o `ChatPane` aplica `mergeMessage` 50 vezes (mesmo com guarda de "changed", o objeto `raw` é referência nova → sempre marca como changed).
+2. Para cada mensagem `!fromMe` chama `increment_unread` → **a contagem de não lidas sobe artificialmente** a cada abertura, e logo depois o `ChatPane` reseta para 0 → daí o "piscar" do badge na lista lateral.
+3. Atualiza `last_message_at`/`preview` em `leads` → dispara UPDATE em leads → re-render da lista.
 
-Resultado: lista pisca, contador de não lidas oscila entre 0 e N, scroll do chat trava.
+Resumo: abrir o chat = tempestade de eventos realtime, mesmo quando nada novo chegou.
 
-## Solução — patches incrementais + gate de "carregado"
+## Mudanças
 
-### 1. `useCrm.ts` — hook genérico `useRealtimeList`
+### 1. `supabase/functions/_shared/evolution.ts` — `ingestMessage` idempotente
+- Antes do `upsert`, fazer `select id, content, status, raw` em `messages` por `(lead_id, external_id)`.
+- Se já existe e nada relevante mudou (`content`, `status`, `reply_to_external_id`) → **return early**, sem tocar em `messages` nem em `leads`.
+- Se existe mas mudou (ex.: status ack/read), fazer `update` apenas dos campos alterados (não reescrever `raw` se igual estruturalmente).
+- Só chamar `increment_unread` / atualizar `last_message_*` quando a mensagem é **realmente nova** (não existia).
+- Mesma lógica vale para o caminho do webhook — corrige duplicação de unread se webhook + sync chegarem juntos.
 
-- Carrega 1x via `select`.
-- Para INSERT: adiciona o row se ainda não existir, ordena.
-- Para UPDATE: faz merge no row existente; **se nada mudou (deep-equal raso por chave), não chama `setState`** → zero re-render.
-- Para DELETE: filtra.
-- Expõe `loaded: boolean`. UI só mostra "vazio" depois de `loaded`.
-- Substitui `useStages` e `useLeads`.
+### 2. `supabase/functions/evolution-sync-lead/index.ts` — sync manual
+- Adicionar parâmetro `silent: boolean` (default `true` quando vindo do auto-open). No modo silent, passar uma flag para `ingestMessage` que **nunca** incrementa unread nem atualiza preview do lead — apenas insere mensagens faltantes.
+- Buscar timestamp da última mensagem local (`select max(timestamp) where lead_id`) e enviar para o Evolution como filtro (quando suportado) ou filtrar localmente após receber, ingerindo só itens com `timestamp > last_local`.
 
-### 2. `ChatPane.tsx` — mensagens incrementais
+### 3. `src/components/inbox/ChatPane.tsx` — não auto-sincronizar
+- Remover a chamada automática a `evolution-sync-lead` no mount. O webhook já mantém a conversa em tempo real; sync é redundante.
+- Manter o botão de refresh manual no header (esse continua chamando sem `silent`, com toast).
+- Opcional: chamar sync **uma vez por sessão por lead** usando um `Set<string>` em ref no componente pai, e somente se a última mensagem local for mais antiga que ~5min.
 
-- Carrega histórico 1x; gate `loaded` antes de renderizar a área (evita flash de "Sem mensagens" e do auto-scroll).
-- Realtime: aplica INSERT/UPDATE/DELETE no array local em vez de refetch.
-- Dedupe por `id` e por `client_message_id` (mensagem otimista vinda do `evolution-send` é substituída pela definitiva sem piscar).
-- `unread_count = 0` só é gravado quando `lead.unread_count > 0` (evita UPDATE inútil → realtime ping-pong).
-- Auto-scroll: só dispara depois de `loaded`; usa `behavior: "auto"` na primeira renderização e `"smooth"` nas seguintes.
-- `evolution-sync-lead` continua, mas com `setSyncing` controlado para não competir com a renderização inicial.
+### 4. `src/hooks/useCrm.ts` — guarda mais estrita no UPDATE de leads
+- Comparar apenas as chaves que a UI realmente exibe (`name, last_message_at, last_message_preview, unread_count, stage_id, attendant_id, tags, archived_at, position`). Ignorar diferenças em `updated_at`/`raw` que não afetam render. Isso evita re-sort/re-render quando só timestamps internos mudam.
 
-### 3. `useUnreadTitle` — soma incremental
-
-- Carrega total 1x.
-- Em INSERT/DELETE de lead: soma/subtrai o `unread_count` do row.
-- Em UPDATE: aplica `delta = new.unread_count - old.unread_count` (payload já traz `old`).
-- Sem refetch a cada evento → título não pisca.
-
-### 4. `Inbox.tsx` — render estável
-
-- Usa `loaded` dos hooks para mostrar skeleton em vez de "nenhuma conversa" durante o boot.
-- `filtered` já está em `useMemo`; ele continua, mas como o array `leads` agora só muda quando algo realmente mudou, o memo vira eficaz de verdade.
-- Ping de áudio: filtra eventos cujo `lead_id` é o atualmente aberto (não toca som no chat aberto).
-
-### 5. Pequenos ajustes correlatos
-
-- `ConversationList`: garantir que items usem `key={l.id}` (já usa) e remover `style` inline volátil — ok.
-- `ContextRail`: `useEffect([form.notes, ...])` que dispara save mesmo no primeiro render quando trocamos de lead. Adicionar guard para não salvar até o usuário editar (compara com `lead.notes` inicial via ref).
-- `LeadDrawer.tsx` (Kanban): aplicar a mesma lógica incremental para mensagens, mantendo paridade.
+### 5. `src/components/inbox/ChatPane.tsx` — `mergeMessage` mais estrito
+- Ao comparar `row` vs `cur`, ignorar a chave `raw` (sempre referência nova vinda do realtime). Comparar somente: `content, status, delivery_status, reply_to_external_id, timestamp, message_type`.
 
 ## Resultado esperado
-
-- Lista de conversas não pisca mais ao receber/enviar mensagem.
-- Contador de não lidas estabiliza (sem 0→N→0).
-- Chat abre sem flash; auto-scroll só acontece depois do histórico estar carregado.
-- Carga no banco cai (sem refetch full a cada evento).
-
-## Fora de escopo agora
-
-- Migrar para `@tanstack/react-query` com cache compartilhado (seria a evolução natural — fica para uma próxima se ainda houver instabilidade).
+- Abrir uma conversa: carrega histórico uma vez, sem disparar sync nem eventos realtime em massa.
+- Badge de não lidas: desce para 0 e fica estável (sem subir/descer).
+- Lista lateral: sem flicker; só re-renderiza quando uma mensagem **nova de verdade** chega via webhook.
+- Botão de refresh manual continua funcionando para quem quiser forçar reconciliação.
