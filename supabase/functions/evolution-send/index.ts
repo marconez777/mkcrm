@@ -1,15 +1,15 @@
 // Sends a text message via Evolution API with retries and idempotency.
-import { corsHeaders, json, sb, loadSettings, evoFetch } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, loadInstance, evoFetch } from "../_shared/evolution.ts";
 
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [0, 2000, 5000];
 
-async function attemptSend(settings: any, phone: string, text: string, quotedId?: string | null) {
+async function attemptSend(instance: any, phone: string, text: string, quotedId?: string | null) {
   const body: any = { number: phone, text };
   if (quotedId) body.quoted = { key: { id: quotedId } };
   return await evoFetch(
-    settings,
-    `/message/sendText/${encodeURIComponent(settings.evolution_instance)}`,
+    instance,
+    `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
     { method: "POST", body: JSON.stringify(body) },
   );
 }
@@ -24,19 +24,18 @@ Deno.serve(async (req) => {
       return json({ error: "lead_id and text required" }, 400);
     }
 
-    const settings = await loadSettings();
-    if (!settings?.evolution_url || !settings.evolution_api_key || !settings.evolution_instance) {
-      return json({ error: "Evolution não configurada" }, 400);
-    }
-
     const { data: lead } = await supabase
       .from("leads")
-      .select("phone")
+      .select("phone, whatsapp_instance_id")
       .eq("id", lead_id)
       .single();
     if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
-    // Idempotency: dedupe via client_message_id
+    const instance = await loadInstance(lead.whatsapp_instance_id);
+    if (!instance) {
+      return json({ error: "Nenhuma instância WhatsApp configurada" }, 400);
+    }
+
     const cid = client_message_id ?? crypto.randomUUID();
     if (client_message_id) {
       const { data: existing } = await supabase
@@ -49,7 +48,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert pending row immediately so UI shows it
     const nowIso = new Date().toISOString();
     const { data: msgRow, error: insErr } = await supabase
       .from("messages")
@@ -70,7 +68,6 @@ Deno.serve(async (req) => {
       .single();
     if (insErr) throw insErr;
 
-    // Optimistic lead preview
     await supabase
       .from("leads")
       .update({
@@ -80,7 +77,6 @@ Deno.serve(async (req) => {
       })
       .eq("id", lead_id);
 
-    // Retry with backoff
     let lastErr: string | null = null;
     let result: any = null;
     let success = false;
@@ -88,7 +84,7 @@ Deno.serve(async (req) => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       if (BACKOFF_MS[attempt]) await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
       try {
-        const resp = await attemptSend(settings, lead.phone, text, quoted_external_id);
+        const resp = await attemptSend(instance, lead.phone, text, quoted_external_id);
         const data = await resp.json().catch(() => ({}));
         if (resp.ok) {
           result = data;
@@ -96,7 +92,6 @@ Deno.serve(async (req) => {
           break;
         }
         lastErr = `HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 300)}`;
-        // Don't retry on 4xx that aren't 408/429
         if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) {
           break;
         }
