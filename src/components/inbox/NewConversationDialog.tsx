@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { forwardRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function NewConversationDialog({
-  open, onClose, onCreated, defaultStageId,
-}: {
+type Props = {
   open: boolean; onClose: () => void;
   onCreated: (leadId: string) => void;
   defaultStageId: string | null;
-}) {
+};
+
+const NewConversationDialog = forwardRef<HTMLDivElement, Props>(function NewConversationDialog(
+  { open, onClose, onCreated, defaultStageId },
+  _ref,
+) {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [text, setText] = useState("");
@@ -77,4 +80,6 @@ export default function NewConversationDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+export default NewConversationDialog;
