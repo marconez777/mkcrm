@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle, PanelLeftClose } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -44,6 +44,7 @@ export default function ConversationList(props: {
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
   onNew: () => void;
   loaded?: boolean;
+  onCollapse?: () => void;
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true } = props;
 
