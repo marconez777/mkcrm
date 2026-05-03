@@ -35,16 +35,27 @@ export default function ContextRail({ lead, stages, attendants }: { lead: Lead; 
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data } = await supabase
-        .from("lead_events")
-        .select("*")
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (active && data) setEvents(data as LeadEvent[]);
+      const [{ data: ev }, { data: ag }, { data: cfg }] = await Promise.all([
+        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
+        supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
+      ]);
+      if (!active) return;
+      if (ev) setEvents(ev as LeadEvent[]);
+      setAgents(ag ?? []);
+      setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
     })();
     return () => { active = false; };
   }, [lead.id]);
+
+  async function saveAiCfg(next: { agent_id: string | null; auto_reply: boolean }) {
+    setAiCfg(next);
+    await supabase.from("lead_ai_settings").upsert({
+      lead_id: lead.id,
+      agent_id: next.agent_id,
+      auto_reply: next.auto_reply,
+    }, { onConflict: "lead_id" });
+  }
 
   async function patch(p: Partial<Lead>) {
     setForm((f) => ({ ...f, ...p }));
