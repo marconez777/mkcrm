@@ -64,7 +64,7 @@ export default function InboxPage() {
       if (filter === "archived") {
         if (!l.archived_at) return false;
       } else if (l.archived_at) return false;
-      if (filter === "unread" && (l.unread_count ?? 0) <= 0) return false;
+      if (filter === "unread" && (l.unread_count ?? 0) <= 0 && !l.marked_unread) return false;
       if (filter === "unassigned" && l.attendant_id) return false;
       if (stageFilter && l.stage_id !== stageFilter) return false;
       if (tagFilter && !(l.tags ?? []).includes(tagFilter)) return false;
@@ -84,6 +84,13 @@ export default function InboxPage() {
     } else {
       arr.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
     }
+    // Pinned first regardless of sort
+    arr.sort((a, b) => {
+      const ap = a.pinned_at ? 1 : 0;
+      const bp = b.pinned_at ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return 0;
+    });
     return arr;
   }, [leads, q, filter, stageFilter, tagFilter, sort]);
 
