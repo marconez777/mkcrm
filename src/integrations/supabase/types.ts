@@ -479,6 +479,8 @@ export type Database = {
       }
       leads: {
         Row: {
+          ai_summary: string | null
+          ai_summary_at: string | null
           archived_at: string | null
           attendant_id: string | null
           avatar_url: string | null
@@ -490,9 +492,11 @@ export type Database = {
           id: string
           last_message_at: string | null
           last_message_preview: string | null
+          marked_unread: boolean
           name: string | null
           notes: string | null
           phone: string
+          pinned_at: string | null
           position: number
           stage_changed_at: string
           stage_id: string | null
@@ -502,6 +506,8 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
+          ai_summary?: string | null
+          ai_summary_at?: string | null
           archived_at?: string | null
           attendant_id?: string | null
           avatar_url?: string | null
@@ -513,9 +519,11 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           last_message_preview?: string | null
+          marked_unread?: boolean
           name?: string | null
           notes?: string | null
           phone: string
+          pinned_at?: string | null
           position?: number
           stage_changed_at?: string
           stage_id?: string | null
@@ -525,6 +533,8 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Update: {
+          ai_summary?: string | null
+          ai_summary_at?: string | null
           archived_at?: string | null
           attendant_id?: string | null
           avatar_url?: string | null
@@ -536,9 +546,11 @@ export type Database = {
           id?: string
           last_message_at?: string | null
           last_message_preview?: string | null
+          marked_unread?: boolean
           name?: string | null
           notes?: string | null
           phone?: string
+          pinned_at?: string | null
           position?: number
           stage_changed_at?: string
           stage_id?: string | null

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
@@ -31,6 +31,32 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   const [aiHistory, setAiHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([]);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string | null>(lead.ai_summary ?? null);
+
+  useEffect(() => { setSummary(lead.ai_summary ?? null); }, [lead.id, lead.ai_summary]);
+
+  async function generateSummary() {
+    setSummarizing(true);
+    const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "summary" } });
+    setSummarizing(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha IA: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    setSummary((data as any)?.summary ?? "");
+  }
+
+  async function togglePin() {
+    await patch({ pinned_at: lead.pinned_at ? null : (new Date().toISOString() as any) });
+  }
+  async function toggleUnread() {
+    if (lead.marked_unread || (lead.unread_count ?? 0) > 0) {
+      await patch({ marked_unread: false, unread_count: 0 } as any);
+    } else {
+      await patch({ marked_unread: true } as any);
+    }
+  }
 
   useEffect(() => {
     setForm(lead);
@@ -108,11 +134,16 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     <div className="scrollbar-thin flex-1 overflow-y-auto">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-3 py-2">
         <div className="text-xs font-semibold text-muted-foreground">Perfil</div>
-        {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} title="Fechar perfil" className="h-7 w-7">
-            <X className="h-4 w-4" />
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" onClick={togglePin} title={lead.pinned_at ? "Desafixar" : "Fixar no topo"} className="h-7 w-7">
+            {lead.pinned_at ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4" />}
           </Button>
-        )}
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} title="Fechar perfil" className="h-7 w-7">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
       <div className="space-y-4 p-4">
         <div className="flex flex-col items-center text-center">
@@ -132,6 +163,22 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           >
             <Phone className="h-3 w-3" /> {lead.phone} <Copy className="h-3 w-3" />
           </button>
+        </div>
+
+        <div className="rounded-md border bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <Sparkles className="h-3 w-3 text-primary" /> Resumo IA
+            </Label>
+            <Button variant="ghost" size="sm" onClick={generateSummary} disabled={summarizing} className="h-6 px-2 text-[11px]">
+              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? "Atualizar" : "Gerar")}
+            </Button>
+          </div>
+          {summary ? (
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{summary}</p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">Gere um resumo automático da conversa.</p>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -340,6 +387,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         )}
 
         <div className="flex flex-col gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={toggleUnread}>
+            <Mail className="mr-2 h-4 w-4" />
+            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? "Marcar como lida" : "Marcar como não lida"}
+          </Button>
           <Button variant="outline" size="sm" onClick={toggleArchive}>
             {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />Desarquivar</> : <><Archive className="mr-2 h-4 w-4" />Arquivar</>}
           </Button>

@@ -1,8 +1,9 @@
 import { forwardRef } from "react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, Check, CheckCheck, Clock, AlertCircle, PanelLeftClose } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
@@ -141,49 +142,87 @@ export default function ConversationList(props: {
           const stage = stages.find((s) => s.id === l.stage_id);
           const att = attendants.find((a) => a.id === l.attendant_id);
           const isSel = selectedId === l.id;
+          const isPinned = !!l.pinned_at;
+          const isUnread = (l.unread_count ?? 0) > 0 || !!l.marked_unread;
+          // SLA: last incoming msg older than 30min and unread → warn
+          const ageMin = l.last_message_at ? (Date.now() - new Date(l.last_message_at).getTime()) / 60000 : 0;
+          const slaWarn = isUnread && ageMin > 30;
           return (
-            <button
+            <div
               key={l.id}
-              onClick={() => onSelect(l)}
               className={cn(
-                "flex w-full items-start gap-3 border-b px-3 py-2.5 text-left transition-colors",
+                "group relative flex w-full items-start gap-3 border-b px-3 py-2.5 transition-colors",
                 isSel ? "bg-accent" : "hover:bg-muted/50",
+                isPinned && "bg-amber-500/5",
               )}
             >
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                {initials}
-                {att && (
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
-                    style={{ background: att.color }}
-                    title={att.name}
-                  />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium">{l.name || l.phone}</span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(l.last_message_at)}</span>
+              <button onClick={() => onSelect(l)} className="flex flex-1 items-start gap-3 text-left min-w-0">
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  {initials}
+                  {att && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
+                      style={{ background: att.color }}
+                      title={att.name}
+                    />
+                  )}
+                  {slaWarn && (
+                    <span className="absolute -top-0.5 -left-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card" title={`Sem resposta há ${Math.floor(ageMin)}m`} />
+                  )}
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="line-clamp-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    <MsgTypeIcon />
-                    {l.last_message_preview || "—"}
-                  </span>
-                  {l.unread_count > 0 ? (
-                    <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{l.unread_count}</span>
-                  ) : null}
-                </div>
-                {stage && (
-                  <div className="mt-1 flex items-center gap-1">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: stage.color }} />
-                      {stage.name}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("flex items-center gap-1 truncate text-sm", isUnread ? "font-semibold" : "font-medium")}>
+                      {isPinned && <Pin className="h-3 w-3 fill-amber-500 text-amber-500" />}
+                      {l.name || l.phone}
                     </span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(l.last_message_at)}</span>
                   </div>
-                )}
-              </div>
-            </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("line-clamp-1 flex items-center gap-1 text-xs", isUnread ? "text-foreground" : "text-muted-foreground")}>
+                      <MsgTypeIcon />
+                      {l.last_message_preview || "—"}
+                    </span>
+                    {(l.unread_count ?? 0) > 0 ? (
+                      <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{l.unread_count}</span>
+                    ) : l.marked_unread ? (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    ) : null}
+                  </div>
+                  {stage && (
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: stage.color }} />
+                        {stage.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={async () => {
+                    await supabase.from("leads").update({ pinned_at: isPinned ? null : new Date().toISOString() }).eq("id", l.id);
+                  }}>
+                    {isPinned ? <><PinOff className="mr-2 h-4 w-4" />Desafixar</> : <><Pin className="mr-2 h-4 w-4" />Fixar no topo</>}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    if (l.marked_unread || (l.unread_count ?? 0) > 0) {
+                      await supabase.from("leads").update({ marked_unread: false, unread_count: 0 }).eq("id", l.id);
+                    } else {
+                      await supabase.from("leads").update({ marked_unread: true }).eq("id", l.id);
+                    }
+                  }}>
+                    {isUnread ? <><MailOpen className="mr-2 h-4 w-4" />Marcar como lida</> : <><Mail className="mr-2 h-4 w-4" />Marcar não lida</>}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           );
         })}
       </div>

@@ -39,6 +39,10 @@ export type Lead = {
   updated_at: string;
   archived_at?: string | null;
   custom_fields?: Record<string, any>;
+  pinned_at?: string | null;
+  marked_unread?: boolean;
+  ai_summary?: string | null;
+  ai_summary_at?: string | null;
 };
 
 export type Message = {

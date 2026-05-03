@@ -8,15 +8,25 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { getDraft, setDraft } from "@/lib/drafts";
+
 const EMOJIS = ["😀","😁","😂","🤣","😊","😍","😘","🤔","😎","🥳","👍","👏","🙏","🙌","💪","❤️","🔥","✨","🎉","✅","❌","⚠️","💰","📅","📞","📍","🚀","☝️","👇","👌"];
 
-export default function Composer({ lead, onSend }: { lead: Lead; onSend: (text: string) => Promise<void> | void }) {
-  const [text, setText] = useState("");
+export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+  const [text, setText] = useState(() => getDraft(lead.id));
   const [sending, setSending] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
   const [quickIdx, setQuickIdx] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const { items: quickReplies } = useQuickReplies();
+
+  // Persist draft per lead
+  useEffect(() => { setDraft(lead.id, text); }, [text, lead.id]);
+  // Reload draft when lead changes
+  useEffect(() => { setText(getDraft(lead.id)); }, [lead.id]);
+  // Apply suggestion seed
+  useEffect(() => { if (seed) { setText(seed.text); requestAnimationFrame(() => taRef.current?.focus()); } }, [seed?.n]);
+
 
   // Quick reply trigger: text starts with "/"
   const quickQuery = text.startsWith("/") ? text.slice(1).toLowerCase() : null;
