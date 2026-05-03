@@ -215,7 +215,12 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
         style={{ background: "hsl(var(--chat-bg))" }}
       >
-        {messages.length === 0 && (
+        {!loaded && (
+          <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
+          </div>
+        )}
+        {loaded && messages.length === 0 && (
           <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
         )}
         <div className="space-y-1">
