@@ -242,6 +242,12 @@ export default function ConversationList(props: {
             </div>
           );
         })}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex items-center justify-center py-3 text-[11px] text-muted-foreground">
+            {loadingMore && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {loadingMore ? "Carregando…" : ""}
+          </div>
+        )}
       </div>
     </>
   );
