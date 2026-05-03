@@ -227,9 +227,15 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             <div className="text-[11px] text-muted-foreground">{lead.phone}</div>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
-          {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={suggest} disabled={loadingSuggest} title="Sugerir respostas (IA)" className="gap-1 text-xs">
+            {loadingSuggest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Sugerir
+          </Button>
+          <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico">
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+        </div>
       </header>
 
       <div
@@ -327,7 +333,25 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       )}
 
-      <Composer lead={lead} onSend={sendText} />
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t bg-muted/20 px-3 py-2">
+          <Sparkles className="h-3 w-3 text-primary" />
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Sugestões</span>
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => { setComposerSeed({ text: s, n: (composerSeed?.n ?? 0) + 1 }); setSuggestions([]); }}
+              className="rounded-full border border-border bg-card px-2.5 py-1 text-xs hover:bg-accent line-clamp-1 max-w-[300px]"
+              title={s}
+            >
+              {s}
+            </button>
+          ))}
+          <button onClick={() => setSuggestions([])} className="ml-auto rounded p-1 hover:bg-muted text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+      )}
+
+      <Composer lead={lead} onSend={sendText} seed={composerSeed} />
     </div>
   );
 }
