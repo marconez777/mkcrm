@@ -148,44 +148,53 @@ export type Database = {
       }
       messages: {
         Row: {
+          client_message_id: string | null
           content: string | null
           created_at: string
           external_id: string | null
           from_me: boolean
           id: string
+          last_error: string | null
           lead_id: string
           media_mime: string | null
           media_url: string | null
           message_type: string
           raw: Json | null
+          retry_count: number
           status: string
           timestamp: string
         }
         Insert: {
+          client_message_id?: string | null
           content?: string | null
           created_at?: string
           external_id?: string | null
           from_me?: boolean
           id?: string
+          last_error?: string | null
           lead_id: string
           media_mime?: string | null
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          retry_count?: number
           status?: string
           timestamp?: string
         }
         Update: {
+          client_message_id?: string | null
           content?: string | null
           created_at?: string
           external_id?: string | null
           from_me?: boolean
           id?: string
+          last_error?: string | null
           lead_id?: string
           media_mime?: string | null
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          retry_count?: number
           status?: string
           timestamp?: string
         }
@@ -225,31 +234,82 @@ export type Database = {
       }
       settings: {
         Row: {
+          connection_state: string | null
           created_at: string
           evolution_api_key: string | null
           evolution_instance: string | null
           evolution_url: string | null
           id: number
+          last_health_check: string | null
+          last_poll_at: string | null
           updated_at: string
+          webhook_last_error: string | null
+          webhook_last_set_at: string | null
+          webhook_ok: boolean | null
           webhook_token: string
         }
         Insert: {
+          connection_state?: string | null
           created_at?: string
           evolution_api_key?: string | null
           evolution_instance?: string | null
           evolution_url?: string | null
           id?: number
+          last_health_check?: string | null
+          last_poll_at?: string | null
           updated_at?: string
+          webhook_last_error?: string | null
+          webhook_last_set_at?: string | null
+          webhook_ok?: boolean | null
           webhook_token?: string
         }
         Update: {
+          connection_state?: string | null
           created_at?: string
           evolution_api_key?: string | null
           evolution_instance?: string | null
           evolution_url?: string | null
           id?: number
+          last_health_check?: string | null
+          last_poll_at?: string | null
           updated_at?: string
+          webhook_last_error?: string | null
+          webhook_last_set_at?: string | null
+          webhook_ok?: boolean | null
           webhook_token?: string
+        }
+        Relationships: []
+      }
+      webhook_events: {
+        Row: {
+          error: string | null
+          event_type: string
+          id: string
+          lead_id: string | null
+          payload: Json | null
+          processed_at: string | null
+          received_at: string
+          source: string
+        }
+        Insert: {
+          error?: string | null
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          source?: string
+        }
+        Update: {
+          error?: string | null
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          source?: string
         }
         Relationships: []
       }
@@ -258,7 +318,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_webhook_events: { Args: never; Returns: undefined }
+      increment_unread: {
+        Args: { p_lead_id: string; p_preview: string; p_ts: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
