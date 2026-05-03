@@ -65,8 +65,33 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_events: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          payload: Json | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          payload?: Json | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          payload?: Json | null
+          type?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
+          archived_at: string | null
           attendant_id: string | null
           avatar_url: string | null
           company: string | null
@@ -88,6 +113,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           attendant_id?: string | null
           avatar_url?: string | null
           company?: string | null
@@ -109,6 +135,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           attendant_id?: string | null
           avatar_url?: string | null
           company?: string | null
@@ -151,6 +178,7 @@ export type Database = {
           client_message_id: string | null
           content: string | null
           created_at: string
+          delivery_status: string | null
           external_id: string | null
           from_me: boolean
           id: string
@@ -160,6 +188,7 @@ export type Database = {
           media_url: string | null
           message_type: string
           raw: Json | null
+          reply_to_external_id: string | null
           retry_count: number
           status: string
           timestamp: string
@@ -168,6 +197,7 @@ export type Database = {
           client_message_id?: string | null
           content?: string | null
           created_at?: string
+          delivery_status?: string | null
           external_id?: string | null
           from_me?: boolean
           id?: string
@@ -177,6 +207,7 @@ export type Database = {
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          reply_to_external_id?: string | null
           retry_count?: number
           status?: string
           timestamp?: string
@@ -185,6 +216,7 @@ export type Database = {
           client_message_id?: string | null
           content?: string | null
           created_at?: string
+          delivery_status?: string | null
           external_id?: string | null
           from_me?: boolean
           id?: string
@@ -194,6 +226,7 @@ export type Database = {
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          reply_to_external_id?: string | null
           retry_count?: number
           status?: string
           timestamp?: string
@@ -229,6 +262,30 @@ export type Database = {
           id?: string
           name?: string
           position?: number
+        }
+        Relationships: []
+      }
+      quick_replies: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          shortcut: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          shortcut: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          shortcut?: string
+          updated_at?: string
         }
         Relationships: []
       }
