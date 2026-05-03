@@ -31,7 +31,10 @@ function formatMoney(v: number | null) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
-function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (l: Lead) => void }) {
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void }>(function LeadCard(
+  { lead, onOpen },
+  _ref,
+) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
@@ -71,7 +74,7 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (l: Lead) => void }) {
       </div>
     </div>
   );
-}
+});
 
 function Column({ stage, leads, onOpenLead }: { stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
