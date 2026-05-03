@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    await supabase.rpc("cleanup_webhook_events").catch(() => {});
+    try { await supabase.rpc("cleanup_webhook_events"); } catch (e) { console.error("cleanup_webhook_events", e); }
 
     return json({ ok: true, results });
   } catch (err) {
