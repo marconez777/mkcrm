@@ -19,21 +19,51 @@ export const sb = () =>
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-export type Settings = {
-  evolution_url: string | null;
-  evolution_api_key: string | null;
-  evolution_instance: string | null;
+export type Instance = {
+  id: string;
+  name: string;
+  evolution_url: string;
+  evolution_api_key: string;
+  evolution_instance: string;
   webhook_token: string;
+  is_default?: boolean;
 };
 
-export async function loadSettings() {
+/** Load a specific instance by id, or the default one if not provided. */
+export async function loadInstance(instanceId?: string | null): Promise<Instance | null> {
+  const supabase = sb();
+  if (instanceId) {
+    const { data } = await supabase
+      .from("whatsapp_instances")
+      .select("*")
+      .eq("id", instanceId)
+      .maybeSingle();
+    if (data) return data as Instance;
+  }
+  const { data } = await supabase
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("is_default", true)
+    .maybeSingle();
+  return (data as Instance) ?? null;
+}
+
+/** Load instance by webhook token (used by webhook handler). */
+export async function loadInstanceByToken(token: string): Promise<Instance | null> {
   const supabase = sb();
   const { data } = await supabase
-    .from("settings")
-    .select("evolution_url, evolution_api_key, evolution_instance, webhook_token")
-    .eq("id", 1)
-    .single();
-  return data as Settings | null;
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("webhook_token", token)
+    .maybeSingle();
+  return (data as Instance) ?? null;
+}
+
+/** Load all configured instances (for health watchdog). */
+export async function loadAllInstances(): Promise<Instance[]> {
+  const supabase = sb();
+  const { data } = await supabase.from("whatsapp_instances").select("*");
+  return (data as Instance[]) ?? [];
 }
 
 export function evoBase(url: string) {
@@ -41,14 +71,14 @@ export function evoBase(url: string) {
 }
 
 export async function evoFetch(
-  settings: Settings,
+  instance: Instance,
   path: string,
   init: RequestInit = {},
 ) {
-  const url = `${evoBase(settings.evolution_url!)}${path}`;
+  const url = `${evoBase(instance.evolution_url)}${path}`;
   const headers = {
     "Content-Type": "application/json",
-    apikey: settings.evolution_api_key!,
+    apikey: instance.evolution_api_key,
     ...(init.headers ?? {}),
   };
   return fetch(url, { ...init, headers });
@@ -89,15 +119,16 @@ export const REQUIRED_EVENTS = [
 /**
  * Ingest a single Evolution message item into the database.
  * Idempotent — relies on unique indexes on (lead_id, external_id) and client_message_id.
- * Used by both the realtime webhook and the polling reconciler.
+ * `instanceId` ties new leads to the WhatsApp instance that produced the event.
  */
 export async function ingestMessage(
   item: any,
   source: "webhook" | "poll" | "sync",
-  opts: { silent?: boolean } = {},
+  opts: { silent?: boolean; instanceId?: string | null } = {},
 ) {
   const supabase = sb();
   const silent = !!opts.silent;
+  const instanceId = opts.instanceId ?? null;
   const remoteJid = item?.key?.remoteJid;
   const phone = phoneFromJid(remoteJid);
   if (!phone) return { skipped: true, reason: "no-phone" };
@@ -116,10 +147,9 @@ export async function ingestMessage(
     : new Date().toISOString();
   const newStatus = item?.status ? String(item.status).toLowerCase() : (fromMe ? "sent" : "received");
 
-  // Find or create lead
   let { data: lead } = await supabase
     .from("leads")
-    .select("id, name")
+    .select("id, name, whatsapp_instance_id")
     .eq("phone", phone)
     .maybeSingle();
 
@@ -137,20 +167,25 @@ export async function ingestMessage(
         phone,
         name: pushName,
         stage_id: stage?.id ?? null,
+        whatsapp_instance_id: instanceId,
         last_message_at: ts,
         last_message_preview: content?.slice(0, 120) ?? null,
         unread_count: fromMe || silent ? 0 : 1,
       })
-      .select("id, name")
+      .select("id, name, whatsapp_instance_id")
       .single();
     if (error) throw error;
     lead = created;
     createdLead = true;
-  } else if (pushName && !(lead as any).name) {
-    await supabase.from("leads").update({ name: pushName }).eq("id", lead.id);
+  } else {
+    const patch: Record<string, unknown> = {};
+    if (pushName && !(lead as any).name) patch.name = pushName;
+    if (instanceId && !(lead as any).whatsapp_instance_id) patch.whatsapp_instance_id = instanceId;
+    if (Object.keys(patch).length > 0) {
+      await supabase.from("leads").update(patch).eq("id", lead.id);
+    }
   }
 
-  // Idempotency check on existing message
   let existing: any = null;
   if (externalId) {
     const { data } = await supabase
@@ -164,7 +199,6 @@ export async function ingestMessage(
 
   let isNewMessage = false;
   if (existing) {
-    // Only update if a relevant field actually changed — avoids realtime ping-pong
     const changed =
       existing.content !== content ||
       existing.status !== newStatus ||
@@ -195,14 +229,12 @@ export async function ingestMessage(
       status: newStatus,
     });
     if (insErr) {
-      // Race: unique violation — treat as already ingested
       if (!String(insErr.message ?? "").toLowerCase().includes("duplicate")) throw insErr;
     } else {
       isNewMessage = true;
     }
   }
 
-  // Lead counters: only mutate when a brand-new message arrived
   if (isNewMessage && !createdLead) {
     if (!fromMe && !silent) {
       await supabase.rpc("increment_unread", {
