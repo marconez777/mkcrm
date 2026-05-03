@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
-import { Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw, Reply, X, ChevronDown } from "lucide-react";
+import { Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw, Reply, X, ChevronDown, Sparkles } from "lucide-react";
 import Composer from "./Composer";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
