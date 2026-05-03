@@ -10,24 +10,31 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2 } from "lucide-react";
 
+type Provider = "openai" | "anthropic" | "google";
 type Agent = {
   id: string;
   name: string;
   description: string | null;
   system_prompt: string;
+  provider: Provider;
+  api_key: string | null;
+  base_url: string | null;
   model: string;
   temperature: number;
   enabled: boolean;
   tools: string[];
+  embedding_model: string | null;
+  embedding_api_key: string | null;
 };
 
-const MODELS = [
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-pro",
-  "openai/gpt-5-mini",
-  "openai/gpt-5",
-];
+const PROVIDER_MODELS: Record<Provider, string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
+  anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+  google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+};
+const PROVIDER_LABEL: Record<Provider, string> = {
+  openai: "OpenAI", anthropic: "Anthropic", google: "Google AI",
+};
 
 const TOOLS = [
   { id: "move_lead_stage", label: "Mover lead de estágio" },
