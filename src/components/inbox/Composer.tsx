@@ -109,8 +109,8 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         </div>
       )}
 
-      <div className="flex items-end gap-1">
-        <div className="flex flex-col gap-0.5">
+      <div className="flex items-stretch gap-1">
+        <div className="flex flex-col gap-0.5 self-end">
           <Popover>
             <PopoverTrigger asChild>
               <Button type="button" variant="ghost" size="icon" title="Emoji"><Smile className="h-4 w-4" /></Button>
@@ -148,7 +148,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           onKeyDown={onKey}
           placeholder="Mensagem... (Enter envia, Shift+Enter quebra linha)"
           rows={1}
-          className="max-h-40 min-h-[40px] flex-1 resize-none"
+          className="max-h-40 min-h-[120px] flex-1 resize-none self-stretch"
         />
         <Tooltip>
           <TooltipTrigger asChild>
