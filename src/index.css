@@ -81,7 +81,21 @@
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; font-feature-settings: "cv02","cv03","cv04","cv11"; }
+  body { @apply bg-background text-foreground; font-feature-settings: "cv02","cv03","cv04","cv11"; font-size: 15px; }
+  html { font-size: 15px; }
+}
+
+/* Global minimum font size: nothing in the system should render below 15px. */
+@layer utilities {
+  :where(html, body, p, span, div, a, li, td, th, label, input, textarea, select, button,
+    h1, h2, h3, h4, h5, h6, small, strong, em, code, pre, figcaption, summary, dt, dd,
+    [class*="text-"]) {
+    font-size: max(15px, 1em);
+  }
+  /* Reassert known small Tailwind sizes */
+  .text-xs, .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\],
+  .text-\[0\.625rem\], .text-\[0\.6875rem\], .text-\[0\.75rem\], .text-\[0\.8125rem\], .text-\[0\.875rem\],
+  .text-sm { font-size: 15px !important; line-height: 1.4 !important; }
 }
 
 @layer utilities {
