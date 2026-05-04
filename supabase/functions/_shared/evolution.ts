@@ -176,7 +176,9 @@ export async function ingestMessage(
     ?? item?.message?.videoMessage?.contextInfo
     ?? item?.contextInfo;
   const replyToExternalId: string | null = ctx?.stanzaId ?? null;
-  const pushName = item?.pushName ?? null;
+  // pushName em mensagens fromMe é o NOME DO PRÓPRIO USUÁRIO do WhatsApp,
+  // NÃO o nome do contato. Só usar pushName quando a mensagem é recebida (fromMe = false).
+  const pushName = !fromMe ? (item?.pushName ?? null) : null;
   const ts = item?.messageTimestamp
     ? new Date(Number(item.messageTimestamp) * 1000).toISOString()
     : new Date().toISOString();
