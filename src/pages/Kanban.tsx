@@ -259,8 +259,20 @@ export default function KanbanPage() {
     if (overData?.type === "stage") targetStageId = overData.stage.id;
     else if (overData?.type === "lead") targetStageId = overData.lead.stage_id;
     if (!targetStageId || targetStageId === lead.stage_id) return;
+    const previousStageId = lead.stage_id;
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId } : l));
     await supabase.from("leads").update({ stage_id: targetStageId }).eq("id", lead.id);
+    const target = stages.find((s) => s.id === targetStageId);
+    toast.success(`Movido para "${target?.name ?? "etapa"}"`, {
+      action: previousStageId ? {
+        label: "Desfazer",
+        onClick: async () => {
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId } : l));
+          await supabase.from("leads").update({ stage_id: previousStageId }).eq("id", lead.id);
+        },
+      } : undefined,
+      duration: 6000,
+    });
   }
 
   async function addColumn() {
