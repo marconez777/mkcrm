@@ -34,6 +34,13 @@ export default function InboxPage() {
   const openLeadRef = useRef<string | undefined>(leadId);
   openLeadRef.current = leadId;
 
+  // Listen for command palette "Nova conversa"
+  useEffect(() => {
+    const onOpen = () => setNewOpen(true);
+    window.addEventListener("open-new-conversation", onOpen);
+    return () => window.removeEventListener("open-new-conversation", onOpen);
+  }, []);
+
   // Ping on incoming messages when tab not focused (and not the open chat)
   useEffect(() => {
     const ch = supabase
