@@ -1,33 +1,33 @@
-## Editar e excluir colunas do pipeline
+## Problema
 
-Adicionar um menu de ações em cada coluna do Kanban para **renomear**, **trocar cor** e **excluir** etapas.
+O arrastar horizontal do board (pan com o mouse no fundo) parou de funcionar de novo. Causa raiz:
 
-### UX
+1. O `DndContext` agora envolve **toda** a área rolável (`scrollRef`) — antes estava no nível de cada coluna. O `PointerSensor` do dnd-kit captura `pointerdown` em qualquer lugar do board, incluindo o fundo vazio entre colunas e dentro do corpo da coluna (que é um `useDroppable`).
+2. Mesmo com `activationConstraint: { distance: 6 }`, o dnd-kit chama `setPointerCapture` e `preventDefault` em `pointermove`, então o `onPointerMove` global do `useHorizontalScroll` recebe os eventos mas o `pointerdown` original nunca foi registrado como pan (porque o hook só registra pan se o target **não** for card/botão — e isso está OK — mas o capture do dnd-kit interfere durante o move).
+3. Resultado: clicar no fundo e arrastar não move o pipeline; só funciona em cima de cards (que viram drag de card).
 
-Na header de cada coluna, ao lado do botão "colapsar", um botão `⋮` (MoreVertical) abre um dropdown com:
-- **Renomear** — abre dialog com input de nome
-- **Mudar cor** — abre o mesmo dialog mostrando 8 swatches de cor + input hex
-- **Excluir** — confirma; bloqueia exclusão se houver leads na coluna (sugere mover antes)
+## Solução
 
-Na versão **colapsada** da coluna o menu também aparece (botão pequeno embaixo do nome).
+Tornar o pan do pipeline robusto independentemente do `DndContext`:
 
-### Detalhes técnicos
+### 1. Em `src/hooks/useHorizontalScroll.ts`
+- No `onPointerDown`, quando reconhecer área de pan (target não é card/botão/input), chamar `el.setPointerCapture(e.pointerId)` e `e.preventDefault()` para garantir prioridade sobre o dnd-kit.
+- Guardar o `pointerId` no `dragState` e usar `el.releasePointerCapture` no `onPointerUp`.
+- Trocar listeners `pointermove`/`pointerup` de `window` para o próprio `el` (com pointer capture eles continuam chegando lá), evitando race com handlers globais.
+- Adicionar threshold mínimo de 4px antes de iniciar o pan visual, para não atrapalhar cliques.
 
-- Novo componente `src/components/kanban/EditStageDialog.tsx`:
-  - Props: `stage`, `open`, `onOpenChange`
-  - Campos: `name`, `color` (palette: indigo, sky, emerald, amber, rose, violet, slate, pink — todos via tokens HSL ou hex)
-  - Botão "Salvar" → `supabase.from("pipeline_stages").update({ name, color }).eq("id", stage.id)`
+### 2. Em `src/pages/Kanban.tsx`
+- Adicionar atributo `data-kanban-board-bg` no wrapper interno (`<div className="flex h-full gap-3">`) e nos espaços vazios das colunas, para o hook reconhecer com clareza onde o pan é permitido.
+- Manter `cursor: grab` no container e mudar para `grabbing` durante o pan (já existe via classe `kanban-grabbing`).
 
-- Em `src/pages/Kanban.tsx`:
-  - `Column` recebe novas props `onEdit(stage)` e `onDelete(stage)`
-  - Adiciona `<DropdownMenu>` com trigger `MoreVertical` (visível em `group-hover` para não poluir)
-  - Estado em `KanbanPage`: `editingStage: Stage | null`
-  - `handleDelete(stage)`: se `leads.filter(l => l.stage_id === stage.id).length > 0` → toast de erro pedindo pra mover; senão `confirm()` + `delete().eq("id", stage.id)`
-  - Realtime já cobre — UI atualiza sozinha via `useStages`
+### 3. Garantia visual
+- Confirmar que o cursor `grab` aparece sobre áreas vazias entre colunas e que o pan funciona tanto no fundo quanto sobre a borda interna das colunas vazias.
 
-### Arquivos
+## Arquivos afetados
 
-- **Novo:** `src/components/kanban/EditStageDialog.tsx`
-- **Editar:** `src/pages/Kanban.tsx` — imports, menu na coluna, handlers, render do dialog
+- `src/hooks/useHorizontalScroll.ts` — pointer capture + listeners no elemento + threshold.
+- `src/pages/Kanban.tsx` — pequenos atributos `data-*` para clareza (opcional, principal fix está no hook).
 
-Aprove para aplicar.
+## Por que não vai quebrar de novo
+
+O pointer capture garante que, uma vez iniciado o pan, todos os `pointermove`/`pointerup` vão para o container de scroll, ignorando o `DndContext`. E o `PointerSensor` do dnd-kit só ativa drag a partir de 6px **vindo de um item sortable** (LeadCard) — fundo do board nunca é sortable, então não há conflito real; o problema atual é só o capture/preventDefault que o nosso handler precisa fazer primeiro.
