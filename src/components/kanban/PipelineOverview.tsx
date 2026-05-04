@@ -39,14 +39,6 @@ export default function PipelineOverview({ stages, leads, scrollX, viewportW, co
             </button>
           ))}
         </div>
-        {contentW > viewportW && (
-          <div className="pointer-events-none mt-1 h-1 w-full rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary/60 transition-[width,margin]"
-              style={{ width: `${Math.max(ratio * 100, 4)}%`, marginLeft: `${offset * 100}%` }}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
