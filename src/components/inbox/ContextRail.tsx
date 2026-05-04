@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2 } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2, GitBranch, UserCheck, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
@@ -65,11 +65,12 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     setTagInput("");
   }, [lead.id]);
 
+  const [eventsExpanded, setEventsExpanded] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       const [{ data: ev }, { data: ag }, { data: cfg }, { data: defs }] = await Promise.all([
-        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(50),
         supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
         supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
@@ -80,7 +81,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
       setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
       setCustomDefs((defs ?? []) as any);
     })();
-    return () => { active = false; };
+    // Realtime: append new events
+    const ch = supabase
+      .channel(`lead-events-${lead.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, (p) => {
+        setEvents((cur) => [p.new as LeadEvent, ...cur]);
+      })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
   }, [lead.id]);
 
   async function saveAiCfg(next: { agent_id: string | null; auto_reply: boolean }) {
