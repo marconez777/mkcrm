@@ -191,6 +191,8 @@ export default function ConversationList(props: {
           // SLA: last incoming msg older than 30min and unread → warn
           const ageMin = l.last_message_at ? (Date.now() - new Date(l.last_message_at).getTime()) / 60000 : 0;
           const slaWarn = isUnread && ageMin > 30;
+          const isChecked = selected.has(l.id);
+          const bulkMode = selected.size > 0;
           return (
             <div
               key={l.id}
@@ -198,19 +200,43 @@ export default function ConversationList(props: {
                 "group relative flex w-full items-start gap-3 border-b px-3 py-2.5 transition-colors",
                 isSel ? "bg-accent" : "hover:bg-muted/50",
                 isPinned && "bg-amber-500/5",
+                isChecked && "bg-primary/5",
               )}
             >
-              <button onClick={() => onSelect(l)} className="flex flex-1 items-start gap-3 text-left min-w-0">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                  {initials}
-                  {att && (
+              <button
+                onClick={(e) => {
+                  if (bulkMode) { e.preventDefault(); toggleSel(l.id); } else onSelect(l);
+                }}
+                className="flex flex-1 items-start gap-3 text-left min-w-0"
+              >
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary overflow-hidden",
+                      (bulkMode || isChecked) && "opacity-0",
+                    )}
+                  >
+                    {l.avatar_url
+                      ? <img src={l.avatar_url} alt="" className="h-full w-full object-cover" />
+                      : initials}
+                  </div>
+                  <span
+                    className={cn(
+                      "absolute inset-0 flex items-center justify-center rounded-full bg-card transition-opacity",
+                      bulkMode || isChecked ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                    )}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSel(l.id); }}
+                  >
+                    <Checkbox checked={isChecked} className="h-5 w-5" />
+                  </span>
+                  {att && !bulkMode && !isChecked && (
                     <span
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
                       style={{ background: att.color }}
                       title={att.name}
                     />
                   )}
-                  {slaWarn && (
+                  {slaWarn && !bulkMode && !isChecked && (
                     <span className="absolute -top-0.5 -left-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card" title={`Sem resposta há ${Math.floor(ageMin)}m`} />
                   )}
                 </div>
