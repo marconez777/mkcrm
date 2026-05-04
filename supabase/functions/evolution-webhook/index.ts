@@ -73,9 +73,13 @@ Deno.serve(async (req) => {
         if (!phone) continue;
         const name = it?.pushName ?? it?.name ?? null;
         const avatar = it?.profilePicUrl ?? null;
+        const patch: Record<string, unknown> = {};
+        if (name) patch.name = name;
+        if (avatar) patch.avatar_url = avatar;
+        if (Object.keys(patch).length === 0) continue;
         await supabase
           .from("leads")
-          .update({ name, avatar_url: avatar })
+          .update(patch)
           .eq("phone", phone);
       }
     } else if (eventType === "CONNECTION_UPDATE") {
