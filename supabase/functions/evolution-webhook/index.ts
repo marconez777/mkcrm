@@ -1,5 +1,5 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
-import { corsHeaders, json, sb, ingestMessage, phoneFromJid, loadInstanceByToken } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
