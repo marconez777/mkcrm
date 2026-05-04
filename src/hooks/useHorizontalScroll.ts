@@ -51,7 +51,6 @@ export function useHorizontalScroll() {
       );
     };
 
-    // drag-to-pan on board/background — use capture phase + window listeners to survive dnd-kit interception
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return;
       const target = e.target as HTMLElement;
@@ -79,7 +78,6 @@ export function useHorizontalScroll() {
         el.classList.add("kanban-grabbing");
       }
       e.preventDefault();
-      e.stopPropagation();
       window.getSelection()?.removeAllRanges();
       el.scrollLeft = s.startScroll - dx;
     };
@@ -99,19 +97,19 @@ export function useHorizontalScroll() {
     ro.observe(el);
 
     el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("pointerdown", onPointerDown, { capture: true });
-    window.addEventListener("pointermove", onPointerMove, { capture: true, passive: false });
-    window.addEventListener("pointerup", endDrag, { capture: true });
-    window.addEventListener("pointercancel", endDrag, { capture: true });
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
     el.addEventListener("lostpointercapture", endDrag);
     el.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
       el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("pointerdown", onPointerDown, { capture: true });
-      window.removeEventListener("pointermove", onPointerMove, { capture: true });
-      window.removeEventListener("pointerup", endDrag, { capture: true });
-      window.removeEventListener("pointercancel", endDrag, { capture: true });
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", endDrag);
+      el.removeEventListener("pointercancel", endDrag);
       el.removeEventListener("lostpointercapture", endDrag);
       el.removeEventListener("scroll", onScroll);
       ro.disconnect();
