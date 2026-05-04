@@ -1,15 +1,16 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
