@@ -98,21 +98,41 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
 });
 
 function Column({
-  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact,
+  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void;
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
+  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
 
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title="Mais ações" onClick={(e) => e.stopPropagation()}>
+          <MoreVertical className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem onClick={() => onEdit(stage)}>
+          <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onDelete(stage)} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   if (collapsed) {
     return (
       <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
-        <button onClick={onToggleCollapse} className="mb-2 rounded p-1 hover:bg-accent" title="Expandir">
+        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title="Expandir">
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
-        <span className="h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+        {menu}
+        <span className="mt-1 h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
         <div ref={setNodeRef} className={`mt-2 flex flex-1 flex-col items-center justify-start gap-1 ${isOver ? "bg-primary/10" : ""}`}>
           <div className="rotate-180 whitespace-nowrap text-xs font-semibold [writing-mode:vertical-rl]">{stage.name}</div>
           <span className="mt-2 rounded bg-muted px-1.5 text-[10px] font-bold text-muted-foreground">{leads.length}</span>
@@ -136,6 +156,7 @@ function Column({
           <button onClick={onToggleCollapse} className="rounded p-1 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
             <Minimize2 className="h-3.5 w-3.5" />
           </button>
+          {menu}
         </div>
       </div>
       <div
