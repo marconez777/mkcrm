@@ -110,34 +110,36 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
       )}
 
       <div className="flex items-end gap-1">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" title="Emoji"><Smile className="h-4 w-4" /></Button>
-          </PopoverTrigger>
-          <PopoverContent side="top" align="start" className="w-64 p-2">
-            <div className="grid grid-cols-8 gap-1">
-              {EMOJIS.map((e) => (
-                <button key={e} onClick={() => insertEmoji(e)} className="rounded text-lg hover:bg-muted">{e}</button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+        <div className="flex flex-col gap-0.5">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" title="Emoji"><Smile className="h-4 w-4" /></Button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start" className="w-64 p-2">
+              <div className="grid grid-cols-8 gap-1">
+                {EMOJIS.map((e) => (
+                  <button key={e} onClick={() => insertEmoji(e)} className="rounded text-lg hover:bg-muted">{e}</button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span><Button type="button" variant="ghost" size="icon" disabled title="Em breve"><Paperclip className="h-4 w-4" /></Button></span>
-          </TooltipTrigger>
-          <TooltipContent>Anexos em breve</TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span><Button type="button" variant="ghost" size="icon" disabled title="Em breve"><Paperclip className="h-4 w-4" /></Button></span>
+            </TooltipTrigger>
+            <TooltipContent>Anexos em breve</TooltipContent>
+          </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title="Respostas rápidas">
-              <Zap className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Digite "/" para respostas rápidas</TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title="Respostas rápidas">
+                <Zap className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Digite "/" para respostas rápidas</TooltipContent>
+          </Tooltip>
+        </div>
 
         <Textarea
           ref={taRef}
