@@ -22,6 +22,7 @@ const queryClient = new QueryClient();
 
 import { useUnreadTitle } from "./hooks/useUnreadTitle";
 import ShortcutsDialog from "./components/ShortcutsDialog";
+import CommandPalette from "./components/CommandPalette";
 
 const TitleSync = () => { useUnreadTitle(); return null; };
 
