@@ -347,6 +347,8 @@ export default function KanbanPage() {
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
+                        onEdit={setEditingStage}
+                        onDelete={deleteStage}
                       />
                     ))}
                     {stages.length === 0 && (
