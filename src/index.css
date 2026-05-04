@@ -96,4 +96,10 @@
   .kanban-snap { scroll-snap-align: start; }
   .kanban-grabbing { cursor: grabbing !important; user-select: none; }
   .kanban-grabbing * { cursor: grabbing !important; }
+
+  .kanban-top-scroll { overflow-x: auto; overflow-y: hidden; height: 12px; }
+  .kanban-top-scroll::-webkit-scrollbar { height: 10px; }
+  .kanban-top-scroll::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.4); border-radius: 999px; }
+  .kanban-top-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  .kanban-top-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); background-clip: padding-box; border: 2px solid transparent; }
 }

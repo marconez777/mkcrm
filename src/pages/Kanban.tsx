@@ -21,6 +21,7 @@ import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
+import TopScrollbar from "@/components/kanban/TopScrollbar";
 import { usePipelines } from "@/hooks/usePipelines";
 
 function timeAgo(iso: string | null) {
@@ -289,15 +290,17 @@ export default function KanbanPage() {
               onJump={scrollToColumn}
             />
 
+            <TopScrollbar targetRef={scrollRef} contentW={contentW} viewportW={viewportW} />
+
             <div className="relative flex-1 overflow-hidden">
               {overflow.left && (
-                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent" aria-label="Rolar à esquerda">
-                  <ChevronLeft className="h-4 w-4" />
+                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à esquerda">
+                  <ChevronLeft className="h-5 w-5" />
                 </button>
               )}
               {overflow.right && (
-                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent" aria-label="Rolar à direita">
-                  <ChevronRight className="h-4 w-4" />
+                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à direita">
+                  <ChevronRight className="h-5 w-5" />
                 </button>
               )}
               <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
