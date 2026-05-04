@@ -447,8 +447,35 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     return out;
   }, [messages, notes]);
 
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepth = useRef(0);
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div
+      className="relative flex flex-1 flex-col overflow-hidden"
+      onDragEnter={(e) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        dragDepth.current += 1;
+        setDragOver(true);
+      }}
+      onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
+      onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragOver(false); }}
+      onDrop={(e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragOver(false);
+        const f = e.dataTransfer.files[0];
+        window.dispatchEvent(new CustomEvent("composer-attach-file", { detail: f }));
+      }}
+    >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-primary/10 backdrop-blur-sm">
+          <div className="rounded-lg border-2 border-dashed border-primary bg-card px-6 py-4 text-sm font-medium text-primary shadow-lg">
+            Solte o arquivo para anexar
+          </div>
+        </div>
+      )}
       <header className="flex items-center justify-between border-b bg-card px-4 py-2">
         <div className="flex items-center gap-3">
           {lead.avatar_url ? (
