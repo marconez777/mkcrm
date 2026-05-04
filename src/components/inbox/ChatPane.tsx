@@ -797,6 +797,27 @@ function VirtualizedMessages(props: {
   );
 }
 
+function NoteRow({ note, onRemove }: { note: InternalNote; onRemove: (id: string) => void }) {
+  return (
+    <div className="my-1.5 flex justify-center">
+      <div className="group relative max-w-[80%] rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+        <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-700/80 dark:text-amber-300/80">
+          <StickyNote className="h-3 w-3" /> Nota interna
+          <span className="ml-auto opacity-70">{fmtTime(note.created_at)}</span>
+        </div>
+        <div className="whitespace-pre-wrap break-words">{note.text}</div>
+        <button
+          onClick={() => onRemove(note.id)}
+          className="absolute -right-1 -top-1 hidden rounded-full bg-card p-0.5 text-muted-foreground shadow group-hover:block hover:text-destructive"
+          title="Remover nota"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MessageRow(props: {
   m: Message;
   grouped: boolean;
@@ -808,8 +829,9 @@ function MessageRow(props: {
   setReplyTo: (m: Message) => void;
   pulseAndScroll: (id: string) => void;
   resend: (m: Message) => void;
+  onForward: (text: string) => void;
 }) {
-  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend } = props;
+  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward } = props;
   const failed = m.status === "failed";
   const pending = m.status === "pending";
   const replied = m.reply_to_external_id
@@ -818,16 +840,24 @@ function MessageRow(props: {
   const isMatch = searchTerm && (m.content ?? "").toLowerCase().includes(searchTerm.toLowerCase());
   const isActiveMatch = isMatch && matches[activeMatch]?.id === m.id;
   const pulsing = pulseId === m.id;
+  const actions = (
+    <div className="invisible flex flex-col gap-0.5 self-center opacity-0 transition-opacity group-hover:visible group-hover:opacity-100">
+      <button onClick={() => setReplyTo(m)}
+        className="rounded p-1 text-muted-foreground hover:bg-muted"
+        title="Responder"><Reply className="h-3 w-3" /></button>
+      {m.content && (
+        <button onClick={() => onForward(m.content!)}
+          className="rounded p-1 text-muted-foreground hover:bg-muted"
+          title="Encaminhar"><Forward className="h-3 w-3" /></button>
+      )}
+    </div>
+  );
   return (
     <div
       data-msg-id={m.id}
       className={cn("group flex items-end gap-1 px-0", m.from_me ? "justify-end" : "justify-start", grouped ? "pt-0.5" : "pt-2")}
     >
-      {!m.from_me && (
-        <button onClick={() => setReplyTo(m)}
-          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-          title="Responder"><Reply className="h-3 w-3" /></button>
-      )}
+      {!m.from_me && actions}
       <div
         className={cn(
           "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
@@ -862,11 +892,7 @@ function MessageRow(props: {
           )}
         </div>
       </div>
-      {m.from_me && (
-        <button onClick={() => setReplyTo(m)}
-          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-          title="Responder"><Reply className="h-3 w-3" /></button>
-      )}
+      {m.from_me && actions}
     </div>
   );
 }
