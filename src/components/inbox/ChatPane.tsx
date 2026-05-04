@@ -887,11 +887,14 @@ function MessageRow(props: {
             {replied.content || `[${replied.message_type}]`}
           </button>
         )}
-        <div className="whitespace-pre-wrap break-words">
-          {searchTerm && m.content
-            ? highlight(m.content, searchTerm, !!isActiveMatch)
-            : (m.content || `[${m.message_type}]`)}
-        </div>
+        {m.media_url && <MediaBubble m={m} />}
+        {(m.content || !m.media_url) && (
+          <div className="whitespace-pre-wrap break-words">
+            {searchTerm && m.content
+              ? highlight(m.content, searchTerm, !!isActiveMatch)
+              : (m.content || `[${m.message_type}]`)}
+          </div>
+        )}
         {m.message_type === "audio" && <AudioTranscript m={m} />}
         <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
           <span>{fmtTime(m.timestamp)}</span>
