@@ -250,6 +250,14 @@ export default function KanbanPage() {
     setNewColName(""); setNewColOpen(false);
   }
 
+  async function deleteStage(stage: Stage) {
+    const used = leads.filter((l) => l.stage_id === stage.id).length;
+    if (used > 0) { toast.error(`Mova os ${used} leads desta coluna antes de excluir.`); return; }
+    if (!confirm(`Excluir a coluna "${stage.name}"?`)) return;
+    const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
+    if (error) toast.error(error.message); else toast.success("Coluna excluída");
+  }
+
   async function addLead() {
     if (!newLead.phone.trim()) { toast.error("Telefone obrigatório"); return; }
     if (!stages.length) { toast.error("Crie uma coluna primeiro"); return; }
