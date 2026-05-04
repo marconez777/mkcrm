@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
-import PipelineSidebar from "@/components/kanban/PipelineSidebar";
+import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 
@@ -244,19 +244,17 @@ export default function KanbanPage() {
 
   return (
     <div className="flex h-full">
-      <PipelineSidebar
-        pipelines={pipelines}
-        currentId={currentId}
-        onSelect={setCurrentId}
-        onNew={() => setNewPipelineOpen(true)}
-        leads={allLeads}
-      />
-
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-card px-6 py-3">
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">{current?.name ?? "Pipeline"}</h1>
-            <p className="text-xs text-muted-foreground">
+            <PipelineSwitcher
+              pipelines={pipelines}
+              current={current}
+              leads={allLeads}
+              onSelect={setCurrentId}
+              onNew={() => setNewPipelineOpen(true)}
+            />
+            <p className="px-2 text-xs text-muted-foreground">
               {leads.length} leads · {stages.length} etapas
               {current?.kind === "internal" && <> · gestão interna</>}
               {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
