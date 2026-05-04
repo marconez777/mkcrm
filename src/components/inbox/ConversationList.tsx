@@ -302,6 +302,52 @@ export default function ConversationList(props: {
           </div>
         )}
       </div>
+
+      {selected.size > 0 && (
+        <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover px-2 py-1.5 shadow-lg">
+          <span className="px-2 text-xs font-medium tabular-nums">{selected.size} selecionada{selected.size > 1 ? "s" : ""}</span>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
+            onClick={() => bulkPatch({ marked_unread: false, unread_count: 0 }, "Marcadas como lidas")}>
+            <MailOpen className="h-3.5 w-3.5" /> Lida
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <UserPlus className="h-3.5 w-3.5" /> Atendente
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => bulkPatch({ attendant_id: null }, "Removido atendente")}>Não atribuído</DropdownMenuItem>
+              {attendants.map((a) => (
+                <DropdownMenuItem key={a.id} onClick={() => bulkPatch({ attendant_id: a.id }, `Atribuído a ${a.name}`)}>
+                  <span className="mr-2 h-2 w-2 rounded-full" style={{ background: a.color }} />{a.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <GitBranch className="h-3.5 w-3.5" /> Etapa
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {stages.map((s) => (
+                <DropdownMenuItem key={s.id} onClick={() => bulkPatch({ stage_id: s.id }, `Movidas para ${s.name}`)}>
+                  <span className="mr-2 h-2 w-2 rounded-full" style={{ background: s.color }} />{s.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
+            onClick={() => bulkPatch({ archived_at: new Date().toISOString() }, "Arquivadas")}>
+            <Archive className="h-3.5 w-3.5" /> Arquivar
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearSel} title="Limpar seleção">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </>
   );
 }
