@@ -141,6 +141,7 @@ function EvalsPanel({ agentId }: { agentId: string }) {
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
+  const confirm = useConfirm();
   const [docs, setDocs] = useState<any[]>([]);
   const [docTitle, setDocTitle] = useState("");
   const [docContent, setDocContent] = useState("");

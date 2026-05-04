@@ -66,6 +66,7 @@ export default function ConversationList(props: {
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const prompt = usePrompt();
   const [views, setViews] = useState<SavedView[]>(() => listViews());
   useEffect(() => {
     const refresh = () => setViews(listViews());

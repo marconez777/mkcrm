@@ -20,6 +20,7 @@ function fmtTime(iso: string) {
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const open = !!lead;
   const { stages } = useStages();
+  const confirm = useConfirm();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
