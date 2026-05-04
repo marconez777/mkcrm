@@ -26,6 +26,15 @@ type Agent = {
   tools: string[];
   embedding_model: string | null;
   embedding_api_key: string | null;
+  reranker_provider?: string | null;
+  reranker_api_key?: string | null;
+  max_iterations?: number;
+  use_hyde?: boolean;
+  use_hybrid_search?: boolean;
+  use_memory?: boolean;
+  planning_mode?: boolean;
+  rag_top_k?: number;
+  debounce_seconds?: number;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -42,6 +51,13 @@ const TOOLS = [
   { id: "add_lead_note", label: "Anotar no lead" },
   { id: "set_lead_field", label: "Atualizar campo do lead" },
   { id: "assign_attendant", label: "Atribuir atendente" },
+  { id: "search_knowledge_base", label: "Buscar na base (RAG)" },
+  { id: "create_task", label: "Criar tarefa" },
+  { id: "schedule_message", label: "Agendar mensagem" },
+  { id: "get_lead_history", label: "Ler histórico do lead" },
+  { id: "transfer_to_human", label: "Transferir para humano" },
+  { id: "update_custom_field", label: "Atualizar campo custom" },
+  { id: "remember_fact", label: "Memorizar fato/preferência" },
 ];
 
 export default function Agents() {
