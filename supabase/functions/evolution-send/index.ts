@@ -37,22 +37,28 @@ Deno.serve(async (req) => {
     }
 
     const cid = client_message_id ?? crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    // Idempotency: reuse existing row if client_message_id was already seen.
+    let msgRow: { id: string } | null = null;
     if (client_message_id) {
       const { data: existing } = await supabase
         .from("messages")
         .select("id, status")
         .eq("client_message_id", client_message_id)
         .maybeSingle();
-      if (existing && existing.status === "sent") {
-        return json({ ok: true, deduped: true });
+      if (existing) {
+        if (existing.status === "sent") {
+          return json({ ok: true, deduped: true });
+        }
+        msgRow = { id: existing.id };
       }
     }
 
-    const nowIso = new Date().toISOString();
-    const { data: msgRow, error: insErr } = await supabase
-      .from("messages")
-      .upsert(
-        {
+    if (!msgRow) {
+      const { data: inserted, error: insErr } = await supabase
+        .from("messages")
+        .insert({
           lead_id,
           client_message_id: cid,
           from_me: true,
@@ -61,12 +67,12 @@ Deno.serve(async (req) => {
           status: "pending",
           timestamp: nowIso,
           reply_to_external_id: quoted_external_id ?? null,
-        },
-        { onConflict: "client_message_id" },
-      )
-      .select("id")
-      .single();
-    if (insErr) throw insErr;
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+      msgRow = inserted;
+    }
 
     await supabase
       .from("leads")
