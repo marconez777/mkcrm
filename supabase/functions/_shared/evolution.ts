@@ -165,8 +165,7 @@ export async function ingestMessage(
   const supabase = sb();
   const silent = !!opts.silent;
   const instanceId = opts.instanceId ?? null;
-  const remoteJid = item?.key?.remoteJid;
-  const phone = phoneFromJid(remoteJid);
+  const phone = phoneFromKey(item?.key);
   if (!phone) return { skipped: true, reason: "no-phone" };
 
   const fromMe = !!item?.key?.fromMe;
