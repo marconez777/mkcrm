@@ -5,7 +5,7 @@ import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
   Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
-  StickyNote, Forward, Trash2,
+  StickyNote, Forward, Trash2, Download,
 } from "lucide-react";
 import Composer from "./Composer";
 import ForwardDialog from "./ForwardDialog";
@@ -942,19 +942,87 @@ function MediaBubble({ m }: { m: Message }) {
   const url = m.media_url!;
   const mime = m.media_mime ?? "";
   const type = m.message_type;
+
+  const filename = (() => {
+    try {
+      const u = new URL(url);
+      const last = u.pathname.split("/").pop() || "";
+      if (last) return decodeURIComponent(last);
+    } catch {}
+    const ext = mime.split("/")[1] || "bin";
+    return `arquivo-${m.id.slice(0, 8)}.${ext}`;
+  })();
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    } catch (err) {
+      toast.error("Falha ao baixar arquivo");
+    }
+  }
+
+  const downloadBtn = (
+    <button
+      onClick={handleDownload}
+      title="Baixar"
+      className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur hover:bg-background"
+    >
+      <Download className="h-3.5 w-3.5" />
+    </button>
+  );
+
   if (type === "image" || mime.startsWith("image/")) {
-    return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" className="mb-1 max-h-72 w-auto max-w-full rounded object-cover" /></a>;
+    return (
+      <div className="relative mb-1 inline-block">
+        <a href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt="" className="max-h-72 w-auto max-w-full rounded object-cover" />
+        </a>
+        {downloadBtn}
+      </div>
+    );
   }
   if (type === "video" || mime.startsWith("video/")) {
-    return <video src={url} controls className="mb-1 max-h-72 w-auto max-w-full rounded" />;
+    return (
+      <div className="relative mb-1 inline-block">
+        <video src={url} controls className="max-h-72 w-auto max-w-full rounded" />
+        {downloadBtn}
+      </div>
+    );
   }
   if (type === "audio" || mime.startsWith("audio/")) {
-    return <audio src={url} controls className="mb-1 w-full" />;
+    return (
+      <div className="mb-1 flex items-center gap-2">
+        <audio src={url} controls className="w-full" />
+        <button
+          onClick={handleDownload}
+          title="Baixar áudio"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/60 hover:bg-background"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
   }
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 rounded bg-background/40 px-2 py-1.5 text-xs hover:bg-background/60">
-      <span className="truncate">📎 {m.content || "documento"}</span>
-    </a>
+    <div className="mb-1 flex items-center gap-2 rounded bg-background/40 px-2 py-1.5 text-xs">
+      <a href={url} target="_blank" rel="noreferrer" className="flex flex-1 items-center gap-2 truncate hover:underline">
+        <span className="truncate">📎 {m.content || filename || "documento"}</span>
+      </a>
+      <button onClick={handleDownload} title="Baixar" className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-background/60">
+        <Download className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
