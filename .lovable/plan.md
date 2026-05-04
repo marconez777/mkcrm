@@ -1,133 +1,65 @@
+## Objetivo
 
-## Diagnóstico — o que a comunidade reporta
+Tornar fácil visualizar e navegar por todas as colunas do pipeline mesmo quando há muitas (10+ etapas), aplicando padrões usados por Trello, Linear, Pipedrive e discutidos por devs em r/reactjs, r/UXDesign, blogs Atlassian e Smashing Magazine.
 
-Sintetizei os padrões recorrentes em Reddit (r/Rag, r/AI_Agents, r/LLMDevs), Towards Data Science, Claude Lab, Gemini Lab, NVIDIA Dynamo e issues de bots WhatsApp open-source:
+## Pesquisa — o que devs/produtos usam hoje
 
-**Top falhas em produção (agentes):**
-1. **Tool storms / 100th-tool-call problem** — agente entra em loop chamando a mesma ferramenta, esgota tokens e custo.
-2. **Context bloat** — histórico cresce, latência sobe linearmente, modelo "esquece" o início.
-3. **Retrieval thrash** — RAG retorna chunks irrelevantes, agente re-busca, ciclo.
-4. **Partial failure em parallel tools** — uma tool falha, agente não sabe e responde como se tivesse sucesso.
-5. **WhatsApp echo loop** — webhook reentra com `fromMe`, bot responde a si mesmo (issue #53386 do openclaw, etc.).
-6. **Webhook redelivery** — Evolution reenvia mesmo `external_id` em reconexão → execuções duplicadas + 429 em cascata.
-7. **Reranker que piora** — adicionar Cohere sem tuning piorou latência de 80→280ms sem ganho de qualidade (post BSWEN).
-8. **Long-running timeouts** — edge function morre em 60s; agentes longos precisam de retomada.
-9. **Embeddings caros** — re-embedar mesma query 100×/min sem cache.
-10. **Streaming quebrado** — buffering de SSE em `\n\n` corta JSON multi-chunk.
+1. **Trello / Pipedrive**: barra de scroll horizontal "fina" + arrastar com botão do meio / espaço pressionado + clique e arraste no fundo (drag-to-pan).
+2. **Linear / Height**: atalhos de teclado `←/→` para pular entre colunas e `Home/End` para extremos.
+3. **Notion / Monday**: **mini-mapa** (board overview) no topo mostrando todas as colunas em miniatura — clica e o board centra naquela coluna.
+4. **Asana**: botões "<" ">" laterais flutuantes que aparecem só quando há overflow.
+5. **Jira**: modo "compactar colunas" — clica no header para colapsar a coluna em uma faixa vertical fina (mostra só nome + contagem).
+6. **Shopify Polaris / Atlassian Design**: `scroll-snap-type: x proximity` para travar suavemente em cada coluna ao parar o scroll.
+7. **Reddit r/reactjs (threads sobre kanban)**: queixas comuns são (a) shift+scroll não óbvio, (b) trackpad horizontal funciona mas mouse não, (c) auto-scroll durante drag-and-drop é fraco. Soluções recomendadas: wheel listener convertendo `deltaY → scrollLeft`, dnd-kit `AutoScrollOptions` com threshold maior, e indicadores de "tem mais à direita".
 
----
+## O que vou implementar
 
-## Plano de hardening
+### 1. Drag-to-pan no fundo do board
+Clicar e arrastar em qualquer área vazia do board (não em cards) faz o board panar horizontalmente — padrão Figma/Miro. Cursor vira `grab/grabbing`.
 
-### 0. Bug-fix imediato (`src/pages/Agents.tsx`)
-- Linha ~497: falta `<AccordionItem value="tools" className="...">` antes do `<AccordionTrigger>` de "Ferramentas". Compilação está quebrando. Vou abrir o item corretamente.
+### 2. Wheel horizontal "natural" para mouse
+Listener no container: se `e.deltaY` e não houver `shift`, converte para `scrollLeft`. Permite scroll horizontal com mouse comum sem segurar Shift.
 
-### 1. Anti-loop & tool budget (`ai-chat`)
-Inspirado no "100th tool call problem":
-- **Tool budget global** por turno (default 12 chamadas, configurável `max_tool_calls`). Excedeu → forçar `tool_choice: "none"` e pedir resposta final.
-- **Detecção de repetição**: se mesma `(tool_name, args_hash)` ocorrer ≥ 3× → injetar mensagem de sistema "essa tool já foi chamada com esses args, use o resultado anterior" e bloquear nova execução idêntica.
-- **Token budget**: somar tokens de entrada por iteração; ao passar 80% do contexto do modelo, comprimir histórico (resumo dos turnos antigos via gemini-flash-lite) — evita context bloat.
-- **Cancellation**: `AbortController` propagado, timeout duro de 90s por turno; salvar estado parcial em `agent_runs` para retomada.
+### 3. Setas flutuantes "<" ">" com fade
+Aparecem só quando há overflow nessa direção. Clique pula uma "página" (~80% da largura visível). Ficam ocultas no mobile/touch.
 
-### 2. Parallel tools com partial-failure handling
-Padrão do Claude Lab / Gemini Lab:
-- `Promise.allSettled` (não `Promise.all`) para tool calls paralelas.
-- Cada tool tem timeout próprio (default 15s).
-- Resultado de tool com erro vira mensagem `tool` com `{ "error": "...", "retryable": bool }` — modelo vê e decide.
-- Concorrência limitada (semaphore=4) para não estourar rate limit do Evolution/MCP.
+### 4. Mini-mapa / Overview bar
+Faixa fina abaixo do header mostrando todas as colunas em miniatura (nome + contagem + cor). A janela visível atual é destacada com um retângulo. Clica numa miniatura → board faz `scrollIntoView({ behavior: "smooth", inline: "start" })` daquela coluna. Atualiza ao scrollar (IntersectionObserver nas colunas).
 
-### 3. RAG: prevenir thrash e custo
-Lições dos posts de pgvector + reranker:
-- **Cache de embeddings**: tabela `embedding_cache (text_hash, model, embedding)` — query rewrite + HyDE re-usam.
-- **Cache de retrieval**: `rag_cache (agent_id, query_hash, chunks jsonb, created_at)` TTL 10min — mesma pergunta dentro da janela não re-busca.
-- **Reranker condicional**: só re-rankear se `top_score - bottom_score < threshold` (resultados ambíguos). Senão, skip — economiza 200ms.
-- **HyDE com fallback**: se HyDE timeout >2s, cair para query original (não bloquear).
-- **Filtro mínimo de score**: descartar chunks com score < 0.3 antes do rerank.
-- **Telemetria**: gravar em `ai_usage` `retrieval_score_top1`, `retrieval_score_topk`, `chunks_used_in_answer` (parsed das citações `[n]`) → identificar thrash.
+### 5. Colapsar coluna
+Botão no header de cada coluna alterna entre `w-72` e `w-10` (modo "spine" vertical com nome rotacionado + contagem). Estado salvo em `localStorage` por usuário. Permite "esconder" colunas pouco usadas e ver muitas de uma vez.
 
-### 4. Anti-loop WhatsApp (`evolution-webhook` + `ai-auto-reply`)
-Padrões dos issues do openclaw:
-- **Idempotency hard-stop**: já temos `(lead_id, external_id)` único; adicionar SELECT antes do enqueue de `pending_replies` — se mensagem já processada, ignorar.
-- **fromMe filter reforçado**: nunca enfileirar reply para mensagem com `from_me=true` OU cujo `external_id` esteja no set `recently_sent_by_bot` (cache em memória 60s).
-- **Bot self-cooldown**: por lead, se o bot mandou mensagem nos últimos 3s, ignorar webhooks novos do próprio número até a janela passar.
-- **Max replies por lead/hora**: rate limit por lead (default 30/h) — para conter loop catastrófico.
-- **Webhook dedup**: tabela `webhook_dedup (event_hash, expires_at)` com TTL 5min para evitar redelivery duplo do Evolution.
+### 6. Atalhos de teclado
+- `←` / `→` : scroll uma coluna
+- `Home` / `End` : primeira / última coluna
+- `Shift+←/→` : mover lead selecionado entre etapas (futuro, fora do escopo agora — só navegação)
 
-### 5. Observabilidade & evals
-- **Tracing por turno**: tabela `agent_traces` (`run_id, step, kind, latency_ms, tokens_in, tokens_out, payload jsonb`). UI nova "Traços" mostra cascata de tools, tempo de cada etapa, fontes RAG citadas.
-- **Health dashboard** no Agents.tsx: por agente, últimas 24h → p50/p95 latência, % de turnos com tool error, taxa de evals passando, custo estimado.
-- **Alertas**: se loop detectado (regra do item 1), gravar `agent_incidents` e exibir badge vermelho na sidebar do agente.
+### 7. Densidade + scroll snap
+- `scroll-snap-type: x proximity` no container, `scroll-snap-align: start` em cada coluna → ao parar de scrollar, a coluna mais próxima "encaixa" na borda.
+- Toggle "Compacto" no header: reduz cards (esconde preview da última mensagem, padding menor) — mostra ~40% mais conteúdo vertical.
 
-### 6. Streaming robusto no Playground
-- Refatorar parser SSE seguindo o guia oficial (line-by-line, lidar CRLF, `[DONE]`, comentários `:`, JSON parcial). Já temos no `_shared/ai.ts` mas o playground ainda usa modo bloqueante.
-- Mostrar tool calls em tempo real (badges no chat) + chunks RAG com hover.
-- `AbortController` no botão "Parar".
+### 8. Auto-scroll durante drag melhorado
+Configurar `DndContext` com `autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}` para o board panar suavemente quando arrasta um card perto da borda.
 
-### 7. Defaults seguros baseados em benchmarks
-- `max_iterations`: 6 (estava 5).
-- `max_tool_calls`: 12.
-- `rag_top_k`: 5; `fetch_pool`: 20 (4×).
-- `debounce_seconds`: 8 (mantém).
-- `reranker`: desligado por padrão (ativar só quando evals mostrarem ganho).
-- `temperature`: 0.3 para agentes operacionais (era 0.7 — alta T amplifica hallucination em tool calling).
+### 9. Scrollbar horizontal sempre visível e estilizada
+Trocar `scrollbar-thin` por uma scrollbar customizada mais grossa (8px), sempre visível (não some), com thumb proeminente — sinal claro de que há mais conteúdo.
 
----
+## Detalhes técnicos
 
-## Arquivos a alterar
+**Arquivos a editar/criar:**
+- `src/pages/Kanban.tsx` — integrar overview, controles, atalhos, drag-to-pan, wheel handler, autoScroll do dnd-kit.
+- `src/components/kanban/PipelineOverview.tsx` (novo) — mini-mapa com viewport indicator.
+- `src/components/kanban/Column.tsx` (extrair de Kanban.tsx) — suportar estado `collapsed`, `compact`.
+- `src/hooks/useHorizontalScroll.ts` (novo) — encapsula wheel-to-horizontal, drag-to-pan, refs e estado de overflow para setas.
+- `src/index.css` — classe `.kanban-scroll` com snap + scrollbar customizada.
 
-```text
-src/pages/Agents.tsx            -- fix JSX + nova aba "Traços/Saúde"
-supabase/functions/ai-chat/index.ts        -- tool budget, dedup, allSettled, compressão de contexto
-supabase/functions/_shared/rag.ts          -- cache de embed/retrieval, reranker condicional
-supabase/functions/_shared/ai.ts           -- helper de cache + dedup hash
-supabase/functions/ai-auto-reply/index.ts  -- self-cooldown, rate limit por lead, dedup webhook
-supabase/functions/evolution-webhook/index.ts -- webhook_dedup
-supabase/migrations/<novo>.sql             -- tabelas: embedding_cache, rag_cache, agent_traces,
-                                              agent_incidents, webhook_dedup, lead_reply_counters
-                                              + colunas: max_tool_calls em ai_agents
-```
+**Persistência leve:** colunas colapsadas e modo compacto em `localStorage` (`pipeline:ui:v1`).
 
----
+**Sem mudanças de backend.** Nenhuma migration necessária.
 
-## Detalhes técnicos chave
+## Fora de escopo (posso fazer depois se quiser)
+- Reordenar colunas via drag.
+- Filtros salvos / múltiplos pipelines.
+- Virtualização vertical de cards (só vale a pena com 500+ leads por coluna).
 
-**Hash determinístico para cache** (Deno):
-```ts
-const hash = async (s: string) => {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,"0")).join("");
-};
-```
-
-**Loop detection**:
-```ts
-const seen = new Map<string, number>();
-const key = `${tool}:${stableStringify(args)}`;
-seen.set(key, (seen.get(key) ?? 0) + 1);
-if (seen.get(key)! >= 3) return { error: "duplicate_call_blocked" };
-```
-
-**Bot self-cooldown** (em memória + fallback DB):
-```ts
-const lastBotSentAt = await redis_or_table.get(`bot:lead:${leadId}`);
-if (lastBotSentAt && Date.now() - lastBotSentAt < 3000) return; // ignora
-```
-
-**Compressão de contexto** quando >80% do limite:
-- Pegar primeiros N-6 turnos, rodar `summarize` com gemini-flash-lite, substituir por uma única `system: "Resumo até aqui: ..."`.
-
----
-
-## Ordem de execução (1 entrega)
-
-1. Fix JSX em `Agents.tsx` (5 linhas).
-2. Migration: novas tabelas + coluna `max_tool_calls`.
-3. `_shared/ai.ts`: hash + cache helpers.
-4. `_shared/rag.ts`: cache de embed/retrieval, reranker condicional, score floor.
-5. `ai-chat`: tool budget, dedup, `allSettled`, timeouts, compressão de contexto, traces.
-6. `evolution-webhook`: dedup.
-7. `ai-auto-reply`: self-cooldown, rate limit, dedup.
-8. UI: aba "Saúde / Traços" no Agents (p50/p95, tool errors, custo).
-9. Sanity test via curl_edge_functions.
-
-Aprove para eu aplicar tudo numa rodada.
+Aprove para eu aplicar.
