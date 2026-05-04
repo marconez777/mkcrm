@@ -1,53 +1,82 @@
 # Integração Evolution API
 
-## O que é
-[Evolution API](https://github.com/EvolutionAPI/evolution-api) é um gateway open-source para WhatsApp baseado em Baileys. Este projeto consome:
-- `POST /message/sendText/{instance}` — enviar texto
-- `POST /chat/findMessages/{instance}` — buscar histórico
-- `POST /webhook/set/{instance}` — registrar webhook
-- `GET  /instance/connectionState/{instance}` — status
+[Evolution API](https://github.com/EvolutionAPI/evolution-api) é um gateway open-source para WhatsApp baseado em Baileys.
 
-Autenticação: header `apikey: <EVOLUTION_API_KEY>`.
+## Endpoints consumidos
+
+- `POST /message/sendText/{instance}` — enviar texto.
+- `POST /chat/findMessages/{instance}` — buscar histórico.
+- `POST /webhook/set/{instance}` — registrar webhook.
+- `GET  /instance/connectionState/{instance}` — status.
+- `GET  /chat/fetchProfilePictureUrl/{instance}` — avatar.
+
+Autenticação: header `apikey: <evolution_api_key>`.
+
+## Múltiplas instâncias
+
+A tabela `whatsapp_instances` permite cadastrar várias contas WhatsApp. Cada instância tem:
+- `evolution_url`, `evolution_api_key`, `evolution_instance` (nome).
+- `webhook_token` único (gerado).
+- `is_default` — uma única instância default global.
+- `connection_state`, `last_health_check`, `webhook_ok`.
+
+Cada `pipeline` pode opcionalmente apontar para uma instância (`pipelines.whatsapp_instance_id`). Cada `lead` carrega `whatsapp_instance_id` que define por onde enviar/receber.
+
+> A tabela `settings` legacy ainda existe para compatibilidade, mas novos cadastros devem usar `whatsapp_instances`.
 
 ## Configuração
 
-Em `/settings` salve:
-- `evolution_url`
-- `evolution_api_key`
-- `evolution_instance`
-
-Ao salvar o webhook, o backend chama a Evolution registrando:
+Em `/settings`:
+1. Cadastre a instância (URL, API key, nome).
+2. Clique em **Salvar webhook** — o backend chama:
 ```
 URL:    {SUPABASE_URL}/functions/v1/evolution-webhook?token={webhook_token}
 Events: MESSAGES_UPSERT, MESSAGES_UPDATE, CONTACTS_UPSERT, CONNECTION_UPDATE
 ```
+3. Use `evolution-health` para verificar o status.
+4. Re-escaneie o QR Code pela própria Evolution se necessário.
 
 ## Eventos tratados
 
 ### `MESSAGES_UPSERT`
 Mensagens novas (recebidas ou enviadas por outro device).
-- Chama `ingestMessage` com `source='webhook'`.
-- Idempotente: webhook + sync manual chegando juntos não duplicam.
+- `evolution-webhook` → `webhook_dedup` (dedup curta) → `ingestMessage` (idempotente por `(lead_id, external_id)`).
+- Se `auto_reply` ativo no lead, enfileira/atualiza `pending_replies`.
 
 ### `MESSAGES_UPDATE`
-Atualiza `delivery_status` (`delivered`, `read`, etc.) por `external_id`.
+Atualiza `delivery_status` (`delivered`, `read`) por `external_id`.
 
 ### `CONTACTS_UPSERT`
-Atualiza `name` e `avatar_url` do lead.
+Atualiza `name` e `avatar_url` do lead. Pode disparar `fetch-wa-avatar` se o avatar vier vazio.
 
 ### `CONNECTION_UPDATE`
-Salva `state` em `settings.connection_state` (`open`, `connecting`, `close`).
+Salva `state` em `whatsapp_instances.connection_state` (`open`, `connecting`, `close`).
 
-## Mensagens enviadas pelo CRM
+## Envio (CRM → WhatsApp)
 
-1. UI gera um `client_message_id` (UUID v4) e adiciona otimisticamente.
-2. `evolution-send` insere `messages` com `status='pending'`.
-3. Após `POST /message/sendText`, atualiza `external_id` + `status='sent'`.
-4. Evolution depois envia `MESSAGES_UPDATE` para `delivered`/`read`.
+1. UI gera `client_message_id` (UUID v4) e adiciona otimisticamente.
+2. `evolution-send` insere `messages` com `status='pending'` (idempotente).
+3. POST em `/message/sendText/{instance}` na instância do lead.
+4. Atualiza `external_id` + `status='sent'`.
+5. `MESSAGES_UPDATE` posterior atualiza `delivery_status`.
+
+## Reconciliação
+
+- **Manual**: botão de refresh no chat → `evolution-sync-lead` (`silent: true`).
+- **Em lote**: `evolution-backfill-all` itera por todos os leads (uso pós-restauração ou troca de instância).
+
+## Mídia e áudio
+
+- Mídias chegam com `media_url` + `media_mime`. A UI renderiza imagem/vídeo/doc.
+- Áudios podem ser enviados a `transcribe-audio`, que devolve a transcrição e atualiza `messages.content`.
 
 ## Troubleshooting
 
-- **Webhook 401**: token inválido — re-salvar em Settings.
-- **Mensagens duplicadas**: garantir índice único `(lead_id, external_id)` em `messages`.
-- **Histórico antigo não importa**: `evolution-sync-lead` pega últimos 50; usar paginação Evolution se precisar de mais.
-- **Grupos**: `phoneFromJid` retorna `null` para `@g.us` → grupos são ignorados de propósito.
+| Sintoma | Causa | Ação |
+|---|---|---|
+| Webhook 401 | Token inválido / instância errada | Re-salvar webhook em Settings |
+| Mensagens duplicadas | Falta índice único `(lead_id, external_id)` | Verificar migration |
+| Histórico antigo não importa | `findMessages` limitado | Usar `evolution-backfill-all` ou paginar |
+| Grupos não aparecem | `phoneFromJid` ignora `@g.us` | Por design |
+| Avatar não carrega | Número novo / sem foto | Disparar `fetch-wa-avatar` manualmente |
+| `connection_state=close` | Sessão caiu | Re-escanear QR na Evolution |
