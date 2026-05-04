@@ -36,6 +36,7 @@ export default function SettingsCustomFields() {
   const [items, setItems] = useState<CustomFieldDef[]>([]);
   const [editing, setEditing] = useState<CustomFieldDef | null>(null);
   const [open, setOpen] = useState(false);
+  const confirm = useConfirm();
 
   async function load() {
     const { data } = await supabase

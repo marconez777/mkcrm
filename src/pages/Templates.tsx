@@ -23,6 +23,7 @@ const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}",
 export default function Templates() {
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
+  const confirm = useConfirm();
 
   const load = async () => {
     const { data } = await supabase.from("message_templates").select("*").order("name");

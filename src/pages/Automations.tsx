@@ -42,6 +42,7 @@ export default function Automations() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
+  const confirm = useConfirm();
 
   const load = async () => {
     const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
