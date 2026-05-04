@@ -55,12 +55,13 @@ Pipeline (em `_shared/ai.ts`):
 
 ### Busca
 
-`_shared/rag.ts` provê:
-- **Vetorial** (cosseno via ivfflat).
-- **FTS** (tsvector português).
-- **Híbrida** (combinação ponderada — `use_hybrid_search`).
+`_shared/rag.ts` chama duas RPCs no Postgres:
+- **`match_chunks(query_embedding, agent_id, k)`** — vetorial pura (cosseno).
+- **`match_chunks_hybrid(query_embedding, query_text, agent_id, k)`** — vetorial + FTS português com fusão RRF (`SUM(1 / (60 + rnk))`). Usada quando `use_hybrid_search=true`.
+
+Adicionalmente:
 - **HyDE** (`use_hyde`): pede ao LLM uma resposta hipotética e usa o embedding dela para a busca.
-- **Reranker** opcional (Cohere/voyage/etc.).
+- **Reranker** opcional (Cohere/Voyage/etc.) controlado por `reranker_provider`.
 
 Cache: `embedding_cache` (por hash do texto) e `rag_cache` (por hash da query + agent).
 
