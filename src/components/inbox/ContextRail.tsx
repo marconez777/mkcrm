@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2 } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2, GitBranch, UserCheck, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
@@ -65,11 +65,12 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     setTagInput("");
   }, [lead.id]);
 
+  const [eventsExpanded, setEventsExpanded] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       const [{ data: ev }, { data: ag }, { data: cfg }, { data: defs }] = await Promise.all([
-        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(50),
         supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
         supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
@@ -80,7 +81,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
       setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
       setCustomDefs((defs ?? []) as any);
     })();
-    return () => { active = false; };
+    // Realtime: append new events
+    const ch = supabase
+      .channel(`lead-events-${lead.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, (p) => {
+        setEvents((cur) => [p.new as LeadEvent, ...cur]);
+      })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
   }, [lead.id]);
 
   async function saveAiCfg(next: { agent_id: string | null; auto_reply: boolean }) {
@@ -369,25 +377,43 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
         {events.length > 0 && (
           <div>
-            <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Atividade recente</div>
-            <ul className="space-y-1.5 text-xs">
-              {events.map((e) => {
+            <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> Linha do tempo</span>
+              {events.length > 5 && (
+                <button onClick={() => setEventsExpanded((v) => !v)} className="flex items-center gap-0.5 normal-case hover:text-foreground">
+                  {eventsExpanded ? <>Menos <ChevronUp className="h-3 w-3" /></> : <>Tudo ({events.length}) <ChevronDown className="h-3 w-3" /></>}
+                </button>
+              )}
+            </div>
+            <ol className="relative space-y-2 border-l border-border pl-4 text-xs">
+              {(eventsExpanded ? events : events.slice(0, 5)).map((e) => {
                 let label = e.type;
+                let Icon: any = Activity;
+                let color = "bg-muted-foreground";
                 if (e.type === "stage_changed") {
-                  const to = stages.find((s) => s.id === e.payload?.to)?.name;
-                  label = `Etapa → ${to ?? "—"}`;
+                  const to = stages.find((s) => s.id === e.payload?.to);
+                  label = `Etapa → ${to?.name ?? "—"}`;
+                  Icon = GitBranch;
+                  color = "bg-primary";
                 } else if (e.type === "attendant_changed") {
-                  const to = attendants.find((a) => a.id === e.payload?.to)?.name;
-                  label = `Atendente → ${to ?? "—"}`;
+                  const to = attendants.find((a) => a.id === e.payload?.to);
+                  label = `Atendente → ${to?.name ?? "—"}`;
+                  Icon = UserCheck;
+                  color = "bg-emerald-500";
                 }
                 return (
-                  <li key={e.id} className="flex items-center justify-between gap-2 text-muted-foreground">
-                    <span className="truncate">{label}</span>
-                    <span className="shrink-0 text-[10px]">{timeAgo(e.created_at)}</span>
+                  <li key={e.id} className="relative">
+                    <span className={`absolute -left-[21px] top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${color} text-[8px] text-white`}>
+                      <Icon className="h-2.5 w-2.5" />
+                    </span>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-foreground/90">{label}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(e.created_at)}</span>
+                    </div>
                   </li>
                 );
               })}
-            </ul>
+            </ol>
           </div>
         )}
 

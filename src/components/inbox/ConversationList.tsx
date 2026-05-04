@@ -1,15 +1,16 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -64,6 +65,24 @@ export default function ConversationList(props: {
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [views, setViews] = useState<SavedView[]>(() => listViews());
+  useEffect(() => {
+    const refresh = () => setViews(listViews());
+    window.addEventListener("saved-views-changed", refresh);
+    return () => window.removeEventListener("saved-views-changed", refresh);
+  }, []);
+  function applyView(v: SavedView) {
+    props.setFilter(v.filter);
+    props.setSort(v.sort);
+    props.setStageFilter(v.stageFilter);
+    props.setTagFilter(v.tagFilter);
+  }
+  function saveCurrentView() {
+    const name = prompt("Nome da view:");
+    if (!name) return;
+    addView({ name, filter: props.filter, sort: props.sort, stageFilter: props.stageFilter, tagFilter: props.tagFilter });
+    toast.success("View salva");
+  }
   function toggleSel(id: string) {
     setSelected((s) => {
       const n = new Set(s);
@@ -103,6 +122,29 @@ export default function ConversationList(props: {
           <Button size="icon" variant="ghost" onClick={props.onNew} title="Nova conversa">
             <Plus className="h-4 w-4" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" title="Views salvas"><Bookmark className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-xs">Views salvas</DropdownMenuLabel>
+              {views.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma view ainda</div>
+              )}
+              {views.map((v) => (
+                <DropdownMenuItem key={v.id} onSelect={(e) => e.preventDefault()} className="flex items-center justify-between gap-2">
+                  <button onClick={() => applyView(v)} className="flex-1 truncate text-left">{v.name}</button>
+                  <button onClick={() => { removeView(v.id); }} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={saveCurrentView}>
+                <BookmarkPlus className="mr-2 h-4 w-4" /> Salvar filtros atuais
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="icon" variant="ghost" title="Ordenar"><ArrowDownUp className="h-4 w-4" /></Button>

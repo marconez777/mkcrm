@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useEffect, useState } from "react";
 
 const SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
+  { keys: ["⌘", "K"], label: "Abrir paleta de comandos", group: "Geral" },
   { keys: ["?"], label: "Abrir esta ajuda", group: "Geral" },
   { keys: ["/"], label: "Focar busca de conversas", group: "Conversas" },
   { keys: ["j"], label: "Conversa abaixo", group: "Conversas" },

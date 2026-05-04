@@ -12,7 +12,8 @@ const items = [
   { to: "/agents", label: "Agentes IA", icon: Bot },
   { to: "/automations", label: "Automações", icon: Zap },
   { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/metrics", label: "Métricas IA", icon: BarChart3 },
+  { to: "/metrics", label: "Métricas", icon: BarChart3 },
+  { to: "/metrics/ai", label: "Métricas IA", icon: Activity },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 

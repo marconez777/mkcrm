@@ -13,6 +13,7 @@ import Agents from "./pages/Agents";
 import Automations from "./pages/Automations";
 import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
+import MetricsOps from "./pages/MetricsOps";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import Tasks from "./pages/Tasks";
@@ -22,6 +23,7 @@ const queryClient = new QueryClient();
 
 import { useUnreadTitle } from "./hooks/useUnreadTitle";
 import ShortcutsDialog from "./components/ShortcutsDialog";
+import CommandPalette from "./components/CommandPalette";
 
 const TitleSync = () => { useUnreadTitle(); return null; };
 
@@ -34,6 +36,7 @@ const App = () => (
         <AuthProvider>
           <TitleSync />
           <ShortcutsDialog />
+          <CommandPalette />
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route
@@ -48,7 +51,8 @@ const App = () => (
                       <Route path="/agents" element={<Agents />} />
                       <Route path="/automations" element={<Automations />} />
                       <Route path="/templates" element={<Templates />} />
-                      <Route path="/metrics" element={<Metrics />} />
+                      <Route path="/metrics" element={<MetricsOps />} />
+                      <Route path="/metrics/ai" element={<Metrics />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
                       <Route path="/tasks" element={<Tasks />} />
