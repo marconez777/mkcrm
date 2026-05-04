@@ -21,6 +21,7 @@ import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
+import TopScrollbar from "@/components/kanban/TopScrollbar";
 import { usePipelines } from "@/hooks/usePipelines";
 
 function timeAgo(iso: string | null) {
