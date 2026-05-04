@@ -184,6 +184,15 @@ export default function Agents() {
         tools: selected.tools,
         embedding_model: selected.embedding_model,
         embedding_api_key: selected.embedding_api_key,
+        reranker_provider: selected.reranker_provider ?? null,
+        reranker_api_key: selected.reranker_api_key ?? null,
+        max_iterations: selected.max_iterations ?? 6,
+        use_hyde: selected.use_hyde ?? false,
+        use_hybrid_search: selected.use_hybrid_search ?? true,
+        use_memory: selected.use_memory ?? true,
+        planning_mode: selected.planning_mode ?? false,
+        rag_top_k: selected.rag_top_k ?? 5,
+        debounce_seconds: selected.debounce_seconds ?? 8,
       })
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
