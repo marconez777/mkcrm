@@ -18,6 +18,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const [sending, setSending] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
   const [quickIdx, setQuickIdx] = useState(0);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const { items: quickReplies } = useQuickReplies();
 
