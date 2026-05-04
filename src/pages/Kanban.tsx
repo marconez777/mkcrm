@@ -13,6 +13,7 @@ import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimiz
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Toggle } from "@/components/ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -188,6 +189,7 @@ export default function KanbanPage() {
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
+  const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -250,12 +252,16 @@ export default function KanbanPage() {
     setNewColName(""); setNewColOpen(false);
   }
 
-  async function deleteStage(stage: Stage) {
-    const used = leads.filter((l) => l.stage_id === stage.id).length;
-    if (used > 0) { toast.error(`Mova os ${used} leads desta coluna antes de excluir.`); return; }
-    if (!confirm(`Excluir a coluna "${stage.name}"?`)) return;
+  function requestDeleteStage(stage: Stage) {
+    setDeletingStage(stage);
+  }
+
+  async function confirmDeleteStage() {
+    const stage = deletingStage;
+    if (!stage) return;
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
     if (error) toast.error(error.message); else toast.success("Coluna excluída");
+    setDeletingStage(null);
   }
 
   async function addLead() {
@@ -348,7 +354,7 @@ export default function KanbanPage() {
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
                         onEdit={setEditingStage}
-                        onDelete={deleteStage}
+                        onDelete={requestDeleteStage}
                       />
                     ))}
                     {stages.length === 0 && (
@@ -398,6 +404,49 @@ export default function KanbanPage() {
         nextPosition={pipelines.length}
         onCreated={(id) => setCurrentId(id)}
       />
+
+      <AlertDialog open={!!deletingStage} onOpenChange={(v) => !v && setDeletingStage(null)}>
+        <AlertDialogContent>
+          {(() => {
+            const used = deletingStage ? leads.filter((l) => l.stage_id === deletingStage.id).length : 0;
+            const blocked = used > 0;
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {blocked ? "Não é possível excluir" : "Excluir coluna"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {blocked ? (
+                      <>
+                        A coluna <span className="font-medium text-foreground">"{deletingStage?.name}"</span> contém{" "}
+                        <span className="font-medium text-foreground">{used}</span>{" "}
+                        {used === 1 ? "lead" : "leads"}. Mova-{used === 1 ? "o" : "os"} para outra coluna antes de excluir.
+                      </>
+                    ) : (
+                      <>
+                        Tem certeza que deseja excluir a coluna{" "}
+                        <span className="font-medium text-foreground">"{deletingStage?.name}"</span>? Esta ação não pode ser desfeita.
+                      </>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  {!blocked && (
+                    <AlertDialogAction
+                      onClick={confirmDeleteStage}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
