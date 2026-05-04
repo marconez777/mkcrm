@@ -1,17 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Send, Smile, Paperclip, Zap, Clock } from "lucide-react";
+import { Send, Smile, Paperclip, Zap, Clock, X, FileText, Loader2 } from "lucide-react";
 import type { Lead } from "@/types/crm";
 import { useQuickReplies, applyVariables } from "@/hooks/useQuickReplies";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import ScheduleMessageDialog from "./ScheduleMessageDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 import { getDraft, setDraft } from "@/lib/drafts";
 
 const EMOJIS = ["😀","😁","😂","🤣","😊","😍","😘","🤔","😎","🥳","👍","👏","🙏","🙌","💪","❤️","🔥","✨","🎉","✅","❌","⚠️","💰","📅","📞","📍","🚀","☝️","👇","👌"];
+const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16MB WhatsApp limit
+const ACCEPT = "image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip";
+
+function detectKind(mime: string): "image" | "video" | "audio" | "document" {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
 
 export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
   const [text, setText] = useState(() => getDraft(lead.id));
@@ -19,18 +30,24 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const [showQuick, setShowQuick] = useState(false);
   const [quickIdx, setQuickIdx] = useState(0);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
 
-  // Persist draft per lead
   useEffect(() => { setDraft(lead.id, text); }, [text, lead.id]);
-  // Reload draft when lead changes
-  useEffect(() => { setText(getDraft(lead.id)); }, [lead.id]);
-  // Apply suggestion seed
+  useEffect(() => { setText(getDraft(lead.id)); setAttachment(null); }, [lead.id]);
   useEffect(() => { if (seed) { setText(seed.text); requestAnimationFrame(() => taRef.current?.focus()); } }, [seed?.n]);
 
+  // Object URL for image/video preview
+  useEffect(() => {
+    if (!attachment) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(attachment);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [attachment]);
 
-  // Quick reply trigger: text starts with "/"
   const quickQuery = text.startsWith("/") ? text.slice(1).toLowerCase() : null;
   const filteredQuick = useMemo(() => {
     if (quickQuery == null) return [];
@@ -44,7 +61,6 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     setQuickIdx(0);
   }, [filteredQuick.length, quickQuery]);
 
-  // Auto-resize
   useEffect(() => {
     const el = taRef.current; if (!el) return;
     el.style.height = "auto";
@@ -73,12 +89,68 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     });
   }
 
+  function onPickFile(f: File | null) {
+    if (!f) return;
+    if (f.size > MAX_FILE_SIZE) {
+      toast.error(`Arquivo muito grande. Máximo 16MB (WhatsApp).`);
+      return;
+    }
+    setAttachment(f);
+  }
+
+  async function sendAttachment(file: File, caption: string) {
+    const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+    const safeName = file.name.replace(/[^\w.\-]/g, "_");
+    const path = `${lead.id}/${crypto.randomUUID()}-${safeName}`;
+    const up = await supabase.storage.from("chat-attachments").upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+    if (up.error) throw up.error;
+    const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
+    const mediaUrl = pub.publicUrl;
+    const kind = detectKind(file.type || "");
+    const cid = crypto.randomUUID();
+    const { data, error } = await supabase.functions.invoke("evolution-send-media", {
+      body: {
+        lead_id: lead.id,
+        media_url: mediaUrl,
+        mime: file.type || "application/octet-stream",
+        filename: file.name,
+        caption,
+        media_kind: kind,
+        client_message_id: cid,
+      },
+    });
+    if (error || (data as any)?.error) {
+      throw new Error(error?.message || (data as any)?.error || "Falha ao enviar anexo");
+    }
+  }
+
   async function send() {
+    if (sending) return;
     const v = text.trim();
-    if (!v) return;
+    if (!v && !attachment) return;
     setSending(true);
+    const file = attachment;
+    const caption = v;
     setText("");
-    try { await onSend(v); } finally { setSending(false); }
+    setAttachment(null);
+    if (fileRef.current) fileRef.current.value = "";
+    try {
+      if (file) {
+        await sendAttachment(file, caption);
+      } else {
+        await onSend(v);
+      }
+    } catch (e: any) {
+      toast.error("Falha: " + (e?.message ?? String(e)));
+      // restore so user can retry
+      if (file) setAttachment(file);
+      else setText(v);
+    } finally {
+      setSending(false);
+    }
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -90,6 +162,13 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
+
+  function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const f = e.clipboardData?.files?.[0];
+    if (f) { e.preventDefault(); onPickFile(f); }
+  }
+
+  const kind = attachment ? detectKind(attachment.type || "") : null;
 
   return (
     <div className="relative border-t bg-card p-2">
@@ -109,6 +188,37 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         </div>
       )}
 
+      {attachment && (
+        <div className="mb-2 flex items-center gap-3 rounded-md border bg-muted/30 p-2">
+          {kind === "image" && previewUrl ? (
+            <img src={previewUrl} alt="" className="h-14 w-14 rounded object-cover" />
+          ) : kind === "video" && previewUrl ? (
+            <video src={previewUrl} className="h-14 w-14 rounded object-cover" />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded bg-muted">
+              <FileText className="h-6 w-6 text-muted-foreground" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{attachment.name}</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {kind} · {(attachment.size / 1024).toFixed(0)} KB
+            </div>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setAttachment(null)} title="Remover anexo">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept={ACCEPT}
+        className="hidden"
+        onChange={(e) => { onPickFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
+      />
+
       <div className="flex items-stretch gap-1">
         <div className="flex flex-col gap-0.5 self-end">
           <Popover>
@@ -126,9 +236,11 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <span><Button type="button" variant="ghost" size="icon" disabled title="Em breve"><Paperclip className="h-4 w-4" /></Button></span>
+              <Button type="button" variant="ghost" size="icon" onClick={() => fileRef.current?.click()} title="Anexar arquivo">
+                <Paperclip className="h-4 w-4" />
+              </Button>
             </TooltipTrigger>
-            <TooltipContent>Anexos em breve</TooltipContent>
+            <TooltipContent>Anexar arquivo (max 16MB)</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -146,21 +258,22 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Mensagem... (Enter envia, Shift+Enter quebra linha)"
+          onPaste={onPaste}
+          placeholder={attachment ? "Adicione uma legenda (opcional)…" : "Mensagem... (Enter envia, Shift+Enter quebra linha)"}
           rows={1}
           className="max-h-40 min-h-[120px] flex-1 resize-none self-stretch"
         />
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Agendar mensagem">
+            <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Agendar mensagem" disabled={!!attachment}>
               <Clock className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Agendar envio</TooltipContent>
         </Tooltip>
 
-        <Button onClick={send} disabled={sending || !text.trim()} size="icon" title="Enviar">
-          <Send className="h-4 w-4" />
+        <Button onClick={send} disabled={sending || (!text.trim() && !attachment)} size="icon" title="Enviar">
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
       {text.length > 200 && (
