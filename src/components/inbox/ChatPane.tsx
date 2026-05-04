@@ -614,6 +614,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         newCount={newCount}
         jumpToBottom={jumpToBottom}
         scrollToMsgRef={scrollToMsgRef}
+        leadId={lead.id}
+        onForward={(text: string) => setForwardText(text)}
       />
 
       {replyTo && (
