@@ -1,37 +1,115 @@
-Aplicar **Fase 1 — UX rápido** (5 itens, todos frontend, zero schema). Fases 2 e 3 ficam documentadas como tarefas pra rodadas seguintes.
+# Fase 2 — Diferenciação (backend + IA)
 
-## Itens da Fase 1
+Migra o que era local na Fase 1 para o banco e adiciona recursos que diferenciam o CRM da concorrência (Kommo/Umbler).
 
-### 1. Cor SLA na lista de conversas
-Em `src/components/inbox/ConversationList.tsx`: nova função `ageColor(iso, isUnread)` retorna `text-emerald-500` (<1h), `text-amber-500` (<24h), `text-destructive` (>24h). Aplicar no `timeAgo` exibido por conversa quando o lead estiver não-lido.
+## 1. Notas internas no banco (substitui localStorage)
 
-### 2. Badge de não-lidas no `<title>` (já existe, ativar)
-O hook `useUnreadTitle` em `src/hooks/useUnreadTitle.ts` já está implementado mas o import em `src/App.tsx` foi minificado (`n`). Confirmar nome correto e garantir que `<TitleSync />` está montado dentro do `ProtectedRoute` para sincronizar `(N) Zappy CRM` no título da aba. Se já funciona, validar; caso contrário, corrigir export name.
+**Migration** — nova tabela:
+```sql
+create table public.lead_internal_notes (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null,
+  author_id uuid,
+  author_name text,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.lead_internal_notes enable row level security;
+create policy "authenticated_all" on public.lead_internal_notes for all to authenticated using (true) with check (true);
+create index on public.lead_internal_notes(lead_id, created_at desc);
+alter publication supabase_realtime add table public.lead_internal_notes;
+```
 
-### 3. Notas internas (mensagem amarela) — versão localStorage
-Sem schema agora. Criar `src/lib/internal-notes.ts` com `getNotes(leadId)`, `addNote(leadId, text)`, `removeNote(leadId, id)` persistindo em `localStorage` por lead. Em `ChatPane.tsx`, mesclar notas no `grouped` como item `{ kind: "note", ... }` renderizado como bolha amarela centralizada com botão de remover. Botão "Nota interna" no header do chat ao lado de "Sugerir".
+- `src/lib/internal-notes.ts`: trocar localStorage por Supabase (manter mesma API `list/add/remove` para não quebrar `ChatPane`).
+- Migrar notas locais existentes na primeira leitura (one-shot).
+- Realtime subscribe por `lead_id` no `ChatPane`.
 
-> Quando rodarmos a Fase 2 com migrations, migra pra coluna `messages.is_internal boolean` e sincroniza entre dispositivos.
+## 2. Tarefas / follow-ups por lead
 
-### 4. Encaminhar mensagem
-Em `MessageRow` (ChatPane.tsx): ao hover, além do botão "Responder", adicionar botão "Encaminhar" (ícone `Forward`). Abre um `Dialog` com:
-- Lista de leads (busca por nome/telefone, reusa `useLeadsPaginated`)
-- Seleção única
-- Botão "Encaminhar" → chama `evolution-send` com `lead_id` destino e `text` da mensagem original (prefixo "↪ Encaminhada:" opcional)
-Novo componente: `src/components/inbox/ForwardDialog.tsx`.
+**Migration**:
+```sql
+create table public.lead_tasks (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null,
+  title text not null,
+  due_at timestamptz not null,
+  done_at timestamptz,
+  created_at timestamptz not null default now()
+);
+-- RLS authenticated_all + index (lead_id, due_at)
+```
 
-### 5. Cheatsheet de atalhos
-Novo componente `src/components/ShortcutsDialog.tsx`. Lista atalhos (`/` busca, `j/k` navegar, `Esc` voltar, `Enter` enviar, `Shift+Enter` quebra, `/` no composer abre quick replies). Tecla `?` abre o dialog (registrar listener global em `App.tsx` ou `AppShell.tsx`). Botão `?` discreto no rodapé do AppShell ao lado do status.
+- Novo painel **"Tarefas"** dentro do `LeadDetailsPanel` (lista + botão "Nova tarefa" com data/hora).
+- Badge no header do chat: "⏰ 2 vencendo hoje".
+- Página `/tasks` simples agregando todas tarefas em aberto, ordenadas por vencimento, agrupadas por Hoje / Amanhã / Atrasadas.
 
-## Arquivos tocados
-- `src/components/inbox/ConversationList.tsx` (cor SLA)
-- `src/App.tsx` (validar TitleSync, registrar atalho `?`)
-- `src/lib/internal-notes.ts` (novo)
-- `src/components/inbox/ChatPane.tsx` (notas internas + botão encaminhar)
-- `src/components/inbox/ForwardDialog.tsx` (novo)
-- `src/components/ShortcutsDialog.tsx` (novo)
-- `src/components/AppShell.tsx` (botão `?`)
+## 3. Mensagens agendadas
 
-## Fora desta fase (próximas)
-- **Fase 2** (precisa migrations): `messages.is_internal`, tabela `lead_tasks`, tabela `scheduled_messages` + cron, edge function de transcrição de áudio, bulk actions DB, fetch de avatar do WhatsApp.
-- **Fase 3**: tabela `user_views`, timeline de eventos no chat, página de métricas operacionais (TMR), command palette, wizard de onboarding.
+**Migration**:
+```sql
+create table public.scheduled_messages (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null,
+  content text not null,
+  send_at timestamptz not null,
+  status text not null default 'pending', -- pending|sent|failed|canceled
+  sent_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now()
+);
+-- RLS authenticated_all
+```
+
+- No `Composer`: ícone de relógio ao lado do botão Enviar → popover com date/time picker → grava em `scheduled_messages`.
+- Edge function nova **`scheduled-dispatcher`**: pega `pending` com `send_at <= now()`, chama `evolution-send`, marca `sent`/`failed`.
+- Cron via `pg_cron` rodando a cada minuto (insert tool, não migration, pois usa anon key).
+- Lista de agendamentos pendentes no `LeadDetailsPanel` com ação cancelar.
+
+## 4. Transcrição de áudio (Lovable AI)
+
+- Edge function nova **`transcribe-audio`**: recebe `messageId`, baixa `media_url`, envia para `google/gemini-2.5-flash` (multimodal audio), grava transcrição em `messages.raw->>'transcript'`.
+- No `ChatPane`, mensagens `audio` ganham botão **"Transcrever"** (ou auto-transcreve sob flag de settings). Mostra texto abaixo do player.
+- Cache: se `raw.transcript` existe, exibe direto.
+
+## 5. Ações em lote na lista de conversas
+
+- `ConversationList`: modo seleção (checkbox aparece em hover; Shift+click range).
+- Barra inferior flutuante: **Marcar como lida**, **Atribuir atendente**, **Mover para etapa**, **Arquivar**, **Aplicar tag**.
+- Atualização otimista + um único batch update via Supabase.
+
+## 6. Foto de perfil do WhatsApp
+
+- Edge function **`fetch-wa-avatar`**: recebe `leadId`, chama Evolution `/chat/fetchProfilePictureUrl/{instance}`, salva URL em `leads.avatar_url`.
+- Trigger client-side: ao abrir conversa sem `avatar_url`, dispara fetch em background (debounced, 1x por lead por sessão).
+
+## Resumo técnico
+
+**Migrations (3)**: `lead_internal_notes`, `lead_tasks`, `scheduled_messages` — todas com RLS `authenticated_all`, sem foreign keys (padrão do projeto).
+
+**Edge functions novas (3)**: `scheduled-dispatcher`, `transcribe-audio`, `fetch-wa-avatar`. Reusa `evolution-send` existente.
+
+**Cron**: 1 job pg_cron a cada minuto invocando `scheduled-dispatcher`.
+
+**Frontend principal**:
+- `src/lib/internal-notes.ts` (refatorar p/ DB)
+- `src/components/inbox/ChatPane.tsx` (transcrição, agendamento UI hooks)
+- `src/components/inbox/Composer.tsx` (botão agendar)
+- `src/components/inbox/LeadDetailsPanel.tsx` (abas Tarefas + Agendadas)
+- `src/components/inbox/ConversationList.tsx` (modo seleção + barra de ações)
+- `src/components/inbox/ScheduleMessageDialog.tsx` (novo)
+- `src/components/inbox/TaskDialog.tsx` (novo)
+- `src/components/inbox/BulkActionsBar.tsx` (novo)
+- `src/pages/Tasks.tsx` (novo) + rota em `App.tsx` + item no `AppShell`
+- `src/hooks/useWaAvatar.ts` (novo)
+
+**Lovable AI**: transcrição usa `google/gemini-2.5-flash` (sem custo de chave para o usuário).
+
+## Ordem de execução
+1. Migrations + refator de notas (continuidade da Fase 1).
+2. Tarefas (CRUD + painel + página).
+3. Agendamento (tabela + dialog + edge function + cron).
+4. Transcrição (edge function + UI).
+5. Ações em lote.
+6. Avatar WhatsApp.
+
+Aprove para eu sair do plan mode e implementar tudo em sequência.

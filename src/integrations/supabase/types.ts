@@ -477,6 +477,60 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_internal_notes: {
+        Row: {
+          author_id: string | null
+          author_name: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          text: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          text: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          text?: string
+        }
+        Relationships: []
+      }
+      lead_tasks: {
+        Row: {
+          created_at: string
+          done_at: string | null
+          due_at: string
+          id: string
+          lead_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string | null
+          due_at: string
+          id?: string
+          lead_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string | null
+          due_at?: string
+          id?: string
+          lead_id?: string
+          title?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           ai_summary: string | null
@@ -729,6 +783,39 @@ export type Database = {
           id?: string
           shortcut?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      scheduled_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          last_error: string | null
+          lead_id: string
+          send_at: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lead_id: string
+          send_at: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lead_id?: string
+          send_at?: string
+          sent_at?: string | null
+          status?: string
         }
         Relationships: []
       }
