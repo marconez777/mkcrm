@@ -377,25 +377,43 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
         {events.length > 0 && (
           <div>
-            <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Atividade recente</div>
-            <ul className="space-y-1.5 text-xs">
-              {events.map((e) => {
+            <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> Linha do tempo</span>
+              {events.length > 5 && (
+                <button onClick={() => setEventsExpanded((v) => !v)} className="flex items-center gap-0.5 normal-case hover:text-foreground">
+                  {eventsExpanded ? <>Menos <ChevronUp className="h-3 w-3" /></> : <>Tudo ({events.length}) <ChevronDown className="h-3 w-3" /></>}
+                </button>
+              )}
+            </div>
+            <ol className="relative space-y-2 border-l border-border pl-4 text-xs">
+              {(eventsExpanded ? events : events.slice(0, 5)).map((e) => {
                 let label = e.type;
+                let Icon: any = Activity;
+                let color = "bg-muted-foreground";
                 if (e.type === "stage_changed") {
-                  const to = stages.find((s) => s.id === e.payload?.to)?.name;
-                  label = `Etapa → ${to ?? "—"}`;
+                  const to = stages.find((s) => s.id === e.payload?.to);
+                  label = `Etapa → ${to?.name ?? "—"}`;
+                  Icon = GitBranch;
+                  color = "bg-primary";
                 } else if (e.type === "attendant_changed") {
-                  const to = attendants.find((a) => a.id === e.payload?.to)?.name;
-                  label = `Atendente → ${to ?? "—"}`;
+                  const to = attendants.find((a) => a.id === e.payload?.to);
+                  label = `Atendente → ${to?.name ?? "—"}`;
+                  Icon = UserCheck;
+                  color = "bg-emerald-500";
                 }
                 return (
-                  <li key={e.id} className="flex items-center justify-between gap-2 text-muted-foreground">
-                    <span className="truncate">{label}</span>
-                    <span className="shrink-0 text-[10px]">{timeAgo(e.created_at)}</span>
+                  <li key={e.id} className="relative">
+                    <span className={`absolute -left-[21px] top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${color} text-[8px] text-white`}>
+                      <Icon className="h-2.5 w-2.5" />
+                    </span>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-foreground/90">{label}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(e.created_at)}</span>
+                    </div>
                   </li>
                 );
               })}
-            </ul>
+            </ol>
           </div>
         )}
 
