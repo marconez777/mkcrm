@@ -1,9 +1,11 @@
-// AI chat with RAG and tool calling. Uses per-agent provider + api_key.
+// AI chat with advanced RAG (hybrid + HyDE + rerank + memory), MCP tools, parallel tool calls, citations.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
+import { retrieveContext, formatContext } from "../_shared/rag.ts";
+import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 
-const TOOL_DEFINITIONS: Record<string, any> = {
+const BUILTIN_TOOLS: Record<string, any> = {
   move_lead_stage: {
     type: "function",
     function: {
@@ -24,7 +26,7 @@ const TOOL_DEFINITIONS: Record<string, any> = {
     type: "function",
     function: {
       name: "set_lead_field",
-      description: "Atualiza um campo simples do lead (name, email, company, deal_value).",
+      description: "Atualiza um campo simples do lead.",
       parameters: {
         type: "object",
         properties: {
@@ -43,25 +45,102 @@ const TOOL_DEFINITIONS: Record<string, any> = {
       parameters: { type: "object", properties: { attendant_name: { type: "string" } }, required: ["attendant_name"] },
     },
   },
+  search_knowledge_base: {
+    type: "function",
+    function: {
+      name: "search_knowledge_base",
+      description: "Busca explicitamente na base de conhecimento por uma consulta específica e retorna trechos relevantes.",
+      parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+    },
+  },
+  create_task: {
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Cria uma tarefa para o lead com prazo (ISO 8601).",
+      parameters: {
+        type: "object",
+        properties: { title: { type: "string" }, due_at: { type: "string", description: "ISO 8601" } },
+        required: ["title", "due_at"],
+      },
+    },
+  },
+  schedule_message: {
+    type: "function",
+    function: {
+      name: "schedule_message",
+      description: "Agenda uma mensagem para o lead em data futura.",
+      parameters: {
+        type: "object",
+        properties: { text: { type: "string" }, send_at: { type: "string", description: "ISO 8601" } },
+        required: ["text", "send_at"],
+      },
+    },
+  },
+  get_lead_history: {
+    type: "function",
+    function: {
+      name: "get_lead_history",
+      description: "Retorna as últimas N mensagens trocadas com o lead.",
+      parameters: { type: "object", properties: { limit: { type: "number", default: 20 } } },
+    },
+  },
+  transfer_to_human: {
+    type: "function",
+    function: {
+      name: "transfer_to_human",
+      description: "Pausa o atendimento automático e indica que o lead precisa de um atendente humano.",
+      parameters: { type: "object", properties: { reason: { type: "string" } }, required: ["reason"] },
+    },
+  },
+  update_custom_field: {
+    type: "function",
+    function: {
+      name: "update_custom_field",
+      description: "Atualiza um campo customizado do lead.",
+      parameters: {
+        type: "object",
+        properties: { key: { type: "string" }, value: { type: "string" } },
+        required: ["key", "value"],
+      },
+    },
+  },
+  remember_fact: {
+    type: "function",
+    function: {
+      name: "remember_fact",
+      description: "Salva uma informação importante (fato/preferência) sobre o lead na memória persistente do agente.",
+      parameters: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["fact", "preference"] },
+          content: { type: "string" },
+        },
+        required: ["kind", "content"],
+      },
+    },
+  },
 };
 
-async function executeTool(name: string, args: any, leadId: string | null) {
-  const supabase = sb();
-  if (!leadId) return { error: "no lead context" };
+async function executeTool(name: string, args: any, ctx: { leadId: string | null; agent: any; supabase: any }) {
+  const { leadId, agent, supabase } = ctx;
   try {
     if (name === "move_lead_stage") {
+      if (!leadId) return { error: "no lead context" };
       const { data: stage } = await supabase.from("pipeline_stages").select("id, name").ilike("name", args.stage_name).maybeSingle();
       if (!stage) return { error: `stage not found: ${args.stage_name}` };
       await supabase.from("leads").update({ stage_id: stage.id }).eq("id", leadId);
       return { ok: true, stage: stage.name };
     }
     if (name === "add_lead_note") {
+      if (!leadId) return { error: "no lead context" };
       const { data: lead } = await supabase.from("leads").select("notes").eq("id", leadId).single();
       const merged = (lead?.notes ? lead.notes + "\n\n" : "") + `[IA] ${args.note}`;
       await supabase.from("leads").update({ notes: merged }).eq("id", leadId);
       return { ok: true };
     }
     if (name === "set_lead_field") {
+      if (!leadId) return { error: "no lead context" };
       const allowed = ["name", "email", "company", "deal_value"];
       if (!allowed.includes(args.field)) return { error: "field not allowed" };
       const value = args.field === "deal_value" ? Number(args.value) || 0 : args.value;
@@ -69,10 +148,58 @@ async function executeTool(name: string, args: any, leadId: string | null) {
       return { ok: true };
     }
     if (name === "assign_attendant") {
+      if (!leadId) return { error: "no lead context" };
       const { data: att } = await supabase.from("attendants").select("id, name").ilike("name", args.attendant_name).maybeSingle();
       if (!att) return { error: `attendant not found: ${args.attendant_name}` };
       await supabase.from("leads").update({ attendant_id: att.id }).eq("id", leadId);
       return { ok: true, attendant: att.name };
+    }
+    if (name === "search_knowledge_base") {
+      const r = await retrieveContext({ supabase, agent, query: args.query, history: [], leadId });
+      return { results: r.chunks.map((c, i) => ({ idx: i + 1, title: c.doc_title, snippet: c.content.slice(0, 400) })) };
+    }
+    if (name === "create_task") {
+      if (!leadId) return { error: "no lead context" };
+      const { data, error } = await supabase.from("lead_tasks").insert({ lead_id: leadId, title: args.title, due_at: args.due_at }).select("id").single();
+      if (error) return { error: error.message };
+      return { ok: true, id: data.id };
+    }
+    if (name === "schedule_message") {
+      if (!leadId) return { error: "no lead context" };
+      const { data, error } = await supabase.from("scheduled_messages").insert({ lead_id: leadId, content: args.text, send_at: args.send_at }).select("id").single();
+      if (error) return { error: error.message };
+      return { ok: true, id: data.id };
+    }
+    if (name === "get_lead_history") {
+      if (!leadId) return { error: "no lead context" };
+      const limit = Math.min(Number(args.limit) || 20, 50);
+      const { data } = await supabase.from("messages")
+        .select("from_me, content, message_type, timestamp")
+        .eq("lead_id", leadId).order("timestamp", { ascending: false }).limit(limit);
+      return { messages: (data ?? []).reverse().map((m: any) => ({ role: m.from_me ? "atendente" : "cliente", text: m.content, when: m.timestamp })) };
+    }
+    if (name === "transfer_to_human") {
+      if (!leadId) return { error: "no lead context" };
+      const until = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+      await supabase.from("lead_ai_settings").upsert({ lead_id: leadId, agent_id: agent.id, paused_until: until, auto_reply: false });
+      await supabase.from("lead_internal_notes").insert({ lead_id: leadId, author_name: "IA", text: `Transferido para humano: ${args.reason}` });
+      return { ok: true, paused_until: until };
+    }
+    if (name === "update_custom_field") {
+      if (!leadId) return { error: "no lead context" };
+      const { data: lead } = await supabase.from("leads").select("custom_fields").eq("id", leadId).single();
+      const merged = { ...(lead?.custom_fields ?? {}), [args.key]: args.value };
+      await supabase.from("leads").update({ custom_fields: merged }).eq("id", leadId);
+      return { ok: true };
+    }
+    if (name === "remember_fact") {
+      try {
+        const [vec] = await embed(agent, [args.content]);
+        await supabase.from("agent_memory").insert({ agent_id: agent.id, lead_id: leadId, kind: args.kind, content: args.content, embedding: vec as any });
+        return { ok: true };
+      } catch (e) {
+        return { error: String(e) };
+      }
     }
     return { error: `unknown tool: ${name}` };
   } catch (e) {
@@ -92,24 +219,21 @@ Deno.serve(async (req) => {
     if (!agentRow) return json({ error: "agent not found" }, 404);
     if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
-    const agent = agentRow as Agent;
+    const agent = agentRow as Agent & any;
 
-    // RAG
+    // RAG: advanced retrieval
     const lastUser = [...incoming].reverse().find((m: any) => m.role === "user");
-    let context = "";
+    let ragContext = "";
+    let sources: any[] = [];
     if (lastUser?.content) {
       try {
-        const [vec] = await embed(agent, [lastUser.content]);
-        const { data: matches } = await supabase.rpc("match_chunks", {
-          query_embedding: vec, p_agent_id: agent_id, match_count: 5,
-        });
-        if (matches && matches.length > 0) {
-          context = "\n\nContexto da base de conhecimento:\n" +
-            matches.map((m: any, i: number) => `[${i + 1}] ${m.content}`).join("\n\n");
-        }
+        const r = await retrieveContext({ supabase, agent, query: lastUser.content, history: incoming, leadId: lead_id });
+        ragContext = formatContext(r);
+        sources = r.chunks.map((c, i) => ({ idx: i + 1, doc_id: c.document_id, title: c.doc_title, snippet: c.content.slice(0, 200), score: c.score }));
       } catch (e) { console.error("RAG error", e); }
     }
 
+    // Lead context
     let leadCtx = "";
     if (lead_id) {
       const { data: lead } = await supabase.from("leads")
@@ -118,20 +242,48 @@ Deno.serve(async (req) => {
         const { data: stage } = lead.stage_id
           ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
           : { data: null };
-        leadCtx = `\n\nLead atual: ${JSON.stringify({ ...lead, stage: stage?.name })}`;
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}`;
       }
     }
 
-    const tools = (agentRow.tools as string[]).map((t) => TOOL_DEFINITIONS[t]).filter(Boolean);
-    const sysPrompt: ChatMessage = { role: "system", content: agentRow.system_prompt + leadCtx + context };
+    // Built-in tools (selected by agent)
+    const enabledNames = new Set<string>(agentRow.tools as string[]);
+    const builtins = [...enabledNames].map((t) => BUILTIN_TOOLS[t]).filter(Boolean);
+
+    // MCP tools
+    let mcpTools: McpTool[] = [];
+    try {
+      const { data: servers } = await supabase.from("agent_mcp_servers")
+        .select("id, name, url, headers").eq("agent_id", agent_id).eq("enabled", true);
+      if (servers && servers.length > 0) {
+        mcpTools = await listMcpTools(servers.map((s: any) => ({ id: s.id, name: s.name, url: s.url, headers: s.headers ?? {} })));
+      }
+    } catch (e) { console.error("MCP list error", e); }
+
+    const tools = [...builtins, ...toOpenAITools(mcpTools)];
+
+    // Planning prefix
+    const planning = agent.planning_mode
+      ? "\n\nAntes de responder, pense em passos: (1) o que o usuário quer? (2) que ferramentas ou trechos da base ajudam? (3) execute. (4) revise e responda objetivamente."
+      : "";
+
+    const sysContent =
+      agentRow.system_prompt +
+      planning +
+      leadCtx +
+      ragContext +
+      "\n\nQuando usar trechos da base, cite com [1], [2] etc.";
+
+    const sysPrompt: ChatMessage = { role: "system", content: sysContent };
     const conv: ChatMessage[] = [sysPrompt, ...incoming];
 
     let finalContent = "";
     const usedTools: any[] = [];
     let totalIn = 0, totalOut = 0, totalTok = 0;
     const startedAt = Date.now();
+    const maxIter = Math.min(Math.max(Number(agent.max_iterations) || 6, 1), 12);
 
-    for (let iter = 0; iter < 5; iter++) {
+    for (let iter = 0; iter < maxIter; iter++) {
       const resp = await chatCompletion(agent, conv, tools.length > 0 ? tools : undefined);
       if (!resp.ok) {
         await logUsage({ agent_id, lead_id, model: agent.model, status: "error", error: `provider ${resp.status}`, latency_ms: Date.now() - startedAt });
@@ -144,11 +296,23 @@ Deno.serve(async (req) => {
 
       if (choice.tool_calls && choice.tool_calls.length > 0) {
         conv.push({ role: "assistant", content: choice.content ?? "", tool_calls: choice.tool_calls });
-        for (const call of choice.tool_calls) {
+        // Execute tool calls in PARALLEL
+        const results = await Promise.all(choice.tool_calls.map(async (call) => {
           const args = JSON.parse(call.function?.arguments ?? "{}");
-          const result = await executeTool(call.function?.name, args, lead_id);
-          usedTools.push({ name: call.function?.name, args, result });
-          conv.push({ role: "tool", tool_call_id: call.id, name: call.function?.name, content: JSON.stringify(result) });
+          const fname = call.function?.name ?? "";
+          let result: any;
+          const mcp = mcpTools.find((t) => t.name === fname);
+          if (mcp) {
+            try { result = { ok: true, output: await callMcpTool(mcp, args) }; }
+            catch (e) { result = { error: String(e) }; }
+          } else {
+            result = await executeTool(fname, args, { leadId: lead_id, agent, supabase });
+          }
+          return { call, fname, args, result };
+        }));
+        for (const r of results) {
+          usedTools.push({ name: r.fname, args: r.args, result: r.result });
+          conv.push({ role: "tool", tool_call_id: r.call.id, name: r.fname, content: JSON.stringify(r.result) });
         }
         continue;
       }
@@ -179,7 +343,7 @@ Deno.serve(async (req) => {
       replied: !!finalContent, status: "success",
     });
 
-    return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools });
+    return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });
   } catch (e) {
     console.error("ai-chat", e);
     return json({ error: String(e) }, 500);
