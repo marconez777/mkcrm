@@ -9,12 +9,13 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2 } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Toggle } from "@/components/ui/toggle";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
@@ -22,6 +23,7 @@ import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import TopScrollbar from "@/components/kanban/TopScrollbar";
+import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 
 function timeAgo(iso: string | null) {
@@ -96,21 +98,41 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
 });
 
 function Column({
-  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact,
+  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void;
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
+  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
 
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title="Mais ações" onClick={(e) => e.stopPropagation()}>
+          <MoreVertical className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem onClick={() => onEdit(stage)}>
+          <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onDelete(stage)} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   if (collapsed) {
     return (
       <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
-        <button onClick={onToggleCollapse} className="mb-2 rounded p-1 hover:bg-accent" title="Expandir">
+        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title="Expandir">
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
-        <span className="h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+        {menu}
+        <span className="mt-1 h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
         <div ref={setNodeRef} className={`mt-2 flex flex-1 flex-col items-center justify-start gap-1 ${isOver ? "bg-primary/10" : ""}`}>
           <div className="rotate-180 whitespace-nowrap text-xs font-semibold [writing-mode:vertical-rl]">{stage.name}</div>
           <span className="mt-2 rounded bg-muted px-1.5 text-[10px] font-bold text-muted-foreground">{leads.length}</span>
@@ -134,6 +156,7 @@ function Column({
           <button onClick={onToggleCollapse} className="rounded p-1 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
             <Minimize2 className="h-3.5 w-3.5" />
           </button>
+          {menu}
         </div>
       </div>
       <div
@@ -164,6 +187,7 @@ export default function KanbanPage() {
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -224,6 +248,14 @@ export default function KanbanPage() {
       name: newColName.trim(), position: pos, pipeline_id: currentId,
     });
     setNewColName(""); setNewColOpen(false);
+  }
+
+  async function deleteStage(stage: Stage) {
+    const used = leads.filter((l) => l.stage_id === stage.id).length;
+    if (used > 0) { toast.error(`Mova os ${used} leads desta coluna antes de excluir.`); return; }
+    if (!confirm(`Excluir a coluna "${stage.name}"?`)) return;
+    const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
+    if (error) toast.error(error.message); else toast.success("Coluna excluída");
   }
 
   async function addLead() {
@@ -315,6 +347,8 @@ export default function KanbanPage() {
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
+                        onEdit={setEditingStage}
+                        onDelete={deleteStage}
                       />
                     ))}
                     {stages.length === 0 && (
@@ -351,7 +385,8 @@ export default function KanbanPage() {
           <div className="space-y-3">
             <div className="space-y-1.5"><Label>Nome</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>{current?.kind === "internal" ? "Identificador" : "Telefone (com DDI)"}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
-          </div>
+      <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
+    </div>
           <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
