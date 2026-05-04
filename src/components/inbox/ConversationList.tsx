@@ -18,6 +18,15 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(sec / 86400)}d`;
 }
 
+// Cor por idade da última mensagem (SLA visual) — só destaca quando não-lido.
+function ageColor(iso: string | null, isUnread: boolean): string {
+  if (!iso || !isUnread) return "text-muted-foreground";
+  const min = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (min < 60) return "text-emerald-500";
+  if (min < 24 * 60) return "text-amber-500";
+  return "text-destructive";
+}
+
 const MsgTypeIcon = forwardRef<SVGSVGElement, { type?: string | null }>(function MsgTypeIcon({ type }, ref) {
   if (type === "image" || type === "video") return <Image ref={ref} className="h-3 w-3 opacity-60" />;
   if (type === "audio") return <Mic ref={ref} className="h-3 w-3 opacity-60" />;
@@ -193,7 +202,7 @@ export default function ConversationList(props: {
                       {isPinned && <Pin className="h-3 w-3 fill-amber-500 text-amber-500" />}
                       {l.name || l.phone}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(l.last_message_at)}</span>
+                    <span className={cn("shrink-0 text-[10px] font-medium tabular-nums", ageColor(l.last_message_at, isUnread))}>{timeAgo(l.last_message_at)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className={cn("line-clamp-1 flex items-center gap-1 text-xs", isUnread ? "text-foreground" : "text-muted-foreground")}>

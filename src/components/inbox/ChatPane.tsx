@@ -5,17 +5,21 @@ import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
   Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
+  StickyNote, Forward, Trash2,
 } from "lucide-react";
 import Composer from "./Composer";
+import ForwardDialog from "./ForwardDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
+import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
@@ -127,10 +131,24 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [activeMatch, setActiveMatch] = useState(0);
   const [pulseId, setPulseId] = useState<string | null>(null);
 
+  // Internal notes (local-only por ora)
+  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+
+  // Forward dialog
+  const [forwardText, setForwardText] = useState<string | null>(null);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const scrollToMsgRef = useRef<((id: string) => void) | null>(null);
+
+  useEffect(() => {
+    setNotes(getNotes(lead.id));
+    const unsub = subscribeNotes(lead.id, () => setNotes(getNotes(lead.id)));
+    return unsub;
+  }, [lead.id]);
 
   // Load most recent page
   useEffect(() => {
@@ -392,26 +410,40 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }, [messages]);
 
   const grouped = useMemo(() => {
+    // Mescla mensagens + notas internas por timestamp.
+    type Item =
+      | { kind: "msg"; ts: number; m: Message }
+      | { kind: "note"; ts: number; n: InternalNote };
+    const merged: Item[] = [
+      ...messages.map((m) => ({ kind: "msg" as const, ts: new Date(m.timestamp).getTime(), m })),
+      ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), n })),
+    ].sort((a, b) => a.ts - b.ts);
+
     const out: any[] = [];
     let lastDate = "";
     let lastAuthor: boolean | null = null;
     let lastTs = 0;
-    messages.forEach((m) => {
-      const d = new Date(m.timestamp);
+    merged.forEach((it) => {
+      const d = new Date(it.ts);
       const dKey = d.toDateString();
       if (dKey !== lastDate) {
         out.push({ kind: "date", label: dateLabel(d), key: `d-${dKey}` });
         lastDate = dKey;
         lastAuthor = null;
       }
-      const ts = d.getTime();
-      const isGrouped = lastAuthor === m.from_me && ts - lastTs < 2 * 60 * 1000;
-      out.push({ kind: "msg", m, grouped: isGrouped, key: m.id });
-      lastAuthor = m.from_me;
-      lastTs = ts;
+      if (it.kind === "note") {
+        out.push({ kind: "note", n: it.n, key: `n-${it.n.id}` });
+        lastAuthor = null;
+        lastTs = it.ts;
+        return;
+      }
+      const isGrouped = lastAuthor === it.m.from_me && it.ts - lastTs < 2 * 60 * 1000;
+      out.push({ kind: "msg", m: it.m, grouped: isGrouped, key: it.m.id });
+      lastAuthor = it.m.from_me;
+      lastTs = it.ts;
     });
     return out;
-  }, [messages]);
+  }, [messages, notes]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -447,6 +479,37 @@ export default function ChatPane({ lead }: { lead: Lead }) {
                 disabled={(d) => d > new Date()}
                 className={cn("p-3 pointer-events-auto")}
               />
+            </PopoverContent>
+          </Popover>
+          <Popover open={noteOpen} onOpenChange={setNoteOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" title="Adicionar nota interna" className={cn(noteOpen && "bg-accent")}>
+                <StickyNote className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-2">
+              <Textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Nota interna (só a equipe vê)"
+                rows={3}
+                className="text-sm"
+                autoFocus
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => { setNoteOpen(false); setNoteText(""); }}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const t = noteText.trim();
+                    if (!t) return;
+                    addNote(lead.id, t);
+                    setNoteText("");
+                    setNoteOpen(false);
+                    toast.success("Nota adicionada");
+                  }}
+                >Adicionar</Button>
+              </div>
             </PopoverContent>
           </Popover>
           <Button variant="ghost" size="sm" onClick={suggest} disabled={loadingSuggest} title="Sugerir respostas (IA)" className="gap-1 text-xs">
@@ -551,6 +614,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         newCount={newCount}
         jumpToBottom={jumpToBottom}
         scrollToMsgRef={scrollToMsgRef}
+        leadId={lead.id}
+        onForward={(text: string) => setForwardText(text)}
       />
 
       {replyTo && (
@@ -583,6 +648,13 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       )}
 
       <Composer lead={lead} onSend={sendText} seed={composerSeed} />
+
+      <ForwardDialog
+        open={!!forwardText}
+        onClose={() => setForwardText(null)}
+        text={forwardText ?? ""}
+        excludeLeadId={lead.id}
+      />
     </div>
   );
 }
@@ -591,7 +663,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
 
 type GroupedItem =
   | { kind: "date"; label: string; key: string }
-  | { kind: "msg"; m: Message; grouped: boolean; key: string };
+  | { kind: "msg"; m: Message; grouped: boolean; key: string }
+  | { kind: "note"; n: InternalNote; key: string };
 
 function VirtualizedMessages(props: {
   scrollerRef: React.RefObject<HTMLDivElement>;
@@ -613,11 +686,14 @@ function VirtualizedMessages(props: {
   newCount: number;
   jumpToBottom: () => void;
   scrollToMsgRef: React.MutableRefObject<((id: string) => void) | null>;
+  leadId: string;
+  onForward: (text: string) => void;
 }) {
   const {
     scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
     messages, searchTerm, matches, activeMatch, pulseId,
     setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom, scrollToMsgRef,
+    leadId, onForward,
   } = props;
 
   const virtualizer = useVirtualizer({
@@ -689,6 +765,8 @@ function VirtualizedMessages(props: {
                     {g.label}
                   </span>
                 </div>
+              ) : g.kind === "note" ? (
+                <NoteRow note={g.n} onRemove={(id) => removeNote(props.leadId, id)} />
               ) : (
                 <MessageRow
                   m={g.m}
@@ -701,6 +779,7 @@ function VirtualizedMessages(props: {
                   setReplyTo={setReplyTo}
                   pulseAndScroll={pulseAndScroll}
                   resend={resend}
+                  onForward={props.onForward}
                 />
               )}
             </div>
@@ -718,6 +797,27 @@ function VirtualizedMessages(props: {
   );
 }
 
+function NoteRow({ note, onRemove }: { note: InternalNote; onRemove: (id: string) => void }) {
+  return (
+    <div className="my-1.5 flex justify-center">
+      <div className="group relative max-w-[80%] rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+        <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide text-amber-700/80 dark:text-amber-300/80">
+          <StickyNote className="h-3 w-3" /> Nota interna
+          <span className="ml-auto opacity-70">{fmtTime(note.created_at)}</span>
+        </div>
+        <div className="whitespace-pre-wrap break-words">{note.text}</div>
+        <button
+          onClick={() => onRemove(note.id)}
+          className="absolute -right-1 -top-1 hidden rounded-full bg-card p-0.5 text-muted-foreground shadow group-hover:block hover:text-destructive"
+          title="Remover nota"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MessageRow(props: {
   m: Message;
   grouped: boolean;
@@ -729,8 +829,9 @@ function MessageRow(props: {
   setReplyTo: (m: Message) => void;
   pulseAndScroll: (id: string) => void;
   resend: (m: Message) => void;
+  onForward: (text: string) => void;
 }) {
-  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend } = props;
+  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward } = props;
   const failed = m.status === "failed";
   const pending = m.status === "pending";
   const replied = m.reply_to_external_id
@@ -739,16 +840,24 @@ function MessageRow(props: {
   const isMatch = searchTerm && (m.content ?? "").toLowerCase().includes(searchTerm.toLowerCase());
   const isActiveMatch = isMatch && matches[activeMatch]?.id === m.id;
   const pulsing = pulseId === m.id;
+  const actions = (
+    <div className="invisible flex flex-col gap-0.5 self-center opacity-0 transition-opacity group-hover:visible group-hover:opacity-100">
+      <button onClick={() => setReplyTo(m)}
+        className="rounded p-1 text-muted-foreground hover:bg-muted"
+        title="Responder"><Reply className="h-3 w-3" /></button>
+      {m.content && (
+        <button onClick={() => onForward(m.content!)}
+          className="rounded p-1 text-muted-foreground hover:bg-muted"
+          title="Encaminhar"><Forward className="h-3 w-3" /></button>
+      )}
+    </div>
+  );
   return (
     <div
       data-msg-id={m.id}
       className={cn("group flex items-end gap-1 px-0", m.from_me ? "justify-end" : "justify-start", grouped ? "pt-0.5" : "pt-2")}
     >
-      {!m.from_me && (
-        <button onClick={() => setReplyTo(m)}
-          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-          title="Responder"><Reply className="h-3 w-3" /></button>
-      )}
+      {!m.from_me && actions}
       <div
         className={cn(
           "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
@@ -783,11 +892,7 @@ function MessageRow(props: {
           )}
         </div>
       </div>
-      {m.from_me && (
-        <button onClick={() => setReplyTo(m)}
-          className="invisible self-center rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:visible group-hover:opacity-100"
-          title="Responder"><Reply className="h-3 w-3" /></button>
-      )}
+      {m.from_me && actions}
     </div>
   );
 }

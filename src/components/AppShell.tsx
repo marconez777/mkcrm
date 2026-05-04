@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,15 +69,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <NavLink
-          to="/settings"
-          className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
-          title={health?.webhook_last_error ?? label}
-        >
-          <span className={cn("h-2 w-2 rounded-full", dotColor)} />
-          <Activity className="h-3 w-3" />
-          <span className="flex-1 truncate">{label}</span>
-        </NavLink>
+        <div className="mx-3 mb-2 flex items-center gap-1">
+          <NavLink
+            to="/settings"
+            className="flex flex-1 items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
+            title={health?.webhook_last_error ?? label}
+          >
+            <span className={cn("h-2 w-2 rounded-full", dotColor)} />
+            <Activity className="h-3 w-3" />
+            <span className="flex-1 truncate">{label}</span>
+          </NavLink>
+          <button
+            onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
+            className="rounded-md border border-sidebar-border/40 p-2 text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
+            title="Atalhos de teclado (?)"
+          >
+            <Keyboard className="h-3 w-3" />
+          </button>
+        </div>
         {user && (
           <button
             onClick={() => supabase.auth.signOut()}

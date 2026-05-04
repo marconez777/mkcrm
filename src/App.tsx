@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound.tsx";
 const queryClient = new QueryClient();
 
 import { useUnreadTitle } from "./hooks/useUnreadTitle";
+import ShortcutsDialog from "./components/ShortcutsDialog";
 
 const TitleSync = () => { useUnreadTitle(); return null; };
 
@@ -31,6 +32,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <TitleSync />
+          <ShortcutsDialog />
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route
