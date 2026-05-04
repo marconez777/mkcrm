@@ -886,6 +886,7 @@ function MessageRow(props: {
             ? highlight(m.content, searchTerm, !!isActiveMatch)
             : (m.content || `[${m.message_type}]`)}
         </div>
+        {m.message_type === "audio" && <AudioTranscript m={m} />}
         <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
           <span>{fmtTime(m.timestamp)}</span>
           <StatusTicks m={m} />
