@@ -12,6 +12,7 @@ export function useHorizontalScroll() {
     pointerId: number;
     active: boolean;
     moved: boolean;
+    previousScrollBehavior?: string;
   } | null>(null);
 
   const update = useCallback(() => {
@@ -44,27 +45,30 @@ export function useHorizontalScroll() {
       el.scrollLeft += e.deltaY;
     };
 
-    // drag-to-pan on empty board area — uses pointer capture so it wins over dnd-kit
+    const isBlockedTarget = (target: HTMLElement) => {
+      return !!target.closest(
+        "[data-kanban-card], button, a, input, textarea, select, option, label, summary, [role='button'], [role='menuitem'], [contenteditable='true']",
+      );
+    };
+
+    // drag-to-pan on board/background — use capture phase + window listeners to survive dnd-kit interception
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return;
       const target = e.target as HTMLElement;
-      // ignore interactive children (cards, buttons, inputs, dnd handles)
-      if (
-        target.closest(
-          "[data-kanban-card], button, a, input, textarea, select, [role='button'], [role='menuitem']",
-        )
-      ) {
-        return;
-      }
+      if (isBlockedTarget(target)) return;
+
       dragState.current = {
         startX: e.clientX,
         startScroll: el.scrollLeft,
         pointerId: e.pointerId,
         active: true,
         moved: false,
+        previousScrollBehavior: el.style.scrollBehavior,
       };
+      el.style.scrollBehavior = "auto";
       try { el.setPointerCapture(e.pointerId); } catch {}
     };
+
     const onPointerMove = (e: PointerEvent) => {
       const s = dragState.current;
       if (!s?.active || s.pointerId !== e.pointerId) return;
@@ -75,13 +79,17 @@ export function useHorizontalScroll() {
         el.classList.add("kanban-grabbing");
       }
       e.preventDefault();
+      e.stopPropagation();
+      window.getSelection()?.removeAllRanges();
       el.scrollLeft = s.startScroll - dx;
     };
+
     const endDrag = (e: PointerEvent) => {
       const s = dragState.current;
       if (!s) return;
       if (s.pointerId !== e.pointerId) return;
       try { el.releasePointerCapture(s.pointerId); } catch {}
+      el.style.scrollBehavior = s.previousScrollBehavior ?? "";
       dragState.current = null;
       el.classList.remove("kanban-grabbing");
     };
@@ -91,19 +99,19 @@ export function useHorizontalScroll() {
     ro.observe(el);
 
     el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("pointermove", onPointerMove);
-    el.addEventListener("pointerup", endDrag);
-    el.addEventListener("pointercancel", endDrag);
+    el.addEventListener("pointerdown", onPointerDown, { capture: true });
+    window.addEventListener("pointermove", onPointerMove, { capture: true, passive: false });
+    window.addEventListener("pointerup", endDrag, { capture: true });
+    window.addEventListener("pointercancel", endDrag, { capture: true });
     el.addEventListener("lostpointercapture", endDrag);
     el.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
       el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("pointerdown", onPointerDown);
-      el.removeEventListener("pointermove", onPointerMove);
-      el.removeEventListener("pointerup", endDrag);
-      el.removeEventListener("pointercancel", endDrag);
+      el.removeEventListener("pointerdown", onPointerDown, { capture: true });
+      window.removeEventListener("pointermove", onPointerMove, { capture: true });
+      window.removeEventListener("pointerup", endDrag, { capture: true });
+      window.removeEventListener("pointercancel", endDrag, { capture: true });
       el.removeEventListener("lostpointercapture", endDrag);
       el.removeEventListener("scroll", onScroll);
       ro.disconnect();
