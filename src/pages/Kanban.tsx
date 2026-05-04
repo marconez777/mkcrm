@@ -252,12 +252,16 @@ export default function KanbanPage() {
     setNewColName(""); setNewColOpen(false);
   }
 
-  async function deleteStage(stage: Stage) {
-    const used = leads.filter((l) => l.stage_id === stage.id).length;
-    if (used > 0) { toast.error(`Mova os ${used} leads desta coluna antes de excluir.`); return; }
-    if (!confirm(`Excluir a coluna "${stage.name}"?`)) return;
+  function requestDeleteStage(stage: Stage) {
+    setDeletingStage(stage);
+  }
+
+  async function confirmDeleteStage() {
+    const stage = deletingStage;
+    if (!stage) return;
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
     if (error) toast.error(error.message); else toast.success("Coluna excluída");
+    setDeletingStage(null);
   }
 
   async function addLead() {
