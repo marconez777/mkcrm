@@ -30,9 +30,7 @@ Usuários **anônimos não acessam nada**. Usuários autenticados acessam tudo (
 
 ### Edge functions
 
-A maioria das functions exige JWT válido (`verify_jwt = true` é o default). Exceções (em `supabase/config.toml`):
-- `evolution-webhook` — autentica por `?token=` próprio.
-- `evolution-send` / `evolution-test` — chamadas internas.
+`verify_jwt` é definido por função em `supabase/config.toml`. Hoje rodam **sem JWT** (chamadas server-to-server ou autenticadas por outro mecanismo): `evolution-webhook` (autentica por `?token=`), `evolution-send`, `evolution-test`, `ai-auto-reply`, `ai-chat`, `ai-embed`, `ai-assist`, `ai-ingest-document`, `ai-ingest-pdf`, `ai-ingest-url`, `automations-tick`. As demais (sync, backfill, health, ingest-urls, eval-run, scheduled-dispatcher, transcribe, fetch-wa-avatar) exigem JWT padrão.
 
 Quando o cliente chama uma function via `supabase.functions.invoke(...)`, o JWT do usuário é injetado automaticamente.
 

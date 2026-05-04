@@ -21,10 +21,11 @@ CRM com Inbox em tempo real, pipelines Kanban múltiplos, agentes de IA com RAG,
 
 ## Scripts
 ```bash
-npm run dev       # desenvolvimento
-npm run build     # build de produção
-npm run test      # testes (vitest)
-npm run lint
+bun install       # dependências
+bun run dev       # desenvolvimento
+bun run build     # build de produção
+bun run test      # testes (vitest)
+bun run lint
 ```
 
 ## Módulos principais

@@ -1,55 +1,80 @@
+# Auditoria docs × sistema — pendências encontradas
 
-## Atualização da Documentação
+Após ler todas as docs (`README` + 8 guias) e cruzar com o código real (edge functions, schema, RPCs do Postgres), encontrei várias divergências factuais. A documentação está bem estruturada, mas alguns trechos descrevem comportamento que **não corresponde ao código atual**, o que pode confundir devs e atrapalhar debug.
 
-A documentação atual em `docs/` está desatualizada — só descreve o CRM básico (Inbox, Kanban, Evolution). O projeto cresceu bastante: agora tem módulos de IA (agentes, RAG, auto-reply), automações, pipelines múltiplos, tarefas, mensagens agendadas, templates, métricas, autenticação, etc.
+## Divergências críticas (corrigir)
 
-### O que será atualizado
+### 1. Body de `evolution-send` está errado
+Docs (`EDGE_FUNCTIONS.md`, `EVOLUTION.md`) mostram:
+```json
+{ "lead_id", "content", "client_message_id", "reply_to_external_id" }
+```
+Código real espera: `text` (não `content`) e `quoted_external_id` (não `reply_to_external_id`).
 
-**1. `docs/MANUAL.md`** — manual do usuário
-- Adicionar seções: Autenticação/Login, Pipelines múltiplos (sales/internal), Agentes de IA, Automações, Tarefas, Mensagens agendadas, Templates, Métricas, Campos customizados.
-- Atualizar Inbox: notas internas, encaminhamento, agendamento, painel de tarefas do lead, transcrição de áudio.
-- Atualizar Kanban: troca de pipeline, sidebar, overview, drag dos cards vs pan horizontal do board.
+### 2. Fluxo de auto-reply mal descrito
+Docs dizem que `ai-auto-reply` "lê pendências vencidas e responde". **Não.** O código real:
+- `evolution-webhook` chama `ai-auto-reply` fire-and-forget para **cada mensagem nova**.
+- `ai-auto-reply` só **enfileira/atualiza** `pending_replies` (debounce).
+- Quem realmente processa a fila e envia a resposta é o **`scheduled-dispatcher`** (cron 1 min), que também despacha `scheduled_messages`.
 
-**2. `docs/ARCHITECTURE.md`**
-- Adicionar camada de IA (RAG + agentes + MCP + auto-reply).
-- Adicionar módulo de automações (gatilhos + tick).
-- Adicionar dispatcher de mensagens agendadas.
-- Atualizar diagrama incluindo IA Gateway (Lovable AI) e fluxo auto-reply.
-- Documentar Auth (Supabase Auth + RLS por usuário onde aplicável).
+Isso muda `ARCHITECTURE.md`, `AI.md`, `EDGE_FUNCTIONS.md` e `MANUAL.md`.
 
-**3. `docs/DATABASE.md`** — incluir as ~20 novas tabelas:
-- `pipelines`, `whatsapp_instances`
-- `lead_tasks`, `lead_internal_notes`, `lead_reply_counters`, `lead_ai_settings`
-- `scheduled_messages`, `message_templates`, `pending_replies`
-- `automations`, `automation_runs`
-- `ai_agents`, `ai_documents`, `ai_chunks`, `ai_threads`, `ai_messages`, `ai_usage`
-- `agent_evals`, `agent_traces`, `agent_memory`, `agent_mcp_servers`, `stage_ai_defaults`
-- `embedding_cache`, `rag_cache`, `webhook_dedup`
+### 3. `verify_jwt` na tabela está errado
+Conforme `supabase/config.toml`, têm `verify_jwt = false`: `ai-auto-reply`, `ai-chat`, `ai-embed`, `ai-ingest-*`, `ai-assist`, `automations-tick` (além das já documentadas evolution-*). A tabela do `EDGE_FUNCTIONS.md` marca todas essas como `true`. `AUTH.md` também afirma "a maioria exige JWT".
 
-**4. `docs/EDGE_FUNCTIONS.md`** — adicionar as novas:
-- `ai-assist`, `ai-auto-reply`, `ai-chat`, `ai-embed`, `ai-eval-run`
-- `ai-ingest-document`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`
-- `automations-tick`, `scheduled-dispatcher`
-- `evolution-backfill-all`, `fetch-wa-avatar`, `transcribe-audio`
+### 4. RPC inexistente referenciada
+`DATABASE.md` e `AI.md` falam em função `hybrid_search`. No banco existe **`match_chunks_hybrid`** (é a que o código usa em `_shared/rag.ts`). Não existe nenhum `hybrid_search`.
 
-**5. `docs/EVOLUTION.md`**
-- Atualizar para múltiplas instâncias (`whatsapp_instances`).
-- Documentar `evolution-backfill-all`, `fetch-wa-avatar`, dedup via `webhook_dedup`.
+### 5. Automações: triggers/actions documentadas não existem
+`AUTOMATIONS.md` lista 7 triggers e 11 actions. O código (`automations-tick`) só implementa:
+- **Triggers**: `no_reply_after`, `stage_idle`.
+- **Actions**: `ai_followup`, `move_stage`, `send_template`.
 
-**6. Novos arquivos**
-- `docs/AI.md` — visão completa do módulo de IA: agentes, RAG (chunking, embeddings, cache), auto-reply, threads, MCP servers, evals, custos (`ai_usage`).
-- `docs/AUTOMATIONS.md` — modelo de automação, gatilhos suportados, execução via `automations-tick`, runs.
-- `docs/AUTH.md` — fluxo de login (`Auth.tsx`, `useAuth`, `ProtectedRoute`), políticas RLS.
+Itens como `message_received`, `tag_added`, `add_tag`, `webhook`, `enable_ai`, etc. **não existem**. Também falta documentar a coluna real `cooldown_hours` e o esquema real (`trigger_type`, `trigger_config`, `action_type`, `action_config`).
 
-**7. `README.md`** — atualizar índice apontando para os novos docs e listar os novos módulos na seção "Estrutura".
+### 6. Esquema de `ai_usage` divergente
+Docs falam em `prompt_tokens`, `completion_tokens`, `cost`. Real: `input_tokens`, `output_tokens`, `total_tokens`, `operation`, `status`, `tools_called`, `replied`, `error`. Sem coluna `cost`.
 
-### Método
+### 7. `agent_traces` documentado de forma incompleta
+Tem campos importantes não citados: `run_id`, `step`, `kind`, `name`, `tokens_in/out`, `latency_ms`, `payload`, `error`.
 
-Para garantir precisão, antes de escrever cada doc vou:
-- Ler os arquivos de hook/página correspondentes (ex.: `useAuth`, `usePipelines`, `lead-tasks`, `scheduled-messages`, `Automations.tsx`, `Agents.tsx`, `Templates.tsx`, `Metrics.tsx`).
-- Inspecionar schema real das novas tabelas via `psql` (`\d <tabela>`) para listar colunas corretas.
-- Ler cada nova edge function para descrever input/output/JWT.
+### 8. Função `sync_lead_pipeline_id` não documentada
+Existe no banco e não aparece em `DATABASE.md` (mantém `pipeline_id` consistente com `stage_id`).
 
-### Resultado
+## Divergências menores
 
-Documentação completa, atual e fiel ao código, cobrindo todos os módulos hoje em produção, pronta para onboarding de novos devs e para uso como referência operacional.
+- `EDGE_FUNCTIONS.md` classifica `transcribe-audio` em "Inbox" mas descreve em "Jobs auxiliares" — uniformizar.
+- `README.md` lista scripts `npm run …`; o projeto usa **bun** (lockfile `bun.lockb`). Trocar exemplos.
+- `MANUAL.md` cita "Refresh manual" no chat — confirmar se botão existe; código atual não tem botão de refresh manual no `ChatPane.tsx` (vale verificar).
+- `EVOLUTION.md` cita endpoint `POST /webhook/set/{instance}` — confirmar se ainda é usado (procurar no código real).
+- `DATABASE.md` afirma "Validação por trigger em vez de CHECK" — não há triggers de validação relevantes; remover ou substituir pela lista real (`set_updated_at`, `set_stage_changed_at`, `log_lead_changes`, `sync_lead_pipeline_id`, `increment_unread`).
+
+## Pendências de qualidade do sistema (não-doc)
+
+1. **Auto-reply duplicado**: `evolution-webhook` chama `ai-auto-reply` fire-and-forget E o `scheduled-dispatcher` roda a cada minuto — ok, mas hoje **o webhook não dispara o `scheduled-dispatcher`**, então a primeira resposta sempre tem latência mínima de até 1 min + debounce. Considerar disparar `scheduled-dispatcher` (ou um endpoint dedicado de "flush") quando `pending_replies.run_at <= now()`.
+2. **`webhook_dedup` sem cron de limpeza**: a tabela tem `expires_at` mas não existe `cleanup_webhook_dedup()` agendado. Só `cleanup_webhook_events` está definida.
+3. **`settings` legacy**: o código ainda referencia `settings.webhook_token` em alguns pontos. Remover totalmente após confirmar migração para `whatsapp_instances`.
+4. **RLS uniforme `authenticated_all`**: documentar explicitamente que esse modelo é **single-tenant** e qualquer publicação multi-cliente exige refazer policies (já mencionado em `AUTH.md`, mas vale destacar como **AVISO** no topo do `DATABASE.md`).
+
+## Plano de ação (quando aprovado, executo em modo default)
+
+1. Atualizar `EDGE_FUNCTIONS.md`:
+   - Corrigir tabela de `verify_jwt`.
+   - Corrigir body do `evolution-send`.
+   - Reescrever a seção `ai-auto-reply` (apenas enfileira) e `scheduled-dispatcher` (processa fila + agendadas).
+2. Atualizar `AI.md` e `ARCHITECTURE.md` com o fluxo real (webhook → ai-auto-reply enfileira → scheduled-dispatcher consome).
+3. Atualizar `AUTH.md` com a lista correta de functions sem JWT.
+4. Atualizar `DATABASE.md`:
+   - Trocar `hybrid_search` → `match_chunks_hybrid`.
+   - Listar `sync_lead_pipeline_id`.
+   - Corrigir esquema de `ai_usage` e `agent_traces`.
+   - Adicionar aviso "single-tenant" no topo.
+5. Atualizar `AUTOMATIONS.md` para refletir só os 2 triggers e 3 actions reais, com schema `trigger_type/trigger_config/action_type/action_config/cooldown_hours`.
+6. Atualizar `EVOLUTION.md` (body do send, conferir endpoints realmente chamados).
+7. Atualizar `README.md` (scripts com `bun`).
+8. Atualizar `MANUAL.md` (remover "Refresh manual" se não existir; alinhar fluxo IA).
+9. (Opcional, se você aprovar separadamente) Adicionar:
+   - `cleanup_webhook_dedup()` + cron.
+   - Trigger imediato do `scheduled-dispatcher` no webhook quando debounce já está vencido.
+
+Aprove para eu aplicar as correções de documentação. Os itens 9 (mudanças de código/banco) só faço se você marcar explicitamente.

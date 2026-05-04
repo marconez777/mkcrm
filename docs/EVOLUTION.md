@@ -55,10 +55,14 @@ Salva `state` em `whatsapp_instances.connection_state` (`open`, `connecting`, `c
 ## Envio (CRM → WhatsApp)
 
 1. UI gera `client_message_id` (UUID v4) e adiciona otimisticamente.
-2. `evolution-send` insere `messages` com `status='pending'` (idempotente).
-3. POST em `/message/sendText/{instance}` na instância do lead.
-4. Atualiza `external_id` + `status='sent'`.
-5. `MESSAGES_UPDATE` posterior atualiza `delivery_status`.
+2. Chama `evolution-send` com body real:
+   ```json
+   { "lead_id": "uuid", "text": "string", "client_message_id": "uuid?", "quoted_external_id": "string?" }
+   ```
+3. Função insere `messages` com `status='pending'` (idempotente por `client_message_id`).
+4. POST em `/message/sendText/{instance}` na instância do lead.
+5. Atualiza `external_id` + `status='sent'`.
+6. `MESSAGES_UPDATE` posterior atualiza `delivery_status`.
 
 ## Reconciliação
 

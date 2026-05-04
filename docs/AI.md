@@ -55,12 +55,13 @@ Pipeline (em `_shared/ai.ts`):
 
 ### Busca
 
-`_shared/rag.ts` provê:
-- **Vetorial** (cosseno via ivfflat).
-- **FTS** (tsvector português).
-- **Híbrida** (combinação ponderada — `use_hybrid_search`).
+`_shared/rag.ts` chama duas RPCs no Postgres:
+- **`match_chunks(query_embedding, agent_id, k)`** — vetorial pura (cosseno).
+- **`match_chunks_hybrid(query_embedding, query_text, agent_id, k)`** — vetorial + FTS português com fusão RRF (`SUM(1 / (60 + rnk))`). Usada quando `use_hybrid_search=true`.
+
+Adicionalmente:
 - **HyDE** (`use_hyde`): pede ao LLM uma resposta hipotética e usa o embedding dela para a busca.
-- **Reranker** opcional (Cohere/voyage/etc.).
+- **Reranker** opcional (Cohere/Voyage/etc.) controlado por `reranker_provider`.
 
 Cache: `embedding_cache` (por hash do texto) e `rag_cache` (por hash da query + agent).
 
@@ -82,29 +83,34 @@ INSERT INTO lead_ai_settings (lead_id, agent_id, auto_reply)
 VALUES ('...', '...', true);
 ```
 
-Fluxo:
-1. Mensagem do cliente chega → `evolution-webhook` cria/atualiza `pending_replies` com `run_at = now() + agent.debounce_seconds`.
-2. `ai-auto-reply` (cron) lê pendências vencidas.
-3. Verifica `paused_until`, `lead_reply_counters` (rate-limit), `agent.enabled`.
-4. Coleta todas as mensagens do lead na janela de debounce e roda o agente.
-5. Envia resposta via `evolution-send`.
-6. Atualiza `lead_reply_counters` e grava `ai_usage` + `agent_traces`.
+Fluxo real (duas funções colaboram):
+1. Mensagem do cliente chega → `evolution-webhook` chama `ai-auto-reply` em fire-and-forget.
+2. `ai-auto-reply` resolve agente (lead → estágio), respeita `paused_until` / `agent.enabled`, e faz upsert em `pending_replies` com `run_at = now() + agent.debounce_seconds`. **Não envia nada.**
+3. Mensagens subsequentes na janela apenas estendem o `run_at` (debounce).
+4. `scheduled-dispatcher` (cron ~1 min) reclama atomicamente as `pending_replies` vencidas, monta histórico do lead, chama `ai-chat` para gerar a resposta e dispara `evolution-send`.
+5. Grava `ai_usage` e `agent_traces` (via `log_agent_trace`).
+
+> Latência mínima ≈ `debounce_seconds` + intervalo do cron.
 
 Pausar IA temporariamente: defina `paused_until` em `lead_ai_settings`.
 
 ## MCP (Model Context Protocol)
 
-Cada agente pode ter servidores MCP em `agent_mcp_servers`. `_shared/mcp.ts` lista as tools expostas pelo servidor, registra com o LLM e roteia chamadas. Útil para integrar APIs externas (calendário, ERP, etc.) sem precisar codar tool por tool.
+Cada agente pode ter servidores MCP em `agent_mcp_servers`. `_shared/mcp.ts` lista as tools expostas, registra com o LLM e roteia chamadas. Útil para integrar APIs externas sem codar tool por tool.
 
 ## Evals
 
-Cadastre casos em `agent_evals` (input + expected/rubrica) e rode `ai-eval-run` para medir qualidade após mudanças de prompt/modelo.
+Cadastre casos em `agent_evals` (`prompt`, `expected_contains text[]`) e rode `ai-eval-run`. Resultado fica em `last_response`, `last_passed`, `last_run_at`.
 
-## Telemetria de custo
+## Telemetria
 
-Toda execução (chat, auto-reply, eval) grava em `ai_usage`:
-- `agent_id`, `lead_id`, `thread_id`, `automation_id`.
-- `model`, `prompt_tokens`, `completion_tokens`, `cost`.
+Toda execução grava em `ai_usage`:
+- Identificação: `agent_id`, `lead_id`, `thread_id`, `automation_id`.
+- Modelo: `model`, `operation` (`chat|embed|...`), `status`.
+- Tokens: `input_tokens`, `output_tokens`, `total_tokens`.
+- Métricas: `tools_called`, `replied`, `latency_ms`, `error`.
+
+Não há coluna `cost` armazenada — o custo é calculado pela camada de métricas a partir do modelo + tokens.
 
 Use `/metrics/ops` para visualizar custo agregado.
 

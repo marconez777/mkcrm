@@ -67,10 +67,10 @@
 5. `MESSAGES_UPDATE` posterior atualiza `delivery_status`.
 
 ### Auto-reply (IA)
-1. Mensagem do cliente chega via webhook.
-2. `evolution-webhook` cria/atualiza linha em `pending_replies` agendada para `now() + debounce_seconds`.
-3. `ai-auto-reply` (acionado por cron ou trigger) lê pendências vencidas, agrupa todas as mensagens do lead naquela janela (debounce), executa o agente (RAG + tools + MCP) e envia a resposta via `evolution-send`.
-4. Custos e tokens gravados em `ai_usage`. Trace em `agent_traces`.
+1. Mensagem inbound chega → `evolution-webhook` ingere e dispara `ai-auto-reply` em fire-and-forget.
+2. `ai-auto-reply` resolve agente (lead → estágio), checa `paused_until`/`enabled` e faz `upsert` em `pending_replies` com `run_at = now() + debounce_seconds`. Mensagens em sequência apenas estendem o `run_at` (debounce).
+3. `scheduled-dispatcher` (cron ~1 min) reclama atomicamente as `pending_replies` vencidas, agrupa as últimas mensagens, chama `ai-chat` para gerar a resposta e envia via `evolution-send`.
+4. Custos/tokens em `ai_usage`. Trace em `agent_traces` (via `log_agent_trace`).
 
 ### Mensagens agendadas
 1. UI grava em `scheduled_messages` com `send_at` futuro e `status='pending'`.
@@ -82,9 +82,9 @@
 3. Cada execução grava em `automation_runs` com sucesso/erro.
 
 ### RAG (busca na base de conhecimento)
-1. Documentos são ingeridos via `ai-ingest-*` → divididos em chunks (`chunkText` em `_shared/ai.ts`) → embeddings (`embed`) → gravados em `ai_chunks` com `vector(768)` + `tsvector` (português).
-2. Na consulta (`ai-chat`/`ai-auto-reply`), o RAG (`_shared/rag.ts`) faz **busca híbrida**: similaridade de cosseno (pgvector) + full-text (tsvector), com opção de **HyDE** e reranker.
-3. `embedding_cache` e `rag_cache` evitam recomputo.
+1. Documentos são ingeridos via `ai-ingest-*` → divididos em chunks (`chunkText`) → embeddings (`embed`) → gravados em `ai_chunks` com `vector` + `tsvector` (português).
+2. Na consulta (`ai-chat`/auto-reply via dispatcher), o RAG (`_shared/rag.ts`) chama as RPCs `match_chunks` (vetorial) ou `match_chunks_hybrid` (vetorial + FTS com fusão RRF), com opção de **HyDE** e reranker.
+3. `embedding_cache` e `rag_cache` evitam recomputo. Limpeza periódica via `cleanup_agent_caches()`.
 
 ## Decisões de design
 
