@@ -1,144 +1,133 @@
-## Visão geral
 
-Hoje os agentes têm o básico: chat multi-provider (OpenAI/Anthropic/Google), RAG ingênuo (chunks de 800 chars + top-5), 4 ferramentas (mover etapa, anotar, atualizar campo, atribuir atendente) e auto-reply imediato a cada mensagem. Vamos elevar a 3 níveis: **(1) RAG state-of-the-art**, **(2) Agente verdadeiramente agêntico** (mais ferramentas, planejamento, memória), **(3) MCP** para conectar fontes externas dinamicamente.
+## Diagnóstico — o que a comunidade reporta
 
----
+Sintetizei os padrões recorrentes em Reddit (r/Rag, r/AI_Agents, r/LLMDevs), Towards Data Science, Claude Lab, Gemini Lab, NVIDIA Dynamo e issues de bots WhatsApp open-source:
 
-## Pesquisa rápida das tendências aplicáveis (2025/2026)
-
-- **RAG**: chunking semântico + late-chunking, **hybrid search** (vetor + BM25/full-text + reranker), **HyDE** (Hypothetical Doc Embeddings) para reformular a query, **query rewriting** com histórico, **reranking** com modelos cross-encoder (Cohere Rerank / BGE-Reranker / Gemini Reranker), embeddings de 1024–3072 dims (text-embedding-3-large, voyage-3, gemini-embedding-001), **contextual retrieval** (Anthropic) — prefixar cada chunk com um resumo do documento.
-- **Agentes**: padrão **ReAct + reflection**, **planning loop** (plan→act→critique), **memória episódica** (resumos por lead) e **memória semântica** (preferências). **Streaming de tool calls**, **paralelismo** de tools, **guardrails** (validação JSON via tool_choice forçado).
-- **MCP (Model Context Protocol)**: servidores expõem ferramentas/recursos via HTTP streamable; o agente pode chamar serviços externos (Calendar, CRM, planilhas, busca web) sem hardcode. Vamos adicionar um **cliente MCP** no edge function.
-- **Avaliação**: tracing por turno (já temos `ai_usage`) + **eval harness** com casos golden (asserts simples).
-- **Latência**: cache de embeddings (hash do texto), cache de respostas RAG por agente+pergunta, debounce de auto-reply (agrupa rajada de mensagens), streaming SSE no playground.
-
----
-
-## Mudanças propostas
-
-### 1. RAG avançado (`ai-chat` + `ai-embed` + nova função `ai-retrieve`)
-
-- **Chunking semântico**: dividir por parágrafos/sentenças, alvo 400–600 tokens, com overlap de 1 sentença. Anexar *contextual prefix* (título do doc + resumo de 1 frase gerado na ingestão).
-- **Hybrid search**: além de `match_chunks` (vetor), criar coluna `tsv tsvector` em `ai_chunks` com índice GIN e função `match_chunks_hybrid` que combina score vetorial + score `ts_rank_cd` (RRF — Reciprocal Rank Fusion).
-- **Query rewriting + HyDE**: antes de embutir a pergunta, chamar o LLM (modelo barato, gemini-flash-lite) para: (a) reescrever considerando histórico, (b) gerar uma "resposta hipotética" — embedar essa para retrieval.
-- **Reranker**: após hybrid (top-20), re-ranquear com Cohere Rerank ou Gemini reranker para top-5 finais. API key opcional por agente (`reranker_provider`, `reranker_api_key`).
-- **Citações**: retornar `[1]`, `[2]` no texto e payload `sources` com doc_id, snippet, score — exibir no playground.
-
-### 2. Agente agêntico
-
-- **Loop estendido**: subir `max_iter` para 8, adicionar etapa de **plan** opcional (system prompt extra "primeiro pense em passos") e **self-critique** no final ("verifique se respondeu").
-- **Tool paralelism**: executar `Promise.all` quando o modelo emite múltiplas tool_calls.
-- **Novas ferramentas built-in** (registrar em `TOOL_DEFINITIONS`):
-  - `search_knowledge_base(query)` — chama RAG explicitamente
-  - `create_task(title, due_at)` — usa `lead_tasks`
-  - `schedule_message(text, send_at)` — usa `scheduled_messages`
-  - `get_lead_history(limit)` — últimas N mensagens
-  - `web_search(query)` — via Lovable AI (Gemini com grounding) ou Tavily (secret opcional)
-  - `transfer_to_human()` — pausa auto-reply e marca lead
-  - `update_custom_field(key, value)` — usa `lead_custom_fields`
-- **Memória**:
-  - Tabela nova `agent_memory` (`lead_id`, `agent_id`, `kind` enum `summary|fact|preference`, `content`, `embedding`, `created_at`).
-  - Após cada turno, função `summarize-thread` (background) condensa as últimas 10 trocas em 1 resumo (substitui as antigas no contexto).
-  - Recall: top-3 memórias por similaridade entram no system prompt.
-
-### 3. MCP (Model Context Protocol)
-
-- Tabela `agent_mcp_servers` (`agent_id`, `name`, `url`, `headers jsonb`, `enabled`).
-- Em `ai-chat`: ao montar tools, fazer handshake `tools/list` em cada server MCP do agente e mesclar as ferramentas; quando o modelo chamar uma tool MCP, fazer `tools/call` HTTP streamable (`Accept: application/json, text/event-stream`).
-- UI em `Agents.tsx`: aba "MCP Servers" com CRUD (URL + headers JSON).
-
-### 4. Auto-reply mais inteligente (`ai-auto-reply`)
-
-- **Debounce**: ao receber mensagem, agendar reply para `now + 8s` numa nova tabela `pending_replies` (lead_id unique). Se chegar outra mensagem antes, atualizar `run_at` (estende). Cron `scheduled-dispatcher` (já existe) processa.
-- **Typing indicator**: chamar Evolution `presence` "composing" antes do envio.
-- **Anti-loop**: nunca responder se a última mensagem `from_me` foi enviada há < 3s pelo próprio agente; respeitar `paused_until`.
-- **Handoff**: se confiança baixa (modelo retorna `transfer_to_human`), notificar atendente.
-
-### 5. Playground & Observabilidade (`Agents.tsx`)
-
-- **Streaming SSE** no playground (já temos padrão Lovable AI gateway).
-- Painel de **traços** por thread: tokens, latência, ferramentas chamadas, fontes RAG citadas — lendo de `ai_usage`.
-- **Eval runner**: lista de casos (`agent_evals`: prompt, expected_contains[]) com botão "rodar tudo" e taxa de sucesso.
-
-### 6. Defaults e UX
-
-- Trocar default do agente para **`google/gemini-3-flash-preview`** (já é) e adicionar opção **`google/gemini-3.1-pro-preview`** para tarefas complexas.
-- Permitir **múltiplos agentes em pipeline** (router agent → especialistas) via tool `delegate_to_agent(agent_name, task)`.
+**Top falhas em produção (agentes):**
+1. **Tool storms / 100th-tool-call problem** — agente entra em loop chamando a mesma ferramenta, esgota tokens e custo.
+2. **Context bloat** — histórico cresce, latência sobe linearmente, modelo "esquece" o início.
+3. **Retrieval thrash** — RAG retorna chunks irrelevantes, agente re-busca, ciclo.
+4. **Partial failure em parallel tools** — uma tool falha, agente não sabe e responde como se tivesse sucesso.
+5. **WhatsApp echo loop** — webhook reentra com `fromMe`, bot responde a si mesmo (issue #53386 do openclaw, etc.).
+6. **Webhook redelivery** — Evolution reenvia mesmo `external_id` em reconexão → execuções duplicadas + 429 em cascata.
+7. **Reranker que piora** — adicionar Cohere sem tuning piorou latência de 80→280ms sem ganho de qualidade (post BSWEN).
+8. **Long-running timeouts** — edge function morre em 60s; agentes longos precisam de retomada.
+9. **Embeddings caros** — re-embedar mesma query 100×/min sem cache.
+10. **Streaming quebrado** — buffering de SSE em `\n\n` corta JSON multi-chunk.
 
 ---
 
-## Detalhes técnicos
+## Plano de hardening
 
-### Migrations
-```sql
--- Hybrid search
-ALTER TABLE ai_chunks ADD COLUMN tsv tsvector
-  GENERATED ALWAYS AS (to_tsvector('portuguese', coalesce(content,''))) STORED;
-CREATE INDEX ai_chunks_tsv_idx ON ai_chunks USING GIN(tsv);
-ALTER TABLE ai_chunks ADD COLUMN doc_summary text;
+### 0. Bug-fix imediato (`src/pages/Agents.tsx`)
+- Linha ~497: falta `<AccordionItem value="tools" className="...">` antes do `<AccordionTrigger>` de "Ferramentas". Compilação está quebrando. Vou abrir o item corretamente.
 
--- Memória
-CREATE TABLE agent_memory (
-  id uuid PK, lead_id uuid, agent_id uuid,
-  kind text CHECK (kind IN ('summary','fact','preference')),
-  content text, embedding vector(768), created_at timestamptz default now()
-);
-CREATE INDEX ON agent_memory USING ivfflat (embedding vector_cosine_ops);
+### 1. Anti-loop & tool budget (`ai-chat`)
+Inspirado no "100th tool call problem":
+- **Tool budget global** por turno (default 12 chamadas, configurável `max_tool_calls`). Excedeu → forçar `tool_choice: "none"` e pedir resposta final.
+- **Detecção de repetição**: se mesma `(tool_name, args_hash)` ocorrer ≥ 3× → injetar mensagem de sistema "essa tool já foi chamada com esses args, use o resultado anterior" e bloquear nova execução idêntica.
+- **Token budget**: somar tokens de entrada por iteração; ao passar 80% do contexto do modelo, comprimir histórico (resumo dos turnos antigos via gemini-flash-lite) — evita context bloat.
+- **Cancellation**: `AbortController` propagado, timeout duro de 90s por turno; salvar estado parcial em `agent_runs` para retomada.
 
--- MCP
-CREATE TABLE agent_mcp_servers (
-  id uuid PK, agent_id uuid REFERENCES ai_agents ON DELETE CASCADE,
-  name text, url text, headers jsonb default '{}', enabled bool default true
-);
+### 2. Parallel tools com partial-failure handling
+Padrão do Claude Lab / Gemini Lab:
+- `Promise.allSettled` (não `Promise.all`) para tool calls paralelas.
+- Cada tool tem timeout próprio (default 15s).
+- Resultado de tool com erro vira mensagem `tool` com `{ "error": "...", "retryable": bool }` — modelo vê e decide.
+- Concorrência limitada (semaphore=4) para não estourar rate limit do Evolution/MCP.
 
--- Debounce
-CREATE TABLE pending_replies (
-  lead_id uuid PRIMARY KEY, agent_id uuid, run_at timestamptz, created_at timestamptz default now()
-);
+### 3. RAG: prevenir thrash e custo
+Lições dos posts de pgvector + reranker:
+- **Cache de embeddings**: tabela `embedding_cache (text_hash, model, embedding)` — query rewrite + HyDE re-usam.
+- **Cache de retrieval**: `rag_cache (agent_id, query_hash, chunks jsonb, created_at)` TTL 10min — mesma pergunta dentro da janela não re-busca.
+- **Reranker condicional**: só re-rankear se `top_score - bottom_score < threshold` (resultados ambíguos). Senão, skip — economiza 200ms.
+- **HyDE com fallback**: se HyDE timeout >2s, cair para query original (não bloquear).
+- **Filtro mínimo de score**: descartar chunks com score < 0.3 antes do rerank.
+- **Telemetria**: gravar em `ai_usage` `retrieval_score_top1`, `retrieval_score_topk`, `chunks_used_in_answer` (parsed das citações `[n]`) → identificar thrash.
 
--- Evals
-CREATE TABLE agent_evals (
-  id uuid PK, agent_id uuid, prompt text, expected_contains text[],
-  last_run_at timestamptz, last_passed boolean
-);
+### 4. Anti-loop WhatsApp (`evolution-webhook` + `ai-auto-reply`)
+Padrões dos issues do openclaw:
+- **Idempotency hard-stop**: já temos `(lead_id, external_id)` único; adicionar SELECT antes do enqueue de `pending_replies` — se mensagem já processada, ignorar.
+- **fromMe filter reforçado**: nunca enfileirar reply para mensagem com `from_me=true` OU cujo `external_id` esteja no set `recently_sent_by_bot` (cache em memória 60s).
+- **Bot self-cooldown**: por lead, se o bot mandou mensagem nos últimos 3s, ignorar webhooks novos do próprio número até a janela passar.
+- **Max replies por lead/hora**: rate limit por lead (default 30/h) — para conter loop catastrófico.
+- **Webhook dedup**: tabela `webhook_dedup (event_hash, expires_at)` com TTL 5min para evitar redelivery duplo do Evolution.
 
--- Reranker config
-ALTER TABLE ai_agents 
-  ADD COLUMN reranker_provider text,
-  ADD COLUMN reranker_api_key text,
-  ADD COLUMN max_iterations int default 5,
-  ADD COLUMN use_hyde boolean default false,
-  ADD COLUMN use_hybrid_search boolean default true;
+### 5. Observabilidade & evals
+- **Tracing por turno**: tabela `agent_traces` (`run_id, step, kind, latency_ms, tokens_in, tokens_out, payload jsonb`). UI nova "Traços" mostra cascata de tools, tempo de cada etapa, fontes RAG citadas.
+- **Health dashboard** no Agents.tsx: por agente, últimas 24h → p50/p95 latência, % de turnos com tool error, taxa de evals passando, custo estimado.
+- **Alertas**: se loop detectado (regra do item 1), gravar `agent_incidents` e exibir badge vermelho na sidebar do agente.
+
+### 6. Streaming robusto no Playground
+- Refatorar parser SSE seguindo o guia oficial (line-by-line, lidar CRLF, `[DONE]`, comentários `:`, JSON parcial). Já temos no `_shared/ai.ts` mas o playground ainda usa modo bloqueante.
+- Mostrar tool calls em tempo real (badges no chat) + chunks RAG com hover.
+- `AbortController` no botão "Parar".
+
+### 7. Defaults seguros baseados em benchmarks
+- `max_iterations`: 6 (estava 5).
+- `max_tool_calls`: 12.
+- `rag_top_k`: 5; `fetch_pool`: 20 (4×).
+- `debounce_seconds`: 8 (mantém).
+- `reranker`: desligado por padrão (ativar só quando evals mostrarem ganho).
+- `temperature`: 0.3 para agentes operacionais (era 0.7 — alta T amplifica hallucination em tool calling).
+
+---
+
+## Arquivos a alterar
+
+```text
+src/pages/Agents.tsx            -- fix JSX + nova aba "Traços/Saúde"
+supabase/functions/ai-chat/index.ts        -- tool budget, dedup, allSettled, compressão de contexto
+supabase/functions/_shared/rag.ts          -- cache de embed/retrieval, reranker condicional
+supabase/functions/_shared/ai.ts           -- helper de cache + dedup hash
+supabase/functions/ai-auto-reply/index.ts  -- self-cooldown, rate limit por lead, dedup webhook
+supabase/functions/evolution-webhook/index.ts -- webhook_dedup
+supabase/migrations/<novo>.sql             -- tabelas: embedding_cache, rag_cache, agent_traces,
+                                              agent_incidents, webhook_dedup, lead_reply_counters
+                                              + colunas: max_tool_calls em ai_agents
 ```
 
-### Edge functions novas/alteradas
-- `_shared/ai.ts`: adicionar `streamChatCompletion`, helper `rerank()`.
-- `_shared/rag.ts` (novo): `retrieveContext({agent, query, history})` → query rewrite + HyDE + hybrid + rerank + memórias.
-- `_shared/mcp.ts` (novo): `listMcpTools(server)`, `callMcpTool(server, name, args)`.
-- `ai-chat/index.ts`: usar `retrieveContext`, mesclar MCP tools, paralelismo de tools, streaming opcional (`stream: true` no body).
-- `ai-auto-reply/index.ts`: gravar em `pending_replies`, retornar imediatamente.
-- `scheduled-dispatcher`: processar `pending_replies` quando `run_at <= now()`.
-- `ai-summarize-thread` (novo): cron diário ou após cada turno via background task.
-- `ai-eval-run` (novo): roda casos do `agent_evals`.
+---
 
-### Frontend (`src/pages/Agents.tsx`)
-- Nova aba **"Avançado"**: toggles HyDE / Hybrid / Reranker provider + key, max_iterations.
-- Nova aba **"MCP"**: CRUD de servers.
-- Nova aba **"Memória"**: listar/limpar memórias por lead.
-- Nova aba **"Evals"**: CRUD + rodar.
-- Playground: streaming, exibir fontes citadas, mostrar tool calls em tempo real.
+## Detalhes técnicos chave
+
+**Hash determinístico para cache** (Deno):
+```ts
+const hash = async (s: string) => {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,"0")).join("");
+};
+```
+
+**Loop detection**:
+```ts
+const seen = new Map<string, number>();
+const key = `${tool}:${stableStringify(args)}`;
+seen.set(key, (seen.get(key) ?? 0) + 1);
+if (seen.get(key)! >= 3) return { error: "duplicate_call_blocked" };
+```
+
+**Bot self-cooldown** (em memória + fallback DB):
+```ts
+const lastBotSentAt = await redis_or_table.get(`bot:lead:${leadId}`);
+if (lastBotSentAt && Date.now() - lastBotSentAt < 3000) return; // ignora
+```
+
+**Compressão de contexto** quando >80% do limite:
+- Pegar primeiros N-6 turnos, rodar `summarize` com gemini-flash-lite, substituir por uma única `system: "Resumo até aqui: ..."`.
 
 ---
 
-## Ordem de implementação (1 entrega)
+## Ordem de execução (1 entrega)
 
-1. Migrations (todas as tabelas/colunas acima).
-2. `_shared/rag.ts` com hybrid + rerank + HyDE + memória recall.
-3. Atualizar `ai-chat` (RAG novo, novas tools built-in, paralelismo, max_iter dinâmico, citações).
-4. `_shared/mcp.ts` + integração em `ai-chat`.
-5. Debounce de auto-reply (`pending_replies` + scheduler).
-6. `ai-summarize-thread` background.
-7. UI: abas Avançado / MCP / Memória / Evals + playground com streaming e fontes.
-8. Sanity test via `curl_edge_functions`.
+1. Fix JSX em `Agents.tsx` (5 linhas).
+2. Migration: novas tabelas + coluna `max_tool_calls`.
+3. `_shared/ai.ts`: hash + cache helpers.
+4. `_shared/rag.ts`: cache de embed/retrieval, reranker condicional, score floor.
+5. `ai-chat`: tool budget, dedup, `allSettled`, timeouts, compressão de contexto, traces.
+6. `evolution-webhook`: dedup.
+7. `ai-auto-reply`: self-cooldown, rate limit, dedup.
+8. UI: aba "Saúde / Traços" no Agents (p50/p95, tool errors, custo).
+9. Sanity test via curl_edge_functions.
 
-Após sua aprovação, aplico tudo em uma rodada.
+Aprove para eu aplicar tudo numa rodada.

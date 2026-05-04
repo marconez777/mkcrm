@@ -495,6 +495,7 @@ export default function Agents() {
                 <AccordionContent className="pb-4"><EvalsPanel agentId={selected.id} /></AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="tools" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <Wrench className="h-4 w-4" /> Ferramentas
