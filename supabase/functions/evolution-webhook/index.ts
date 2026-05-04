@@ -57,14 +57,32 @@ Deno.serve(async (req) => {
         }
       }
     } else if (eventType === "MESSAGES_UPDATE") {
+      const RANK: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+      const normalize = (s: string): string => {
+        const u = s.toUpperCase();
+        if (u === "SERVER_ACK" || u === "PENDING") return "sent";
+        if (u === "DELIVERY_ACK" || u === "DELIVERED") return "delivered";
+        if (u === "READ" || u === "PLAYED") return "read";
+        return s.toLowerCase();
+      };
       for (const it of items) {
-        const externalId = it?.key?.id;
-        const status = it?.status ?? it?.update?.status;
-        if (externalId && status) {
+        const externalId = it?.key?.id ?? it?.keyId ?? it?.messageId;
+        const rawStatus = it?.status ?? it?.update?.status;
+        if (!externalId || !rawStatus) continue;
+        const newStatus = normalize(String(rawStatus));
+        const { data: cur } = await supabase
+          .from("messages")
+          .select("id, delivery_status")
+          .eq("external_id", externalId)
+          .maybeSingle();
+        if (!cur) continue;
+        const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
+        const newRank = RANK[newStatus] ?? 0;
+        if (newRank > curRank) {
           await supabase
             .from("messages")
-            .update({ delivery_status: String(status).toLowerCase() })
-            .eq("external_id", externalId);
+            .update({ delivery_status: newStatus })
+            .eq("id", cur.id);
         }
       }
     } else if (eventType === "CONTACTS_UPSERT") {
