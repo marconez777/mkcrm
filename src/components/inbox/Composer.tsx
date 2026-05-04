@@ -148,6 +148,15 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           rows={1}
           className="max-h-40 min-h-[40px] flex-1 resize-none"
         />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Agendar mensagem">
+              <Clock className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Agendar envio</TooltipContent>
+        </Tooltip>
+
         <Button onClick={send} disabled={sending || !text.trim()} size="icon" title="Enviar">
           <Send className="h-4 w-4" />
         </Button>
@@ -155,6 +164,12 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
       {text.length > 200 && (
         <div className="mt-1 text-right text-[10px] text-muted-foreground">{text.length} caracteres</div>
       )}
+      <ScheduleMessageDialog
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        leadId={lead.id}
+        initialText={text}
+      />
     </div>
   );
 }
