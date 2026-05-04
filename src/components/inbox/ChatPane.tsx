@@ -646,6 +646,13 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       )}
 
       <Composer lead={lead} onSend={sendText} seed={composerSeed} />
+
+      <ForwardDialog
+        open={!!forwardText}
+        onClose={() => setForwardText(null)}
+        text={forwardText ?? ""}
+        excludeLeadId={lead.id}
+      />
     </div>
   );
 }
@@ -654,7 +661,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
 
 type GroupedItem =
   | { kind: "date"; label: string; key: string }
-  | { kind: "msg"; m: Message; grouped: boolean; key: string };
+  | { kind: "msg"; m: Message; grouped: boolean; key: string }
+  | { kind: "note"; n: InternalNote; key: string };
 
 function VirtualizedMessages(props: {
   scrollerRef: React.RefObject<HTMLDivElement>;
