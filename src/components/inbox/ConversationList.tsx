@@ -63,6 +63,22 @@ export default function ConversationList(props: {
   onCollapse?: () => void;
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSel(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+  function clearSel() { setSelected(new Set()); }
+  async function bulkPatch(p: Record<string, any>, msg: string) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("leads").update(p).in("id", ids);
+    if (error) toast.error("Falha: " + error.message);
+    else { toast.success(msg); clearSel(); }
+  }
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
