@@ -14,57 +14,208 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_evals: {
+        Row: {
+          agent_id: string
+          created_at: string
+          expected_contains: string[]
+          id: string
+          last_passed: boolean | null
+          last_response: string | null
+          last_run_at: string | null
+          prompt: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          expected_contains?: string[]
+          id?: string
+          last_passed?: boolean | null
+          last_response?: string | null
+          last_run_at?: string | null
+          prompt: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          expected_contains?: string[]
+          id?: string
+          last_passed?: boolean | null
+          last_response?: string | null
+          last_run_at?: string | null
+          prompt?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_evals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_mcp_servers: {
+        Row: {
+          agent_id: string
+          created_at: string
+          enabled: boolean
+          headers: Json
+          id: string
+          name: string
+          url: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          enabled?: boolean
+          headers?: Json
+          id?: string
+          name: string
+          url: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          enabled?: boolean
+          headers?: Json
+          id?: string
+          name?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_mcp_servers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_memory: {
+        Row: {
+          agent_id: string | null
+          content: string
+          created_at: string
+          embedding: string | null
+          id: string
+          kind: string
+          lead_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          content: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          kind: string
+          lead_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          content?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          kind?: string
+          lead_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_memory_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_memory_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
           api_key: string | null
           base_url: string | null
           created_at: string
+          debounce_seconds: number
           description: string | null
           embedding_api_key: string | null
           embedding_model: string | null
           enabled: boolean
           id: string
+          max_iterations: number
           model: string
           name: string
+          planning_mode: boolean
           provider: string
+          rag_top_k: number
+          reranker_api_key: string | null
+          reranker_provider: string | null
           system_prompt: string
           temperature: number
           tools: Json
           updated_at: string
+          use_hybrid_search: boolean
+          use_hyde: boolean
+          use_memory: boolean
         }
         Insert: {
           api_key?: string | null
           base_url?: string | null
           created_at?: string
+          debounce_seconds?: number
           description?: string | null
           embedding_api_key?: string | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
+          max_iterations?: number
           model?: string
           name: string
+          planning_mode?: boolean
           provider?: string
+          rag_top_k?: number
+          reranker_api_key?: string | null
+          reranker_provider?: string | null
           system_prompt: string
           temperature?: number
           tools?: Json
           updated_at?: string
+          use_hybrid_search?: boolean
+          use_hyde?: boolean
+          use_memory?: boolean
         }
         Update: {
           api_key?: string | null
           base_url?: string | null
           created_at?: string
+          debounce_seconds?: number
           description?: string | null
           embedding_api_key?: string | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
+          max_iterations?: number
           model?: string
           name?: string
+          planning_mode?: boolean
           provider?: string
+          rag_top_k?: number
+          reranker_api_key?: string | null
+          reranker_provider?: string | null
           system_prompt?: string
           temperature?: number
           tools?: Json
           updated_at?: string
+          use_hybrid_search?: boolean
+          use_hyde?: boolean
+          use_memory?: boolean
         }
         Relationships: []
       }
@@ -78,6 +229,7 @@ export type Database = {
           embedding: string | null
           id: string
           token_count: number | null
+          tsv: unknown
         }
         Insert: {
           agent_id?: string | null
@@ -88,6 +240,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           token_count?: number | null
+          tsv?: unknown
         }
         Update: {
           agent_id?: string | null
@@ -98,6 +251,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           token_count?: number | null
+          tsv?: unknown
         }
         Relationships: [
           {
@@ -121,6 +275,7 @@ export type Database = {
           agent_id: string | null
           content: string
           created_at: string
+          doc_summary: string | null
           id: string
           metadata: Json | null
           source: string | null
@@ -130,6 +285,7 @@ export type Database = {
           agent_id?: string | null
           content: string
           created_at?: string
+          doc_summary?: string | null
           id?: string
           metadata?: Json | null
           source?: string | null
@@ -139,6 +295,7 @@ export type Database = {
           agent_id?: string | null
           content?: string
           created_at?: string
+          doc_summary?: string | null
           id?: string
           metadata?: Json | null
           source?: string | null
@@ -738,6 +895,42 @@ export type Database = {
           },
         ]
       }
+      pending_replies: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          lead_id: string
+          run_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          lead_id: string
+          run_at: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          lead_id?: string
+          run_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_replies_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_replies_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_stages: {
         Row: {
           color: string
@@ -1007,6 +1200,34 @@ export type Database = {
           content: string
           document_id: string
           id: string
+          similarity: number
+        }[]
+      }
+      match_chunks_hybrid: {
+        Args: {
+          match_count?: number
+          p_agent_id: string
+          query_embedding: string
+          query_text: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          score: number
+        }[]
+      }
+      match_memories: {
+        Args: {
+          match_count?: number
+          p_agent_id: string
+          p_lead_id: string
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          id: string
+          kind: string
           similarity: number
         }[]
       }
