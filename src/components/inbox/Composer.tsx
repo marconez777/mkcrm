@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Send, Smile, Paperclip, Zap } from "lucide-react";
+import { Send, Smile, Paperclip, Zap, Clock } from "lucide-react";
 import type { Lead } from "@/types/crm";
 import { useQuickReplies, applyVariables } from "@/hooks/useQuickReplies";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import ScheduleMessageDialog from "./ScheduleMessageDialog";
 
 import { getDraft, setDraft } from "@/lib/drafts";
 
