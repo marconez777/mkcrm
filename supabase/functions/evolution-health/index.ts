@@ -106,8 +106,13 @@ async function pollRecentMessages(instance: Instance) {
           const res = await ingestMessage(it, "poll", { instanceId: instance.id });
           if ("skipped" in res) skipped++;
           else imported++;
-        } catch (e) {
-          console.error("poll ingest error", e);
+        } catch (e: any) {
+          // Conflito de unique key (telefone duplicado por LID sem alt) → conta como skip silencioso
+          if (e?.code === "23505") {
+            skipped++;
+          } else {
+            console.error("poll ingest error", e);
+          }
         }
       }
     }

@@ -1,115 +1,76 @@
-# Fase 2 — Diferenciação (backend + IA)
+# Correção definitiva da duplicação de conversas
 
-Migra o que era local na Fase 1 para o banco e adiciona recursos que diferenciam o CRM da concorrência (Kommo/Umbler).
+## Causa raiz (confirmada nos dados)
 
-## 1. Notas internas no banco (substitui localStorage)
+A Evolution API está entregando mensagens com **endereçamento LID** (WhatsApp Multi-Device). Exemplo real do banco:
 
-**Migration** — nova tabela:
-```sql
-create table public.lead_internal_notes (
-  id uuid primary key default gen_random_uuid(),
-  lead_id uuid not null,
-  author_id uuid,
-  author_name text,
-  text text not null,
-  created_at timestamptz not null default now()
-);
-alter table public.lead_internal_notes enable row level security;
-create policy "authenticated_all" on public.lead_internal_notes for all to authenticated using (true) with check (true);
-create index on public.lead_internal_notes(lead_id, created_at desc);
-alter publication supabase_realtime add table public.lead_internal_notes;
+```json
+"key": {
+  "addressingMode": "lid",
+  "remoteJid":    "222041840046305@lid",          // ID interno, NÃO é telefone
+  "remoteJidAlt": "5511915142236@s.whatsapp.net", // telefone real
+  "id": "2A1847E7D7E26055EC3D"
+}
 ```
 
-- `src/lib/internal-notes.ts`: trocar localStorage por Supabase (manter mesma API `list/add/remove` para não quebrar `ChatPane`).
-- Migrar notas locais existentes na primeira leitura (one-shot).
-- Realtime subscribe por `lead_id` no `ChatPane`.
+Hoje:
+- `phoneFromJid` recebe só `remoteJid` e, ao ver `@lid`, **descarta a mensagem** (perda de dados).
+- Para mensagens antigas que ainda não eram filtradas, criou-se um lead com o LID como "telefone" (`222041840046305`, `108933356196036`, etc.) — daí as conversas duplicadas com perfil/nome diferentes do real.
+- A migration anterior só consolidou parte do histórico; novas mensagens continuam chegando e:
+  - ou são silenciosamente puladas,
+  - ou (em endpoints como `chat/findMessages` do health-poll) recriam o lead duplicado, gerando `duplicate key value violates unique constraint "leads_phone_key"` no log.
 
-## 2. Tarefas / follow-ups por lead
+A informação correta **já vem na própria payload** em `key.remoteJidAlt` — só não estava sendo usada.
 
-**Migration**:
-```sql
-create table public.lead_tasks (
-  id uuid primary key default gen_random_uuid(),
-  lead_id uuid not null,
-  title text not null,
-  due_at timestamptz not null,
-  done_at timestamptz,
-  created_at timestamptz not null default now()
-);
--- RLS authenticated_all + index (lead_id, due_at)
-```
+## Solução
 
-- Novo painel **"Tarefas"** dentro do `LeadDetailsPanel` (lista + botão "Nova tarefa" com data/hora).
-- Badge no header do chat: "⏰ 2 vencendo hoje".
-- Página `/tasks` simples agregando todas tarefas em aberto, ordenadas por vencimento, agrupadas por Hoje / Amanhã / Atrasadas.
+### 1. Resolver telefone a partir do objeto `key` inteiro
 
-## 3. Mensagens agendadas
+Em `supabase/functions/_shared/evolution.ts`:
 
-**Migration**:
-```sql
-create table public.scheduled_messages (
-  id uuid primary key default gen_random_uuid(),
-  lead_id uuid not null,
-  content text not null,
-  send_at timestamptz not null,
-  status text not null default 'pending', -- pending|sent|failed|canceled
-  sent_at timestamptz,
-  last_error text,
-  created_at timestamptz not null default now()
-);
--- RLS authenticated_all
-```
+- Nova função `phoneFromKey(key)` que escolhe o JID na ordem:
+  1. Se `addressingMode === "lid"` ou `remoteJid` termina em `@lid` → usa `remoteJidAlt`.
+  2. Senão usa `remoteJid`.
+  3. Para grupos (`@g.us`), considera `participantAlt`/`participant` para identificar o remetente individual (apenas se quisermos tratar grupos depois — por ora continua retornando null para grupos).
+- Mantém validação 8–15 dígitos.
+- `phoneFromJid` continua exportada (compatibilidade), mas chama a nova lógica.
 
-- No `Composer`: ícone de relógio ao lado do botão Enviar → popover com date/time picker → grava em `scheduled_messages`.
-- Edge function nova **`scheduled-dispatcher`**: pega `pending` com `send_at <= now()`, chama `evolution-send`, marca `sent`/`failed`.
-- Cron via `pg_cron` rodando a cada minuto (insert tool, não migration, pois usa anon key).
-- Lista de agendamentos pendentes no `LeadDetailsPanel` com ação cancelar.
+### 2. Atualizar callers
 
-## 4. Transcrição de áudio (Lovable AI)
+- `ingestMessage` (`_shared/evolution.ts`): trocar `phoneFromJid(item.key.remoteJid)` por `phoneFromKey(item.key)`. Também passar `pushName` e tentar capturar avatar do `profilePicUrl` se vier.
+- `evolution-webhook` `CONTACTS_UPSERT`: contatos LID vêm com `id: "...@lid"` e às vezes campo `jid` ou `remoteJidAlt`. Resolver usando o mesmo helper, e em último caso ignorar (não dá pra "atualizar nome" sem telefone real).
 
-- Edge function nova **`transcribe-audio`**: recebe `messageId`, baixa `media_url`, envia para `google/gemini-2.5-flash` (multimodal audio), grava transcrição em `messages.raw->>'transcript'`.
-- No `ChatPane`, mensagens `audio` ganham botão **"Transcrever"** (ou auto-transcreve sob flag de settings). Mostra texto abaixo do player.
-- Cache: se `raw.transcript` existe, exibe direto.
+### 3. Migration de consolidação (idempotente)
 
-## 5. Ações em lote na lista de conversas
+Para cada lead "duplicado por LID" (heurística: `length(phone) > 13` ou phone que aparece como `remoteJid` LID em `messages.raw`):
 
-- `ConversationList`: modo seleção (checkbox aparece em hover; Shift+click range).
-- Barra inferior flutuante: **Marcar como lida**, **Atribuir atendente**, **Mover para etapa**, **Arquivar**, **Aplicar tag**.
-- Atualização otimista + um único batch update via Supabase.
+1. Descobrir o telefone real via `messages.raw->'key'->>'remoteJidAlt'` do próprio lead.
+2. Garantir que existe um lead canônico com esse telefone (criar se faltar, copiando nome/avatar).
+3. Repointar tudo para o canônico:
+   - `messages` (deduplicando por `external_id` antes de mover, para não bater na unique key)
+   - `lead_internal_notes`, `lead_tasks`, `lead_events`, `scheduled_messages`, `lead_ai_settings`, `ai_threads`, `automation_runs`
+4. Apagar o lead LID.
+5. Recalcular `last_message_at`, `last_message_preview`, `unread_count` no canônico.
 
-## 6. Foto de perfil do WhatsApp
+Constraint `leads_phone_key` (única) é mantida — ela é o que garante que não voltem duplicatas.
 
-- Edge function **`fetch-wa-avatar`**: recebe `leadId`, chama Evolution `/chat/fetchProfilePictureUrl/{instance}`, salva URL em `leads.avatar_url`.
-- Trigger client-side: ao abrir conversa sem `avatar_url`, dispara fetch em background (debounced, 1x por lead por sessão).
+### 4. Endurecer o poll
 
-## Resumo técnico
+`evolution-health/pollRecentMessages` hoje engole o erro `23505` só no log. Como o ingest novo já vai usar o telefone real, o erro some. Adicionar tratamento explícito: se `error.code === '23505'`, contar como `skipped` em vez de `error` (defesa em profundidade contra payloads sem `remoteJidAlt`).
 
-**Migrations (3)**: `lead_internal_notes`, `lead_tasks`, `scheduled_messages` — todas com RLS `authenticated_all`, sem foreign keys (padrão do projeto).
+### 5. Verificação pós-deploy
 
-**Edge functions novas (3)**: `scheduled-dispatcher`, `transcribe-audio`, `fetch-wa-avatar`. Reusa `evolution-send` existente.
+- Rodar `select count(*) from leads where length(phone) > 13;` → deve voltar 0.
+- Selecionar uma conversa e confirmar que não há mais entrada duplicada na lista do Inbox.
+- Observar logs do `evolution-health` por alguns minutos: sem `duplicate key` novos.
 
-**Cron**: 1 job pg_cron a cada minuto invocando `scheduled-dispatcher`.
+## Arquivos
 
-**Frontend principal**:
-- `src/lib/internal-notes.ts` (refatorar p/ DB)
-- `src/components/inbox/ChatPane.tsx` (transcrição, agendamento UI hooks)
-- `src/components/inbox/Composer.tsx` (botão agendar)
-- `src/components/inbox/LeadDetailsPanel.tsx` (abas Tarefas + Agendadas)
-- `src/components/inbox/ConversationList.tsx` (modo seleção + barra de ações)
-- `src/components/inbox/ScheduleMessageDialog.tsx` (novo)
-- `src/components/inbox/TaskDialog.tsx` (novo)
-- `src/components/inbox/BulkActionsBar.tsx` (novo)
-- `src/pages/Tasks.tsx` (novo) + rota em `App.tsx` + item no `AppShell`
-- `src/hooks/useWaAvatar.ts` (novo)
+- `supabase/functions/_shared/evolution.ts` — nova `phoneFromKey`, ajuste do `ingestMessage`.
+- `supabase/functions/evolution-webhook/index.ts` — usar helper para CONTACTS_UPSERT e MESSAGES_UPSERT path direto.
+- `supabase/functions/evolution-health/index.ts` — tratamento defensivo do 23505.
+- `supabase/migrations/<novo>.sql` — consolidação dos LIDs remanescentes.
 
-**Lovable AI**: transcrição usa `google/gemini-2.5-flash` (sem custo de chave para o usuário).
+## Por que isso resolve de verdade
 
-## Ordem de execução
-1. Migrations + refator de notas (continuidade da Fase 1).
-2. Tarefas (CRUD + painel + página).
-3. Agendamento (tabela + dialog + edge function + cron).
-4. Transcrição (edge function + UI).
-5. Ações em lote.
-6. Avatar WhatsApp.
-
-Aprove para eu sair do plan mode e implementar tudo em sequência.
+A correção anterior tratava o LID como "lixo a descartar". Mas o WhatsApp Business com Multi-Device passou a usar LID como modo padrão de endereçamento — descartar = perder mensagens E ainda assim criar duplicatas em paths que não filtravam. A solução correta é **traduzir LID → telefone real** usando o `remoteJidAlt` que a própria Evolution já fornece, fazendo com que toda mensagem do mesmo contato caia sempre no mesmo lead.
