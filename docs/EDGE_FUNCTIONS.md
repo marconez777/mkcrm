@@ -1,54 +1,114 @@
 # Edge Functions
 
-Localizadas em `supabase/functions/`. Todas em Deno + TypeScript. Helpers comuns em `_shared/evolution.ts`.
+Localizadas em `supabase/functions/`. Deno + TypeScript. Helpers compartilhados em `_shared/`.
 
-| Função | `verify_jwt` | Propósito |
-|---|---|---|
-| `evolution-webhook` | `false` | Recebe eventos do Evolution (autenticado por `?token=`). |
-| `evolution-send` | `false` | Envia mensagem para um lead via Evolution. |
-| `evolution-sync-lead` | `true` | Reconciliação sob demanda do histórico de um lead. |
-| `evolution-health` | `true` | Health-check da instância. |
-| `evolution-test` | `false` | Endpoint utilitário de debug. |
+## Tabela resumo
 
-## `_shared/evolution.ts`
+| Função | `verify_jwt` | Família | Propósito |
+|---|---|---|---|
+| `evolution-webhook` | false | Evolution | Recebe eventos do Evolution (autenticado por `?token=`). |
+| `evolution-send` | false | Evolution | Envia mensagem via Evolution. |
+| `evolution-sync-lead` | true | Evolution | Reconcilia histórico de um lead. |
+| `evolution-backfill-all` | true | Evolution | Reconcilia todos os leads (em lote). |
+| `evolution-health` | true | Evolution | Health-check da instância. |
+| `evolution-test` | false | Evolution | Endpoint de debug. |
+| `fetch-wa-avatar` | true | Evolution | Busca/atualiza avatar de um número. |
+| `transcribe-audio` | true | Inbox | Transcreve mensagens de voz. |
+| `ai-chat` | true | IA | Conversa interativa com agente (UI). |
+| `ai-assist` | true | IA | Sugestões de resposta para o operador. |
+| `ai-auto-reply` | true | IA | Processa fila `pending_replies` e responde leads. |
+| `ai-embed` | true | IA | Gera embeddings ad-hoc. |
+| `ai-eval-run` | true | IA | Executa avaliações (`agent_evals`). |
+| `ai-ingest-document` | true | IA | Ingestão de texto puro. |
+| `ai-ingest-pdf` | true | IA | Ingestão de PDF (extração + chunking). |
+| `ai-ingest-url` | true | IA | Ingestão de uma URL (scrape). |
+| `ai-ingest-urls` | true | IA | Ingestão em lote de URLs. |
+| `automations-tick` | true | Jobs | Executa automações pendentes (cron). |
+| `scheduled-dispatcher` | true | Jobs | Dispara mensagens agendadas (cron). |
 
-- `loadSettings()` → carrega `settings` (id=1).
-- `evoFetch(settings, path, init)` → wrapper de `fetch` para Evolution.
-- `phoneFromJid(jid)` → extrai telefone de `5511...@s.whatsapp.net`. Ignora grupos `@g.us`.
-- `extractText(msg)` → normaliza tipo + conteúdo (texto, imagem, áudio, doc, sticker...).
-- **`ingestMessage(item, source, { silent })`** — coração da ingestão:
-  1. Resolve/cria lead pelo telefone.
-  2. Faz `SELECT` por `(lead_id, external_id)`.
-  3. Se existe e nada mudou → return.
-  4. Se existe mas mudou (`content`, `status`, `reply_to_external_id`, `message_type`) → `UPDATE` parcial.
-  5. Se é nova → `INSERT` + (se não `silent` e não `fromMe`) `increment_unread` + preview.
+`verify_jwt` é configurado em `supabase/config.toml` por função quando precisa diferir do default.
 
-## `evolution-webhook`
-- Valida `?token=` contra `settings.webhook_token`.
-- Persiste evento em `webhook_events` (audit-first).
+## Helpers `_shared/`
+
+- **`evolution.ts`** — `loadSettings`, `evoFetch`, `phoneFromJid`, `extractText`, `ingestMessage` (idempotente), `corsHeaders`, `json`, `sb`.
+- **`ai.ts`** — `chunkText`, `embed`, `chatComplete`, tipos `Agent`. Abstrai provider (Lovable AI Gateway, OpenAI, Anthropic, Google).
+- **`rag.ts`** — busca híbrida (vetorial + FTS), HyDE opcional, reranker.
+- **`mcp.ts`** — conecta e chama tools de servidores MCP do agente.
+- **`metrics.ts`** — registra `ai_usage` e helpers de custo.
+- **`utils.ts`**, **`types.ts`** — utilitários gerais.
+
+## Família Evolution
+
+### `evolution-webhook`
+- Valida `?token=` contra `whatsapp_instances.webhook_token` (ou `settings.webhook_token` legado).
+- Persiste em `webhook_events` (audit-first) e deduplica via `webhook_dedup`.
 - Trata: `MESSAGES_UPSERT` (ingest), `MESSAGES_UPDATE` (delivery), `CONTACTS_UPSERT` (nome/avatar), `CONNECTION_UPDATE` (state).
-- Em erro, grava `error` em `webhook_events`.
+- Pós-ingest: cria/atualiza `pending_replies` se o lead tem auto-reply.
 
-## `evolution-send`
-Body esperado:
+### `evolution-send`
+Body:
 ```json
-{
-  "lead_id": "uuid",
-  "content": "texto",
-  "client_message_id": "uuid",
-  "reply_to_external_id": "string?"
-}
+{ "lead_id": "uuid", "content": "texto", "client_message_id": "uuid", "reply_to_external_id": "string?" }
 ```
-- Insere localmente `status=pending`.
-- `POST` em `/message/sendText/{instance}`.
-- Atualiza `external_id` e `status=sent` na resposta. Em falha, `status=failed` + `last_error`.
+- Insere `messages` com `status='pending'` (idempotente por `client_message_id`).
+- POST `/message/sendText/{instance}` na instância correta do lead.
+- Atualiza `external_id` + `status='sent'`. Falha → `status='failed'` + `last_error`.
 
-## `evolution-sync-lead`
-Body: `{ lead_id, silent?: boolean }`. Busca via `/chat/findMessages/{instance}`, filtra mensagens com `timestamp > max(local)` e chama `ingestMessage` com `silent` (não infla unread).
+### `evolution-sync-lead`
+Body: `{ lead_id, silent?: boolean }`. Busca histórico via `/chat/findMessages/{instance}` e ingere apenas mensagens novas.
 
-## `evolution-health`
-Consulta status da instância e atualiza `connection_state` + `last_health_check`.
+### `evolution-backfill-all`
+Itera por todos os leads e chama o sync com `silent=true`. Útil pós-restauração.
 
-## Configuração de funções
+### `evolution-health`
+Consulta status e atualiza `connection_state` + `last_health_check`.
 
-`supabase/config.toml` define `verify_jwt = false` para `evolution-webhook`, `evolution-send` e `evolution-test`. Demais usam JWT padrão (chamadas via `supabase.functions.invoke` do cliente autenticado/anon).
+### `fetch-wa-avatar`
+Busca foto de perfil do número e atualiza `leads.avatar_url`.
+
+## Família IA
+
+### `ai-chat`
+Conversa interativa (UI `/agents`). Cria/usa `ai_threads` + `ai_messages`. Loop de tool-calling até `max_iterations`. Aplica RAG conforme config do agente.
+
+### `ai-assist`
+Sugestões pontuais para o operador no Inbox (rephrase, summarize, traduzir, completar). Não persiste thread.
+
+### `ai-auto-reply`
+Job principal de respostas automáticas:
+1. Lê `pending_replies` com `run_at <= now()`.
+2. Agrupa mensagens recentes do lead (debounce).
+3. Executa agente (`lead_ai_settings.agent_id`) com RAG + MCP.
+4. Envia resposta via `evolution-send`.
+5. Respeita `paused_until`, `lead_reply_counters` (rate-limit) e `agent.enabled`.
+6. Grava `ai_usage` e `agent_traces`.
+
+### `ai-embed`
+Gera embeddings sob demanda (debug/manual).
+
+### `ai-eval-run`
+Executa casos definidos em `agent_evals` e grava resultado.
+
+### `ai-ingest-document` / `ai-ingest-pdf` / `ai-ingest-url` / `ai-ingest-urls`
+Pipeline de ingestão:
+1. Cria `ai_documents`.
+2. Chama `chunkText` (default 800 chars / overlap 100).
+3. Gera embeddings em batch (`embed`).
+4. Insere em `ai_chunks` com vetor + tsvector automático.
+
+PDF: extração de texto antes do chunking. URL: scrape + limpeza HTML antes do chunking.
+
+## Jobs auxiliares
+
+### `automations-tick`
+Cron. Lê `automations` ativas, avalia gatilhos contra eventos recentes (mensagens, mudanças de estágio, tags) e dispara ações. Grava `automation_runs`.
+
+### `scheduled-dispatcher`
+Cron. Lê `scheduled_messages` com `status='pending'` e `send_at <= now()`. Chama `evolution-send`. Atualiza `status` e `sent_at`/`last_error`.
+
+### `transcribe-audio`
+Recebe URL de mídia de áudio, transcreve via modelo de speech-to-text e atualiza `messages.content` (mantendo a URL original).
+
+## Configuração
+
+`supabase/config.toml` define overrides por função (ex.: `verify_jwt = false` para `evolution-webhook`, `evolution-send`, `evolution-test`). Demais funções usam JWT padrão.

@@ -3,66 +3,93 @@
 ## Visão geral
 
 ```
-┌────────────┐   WhatsApp    ┌──────────────┐   webhook    ┌──────────────────┐
-│   Cliente  │ ────────────► │ Evolution API│ ───────────► │ evolution-webhook│
-└────────────┘               └──────────────┘              │  (Edge Function) │
-                                    ▲                     └────────┬─────────┘
-                                    │ REST                          │ insert/update
-                                    │                               ▼
-                              ┌────────────┐   send         ┌──────────────┐
-                              │evolution-  │ ◄───────────── │  Postgres    │
-                              │   send     │                │  (Supabase)  │
-                              └────────────┘                └──────┬───────┘
-                                                                   │ Realtime
-                                                                   ▼
-                                                            ┌─────────────┐
-                                                            │  React UI   │
-                                                            │ (Inbox/Kbn) │
-                                                            └─────────────┘
+┌────────────┐  WhatsApp   ┌──────────────┐  webhook   ┌──────────────────┐
+│  Cliente   │ ──────────► │ Evolution API│ ─────────► │ evolution-webhook│
+└────────────┘             └──────────────┘            └────────┬─────────┘
+                                  ▲                             │ ingest (idempotente)
+                                  │ REST                        ▼
+                            ┌────────────┐               ┌──────────────┐
+                            │evolution-  │ ◄──────────── │  Postgres    │
+                            │   send     │               │  + pgvector  │
+                            └────────────┘               └──┬────────┬──┘
+                                                            │        │
+                       ┌────────────────────────────────────┘        │ Realtime
+                       │ trigger / cron                              ▼
+                       ▼                                       ┌─────────────┐
+              ┌─────────────────┐  ai-auto-reply / ai-chat     │  React UI   │
+              │ automations-tick│ ──────────► Lovable AI ◄──── │ (Inbox/Kbn/ │
+              │ scheduled-disp. │             Gateway          │  Agents)    │
+              └─────────────────┘                              └─────────────┘
 ```
 
 ## Camadas
 
 ### Frontend (`src/`)
-- **Roteamento** (`App.tsx`): `/` Kanban, `/inbox[/:leadId]`, `/settings`.
-- **Estado de servidor**: hooks customizados (`useCrm`, `useAttendants`, `useQuickReplies`) abrem listeners Realtime e mantêm cache local incremental — sem refetch.
-- **TanStack Query**: usado pontualmente; a maior parte do estado vem dos hooks Realtime.
+- **Roteamento** (`App.tsx`): `/` Kanban, `/inbox[/:leadId]`, `/agents`, `/automations`, `/tasks`, `/templates`, `/metrics`, `/metrics/ops`, `/settings`, `/settings/custom-fields`, `/auth`.
+- **Auth**: `useAuth` + `ProtectedRoute` em volta de toda área autenticada. Login com email/senha via Supabase Auth.
+- **Estado de servidor**: hooks Realtime customizados (`useCrm`, `usePipelines`, `useAttendants`, `useQuickReplies`) mantêm cache local incremental — sem refetch global.
+- **TanStack Query**: usado em listas paginadas (`useLeadsPaginated`) e fetches pontuais.
+- **DnD vs Pan**: `Kanban.tsx` usa um `CardOnlyPointerSensor` customizado para o `dnd-kit` que só ativa em `[data-kanban-card]`, liberando o fundo do board para o `useHorizontalScroll`.
 - **Design system**: tokens HSL em `src/index.css` + `tailwind.config.ts`. Componentes shadcn/ui.
 
 ### Backend (Lovable Cloud / Supabase)
-- **Postgres**: tabelas em [DATABASE.md](DATABASE.md). RLS aberta (`public_all`) — projeto é single-tenant interno.
-- **Edge Functions** (Deno): ver [EDGE_FUNCTIONS.md](EDGE_FUNCTIONS.md).
-- **Realtime**: replica `INSERT/UPDATE/DELETE` para clientes via WebSocket.
+- **Postgres + pgvector**: tabelas em [DATABASE.md](DATABASE.md). RLS com policy `authenticated_all` (usuários logados acessam tudo — single-tenant interno).
+- **Edge Functions** (Deno): ver [EDGE_FUNCTIONS.md](EDGE_FUNCTIONS.md). Agrupadas em três famílias:
+  - `evolution-*`: integração WhatsApp.
+  - `ai-*`: LLM, RAG, auto-reply, ingestão.
+  - `automations-tick`, `scheduled-dispatcher`, `transcribe-audio`, `fetch-wa-avatar`: jobs auxiliares.
+- **Realtime**: WebSocket para `INSERT/UPDATE/DELETE` nas tabelas publicadas.
+- **Cron**: `automations-tick` e `scheduled-dispatcher` rodam periodicamente.
+
+### Integrações externas
+- **Evolution API**: gateway WhatsApp baseado em Baileys.
+- **Lovable AI Gateway**: provê modelos Google/OpenAI sem API key do usuário.
+- **Provedores próprios**: cada `ai_agent` pode definir `provider`, `api_key`, `base_url`, `embedding_*` para usar OpenAI, Anthropic, Google diretamente.
+- **MCP Servers**: agentes podem chamar ferramentas via Model Context Protocol (`agent_mcp_servers`, `_shared/mcp.ts`).
 
 ## Fluxos críticos
 
 ### Recebimento de mensagem
-1. Evolution chama `POST /functions/v1/evolution-webhook?token=...` com evento `MESSAGES_UPSERT`.
-2. `evolution-webhook` valida o token, registra em `webhook_events` e chama `ingestMessage` (em `_shared/evolution.ts`).
-3. `ingestMessage`:
-   - Resolve/cria o `lead` pelo telefone.
-   - **SELECT** a mensagem por `(lead_id, external_id)` antes de gravar.
-   - Se já existe e nada relevante mudou → **return early** (idempotente).
-   - Se é nova → `INSERT` + `increment_unread` + atualiza preview.
-4. Postgres dispara Realtime → UI insere a nova mensagem no chat / atualiza badge.
+1. Evolution chama `POST /functions/v1/evolution-webhook?token=...` (`MESSAGES_UPSERT`).
+2. `evolution-webhook` valida token, registra em `webhook_events`, deduplica via `webhook_dedup` e chama `ingestMessage`.
+3. `ingestMessage` (em `_shared/evolution.ts`) é **idempotente**:
+   - Resolve/cria lead pelo telefone (e instância de origem).
+   - SELECT por `(lead_id, external_id)` antes de gravar.
+   - Se nova → INSERT + `increment_unread` + preview.
+4. Postgres dispara Realtime → UI atualiza chat e badge.
+5. Se houver `lead_ai_settings.auto_reply = true` para o lead, é enfileirado `pending_replies` que `ai-auto-reply` consome após o `debounce_seconds` do agente.
 
 ### Envio de mensagem
-1. UI chama `evolution-send` com `lead_id` + `content` (+ `client_message_id` UUID).
-2. Função insere localmente como `status='pending'` e dispara `POST` à Evolution.
-3. Evolution responde com o `external_id`; função atualiza a linha local.
-4. Quando a Evolution confirmar entrega/leitura, manda `MESSAGES_UPDATE` → `delivery_status` é atualizado.
+1. UI gera `client_message_id` (UUID) e chama `evolution-send`.
+2. Função insere `messages` com `status='pending'`.
+3. POST em `/message/sendText/{instance}` da Evolution.
+4. Atualiza `external_id` + `status='sent'`. Em falha → `status='failed'` + `last_error`.
+5. `MESSAGES_UPDATE` posterior atualiza `delivery_status`.
 
-### Reconciliação manual
-- Botão de refresh no chat chama `evolution-sync-lead` com `silent: true`.
-- Função busca histórico do contato e ingere apenas itens com `timestamp > max(local)`.
+### Auto-reply (IA)
+1. Mensagem do cliente chega via webhook.
+2. `evolution-webhook` cria/atualiza linha em `pending_replies` agendada para `now() + debounce_seconds`.
+3. `ai-auto-reply` (acionado por cron ou trigger) lê pendências vencidas, agrupa todas as mensagens do lead naquela janela (debounce), executa o agente (RAG + tools + MCP) e envia a resposta via `evolution-send`.
+4. Custos e tokens gravados em `ai_usage`. Trace em `agent_traces`.
 
-### Abertura de conversa (sem flicker)
-- `ChatPane` **não** dispara sync automático ao abrir. Apenas carrega o histórico uma vez.
-- `mergeMessage` ignora a chave `raw` (sempre nova referência) e compara só campos visíveis.
-- `useRealtimeList` ignora UPDATEs de leads que não mudam campos de UI (`LEAD_RENDER_KEYS`).
+### Mensagens agendadas
+1. UI grava em `scheduled_messages` com `send_at` futuro e `status='pending'`.
+2. Cron `scheduled-dispatcher` busca pendências vencidas, dispara `evolution-send` e atualiza `status='sent'`/`failed`.
+
+### Automações
+1. Usuário define regra em `automations` (gatilho + condições + ações).
+2. Eventos do CRM (mudança de estágio, nova mensagem, etc.) são detectados pelo `automations-tick` (cron) que executa as ações pertinentes.
+3. Cada execução grava em `automation_runs` com sucesso/erro.
+
+### RAG (busca na base de conhecimento)
+1. Documentos são ingeridos via `ai-ingest-*` → divididos em chunks (`chunkText` em `_shared/ai.ts`) → embeddings (`embed`) → gravados em `ai_chunks` com `vector(768)` + `tsvector` (português).
+2. Na consulta (`ai-chat`/`ai-auto-reply`), o RAG (`_shared/rag.ts`) faz **busca híbrida**: similaridade de cosseno (pgvector) + full-text (tsvector), com opção de **HyDE** e reranker.
+3. `embedding_cache` e `rag_cache` evitam recomputo.
 
 ## Decisões de design
 
-- **Idempotência no servidor**: simplifica o cliente e evita ping-pong de eventos Realtime.
-- **Realtime incremental no cliente**: nada de `refetch` global — patches em memória.
-- **RLS aberta**: o produto é um CRM interno; auth ainda não foi adicionada. Para multi-tenant será preciso introduzir `auth.users`, `user_roles` e RLS por organização.
+- **Idempotência no servidor** (webhook + sync + dedup) simplifica o cliente.
+- **Realtime incremental** no cliente — patches em memória, sem refetch.
+- **RLS `authenticated_all`** — single-tenant interno; multi-tenant exigirá `org_id` em todas as tabelas.
+- **Lovable AI Gateway por padrão** — agentes funcionam sem usuário ter que cadastrar API key.
+- **Múltiplas instâncias WhatsApp** — um pipeline pode estar amarrado a uma instância específica (`pipelines.whatsapp_instance_id`).
