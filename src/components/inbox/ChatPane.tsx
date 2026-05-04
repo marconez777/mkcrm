@@ -131,10 +131,24 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [activeMatch, setActiveMatch] = useState(0);
   const [pulseId, setPulseId] = useState<string | null>(null);
 
+  // Internal notes (local-only por ora)
+  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+
+  // Forward dialog
+  const [forwardText, setForwardText] = useState<string | null>(null);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const scrollToMsgRef = useRef<((id: string) => void) | null>(null);
+
+  useEffect(() => {
+    setNotes(getNotes(lead.id));
+    const unsub = subscribeNotes(lead.id, () => setNotes(getNotes(lead.id)));
+    return unsub;
+  }, [lead.id]);
 
   // Load most recent page
   useEffect(() => {
