@@ -1,5 +1,6 @@
-// Auto-reply triggered by webhook on a new inbound message.
-// Resolves which agent to use, builds the conversation, calls ai-chat, sends via evolution-send.
+// Auto-reply with DEBOUNCE: batches bursts of incoming messages.
+// First inbound enqueues a pending_reply; subsequent ones extend run_at.
+// scheduled-dispatcher actually fires the reply after the quiet window.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
@@ -11,18 +12,14 @@ Deno.serve(async (req) => {
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
     const { data: lead } = await supabase
-      .from("leads")
-      .select("id, stage_id")
-      .eq("id", lead_id)
-      .single();
+      .from("leads").select("id, stage_id").eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
 
     // Resolve agent: per-lead first, then per-stage default.
     const { data: leadCfg } = await supabase
       .from("lead_ai_settings")
       .select("agent_id, auto_reply, paused_until")
-      .eq("lead_id", lead_id)
-      .maybeSingle();
+      .eq("lead_id", lead_id).maybeSingle();
 
     let agentId: string | null = null;
     let autoReply = false;
@@ -38,9 +35,7 @@ Deno.serve(async (req) => {
     if ((!agentId || !leadCfg) && lead.stage_id) {
       const { data: stageCfg } = await supabase
         .from("stage_ai_defaults")
-        .select("agent_id, auto_reply")
-        .eq("stage_id", lead.stage_id)
-        .maybeSingle();
+        .select("agent_id, auto_reply").eq("stage_id", lead.stage_id).maybeSingle();
       if (stageCfg) {
         if (!leadCfg) autoReply = !!stageCfg.auto_reply;
         if (!agentId) agentId = stageCfg.agent_id;
@@ -49,83 +44,19 @@ Deno.serve(async (req) => {
 
     if (!autoReply || !agentId) return json({ skipped: true, reason: "not-enabled" });
 
-    // Last 20 messages as context.
-    const { data: msgs } = await supabase
-      .from("messages")
-      .select("from_me, content, message_type")
-      .eq("lead_id", lead_id)
-      .order("timestamp", { ascending: false })
-      .limit(20);
-    const ordered = (msgs ?? []).reverse();
-    const conv = ordered
-      .filter((m) => m.content)
-      .map((m) => ({
-        role: m.from_me ? "assistant" : "user",
-        content: m.content as string,
-      }));
-    if (conv.length === 0 || conv[conv.length - 1].role !== "user") {
-      return json({ skipped: true, reason: "no-user-msg" });
-    }
+    // Look up debounce window from agent
+    const { data: agent } = await supabase
+      .from("ai_agents").select("debounce_seconds, enabled").eq("id", agentId).single();
+    if (!agent?.enabled) return json({ skipped: true, reason: "agent-disabled" });
+    const debounce = Math.max(Number(agent.debounce_seconds) || 8, 1);
+    const runAt = new Date(Date.now() + debounce * 1000).toISOString();
 
-    // Find or create thread
-    let { data: thread } = await supabase
-      .from("ai_threads")
-      .select("id")
-      .eq("lead_id", lead_id)
-      .eq("agent_id", agentId)
-      .maybeSingle();
-    if (!thread) {
-      const { data: t } = await supabase
-        .from("ai_threads")
-        .insert({ lead_id, agent_id: agentId, title: "Auto-resposta" })
-        .select("id")
-        .single();
-      thread = t;
-    }
+    // Upsert pending reply (extends run_at if exists)
+    await supabase.from("pending_replies").upsert({
+      lead_id, agent_id: agentId, run_at: runAt,
+    }, { onConflict: "lead_id" });
 
-    // Call ai-chat
-    const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      },
-      body: JSON.stringify({
-        agent_id: agentId,
-        lead_id,
-        thread_id: thread?.id,
-        persist: true,
-        messages: conv,
-      }),
-    });
-    const data = await resp.json();
-    if (!resp.ok || !data.content) {
-      console.error("ai-chat failed", data);
-      return json({ error: "ai-chat failed", detail: data }, 502);
-    }
-
-    // Send via evolution-send
-    const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      },
-      body: JSON.stringify({
-        lead_id,
-        text: data.content,
-        client_message_id: crypto.randomUUID(),
-      }),
-    });
-    const sendData = await sendResp.json();
-    if (!sendResp.ok) {
-      console.error("send failed", sendData);
-      return json({ error: "send failed", detail: sendData }, 502);
-    }
-
-    return json({ ok: true, content: data.content, tools_used: data.tools_used });
+    return json({ ok: true, queued: true, run_at: runAt, debounce_seconds: debounce });
   } catch (e) {
     console.error("ai-auto-reply", e);
     return json({ error: String(e) }, 500);
