@@ -901,3 +901,38 @@ function MessageRow(props: {
     </div>
   );
 }
+
+function AudioTranscript({ m }: { m: Message }) {
+  const initial = (m as any).raw?.transcript as string | undefined;
+  const [transcript, setTranscript] = useState<string | null>(initial ?? null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => { setTranscript(((m as any).raw?.transcript as string) ?? null); }, [m.id, (m as any).raw?.transcript]);
+  async function go() {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("transcribe-audio", { body: { message_id: m.id } });
+    setLoading(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    setTranscript((data as any)?.transcript ?? "");
+  }
+  if (transcript) {
+    return (
+      <div className="mt-1 rounded border-l-2 border-primary/60 bg-background/40 px-2 py-1 text-[11px] italic text-foreground/80">
+        <span className="mr-1 text-[9px] font-semibold uppercase tracking-wide text-primary">Transcrição</span>
+        {transcript}
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={go}
+      disabled={loading}
+      className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+      {loading ? "Transcrevendo…" : "Transcrever áudio"}
+    </button>
+  );
+}
