@@ -1,9 +1,11 @@
-// AI chat with advanced RAG (hybrid + HyDE + rerank + memory), MCP tools, parallel tool calls, citations.
+// AI chat with advanced RAG, MCP tools, parallel tool calls, citations.
+// Hardening: tool budget, duplicate-call detection, partial-failure handling, traces, timeouts.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
+import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
 
 const BUILTIN_TOOLS: Record<string, any> = {
   move_lead_stage: {
@@ -281,10 +283,31 @@ Deno.serve(async (req) => {
     const usedTools: any[] = [];
     let totalIn = 0, totalOut = 0, totalTok = 0;
     const startedAt = Date.now();
+    const runId = crypto.randomUUID();
     const maxIter = Math.min(Math.max(Number(agent.max_iterations) || 6, 1), 12);
+    const maxToolCalls = Math.min(Math.max(Number(agent.max_tool_calls) || 12, 1), 50);
+    const TURN_TIMEOUT_MS = 90_000;
+    const TOOL_TIMEOUT_MS = 15_000;
+
+    const callCounter = new Map<string, number>();
+    let toolCallsTotal = 0;
+    let step = 0;
+    let stoppedReason: string | null = null;
 
     for (let iter = 0; iter < maxIter; iter++) {
-      const resp = await chatCompletion(agent, conv, tools.length > 0 ? tools : undefined);
+      if (Date.now() - startedAt > TURN_TIMEOUT_MS) { stoppedReason = "turn_timeout"; break; }
+
+      const llmStart = Date.now();
+      const budgetExhausted = toolCallsTotal >= maxToolCalls;
+      const resp = await chatCompletion(
+        agent, conv,
+        budgetExhausted ? undefined : (tools.length > 0 ? tools : undefined),
+      );
+      await logTrace(supabase, {
+        run_id: runId, agent_id, thread_id, lead_id, step: step++, kind: "llm", name: agent.model,
+        latency_ms: Date.now() - llmStart, tokens_in: resp.usage?.prompt_tokens ?? null, tokens_out: resp.usage?.completion_tokens ?? null,
+        error: resp.ok ? null : `${resp.status}`,
+      });
       if (!resp.ok) {
         await logUsage({ agent_id, lead_id, model: agent.model, status: "error", error: `provider ${resp.status}`, latency_ms: Date.now() - startedAt });
         return json({ error: `${agent.provider} error ${resp.status}`, detail: resp.errorText?.slice(0, 400) }, 502);
@@ -294,30 +317,58 @@ Deno.serve(async (req) => {
       const choice = resp.choices?.[0]?.message;
       if (!choice) break;
 
-      if (choice.tool_calls && choice.tool_calls.length > 0) {
+      if (choice.tool_calls && choice.tool_calls.length > 0 && !budgetExhausted) {
         conv.push({ role: "assistant", content: choice.content ?? "", tool_calls: choice.tool_calls });
-        // Execute tool calls in PARALLEL
-        const results = await Promise.all(choice.tool_calls.map(async (call) => {
-          const args = JSON.parse(call.function?.arguments ?? "{}");
+
+        const filtered = choice.tool_calls.map((call) => {
           const fname = call.function?.name ?? "";
-          let result: any;
-          const mcp = mcpTools.find((t) => t.name === fname);
-          if (mcp) {
-            try { result = { ok: true, output: await callMcpTool(mcp, args) }; }
-            catch (e) { result = { error: String(e) }; }
-          } else {
-            result = await executeTool(fname, args, { leadId: lead_id, agent, supabase });
+          let args: any = {};
+          try { args = JSON.parse(call.function?.arguments ?? "{}"); } catch {}
+          const key = `${fname}:${stableStringify(args)}`;
+          const seen = (callCounter.get(key) ?? 0) + 1;
+          callCounter.set(key, seen);
+          return { call, fname, args, blocked: seen >= 3 };
+        });
+
+        const settled = await pmap(filtered, 4, async (item) => {
+          if (item.blocked) {
+            return { ...item, result: { error: "duplicate_call_blocked", hint: "use o resultado anterior dessa ferramenta" } };
           }
-          return { call, fname, args, result };
-        }));
-        for (const r of results) {
+          toolCallsTotal++;
+          const toolStart = Date.now();
+          let result: any;
+          try {
+            const mcp = mcpTools.find((t) => t.name === item.fname);
+            const exec = mcp
+              ? callMcpTool(mcp, item.args).then((output) => ({ ok: true, output }))
+              : executeTool(item.fname, item.args, { leadId: lead_id, agent, supabase });
+            result = await withTimeout(Promise.resolve(exec), TOOL_TIMEOUT_MS, item.fname);
+          } catch (e) {
+            result = { error: String(e), retryable: /timeout|network|429|503/i.test(String(e)) };
+          }
+          await logTrace(supabase, {
+            run_id: runId, agent_id, thread_id, lead_id, step: step++, kind: "tool", name: item.fname,
+            latency_ms: Date.now() - toolStart, error: result?.error ?? null, payload: { args: item.args },
+          });
+          return { ...item, result };
+        });
+
+        for (const r of settled) {
           usedTools.push({ name: r.fname, args: r.args, result: r.result });
           conv.push({ role: "tool", tool_call_id: r.call.id, name: r.fname, content: JSON.stringify(r.result) });
+        }
+
+        if (toolCallsTotal >= maxToolCalls) {
+          conv.push({ role: "system", content: "Orçamento de ferramentas atingido. Produza a resposta final agora com o que já tem." });
         }
         continue;
       }
       finalContent = choice.content ?? "";
       break;
+    }
+
+    if (!finalContent && stoppedReason) {
+      finalContent = "Desculpe, não consegui finalizar a resposta a tempo. Tente reformular.";
     }
 
     let threadId = thread_id;

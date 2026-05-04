@@ -138,6 +138,57 @@ export type Database = {
           },
         ]
       }
+      agent_traces: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          latency_ms: number | null
+          lead_id: string | null
+          name: string | null
+          payload: Json | null
+          run_id: string
+          step: number
+          thread_id: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          latency_ms?: number | null
+          lead_id?: string | null
+          name?: string | null
+          payload?: Json | null
+          run_id: string
+          step: number
+          thread_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          latency_ms?: number | null
+          lead_id?: string | null
+          name?: string | null
+          payload?: Json | null
+          run_id?: string
+          step?: number
+          thread_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Relationships: []
+      }
       ai_agents: {
         Row: {
           api_key: string | null
@@ -150,6 +201,7 @@ export type Database = {
           enabled: boolean
           id: string
           max_iterations: number
+          max_tool_calls: number
           model: string
           name: string
           planning_mode: boolean
@@ -176,6 +228,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           max_iterations?: number
+          max_tool_calls?: number
           model?: string
           name: string
           planning_mode?: boolean
@@ -202,6 +255,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           max_iterations?: number
+          max_tool_calls?: number
           model?: string
           name?: string
           planning_mode?: boolean
@@ -538,6 +592,27 @@ export type Database = {
         }
         Relationships: []
       }
+      embedding_cache: {
+        Row: {
+          created_at: string
+          embedding: string | null
+          model: string
+          text_hash: string
+        }
+        Insert: {
+          created_at?: string
+          embedding?: string | null
+          model: string
+          text_hash: string
+        }
+        Update: {
+          created_at?: string
+          embedding?: string | null
+          model?: string
+          text_hash?: string
+        }
+        Relationships: []
+      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
@@ -658,6 +733,27 @@ export type Database = {
           id?: string
           lead_id?: string
           text?: string
+        }
+        Relationships: []
+      }
+      lead_reply_counters: {
+        Row: {
+          count: number
+          hour_bucket: string
+          last_bot_sent_at: string | null
+          lead_id: string
+        }
+        Insert: {
+          count?: number
+          hour_bucket: string
+          last_bot_sent_at?: string | null
+          lead_id: string
+        }
+        Update: {
+          count?: number
+          hour_bucket?: string
+          last_bot_sent_at?: string | null
+          lead_id?: string
         }
         Relationships: []
       }
@@ -979,6 +1075,27 @@ export type Database = {
         }
         Relationships: []
       }
+      rag_cache: {
+        Row: {
+          agent_id: string
+          chunks: Json
+          created_at: string
+          query_hash: string
+        }
+        Insert: {
+          agent_id: string
+          chunks: Json
+          created_at?: string
+          query_hash: string
+        }
+        Update: {
+          agent_id?: string
+          chunks?: Json
+          created_at?: string
+          query_hash?: string
+        }
+        Relationships: []
+      }
       scheduled_messages: {
         Row: {
           content: string
@@ -1093,6 +1210,21 @@ export type Database = {
           },
         ]
       }
+      webhook_dedup: {
+        Row: {
+          event_hash: string
+          expires_at: string
+        }
+        Insert: {
+          event_hash: string
+          expires_at?: string
+        }
+        Update: {
+          event_hash?: string
+          expires_at?: string
+        }
+        Relationships: []
+      }
       webhook_events: {
         Row: {
           error: string | null
@@ -1185,9 +1317,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
+        Returns: undefined
+      }
+      log_agent_trace: {
+        Args: {
+          p_agent_id: string
+          p_error: string
+          p_kind: string
+          p_latency_ms: number
+          p_lead_id: string
+          p_name: string
+          p_payload: Json
+          p_run_id: string
+          p_step: number
+          p_thread_id: string
+          p_tokens_in: number
+          p_tokens_out: number
+        }
         Returns: undefined
       }
       match_chunks: {

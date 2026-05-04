@@ -1,5 +1,7 @@
 // Advanced RAG: query rewrite + HyDE + hybrid search (RRF) + reranker + memory recall.
+// Hardening: embedding cache, retrieval cache, conditional reranker, score floor, HyDE timeout fallback.
 import { embed, chatCompletion, type Agent, type ChatMessage } from "./ai.ts";
+import { getCachedEmbedding, setCachedEmbedding, getCachedRetrieval, setCachedRetrieval, withTimeout } from "./utils.ts";
 
 export type RetrievedChunk = {
   id: string;

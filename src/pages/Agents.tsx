@@ -60,6 +60,83 @@ const TOOLS = [
   { id: "remember_fact", label: "Memorizar fato/preferência" },
 ];
 
+function McpServersPanel({ agentId }: { agentId: string }) {
+  const [servers, setServers] = useState<any[]>([]);
+  const [name, setName] = useState(""); const [url, setUrl] = useState("");
+  const load = async () => {
+    const { data } = await supabase.from("agent_mcp_servers").select("*").eq("agent_id", agentId);
+    setServers(data ?? []);
+  };
+  useEffect(() => { load(); }, [agentId]);
+  const add = async () => {
+    if (!name || !url) return;
+    await supabase.from("agent_mcp_servers").insert({ agent_id: agentId, name, url, headers: {}, enabled: true });
+    setName(""); setUrl(""); load();
+  };
+  const remove = async (id: string) => { await supabase.from("agent_mcp_servers").delete().eq("id", id); load(); };
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input placeholder="https://mcp.example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <Button size="sm" onClick={add}>Adicionar</Button>
+      </div>
+      {servers.map((s) => (
+        <div key={s.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
+          <span className="truncate"><b>{s.name}</b> · {s.url}</span>
+          <Button variant="ghost" size="sm" onClick={() => remove(s.id)}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      ))}
+      {servers.length === 0 && <p className="text-xs text-muted-foreground">Nenhum servidor MCP.</p>}
+    </div>
+  );
+}
+
+function EvalsPanel({ agentId }: { agentId: string }) {
+  const [evals, setEvals] = useState<any[]>([]);
+  const [prompt, setPrompt] = useState(""); const [expected, setExpected] = useState("");
+  const [running, setRunning] = useState(false);
+  const load = async () => {
+    const { data } = await supabase.from("agent_evals").select("*").eq("agent_id", agentId).order("created_at", { ascending: false });
+    setEvals(data ?? []);
+  };
+  useEffect(() => { load(); }, [agentId]);
+  const add = async () => {
+    if (!prompt) return;
+    await supabase.from("agent_evals").insert({
+      agent_id: agentId, prompt,
+      expected_contains: expected.split(",").map((s) => s.trim()).filter(Boolean),
+    });
+    setPrompt(""); setExpected(""); load();
+  };
+  const runAll = async () => {
+    setRunning(true);
+    await supabase.functions.invoke("ai-eval-run", { body: { agent_id: agentId } });
+    setRunning(false); load();
+  };
+  return (
+    <div className="space-y-2">
+      <Textarea rows={2} placeholder="Pergunta de teste" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      <Input placeholder="Termos esperados (separados por vírgula)" value={expected} onChange={(e) => setExpected(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={add}>Adicionar caso</Button>
+        <Button size="sm" variant="secondary" onClick={runAll} disabled={running}>
+          {running ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}Rodar todos
+        </Button>
+      </div>
+      {evals.map((e) => (
+        <div key={e.id} className="rounded border bg-background px-3 py-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="truncate font-medium">{e.prompt}</span>
+            {e.last_passed === true && <Badge className="bg-green-600">passou</Badge>}
+            {e.last_passed === false && <Badge variant="destructive">falhou</Badge>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
@@ -495,6 +572,7 @@ export default function Agents() {
                 <AccordionContent className="pb-4"><EvalsPanel agentId={selected.id} /></AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="tools" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <Wrench className="h-4 w-4" /> Ferramentas
