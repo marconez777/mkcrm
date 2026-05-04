@@ -1,9 +1,11 @@
-// AI chat with advanced RAG (hybrid + HyDE + rerank + memory), MCP tools, parallel tool calls, citations.
+// AI chat with advanced RAG, MCP tools, parallel tool calls, citations.
+// Hardening: tool budget, duplicate-call detection, partial-failure handling, traces, timeouts.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
+import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
 
 const BUILTIN_TOOLS: Record<string, any> = {
   move_lead_stage: {
