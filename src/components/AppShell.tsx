@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 const items = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
   { to: "/inbox", label: "Conversas", icon: Inbox },
+  { to: "/tasks", label: "Tarefas", icon: CalendarClock },
   { to: "/agents", label: "Agentes IA", icon: Bot },
   { to: "/automations", label: "Automações", icon: Zap },
   { to: "/templates", label: "Templates", icon: FileText },
