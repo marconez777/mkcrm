@@ -187,6 +187,7 @@ export default function KanbanPage() {
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
