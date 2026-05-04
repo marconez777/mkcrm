@@ -18,6 +18,15 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(sec / 86400)}d`;
 }
 
+// Cor por idade da última mensagem (SLA visual) — só destaca quando não-lido.
+function ageColor(iso: string | null, isUnread: boolean): string {
+  if (!iso || !isUnread) return "text-muted-foreground";
+  const min = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (min < 60) return "text-emerald-500";
+  if (min < 24 * 60) return "text-amber-500";
+  return "text-destructive";
+}
+
 const MsgTypeIcon = forwardRef<SVGSVGElement, { type?: string | null }>(function MsgTypeIcon({ type }, ref) {
   if (type === "image" || type === "video") return <Image ref={ref} className="h-3 w-3 opacity-60" />;
   if (type === "audio") return <Mic ref={ref} className="h-3 w-3 opacity-60" />;
