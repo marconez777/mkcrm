@@ -465,8 +465,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         e.preventDefault();
         dragDepth.current = 0;
         setDragOver(false);
-        const f = e.dataTransfer.files[0];
-        window.dispatchEvent(new CustomEvent("composer-attach-file", { detail: f }));
+        const files = Array.from(e.dataTransfer.files);
+        window.dispatchEvent(new CustomEvent("composer-attach-file", { detail: files }));
       }}
     >
       {dragOver && (
