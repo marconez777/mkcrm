@@ -16,6 +16,19 @@ export type Stage = {
   name: string;
   position: number;
   color: string;
+  pipeline_id: string;
+};
+
+export type Pipeline = {
+  id: string;
+  name: string;
+  kind: "sales" | "internal";
+  color: string;
+  position: number;
+  is_default: boolean;
+  whatsapp_instance_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Lead = {
@@ -28,6 +41,7 @@ export type Lead = {
   notes: string | null;
   tags: string[];
   stage_id: string | null;
+  pipeline_id: string | null;
   attendant_id: string | null;
   position: number;
   avatar_url: string | null;

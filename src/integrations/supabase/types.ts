@@ -804,6 +804,7 @@ export type Database = {
           notes: string | null
           phone: string
           pinned_at: string | null
+          pipeline_id: string | null
           position: number
           stage_changed_at: string
           stage_id: string | null
@@ -831,6 +832,7 @@ export type Database = {
           notes?: string | null
           phone: string
           pinned_at?: string | null
+          pipeline_id?: string | null
           position?: number
           stage_changed_at?: string
           stage_id?: string | null
@@ -858,6 +860,7 @@ export type Database = {
           notes?: string | null
           phone?: string
           pinned_at?: string | null
+          pipeline_id?: string | null
           position?: number
           stage_changed_at?: string
           stage_id?: string | null
@@ -1033,6 +1036,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          pipeline_id: string
           position: number
         }
         Insert: {
@@ -1040,6 +1044,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          pipeline_id: string
           position: number
         }
         Update: {
@@ -1047,7 +1052,52 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          pipeline_id?: string
           position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_pipeline_fk"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipelines: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          position: number
+          updated_at: string
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name: string
+          position?: number
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          position?: number
+          updated_at?: string
+          whatsapp_instance_id?: string | null
         }
         Relationships: []
       }

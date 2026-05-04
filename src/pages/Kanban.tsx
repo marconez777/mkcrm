@@ -19,6 +19,9 @@ import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
+import PipelineSidebar from "@/components/kanban/PipelineSidebar";
+import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
+import { usePipelines } from "@/hooks/usePipelines";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -149,22 +152,33 @@ function Column({
 }
 
 export default function KanbanPage() {
-  const { stages } = useStages();
-  const { leads, setLeads } = useLeads();
+  const { stages: allStages } = useStages();
+  const { leads: allLeads, setLeads } = useLeads();
+  const { pipelines, current, currentId, setCurrentId } = usePipelines();
   const [active, setActive] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
   const [newColOpen, setNewColOpen] = useState(false);
   const [newColName, setNewColName] = useState("");
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
+  const [newPipelineOpen, setNewPipelineOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [ui, setUi] = useState(loadUi);
+  const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage, scrollToColumn, scrollX, viewportW, contentW } = useHorizontalScroll();
 
+  const stages = allStages.filter((s) => s.pipeline_id === currentId);
+  const leads = allLeads.filter((l) => l.pipeline_id === currentId);
+
   useEffect(() => { saveUi(ui); }, [ui]);
 
-  // keyboard navigation
+  useEffect(() => {
+    supabase.from("whatsapp_instances").select("id, name").then(({ data }) => {
+      setWhatsappInstances((data ?? []) as any);
+    });
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -203,19 +217,23 @@ export default function KanbanPage() {
   }
 
   async function addColumn() {
-    if (!newColName.trim()) return;
+    if (!newColName.trim() || !currentId) return;
     const pos = (stages[stages.length - 1]?.position ?? -1) + 1;
-    await supabase.from("pipeline_stages").insert({ name: newColName.trim(), position: pos });
+    await supabase.from("pipeline_stages").insert({
+      name: newColName.trim(), position: pos, pipeline_id: currentId,
+    });
     setNewColName(""); setNewColOpen(false);
   }
 
   async function addLead() {
     if (!newLead.phone.trim()) { toast.error("Telefone obrigatório"); return; }
+    if (!stages.length) { toast.error("Crie uma coluna primeiro"); return; }
     setCreating(true);
     const stage = stages[0];
     const phone = newLead.phone.replace(/\D/g, "");
     const { error } = await supabase.from("leads").insert({
       phone, name: newLead.name.trim() || null, stage_id: stage?.id ?? null,
+      whatsapp_instance_id: current?.whatsapp_instance_id ?? null,
     });
     setCreating(false);
     if (error) { toast.error(error.message); return; }
@@ -225,85 +243,95 @@ export default function KanbanPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b bg-card px-6 py-3">
-        <div>
-          <h1 className="text-lg font-semibold">Pipeline de vendas</h1>
-          <p className="text-xs text-muted-foreground">
-            {leads.length} leads · {stages.length} etapas · use <kbd className="rounded border px-1">←</kbd> <kbd className="rounded border px-1">→</kbd> ou arraste o fundo
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
-            {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
-          </Toggle>
-          {ui.collapsed.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setUi((u) => ({ ...u, collapsed: [] }))}>
-              Expandir todas ({ui.collapsed.length})
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)}><Plus className="mr-1 h-4 w-4" />Nova coluna</Button>
-          <Button size="sm" onClick={() => setNewLeadOpen(true)}><Plus className="mr-1 h-4 w-4" />Novo lead</Button>
-        </div>
-      </header>
-
-      <PipelineOverview
-        stages={stages}
-        leads={leads}
-        scrollX={scrollX}
-        viewportW={viewportW}
-        contentW={contentW}
-        onJump={scrollToColumn}
+    <div className="flex h-full">
+      <PipelineSidebar
+        pipelines={pipelines}
+        currentId={currentId}
+        onSelect={setCurrentId}
+        onNew={() => setNewPipelineOpen(true)}
+        leads={allLeads}
       />
 
-      <div className="relative flex-1 overflow-hidden">
-        {overflow.left && (
-          <button
-            onClick={() => scrollByPage(-1)}
-            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent"
-            aria-label="Rolar à esquerda"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-        )}
-        {overflow.right && (
-          <button
-            onClick={() => scrollByPage(1)}
-            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent"
-            aria-label="Rolar à direita"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        )}
-        <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={onStart}
-            onDragEnd={onEnd}
-            autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}
-          >
-            <div className="flex h-full gap-3">
-              {stages.map((s) => (
-                <Column
-                  key={s.id}
-                  stage={s}
-                  leads={leads.filter((l) => l.stage_id === s.id)}
-                  onOpenLead={setOpenLead}
-                  collapsed={ui.collapsed.includes(s.id)}
-                  onToggleCollapse={() => toggleCollapsed(s.id)}
-                  compact={ui.compact}
-                />
-              ))}
-              {stages.length === 0 && (
-                <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b bg-card px-6 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold">{current?.name ?? "Pipeline"}</h1>
+            <p className="text-xs text-muted-foreground">
+              {leads.length} leads · {stages.length} etapas
+              {current?.kind === "internal" && <> · gestão interna</>}
+              {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
+              {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
+            </Toggle>
+            {ui.collapsed.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setUi((u) => ({ ...u, collapsed: [] }))}>
+                Expandir todas ({ui.collapsed.length})
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
+              <Plus className="mr-1 h-4 w-4" />Nova coluna
+            </Button>
+            <Button size="sm" onClick={() => setNewLeadOpen(true)} disabled={!currentId}>
+              <Plus className="mr-1 h-4 w-4" />Novo {current?.kind === "internal" ? "card" : "lead"}
+            </Button>
+          </div>
+        </header>
+
+        {currentId ? (
+          <>
+            <PipelineOverview
+              stages={stages}
+              leads={leads}
+              scrollX={scrollX}
+              viewportW={viewportW}
+              contentW={contentW}
+              onJump={scrollToColumn}
+            />
+
+            <div className="relative flex-1 overflow-hidden">
+              {overflow.left && (
+                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent" aria-label="Rolar à esquerda">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
               )}
+              {overflow.right && (
+                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent" aria-label="Rolar à direita">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+              <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
+                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd} autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}>
+                  <div className="flex h-full gap-3">
+                    {stages.map((s) => (
+                      <Column
+                        key={s.id}
+                        stage={s}
+                        leads={leads.filter((l) => l.stage_id === s.id)}
+                        onOpenLead={setOpenLead}
+                        collapsed={ui.collapsed.includes(s.id)}
+                        onToggleCollapse={() => toggleCollapsed(s.id)}
+                        compact={ui.compact}
+                      />
+                    ))}
+                    {stages.length === 0 && (
+                      <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
+                    )}
+                  </div>
+                  <DragOverlay>
+                    {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} compact={ui.compact} /></div>}
+                  </DragOverlay>
+                </DndContext>
+              </div>
             </div>
-            <DragOverlay>
-              {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} compact={ui.compact} /></div>}
-            </DragOverlay>
-          </DndContext>
-        </div>
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            Crie seu primeiro funil para começar.
+          </div>
+        )}
       </div>
 
       <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
@@ -318,14 +346,22 @@ export default function KanbanPage() {
 
       <Dialog open={newLeadOpen} onOpenChange={setNewLeadOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Novo lead</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Novo {current?.kind === "internal" ? "card" : "lead"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5"><Label>Nome</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Telefone (com DDI)</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{current?.kind === "internal" ? "Identificador" : "Telefone (com DDI)"}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
           </div>
           <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewPipelineDialog
+        open={newPipelineOpen}
+        onOpenChange={setNewPipelineOpen}
+        whatsappInstances={whatsappInstances}
+        nextPosition={pipelines.length}
+        onCreated={(id) => setCurrentId(id)}
+      />
     </div>
   );
 }

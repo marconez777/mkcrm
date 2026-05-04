@@ -5,7 +5,7 @@ import type { Stage, Lead } from "@/types/crm";
 // Only these fields trigger a re-render in the UI; ignore updated_at and noisy internals
 const LEAD_RENDER_KEYS = [
   "name", "phone", "last_message_at", "last_message_preview", "unread_count",
-  "stage_id", "attendant_id", "tags", "archived_at", "position", "deal_value",
+  "stage_id", "pipeline_id", "attendant_id", "tags", "archived_at", "position", "deal_value",
   "avatar_url", "email", "company", "notes",
   "pinned_at", "marked_unread", "ai_summary",
 ] as const;
