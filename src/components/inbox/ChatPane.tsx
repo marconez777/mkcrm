@@ -5,17 +5,21 @@ import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
   Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
+  StickyNote, Forward, Trash2,
 } from "lucide-react";
 import Composer from "./Composer";
+import ForwardDialog from "./ForwardDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
+import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
