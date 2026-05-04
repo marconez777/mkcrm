@@ -124,6 +124,29 @@ export default function ConversationList(props: {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" title="Views salvas"><Bookmark className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-xs">Views salvas</DropdownMenuLabel>
+              {views.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma view ainda</div>
+              )}
+              {views.map((v) => (
+                <DropdownMenuItem key={v.id} onSelect={(e) => e.preventDefault()} className="flex items-center justify-between gap-2">
+                  <button onClick={() => applyView(v)} className="flex-1 truncate text-left">{v.name}</button>
+                  <button onClick={() => { removeView(v.id); }} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={saveCurrentView}>
+                <BookmarkPlus className="mr-2 h-4 w-4" /> Salvar filtros atuais
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button size="icon" variant="ghost" title="Ordenar"><ArrowDownUp className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
