@@ -500,13 +500,17 @@ export default function ChatPane({ lead }: { lead: Lead }) {
                 <Button variant="ghost" size="sm" onClick={() => { setNoteOpen(false); setNoteText(""); }}>Cancelar</Button>
                 <Button
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     const t = noteText.trim();
                     if (!t) return;
-                    addNote(lead.id, t);
-                    setNoteText("");
-                    setNoteOpen(false);
-                    toast.success("Nota adicionada");
+                    try {
+                      await addNote(lead.id, t);
+                      setNoteText("");
+                      setNoteOpen(false);
+                      toast.success("Nota adicionada");
+                    } catch (e: any) {
+                      toast.error("Falha: " + (e?.message ?? String(e)));
+                    }
                   }}
                 >Adicionar</Button>
               </div>
