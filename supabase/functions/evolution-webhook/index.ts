@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       }
     } else if (eventType === "CONTACTS_UPSERT") {
       for (const it of items) {
-        const phone = phoneFromJid(it?.id ?? it?.remoteJid);
+        const phone = phoneFromContact(it);
         if (!phone) continue;
         const name = it?.pushName ?? it?.name ?? null;
         const avatar = it?.profilePicUrl ?? null;
