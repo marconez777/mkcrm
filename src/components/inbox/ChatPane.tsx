@@ -760,6 +760,8 @@ function VirtualizedMessages(props: {
                     {g.label}
                   </span>
                 </div>
+              ) : g.kind === "note" ? (
+                <NoteRow note={g.n} onRemove={(id) => removeNote(props.leadId, id)} />
               ) : (
                 <MessageRow
                   m={g.m}
@@ -772,6 +774,7 @@ function VirtualizedMessages(props: {
                   setReplyTo={setReplyTo}
                   pulseAndScroll={pulseAndScroll}
                   resend={resend}
+                  onForward={props.onForward}
                 />
               )}
             </div>
