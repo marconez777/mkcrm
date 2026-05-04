@@ -428,7 +428,73 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="tools" className="rounded-md border bg-card px-4">
+              <AccordionItem value="advanced" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <SettingsIcon className="h-4 w-4" /> RAG avançado & Agêntico
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-center justify-between gap-2 text-sm"><span>Hybrid search</span>
+                      <Switch checked={selected.use_hybrid_search ?? true} onCheckedChange={(v) => setSelected({ ...selected, use_hybrid_search: v })} /></label>
+                    <label className="flex items-center justify-between gap-2 text-sm"><span>HyDE</span>
+                      <Switch checked={selected.use_hyde ?? false} onCheckedChange={(v) => setSelected({ ...selected, use_hyde: v })} /></label>
+                    <label className="flex items-center justify-between gap-2 text-sm"><span>Memória persistente</span>
+                      <Switch checked={selected.use_memory ?? true} onCheckedChange={(v) => setSelected({ ...selected, use_memory: v })} /></label>
+                    <label className="flex items-center justify-between gap-2 text-sm"><span>Modo planejamento</span>
+                      <Switch checked={selected.planning_mode ?? false} onCheckedChange={(v) => setSelected({ ...selected, planning_mode: v })} /></label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div><Label className="text-xs">Top-K RAG</Label>
+                      <Input type="number" min={1} max={20} value={selected.rag_top_k ?? 5}
+                        onChange={(e) => setSelected({ ...selected, rag_top_k: Number(e.target.value) })} /></div>
+                    <div><Label className="text-xs">Iterações máx.</Label>
+                      <Input type="number" min={1} max={12} value={selected.max_iterations ?? 6}
+                        onChange={(e) => setSelected({ ...selected, max_iterations: Number(e.target.value) })} /></div>
+                    <div><Label className="text-xs">Debounce (s)</Label>
+                      <Input type="number" min={1} max={120} value={selected.debounce_seconds ?? 8}
+                        onChange={(e) => setSelected({ ...selected, debounce_seconds: Number(e.target.value) })} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Reranker</Label>
+                      <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        value={selected.reranker_provider ?? ""}
+                        onChange={(e) => setSelected({ ...selected, reranker_provider: e.target.value || null })}>
+                        <option value="">Nenhum</option>
+                        <option value="cohere">Cohere</option>
+                        <option value="jina">Jina</option>
+                        <option value="voyage">Voyage</option>
+                      </select></div>
+                    <div><Label className="text-xs">API key reranker</Label>
+                      <Input type="password" value={selected.reranker_api_key ?? ""}
+                        onChange={(e) => setSelected({ ...selected, reranker_api_key: e.target.value })} /></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Hybrid = vetor + texto via RRF. HyDE gera resposta hipotética antes de buscar.
+                    Reranker re-ordena trechos. Memória guarda fatos entre conversas. Debounce agrupa rajadas de mensagens.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="mcp" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Wrench className="h-4 w-4" /> Servidores MCP
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4"><McpServersPanel agentId={selected.id} /></AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="evals" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <FlaskConical className="h-4 w-4" /> Evals
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4"><EvalsPanel agentId={selected.id} /></AccordionContent>
+              </AccordionItem>
+
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <Wrench className="h-4 w-4" /> Ferramentas
