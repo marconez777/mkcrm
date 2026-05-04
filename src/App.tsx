@@ -35,6 +35,7 @@ const App = () => (
         <AuthProvider>
           <TitleSync />
           <ShortcutsDialog />
+          <CommandPalette />
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route
