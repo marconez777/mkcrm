@@ -86,8 +86,16 @@ export async function evoFetch(
 
 export function phoneFromJid(jid: string | undefined | null): string | null {
   if (!jid) return null;
+  // Ignorar grupos
   if (jid.includes("@g.us")) return null;
-  return jid.split("@")[0].replace(/\D/g, "");
+  // Ignorar LIDs (Linked Device IDs do WhatsApp Multi-Device) — geram duplicatas.
+  // Formato típico: "108933356196036@lid" (15+ dígitos, sem DDI real).
+  if (jid.includes("@lid")) return null;
+  const phone = jid.split("@")[0].replace(/\D/g, "");
+  // Phones reais têm entre 8 e 15 dígitos; LIDs costumam ter 15+ sem DDI.
+  // Já filtramos pelo "@lid" acima, mas mantemos sanity check.
+  if (phone.length < 8 || phone.length > 15) return null;
+  return phone;
 }
 
 export function extractText(msg: any): { type: string; content: string | null } {
