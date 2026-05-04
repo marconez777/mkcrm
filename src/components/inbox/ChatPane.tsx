@@ -20,6 +20,7 @@ import { useHealth } from "@/hooks/useHealth";
 import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
 import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
+import { useWaAvatar } from "@/hooks/useWaAvatar";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
@@ -107,6 +108,7 @@ function highlight(text: string, term: string, isActive: boolean) {
 }
 
 export default function ChatPane({ lead }: { lead: Lead }) {
+  useWaAvatar(lead.id, lead.avatar_url);
   const { overall: healthStatus } = useHealth();
   const disconnected = healthStatus === "down" || healthStatus === "unknown";
   const [messages, setMessages] = useState<Message[]>([]);
