@@ -82,9 +82,9 @@
 3. Cada execução grava em `automation_runs` com sucesso/erro.
 
 ### RAG (busca na base de conhecimento)
-1. Documentos são ingeridos via `ai-ingest-*` → divididos em chunks (`chunkText` em `_shared/ai.ts`) → embeddings (`embed`) → gravados em `ai_chunks` com `vector(768)` + `tsvector` (português).
-2. Na consulta (`ai-chat`/`ai-auto-reply`), o RAG (`_shared/rag.ts`) faz **busca híbrida**: similaridade de cosseno (pgvector) + full-text (tsvector), com opção de **HyDE** e reranker.
-3. `embedding_cache` e `rag_cache` evitam recomputo.
+1. Documentos são ingeridos via `ai-ingest-*` → divididos em chunks (`chunkText`) → embeddings (`embed`) → gravados em `ai_chunks` com `vector` + `tsvector` (português).
+2. Na consulta (`ai-chat`/auto-reply via dispatcher), o RAG (`_shared/rag.ts`) chama as RPCs `match_chunks` (vetorial) ou `match_chunks_hybrid` (vetorial + FTS com fusão RRF), com opção de **HyDE** e reranker.
+3. `embedding_cache` e `rag_cache` evitam recomputo. Limpeza periódica via `cleanup_agent_caches()`.
 
 ## Decisões de design
 
