@@ -56,6 +56,32 @@ Deno.serve(async (req) => {
       lead_id, agent_id: agentId, run_at: runAt,
     }, { onConflict: "lead_id" });
 
+    // Trigger scheduled-dispatcher right after the debounce window expires,
+    // so the reply doesn't have to wait for the 1-minute cron.
+    // The dispatcher uses an atomic DELETE…RETURNING claim, so racing with
+    // the cron is safe (whoever gets there first processes the row).
+    const FUNCTIONS_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const fireDispatcher = async () => {
+      try {
+        await new Promise((r) => setTimeout(r, (debounce + 1) * 1000));
+        await fetch(`${FUNCTIONS_URL}/scheduled-dispatcher`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+          body: "{}",
+        });
+      } catch (err) {
+        console.error("dispatcher trigger failed", err);
+      }
+    };
+    // @ts-ignore EdgeRuntime is provided by Supabase Functions
+    if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(fireDispatcher());
+    } else {
+      fireDispatcher();
+    }
+
     return json({ ok: true, queued: true, run_at: runAt, debounce_seconds: debounce });
   } catch (e) {
     console.error("ai-auto-reply", e);
