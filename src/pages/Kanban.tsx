@@ -1,4 +1,4 @@
-import { forwardRef, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent, closestCorners,
@@ -9,13 +9,16 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, MoreVertical, Loader2 } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Toggle } from "@/components/ui/toggle";
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
+import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
+import PipelineOverview from "@/components/kanban/PipelineOverview";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -31,8 +34,17 @@ function formatMoney(v: number | null) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void }>(function LeadCard(
-  { lead, onOpen },
+const UI_KEY = "pipeline:ui:v1";
+function loadUi(): { collapsed: string[]; compact: boolean } {
+  try { return { collapsed: [], compact: false, ...JSON.parse(localStorage.getItem(UI_KEY) || "{}") }; }
+  catch { return { collapsed: [], compact: false }; }
+}
+function saveUi(ui: { collapsed: string[]; compact: boolean }) {
+  try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
+}
+
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; compact?: boolean }>(function LeadCard(
+  { lead, onOpen, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
@@ -45,10 +57,11 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       {...attributes}
       {...listeners}
       onClick={() => onOpen(lead)}
-      className="group cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
+      data-kanban-card
+      className={`group cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
     >
       <div className="flex items-start gap-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+        <div className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary ${compact ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"}`}>
           {initials}
         </div>
         <div className="min-w-0 flex-1">
@@ -58,17 +71,19 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
               <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{lead.unread_count}</span>
             )}
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3" /> {lead.phone}
-          </div>
+          {!compact && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3" /> {lead.phone}
+            </div>
+          )}
         </div>
       </div>
-      {lead.last_message_preview && (
+      {!compact && lead.last_message_preview && (
         <div className="mt-2 line-clamp-2 rounded bg-muted/50 p-2 text-xs text-muted-foreground">
           {lead.last_message_preview}
         </div>
       )}
-      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+      <div className={`flex items-center justify-between text-[11px] text-muted-foreground ${compact ? "mt-1" : "mt-2"}`}>
         <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {timeAgo(lead.last_message_at)}</span>
         {lead.deal_value != null && <span className="font-medium text-foreground">{formatMoney(lead.deal_value)}</span>}
       </div>
@@ -76,23 +91,54 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
   );
 });
 
-function Column({ stage, leads, onOpenLead }: { stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void }) {
+function Column({
+  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact,
+}: {
+  stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void;
+  collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
+  const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
+
+  if (collapsed) {
+    return (
+      <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
+        <button onClick={onToggleCollapse} className="mb-2 rounded p-1 hover:bg-accent" title="Expandir">
+          <Maximize2 className="h-3.5 w-3.5" />
+        </button>
+        <span className="h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+        <div ref={setNodeRef} className={`mt-2 flex flex-1 flex-col items-center justify-start gap-1 ${isOver ? "bg-primary/10" : ""}`}>
+          <div className="rotate-180 whitespace-nowrap text-xs font-semibold [writing-mode:vertical-rl]">{stage.name}</div>
+          <span className="mt-2 rounded bg-muted px-1.5 text-[10px] font-bold text-muted-foreground">{leads.length}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex w-72 shrink-0 flex-col">
+    <div data-column-id={stage.id} className="kanban-snap flex w-72 shrink-0 flex-col">
       <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
-          <span className="text-sm font-semibold">{stage.name}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+          <span className="truncate text-sm font-semibold">{stage.name}</span>
           <span className="text-xs text-muted-foreground">{leads.length}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {totalValue > 0 && (
+            <span className="text-[10px] font-medium text-muted-foreground">{formatMoney(totalValue)}</span>
+          )}
+          <button onClick={onToggleCollapse} className="rounded p-1 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
+            <Minimize2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
       <div
         ref={setNodeRef}
+        data-kanban-column-body
         className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
       >
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} />)}
+          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} compact={compact} />)}
         </SortableContext>
         {leads.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
@@ -103,7 +149,7 @@ function Column({ stage, leads, onOpenLead }: { stage: Stage; leads: Lead[]; onO
 }
 
 export default function KanbanPage() {
-  const { stages, setStages } = useStages();
+  const { stages } = useStages();
   const { leads, setLeads } = useLeads();
   const [active, setActive] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
@@ -112,7 +158,29 @@ export default function KanbanPage() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [creating, setCreating] = useState(false);
+  const [ui, setUi] = useState(loadUi);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const { ref: scrollRef, overflow, scrollByPage, scrollToColumn, scrollX, viewportW, contentW } = useHorizontalScroll();
+
+  useEffect(() => { saveUi(ui); }, [ui]);
+
+  // keyboard navigation
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "ArrowRight") { scrollByPage(1); }
+      else if (e.key === "ArrowLeft") { scrollByPage(-1); }
+      else if (e.key === "Home") { scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" }); }
+      else if (e.key === "End") { scrollRef.current?.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" }); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [scrollByPage, scrollRef]);
+
+  function toggleCollapsed(id: string) {
+    setUi((u) => ({ ...u, collapsed: u.collapsed.includes(id) ? u.collapsed.filter((x) => x !== id) : [...u.collapsed, id] }));
+  }
 
   function onStart(e: DragStartEvent) {
     const lead = leads.find((l) => l.id === e.active.id);
@@ -161,28 +229,81 @@ export default function KanbanPage() {
       <header className="flex items-center justify-between border-b bg-card px-6 py-3">
         <div>
           <h1 className="text-lg font-semibold">Pipeline de vendas</h1>
-          <p className="text-xs text-muted-foreground">{leads.length} leads · {stages.length} etapas</p>
+          <p className="text-xs text-muted-foreground">
+            {leads.length} leads · {stages.length} etapas · use <kbd className="rounded border px-1">←</kbd> <kbd className="rounded border px-1">→</kbd> ou arraste o fundo
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
+            {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
+          </Toggle>
+          {ui.collapsed.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setUi((u) => ({ ...u, collapsed: [] }))}>
+              Expandir todas ({ui.collapsed.length})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)}><Plus className="mr-1 h-4 w-4" />Nova coluna</Button>
           <Button size="sm" onClick={() => setNewLeadOpen(true)}><Plus className="mr-1 h-4 w-4" />Novo lead</Button>
         </div>
       </header>
 
-      <div className="scrollbar-thin flex-1 overflow-x-auto overflow-y-hidden p-4">
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd}>
-          <div className="flex h-full gap-3">
-            {stages.map((s) => (
-              <Column key={s.id} stage={s} leads={leads.filter((l) => l.stage_id === s.id)} onOpenLead={setOpenLead} />
-            ))}
-            {stages.length === 0 && (
-              <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
-            )}
-          </div>
-          <DragOverlay>
-            {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} /></div>}
-          </DragOverlay>
-        </DndContext>
+      <PipelineOverview
+        stages={stages}
+        leads={leads}
+        scrollX={scrollX}
+        viewportW={viewportW}
+        contentW={contentW}
+        onJump={scrollToColumn}
+      />
+
+      <div className="relative flex-1 overflow-hidden">
+        {overflow.left && (
+          <button
+            onClick={() => scrollByPage(-1)}
+            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent"
+            aria-label="Rolar à esquerda"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
+        {overflow.right && (
+          <button
+            onClick={() => scrollByPage(1)}
+            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-card p-2 shadow-md transition hover:bg-accent"
+            aria-label="Rolar à direita"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
+        <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={onStart}
+            onDragEnd={onEnd}
+            autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}
+          >
+            <div className="flex h-full gap-3">
+              {stages.map((s) => (
+                <Column
+                  key={s.id}
+                  stage={s}
+                  leads={leads.filter((l) => l.stage_id === s.id)}
+                  onOpenLead={setOpenLead}
+                  collapsed={ui.collapsed.includes(s.id)}
+                  onToggleCollapse={() => toggleCollapsed(s.id)}
+                  compact={ui.compact}
+                />
+              ))}
+              {stages.length === 0 && (
+                <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
+              )}
+            </div>
+            <DragOverlay>
+              {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} compact={ui.compact} /></div>}
+            </DragOverlay>
+          </DndContext>
+        </div>
       </div>
 
       <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
