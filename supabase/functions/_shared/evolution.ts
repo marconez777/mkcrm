@@ -84,18 +84,46 @@ export async function evoFetch(
   return fetch(url, { ...init, headers });
 }
 
-export function phoneFromJid(jid: string | undefined | null): string | null {
+function digitsFromJid(jid: string | undefined | null): string | null {
   if (!jid) return null;
-  // Ignorar grupos
   if (jid.includes("@g.us")) return null;
-  // Ignorar LIDs (Linked Device IDs do WhatsApp Multi-Device) — geram duplicatas.
-  // Formato típico: "108933356196036@lid" (15+ dígitos, sem DDI real).
-  if (jid.includes("@lid")) return null;
   const phone = jid.split("@")[0].replace(/\D/g, "");
-  // Phones reais têm entre 8 e 15 dígitos; LIDs costumam ter 15+ sem DDI.
-  // Já filtramos pelo "@lid" acima, mas mantemos sanity check.
   if (phone.length < 8 || phone.length > 15) return null;
   return phone;
+}
+
+/**
+ * Resolve telefone real a partir do objeto `key` da Evolution.
+ * O WhatsApp Multi-Device entrega `remoteJid` como LID (ex: "222041840046305@lid")
+ * e o telefone verdadeiro vem em `remoteJidAlt` (ex: "5511915142236@s.whatsapp.net").
+ */
+export function phoneFromKey(key: any): string | null {
+  if (!key) return null;
+  const remoteJid: string | undefined = key.remoteJid;
+  const remoteJidAlt: string | undefined = key.remoteJidAlt;
+  const isLid = key.addressingMode === "lid" || (typeof remoteJid === "string" && remoteJid.includes("@lid"));
+  if (isLid) {
+    // tenta primeiro o alt (telefone real); se não houver, descarta para evitar duplicata
+    return digitsFromJid(remoteJidAlt) ?? null;
+  }
+  return digitsFromJid(remoteJid) ?? digitsFromJid(remoteJidAlt);
+}
+
+/** @deprecated use phoneFromKey */
+export function phoneFromJid(jid: string | undefined | null): string | null {
+  if (!jid) return null;
+  if (jid.includes("@lid")) return null; // sem alt, não dá para resolver
+  return digitsFromJid(jid);
+}
+
+/** Resolve telefone a partir de payload de contato (CONTACTS_UPSERT). */
+export function phoneFromContact(it: any): string | null {
+  return (
+    digitsFromJid(it?.remoteJidAlt) ??
+    phoneFromKey({ remoteJid: it?.id, remoteJidAlt: it?.remoteJidAlt, addressingMode: it?.addressingMode }) ??
+    digitsFromJid(it?.id) ??
+    digitsFromJid(it?.remoteJid)
+  );
 }
 
 export function extractText(msg: any): { type: string; content: string | null } {
