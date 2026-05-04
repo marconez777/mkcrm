@@ -65,6 +65,24 @@ export default function ConversationList(props: {
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [views, setViews] = useState<SavedView[]>(() => listViews());
+  useEffect(() => {
+    const refresh = () => setViews(listViews());
+    window.addEventListener("saved-views-changed", refresh);
+    return () => window.removeEventListener("saved-views-changed", refresh);
+  }, []);
+  function applyView(v: SavedView) {
+    props.setFilter(v.filter);
+    props.setSort(v.sort);
+    props.setStageFilter(v.stageFilter);
+    props.setTagFilter(v.tagFilter);
+  }
+  function saveCurrentView() {
+    const name = prompt("Nome da view:");
+    if (!name) return;
+    addView({ name, filter: props.filter, sort: props.sort, stageFilter: props.stageFilter, tagFilter: props.tagFilter });
+    toast.success("View salva");
+  }
   function toggleSel(id: string) {
     setSelected((s) => {
       const n = new Set(s);
