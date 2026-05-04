@@ -404,6 +404,49 @@ export default function KanbanPage() {
         nextPosition={pipelines.length}
         onCreated={(id) => setCurrentId(id)}
       />
+
+      <AlertDialog open={!!deletingStage} onOpenChange={(v) => !v && setDeletingStage(null)}>
+        <AlertDialogContent>
+          {(() => {
+            const used = deletingStage ? leads.filter((l) => l.stage_id === deletingStage.id).length : 0;
+            const blocked = used > 0;
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {blocked ? "Não é possível excluir" : "Excluir coluna"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {blocked ? (
+                      <>
+                        A coluna <span className="font-medium text-foreground">"{deletingStage?.name}"</span> contém{" "}
+                        <span className="font-medium text-foreground">{used}</span>{" "}
+                        {used === 1 ? "lead" : "leads"}. Mova-{used === 1 ? "o" : "os"} para outra coluna antes de excluir.
+                      </>
+                    ) : (
+                      <>
+                        Tem certeza que deseja excluir a coluna{" "}
+                        <span className="font-medium text-foreground">"{deletingStage?.name}"</span>? Esta ação não pode ser desfeita.
+                      </>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  {!blocked && (
+                    <AlertDialogAction
+                      onClick={confirmDeleteStage}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
