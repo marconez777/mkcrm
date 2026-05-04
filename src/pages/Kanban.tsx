@@ -19,6 +19,9 @@ import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
+import PipelineSidebar from "@/components/kanban/PipelineSidebar";
+import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
+import { usePipelines } from "@/hooks/usePipelines";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
