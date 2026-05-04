@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
-import PipelineSidebar from "@/components/kanban/PipelineSidebar";
+import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 
