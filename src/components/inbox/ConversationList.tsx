@@ -202,7 +202,7 @@ export default function ConversationList(props: {
                       {isPinned && <Pin className="h-3 w-3 fill-amber-500 text-amber-500" />}
                       {l.name || l.phone}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(l.last_message_at)}</span>
+                    <span className={cn("shrink-0 text-[10px] font-medium tabular-nums", ageColor(l.last_message_at, isUnread))}>{timeAgo(l.last_message_at)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className={cn("line-clamp-1 flex items-center gap-1 text-xs", isUnread ? "text-foreground" : "text-muted-foreground")}>
