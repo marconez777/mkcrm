@@ -148,7 +148,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           onKeyDown={onKey}
           placeholder="Mensagem... (Enter envia, Shift+Enter quebra linha)"
           rows={1}
-          className="max-h-40 min-h-[40px] flex-1 resize-none"
+          className="max-h-40 min-h-[120px] flex-1 resize-none self-stretch"
         />
         <Tooltip>
           <TooltipTrigger asChild>
