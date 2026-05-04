@@ -72,10 +72,10 @@ export default function ConversationList(props: {
     });
   }
   function clearSel() { setSelected(new Set()); }
-  async function bulkPatch(p: Record<string, any>, msg: string) {
+  async function bulkPatch(p: any, msg: string) {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    const { error } = await supabase.from("leads").update(p).in("id", ids);
+    const { error } = await supabase.from("leads").update(p as any).in("id", ids);
     if (error) toast.error("Falha: " + error.message);
     else { toast.success(msg); clearSel(); }
   }
