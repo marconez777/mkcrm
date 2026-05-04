@@ -40,6 +40,16 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   useEffect(() => { setText(getDraft(lead.id)); setAttachment(null); }, [lead.id]);
   useEffect(() => { if (seed) { setText(seed.text); requestAnimationFrame(() => taRef.current?.focus()); } }, [seed?.n]);
 
+  // Listen for files dropped on ChatPane area
+  useEffect(() => {
+    const onAttach = (e: Event) => {
+      const detail = (e as CustomEvent<File>).detail;
+      if (detail instanceof File) onPickFile(detail);
+    };
+    window.addEventListener("composer-attach-file", onAttach as EventListener);
+    return () => window.removeEventListener("composer-attach-file", onAttach as EventListener);
+  }, [lead.id]);
+
   // Object URL for image/video preview
   useEffect(() => {
     if (!attachment) { setPreviewUrl(null); return; }

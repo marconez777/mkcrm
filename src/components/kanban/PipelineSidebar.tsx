@@ -5,6 +5,7 @@ import { Plus, MoreVertical, Star, Pencil, Trash2, MessageCircleMore, FolderKanb
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useConfirm, usePrompt } from "@/hooks/useDialogs";
 
 interface Props {
   pipelines: Pipeline[];
@@ -16,6 +17,8 @@ interface Props {
 
 export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const confirm = useConfirm();
+  const prompt = usePrompt();
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
@@ -30,7 +33,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
   }
 
   async function rename(p: Pipeline) {
-    const name = prompt("Novo nome", p.name);
+    const name = await prompt({ title: "Renomear funil", label: "Novo nome", defaultValue: p.name });
     if (!name?.trim() || name === p.name) return;
     await supabase.from("pipelines").update({ name: name.trim() }).eq("id", p.id);
   }
@@ -38,7 +41,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
   async function remove(p: Pipeline) {
     const used = counts.get(p.id) ?? 0;
     if (used > 0) { toast.error(`Não dá: ${used} leads neste funil. Mova-os antes.`); return; }
-    if (!confirm(`Excluir o funil "${p.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir funil "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("pipelines").delete().eq("id", p.id);
     if (error) toast.error(error.message);
   }

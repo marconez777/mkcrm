@@ -10,6 +10,7 @@ import { Plus, Trash2, ArrowUp, ArrowDown, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import type { CustomFieldDef, FieldType } from "@/types/crm";
+import { useConfirm } from "@/hooks/useDialogs";
 
 const TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Texto" },
@@ -35,6 +36,7 @@ export default function SettingsCustomFields() {
   const [items, setItems] = useState<CustomFieldDef[]>([]);
   const [editing, setEditing] = useState<CustomFieldDef | null>(null);
   const [open, setOpen] = useState(false);
+  const confirm = useConfirm();
 
   async function load() {
     const { data } = await supabase
@@ -84,7 +86,7 @@ export default function SettingsCustomFields() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remover este campo? Os valores existentes nos leads não serão apagados.")) return;
+    if (!(await confirm({ title: "Remover este campo?", description: "Os valores existentes nos leads não serão apagados.", confirmLabel: "Remover", destructive: true }))) return;
     await supabase.from("lead_custom_fields").delete().eq("id", id);
     load();
   }

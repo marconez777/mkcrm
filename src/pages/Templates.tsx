@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { FileText, Plus, Trash2, Save } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Template = {
   id: string;
@@ -22,6 +23,7 @@ const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}",
 export default function Templates() {
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
+  const confirm = useConfirm();
 
   const load = async () => {
     const { data } = await supabase.from("message_templates").select("*").order("name");
@@ -57,7 +59,7 @@ export default function Templates() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Excluir template?")) return;
+    if (!(await confirm({ title: "Excluir template?", confirmLabel: "Excluir", destructive: true }))) return;
     await supabase.from("message_templates").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
     load();

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Zap, Plus, Trash2, Play, Loader2 } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Automation = {
   id: string;
@@ -41,6 +42,7 @@ export default function Automations() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
+  const confirm = useConfirm();
 
   const load = async () => {
     const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
@@ -105,7 +107,7 @@ export default function Automations() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Excluir automação?")) return;
+    if (!(await confirm({ title: "Excluir automação?", description: "Esta ação não pode ser desfeita.", confirmLabel: "Excluir", destructive: true }))) return;
     await supabase.from("automations").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
     load();

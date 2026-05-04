@@ -24,6 +24,7 @@ const queryClient = new QueryClient();
 import { useUnreadTitle } from "./hooks/useUnreadTitle";
 import ShortcutsDialog from "./components/ShortcutsDialog";
 import CommandPalette from "./components/CommandPalette";
+import { DialogsProvider } from "./hooks/useDialogs";
 
 const TitleSync = () => { useUnreadTitle(); return null; };
 
@@ -34,6 +35,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <DialogsProvider>
           <TitleSync />
           <ShortcutsDialog />
           <CommandPalette />
@@ -63,6 +65,7 @@ const App = () => (
               }
             />
           </Routes>
+          </DialogsProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

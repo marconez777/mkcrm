@@ -4,6 +4,7 @@ import type { Pipeline, Lead } from "@/types/crm";
 import { ChevronDown, Plus, Star, Pencil, Trash2, MessageCircleMore, Check } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useConfirm, usePrompt } from "@/hooks/useDialogs";
 
 interface Props {
   pipelines: Pipeline[];
@@ -15,6 +16,8 @@ interface Props {
 
 export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew }: Props) {
   const [open, setOpen] = useState(false);
+  const confirm = useConfirm();
+  const prompt = usePrompt();
 
   const counts = new Map<string, number>();
   leads.forEach((l) => l.pipeline_id && counts.set(l.pipeline_id, (counts.get(l.pipeline_id) ?? 0) + 1));
@@ -25,14 +28,14 @@ export default function PipelineSwitcher({ pipelines, current, leads, onSelect, 
     toast.success("Funil padrão atualizado");
   }
   async function rename(p: Pipeline) {
-    const name = prompt("Novo nome", p.name);
+    const name = await prompt({ title: "Renomear funil", label: "Novo nome", defaultValue: p.name });
     if (!name?.trim() || name === p.name) return;
     await supabase.from("pipelines").update({ name: name.trim() }).eq("id", p.id);
   }
   async function remove(p: Pipeline) {
     const used = counts.get(p.id) ?? 0;
     if (used > 0) { toast.error(`Não dá: ${used} leads neste funil. Mova-os antes.`); return; }
-    if (!confirm(`Excluir o funil "${p.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir funil "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("pipelines").delete().eq("id", p.id);
     if (error) toast.error(error.message);
   }

@@ -11,6 +11,7 @@ import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
+import { usePrompt } from "@/hooks/useDialogs";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -65,6 +66,7 @@ export default function ConversationList(props: {
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const prompt = usePrompt();
   const [views, setViews] = useState<SavedView[]>(() => listViews());
   useEffect(() => {
     const refresh = () => setViews(listViews());
@@ -77,8 +79,8 @@ export default function ConversationList(props: {
     props.setStageFilter(v.stageFilter);
     props.setTagFilter(v.tagFilter);
   }
-  function saveCurrentView() {
-    const name = prompt("Nome da view:");
+  async function saveCurrentView() {
+    const name = await prompt({ title: "Salvar view atual", label: "Nome da view", placeholder: "Ex: Sem resposta hoje" });
     if (!name) return;
     addView({ name, filter: props.filter, sort: props.sort, stageFilter: props.stageFilter, tagFilter: props.tagFilter });
     toast.success("View salva");
