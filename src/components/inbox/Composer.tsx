@@ -109,7 +109,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         </div>
       )}
 
-      <div className="flex items-end gap-1">
+      <div className="flex items-stretch gap-1">
         <div className="flex flex-col gap-0.5">
           <Popover>
             <PopoverTrigger asChild>
