@@ -11,6 +11,8 @@ import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, 
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
+import LeadTasksPanel from "./LeadTasksPanel";
+import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
