@@ -1,72 +1,69 @@
 
-## Estado atual
+## Visão geral
 
-No `Composer.tsx`, o botão de anexo (clipe) está **desabilitado** com tooltip "Anexos em breve". A função `evolution-send` envia apenas texto (`/message/sendText`). Não há bucket de storage configurado e o webhook já recebe mídias (renderiza `media_url`/`media_mime`), mas o envio CRM → WhatsApp de mídia não existe.
+Auditoria nas três áreas escolhidas (Inbox, Kanban, IA/Automações) com três frentes: **(A) substituir todos os `window.prompt/confirm` nativos por modais**, **(B) polimento de UX** e **(C) confiabilidade**. Tudo incremental — nada quebra o que já funciona.
 
-## O que vou implementar
+## A. Modais para substituir diálogos nativos
 
-### 1. Storage para anexos
-Criar bucket público `chat-attachments` com policies para usuários autenticados fazerem upload. Mídias enviadas ficam acessíveis por URL pública (necessário para a Evolution API baixar e reenviar ao WhatsApp).
+Hoje o app usa `prompt()`/`confirm()` do navegador em 11 pontos. Visualmente quebram a estética e em mobile ficam ruins. Vou criar dois componentes reutilizáveis e trocar cada uso:
 
-### 2. Nova edge function `evolution-send-media`
-Espelha a lógica de `evolution-send` (idempotência por `client_message_id`, retries, atualização de `messages` e `leads`), mas chama o endpoint correto da Evolution:
+1. `ConfirmDialog` (já temos `AlertDialog` shadcn) — wrapper com props `title/description/confirmLabel/destructive/onConfirm`.
+2. `PromptDialog` — input simples com label, valor inicial, validação de obrigatoriedade.
 
-- **Imagem/Vídeo/Documento** → `POST /message/sendMedia/{instance}` com body:
-  ```json
-  { "number": "...", "mediatype": "image|video|document",
-    "mimetype": "...", "media": "<url pública>",
-    "fileName": "...", "caption": "..." }
-  ```
-- **Áudio (PTT)** → `POST /message/sendWhatsAppAudio/{instance}` com `{ "number", "audio": "<url>" }`
+Pontos a converter:
+- **Inbox**
+  - `ContextRail.tsx` — excluir lead (destrutivo, exige digitar "EXCLUIR" para confirmar).
+  - `ConversationList.tsx` — criar "saved view" (PromptDialog).
+- **Kanban**
+  - `PipelineSidebar.tsx` e `PipelineSwitcher.tsx` — renomear funil (PromptDialog) e excluir funil (ConfirmDialog destrutivo).
+- **Páginas**
+  - `Automations.tsx`, `Templates.tsx`, `Agents.tsx`, `LeadDrawer.tsx`, `SettingsCustomFields.tsx` — confirmação de exclusão.
 
-Insere `messages` com `message_type` correto (image/video/document/audio), `media_url`, `media_mime`, e `content` = caption/filename.
+## B. Polimento de UX
 
-### 3. UI no `Composer.tsx`
-- Habilitar o botão clipe → abre `<input type="file">` (aceita `image/*,video/*,audio/*,application/pdf,...`, max 16MB — limite do WhatsApp).
-- Após seleção, mostra um **preview compacto acima do textarea** (thumbnail para imagem, ícone+nome para outros) com botão X para cancelar.
-- Textarea passa a servir de **caption** opcional.
-- Ao clicar Enviar:
-  1. Upload para `chat-attachments/{lead_id}/{uuid}-{filename}` via supabase storage.
-  2. Pega `publicUrl`.
-  3. Chama `supabase.functions.invoke("evolution-send-media", { body: { lead_id, media_url, mime, filename, caption, media_kind, client_message_id } })`.
-- Indicador de upload (spinner no botão).
+### Inbox
+- **Composer**: indicar tamanho/limite restante quando texto > 2.000 chars; toast claro quando arquivo > 16 MB; suporte a arrastar-e-soltar arquivo direto na área de chat (drop zone com overlay).
+- **ChatPane**: botão "ir para a última mensagem" quando o usuário rola pra cima e chega nova msg (já há scroll auto, mas falta o botão flutuante com badge de novas).
+- **ConversationList**: skeleton mais suave durante paginação; destacar visualmente lead com `marked_unread` separado de `unread_count`.
 
-### 4. Renderização (já existe parcialmente em ChatPane)
-Verificar/ajustar bubble para mostrar `<img>`, `<video controls>`, `<audio controls>` e link de download para documentos com base em `message_type` + `media_url`. Vou garantir que mensagens enviadas (`from_me=true`) com mídia também usem `media_url`.
+### Kanban
+- **PipelineOverview / Kanban**: feedback visual ao arrastar card entre etapas (sombra + placeholder), e toast de "movido para X" com botão **Desfazer** (10s).
+- **Edição inline** do nome de etapa (duplo-clique) em vez de abrir dialog para um único campo.
+- **Contadores por etapa**: total + valor somado de `deal_value` no header de cada coluna.
 
-## Detalhes técnicos
+### IA / Automações
+- **Agents.tsx**: badge de status (ativo/treinando/erro) consistente; botão "Testar" abre um drawer de chat de teste (já existe parcialmente — uniformizar).
+- **Automations.tsx**: confirmação visual ao salvar; preview do que vai acontecer ("Quando X → Faz Y") em linguagem natural no card.
 
-**Migration SQL:**
-```sql
-insert into storage.buckets (id, name, public) values ('chat-attachments', 'chat-attachments', true);
+## C. Confiabilidade
 
-create policy "auth upload" on storage.objects for insert to authenticated
-  with check (bucket_id = 'chat-attachments');
-create policy "public read" on storage.objects for select to public
-  using (bucket_id = 'chat-attachments');
-create policy "auth delete" on storage.objects for delete to authenticated
-  using (bucket_id = 'chat-attachments');
+1. **Edge functions** — padronizar tratamento de erro: toda `evolution-*` retornar `{ ok, error, code }` consistente; logar `client_message_id` em todos os caminhos para correlação.
+2. **`evolution-send-media`** — adicionar retry exponencial (já existe em `evolution-send`), validar mime/tamanho server-side antes de chamar API.
+3. **Realtime** — em `ChatPane`, garantir cleanup de canais ao trocar lead rapidamente (verificar memory leak potencial).
+4. **Webhook idempotência** — `webhook_dedup` já existe; confirmar uso em `MESSAGES_UPSERT` para evitar processar duplicatas quando Evolution reenvia.
+5. **Loading states ausentes** — vários botões não desabilitam durante ação (ex.: "Excluir agente"). Adicionar `disabled + spinner`.
+
+## Plano de execução (ordem sugerida)
+
+```text
+1. Criar src/components/ui/confirm-dialog.tsx + prompt-dialog.tsx
+2. Substituir os 11 prompt/confirm nativos
+3. Inbox: drag-drop de arquivo no ChatPane + botão "novas mensagens"
+4. Kanban: contadores por etapa + edição inline + toast com Desfazer
+5. Confiabilidade: retry no send-media + cleanup realtime + loading states
+6. IA: uniformizar status de agentes + preview legível em automações
 ```
 
-**Limites:** 16MB por arquivo (limite WhatsApp); mostrar erro client-side se exceder.
+## Arquivos afetados (estimativa)
 
-**Detecção de tipo:**
-```ts
-const kind = mime.startsWith("image/") ? "image"
-  : mime.startsWith("video/") ? "video"
-  : mime.startsWith("audio/") ? "audio"
-  : "document";
-```
+- **Novos**: `src/components/ui/confirm-dialog.tsx`, `src/components/ui/prompt-dialog.tsx`
+- **Editados**: `ContextRail.tsx`, `ConversationList.tsx`, `PipelineSidebar.tsx`, `PipelineSwitcher.tsx`, `Automations.tsx`, `Templates.tsx`, `Agents.tsx`, `LeadDrawer.tsx`, `SettingsCustomFields.tsx`, `ChatPane.tsx`, `Composer.tsx`, `Kanban.tsx`, `evolution-send-media/index.ts`
 
-## Arquivos afetados
-- `supabase/migrations/<novo>.sql` — bucket + policies
-- `supabase/functions/evolution-send-media/index.ts` — nova função
-- `src/components/inbox/Composer.tsx` — habilitar clipe, upload, preview, envio
-- `src/components/inbox/ChatPane.tsx` — confirmar render de mídia outbound (ajuste pequeno se necessário)
+## Fora do escopo (próximas iterações)
 
-## Fora do escopo
-- Gravação de áudio direto no navegador (mic) — pode ser próximo passo.
-- Envio de múltiplos arquivos por vez — começamos com 1 por mensagem.
-- Stickers/figurinhas.
+- Gravação de áudio pelo microfone no Composer.
+- Envio de múltiplos arquivos numa só mensagem.
+- Métricas avançadas de IA (avaliação automática de respostas).
+- Testes E2E.
 
-Aprove para eu aplicar.
+Aprove para eu aplicar — posso fazer tudo de uma vez ou dividir em etapas (1+2 primeiro, depois 3-6). Me diga sua preferência.
