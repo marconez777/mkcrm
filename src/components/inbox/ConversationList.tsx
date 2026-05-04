@@ -304,7 +304,7 @@ export default function ConversationList(props: {
       </div>
 
       {selected.size > 0 && (
-        <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover px-2 py-1.5 shadow-lg">
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover px-2 py-1.5 shadow-lg">
           <span className="px-2 text-xs font-medium tabular-nums">{selected.size} selecionada{selected.size > 1 ? "s" : ""}</span>
           <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
             onClick={() => bulkPatch({ marked_unread: false, unread_count: 0 }, "Marcadas como lidas")}>
