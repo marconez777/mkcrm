@@ -481,6 +481,37 @@ export default function ChatPane({ lead }: { lead: Lead }) {
               />
             </PopoverContent>
           </Popover>
+          <Popover open={noteOpen} onOpenChange={setNoteOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" title="Adicionar nota interna" className={cn(noteOpen && "bg-accent")}>
+                <StickyNote className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-2">
+              <Textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Nota interna (só a equipe vê)"
+                rows={3}
+                className="text-sm"
+                autoFocus
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => { setNoteOpen(false); setNoteText(""); }}>Cancelar</Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const t = noteText.trim();
+                    if (!t) return;
+                    addNote(lead.id, t);
+                    setNoteText("");
+                    setNoteOpen(false);
+                    toast.success("Nota adicionada");
+                  }}
+                >Adicionar</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button variant="ghost" size="sm" onClick={suggest} disabled={loadingSuggest} title="Sugerir respostas (IA)" className="gap-1 text-xs">
             {loadingSuggest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             Sugerir
