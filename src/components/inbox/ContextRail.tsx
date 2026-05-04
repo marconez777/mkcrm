@@ -300,6 +300,9 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
         />
 
+        <LeadTasksPanel leadId={lead.id} />
+        <ScheduledMessagesPanel leadId={lead.id} />
+
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
