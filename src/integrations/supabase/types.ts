@@ -1368,6 +1368,7 @@ export type Database = {
     }
     Functions: {
       cleanup_agent_caches: { Args: never; Returns: undefined }
+      cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
