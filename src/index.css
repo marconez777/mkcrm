@@ -87,4 +87,13 @@
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; }
+
+  .kanban-scroll { scroll-snap-type: x proximity; scroll-behavior: smooth; }
+  .kanban-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+  .kanban-scroll::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.4); border-radius: 999px; }
+  .kanban-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  .kanban-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); background-clip: padding-box; border: 2px solid transparent; }
+  .kanban-snap { scroll-snap-align: start; }
+  .kanban-grabbing { cursor: grabbing !important; user-select: none; }
+  .kanban-grabbing * { cursor: grabbing !important; }
 }
