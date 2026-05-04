@@ -1,33 +1,55 @@
-## Problema
+Vou corrigir o arraste lateral do pipeline com uma abordagem mais robusta, porque a solução atual no hook não está vencendo todos os pontos de interceptação do drag-and-drop.
 
-O arrastar horizontal do board (pan com o mouse no fundo) parou de funcionar de novo. Causa raiz:
+Plano
 
-1. O `DndContext` agora envolve **toda** a área rolável (`scrollRef`) — antes estava no nível de cada coluna. O `PointerSensor` do dnd-kit captura `pointerdown` em qualquer lugar do board, incluindo o fundo vazio entre colunas e dentro do corpo da coluna (que é um `useDroppable`).
-2. Mesmo com `activationConstraint: { distance: 6 }`, o dnd-kit chama `setPointerCapture` e `preventDefault` em `pointermove`, então o `onPointerMove` global do `useHorizontalScroll` recebe os eventos mas o `pointerdown` original nunca foi registrado como pan (porque o hook só registra pan se o target **não** for card/botão — e isso está OK — mas o capture do dnd-kit interfere durante o move).
-3. Resultado: clicar no fundo e arrastar não move o pipeline; só funciona em cima de cards (que viram drag de card).
+1. Reforçar a arquitetura do gesto de pan horizontal
+- Substituir a dependência exclusiva de `pointermove` no container por um fluxo de arraste global mais resiliente.
+- Iniciar o pan apenas em áreas permitidas do board e manter o movimento no `window/document` até o fim do gesto.
+- Garantir cleanup confiável do estado de drag mesmo se houver perda de captura, cancelamento ou interceptação por outro listener.
 
-## Solução
+2. Marcar explicitamente as zonas onde o pipeline pode ser arrastado
+- Adicionar atributos de intenção no Kanban, como áreas de fundo, header da coluna e espaços vazios da coluna.
+- Diferenciar claramente:
+  - card = arrasta lead
+  - fundo/header/espaço vazio = arrasta pipeline horizontalmente
+- Evitar heurísticas frágeis baseadas só em `closest(button, input, ...)`.
 
-Tornar o pan do pipeline robusto independentemente do `DndContext`:
+3. Evitar conflito com o drag-and-drop dos cards
+- Ajustar a ativação do DnD para que ele só reaja quando o ponteiro nascer em um card de lead.
+- Impedir que áreas vazias de coluna ou fundo do board entrem no fluxo do `PointerSensor`.
+- Se necessário, trocar a configuração do sensor/ativador para respeitar os novos marcadores `data-*` do board.
 
-### 1. Em `src/hooks/useHorizontalScroll.ts`
-- No `onPointerDown`, quando reconhecer área de pan (target não é card/botão/input), chamar `el.setPointerCapture(e.pointerId)` e `e.preventDefault()` para garantir prioridade sobre o dnd-kit.
-- Guardar o `pointerId` no `dragState` e usar `el.releasePointerCapture` no `onPointerUp`.
-- Trocar listeners `pointermove`/`pointerup` de `window` para o próprio `el` (com pointer capture eles continuam chegando lá), evitando race com handlers globais.
-- Adicionar threshold mínimo de 4px antes de iniciar o pan visual, para não atrapalhar cliques.
+4. Melhorar a UX do gesto
+- Manter threshold pequeno para evitar clique acidental virar pan.
+- Aplicar `cursor: grab/grabbing` apenas nas zonas corretas.
+- Desabilitar seleção de texto enquanto o pan estiver ativo.
+- Preservar o scroll vertical interno dos cards/colunas quando o usuário estiver usando a lista da coluna, sem quebrar o arraste horizontal do board.
 
-### 2. Em `src/pages/Kanban.tsx`
-- Adicionar atributo `data-kanban-board-bg` no wrapper interno (`<div className="flex h-full gap-3">`) e nos espaços vazios das colunas, para o hook reconhecer com clareza onde o pan é permitido.
-- Manter `cursor: grab` no container e mudar para `grabbing` durante o pan (já existe via classe `kanban-grabbing`).
+5. Validar no preview
+- Testar estes cenários:
+  - arrastar no fundo entre colunas
+  - arrastar no header da coluna
+  - arrastar em coluna vazia
+  - arrastar em card continua movendo card, não o pipeline
+  - setas laterais e scrollbar superior continuam sincronizados
 
-### 3. Garantia visual
-- Confirmar que o cursor `grab` aparece sobre áreas vazias entre colunas e que o pan funciona tanto no fundo quanto sobre a borda interna das colunas vazias.
+Detalhes técnicos
+- Arquivos principais:
+  - `src/hooks/useHorizontalScroll.ts`
+  - `src/pages/Kanban.tsx`
+- Ajustes previstos:
+  - introduzir zonas `data-kanban-pan-area`
+  - revisar os listeners de início/movimento/fim do gesto
+  - restringir a ativação do DnD às superfícies dos cards
+  - manter compatibilidade com `TopScrollbar` e `PipelineOverview`
 
-## Arquivos afetados
+Resultado esperado
+- O usuário volta a conseguir “pegar” o pipeline e arrastar para os lados nas áreas do board, sem desativar o drag dos cards.
+- O comportamento fica estável e não volta a quebrar quando houver mudanças pequenas no layout.
 
-- `src/hooks/useHorizontalScroll.ts` — pointer capture + listeners no elemento + threshold.
-- `src/pages/Kanban.tsx` — pequenos atributos `data-*` para clareza (opcional, principal fix está no hook).
-
-## Por que não vai quebrar de novo
-
-O pointer capture garante que, uma vez iniciado o pan, todos os `pointermove`/`pointerup` vão para o container de scroll, ignorando o `DndContext`. E o `PointerSensor` do dnd-kit só ativa drag a partir de 6px **vindo de um item sortable** (LeadCard) — fundo do board nunca é sortable, então não há conflito real; o problema atual é só o capture/preventDefault que o nosso handler precisa fazer primeiro.
+<lov-actions>
+  <lov-open-history>View History</lov-open-history>
+</lov-actions>
+<lov-actions>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>

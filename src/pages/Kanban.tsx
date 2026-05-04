@@ -3,6 +3,26 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent, closestCorners,
 } from "@dnd-kit/core";
+
+// Custom sensor: only activate drag-and-drop when the pointer originates on a lead card.
+// This frees the rest of the board (background, headers, empty space) for the
+// horizontal pan gesture handled by useHorizontalScroll.
+class CardOnlyPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: "onPointerDown" as const,
+      handler: ({ nativeEvent: event }: { nativeEvent: PointerEvent }) => {
+        if (event.button !== 0) return false;
+        const target = event.target as HTMLElement | null;
+        if (!target) return false;
+        if (!target.closest("[data-kanban-card]")) return false;
+        // ignore clicks on interactive children inside a card
+        if (target.closest("button, a, input, textarea, select, [role='menuitem']")) return false;
+        return true;
+      },
+    },
+  ];
+}
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
@@ -192,7 +212,7 @@ export default function KanbanPage() {
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage, scrollToColumn, scrollX, viewportW, contentW } = useHorizontalScroll();
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
