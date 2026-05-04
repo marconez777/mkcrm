@@ -1,48 +1,33 @@
-## Problema
+## Editar e excluir colunas do pipeline
 
-Antes o board do pipeline tinha:
-- Barra de rolagem horizontal **embaixo**
-- Barra de rolagem horizontal **em cima** (espelhada)
-- **Setas** ‹ › nas laterais
-- **Arrastar** o fundo vazio para deslizar lateralmente
+Adicionar um menu de ações em cada coluna do Kanban para **renomear**, **trocar cor** e **excluir** etapas.
 
-Hoje só sobrou a barra de baixo. As setas só aparecem quando há overflow real, e a barra de cima foi substituída pelo "PipelineOverview" (mini‑mapa), o que confundiu a navegação.
+### UX
 
-## O que vamos fazer
+Na header de cada coluna, ao lado do botão "colapsar", um botão `⋮` (MoreVertical) abre um dropdown com:
+- **Renomear** — abre dialog com input de nome
+- **Mudar cor** — abre o mesmo dialog mostrando 8 swatches de cor + input hex
+- **Excluir** — confirma; bloqueia exclusão se houver leads na coluna (sugere mover antes)
 
-1. **Adicionar uma barra de rolagem horizontal superior**, sincronizada com a inferior. Quando o usuário rolar uma, a outra acompanha. Implementada como uma faixa fina logo abaixo do `PipelineOverview`, com a mesma largura do conteúdo do board.
+Na versão **colapsada** da coluna o menu também aparece (botão pequeno embaixo do nome).
 
-2. **Garantir que as setas ‹ › apareçam sempre que houver overflow** (já existe, mas vamos aumentar a área de clique e dar `z-index` maior pra ficarem por cima do mini‑mapa e do header).
+### Detalhes técnicos
 
-3. **Reforçar o arrastar‑para‑rolar** (`grab/grabbing`) no fundo vazio do board — o hook `useHorizontalScroll` já faz isso, mas o cursor `grab` precisa ficar visível e não conflitar com o dnd-kit dos cards (já tem guarda via `data-kanban-card`, mantemos).
+- Novo componente `src/components/kanban/EditStageDialog.tsx`:
+  - Props: `stage`, `open`, `onOpenChange`
+  - Campos: `name`, `color` (palette: indigo, sky, emerald, amber, rose, violet, slate, pink — todos via tokens HSL ou hex)
+  - Botão "Salvar" → `supabase.from("pipeline_stages").update({ name, color }).eq("id", stage.id)`
 
-4. **Manter o atalho de teclado** (← → Home End) e a rolagem por wheel (já existem).
+- Em `src/pages/Kanban.tsx`:
+  - `Column` recebe novas props `onEdit(stage)` e `onDelete(stage)`
+  - Adiciona `<DropdownMenu>` com trigger `MoreVertical` (visível em `group-hover` para não poluir)
+  - Estado em `KanbanPage`: `editingStage: Stage | null`
+  - `handleDelete(stage)`: se `leads.filter(l => l.stage_id === stage.id).length > 0` → toast de erro pedindo pra mover; senão `confirm()` + `delete().eq("id", stage.id)`
+  - Realtime já cobre — UI atualiza sozinha via `useStages`
 
-### Layout final do topo do board
+### Arquivos
 
-```text
-[ Header com switcher de funil + botões ]
-[ PipelineOverview (mini-mapa clicável + barra de progresso) ]
-[ ▬▬▬ Barra de rolagem superior (sincronizada) ▬▬▬ ]
-[ ‹  Colunas do Kanban (arrastável, scroll horizontal)  › ]
-[ ▬▬▬ Barra de rolagem inferior (nativa) ▬▬▬ ]
-```
-
-## Detalhes técnicos
-
-- Criar `TopScrollbar.tsx` que recebe `scrollRef` (o container real) e renderiza um `div` com `overflow-x:auto` + um filho com `width = contentW`. Listeners bidirecionais com flag pra evitar loop:
-  ```ts
-  topEl.onscroll = () => { if (!syncing) { syncing=true; mainEl.scrollLeft = topEl.scrollLeft; syncing=false; } }
-  mainEl.onscroll = () => { if (!syncing) { syncing=true; topEl.scrollLeft = mainEl.scrollLeft; syncing=false; } }
-  ```
-- Expor `contentW` e `viewportW` do `useHorizontalScroll` (já expostos) para dimensionar a barra superior.
-- Setas: subir `z-index` para `z-20`, padding maior, sempre visíveis enquanto `overflow.left/right` for true.
-- Atualizar `Kanban.tsx` para inserir `<TopScrollbar />` entre `PipelineOverview` e o `<div ref={scrollRef}>`.
-
-## Arquivos
-
-- **Novo:** `src/components/kanban/TopScrollbar.tsx`
-- **Editar:** `src/pages/Kanban.tsx` — inserir TopScrollbar e ajustar z-index das setas
-- **Editar:** `src/index.css` — estilizar `.kanban-top-scroll` com a mesma estética da barra inferior
+- **Novo:** `src/components/kanban/EditStageDialog.tsx`
+- **Editar:** `src/pages/Kanban.tsx` — imports, menu na coluna, handlers, render do dialog
 
 Aprove para aplicar.
