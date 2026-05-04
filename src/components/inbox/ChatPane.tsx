@@ -20,6 +20,7 @@ import { useHealth } from "@/hooks/useHealth";
 import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
 import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
+import { useWaAvatar } from "@/hooks/useWaAvatar";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
@@ -107,6 +108,7 @@ function highlight(text: string, term: string, isActive: boolean) {
 }
 
 export default function ChatPane({ lead }: { lead: Lead }) {
+  useWaAvatar(lead.id, lead.avatar_url);
   const { overall: healthStatus } = useHealth();
   const disconnected = healthStatus === "down" || healthStatus === "unknown";
   const [messages, setMessages] = useState<Message[]>([]);
@@ -449,9 +451,13 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     <div className="flex flex-1 flex-col overflow-hidden">
       <header className="flex items-center justify-between border-b bg-card px-4 py-2">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {(lead.name || lead.phone).slice(0, 2).toUpperCase()}
-          </div>
+          {lead.avatar_url ? (
+            <img src={lead.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+              {(lead.name || lead.phone).slice(0, 2).toUpperCase()}
+            </div>
+          )}
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{lead.name || lead.phone}</div>
             <div className="text-[11px] text-muted-foreground">{lead.phone}</div>
@@ -500,13 +506,17 @@ export default function ChatPane({ lead }: { lead: Lead }) {
                 <Button variant="ghost" size="sm" onClick={() => { setNoteOpen(false); setNoteText(""); }}>Cancelar</Button>
                 <Button
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     const t = noteText.trim();
                     if (!t) return;
-                    addNote(lead.id, t);
-                    setNoteText("");
-                    setNoteOpen(false);
-                    toast.success("Nota adicionada");
+                    try {
+                      await addNote(lead.id, t);
+                      setNoteText("");
+                      setNoteOpen(false);
+                      toast.success("Nota adicionada");
+                    } catch (e: any) {
+                      toast.error("Falha: " + (e?.message ?? String(e)));
+                    }
                   }}
                 >Adicionar</Button>
               </div>
@@ -882,6 +892,7 @@ function MessageRow(props: {
             ? highlight(m.content, searchTerm, !!isActiveMatch)
             : (m.content || `[${m.message_type}]`)}
         </div>
+        {m.message_type === "audio" && <AudioTranscript m={m} />}
         <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
           <span>{fmtTime(m.timestamp)}</span>
           <StatusTicks m={m} />
@@ -894,5 +905,40 @@ function MessageRow(props: {
       </div>
       {m.from_me && actions}
     </div>
+  );
+}
+
+function AudioTranscript({ m }: { m: Message }) {
+  const initial = (m as any).raw?.transcript as string | undefined;
+  const [transcript, setTranscript] = useState<string | null>(initial ?? null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => { setTranscript(((m as any).raw?.transcript as string) ?? null); }, [m.id, (m as any).raw?.transcript]);
+  async function go() {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("transcribe-audio", { body: { message_id: m.id } });
+    setLoading(false);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    setTranscript((data as any)?.transcript ?? "");
+  }
+  if (transcript) {
+    return (
+      <div className="mt-1 rounded border-l-2 border-primary/60 bg-background/40 px-2 py-1 text-[11px] italic text-foreground/80">
+        <span className="mr-1 text-[9px] font-semibold uppercase tracking-wide text-primary">Transcrição</span>
+        {transcript}
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={go}
+      disabled={loading}
+      className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+      {loading ? "Transcrevendo…" : "Transcrever áudio"}
+    </button>
   );
 }

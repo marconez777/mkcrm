@@ -1,13 +1,15 @@
-import { forwardRef, useEffect, useRef } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -61,6 +63,22 @@ export default function ConversationList(props: {
   onCollapse?: () => void;
 }) {
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSel(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+  function clearSel() { setSelected(new Set()); }
+  async function bulkPatch(p: any, msg: string) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("leads").update(p as any).in("id", ids);
+    if (error) toast.error("Falha: " + error.message);
+    else { toast.success(msg); clearSel(); }
+  }
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -173,6 +191,8 @@ export default function ConversationList(props: {
           // SLA: last incoming msg older than 30min and unread → warn
           const ageMin = l.last_message_at ? (Date.now() - new Date(l.last_message_at).getTime()) / 60000 : 0;
           const slaWarn = isUnread && ageMin > 30;
+          const isChecked = selected.has(l.id);
+          const bulkMode = selected.size > 0;
           return (
             <div
               key={l.id}
@@ -180,19 +200,43 @@ export default function ConversationList(props: {
                 "group relative flex w-full items-start gap-3 border-b px-3 py-2.5 transition-colors",
                 isSel ? "bg-accent" : "hover:bg-muted/50",
                 isPinned && "bg-amber-500/5",
+                isChecked && "bg-primary/5",
               )}
             >
-              <button onClick={() => onSelect(l)} className="flex flex-1 items-start gap-3 text-left min-w-0">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                  {initials}
-                  {att && (
+              <button
+                onClick={(e) => {
+                  if (bulkMode) { e.preventDefault(); toggleSel(l.id); } else onSelect(l);
+                }}
+                className="flex flex-1 items-start gap-3 text-left min-w-0"
+              >
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary overflow-hidden",
+                      (bulkMode || isChecked) && "opacity-0",
+                    )}
+                  >
+                    {l.avatar_url
+                      ? <img src={l.avatar_url} alt="" className="h-full w-full object-cover" />
+                      : initials}
+                  </div>
+                  <span
+                    className={cn(
+                      "absolute inset-0 flex items-center justify-center rounded-full bg-card transition-opacity",
+                      bulkMode || isChecked ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                    )}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSel(l.id); }}
+                  >
+                    <Checkbox checked={isChecked} className="h-5 w-5" />
+                  </span>
+                  {att && !bulkMode && !isChecked && (
                     <span
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
                       style={{ background: att.color }}
                       title={att.name}
                     />
                   )}
-                  {slaWarn && (
+                  {slaWarn && !bulkMode && !isChecked && (
                     <span className="absolute -top-0.5 -left-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card" title={`Sem resposta há ${Math.floor(ageMin)}m`} />
                   )}
                 </div>
@@ -258,6 +302,52 @@ export default function ConversationList(props: {
           </div>
         )}
       </div>
+
+      {selected.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover px-2 py-1.5 shadow-lg">
+          <span className="px-2 text-xs font-medium tabular-nums">{selected.size} selecionada{selected.size > 1 ? "s" : ""}</span>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
+            onClick={() => bulkPatch({ marked_unread: false, unread_count: 0 }, "Marcadas como lidas")}>
+            <MailOpen className="h-3.5 w-3.5" /> Lida
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <UserPlus className="h-3.5 w-3.5" /> Atendente
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => bulkPatch({ attendant_id: null }, "Removido atendente")}>Não atribuído</DropdownMenuItem>
+              {attendants.map((a) => (
+                <DropdownMenuItem key={a.id} onClick={() => bulkPatch({ attendant_id: a.id }, `Atribuído a ${a.name}`)}>
+                  <span className="mr-2 h-2 w-2 rounded-full" style={{ background: a.color }} />{a.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs">
+                <GitBranch className="h-3.5 w-3.5" /> Etapa
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {stages.map((s) => (
+                <DropdownMenuItem key={s.id} onClick={() => bulkPatch({ stage_id: s.id }, `Movidas para ${s.name}`)}>
+                  <span className="mr-2 h-2 w-2 rounded-full" style={{ background: s.color }} />{s.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
+            onClick={() => bulkPatch({ archived_at: new Date().toISOString() }, "Arquivadas")}>
+            <Archive className="h-3.5 w-3.5" /> Arquivar
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearSel} title="Limpar seleção">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </>
   );
 }

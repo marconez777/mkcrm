@@ -11,6 +11,8 @@ import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, 
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
+import LeadTasksPanel from "./LeadTasksPanel";
+import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -297,6 +299,9 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           fields={customDefs}
           onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
         />
+
+        <LeadTasksPanel leadId={lead.id} />
+        <ScheduledMessagesPanel leadId={lead.id} />
 
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
