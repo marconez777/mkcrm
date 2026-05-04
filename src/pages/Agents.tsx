@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Provider = "openai" | "anthropic" | "google";
 type Agent = {
@@ -278,7 +279,7 @@ export default function Agents() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Excluir agente?")) return;
+    if (!(await confirm({ title: "Excluir agente?", description: "Documentos e memórias associadas serão removidos.", confirmLabel: "Excluir", destructive: true }))) return;
     await supabase.from("ai_agents").delete().eq("id", id);
     if (selected?.id === id) setSelected(null);
     load();

@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
+import { useConfirm } from "@/hooks/useDialogs";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -133,7 +134,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   }
 
   async function remove() {
-    if (!confirm("Excluir este lead e todo o histórico?")) return;
+    if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de conversa será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
     await supabase.from("leads").delete().eq("id", lead.id);
     nav("/inbox");
   }

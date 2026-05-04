@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Send, Loader2, Phone, Mail, Building2, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
+import { useConfirm } from "@/hooks/useDialogs";
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -97,7 +98,7 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   }
 
   async function remove() {
-    if (!confirm("Excluir este lead e todo o histórico?")) return;
+    if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de mensagens será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
     await supabase.from("leads").delete().eq("id", lead!.id);
     onClose();
   }
