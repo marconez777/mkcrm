@@ -73,6 +73,8 @@ export type Message = {
   timestamp: string;
   retry_count?: number;
   last_error?: string | null;
+  media_url?: string | null;
+  media_mime?: string | null;
 };
 
 export type Attendant = { id: string; name: string; color: string };

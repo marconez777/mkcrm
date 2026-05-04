@@ -887,11 +887,14 @@ function MessageRow(props: {
             {replied.content || `[${replied.message_type}]`}
           </button>
         )}
-        <div className="whitespace-pre-wrap break-words">
-          {searchTerm && m.content
-            ? highlight(m.content, searchTerm, !!isActiveMatch)
-            : (m.content || `[${m.message_type}]`)}
-        </div>
+        {m.media_url && <MediaBubble m={m} />}
+        {(m.content || !m.media_url) && (
+          <div className="whitespace-pre-wrap break-words">
+            {searchTerm && m.content
+              ? highlight(m.content, searchTerm, !!isActiveMatch)
+              : (m.content || `[${m.message_type}]`)}
+          </div>
+        )}
         {m.message_type === "audio" && <AudioTranscript m={m} />}
         <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
           <span>{fmtTime(m.timestamp)}</span>
@@ -905,6 +908,26 @@ function MessageRow(props: {
       </div>
       {m.from_me && actions}
     </div>
+  );
+}
+
+function MediaBubble({ m }: { m: Message }) {
+  const url = m.media_url!;
+  const mime = m.media_mime ?? "";
+  const type = m.message_type;
+  if (type === "image" || mime.startsWith("image/")) {
+    return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" className="mb-1 max-h-72 w-auto max-w-full rounded object-cover" /></a>;
+  }
+  if (type === "video" || mime.startsWith("video/")) {
+    return <video src={url} controls className="mb-1 max-h-72 w-auto max-w-full rounded" />;
+  }
+  if (type === "audio" || mime.startsWith("audio/")) {
+    return <audio src={url} controls className="mb-1 w-full" />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 rounded bg-background/40 px-2 py-1.5 text-xs hover:bg-background/60">
+      <span className="truncate">📎 {m.content || "documento"}</span>
+    </a>
   );
 }
 
