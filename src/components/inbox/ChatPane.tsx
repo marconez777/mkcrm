@@ -410,26 +410,40 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }, [messages]);
 
   const grouped = useMemo(() => {
+    // Mescla mensagens + notas internas por timestamp.
+    type Item =
+      | { kind: "msg"; ts: number; m: Message }
+      | { kind: "note"; ts: number; n: InternalNote };
+    const merged: Item[] = [
+      ...messages.map((m) => ({ kind: "msg" as const, ts: new Date(m.timestamp).getTime(), m })),
+      ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), n })),
+    ].sort((a, b) => a.ts - b.ts);
+
     const out: any[] = [];
     let lastDate = "";
     let lastAuthor: boolean | null = null;
     let lastTs = 0;
-    messages.forEach((m) => {
-      const d = new Date(m.timestamp);
+    merged.forEach((it) => {
+      const d = new Date(it.ts);
       const dKey = d.toDateString();
       if (dKey !== lastDate) {
         out.push({ kind: "date", label: dateLabel(d), key: `d-${dKey}` });
         lastDate = dKey;
         lastAuthor = null;
       }
-      const ts = d.getTime();
-      const isGrouped = lastAuthor === m.from_me && ts - lastTs < 2 * 60 * 1000;
-      out.push({ kind: "msg", m, grouped: isGrouped, key: m.id });
-      lastAuthor = m.from_me;
-      lastTs = ts;
+      if (it.kind === "note") {
+        out.push({ kind: "note", n: it.n, key: `n-${it.n.id}` });
+        lastAuthor = null;
+        lastTs = it.ts;
+        return;
+      }
+      const isGrouped = lastAuthor === it.m.from_me && it.ts - lastTs < 2 * 60 * 1000;
+      out.push({ kind: "msg", m: it.m, grouped: isGrouped, key: it.m.id });
+      lastAuthor = it.m.from_me;
+      lastTs = it.ts;
     });
     return out;
-  }, [messages]);
+  }, [messages, notes]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
