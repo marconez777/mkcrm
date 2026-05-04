@@ -686,11 +686,14 @@ function VirtualizedMessages(props: {
   newCount: number;
   jumpToBottom: () => void;
   scrollToMsgRef: React.MutableRefObject<((id: string) => void) | null>;
+  leadId: string;
+  onForward: (text: string) => void;
 }) {
   const {
     scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
     messages, searchTerm, matches, activeMatch, pulseId,
     setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom, scrollToMsgRef,
+    leadId, onForward,
   } = props;
 
   const virtualizer = useVirtualizer({
