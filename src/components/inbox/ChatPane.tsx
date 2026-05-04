@@ -911,6 +911,26 @@ function MessageRow(props: {
   );
 }
 
+function MediaBubble({ m }: { m: Message }) {
+  const url = m.media_url!;
+  const mime = m.media_mime ?? "";
+  const type = m.message_type;
+  if (type === "image" || mime.startsWith("image/")) {
+    return <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" className="mb-1 max-h-72 w-auto max-w-full rounded object-cover" /></a>;
+  }
+  if (type === "video" || mime.startsWith("video/")) {
+    return <video src={url} controls className="mb-1 max-h-72 w-auto max-w-full rounded" />;
+  }
+  if (type === "audio" || mime.startsWith("audio/")) {
+    return <audio src={url} controls className="mb-1 w-full" />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mb-1 flex items-center gap-2 rounded bg-background/40 px-2 py-1.5 text-xs hover:bg-background/60">
+      <span className="truncate">📎 {m.content || "documento"}</span>
+    </a>
+  );
+}
+
 function AudioTranscript({ m }: { m: Message }) {
   const initial = (m as any).raw?.transcript as string | undefined;
   const [transcript, setTranscript] = useState<string | null>(initial ?? null);
