@@ -127,6 +127,16 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(stage.name);
+  useEffect(() => { setNameDraft(stage.name); }, [stage.name]);
+  async function commitRename() {
+    setRenaming(false);
+    const v = nameDraft.trim();
+    if (!v || v === stage.name) { setNameDraft(stage.name); return; }
+    const { error } = await supabase.from("pipeline_stages").update({ name: v }).eq("id", stage.id);
+    if (error) { toast.error(error.message); setNameDraft(stage.name); }
+  }
 
   const menu = (
     <DropdownMenu>
@@ -167,7 +177,24 @@ function Column({
       <div className="mb-2 flex items-center justify-between px-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
-          <span className="truncate text-sm font-semibold">{stage.name}</span>
+          {renaming ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setNameDraft(stage.name); setRenaming(false); } }}
+              className="min-w-0 flex-1 rounded border bg-background px-1 text-sm font-semibold outline-none focus:ring-1 focus:ring-primary"
+            />
+          ) : (
+            <span
+              className="truncate text-sm font-semibold"
+              onDoubleClick={() => setRenaming(true)}
+              title="Duplo-clique para renomear"
+            >
+              {stage.name}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">{leads.length}</span>
         </div>
         <div className="flex items-center gap-1">
