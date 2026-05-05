@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarIcon, CheckCircle2, Circle, Trash2, Plus, X, Users, ListChecks, AlignLeft,
-  Paperclip, Upload, FileText, Image as ImageIcon, Download,
+  Paperclip, Upload, FileText, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
