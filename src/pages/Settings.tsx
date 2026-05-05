@@ -160,10 +160,21 @@ export default function SettingsPage() {
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <Activity className="h-4 w-4" /> Saúde da Conexão
             </h2>
-            <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
-              {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
-              Verificar agora
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant={health?.connection_state === "open" ? "outline" : "default"}
+                size="sm"
+                onClick={() => setQrOpen(true)}
+                disabled={!instanceId}
+              >
+                <QrCode className="mr-2 h-3 w-3" />
+                {health?.connection_state === "open" ? "Gerenciar conexão" : "Escanear QR Code"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
+                {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
+                Verificar agora
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
