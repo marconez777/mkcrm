@@ -8,6 +8,9 @@
 - `POST /chat/findMessages/{instance}` — buscar histórico.
 - `POST /webhook/set/{instance}` — registrar webhook.
 - `GET  /instance/connectionState/{instance}` — status.
+- `GET  /instance/connect/{instance}` — obter QR Code / pairing code.
+- `DELETE /instance/logout/{instance}` — desconectar sessão (gera novo QR).
+- `POST /instance/restart/{instance}` — reiniciar instância.
 - `GET  /chat/fetchProfilePictureUrl/{instance}` — avatar.
 
 Autenticação: header `apikey: <evolution_api_key>`.
