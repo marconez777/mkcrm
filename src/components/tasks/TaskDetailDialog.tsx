@@ -38,6 +38,9 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
   const [time, setTime] = useState("12:00");
   const [done, setDone] = useState(false);
   const [newItem, setNewItem] = useState("");
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!task) return;
@@ -46,10 +49,38 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
     setDue(task.due_at ? new Date(task.due_at) : undefined);
     setTime(task.due_at ? format(new Date(task.due_at), "HH:mm") : "12:00");
     setDone(!!task.done_at);
+    listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
   }, [task?.id]);
 
   const attMap = useMemo(() => new Map(attendants.map((a) => [a.id, a])), [attendants]);
   if (!task) return null;
+
+  async function handleUpload(files: FileList | null) {
+    if (!files || !task) return;
+    setUploading(true);
+    try {
+      for (const f of Array.from(files)) {
+        if (f.size > 25 * 1024 * 1024) { toast.error(`${f.name} excede 25MB`); continue; }
+        const att = await uploadAttachment(task.id, f);
+        setAttachments((prev) => [att, ...prev]);
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+  async function handleRemoveAttachment(att: TaskAttachment) {
+    setAttachments((prev) => prev.filter((a) => a.id !== att.id));
+    try { await deleteAttachment(att); } catch (e: any) { toast.error(e?.message ?? "Erro ao remover"); }
+  }
+  function formatBytes(n: number | null) {
+    if (!n) return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   async function saveField(patch: Partial<TaskCard>) {
     await updateTask(task!.id, patch);
