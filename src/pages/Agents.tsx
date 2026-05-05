@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Provider = "openai" | "anthropic" | "google";
@@ -154,6 +154,26 @@ export default function Agents() {
   const [batchUrls, setBatchUrls] = useState("");
   const [batchRunning, setBatchRunning] = useState(false);
   const [pdfRunning, setPdfRunning] = useState(false);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const runBulk = async () => {
+    if (!selected) return;
+    if (!(await confirm({
+      title: `Rodar "${selected.name}" em todos os leads?`,
+      description: "O agente será enfileirado para todas as conversas ativas (não arquivadas) que já receberam alguma mensagem. Pode levar alguns minutos para processar.",
+      confirmLabel: "Rodar agora",
+    }))) return;
+    setBulkRunning(true);
+    const { data, error } = await supabase.functions.invoke("agent-run-bulk", {
+      body: { agent_id: selected.id, only_with_inbound: true },
+    });
+    setBulkRunning(false);
+    if (error || (data as any)?.error) {
+      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      return;
+    }
+    toast.success(`Enfileirado em ${(data as any)?.enqueued} leads. Rodando em background.`);
+  };
 
   const ingestPdf = async (file: File) => {
     if (!selected) return;
@@ -380,6 +400,10 @@ export default function Agents() {
                 />
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={runBulk} disabled={bulkRunning} title="Rodar este agente em todos os leads ativos">
+                  {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                  Rodar em todos
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
