@@ -1260,6 +1260,243 @@ export type Database = {
           },
         ]
       }
+      task_assignees: {
+        Row: {
+          attendant_id: string
+          created_at: string
+          task_id: string
+        }
+        Insert: {
+          attendant_id: string
+          created_at?: string
+          task_id: string
+        }
+        Update: {
+          attendant_id?: string
+          created_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_assignees_attendant_id_fkey"
+            columns: ["attendant_id"]
+            isOneToOne: false
+            referencedRelation: "attendants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_boards: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
+      task_checklist_items: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          position: number
+          task_id: string
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          position?: number
+          task_id: string
+          text: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          position?: number
+          task_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_columns: {
+        Row: {
+          board_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_columns_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "task_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_label_links: {
+        Row: {
+          label_id: string
+          task_id: string
+        }
+        Insert: {
+          label_id: string
+          task_id: string
+        }
+        Update: {
+          label_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_label_links_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "task_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_label_links_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_labels: {
+        Row: {
+          board_id: string
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          board_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          board_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_labels_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "task_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          board_id: string
+          column_id: string
+          created_at: string
+          description: string | null
+          done_at: string | null
+          due_at: string | null
+          id: string
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          column_id: string
+          created_at?: string
+          description?: string | null
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          position?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          column_id?: string
+          created_at?: string
+          description?: string | null
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "task_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "task_columns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_dedup: {
         Row: {
           event_hash: string
