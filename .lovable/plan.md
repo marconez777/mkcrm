@@ -1,69 +1,68 @@
+# QR Code da Evolution direto no CRM
 
-## Visão geral
+Hoje, quando uma instância do WhatsApp cai (`connection_state = close`) ou é nova, o usuário precisa abrir o painel da Evolution para escanear o QR. Vamos trazer esse fluxo para dentro do `/settings`.
 
-Auditoria nas três áreas escolhidas (Inbox, Kanban, IA/Automações) com três frentes: **(A) substituir todos os `window.prompt/confirm` nativos por modais**, **(B) polimento de UX** e **(C) confiabilidade**. Tudo incremental — nada quebra o que já funciona.
+## Como a Evolution expõe o QR
 
-## A. Modais para substituir diálogos nativos
+A Evolution API tem dois endpoints úteis (mesma autenticação `apikey` que já usamos):
 
-Hoje o app usa `prompt()`/`confirm()` do navegador em 11 pontos. Visualmente quebram a estética e em mobile ficam ruins. Vou criar dois componentes reutilizáveis e trocar cada uso:
+- `GET /instance/connect/{instance}` → retorna `{ base64, code, pairingCode }` com o QR atual (gera um novo se a sessão estiver desconectada).
+- `GET /instance/connectionState/{instance}` → retorna `open | connecting | close` (já usamos no `evolution-test`/`evolution-health`).
+- `POST /instance/logout/{instance}` → derruba a sessão (útil para "reconectar do zero").
+- `POST /instance/restart/{instance}` → reinicia a instância sem apagar a sessão.
 
-1. `ConfirmDialog` (já temos `AlertDialog` shadcn) — wrapper com props `title/description/confirmLabel/destructive/onConfirm`.
-2. `PromptDialog` — input simples com label, valor inicial, validação de obrigatoriedade.
+## O que vamos construir
 
-Pontos a converter:
-- **Inbox**
-  - `ContextRail.tsx` — excluir lead (destrutivo, exige digitar "EXCLUIR" para confirmar).
-  - `ConversationList.tsx` — criar "saved view" (PromptDialog).
-- **Kanban**
-  - `PipelineSidebar.tsx` e `PipelineSwitcher.tsx` — renomear funil (PromptDialog) e excluir funil (ConfirmDialog destrutivo).
-- **Páginas**
-  - `Automations.tsx`, `Templates.tsx`, `Agents.tsx`, `LeadDrawer.tsx`, `SettingsCustomFields.tsx` — confirmação de exclusão.
+### 1. Edge functions novas
 
-## B. Polimento de UX
+- **`evolution-qr`** (`POST { instance_id? }`): chama `/instance/connect/{instance}` na instância indicada (ou na default), devolve `{ state, base64, pairingCode }`. Se o estado já for `open`, devolve `{ state: "open" }` sem QR.
+- **`evolution-logout`** (`POST { instance_id }`): chama `/instance/logout/{instance}` para forçar novo pareamento.
+- **`evolution-restart`** (`POST { instance_id }`): chama `/instance/restart/{instance}` (útil quando trava em `connecting`).
 
-### Inbox
-- **Composer**: indicar tamanho/limite restante quando texto > 2.000 chars; toast claro quando arquivo > 16 MB; suporte a arrastar-e-soltar arquivo direto na área de chat (drop zone com overlay).
-- **ChatPane**: botão "ir para a última mensagem" quando o usuário rola pra cima e chega nova msg (já há scroll auto, mas falta o botão flutuante com badge de novas).
-- **ConversationList**: skeleton mais suave durante paginação; destacar visualmente lead com `marked_unread` separado de `unread_count`.
+Reaproveitam `loadInstance` + `evoFetch` de `supabase/functions/_shared/evolution.ts`.
 
-### Kanban
-- **PipelineOverview / Kanban**: feedback visual ao arrastar card entre etapas (sombra + placeholder), e toast de "movido para X" com botão **Desfazer** (10s).
-- **Edição inline** do nome de etapa (duplo-clique) em vez de abrir dialog para um único campo.
-- **Contadores por etapa**: total + valor somado de `deal_value` no header de cada coluna.
+### 2. Componente `WhatsAppQrDialog`
 
-### IA / Automações
-- **Agents.tsx**: badge de status (ativo/treinando/erro) consistente; botão "Testar" abre um drawer de chat de teste (já existe parcialmente — uniformizar).
-- **Automations.tsx**: confirmação visual ao salvar; preview do que vai acontecer ("Quando X → Faz Y") em linguagem natural no card.
+`src/components/settings/WhatsAppQrDialog.tsx` — modal (Dialog do shadcn) que:
 
-## C. Confiabilidade
+- Recebe `instanceId` + `instanceName`.
+- Ao abrir, chama `evolution-qr` e mostra:
+  - QR como `<img src={base64}>` (a Evolution já devolve `data:image/png;base64,...`).
+  - Código de pareamento por número (`pairingCode`) em texto, como alternativa.
+  - Estado atual com badge (Conectado / Conectando / Desconectado).
+- Faz **polling a cada 3s**:
+  - Se `state === "open"` → fecha modal, mostra toast "WhatsApp conectado" e dispara `evolution-health` para atualizar o cabeçalho.
+  - Se continuar `close/connecting` → atualiza o QR (eles expiram em ~20s).
+- Botões: **Atualizar QR**, **Reiniciar instância** (`evolution-restart`), **Desconectar** (`evolution-logout` com confirmação via `useDialogs`).
+- Para no `unmount` (limpa `setInterval`).
 
-1. **Edge functions** — padronizar tratamento de erro: toda `evolution-*` retornar `{ ok, error, code }` consistente; logar `client_message_id` em todos os caminhos para correlação.
-2. **`evolution-send-media`** — adicionar retry exponencial (já existe em `evolution-send`), validar mime/tamanho server-side antes de chamar API.
-3. **Realtime** — em `ChatPane`, garantir cleanup de canais ao trocar lead rapidamente (verificar memory leak potencial).
-4. **Webhook idempotência** — `webhook_dedup` já existe; confirmar uso em `MESSAGES_UPSERT` para evitar processar duplicatas quando Evolution reenvia.
-5. **Loading states ausentes** — vários botões não desabilitam durante ação (ex.: "Excluir agente"). Adicionar `disabled + spinner`.
+### 3. Integração no `/settings`
 
-## Plano de execução (ordem sugerida)
+Em `src/pages/Settings.tsx`, na seção da instância:
 
-```text
-1. Criar src/components/ui/confirm-dialog.tsx + prompt-dialog.tsx
-2. Substituir os 11 prompt/confirm nativos
-3. Inbox: drag-drop de arquivo no ChatPane + botão "novas mensagens"
-4. Kanban: contadores por etapa + edição inline + toast com Desfazer
-5. Confiabilidade: retry no send-media + cleanup realtime + loading states
-6. IA: uniformizar status de agentes + preview legível em automações
-```
+- Trocar o badge atual de status por uma linha com **Conectar / Reconectar WhatsApp** que abre o `WhatsAppQrDialog`.
+- Mostrar o botão sempre, com label dinâmico:
+  - `state = open` → "WhatsApp conectado" + opção "Desconectar".
+  - `state = connecting` → "Conectando… ver QR".
+  - `state = close` ou nulo → "Escanear QR Code" (destacado).
+- Para projetos com múltiplas instâncias, expor o mesmo botão na lista de instâncias (futuro, mas o componente já aceita `instanceId`).
 
-## Arquivos afetados (estimativa)
+### 4. Indicador no AppShell
 
-- **Novos**: `src/components/ui/confirm-dialog.tsx`, `src/components/ui/prompt-dialog.tsx`
-- **Editados**: `ContextRail.tsx`, `ConversationList.tsx`, `PipelineSidebar.tsx`, `PipelineSwitcher.tsx`, `Automations.tsx`, `Templates.tsx`, `Agents.tsx`, `LeadDrawer.tsx`, `SettingsCustomFields.tsx`, `ChatPane.tsx`, `Composer.tsx`, `Kanban.tsx`, `evolution-send-media/index.ts`
+No `src/components/AppShell.tsx`, quando `overall === "down"` por desconexão (`connection_state = close`), trocar o link `/settings` por um clique que **abre direto o QR** da instância default. Implementação simples: navegar para `/settings?qr=1` e o Settings auto-abre o modal.
 
-## Fora do escopo (próximas iterações)
+## Fora de escopo
 
-- Gravação de áudio pelo microfone no Composer.
-- Envio de múltiplos arquivos numa só mensagem.
-- Métricas avançadas de IA (avaliação automática de respostas).
-- Testes E2E.
+- Salvar o QR no banco (não faz sentido — expira rápido; sempre buscar on-demand).
+- Suporte a múltiplas instâncias simultâneas no mesmo modal (uma por vez basta).
+- Webhook `QRCODE_UPDATED` da Evolution (poderia substituir polling, mas adiciona evento novo no webhook handler — fica como melhoria futura).
 
-Aprove para eu aplicar — posso fazer tudo de uma vez ou dividir em etapas (1+2 primeiro, depois 3-6). Me diga sua preferência.
+## Arquivos afetados
+
+- `supabase/functions/evolution-qr/index.ts` (novo)
+- `supabase/functions/evolution-logout/index.ts` (novo)
+- `supabase/functions/evolution-restart/index.ts` (novo)
+- `src/components/settings/WhatsAppQrDialog.tsx` (novo)
+- `src/pages/Settings.tsx` (botão + auto-open via query param)
+- `src/components/AppShell.tsx` (deep link quando desconectado)
+- `docs/EVOLUTION.md` (documentar novo fluxo)

@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff, Plus, Trash2, Zap } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff, Plus, Trash2, Zap, QrCode } from "lucide-react";
 import { useHealth } from "@/hooks/useHealth";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
+import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "nunca";
@@ -38,7 +39,8 @@ export default function SettingsPage() {
     webhook_token: "",
   });
   const [instanceId, setInstanceId] = useState<string | null>(null);
-
+  const [qrOpen, setQrOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const webhookUrl = form.webhook_token
     ? `https://${projectId}.supabase.co/functions/v1/evolution-webhook?token=${form.webhook_token}`
@@ -63,6 +65,15 @@ export default function SettingsPage() {
       setLoading(false);
     })();
   }, []);
+
+  // Auto-open QR dialog when navigated with ?qr=1
+  useEffect(() => {
+    if (!loading && instanceId && searchParams.get("qr") === "1") {
+      setQrOpen(true);
+      searchParams.delete("qr");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [loading, instanceId, searchParams, setSearchParams]);
 
   useEffect(() => {
     const load = async () => {
@@ -149,10 +160,21 @@ export default function SettingsPage() {
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <Activity className="h-4 w-4" /> Saúde da Conexão
             </h2>
-            <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
-              {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
-              Verificar agora
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant={health?.connection_state === "open" ? "outline" : "default"}
+                size="sm"
+                onClick={() => setQrOpen(true)}
+                disabled={!instanceId}
+              >
+                <QrCode className="mr-2 h-3 w-3" />
+                {health?.connection_state === "open" ? "Gerenciar conexão" : "Escanear QR Code"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
+                {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
+                Verificar agora
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -263,6 +285,12 @@ export default function SettingsPage() {
 
         <QuickRepliesCard />
       </div>
+      <WhatsAppQrDialog
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        instanceId={instanceId}
+        instanceName={form.evolution_instance}
+      />
     </div>
   );
 }
