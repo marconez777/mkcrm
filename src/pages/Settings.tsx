@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff, Plus, Trash2, Zap } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff, Plus, Trash2, Zap, QrCode } from "lucide-react";
 import { useHealth } from "@/hooks/useHealth";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
+import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "nunca";
