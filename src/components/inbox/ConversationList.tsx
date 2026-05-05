@@ -183,37 +183,87 @@ export default function ConversationList(props: {
         </div>
         {(stages.length > 0 || allTags.length > 0) && (
           <div className="flex flex-wrap items-center gap-1 pb-1">
-            <Filter className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <button
-              onClick={() => props.setStageFilter(null)}
-              className={cn(
-                "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                !props.stageFilter ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
-              )}
-            >Todas etapas</button>
-            {stages.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => props.setStageFilter(props.stageFilter === s.id ? null : s.id)}
-                className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                  props.stageFilter === s.id ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    (props.stageFilter || props.tagFilter)
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-foreground hover:bg-muted",
+                  )}
+                >
+                  <Filter className="h-3 w-3" />
+                  {props.stageFilter ? (
+                    <>
+                      <span
+                        className="inline-block h-1.5 w-1.5 rounded-full"
+                        style={{ background: stages.find((s) => s.id === props.stageFilter)?.color }}
+                      />
+                      {stages.find((s) => s.id === props.stageFilter)?.name ?? "Etapa"}
+                    </>
+                  ) : props.tagFilter ? (
+                    <>#{props.tagFilter}</>
+                  ) : (
+                    "Filtrar"
+                  )}
+                  {(props.stageFilter || props.tagFilter) && (
+                    <X
+                      className="h-3 w-3 hover:text-destructive"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        props.setStageFilter(null);
+                        props.setTagFilter(null);
+                      }}
+                    />
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
+                {stages.length > 0 && (
+                  <>
+                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Etapas
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => props.setStageFilter(null)}>
+                      <span className={cn("flex-1 text-xs", !props.stageFilter && "font-semibold text-primary")}>
+                        Todas etapas
+                      </span>
+                    </DropdownMenuItem>
+                    {stages.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={() => props.setStageFilter(props.stageFilter === s.id ? null : s.id)}
+                      >
+                        <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: s.color }} />
+                        <span className={cn("flex-1 text-xs", props.stageFilter === s.id && "font-semibold text-primary")}>
+                          {s.name}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
                 )}
-              >
-                <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: s.color }} />
-                {s.name}
-              </button>
-            ))}
-            {allTags.map((t) => (
-              <button
-                key={t}
-                onClick={() => props.setTagFilter(props.tagFilter === t ? null : t)}
-                className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                  props.tagFilter === t ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground hover:bg-muted",
+                {allTags.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Tags
+                    </DropdownMenuLabel>
+                    {allTags.map((t) => (
+                      <DropdownMenuItem
+                        key={t}
+                        onClick={() => props.setTagFilter(props.tagFilter === t ? null : t)}
+                      >
+                        <span className={cn("flex-1 text-xs", props.tagFilter === t && "font-semibold text-primary")}>
+                          #{t}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
                 )}
-              >#{t}</button>
-            ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </header>
