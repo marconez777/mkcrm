@@ -348,10 +348,6 @@ export async function ingestMessage(
       reply_to_external_id: replyToExternalId,
       status: newStatus,
     };
-    if (isHttpUrl) {
-      insertRow.media_url = directUrl;
-      insertRow.media_mime = extractedMime ?? null;
-    }
     const { data: inserted, error: insErr } = await supabase
       .from("messages")
       .insert(insertRow)
