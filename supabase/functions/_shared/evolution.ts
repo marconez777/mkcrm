@@ -248,7 +248,7 @@ export async function ingestMessage(
 
   const fromMe = !!item?.key?.fromMe;
   const externalId: string | null = item?.key?.id ?? null;
-  const { type, content, mime: extractedMime, directUrl } = extractText(item.message);
+  const { type, content } = extractText(item.message);
   const ctx = item?.message?.extendedTextMessage?.contextInfo
     ?? item?.message?.imageMessage?.contextInfo
     ?? item?.message?.videoMessage?.contextInfo
