@@ -285,6 +285,12 @@ export default function SettingsPage() {
 
         <QuickRepliesCard />
       </div>
+      <WhatsAppQrDialog
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        instanceId={instanceId}
+        instanceName={form.evolution_instance}
+      />
     </div>
   );
 }
