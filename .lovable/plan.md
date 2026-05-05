@@ -1,53 +1,39 @@
-## Quadro de Tarefas estilo Trello
+# Receber anexos das conversas
 
-Transformar `/tarefas` numa board Kanban dedicada (separada do `lead_tasks`, que continua atrelado a leads). As tarefas do quadro são independentes — não exigem lead.
+## Diagnóstico
+Hoje o webhook (`evolution-webhook`) só salva o tipo da mensagem (`image`, `audio`, etc.) e o caption. **Nunca baixa o arquivo binário**, então `messages.media_url` fica `null` e o `MediaBubble` no chat não exibe nada.
 
-### Estrutura visual
-- Layout horizontal com colunas roláveis (mesmo padrão visual do Pipeline atual, reaproveitando estilos).
-- Cada coluna: título editável inline, contador, menu (renomear/excluir), botão "+ Adicionar um cartão".
-- Cartão exibe: bolinha de status, título, badge de prazo (verde/vermelho se atrasado), avatares dos responsáveis, ícone de checklist (ex: 2/6) e ícone de descrição se houver.
-- Drag-and-drop entre colunas e reordenação dentro da coluna (dnd-kit, igual ao Pipeline).
-- Clique no cartão abre um Dialog grande com:
-  - Título editável
-  - Status concluído (check verde no topo)
-  - Descrição (textarea com auto-save)
-  - Data de entrega (date+time picker) com badge "Concluído" quando marcado
-  - Membros (multi-select dos `attendants`) com avatares
-  - Etiquetas coloridas (multi-select)
-  - Checklist (itens marcáveis, adicionar/remover)
-  - Botão excluir cartão
+Verifiquei no banco: as mensagens recentes do tipo `image` têm `media_url = null`, embora o payload Evolution traga `directPath`/`mediaKey` em `raw.message.imageMessage`.
 
-### Banco de dados (nova migração)
-Novas tabelas, isoladas das `lead_tasks` existentes:
+## Solução
+Após persistir uma mensagem nova de mídia, baixar o binário via endpoint da Evolution e subir para o bucket público `chat-attachments`, gravando `media_url` + `media_mime` na linha. Trabalho feito em segundo plano com `EdgeRuntime.waitUntil` para não atrasar a resposta do webhook.
 
-- `task_boards` — `id`, `name`, `position`, `created_at`. Criar 1 board "Geral" por padrão.
-- `task_columns` — `id`, `board_id`, `name`, `position`, `created_at`.
-- `tasks` — `id`, `board_id`, `column_id`, `title`, `description`, `due_at` (nullable), `done_at` (nullable), `position`, `created_at`, `updated_at`.
-- `task_assignees` — `task_id`, `attendant_id` (PK composta).
-- `task_labels` — `id`, `board_id`, `name`, `color`.
-- `task_label_links` — `task_id`, `label_id`.
-- `task_checklist_items` — `id`, `task_id`, `text`, `done`, `position`.
+## Mudanças
 
-RLS: `authenticated_all` (mesmo padrão das outras tabelas do projeto).
-Realtime habilitado nas tabelas principais (`tasks`, `task_columns`, `task_checklist_items`, `task_assignees`).
+### `supabase/functions/_shared/evolution.ts`
+- Em `extractText`, devolver também `mime` e `fileName` extraídos de `imageMessage`/`videoMessage`/`audioMessage`/`documentMessage`/`stickerMessage`.
+- Nova função `downloadAndStoreMedia(messageId, instance, item)`:
+  1. `POST {evolution_url}/chat/getBase64FromMediaMessage/{instance}` com `{ message: { key, message } }`.
+  2. Decodifica `base64`, infere extensão pelo `mimetype`.
+  3. `supabase.storage.from('chat-attachments').upload(\`${messageId}/${external_id}.${ext}\`, bytes, { contentType, upsert:true })`.
+  4. `update messages set media_url=publicUrl, media_mime=mime where id=messageId`.
+- Helper `shouldFetchMedia(type)` cobrindo image/video/audio/document/sticker.
 
-### Frontend
-- Novo `src/lib/tasks-board.ts` com CRUD das entidades acima.
-- Reescrever `src/pages/Tasks.tsx` como board:
-  - Hook que carrega colunas + tasks + assignees + checklists do board ativo.
-  - Subscrição realtime para refletir mudanças.
-  - Componentes: `TaskColumn`, `TaskCard`, `TaskDetailDialog`.
-- Reaproveitar componentes shadcn já existentes (`Dialog`, `Popover`, `Calendar`, `Checkbox`, `Avatar`, `DropdownMenu`).
-- Selector de board no topo (caso futuramente queira múltiplos quadros), começando com 1.
+### `supabase/functions/evolution-webhook/index.ts`
+- Após cada `ingestMessage` em `MESSAGES_UPSERT`, se `res.isNew` e o tipo for de mídia, disparar `EdgeRuntime.waitUntil(downloadAndStoreMedia(res.message_id, instance, item))`.
 
-### Detalhes técnicos
-- Cores das etiquetas: usar tokens semânticos do design system (HSL via `index.css`).
-- Drag-and-drop com `@dnd-kit/core` + `@dnd-kit/sortable` (já no projeto).
-- Reordenação grava `position` em batch (estratégia de gap igual ao Pipeline).
-- Avatares dos responsáveis usam cor do `attendants.color`.
-- Badge de prazo: verde se hoje/futuro, vermelho se vencido, cinza se concluído.
+### `supabase/functions/_shared/evolution.ts` — `ingestMessage`
+- Retornar também `message_id` (id na tabela `messages`) para permitir o passo acima.
+- Quando o item já tem `mediaUrl`/`url` direto no payload da Evolution (alguns webhooks entregam URL pública), usar essa URL como atalho — gravar imediatamente em `media_url`/`media_mime` no insert/update, evitando uma chamada à API.
 
-### Fora do escopo
-- Não mexer em `lead_tasks` (continua sendo o "follow-up por lead" no inbox).
-- Não há anexos (pode entrar em iteração futura).
-- Sem votos, sem capa, sem múltiplos boards na primeira entrega.
+### Bucket
+`chat-attachments` já existe e é público (`Composer.tsx` o usa para envio). Sem migração necessária.
+
+## Comportamento esperado
+- Mensagem chega → linha em `messages` salva → poucos segundos depois `media_url` aparece e o cliente já carregando via realtime exibe o preview.
+- Falhas no download não bloqueiam o webhook (logado, mensagem fica como texto-placeholder até reprocessar).
+- Idempotente: `upsert:true` no Storage; updates só sobrescrevem se a coluna estiver vazia (proteção opcional para não pisar em mídia já enviada por nós).
+
+## Fora de escopo
+- Backfill retroativo de mensagens antigas sem mídia (posso fazer em seguida se quiser).
+- Reenvio automático em falha (logs já permitem reprocessar manualmente via `evolution-backfill-all`).

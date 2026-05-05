@@ -1,5 +1,5 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
-import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken, downloadAndStoreMedia } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -37,6 +37,13 @@ Deno.serve(async (req) => {
           const res = await ingestMessage(it, "webhook", { instanceId: instance.id });
           if ("lead_id" in res) {
             leadIdForAudit = res.lead_id;
+            // Background: fetch media binary if needed
+            if ((res as any).isNew && (res as any).needs_media && (res as any).message_id) {
+              const mediaTask = downloadAndStoreMedia((res as any).message_id, instance, it);
+              // @ts-ignore
+              if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(mediaTask);
+              else mediaTask.catch((e) => console.error("media task failed", e));
+            }
             // Fire-and-forget auto-reply only for genuinely new inbound messages
             if ((res as any).isNew && !it?.key?.fromMe) {
               const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
