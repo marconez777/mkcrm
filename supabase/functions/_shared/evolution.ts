@@ -330,10 +330,6 @@ export async function ingestMessage(
         status: newStatus,
         reply_to_external_id: replyToExternalId,
       };
-      if (isHttpUrl && !existing.media_url) {
-        patch.media_url = directUrl;
-        patch.media_mime = extractedMime ?? null;
-      }
       const { error: updErr } = await supabase
         .from("messages")
         .update(patch)
