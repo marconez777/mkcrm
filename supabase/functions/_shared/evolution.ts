@@ -312,8 +312,8 @@ export async function ingestMessage(
     existing = data;
   }
 
-  // Direct URL shortcut: some Evolution payloads include a public URL we can store immediately
-  const isHttpUrl = typeof directUrl === "string" && /^https?:\/\//.test(directUrl);
+  // URLs em imageMessage.url etc são criptografadas pelo WhatsApp — sempre baixar via downloadAndStoreMedia.
+
 
   let isNewMessage = false;
   let messageId: string | null = existing?.id ?? null;
