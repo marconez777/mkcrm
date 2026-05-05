@@ -256,6 +256,64 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
             </div>
           </div>
 
+          {/* Attachments */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Paperclip className="h-3.5 w-3.5" /> Anexos {attachments.length > 0 && <span>({attachments.length})</span>}
+              </div>
+              <Button size="sm" variant="outline" className="h-7" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-1 h-3.5 w-3.5" />
+                {uploading ? "Enviando…" : "Adicionar"}
+              </Button>
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
+            </div>
+            <div
+              className="rounded-md border border-dashed p-2"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+            >
+              {attachments.length === 0 ? (
+                <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                  Arraste arquivos aqui ou clique em Adicionar
+                </div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {attachments.map((a) => {
+                    const url = attachmentPublicUrl(a.storage_path);
+                    const isImage = (a.mime_type ?? "").startsWith("image/");
+                    return (
+                      <li key={a.id} className="group flex items-center gap-2 rounded-md p-1.5 hover:bg-muted/60">
+                        {isImage ? (
+                          <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+                            <img src={url} alt={a.file_name} className="h-10 w-10 rounded object-cover" />
+                          </a>
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <a href={url} target="_blank" rel="noreferrer" className="block truncate text-sm hover:underline">{a.file_name}</a>
+                          <div className="text-[11px] text-muted-foreground">
+                            {format(new Date(a.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}
+                            {a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}
+                          </div>
+                        </div>
+                        <a href={url} target="_blank" rel="noreferrer" download={a.file_name}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7"><Download className="h-3.5 w-3.5" /></Button>
+                        </a>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleRemoveAttachment(a)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end border-t pt-4">
             <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={async () => { await deleteTask(task.id); onClose(); }}>
               <Trash2 className="mr-2 h-4 w-4" /> Excluir tarefa
