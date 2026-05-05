@@ -126,24 +126,101 @@ export function phoneFromContact(it: any): string | null {
   );
 }
 
-export function extractText(msg: any): { type: string; content: string | null } {
+export function extractText(msg: any): { type: string; content: string | null; mime?: string | null; fileName?: string | null; directUrl?: string | null } {
   if (!msg) return { type: "unknown", content: null };
   if (msg.conversation) return { type: "text", content: msg.conversation };
   if (msg.extendedTextMessage?.text)
     return { type: "text", content: msg.extendedTextMessage.text };
   if (msg.imageMessage)
-    return { type: "image", content: msg.imageMessage.caption || "[Imagem]" };
+    return { type: "image", content: msg.imageMessage.caption || "[Imagem]", mime: msg.imageMessage.mimetype ?? "image/jpeg", directUrl: msg.imageMessage.url ?? null };
   if (msg.videoMessage)
-    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]" };
-  if (msg.audioMessage) return { type: "audio", content: "[Áudio]" };
+    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]", mime: msg.videoMessage.mimetype ?? "video/mp4", directUrl: msg.videoMessage.url ?? null };
+  if (msg.audioMessage)
+    return { type: "audio", content: "[Áudio]", mime: msg.audioMessage.mimetype ?? "audio/ogg", directUrl: msg.audioMessage.url ?? null };
   if (msg.documentMessage)
     return {
       type: "document",
       content: msg.documentMessage.fileName || "[Documento]",
+      mime: msg.documentMessage.mimetype ?? "application/octet-stream",
+      fileName: msg.documentMessage.fileName ?? null,
+      directUrl: msg.documentMessage.url ?? null,
     };
-  if (msg.stickerMessage) return { type: "sticker", content: "[Figurinha]" };
+  if (msg.stickerMessage)
+    return { type: "sticker", content: "[Figurinha]", mime: msg.stickerMessage.mimetype ?? "image/webp", directUrl: msg.stickerMessage.url ?? null };
   return { type: "unknown", content: null };
 }
+
+const MEDIA_BUCKET = "chat-attachments";
+const MEDIA_TYPES = new Set(["image", "video", "audio", "document", "sticker"]);
+
+export function isMediaType(type: string): boolean {
+  return MEDIA_TYPES.has(type);
+}
+
+function extFromMime(mime: string, fallback = "bin"): string {
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+    "video/mp4": "mp4", "video/3gpp": "3gp", "video/quicktime": "mov",
+    "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/wav": "wav", "audio/webm": "webm",
+    "application/pdf": "pdf", "application/zip": "zip",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  };
+  if (map[mime]) return map[mime];
+  const m = mime.split("/")[1]?.split(";")[0];
+  return m || fallback;
+}
+
+/** Download a media message via Evolution and upload to Storage. Updates the row with media_url/media_mime. */
+export async function downloadAndStoreMedia(messageId: string, instance: Instance, item: any): Promise<void> {
+  const supabase = sb();
+  try {
+    const resp = await evoFetch(instance, `/chat/getBase64FromMediaMessage/${encodeURIComponent(instance.evolution_instance)}`, {
+      method: "POST",
+      body: JSON.stringify({ message: { key: item.key, message: item.message }, convertToMp4: false }),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      console.error("getBase64FromMediaMessage failed", resp.status, t.slice(0, 200));
+      return;
+    }
+    const data = await resp.json().catch(() => null);
+    const b64: string | undefined = data?.base64 ?? data?.media?.base64 ?? data?.data;
+    if (!b64) {
+      console.error("no base64 in evolution response");
+      return;
+    }
+    const mime: string = data?.mimetype ?? data?.mediaType ?? "application/octet-stream";
+    const fileName: string | undefined = data?.fileName;
+
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+    const ext = fileName?.includes(".") ? fileName.split(".").pop()! : extFromMime(mime);
+    const externalId = item?.key?.id ?? messageId;
+    const path = `${messageId}/${externalId}.${ext}`;
+
+    const up = await supabase.storage.from(MEDIA_BUCKET).upload(path, bytes, {
+      contentType: mime,
+      upsert: true,
+    });
+    if (up.error) {
+      console.error("storage upload error", up.error.message);
+      return;
+    }
+    const pub = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    await supabase
+      .from("messages")
+      .update({ media_url: pub.data.publicUrl, media_mime: mime })
+      .eq("id", messageId);
+  } catch (e) {
+    console.error("downloadAndStoreMedia error", e);
+  }
+}
+
 
 export const REQUIRED_EVENTS = [
   "MESSAGES_UPSERT",
