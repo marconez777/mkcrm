@@ -63,7 +63,7 @@ export function WhatsAppQrDialog({ open, onOpenChange, instanceId, instanceName 
       title: "Desconectar WhatsApp?",
       description: "A sessão atual será encerrada. Você precisará escanear o QR Code novamente.",
       confirmLabel: "Desconectar",
-      variant: "destructive",
+      destructive: true,
     });
     if (!ok) return;
     setActing("logout");
