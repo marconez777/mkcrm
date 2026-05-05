@@ -119,3 +119,56 @@ export async function deleteChecklistItem(id: string) {
 export async function updateChecklistItem(id: string, text: string) {
   await supabase.from("task_checklist_items").update({ text }).eq("id", id);
 }
+
+export type TaskAttachment = {
+  id: string;
+  task_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+};
+
+export const ATTACHMENTS_BUCKET = "task-attachments";
+
+export function attachmentPublicUrl(storagePath: string) {
+  return supabase.storage.from(ATTACHMENTS_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+}
+
+export async function listAttachments(taskId: string): Promise<TaskAttachment[]> {
+  const { data } = await supabase
+    .from("task_attachments")
+    .select("*")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as TaskAttachment[];
+}
+
+export async function uploadAttachment(taskId: string, file: File): Promise<TaskAttachment> {
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const path = `${taskId}/${Date.now()}_${safeName}`;
+  const up = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (up.error) throw up.error;
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .insert({
+      task_id: taskId,
+      storage_path: path,
+      file_name: file.name,
+      mime_type: file.type || null,
+      size_bytes: file.size,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as TaskAttachment;
+}
+
+export async function deleteAttachment(att: TaskAttachment) {
+  await supabase.storage.from(ATTACHMENTS_BUCKET).remove([att.storage_path]);
+  await supabase.from("task_attachments").delete().eq("id", att.id);
+}

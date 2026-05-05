@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarIcon, CheckCircle2, Circle, Trash2, Plus, X, Users, ListChecks, AlignLeft,
+  Paperclip, Upload, FileText, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Attendant } from "@/types/crm";
 import {
-  TaskCard, TaskChecklistItem, addChecklistItem, deleteChecklistItem, deleteTask,
+  TaskCard, TaskChecklistItem, TaskAttachment, addChecklistItem, deleteChecklistItem, deleteTask,
   setAssignees, toggleChecklistItem, updateChecklistItem, updateTask,
+  listAttachments, uploadAttachment, deleteAttachment, attachmentPublicUrl,
 } from "@/lib/tasks-board";
 
 type Props = {
@@ -35,6 +38,9 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
   const [time, setTime] = useState("12:00");
   const [done, setDone] = useState(false);
   const [newItem, setNewItem] = useState("");
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!task) return;
@@ -43,10 +49,38 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
     setDue(task.due_at ? new Date(task.due_at) : undefined);
     setTime(task.due_at ? format(new Date(task.due_at), "HH:mm") : "12:00");
     setDone(!!task.done_at);
+    listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
   }, [task?.id]);
 
   const attMap = useMemo(() => new Map(attendants.map((a) => [a.id, a])), [attendants]);
   if (!task) return null;
+
+  async function handleUpload(files: FileList | null) {
+    if (!files || !task) return;
+    setUploading(true);
+    try {
+      for (const f of Array.from(files)) {
+        if (f.size > 25 * 1024 * 1024) { toast.error(`${f.name} excede 25MB`); continue; }
+        const att = await uploadAttachment(task.id, f);
+        setAttachments((prev) => [att, ...prev]);
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+  async function handleRemoveAttachment(att: TaskAttachment) {
+    setAttachments((prev) => prev.filter((a) => a.id !== att.id));
+    try { await deleteAttachment(att); } catch (e: any) { toast.error(e?.message ?? "Erro ao remover"); }
+  }
+  function formatBytes(n: number | null) {
+    if (!n) return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   async function saveField(patch: Partial<TaskCard>) {
     await updateTask(task!.id, patch);
@@ -219,6 +253,64 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
                 className="h-8"
               />
               <Button size="sm" onClick={addItem} disabled={!newItem.trim()}>Adicionar</Button>
+            </div>
+          </div>
+
+          {/* Attachments */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Paperclip className="h-3.5 w-3.5" /> Anexos {attachments.length > 0 && <span>({attachments.length})</span>}
+              </div>
+              <Button size="sm" variant="outline" className="h-7" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-1 h-3.5 w-3.5" />
+                {uploading ? "Enviando…" : "Adicionar"}
+              </Button>
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
+            </div>
+            <div
+              className="rounded-md border border-dashed p-2"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+            >
+              {attachments.length === 0 ? (
+                <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                  Arraste arquivos aqui ou clique em Adicionar
+                </div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {attachments.map((a) => {
+                    const url = attachmentPublicUrl(a.storage_path);
+                    const isImage = (a.mime_type ?? "").startsWith("image/");
+                    return (
+                      <li key={a.id} className="group flex items-center gap-2 rounded-md p-1.5 hover:bg-muted/60">
+                        {isImage ? (
+                          <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+                            <img src={url} alt={a.file_name} className="h-10 w-10 rounded object-cover" />
+                          </a>
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <a href={url} target="_blank" rel="noreferrer" className="block truncate text-sm hover:underline">{a.file_name}</a>
+                          <div className="text-[11px] text-muted-foreground">
+                            {format(new Date(a.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}
+                            {a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}
+                          </div>
+                        </div>
+                        <a href={url} target="_blank" rel="noreferrer" download={a.file_name}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7"><Download className="h-3.5 w-3.5" /></Button>
+                        </a>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleRemoveAttachment(a)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
 
