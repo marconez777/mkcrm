@@ -154,6 +154,26 @@ export default function Agents() {
   const [batchUrls, setBatchUrls] = useState("");
   const [batchRunning, setBatchRunning] = useState(false);
   const [pdfRunning, setPdfRunning] = useState(false);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const runBulk = async () => {
+    if (!selected) return;
+    if (!(await confirm({
+      title: `Rodar "${selected.name}" em todos os leads?`,
+      description: "O agente será enfileirado para todas as conversas ativas (não arquivadas) que já receberam alguma mensagem. Pode levar alguns minutos para processar.",
+      confirmLabel: "Rodar agora",
+    }))) return;
+    setBulkRunning(true);
+    const { data, error } = await supabase.functions.invoke("agent-run-bulk", {
+      body: { agent_id: selected.id, only_with_inbound: true },
+    });
+    setBulkRunning(false);
+    if (error || (data as any)?.error) {
+      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      return;
+    }
+    toast.success(`Enfileirado em ${(data as any)?.enqueued} leads. Rodando em background.`);
+  };
 
   const ingestPdf = async (file: File) => {
     if (!selected) return;
