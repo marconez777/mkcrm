@@ -39,7 +39,8 @@ export default function SettingsPage() {
     webhook_token: "",
   });
   const [instanceId, setInstanceId] = useState<string | null>(null);
-
+  const [qrOpen, setQrOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const webhookUrl = form.webhook_token
     ? `https://${projectId}.supabase.co/functions/v1/evolution-webhook?token=${form.webhook_token}`
