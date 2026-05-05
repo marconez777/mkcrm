@@ -37,6 +37,13 @@ Deno.serve(async (req) => {
           const res = await ingestMessage(it, "webhook", { instanceId: instance.id });
           if ("lead_id" in res) {
             leadIdForAudit = res.lead_id;
+            // Background: fetch media binary if needed
+            if ((res as any).isNew && (res as any).needs_media && (res as any).message_id) {
+              const mediaTask = downloadAndStoreMedia((res as any).message_id, instance, it);
+              // @ts-ignore
+              if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(mediaTask);
+              else mediaTask.catch((e) => console.error("media task failed", e));
+            }
             // Fire-and-forget auto-reply only for genuinely new inbound messages
             if ((res as any).isNew && !it?.key?.fromMe) {
               const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
