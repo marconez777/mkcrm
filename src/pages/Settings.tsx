@@ -66,6 +66,15 @@ export default function SettingsPage() {
     })();
   }, []);
 
+  // Auto-open QR dialog when navigated with ?qr=1
+  useEffect(() => {
+    if (!loading && instanceId && searchParams.get("qr") === "1") {
+      setQrOpen(true);
+      searchParams.delete("qr");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [loading, instanceId, searchParams, setSearchParams]);
+
   useEffect(() => {
     const load = async () => {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
