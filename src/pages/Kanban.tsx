@@ -146,10 +146,10 @@ function Column({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuItem onClick={() => onEdit(stage)}>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onDelete(stage)} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
           <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
         </DropdownMenuItem>
       </DropdownMenuContent>
