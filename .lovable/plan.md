@@ -1,68 +1,65 @@
-# QR Code da Evolution direto no CRM
+## Objetivo
 
-Hoje, quando uma instância do WhatsApp cai (`connection_state = close`) ou é nova, o usuário precisa abrir o painel da Evolution para escanear o QR. Vamos trazer esse fluxo para dentro do `/settings`.
+Criar 3 agentes de IA pré-configurados no sistema, cada um com seu papel bem definido, sem que você precise montar prompts e tools manualmente:
 
-## Como a Evolution expõe o QR
+1. **Classificador / Movedor de Pipeline** — só lê a conversa e move o lead pelo funil
+2. **Vendedor** — qualifica, apresenta produto, fecha venda
+3. **Suporte** — atende dúvidas, resolve problemas, escalona quando preciso
 
-A Evolution API tem dois endpoints úteis (mesma autenticação `apikey` que já usamos):
+## O que será feito
 
-- `GET /instance/connect/{instance}` → retorna `{ base64, code, pairingCode }` com o QR atual (gera um novo se a sessão estiver desconectada).
-- `GET /instance/connectionState/{instance}` → retorna `open | connecting | close` (já usamos no `evolution-test`/`evolution-health`).
-- `POST /instance/logout/{instance}` → derruba a sessão (útil para "reconectar do zero").
-- `POST /instance/restart/{instance}` → reinicia a instância sem apagar a sessão.
+### 1. Migração SQL para criar os 3 agentes
 
-## O que vamos construir
+Inserir os 3 registros em `ai_agents` já configurados, usando o Lovable AI Gateway (sem precisar de API key sua):
 
-### 1. Edge functions novas
+- **provider**: `lovable`
+- **api_key**: `LOVABLE_API_KEY` (já existe nos secrets)
+- **model**: `google/gemini-2.5-flash` (rápido e barato para classificação/atendimento)
+- **temperature**: `0.2` para o Classificador, `0.6` para Vendedor, `0.4` para Suporte
+- **enabled**: `true`
 
-- **`evolution-qr`** (`POST { instance_id? }`): chama `/instance/connect/{instance}` na instância indicada (ou na default), devolve `{ state, base64, pairingCode }`. Se o estado já for `open`, devolve `{ state: "open" }` sem QR.
-- **`evolution-logout`** (`POST { instance_id }`): chama `/instance/logout/{instance}` para forçar novo pareamento.
-- **`evolution-restart`** (`POST { instance_id }`): chama `/instance/restart/{instance}` (útil quando trava em `connecting`).
+#### Agente 1: "Classificador de Pipeline"
+- **Tools habilitadas**: `move_lead_stage`, `add_lead_note`
+- **System prompt**: instrui a IA a ler as últimas mensagens, identificar a intenção do lead (curioso, interessado, qualificado, negociando, ganho, perdido, etc.) e chamar `move_lead_stage` com o nome exato do estágio. **Não responde mensagens** — só move e anota o motivo. O dispatcher ignora respostas vazias.
+- **debounce_seconds**: 15 (espera o lead terminar de digitar)
 
-Reaproveitam `loadInstance` + `evoFetch` de `supabase/functions/_shared/evolution.ts`.
+#### Agente 2: "Vendedor"
+- **Tools habilitadas**: `move_lead_stage`, `add_lead_note`, `set_lead_field`, `search_knowledge_base`, `schedule_message`, `create_task`, `transfer_to_human`, `remember_fact`
+- **System prompt**: SDR/closer consultivo, faz perguntas de qualificação (BANT leve), apresenta benefícios, contorna objeções, agenda follow-ups e transfere para humano se sentir resistência ou pedido explícito.
 
-### 2. Componente `WhatsAppQrDialog`
+#### Agente 3: "Suporte"
+- **Tools habilitadas**: `search_knowledge_base`, `add_lead_note`, `create_task`, `transfer_to_human`, `update_custom_field`, `get_lead_history`
+- **System prompt**: tom empático, busca a resposta na base de conhecimento antes de responder, cita fontes, abre tarefa de acompanhamento se for bug e transfere para humano em caso crítico.
 
-`src/components/settings/WhatsAppQrDialog.tsx` — modal (Dialog do shadcn) que:
+### 2. Documentação
 
-- Recebe `instanceId` + `instanceName`.
-- Ao abrir, chama `evolution-qr` e mostra:
-  - QR como `<img src={base64}>` (a Evolution já devolve `data:image/png;base64,...`).
-  - Código de pareamento por número (`pairingCode`) em texto, como alternativa.
-  - Estado atual com badge (Conectado / Conectando / Desconectado).
-- Faz **polling a cada 3s**:
-  - Se `state === "open"` → fecha modal, mostra toast "WhatsApp conectado" e dispara `evolution-health` para atualizar o cabeçalho.
-  - Se continuar `close/connecting` → atualiza o QR (eles expiram em ~20s).
-- Botões: **Atualizar QR**, **Reiniciar instância** (`evolution-restart`), **Desconectar** (`evolution-logout` com confirmação via `useDialogs`).
-- Para no `unmount` (limpa `setInterval`).
+Atualizar `docs/AI.md` com uma seção **"Agentes padrão"** explicando o papel de cada um, como ativar (por estágio em `stage_ai_defaults` ou por lead em `lead_ai_settings`) e exemplos de uso combinado:
 
-### 3. Integração no `/settings`
+```
+[Lead novo] → Classificador (move) → estágio "Qualificado" tem Vendedor como default
+[Lead pós-venda] → estágio "Cliente" tem Suporte como default
+```
 
-Em `src/pages/Settings.tsx`, na seção da instância:
+### 3. UI: aviso na página /agents
 
-- Trocar o badge atual de status por uma linha com **Conectar / Reconectar WhatsApp** que abre o `WhatsAppQrDialog`.
-- Mostrar o botão sempre, com label dinâmico:
-  - `state = open` → "WhatsApp conectado" + opção "Desconectar".
-  - `state = connecting` → "Conectando… ver QR".
-  - `state = close` ou nulo → "Escanear QR Code" (destacado).
-- Para projetos com múltiplas instâncias, expor o mesmo botão na lista de instâncias (futuro, mas o componente já aceita `instanceId`).
+Pequena melhoria opcional em `src/pages/Agents.tsx`: badge "Padrão" nos 3 agentes seedados, para você reconhecer que vieram do sistema e poder editar prompts depois.
 
-### 4. Indicador no AppShell
+## Detalhes técnicos
 
-No `src/components/AppShell.tsx`, quando `overall === "down"` por desconexão (`connection_state = close`), trocar o link `/settings` por um clique que **abre direto o QR** da instância default. Implementação simples: navegar para `/settings?qr=1` e o Settings auto-abre o modal.
+- O `ai-chat` já suporta tudo que esses agentes precisam — não há mudanças em edge functions.
+- Para o **Classificador não responder no WhatsApp**, o system prompt vai instruí-lo a retornar string vazia quando só usar tools. O `scheduled-dispatcher` atual envia o `aiData.content` — vou adicionar guard: se `content` estiver vazio ou for apenas espaço, **não envia mensagem** (apenas registra que processou).
+- Os 3 agentes ficam desativados por estágio até você atribuí-los — nada começa a rodar sozinho.
 
-## Fora de escopo
+## Arquivos a tocar
 
-- Salvar o QR no banco (não faz sentido — expira rápido; sempre buscar on-demand).
-- Suporte a múltiplas instâncias simultâneas no mesmo modal (uma por vez basta).
-- Webhook `QRCODE_UPDATED` da Evolution (poderia substituir polling, mas adiciona evento novo no webhook handler — fica como melhoria futura).
+- **Migração SQL**: insert dos 3 agentes em `ai_agents`
+- `supabase/functions/scheduled-dispatcher/index.ts` — pular envio quando `content` vazio
+- `docs/AI.md` — seção "Agentes padrão"
+- `src/pages/Agents.tsx` — badge visual (opcional)
 
-## Arquivos afetados
+## Perguntas antes de implementar
 
-- `supabase/functions/evolution-qr/index.ts` (novo)
-- `supabase/functions/evolution-logout/index.ts` (novo)
-- `supabase/functions/evolution-restart/index.ts` (novo)
-- `src/components/settings/WhatsAppQrDialog.tsx` (novo)
-- `src/pages/Settings.tsx` (botão + auto-open via query param)
-- `src/components/AppShell.tsx` (deep link quando desconectado)
-- `docs/EVOLUTION.md` (documentar novo fluxo)
+1. Os prompts devem ser em **português BR informal** (você/oi) ou **formal** (senhor/sra)?
+2. Quer que eu já **atribua o Classificador automaticamente ao primeiro estágio** de cada pipeline existente, ou prefere ativar manualmente depois?
+
+Se quiser, pode só responder "aprova, informal, atribuir automático" e eu vou.
