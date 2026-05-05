@@ -171,7 +171,8 @@ export default function SettingsCustomFields() {
                     className="w-full rounded-md border bg-background p-2 text-sm"
                     rows={5}
                     value={(editing.options ?? []).join("\n")}
-                    onChange={(e) => setEditing({ ...editing, options: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
+                    onChange={(e) => setEditing({ ...editing, options: e.target.value.split("\n") })}
+                    onBlur={(e) => setEditing({ ...editing, options: e.target.value.split("\n").map(s => s.trim()).filter(Boolean) })}
                     placeholder={"Google - Ads\nIndicação de Médico\nInstagram"}
                   />
                 </div>
