@@ -76,11 +76,14 @@ async function processPendingReplies(supabase: any) {
         body: JSON.stringify({ agent_id: item.agent_id, lead_id: item.lead_id, thread_id: thread?.id, persist: true, messages: conv }),
       });
       const aiData = await aiResp.json();
-      if (!aiResp.ok || !aiData.content) { failed++; continue; }
+      if (!aiResp.ok) { failed++; continue; }
+      const reply = (aiData.content ?? "").trim();
+      // Agentes "silenciosos" (ex.: classificador) só usam tools e não respondem texto
+      if (!reply) { replied++; continue; }
 
       const sendResp = await fetch(`${FUNCTIONS_URL}/evolution-send`, {
         method: "POST", headers: authHeaders,
-        body: JSON.stringify({ lead_id: item.lead_id, text: aiData.content, client_message_id: crypto.randomUUID() }),
+        body: JSON.stringify({ lead_id: item.lead_id, text: reply, client_message_id: crypto.randomUUID() }),
       });
       if (sendResp.ok) replied++; else failed++;
     } catch (e) {
