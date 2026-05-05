@@ -126,27 +126,28 @@ export function phoneFromContact(it: any): string | null {
   );
 }
 
-export function extractText(msg: any): { type: string; content: string | null; mime?: string | null; fileName?: string | null; directUrl?: string | null } {
+export function extractText(msg: any): { type: string; content: string | null; mime?: string | null; fileName?: string | null } {
   if (!msg) return { type: "unknown", content: null };
   if (msg.conversation) return { type: "text", content: msg.conversation };
   if (msg.extendedTextMessage?.text)
     return { type: "text", content: msg.extendedTextMessage.text };
+  // NOTE: campos `url` em imageMessage/videoMessage/etc são URLs CRIPTOGRAFADAS do WhatsApp
+  // (mmg.whatsapp.net) e não podem ser baixadas diretamente — sempre passar por downloadAndStoreMedia.
   if (msg.imageMessage)
-    return { type: "image", content: msg.imageMessage.caption || "[Imagem]", mime: msg.imageMessage.mimetype ?? "image/jpeg", directUrl: msg.imageMessage.url ?? null };
+    return { type: "image", content: msg.imageMessage.caption || "[Imagem]", mime: msg.imageMessage.mimetype ?? "image/jpeg" };
   if (msg.videoMessage)
-    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]", mime: msg.videoMessage.mimetype ?? "video/mp4", directUrl: msg.videoMessage.url ?? null };
+    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]", mime: msg.videoMessage.mimetype ?? "video/mp4" };
   if (msg.audioMessage)
-    return { type: "audio", content: "[Áudio]", mime: msg.audioMessage.mimetype ?? "audio/ogg", directUrl: msg.audioMessage.url ?? null };
+    return { type: "audio", content: "[Áudio]", mime: msg.audioMessage.mimetype ?? "audio/ogg" };
   if (msg.documentMessage)
     return {
       type: "document",
       content: msg.documentMessage.fileName || "[Documento]",
       mime: msg.documentMessage.mimetype ?? "application/octet-stream",
       fileName: msg.documentMessage.fileName ?? null,
-      directUrl: msg.documentMessage.url ?? null,
     };
   if (msg.stickerMessage)
-    return { type: "sticker", content: "[Figurinha]", mime: msg.stickerMessage.mimetype ?? "image/webp", directUrl: msg.stickerMessage.url ?? null };
+    return { type: "sticker", content: "[Figurinha]", mime: msg.stickerMessage.mimetype ?? "image/webp" };
   return { type: "unknown", content: null };
 }
 
