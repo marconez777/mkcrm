@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   CalendarIcon, CheckCircle2, Circle, Trash2, Plus, X, Users, ListChecks, AlignLeft,
+  Paperclip, Upload, FileText, Image as ImageIcon, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Attendant } from "@/types/crm";
 import {
-  TaskCard, TaskChecklistItem, addChecklistItem, deleteChecklistItem, deleteTask,
+  TaskCard, TaskChecklistItem, TaskAttachment, addChecklistItem, deleteChecklistItem, deleteTask,
   setAssignees, toggleChecklistItem, updateChecklistItem, updateTask,
+  listAttachments, uploadAttachment, deleteAttachment, attachmentPublicUrl,
 } from "@/lib/tasks-board";
 
 type Props = {
