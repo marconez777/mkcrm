@@ -407,7 +407,14 @@ export default function KanbanPage() {
                       <Column
                         key={s.id}
                         stage={s}
-                        leads={leads.filter((l) => l.stage_id === s.id)}
+                        leads={leads.filter((l) => l.stage_id === s.id).slice().sort((a, b) => {
+                          const ap = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+                          const bp = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+                          if (ap !== bp) return bp - ap;
+                          const al = a.last_message_at ? new Date(a.last_message_at).getTime() : new Date(a.created_at).getTime();
+                          const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : new Date(b.created_at).getTime();
+                          return bl - al;
+                        })}
                         onOpenLead={setOpenLead}
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
