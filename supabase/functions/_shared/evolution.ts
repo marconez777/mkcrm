@@ -304,14 +304,18 @@ export async function ingestMessage(
   if (externalId) {
     const { data } = await supabase
       .from("messages")
-      .select("id, content, status, reply_to_external_id, message_type")
+      .select("id, content, status, reply_to_external_id, message_type, media_url")
       .eq("lead_id", lead!.id)
       .eq("external_id", externalId)
       .maybeSingle();
     existing = data;
   }
 
+  // Direct URL shortcut: some Evolution payloads include a public URL we can store immediately
+  const isHttpUrl = typeof directUrl === "string" && /^https?:\/\//.test(directUrl);
+
   let isNewMessage = false;
+  let messageId: string | null = existing?.id ?? null;
   if (existing) {
     const changed =
       existing.content !== content ||
@@ -319,19 +323,24 @@ export async function ingestMessage(
       existing.reply_to_external_id !== replyToExternalId ||
       existing.message_type !== type;
     if (changed) {
+      const patch: Record<string, unknown> = {
+        content,
+        message_type: type,
+        status: newStatus,
+        reply_to_external_id: replyToExternalId,
+      };
+      if (isHttpUrl && !existing.media_url) {
+        patch.media_url = directUrl;
+        patch.media_mime = extractedMime ?? null;
+      }
       const { error: updErr } = await supabase
         .from("messages")
-        .update({
-          content,
-          message_type: type,
-          status: newStatus,
-          reply_to_external_id: replyToExternalId,
-        })
+        .update(patch)
         .eq("id", existing.id);
       if (updErr) throw updErr;
     }
   } else {
-    const { error: insErr } = await supabase.from("messages").insert({
+    const insertRow: Record<string, unknown> = {
       lead_id: lead!.id,
       external_id: externalId,
       from_me: fromMe,
@@ -341,11 +350,21 @@ export async function ingestMessage(
       raw: item,
       reply_to_external_id: replyToExternalId,
       status: newStatus,
-    });
+    };
+    if (isHttpUrl) {
+      insertRow.media_url = directUrl;
+      insertRow.media_mime = extractedMime ?? null;
+    }
+    const { data: inserted, error: insErr } = await supabase
+      .from("messages")
+      .insert(insertRow)
+      .select("id")
+      .maybeSingle();
     if (insErr) {
       if (!String(insErr.message ?? "").toLowerCase().includes("duplicate")) throw insErr;
     } else {
       isNewMessage = true;
+      messageId = inserted?.id ?? null;
     }
   }
 
@@ -367,5 +386,5 @@ export async function ingestMessage(
     }
   }
 
-  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage };
+  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage, message_id: messageId, type, needs_media: isMediaType(type) && !isHttpUrl };
 }
