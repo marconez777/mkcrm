@@ -73,13 +73,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="mx-3 mb-2 flex items-center gap-1">
           <NavLink
-            to="/settings"
+            to={overall === "down" ? "/settings?qr=1" : "/settings"}
             className="flex flex-1 items-center gap-2 rounded-md border border-sidebar-border/40 px-3 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent/40"
-            title={health?.webhook_last_error ?? label}
+            title={overall === "down" ? "Clique para escanear o QR Code" : (health?.webhook_last_error ?? label)}
           >
             <span className={cn("h-2 w-2 rounded-full", dotColor)} />
             <Activity className="h-3 w-3" />
-            <span className="flex-1 truncate">{label}</span>
+            <span className="flex-1 truncate">{overall === "down" ? "Conectar WhatsApp" : label}</span>
           </NavLink>
           <button
             onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
