@@ -20,7 +20,10 @@ const items = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
+  const navItems = isSuperAdmin
+    ? [...items, { to: "/admin", label: "Super Admin", icon: Shield }]
+    : items;
 
   const dotColor =
     overall === "ok"
