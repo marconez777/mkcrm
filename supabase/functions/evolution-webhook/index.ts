@@ -55,8 +55,11 @@ Deno.serve(async (req) => {
           if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(mediaTask);
           else mediaTask.catch((e) => console.error("media task failed", e));
         }
-        // Fire-and-forget auto-reply only for genuinely new inbound messages
-        if (res.isNew && !it?.key?.fromMe) {
+        // Fire-and-forget auto-reply for new messages.
+        // Inbound: normal reply path. Outbound (from_me): only the silent classifier
+        // agent will run (ai-auto-reply gates this) so the funnel can be re-evaluated
+        // when the human answers.
+        if (res.isNew) {
           const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
             method: "POST",
             headers: {
@@ -64,7 +67,7 @@ Deno.serve(async (req) => {
               Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
               apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
             },
-            body: JSON.stringify({ lead_id: res.lead_id }),
+            body: JSON.stringify({ lead_id: res.lead_id, from_me: !!it?.key?.fromMe }),
           }).catch((e) => console.error("auto-reply trigger failed", e));
           // @ts-ignore EdgeRuntime is available in Deno deploy
           if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
