@@ -29,7 +29,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, Upload } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, Upload, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -39,6 +39,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
+import MoveLeadDialog from "@/components/kanban/MoveLeadDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
@@ -71,8 +72,8 @@ function saveUi(ui: { collapsed: string[]; compact: boolean }) {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; compact?: boolean }>(function LeadCard(
-  { lead, onOpen, compact },
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
+  { lead, onOpen, onMove, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
@@ -86,8 +87,27 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       {...listeners}
       onClick={() => onOpen(lead)}
       data-kanban-card
-      className={`group cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
+      className={`group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
     >
+      <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="rounded p-1 text-muted-foreground hover:bg-accent"
+              title="Mais ações"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
+              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <div className="flex items-start gap-2">
         <div className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary ${compact ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"}`}>
           {initials}
@@ -120,9 +140,9 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
 });
 
 function Column({
-  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
+  stage, leads, onOpenLead, onMoveLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
 }: {
-  stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void;
+  stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
   onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
 }) {
@@ -214,7 +234,7 @@ function Column({
         className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
       >
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} compact={compact} />)}
+          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} compact={compact} />)}
         </SortableContext>
         {leads.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
@@ -230,6 +250,7 @@ export default function KanbanPage() {
   const { pipelines, current, currentId, setCurrentId } = usePipelines();
   const [active, setActive] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
+  const [movingLead, setMovingLead] = useState<Lead | null>(null);
   const [newColOpen, setNewColOpen] = useState(false);
   const [newColName, setNewColName] = useState("");
   const [newLeadOpen, setNewLeadOpen] = useState(false);
@@ -428,6 +449,7 @@ export default function KanbanPage() {
                           return bl - al;
                         })}
                         onOpenLead={setOpenLead}
+                        onMoveLead={setMovingLead}
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
@@ -440,7 +462,7 @@ export default function KanbanPage() {
                     )}
                   </div>
                   <DragOverlay>
-                    {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} compact={ui.compact} /></div>}
+                    {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} onMove={() => {}} compact={ui.compact} /></div>}
                   </DragOverlay>
                 </DndContext>
               </div>
@@ -454,6 +476,13 @@ export default function KanbanPage() {
       </div>
 
       <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
+      <MoveLeadDialog
+        open={!!movingLead}
+        onOpenChange={(v) => !v && setMovingLead(null)}
+        lead={movingLead}
+        pipelines={pipelines}
+        stages={allStages}
+      />
 
       <Dialog open={newColOpen} onOpenChange={setNewColOpen}>
         <DialogContent>
