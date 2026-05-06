@@ -461,7 +461,7 @@ export default function KanbanPage() {
                     )}
                   </div>
                   <DragOverlay>
-                    {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} compact={ui.compact} /></div>}
+                    {active && <div className="rotate-2"><LeadCard lead={active} onOpen={() => {}} onMove={() => {}} compact={ui.compact} /></div>}
                   </DragOverlay>
                 </DndContext>
               </div>
