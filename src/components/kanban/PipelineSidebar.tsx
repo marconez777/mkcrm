@@ -17,8 +17,9 @@ interface Props {
   whatsappInstances?: { id: string; name: string }[];
 }
 
-export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads }: Props) {
+export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads, whatsappInstances = [] }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [editing, setEditing] = useState<Pipeline | null>(null);
   const confirm = useConfirm();
   const prompt = usePrompt();
 
