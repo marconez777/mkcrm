@@ -33,9 +33,7 @@ Deno.serve(async (req) => {
       admin.from("user_roles").select("role").eq("user_id", userId),
     ]);
     const isSuper = roles?.some((r: any) => r.role === "super_admin");
-    if (!isSuper && (!member || !["owner", "admin"].includes(member.role))) {
-      return json({ error: "Forbidden" }, 403);
-    }
+    if (!isSuper && !member) return json({ error: "Forbidden" }, 403);
 
     const { instance_id } = await req.json().catch(() => ({}));
     if (!instance_id) return json({ error: "instance_id required" }, 400);
