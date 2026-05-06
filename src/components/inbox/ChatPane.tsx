@@ -677,6 +677,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         scrollToMsgRef={scrollToMsgRef}
         leadId={lead.id}
         onForward={(text: string) => setForwardText(text)}
+        onDelete={deleteMessage}
       />
 
       {replyTo && (
