@@ -407,7 +407,7 @@ export default function KanbanPage() {
                 </button>
               )}
               <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
-                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd} autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}>
+                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd} autoScroll={{ threshold: { x: 0.1, y: 0.15 }, acceleration: 15 }}>
                   <div className="flex h-full gap-3">
                     {stages.map((s) => (
                       <Column
