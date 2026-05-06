@@ -2,7 +2,7 @@
 // Modes:
 //   - default (incremental): pulls latest page, stops at known timestamp
 //   - full=true: paginates through ALL messages on Evolution, idempotent via external_id
-import { corsHeaders, json, sb, loadInstance, evoFetch, ingestMessage } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, loadInstance, evoFetch, ingestMessage, downloadAndStoreMedia } from "../_shared/evolution.ts";
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 200; // hard safety cap → 10k msgs/run
