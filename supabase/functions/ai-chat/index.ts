@@ -129,9 +129,21 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
   try {
     if (name === "move_lead_stage") {
       if (!leadId) return { error: "no lead context" };
-      const { data: stage } = await supabase.from("pipeline_stages").select("id, name").ilike("name", args.stage_name).maybeSingle();
-      if (!stage) return { error: `stage not found: ${args.stage_name}` };
-      await supabase.from("leads").update({ stage_id: stage.id }).eq("id", leadId);
+      const { data: leadRow } = await supabase.from("leads").select("pipeline_id, stage_id").eq("id", leadId).single();
+      let q = supabase.from("pipeline_stages").select("id, name, pipeline_id").ilike("name", args.stage_name);
+      if (leadRow?.pipeline_id) q = q.eq("pipeline_id", leadRow.pipeline_id);
+      const { data: stages } = await q.limit(2);
+      const stage = stages?.[0];
+      if (!stage) {
+        const { data: avail } = await supabase.from("pipeline_stages").select("name").eq("pipeline_id", leadRow?.pipeline_id ?? "00000000-0000-0000-0000-000000000000");
+        return { error: `stage not found: ${args.stage_name}`, available_stages: (avail ?? []).map((s: any) => s.name) };
+      }
+      if (leadRow?.stage_id === stage.id) return { ok: true, stage: stage.name, unchanged: true };
+      await supabase.from("leads").update({ stage_id: stage.id, stage_changed_at: new Date().toISOString() }).eq("id", leadId);
+      await supabase.from("lead_events").insert({
+        lead_id: leadId, type: "stage_changed_by_ai",
+        payload: { from: leadRow?.stage_id, to: stage.id, agent_id: agent.id, agent_name: agent.name },
+      });
       return { ok: true, stage: stage.name };
     }
     if (name === "add_lead_note") {
@@ -243,12 +255,21 @@ Deno.serve(async (req) => {
     let leadCtx = "";
     if (lead_id) {
       const { data: lead } = await supabase.from("leads")
-        .select("name, phone, email, company, deal_value, notes, tags, stage_id").eq("id", lead_id).single();
+        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id").eq("id", lead_id).single();
       if (lead) {
         const { data: stage } = lead.stage_id
           ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
           : { data: null };
-        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}`;
+        let stagesList = "";
+        if (lead.pipeline_id) {
+          const { data: allStages } = await supabase.from("pipeline_stages")
+            .select("name, position").eq("pipeline_id", lead.pipeline_id).order("position");
+          if (allStages?.length) {
+            stagesList = `\n\n## Estágios disponíveis no funil (use exatamente um destes nomes em move_lead_stage)\n` +
+              allStages.map((s: any) => `- ${s.name}`).join("\n");
+          }
+        }
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}${stagesList}`;
       }
     }
 
