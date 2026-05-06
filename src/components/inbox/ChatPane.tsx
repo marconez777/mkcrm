@@ -772,6 +772,16 @@ function VirtualizedMessages(props: {
   // Re-measure after layout when grouped changes (status/text updates)
   useLayoutEffect(() => { virtualizer.measure(); }, [grouped.length]);
 
+  // Re-measure when media (images/videos) finish loading — they grow after first paint
+  // and the ResizeObserver can miss the jump, causing bubbles to overlap.
+  useEffect(() => {
+    const onMedia = () => {
+      requestAnimationFrame(() => virtualizer.measure());
+    };
+    window.addEventListener("msg-media-loaded", onMedia);
+    return () => window.removeEventListener("msg-media-loaded", onMedia);
+  }, [virtualizer]);
+
   // Expose imperative scroll-to-message to parent
   useEffect(() => {
     scrollToMsgRef.current = (id: string) => {
