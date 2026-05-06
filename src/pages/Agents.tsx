@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useAuth } from "@/hooks/useAuth";
 
 type Provider = "openai" | "anthropic" | "google";
 type Agent = {
@@ -142,6 +143,8 @@ export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
   const confirm = useConfirm();
+  const { membership, isSuperAdmin } = useAuth();
+  const canManage = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin";
   const [docs, setDocs] = useState<any[]>([]);
   const [docTitle, setDocTitle] = useState("");
   const [docContent, setDocContent] = useState("");
@@ -361,7 +364,7 @@ export default function Agents() {
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         <div className="flex items-center justify-between p-4">
           <h2 className="text-sm font-semibold">Agentes</h2>
-          <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
+          {canManage && <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>}
         </div>
         <div className="px-2">
           {agents.map((a) => (
@@ -400,14 +403,18 @@ export default function Agents() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={runBulk} disabled={bulkRunning} title="Rodar este agente em todos os leads ativos">
-                  {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  Rodar em todos
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Button size="sm" onClick={save}>Salvar</Button>
+                {canManage && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={runBulk} disabled={bulkRunning} title="Rodar este agente em todos os leads ativos">
+                      {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                      Rodar em todos
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" onClick={save}>Salvar</Button>
+                  </>
+                )}
               </div>
             </div>
 
