@@ -246,6 +246,26 @@ export async function ingestMessage(
   const phone = phoneFromKey(item?.key);
   if (!phone) return { skipped: true, reason: "no-phone" };
 
+  // Resolve clinic_id from instance (service role bypasses RLS, so default current_clinic_id() = NULL).
+  let clinicId: string | null = null;
+  if (instanceId) {
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("clinic_id")
+      .eq("id", instanceId)
+      .maybeSingle();
+    clinicId = (inst as any)?.clinic_id ?? null;
+  }
+  if (!clinicId) {
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("clinic_id")
+      .eq("is_default", true)
+      .maybeSingle();
+    clinicId = (inst as any)?.clinic_id ?? null;
+  }
+  if (!clinicId) return { skipped: true, reason: "no-clinic" };
+
   const fromMe = !!item?.key?.fromMe;
   const externalId: string | null = item?.key?.id ?? null;
   const { type, content } = extractText(item.message);
