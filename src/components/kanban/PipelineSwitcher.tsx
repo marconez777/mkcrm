@@ -16,8 +16,9 @@ interface Props {
   whatsappInstances?: { id: string; name: string }[];
 }
 
-export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew }: Props) {
+export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew, whatsappInstances = [] }: Props) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Pipeline | null>(null);
   const confirm = useConfirm();
   const prompt = usePrompt();
 
