@@ -187,11 +187,11 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         (data ?? []).forEach((l: any) => existingLeadsMap.set(l.phone, l.id));
       }
 
-      // 7. Insert/update leads
+      // 7. Insert leads (leads que já existem em outro funil são IGNORADOS — não movemos)
       setProgress("Importando leads…");
       const toInsert: any[] = [];
-      const toUpdate: { id: string; patch: any }[] = [];
       let skipped = 0;
+      let alreadyExists = 0;
       const stagePositions = new Map<string, number>();
 
       for (const { row, phone } of rowsPrepped) {
@@ -199,6 +199,9 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         const stageName = row["Etapa do lead"] ? String(row["Etapa do lead"]) : null;
         const stageId = stageName ? stageMap.get(stageName) ?? null : null;
         if (!stageId) { skipped++; continue; }
+
+        // Se o lead já existe em qualquer funil, NÃO move e NÃO atualiza
+        if (existingLeadsMap.has(phone)) { alreadyExists++; continue; }
 
         const custom: Record<string, any> = {};
         for (const cf of fieldsToCreate) {
@@ -226,21 +229,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         const pos = (stagePositions.get(stageId) ?? -1) + 1;
         stagePositions.set(stageId, pos);
 
-        const existing = existingLeadsMap.get(phone);
-        if (existing) {
-          toUpdate.push({
-            id: existing,
-            patch: {
-              stage_id: stageId, pipeline_id: pipeline.id, position: pos,
-              custom_fields: custom,
-              ...(name ? { name } : {}),
-              ...(email ? { email } : {}),
-              ...(attendantId ? { attendant_id: attendantId } : {}),
-              ...(dealValue != null ? { deal_value: dealValue } : {}),
-              ...(tags.length ? { tags } : {}),
-            },
-          });
-        } else {
+        {
           toInsert.push({
             phone, name, email, stage_id: stageId, pipeline_id: pipeline.id,
             attendant_id: attendantId, deal_value: dealValue,
