@@ -83,6 +83,9 @@ export default function PipelineSwitcher({ pipelines, current, leads, onSelect, 
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={() => setEditing(p)}>
+                    <Settings className="mr-2 h-3.5 w-3.5" />Editar funil
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => rename(p)}>
                     <Pencil className="mr-2 h-3.5 w-3.5" />Renomear
                   </DropdownMenuItem>
