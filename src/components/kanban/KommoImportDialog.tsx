@@ -114,6 +114,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         })
         .select("id").single();
       if (pErr || !pipeline) throw new Error(pErr?.message ?? "Erro ao criar funil");
+      createdPipelineId = pipeline.id;
 
       // 3. Cria etapas (preserva ordem de aparição)
       setProgress("Criando etapas…");
