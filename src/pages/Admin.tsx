@@ -27,6 +27,8 @@ export default function Admin() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "professional" | "viewer">("owner");
+  const [generatedLink, setGeneratedLink] = useState<{ url: string; expires_at: string } | null>(null);
 
   useEffect(() => { document.title = "Admin — MKart CRM"; }, []);
 
