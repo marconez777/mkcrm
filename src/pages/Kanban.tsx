@@ -375,6 +375,9 @@ export default function KanbanPage() {
                 Expandir todas ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => setKommoImportOpen(true)}>
+              <Upload className="mr-1 h-4 w-4" />Importar Kommo
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
               <Plus className="mr-1 h-4 w-4" />Nova coluna
             </Button>
