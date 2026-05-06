@@ -60,10 +60,9 @@ async function processPendingReplies(supabase: any) {
       const ordered = (msgs ?? []).reverse();
       const conv = ordered.filter((m: any) => m.content)
         .map((m: any) => ({ role: m.from_me ? "assistant" : "user", content: m.content }));
-      if (conv.length === 0 || conv[conv.length - 1].role !== "user") { skipped++; continue; }
+      if (conv.length === 0) { skipped++; continue; }
 
       // Load agent to know if it's "silent" (classifier-style: tools-only, no text reply).
-      // Non-silent agents must NOT step on a human atendente that just answered.
       const { data: agentRow } = await supabase
         .from("ai_agents").select("tools").eq("id", item.agent_id).maybeSingle();
       const SILENT_TOOLS = new Set([
@@ -73,7 +72,10 @@ async function processPendingReplies(supabase: any) {
       const tools: string[] = (agentRow?.tools as string[]) ?? [];
       const silent = tools.length > 0 && tools.every((t) => SILENT_TOOLS.has(t));
 
+      // Non-silent agents only respond to a user as the most recent turn,
+      // and must not step on a human atendente that just answered.
       if (!silent) {
+        if (conv[conv.length - 1].role !== "user") { skipped++; continue; }
         const lastFromMe = ordered.filter((m: any) => m.from_me).slice(-1)[0];
         if (lastFromMe?.timestamp) {
           const ageMs = Date.now() - new Date(lastFromMe.timestamp).getTime();
