@@ -74,8 +74,14 @@ Deno.serve(async (req) => {
               let pageImported = 0;
               for (const it of items) {
                 try {
-                  const r = await ingestMessage(it, "sync", { silent: true, instanceId: instance.id });
-                  if ((r as any)?.isNew) { imported++; pageImported++; }
+                  const r: any = await ingestMessage(it, "sync", { silent: true, instanceId: instance.id });
+                  if (r?.isNew) { imported++; pageImported++; }
+                  if (r?.needs_media && r?.message_id) {
+                    const t = downloadAndStoreMedia(r.message_id, instance, it);
+                    // @ts-ignore
+                    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(t);
+                    else t.catch((e) => console.error("media task failed", e));
+                  }
                 } catch (e) { console.error("backfill ingest", e); }
               }
 
