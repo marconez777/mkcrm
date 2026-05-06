@@ -142,8 +142,14 @@ Deno.serve(async (req) => {
           const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
           if (itTs && itTs <= lastTs) continue;
         }
-        const r = await ingestMessage(it, "sync", { silent, instanceId: instance.id });
-        if ((r as any)?.isNew) imported++;
+        const r: any = await ingestMessage(it, "sync", { silent, instanceId: instance.id });
+        if (r?.isNew) imported++;
+        if (r?.needs_media && r?.message_id) {
+          const t = downloadAndStoreMedia(r.message_id, instance, it);
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(t);
+          else t.catch((e) => console.error("media task failed", e));
+        }
       } catch (e) { console.error("sync ingest", e); }
     }
 
