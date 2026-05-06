@@ -56,8 +56,7 @@ Deno.serve(async (req) => {
 
     const { data: clinic } = await admin.from("clinics").select("name").eq("id", clinic_id).single();
 
-    const origin = req.headers.get("origin") ?? req.headers.get("referer")?.replace(/\/$/, "") ?? "https://crm.mkart.com.br";
-    const inviteUrl = `${origin.replace(/\/$/, "")}/invite/${invite!.token}`;
+    const inviteUrl = `https://crm.mkart.com.br/invite/${invite!.token}`;
 
     return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
