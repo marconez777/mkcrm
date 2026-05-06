@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
 import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
 import { useWaAvatar } from "@/hooks/useWaAvatar";
+import { useConfirm } from "@/hooks/useDialogs";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
@@ -318,6 +319,29 @@ export default function ChatPane({ lead }: { lead: Lead }) {
       body: { lead_id: lead.id, text: m.content ?? "", client_message_id: m.client_message_id ?? crypto.randomUUID() },
     });
     if (error) toast.error("Falha: " + error.message);
+  }
+  const confirm = useConfirm();
+  async function deleteMessage(m: Message) {
+    const canForEveryone = m.from_me && !!m.external_id;
+    const ok = await confirm({
+      title: "Excluir mensagem?",
+      description: canForEveryone
+        ? "A mensagem será apagada para todos no WhatsApp e removida daqui."
+        : "A mensagem será removida apenas deste CRM (não é possível apagá-la no WhatsApp).",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+    const { data, error } = await supabase.functions.invoke("evolution-delete-message", {
+      body: { message_id: m.id, for_everyone: canForEveryone },
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Falha ao excluir: " + (error?.message || (data as any)?.error));
+    } else if ((data as any)?.evolution === "error") {
+      toast.warning("Removida daqui, mas falhou no WhatsApp: " + ((data as any)?.detail ?? ""));
+    } else {
+      toast.success("Mensagem excluída");
+    }
   }
   async function syncHistory() {
     setSyncing(true);
@@ -653,6 +677,7 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         scrollToMsgRef={scrollToMsgRef}
         leadId={lead.id}
         onForward={(text: string) => setForwardText(text)}
+        onDelete={deleteMessage}
       />
 
       {replyTo && (
@@ -725,12 +750,13 @@ function VirtualizedMessages(props: {
   scrollToMsgRef: React.MutableRefObject<((id: string) => void) | null>;
   leadId: string;
   onForward: (text: string) => void;
+  onDelete: (m: Message) => void;
 }) {
   const {
     scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
     messages, searchTerm, matches, activeMatch, pulseId,
     setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom, scrollToMsgRef,
-    leadId, onForward,
+    leadId, onForward, onDelete,
   } = props;
 
   const virtualizer = useVirtualizer({
@@ -817,6 +843,7 @@ function VirtualizedMessages(props: {
                   pulseAndScroll={pulseAndScroll}
                   resend={resend}
                   onForward={props.onForward}
+                  onDelete={onDelete}
                 />
               )}
             </div>
@@ -867,8 +894,9 @@ function MessageRow(props: {
   pulseAndScroll: (id: string) => void;
   resend: (m: Message) => void;
   onForward: (text: string) => void;
+  onDelete: (m: Message) => void;
 }) {
-  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward } = props;
+  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward, onDelete } = props;
   const failed = m.status === "failed";
   const pending = m.status === "pending";
   const replied = m.reply_to_external_id
@@ -887,6 +915,9 @@ function MessageRow(props: {
           className="rounded p-1 text-muted-foreground hover:bg-muted"
           title="Encaminhar"><Forward className="h-3 w-3" /></button>
       )}
+      <button onClick={() => onDelete(m)}
+        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+        title="Excluir"><Trash2 className="h-3 w-3" /></button>
     </div>
   );
   return (

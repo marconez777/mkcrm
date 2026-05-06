@@ -71,6 +71,23 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     if (error) toast.error("Falha: " + error.message); else toast.success("Reenviando...");
   }
 
+  async function deleteMessage(m: Message) {
+    const canForEveryone = m.from_me && !!m.external_id;
+    if (!(await confirm({
+      title: "Excluir mensagem?",
+      description: canForEveryone
+        ? "Será apagada para todos no WhatsApp e removida daqui."
+        : "Será removida apenas deste CRM.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    }))) return;
+    const { data, error } = await supabase.functions.invoke("evolution-delete-message", {
+      body: { message_id: m.id, for_everyone: canForEveryone },
+    });
+    if (error || (data as any)?.error) toast.error("Falha: " + (error?.message || (data as any)?.error));
+    else toast.success("Mensagem excluída");
+  }
+
   async function syncHistory() {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead!.id } });
@@ -121,7 +138,13 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
                   const failed = m.status === "failed";
                   const pending = m.status === "pending";
                   return (
-                    <div key={m.id} className={`flex ${m.from_me ? "justify-end" : "justify-start"}`}>
+                    <div key={m.id} className={`group flex items-center gap-1 ${m.from_me ? "justify-end" : "justify-start"}`}>
+                      {m.from_me && (
+                        <button onClick={() => deleteMessage(m)} title="Excluir"
+                          className="invisible rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-destructive group-hover:visible group-hover:opacity-100">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
                       <div
                         className={`max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm ${failed ? "ring-1 ring-destructive" : ""} ${pending ? "opacity-70" : ""}`}
                         style={{ background: `hsl(var(--chat-bubble-${m.from_me ? "me" : "them"}))` }}
@@ -137,6 +160,12 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
                           )}
                         </div>
                       </div>
+                      {!m.from_me && (
+                        <button onClick={() => deleteMessage(m)} title="Excluir"
+                          className="invisible rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-destructive group-hover:visible group-hover:opacity-100">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
