@@ -11,7 +11,7 @@ import type { FilterKey, SortKey } from "@/pages/Inbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
-import { usePrompt } from "@/hooks/useDialogs";
+import { usePrompt, useConfirm } from "@/hooks/useDialogs";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
