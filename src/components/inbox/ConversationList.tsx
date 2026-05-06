@@ -385,6 +385,22 @@ export default function ConversationList(props: {
                   }}>
                     {isUnread ? <><MailOpen className="mr-2 h-4 w-4" />Marcar como lida</> : <><Mail className="mr-2 h-4 w-4" />Marcar não lida</>}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Excluir conversa?",
+                        description: "Todo o histórico de mensagens deste lead será removido. Esta ação é irreversível.",
+                        confirmLabel: "Excluir definitivamente",
+                        destructive: true,
+                        requireTyping: "EXCLUIR",
+                      });
+                      if (!ok) return;
+                      await supabase.from("leads").delete().eq("id", l.id);
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />Excluir conversa
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
