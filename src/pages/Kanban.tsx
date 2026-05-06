@@ -39,6 +39,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
+import MoveLeadDialog from "@/components/kanban/MoveLeadDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
