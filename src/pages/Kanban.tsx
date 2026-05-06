@@ -476,6 +476,13 @@ export default function KanbanPage() {
       </div>
 
       <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
+      <MoveLeadDialog
+        open={!!movingLead}
+        onOpenChange={(v) => !v && setMovingLead(null)}
+        lead={movingLead}
+        pipelines={pipelines}
+        stages={allStages}
+      />
 
       <Dialog open={newColOpen} onOpenChange={setNewColOpen}>
         <DialogContent>
