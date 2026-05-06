@@ -40,7 +40,11 @@ function useRealtimeList<T extends { id: string }>(
       const limit = table === "leads" ? 2000 : 500;
       const { data } = await supabase.from(table).select("*").order(orderBy as string).limit(limit);
       if (!active) return;
-      setItems(((data ?? []) as unknown as T[]).slice().sort(sortFn));
+      const list = ((data ?? []) as unknown as T[]).slice().sort(sortFn);
+      if (list.length === limit) {
+        console.warn(`[useRealtimeList] ${table} atingiu o limite de ${limit} registros — paginação será necessária para volumes maiores.`);
+      }
+      setItems(list);
       setLoaded(true);
     })();
 
