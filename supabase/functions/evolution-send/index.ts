@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
         .from("messages")
         .insert({
           lead_id,
+          clinic_id: lead.clinic_id,
           client_message_id: cid,
           from_me: true,
           message_type: "text",
