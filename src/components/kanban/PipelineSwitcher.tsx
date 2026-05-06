@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Pipeline, Lead } from "@/types/crm";
-import { ChevronDown, Plus, Star, Pencil, Trash2, MessageCircleMore, Check } from "lucide-react";
+import { ChevronDown, Plus, Star, Pencil, Trash2, MessageCircleMore, Check, Settings } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useConfirm, usePrompt } from "@/hooks/useDialogs";
+import EditPipelineDialog from "./EditPipelineDialog";
 
 interface Props {
   pipelines: Pipeline[];
@@ -12,6 +13,7 @@ interface Props {
   leads: Lead[];
   onSelect: (id: string) => void;
   onNew: () => void;
+  whatsappInstances?: { id: string; name: string }[];
 }
 
 export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew }: Props) {
