@@ -483,6 +483,14 @@ export default function KanbanPage() {
         onCreated={(id) => setCurrentId(id)}
       />
 
+      <KommoImportDialog
+        open={kommoImportOpen}
+        onOpenChange={setKommoImportOpen}
+        whatsappInstances={whatsappInstances}
+        nextPosition={pipelines.length}
+        onCreated={(id) => setCurrentId(id)}
+      />
+
       <AlertDialog open={!!deletingStage} onOpenChange={(v) => !v && setDeletingStage(null)}>
         <AlertDialogContent>
           {(() => {
