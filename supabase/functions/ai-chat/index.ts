@@ -232,10 +232,6 @@ Deno.serve(async (req) => {
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agentRow) return json({ error: "agent not found" }, 404);
     if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
-    // Auto-injetar LOVABLE_API_KEY se o agente aponta para o Lovable AI Gateway sem chave própria
-    if (!agentRow.api_key && (agentRow.base_url ?? "").includes("ai.gateway.lovable.dev")) {
-      agentRow.api_key = Deno.env.get("LOVABLE_API_KEY") ?? null;
-    }
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
 
