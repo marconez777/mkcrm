@@ -894,8 +894,9 @@ function MessageRow(props: {
   pulseAndScroll: (id: string) => void;
   resend: (m: Message) => void;
   onForward: (text: string) => void;
+  onDelete: (m: Message) => void;
 }) {
-  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward } = props;
+  const { m, grouped, messages, searchTerm, matches, activeMatch, pulseId, setReplyTo, pulseAndScroll, resend, onForward, onDelete } = props;
   const failed = m.status === "failed";
   const pending = m.status === "pending";
   const replied = m.reply_to_external_id
@@ -914,6 +915,9 @@ function MessageRow(props: {
           className="rounded p-1 text-muted-foreground hover:bg-muted"
           title="Encaminhar"><Forward className="h-3 w-3" /></button>
       )}
+      <button onClick={() => onDelete(m)}
+        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+        title="Excluir"><Trash2 className="h-3 w-3" /></button>
     </div>
   );
   return (
