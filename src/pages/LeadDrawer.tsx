@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Lead, Message, Stage } from "@/types/crm";
+import type { Lead, Message } from "@/types/crm";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Loader2, Phone, Mail, Building2, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
+import { Send, Loader2, Phone, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
+import { useAttendants } from "@/hooks/useAttendants";
 import { useConfirm } from "@/hooks/useDialogs";
+import ContextRail from "@/components/inbox/ContextRail";
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -20,22 +19,17 @@ function fmtTime(iso: string) {
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const open = !!lead;
   const { stages } = useStages();
+  const { attendants } = useAttendants();
   const confirm = useConfirm();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [form, setForm] = useState<Partial<Lead>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (!lead) return;
-    setForm({
-      name: lead.name, email: lead.email, company: lead.company,
-      deal_value: lead.deal_value, notes: lead.notes, stage_id: lead.stage_id,
-      tags: lead.tags,
-    });
     let active = true;
     const load = async () => {
       const { data } = await supabase.from("messages").select("*").eq("lead_id", lead.id).order("timestamp");
@@ -85,18 +79,6 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
 
-  async function saveDetails() {
-    const { error } = await supabase.from("leads").update({
-      name: form.name || null,
-      email: form.email || null,
-      company: form.company || null,
-      deal_value: form.deal_value ?? null,
-      notes: form.notes || null,
-      stage_id: form.stage_id || null,
-      tags: form.tags || [],
-    }).eq("id", lead!.id);
-    if (error) toast.error(error.message); else toast.success("Salvo");
-  }
 
   async function remove() {
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de mensagens será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
@@ -175,29 +157,8 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             </div>
           </TabsContent>
 
-          <TabsContent value="details" className="scrollbar-thin m-0 flex-1 space-y-4 overflow-y-auto p-5">
-            <div className="space-y-1.5"><Label>Nome</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label><Mail className="mr-1 inline h-3 w-3" />E-mail</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-              <div className="space-y-1.5"><Label><Building2 className="mr-1 inline h-3 w-3" />Empresa</Label><Input value={form.company ?? ""} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Etapa</Label>
-                <Select value={form.stage_id ?? undefined} onValueChange={(v) => setForm({ ...form, stage_id: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {stages.map((s: Stage) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5"><Label>Valor (R$)</Label><Input type="number" value={form.deal_value ?? ""} onChange={(e) => setForm({ ...form, deal_value: e.target.value ? Number(e.target.value) : null })} /></div>
-            </div>
-            <div className="space-y-1.5"><Label>Tags (separadas por vírgula)</Label>
-              <Input value={(form.tags ?? []).join(", ")} onChange={(e) => setForm({ ...form, tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} />
-            </div>
-            <div className="space-y-1.5"><Label>Anotações</Label><Textarea rows={5} value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-            <Button onClick={saveDetails} className="w-full">Salvar alterações</Button>
+          <TabsContent value="details" className="m-0 flex-1 overflow-hidden flex flex-col">
+            <ContextRail lead={lead} stages={stages} attendants={attendants} />
           </TabsContent>
         </Tabs>
       </SheetContent>
