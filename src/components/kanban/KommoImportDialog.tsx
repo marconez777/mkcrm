@@ -140,6 +140,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         await supabase.from("lead_custom_fields").insert(
           newFields.map((f, i) => ({
             field_key: f.key, label: f.label, field_type: f.type, position: basePos + i,
+            clinic_id: clinicId,
           }))
         );
       }
