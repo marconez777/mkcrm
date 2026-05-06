@@ -363,6 +363,7 @@ export async function ingestMessage(
   } else {
     const insertRow: Record<string, unknown> = {
       lead_id: lead!.id,
+      clinic_id: clinicId,
       external_id: externalId,
       from_me: fromMe,
       message_type: type,
