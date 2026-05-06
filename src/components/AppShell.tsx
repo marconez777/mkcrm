@@ -20,10 +20,11 @@ const items = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
-  const { user, isSuperAdmin } = useAuth();
-  const navItems = isSuperAdmin
-    ? [...items, { to: "/admin", label: "Super Admin", icon: Shield }]
-    : items;
+  const { user, isSuperAdmin, membership } = useAuth();
+  const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
+  let navItems = items;
+  if (isClinicAdmin) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+  if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
     overall === "ok"
