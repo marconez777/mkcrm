@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,7 +20,10 @@ const items = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
+  const navItems = isSuperAdmin
+    ? [...items, { to: "/admin", label: "Super Admin", icon: Shield }]
+    : items;
 
   const dotColor =
     overall === "ok"
@@ -53,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 px-3 py-2">
-          {items.map((it) => (
+          {navItems.map((it) => (
             <NavLink
               key={it.to}
               to={it.to}
