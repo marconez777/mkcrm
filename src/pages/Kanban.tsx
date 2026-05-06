@@ -29,7 +29,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -43,6 +43,7 @@ import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineOverview from "@/components/kanban/PipelineOverview";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
+import KommoImportDialog from "@/components/kanban/KommoImportDialog";
 import TopScrollbar from "@/components/kanban/TopScrollbar";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -234,6 +235,7 @@ export default function KanbanPage() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
+  const [kommoImportOpen, setKommoImportOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
@@ -373,6 +375,9 @@ export default function KanbanPage() {
                 Expandir todas ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => setKommoImportOpen(true)}>
+              <Upload className="mr-1 h-4 w-4" />Importar Kommo
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
               <Plus className="mr-1 h-4 w-4" />Nova coluna
             </Button>
@@ -473,6 +478,14 @@ export default function KanbanPage() {
       <NewPipelineDialog
         open={newPipelineOpen}
         onOpenChange={setNewPipelineOpen}
+        whatsappInstances={whatsappInstances}
+        nextPosition={pipelines.length}
+        onCreated={(id) => setCurrentId(id)}
+      />
+
+      <KommoImportDialog
+        open={kommoImportOpen}
+        onOpenChange={setKommoImportOpen}
         whatsappInstances={whatsappInstances}
         nextPosition={pipelines.length}
         onCreated={(id) => setCurrentId(id)}
