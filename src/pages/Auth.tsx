@@ -13,7 +13,6 @@ export default function AuthPage() {
   const nav = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname ?? "/";
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,19 +27,9 @@ export default function AuthPage() {
     if (!email || !password) return;
     setBusy(true);
     try {
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        nav(from, { replace: true });
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
-        });
-        if (error) throw error;
-        toast.success("Conta criada! Você já pode entrar.");
-        setMode("signin");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      nav(from, { replace: true });
     } catch (err: any) {
       toast.error(err?.message ?? "Falha na autenticação");
     } finally {
