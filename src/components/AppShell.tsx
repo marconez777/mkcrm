@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
