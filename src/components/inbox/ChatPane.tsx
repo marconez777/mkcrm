@@ -56,6 +56,7 @@ const MERGE_KEYS = [
   "content", "status", "delivery_status", "reply_to_external_id",
   "timestamp", "message_type", "from_me",
   "external_id", "client_message_id", "last_error",
+  "media_url", "media_mime",
 ] as const;
 
 function mergeMessage(prev: Message[], row: Message): Message[] {
