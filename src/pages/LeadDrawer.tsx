@@ -174,29 +174,8 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             </div>
           </TabsContent>
 
-          <TabsContent value="details" className="scrollbar-thin m-0 flex-1 space-y-4 overflow-y-auto p-5">
-            <div className="space-y-1.5"><Label>Nome</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label><Mail className="mr-1 inline h-3 w-3" />E-mail</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-              <div className="space-y-1.5"><Label><Building2 className="mr-1 inline h-3 w-3" />Empresa</Label><Input value={form.company ?? ""} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Etapa</Label>
-                <Select value={form.stage_id ?? undefined} onValueChange={(v) => setForm({ ...form, stage_id: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {stages.map((s: Stage) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5"><Label>Valor (R$)</Label><Input type="number" value={form.deal_value ?? ""} onChange={(e) => setForm({ ...form, deal_value: e.target.value ? Number(e.target.value) : null })} /></div>
-            </div>
-            <div className="space-y-1.5"><Label>Tags (separadas por vírgula)</Label>
-              <Input value={(form.tags ?? []).join(", ")} onChange={(e) => setForm({ ...form, tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })} />
-            </div>
-            <div className="space-y-1.5"><Label>Anotações</Label><Textarea rows={5} value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-            <Button onClick={saveDetails} className="w-full">Salvar alterações</Button>
+          <TabsContent value="details" className="m-0 flex-1 overflow-hidden flex flex-col">
+            <ContextRail lead={lead} stages={stages} attendants={attendants} />
           </TabsContent>
         </Tabs>
       </SheetContent>
