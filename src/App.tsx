@@ -19,6 +19,7 @@ import SettingsCustomFields from "./pages/SettingsCustomFields";
 import Tasks from "./pages/Tasks";
 import Admin from "./pages/Admin";
 import Invite from "./pages/Invite";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
