@@ -24,18 +24,12 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [form, setForm] = useState<Partial<Lead>>({});
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (!lead) return;
-    setForm({
-      name: lead.name, email: lead.email, company: lead.company,
-      deal_value: lead.deal_value, notes: lead.notes, stage_id: lead.stage_id,
-      tags: lead.tags,
-    });
     let active = true;
     const load = async () => {
       const { data } = await supabase.from("messages").select("*").eq("lead_id", lead.id).order("timestamp");
