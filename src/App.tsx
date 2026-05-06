@@ -17,6 +17,8 @@ import MetricsOps from "./pages/MetricsOps";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import Tasks from "./pages/Tasks";
+import Admin from "./pages/Admin";
+import Invite from "./pages/Invite";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,8 @@ const App = () => (
           <CommandPalette />
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/invite/:token" element={<Invite />} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route
               path="*"
               element={
