@@ -11,6 +11,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "nunca";
@@ -154,6 +155,14 @@ export default function SettingsPage() {
           <p className="mt-1 text-sm text-muted-foreground">Conecte sua instância da Evolution API.</p>
         </div>
 
+        <Tabs defaultValue="connection" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="connection">Conexão</TabsTrigger>
+            <TabsTrigger value="fields">Campos do lead</TabsTrigger>
+            <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="connection" className="space-y-6">
         {/* Painel de Saúde */}
         <Card className="space-y-3 p-6">
           <div className="flex items-center justify-between">
@@ -272,18 +281,24 @@ export default function SettingsPage() {
             </Button>
           </div>
         </Card>
+          </TabsContent>
 
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold">Campos personalizados do lead</div>
-              <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
-            </div>
-            <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
-          </div>
-        </Card>
+          <TabsContent value="fields" className="space-y-6">
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold">Campos personalizados do lead</div>
+                  <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                </div>
+                <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
+              </div>
+            </Card>
+          </TabsContent>
 
-        <QuickRepliesCard />
+          <TabsContent value="quick-replies" className="space-y-6">
+            <QuickRepliesCard />
+          </TabsContent>
+        </Tabs>
       </div>
       <WhatsAppQrDialog
         open={qrOpen}
