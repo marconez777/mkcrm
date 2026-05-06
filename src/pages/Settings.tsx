@@ -5,282 +5,175 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Activity, Wifi, WifiOff, Plus, Trash2, Zap, QrCode } from "lucide-react";
-import { useHealth } from "@/hooks/useHealth";
-import { Link, useSearchParams } from "react-router-dom";
+import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/useAuth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-function timeAgo(iso: string | null) {
-  if (!iso) return "nunca";
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `há ${s}s`;
-  if (s < 3600) return `há ${Math.floor(s / 60)}min`;
-  return `há ${Math.floor(s / 3600)}h`;
-}
+type Instance = {
+  id: string;
+  name: string;
+  evolution_instance: string;
+  connection_state: string | null;
+  is_default: boolean;
+  webhook_ok: boolean | null;
+  last_health_check: string | null;
+};
 
 export default function SettingsPage() {
+  const { membership, isSuperAdmin } = useAuth();
+  const canManage = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin";
+
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [healing, setHealing] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; state?: string; error?: string } | null>(null);
-  const [counts, setCounts] = useState<{ failed: number; events24h: number; pollErrors24h: number }>({
-    failed: 0,
-    events24h: 0,
-    pollErrors24h: 0,
-  });
-  const { health, overall } = useHealth();
-  const [form, setForm] = useState({
-    evolution_url: "",
-    evolution_api_key: "",
-    evolution_instance: "",
-    webhook_token: "",
-  });
-  const [instanceId, setInstanceId] = useState<string | null>(null);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const webhookUrl = form.webhook_token
-    ? `https://${projectId}.supabase.co/functions/v1/evolution-webhook?token=${form.webhook_token}`
-    : "";
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const [qrFor, setQrFor] = useState<Instance | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [healingId, setHealingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("whatsapp_instances")
-        .select("*")
-        .eq("is_default", true)
-        .maybeSingle();
-      if (data) {
-        setInstanceId(data.id);
-        setForm({
-          evolution_url: data.evolution_url ?? "",
-          evolution_api_key: data.evolution_api_key ?? "",
-          evolution_instance: data.evolution_instance ?? "",
-          webhook_token: data.webhook_token,
-        });
-      }
-      setLoading(false);
-    })();
-  }, []);
+  async function load() {
+    const { data } = await supabase
+      .from("whatsapp_instances")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check")
+      .order("created_at");
+    setInstances((data as Instance[]) ?? []);
+    setLoading(false);
+  }
 
-  // Auto-open QR dialog when navigated with ?qr=1
-  useEffect(() => {
-    if (!loading && instanceId && searchParams.get("qr") === "1") {
-      setQrOpen(true);
-      searchParams.delete("qr");
-      setSearchParams(searchParams, { replace: true });
+  useEffect(() => { load(); }, []);
+
+  async function createInstance() {
+    if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("evolution-provision", { body: { name: newName.trim() } });
+    setCreating(false);
+    if (error || (data as any)?.error) {
+      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      return;
     }
-  }, [loading, instanceId, searchParams, setSearchParams]);
+    toast.success("Conexão criada — escaneie o QR Code");
+    setNewOpen(false);
+    setNewName("");
+    await load();
+    const created = (data as any)?.instance_id;
+    if (created) {
+      const inst = (await supabase.from("whatsapp_instances").select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check").eq("id", created).maybeSingle()).data;
+      if (inst) setQrFor(inst as Instance);
+    }
+  }
 
-  useEffect(() => {
-    const load = async () => {
-      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      const [{ count: failed }, { count: events24h }, { count: pollErrors24h }] = await Promise.all([
-        supabase.from("messages").select("id", { count: "exact", head: true }).eq("status", "failed"),
-        supabase.from("webhook_events").select("id", { count: "exact", head: true }).gte("received_at", since),
-        supabase.from("webhook_events").select("id", { count: "exact", head: true }).gte("received_at", since).not("error", "is", null),
-      ]);
-      setCounts({
-        failed: failed ?? 0,
-        events24h: events24h ?? 0,
-        pollErrors24h: pollErrors24h ?? 0,
-      });
-    };
+  async function deleteInstance(id: string) {
+    if (!confirm("Excluir esta conexão? A instância será removida da Evolution.")) return;
+    const { error, data } = await supabase.functions.invoke("evolution-delete-instance", { body: { instance_id: id } });
+    if (error || (data as any)?.error) { toast.error("Erro: " + (error?.message ?? (data as any)?.error)); return; }
+    toast.success("Conexão removida");
     load();
-    const i = setInterval(load, 30000);
-    return () => clearInterval(i);
-  }, []);
-
-  async function save() {
-    setSaving(true);
-    const payload = {
-      evolution_url: form.evolution_url.trim(),
-      evolution_api_key: form.evolution_api_key.trim(),
-      evolution_instance: form.evolution_instance.trim(),
-    };
-    let error;
-    if (instanceId) {
-      ({ error } = await supabase.from("whatsapp_instances").update(payload).eq("id", instanceId));
-    } else {
-      const { data, error: insErr } = await supabase
-        .from("whatsapp_instances")
-        .insert({ ...payload, name: payload.evolution_instance || "default", is_default: true })
-        .select("id, webhook_token")
-        .single();
-      error = insErr;
-      if (data) {
-        setInstanceId(data.id);
-        setForm((f) => ({ ...f, webhook_token: data.webhook_token }));
-      }
-    }
-    setSaving(false);
-    if (error) toast.error("Erro ao salvar: " + error.message);
-    else toast.success("Configurações salvas");
   }
 
-
-  async function test() {
-    setTesting(true);
-    setTestResult(null);
-    const { data, error } = await supabase.functions.invoke("evolution-test");
-    setTesting(false);
-    if (error) { setTestResult({ ok: false, error: error.message }); return; }
-    setTestResult(data as any);
+  async function setDefault(id: string) {
+    // Clear current default in clinic, then set this one
+    await supabase.from("whatsapp_instances").update({ is_default: false }).eq("is_default", true);
+    const { error } = await supabase.from("whatsapp_instances").update({ is_default: true }).eq("id", id);
+    if (error) toast.error(error.message); else { toast.success("Conexão padrão atualizada"); load(); }
   }
 
-  async function runHealth() {
-    setHealing(true);
-    const { data, error } = await supabase.functions.invoke("evolution-health");
-    setHealing(false);
-    if (error) toast.error("Erro: " + error.message);
-    else toast.success(`Health: ${(data as any)?.connectionState ?? "?"} | webhook ${(data as any)?.webhookOk ? "OK" : "off"}`);
+  async function checkHealth(id: string) {
+    setHealingId(id);
+    const { error } = await supabase.functions.invoke("evolution-health", { body: { instance_id: id } });
+    setHealingId(null);
+    if (error) toast.error(error.message); else { toast.success("Verificação concluída"); load(); }
   }
 
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
 
-  const dotClass =
-    overall === "ok" ? "bg-emerald-500" :
-    overall === "warn" ? "bg-amber-500" :
-    overall === "down" ? "bg-destructive" : "bg-muted-foreground";
-
   return (
     <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-2xl space-y-6 p-8">
+      <div className="mx-auto max-w-3xl space-y-6 p-8">
         <div>
           <h1 className="text-2xl font-semibold">Configurações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Conecte sua instância da Evolution API.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Gerencie suas conexões de WhatsApp e preferências.</p>
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="connection">Conexão</TabsTrigger>
+            <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             <TabsTrigger value="fields">Campos do lead</TabsTrigger>
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="connection" className="space-y-6">
-        {/* Painel de Saúde */}
-        <Card className="space-y-3 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <Activity className="h-4 w-4" /> Saúde da Conexão
-            </h2>
-            <div className="flex gap-2">
-              <Button
-                variant={health?.connection_state === "open" ? "outline" : "default"}
-                size="sm"
-                onClick={() => setQrOpen(true)}
-                disabled={!instanceId}
-              >
-                <QrCode className="mr-2 h-3 w-3" />
-                {health?.connection_state === "open" ? "Gerenciar conexão" : "Escanear QR Code"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={runHealth} disabled={healing}>
-                {healing ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
-                Verificar agora
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {health?.connection_state === "open" ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                Estado
-              </div>
-              <div className="mt-1 flex items-center gap-2 font-medium">
-                <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-                {health?.connection_state ?? "desconhecido"}
-              </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
-                último check {timeAgo(health?.last_health_check ?? null)}
-              </div>
-            </div>
-
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">Webhook</div>
-              <div className="mt-1 flex items-center gap-2 font-medium">
-                {health?.webhook_ok ? (
-                  <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Ativo</>
-                ) : (
-                  <><AlertCircle className="h-3 w-3 text-destructive" /> Inativo</>
+          <TabsContent value="connection" className="space-y-4">
+            <Card className="space-y-4 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold">Minhas conexões</h2>
+                  <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
+                </div>
+                {canManage && (
+                  <Button size="sm" onClick={() => setNewOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                  </Button>
                 )}
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
-                {health?.webhook_last_error
-                  ? <span className="text-destructive">{health.webhook_last_error.slice(0, 60)}</span>
-                  : "auto-reativa a cada 60s"}
-              </div>
-            </div>
 
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">Eventos 24h</div>
-              <div className="mt-1 text-lg font-semibold">{counts.events24h}</div>
-              {counts.pollErrors24h > 0 && (
-                <div className="mt-1 text-[11px] text-amber-600">{counts.pollErrors24h} c/ erro</div>
+              {instances.length === 0 && (
+                <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  <Smartphone className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                  Nenhuma conexão ainda.{canManage && " Clique em \"Novo WhatsApp\" para começar."}
+                </div>
               )}
-            </div>
 
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-muted-foreground">Mensagens falhas</div>
-              <div className="mt-1 text-lg font-semibold">{counts.failed}</div>
-              {counts.failed > 0 && (
-                <Link to="/inbox" className="mt-1 block text-[11px] text-primary underline">Ver na caixa</Link>
-              )}
-            </div>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground">
-            Watchdog roda a cada 60s: verifica conexão, reativa webhook se cair, e busca mensagens dos últimos 10 min via polling pra reconciliar eventos perdidos.
-          </p>
-        </Card>
-
-        <Card className="space-y-4 p-6">
-          <h2 className="text-base font-semibold">Evolution API</h2>
-          <div className="space-y-2">
-            <Label>URL da Evolution</Label>
-            <Input placeholder="https://evolution.seudominio.com" value={form.evolution_url} onChange={(e) => setForm({ ...form, evolution_url: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>API Key (global)</Label>
-            <Input type="password" placeholder="sua-api-key" value={form.evolution_api_key} onChange={(e) => setForm({ ...form, evolution_api_key: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Nome da instância</Label>
-            <Input placeholder="minha-instancia" value={form.evolution_instance} onChange={(e) => setForm({ ...form, evolution_instance: e.target.value })} />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar</Button>
-            <Button variant="outline" onClick={test} disabled={testing}>{testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Testar conexão</Button>
-          </div>
-
-          {testResult && (
-            <div className={`flex items-start gap-2 rounded-md p-3 text-sm ${testResult.ok ? "bg-accent text-accent-foreground" : "bg-destructive/10 text-destructive"}`}>
-              {testResult.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4" /> : <AlertCircle className="mt-0.5 h-4 w-4" />}
-              <div>
-                {testResult.ok ? <>Conectado. Estado da instância: <strong>{testResult.state}</strong></> : <>Falha: {testResult.error}</>}
+              <div className="space-y-2">
+                {instances.map((inst) => {
+                  const open = inst.connection_state === "open";
+                  return (
+                    <div key={inst.id} className="flex items-center gap-3 rounded-md border p-3">
+                      <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                        {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">{inst.name}</span>
+                          {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
+                        <QrCode className="mr-2 h-3 w-3" />
+                        {open ? "Gerenciar" : "Escanear QR"}
+                      </Button>
+                      {canManage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
+                              <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
+                            </DropdownMenuItem>
+                            {!inst.is_default && (
+                              <DropdownMenuItem onClick={() => setDefault(inst.id)}>
+                                <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
+                              <Trash2 className="mr-2 h-3 w-3" /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
-        </Card>
-
-        <Card className="space-y-3 p-6">
-          <h2 className="text-base font-semibold">Webhook</h2>
-          <p className="text-sm text-muted-foreground">
-            O watchdog configura este webhook automaticamente a cada 60s. Se preferir colar manual no painel da Evolution, use a URL abaixo com os eventos:
-            <strong> MESSAGES_UPSERT</strong>, <strong>MESSAGES_UPDATE</strong>, <strong>CONTACTS_UPSERT</strong>, <strong>CONNECTION_UPDATE</strong>.
-          </p>
-          <div className="flex items-center gap-2">
-            <Input readOnly value={webhookUrl} className="font-mono text-xs" />
-            <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada"); }}>
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-        </Card>
+            </Card>
           </TabsContent>
 
           <TabsContent value="fields" className="space-y-6">
@@ -300,12 +193,39 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
       <WhatsAppQrDialog
-        open={qrOpen}
-        onOpenChange={setQrOpen}
-        instanceId={instanceId}
-        instanceName={form.evolution_instance}
+        open={!!qrFor}
+        onOpenChange={(o) => !o && setQrFor(null)}
+        instanceId={qrFor?.id ?? null}
+        instanceName={qrFor?.evolution_instance ?? ""}
       />
+
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Nome da conexão</Label>
+            <Input
+              autoFocus
+              placeholder="Ex: Recepção, Dr. João..."
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createInstance(); }}
+            />
+            <p className="text-xs text-muted-foreground">Vamos criar uma instância dedicada e abrir o QR Code para você escanear.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>Cancelar</Button>
+            <Button onClick={createInstance} disabled={creating}>
+              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar e escanear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

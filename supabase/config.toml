@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.ai-assist]
 verify_jwt = false
+
+[functions.evolution-provision]
+verify_jwt = false
+
+[functions.evolution-delete-instance]
+verify_jwt = false
