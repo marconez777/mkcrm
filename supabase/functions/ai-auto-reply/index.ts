@@ -56,15 +56,19 @@ Deno.serve(async (req) => {
       lead_id, agent_id: agentId, run_at: runAt,
     }, { onConflict: "lead_id" });
 
-    // Trigger scheduled-dispatcher right after the debounce window expires,
-    // so the reply doesn't have to wait for the 1-minute cron.
-    // The dispatcher uses an atomic DELETE…RETURNING claim, so racing with
-    // the cron is safe (whoever gets there first processes the row).
+    // Trigger scheduled-dispatcher once after the debounce window expires.
+    // pg_cron also runs every minute as a safety net; the dispatcher uses
+    // an atomic DELETE…RETURNING claim so concurrent runs are safe.
     const FUNCTIONS_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const fireDispatcher = async () => {
       try {
         await new Promise((r) => setTimeout(r, (debounce + 1) * 1000));
+        // Re-check: only fire if THIS lead's pending row is still due (not already
+        // claimed by another invocation or the cron). Avoids burst spam.
+        const { data: still } = await supabase
+          .from("pending_replies").select("lead_id").eq("lead_id", lead_id).maybeSingle();
+        if (!still) return;
         await fetch(`${FUNCTIONS_URL}/scheduled-dispatcher`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
@@ -78,8 +82,6 @@ Deno.serve(async (req) => {
     if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(fireDispatcher());
-    } else {
-      fireDispatcher();
     }
 
     return json({ ok: true, queued: true, run_at: runAt, debounce_seconds: debounce });

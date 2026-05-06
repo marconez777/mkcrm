@@ -1,5 +1,6 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
 import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken, downloadAndStoreMedia } from "../_shared/evolution.ts";
+import { isWebhookDuplicate } from "../_shared/utils.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -21,6 +22,14 @@ Deno.serve(async (req) => {
     body = await req.json();
     eventType = String(body.event || "unknown").toUpperCase().replace(/\./g, "_");
 
+    // Dedupe at the event-level. Prevents Evolution retries from double-processing.
+    // Hash on event + instance + first item key.id (or full body sample).
+    const items = Array.isArray(body.data) ? body.data : [body.data];
+    const dedupKey = `${eventType}::${instance.id}::${items[0]?.key?.id ?? ""}::${items[0]?.messageTimestamp ?? items[0]?.status ?? ""}`;
+    if (dedupKey && (await isWebhookDuplicate(supabase, dedupKey))) {
+      return json({ ok: true, deduped: true });
+    }
+
     const { data: audit } = await supabase
       .from("webhook_events")
       .insert({ event_type: eventType, payload: body, source: "webhook" })
@@ -28,39 +37,37 @@ Deno.serve(async (req) => {
       .single();
     auditId = audit?.id ?? null;
 
-    const items = Array.isArray(body.data) ? body.data : [body.data];
     let leadIdForAudit: string | null = null;
 
     if (eventType === "MESSAGES_UPSERT") {
-      for (const it of items) {
-        try {
-          const res = await ingestMessage(it, "webhook", { instanceId: instance.id });
-          if ("lead_id" in res) {
-            leadIdForAudit = res.lead_id;
-            // Background: fetch media binary if needed
-            if ((res as any).isNew && (res as any).needs_media && (res as any).message_id) {
-              const mediaTask = downloadAndStoreMedia((res as any).message_id, instance, it);
-              // @ts-ignore
-              if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(mediaTask);
-              else mediaTask.catch((e) => console.error("media task failed", e));
-            }
-            // Fire-and-forget auto-reply only for genuinely new inbound messages
-            if ((res as any).isNew && !it?.key?.fromMe) {
-              const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-                },
-                body: JSON.stringify({ lead_id: res.lead_id }),
-              }).catch((e) => console.error("auto-reply trigger failed", e));
-              // @ts-ignore EdgeRuntime is available in Deno deploy
-              if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
-            }
-          }
-        } catch (e) {
-          console.error("ingest error", e);
+      const settled = await Promise.allSettled(items.map((it: any) => ingestMessage(it, "webhook", { instanceId: instance.id })));
+      for (let i = 0; i < settled.length; i++) {
+        const s = settled[i];
+        if (s.status !== "fulfilled") { console.error("ingest error", s.reason); continue; }
+        const res: any = s.value;
+        const it = items[i];
+        if (!("lead_id" in res)) continue;
+        leadIdForAudit = res.lead_id;
+        // Background: fetch media binary if needed (also for existing rows missing media_url)
+        if (res.needs_media && res.message_id) {
+          const mediaTask = downloadAndStoreMedia(res.message_id, instance, it);
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(mediaTask);
+          else mediaTask.catch((e) => console.error("media task failed", e));
+        }
+        // Fire-and-forget auto-reply only for genuinely new inbound messages
+        if (res.isNew && !it?.key?.fromMe) {
+          const triggerAutoReply = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-auto-reply`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+            },
+            body: JSON.stringify({ lead_id: res.lead_id }),
+          }).catch((e) => console.error("auto-reply trigger failed", e));
+          // @ts-ignore EdgeRuntime is available in Deno deploy
+          if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
         }
       }
     } else if (eventType === "MESSAGES_UPDATE") {
@@ -77,11 +84,33 @@ Deno.serve(async (req) => {
         const rawStatus = it?.status ?? it?.update?.status;
         if (!externalId || !rawStatus) continue;
         const newStatus = normalize(String(rawStatus));
-        const { data: cur } = await supabase
+        let { data: cur } = await supabase
           .from("messages")
-          .select("id, delivery_status")
+          .select("id, delivery_status, lead_id")
           .eq("external_id", externalId)
           .maybeSingle();
+
+        // Try to recover lost link: an outbound message we sent but whose ack came
+        // before evolution-send returned the external_id. Match on most recent
+        // pending/sent from_me message for this remoteJid's lead.
+        if (!cur && it?.key?.fromMe) {
+          const phone = it?.key?.remoteJidAlt?.split("@")[0]?.replace(/\D/g, "")
+            ?? it?.key?.remoteJid?.split("@")[0]?.replace(/\D/g, "");
+          if (phone) {
+            const { data: lead } = await supabase.from("leads").select("id").eq("phone", phone).maybeSingle();
+            if (lead) {
+              const { data: orphan } = await supabase
+                .from("messages")
+                .select("id, delivery_status, lead_id")
+                .eq("lead_id", lead.id).eq("from_me", true).is("external_id", null)
+                .order("timestamp", { ascending: false }).limit(1).maybeSingle();
+              if (orphan) {
+                await supabase.from("messages").update({ external_id: externalId }).eq("id", orphan.id);
+                cur = orphan;
+              }
+            }
+          }
+        }
         if (!cur) continue;
         const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
         const newRank = RANK[newStatus] ?? 0;

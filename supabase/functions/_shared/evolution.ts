@@ -317,6 +317,7 @@ export async function ingestMessage(
 
   let isNewMessage = false;
   let messageId: string | null = existing?.id ?? null;
+  const existingNeedsMedia = !!existing && !existing.media_url && isMediaType(type);
   if (existing) {
     const changed =
       existing.content !== content ||
@@ -379,5 +380,5 @@ export async function ingestMessage(
     }
   }
 
-  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage, message_id: messageId, type, needs_media: isMediaType(type) };
+  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage, message_id: messageId, type, needs_media: isMediaType(type) && (isNewMessage || existingNeedsMedia) };
 }

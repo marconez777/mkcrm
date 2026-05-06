@@ -54,12 +54,21 @@ async function processPendingReplies(supabase: any) {
     try {
       // Build last 20 messages
       const { data: msgs } = await supabase.from("messages")
-        .select("from_me, content").eq("lead_id", item.lead_id)
+        .select("from_me, content, timestamp")
+        .eq("lead_id", item.lead_id)
         .order("timestamp", { ascending: false }).limit(20);
       const ordered = (msgs ?? []).reverse();
       const conv = ordered.filter((m: any) => m.content)
         .map((m: any) => ({ role: m.from_me ? "assistant" : "user", content: m.content }));
       if (conv.length === 0 || conv[conv.length - 1].role !== "user") { skipped++; continue; }
+
+      // Skip if a human/atendente sent something in the last 5 minutes —
+      // they took over the conversation and the bot must stay quiet.
+      const lastFromMe = ordered.filter((m: any) => m.from_me).slice(-1)[0];
+      if (lastFromMe?.timestamp) {
+        const ageMs = Date.now() - new Date(lastFromMe.timestamp).getTime();
+        if (ageMs < 5 * 60 * 1000) { skipped++; continue; }
+      }
 
       // Find or create thread
       let { data: thread } = await supabase.from("ai_threads").select("id")

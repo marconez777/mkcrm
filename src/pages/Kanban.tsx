@@ -287,15 +287,18 @@ export default function KanbanPage() {
     else if (overData?.type === "lead") targetStageId = overData.lead.stage_id;
     if (!targetStageId || targetStageId === lead.stage_id) return;
     const previousStageId = lead.stage_id;
-    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId } : l));
-    await supabase.from("leads").update({ stage_id: targetStageId }).eq("id", lead.id);
+    const previousPosition = lead.position ?? 0;
+    const targetLeads = leads.filter((l) => l.stage_id === targetStageId);
+    const newPosition = targetLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
+    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition } : l));
+    await supabase.from("leads").update({ stage_id: targetStageId, position: newPosition }).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
     toast.success(`Movido para "${target?.name ?? "etapa"}"`, {
       action: previousStageId ? {
         label: "Desfazer",
         onClick: async () => {
-          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId } : l));
-          await supabase.from("leads").update({ stage_id: previousStageId }).eq("id", lead.id);
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition } : l));
+          await supabase.from("leads").update({ stage_id: previousStageId, position: previousPosition }).eq("id", lead.id);
         },
       } : undefined,
       duration: 6000,
@@ -329,8 +332,11 @@ export default function KanbanPage() {
     setCreating(true);
     const stage = stages[0];
     const phone = newLead.phone.replace(/\D/g, "");
+    const stageLeads = leads.filter((l) => l.stage_id === stage.id);
+    const nextPos = stageLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
     const { error } = await supabase.from("leads").insert({
       phone, name: newLead.name.trim() || null, stage_id: stage?.id ?? null,
+      position: nextPos,
       whatsapp_instance_id: current?.whatsapp_instance_id ?? null,
     });
     setCreating(false);
@@ -401,7 +407,7 @@ export default function KanbanPage() {
                 </button>
               )}
               <div ref={scrollRef} className="kanban-scroll h-full overflow-x-auto overflow-y-hidden p-4" style={{ cursor: "grab" }}>
-                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd} autoScroll={{ threshold: { x: 0.2, y: 0.15 }, acceleration: 20 }}>
+                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onStart} onDragEnd={onEnd} autoScroll={{ threshold: { x: 0.1, y: 0.15 }, acceleration: 15 }}>
                   <div className="flex h-full gap-3">
                     {stages.map((s) => (
                       <Column
