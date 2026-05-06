@@ -129,9 +129,21 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
   try {
     if (name === "move_lead_stage") {
       if (!leadId) return { error: "no lead context" };
-      const { data: stage } = await supabase.from("pipeline_stages").select("id, name").ilike("name", args.stage_name).maybeSingle();
-      if (!stage) return { error: `stage not found: ${args.stage_name}` };
-      await supabase.from("leads").update({ stage_id: stage.id }).eq("id", leadId);
+      const { data: leadRow } = await supabase.from("leads").select("pipeline_id, stage_id").eq("id", leadId).single();
+      let q = supabase.from("pipeline_stages").select("id, name, pipeline_id").ilike("name", args.stage_name);
+      if (leadRow?.pipeline_id) q = q.eq("pipeline_id", leadRow.pipeline_id);
+      const { data: stages } = await q.limit(2);
+      const stage = stages?.[0];
+      if (!stage) {
+        const { data: avail } = await supabase.from("pipeline_stages").select("name").eq("pipeline_id", leadRow?.pipeline_id ?? "00000000-0000-0000-0000-000000000000");
+        return { error: `stage not found: ${args.stage_name}`, available_stages: (avail ?? []).map((s: any) => s.name) };
+      }
+      if (leadRow?.stage_id === stage.id) return { ok: true, stage: stage.name, unchanged: true };
+      await supabase.from("leads").update({ stage_id: stage.id, stage_changed_at: new Date().toISOString() }).eq("id", leadId);
+      await supabase.from("lead_events").insert({
+        lead_id: leadId, type: "stage_changed_by_ai",
+        payload: { from: leadRow?.stage_id, to: stage.id, agent_id: agent.id, agent_name: agent.name },
+      });
       return { ok: true, stage: stage.name };
     }
     if (name === "add_lead_note") {
