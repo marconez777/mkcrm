@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useAuth } from "@/hooks/useAuth";
 
 type Provider = "openai" | "anthropic" | "google";
 type Agent = {
