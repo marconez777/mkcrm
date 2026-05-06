@@ -291,10 +291,26 @@ export async function ingestMessage(
 
   let createdLead = false;
   if (!lead) {
+    // Resolve funil de entrada: APENAS funil de vendas vinculado a esta instância.
+    // Sem fallback — funis sem vínculo não recebem leads automáticos.
+    let pipelineId: string | null = null;
+    if (instanceId) {
+      const { data: pipe } = await supabase
+        .from("pipelines")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("kind", "sales")
+        .eq("whatsapp_instance_id", instanceId)
+        .maybeSingle();
+      pipelineId = (pipe as any)?.id ?? null;
+    }
+    if (!pipelineId) {
+      return { skipped: true, reason: "no-inbound-pipeline" };
+    }
     const { data: stage } = await supabase
       .from("pipeline_stages")
       .select("id")
-      .eq("clinic_id", clinicId)
+      .eq("pipeline_id", pipelineId)
       .order("position")
       .limit(1)
       .maybeSingle();
@@ -305,6 +321,7 @@ export async function ingestMessage(
         name: pushName,
         clinic_id: clinicId,
         stage_id: stage?.id ?? null,
+        pipeline_id: pipelineId,
         whatsapp_instance_id: instanceId,
         last_message_at: ts,
         last_message_preview: content?.slice(0, 120) ?? null,
