@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("phone, whatsapp_instance_id")
+      .select("phone, whatsapp_instance_id, clinic_id")
       .eq("id", lead_id)
       .single();
     if (!lead) return json({ error: "Lead não encontrado" }, 404);
@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
         .from("messages")
         .insert({
           lead_id,
+          clinic_id: (lead as any).clinic_id,
           client_message_id: cid,
           from_me: true,
           message_type: kind,
