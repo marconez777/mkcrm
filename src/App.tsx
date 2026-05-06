@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import Tasks from "./pages/Tasks";
 import Admin from "./pages/Admin";
+import Team from "./pages/Team";
 import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
@@ -64,6 +65,7 @@ const App = () => (
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
                       <Route path="/tasks" element={<Tasks />} />
+                      <Route path="/team" element={<Team />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
