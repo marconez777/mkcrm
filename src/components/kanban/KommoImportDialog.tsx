@@ -93,6 +93,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
     setImporting(true);
     setProgress("Preparando…");
 
+    let createdPipelineId: string | null = null;
     try {
       // 1. Get clinic_id
       const { data: { user } } = await supabase.auth.getUser();
