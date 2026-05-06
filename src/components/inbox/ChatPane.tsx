@@ -320,6 +320,29 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     });
     if (error) toast.error("Falha: " + error.message);
   }
+  const confirm = useConfirm();
+  async function deleteMessage(m: Message) {
+    const canForEveryone = m.from_me && !!m.external_id;
+    const ok = await confirm({
+      title: "Excluir mensagem?",
+      description: canForEveryone
+        ? "A mensagem será apagada para todos no WhatsApp e removida daqui."
+        : "A mensagem será removida apenas deste CRM (não é possível apagá-la no WhatsApp).",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+    const { data, error } = await supabase.functions.invoke("evolution-delete-message", {
+      body: { message_id: m.id, for_everyone: canForEveryone },
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Falha ao excluir: " + (error?.message || (data as any)?.error));
+    } else if ((data as any)?.evolution === "error") {
+      toast.warning("Removida daqui, mas falhou no WhatsApp: " + ((data as any)?.detail ?? ""));
+    } else {
+      toast.success("Mensagem excluída");
+    }
+  }
   async function syncHistory() {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } });
