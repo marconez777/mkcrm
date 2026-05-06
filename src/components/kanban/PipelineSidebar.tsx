@@ -132,6 +132,14 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
           <Plus className="mr-2 h-4 w-4" />Adicionar funil
         </Button>
       </div>
+
+      <EditPipelineDialog
+        pipeline={editing}
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
     </aside>
   );
 }
