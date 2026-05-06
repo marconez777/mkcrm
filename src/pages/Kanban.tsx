@@ -329,8 +329,11 @@ export default function KanbanPage() {
     setCreating(true);
     const stage = stages[0];
     const phone = newLead.phone.replace(/\D/g, "");
+    const stageLeads = leads.filter((l) => l.stage_id === stage.id);
+    const nextPos = stageLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
     const { error } = await supabase.from("leads").insert({
       phone, name: newLead.name.trim() || null, stage_id: stage?.id ?? null,
+      position: nextPos,
       whatsapp_instance_id: current?.whatsapp_instance_id ?? null,
     });
     setCreating(false);
