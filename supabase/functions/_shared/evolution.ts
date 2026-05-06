@@ -286,6 +286,7 @@ export async function ingestMessage(
     .from("leads")
     .select("id, name, whatsapp_instance_id")
     .eq("phone", phone)
+    .eq("clinic_id", clinicId)
     .maybeSingle();
 
   let createdLead = false;
@@ -293,14 +294,16 @@ export async function ingestMessage(
     const { data: stage } = await supabase
       .from("pipeline_stages")
       .select("id")
+      .eq("clinic_id", clinicId)
       .order("position")
       .limit(1)
-      .single();
+      .maybeSingle();
     const { data: created, error } = await supabase
       .from("leads")
       .insert({
         phone,
         name: pushName,
+        clinic_id: clinicId,
         stage_id: stage?.id ?? null,
         whatsapp_instance_id: instanceId,
         last_message_at: ts,
