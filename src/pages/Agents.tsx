@@ -472,14 +472,16 @@ export default function Agents() {
                     </div>
                     <div>
                       <Label>Modelo</Label>
-                      <Input
-                        list={`models-${selected.provider}`}
-                        value={selected.model}
+                      <select
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
                         onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                      />
-                      <datalist id={`models-${selected.provider}`}>
-                        {PROVIDER_MODELS[selected.provider].map((m) => <option key={m} value={m} />)}
-                      </datalist>
+                      >
+                        <option value="" disabled>Selecione um modelo</option>
+                        {PROVIDER_MODELS[selected.provider].map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <div>
