@@ -281,18 +281,24 @@ export default function SettingsPage() {
             </Button>
           </div>
         </Card>
+          </TabsContent>
 
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold">Campos personalizados do lead</div>
-              <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
-            </div>
-            <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
-          </div>
-        </Card>
+          <TabsContent value="fields" className="space-y-6">
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold">Campos personalizados do lead</div>
+                  <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                </div>
+                <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
+              </div>
+            </Card>
+          </TabsContent>
 
-        <QuickRepliesCard />
+          <TabsContent value="quick-replies" className="space-y-6">
+            <QuickRepliesCard />
+          </TabsContent>
+        </Tabs>
       </div>
       <WhatsAppQrDialog
         open={qrOpen}
