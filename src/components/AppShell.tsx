@@ -44,11 +44,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
         <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <MessageSquareText className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg">
+            <img src={mkLogo} alt="MK-CRM" className="h-9 w-9 object-contain" />
           </div>
           <div>
-            <div className="text-sm font-semibold leading-none">Zappy CRM</div>
+            <div className="text-sm font-semibold leading-none">MK-CRM</div>
             <div className="mt-1 text-[11px] text-sidebar-foreground/60">WhatsApp Pipeline</div>
           </div>
         </div>
