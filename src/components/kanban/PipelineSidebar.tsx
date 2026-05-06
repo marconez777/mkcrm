@@ -106,6 +106,9 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditing(p)}>
+                    <Settings className="mr-2 h-3.5 w-3.5" />Editar funil
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => rename(p)}>
                     <Pencil className="mr-2 h-3.5 w-3.5" />Renomear
                   </DropdownMenuItem>
