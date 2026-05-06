@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Pipeline, Lead } from "@/types/crm";
-import { ChevronDown, Plus, Star, Pencil, Trash2, MessageCircleMore, Check } from "lucide-react";
+import { ChevronDown, Plus, Star, Pencil, Trash2, MessageCircleMore, Check, Settings } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useConfirm, usePrompt } from "@/hooks/useDialogs";
+import EditPipelineDialog from "./EditPipelineDialog";
 
 interface Props {
   pipelines: Pipeline[];
@@ -12,10 +13,12 @@ interface Props {
   leads: Lead[];
   onSelect: (id: string) => void;
   onNew: () => void;
+  whatsappInstances?: { id: string; name: string }[];
 }
 
-export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew }: Props) {
+export default function PipelineSwitcher({ pipelines, current, leads, onSelect, onNew, whatsappInstances = [] }: Props) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Pipeline | null>(null);
   const confirm = useConfirm();
   const prompt = usePrompt();
 
@@ -80,6 +83,9 @@ export default function PipelineSwitcher({ pipelines, current, leads, onSelect, 
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={() => setEditing(p)}>
+                    <Settings className="mr-2 h-3.5 w-3.5" />Editar funil
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => rename(p)}>
                     <Pencil className="mr-2 h-3.5 w-3.5" />Renomear
                   </DropdownMenuItem>
@@ -101,6 +107,13 @@ export default function PipelineSwitcher({ pipelines, current, leads, onSelect, 
           <Plus className="mr-2 h-4 w-4" />Adicionar funil
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <EditPipelineDialog
+        pipeline={editing}
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
     </DropdownMenu>
   );
 }

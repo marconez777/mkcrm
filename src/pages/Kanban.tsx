@@ -359,6 +359,7 @@ export default function KanbanPage() {
               leads={allLeads}
               onSelect={setCurrentId}
               onNew={() => setNewPipelineOpen(true)}
+              whatsappInstances={whatsappInstances}
             />
             <p className="px-2 text-xs text-muted-foreground">
               {leads.length} leads · {stages.length} etapas

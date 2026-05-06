@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Pipeline, Lead } from "@/types/crm";
-import { Plus, MoreVertical, Star, Pencil, Trash2, MessageCircleMore, FolderKanban } from "lucide-react";
+import { Plus, MoreVertical, Star, Pencil, Trash2, MessageCircleMore, FolderKanban, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useConfirm, usePrompt } from "@/hooks/useDialogs";
+import EditPipelineDialog from "./EditPipelineDialog";
 
 interface Props {
   pipelines: Pipeline[];
@@ -13,10 +14,12 @@ interface Props {
   onSelect: (id: string) => void;
   onNew: () => void;
   leads: Lead[];
+  whatsappInstances?: { id: string; name: string }[];
 }
 
-export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads }: Props) {
+export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads, whatsappInstances = [] }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [editing, setEditing] = useState<Pipeline | null>(null);
   const confirm = useConfirm();
   const prompt = usePrompt();
 
@@ -103,6 +106,9 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditing(p)}>
+                    <Settings className="mr-2 h-3.5 w-3.5" />Editar funil
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => rename(p)}>
                     <Pencil className="mr-2 h-3.5 w-3.5" />Renomear
                   </DropdownMenuItem>
@@ -126,6 +132,14 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
           <Plus className="mr-2 h-4 w-4" />Adicionar funil
         </Button>
       </div>
+
+      <EditPipelineDialog
+        pipeline={editing}
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
     </aside>
   );
 }
