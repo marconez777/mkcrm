@@ -3,12 +3,33 @@
 // scheduled-dispatcher actually fires the reply after the quiet window.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 
+// Tools that produce ZERO outbound text. If an agent only uses these,
+// it's a "silent" agent (e.g. classificador de pipeline) and can also be
+// triggered by from_me messages to re-evaluate the funnel.
+const SILENT_TOOLS = new Set([
+  "move_lead_stage",
+  "add_lead_note",
+  "set_lead_field",
+  "update_custom_field",
+  "assign_attendant",
+  "remember_fact",
+  "transfer_to_human",
+  "create_task",
+  "schedule_message",
+  "get_lead_history",
+]);
+
+function isSilentAgent(tools: string[] | null | undefined): boolean {
+  if (!tools || tools.length === 0) return false;
+  return tools.every((t) => SILENT_TOOLS.has(t));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const supabase = sb();
 
   try {
-    const { lead_id } = await req.json();
+    const { lead_id, from_me = false } = await req.json();
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
     const { data: lead } = await supabase
@@ -21,33 +42,37 @@ Deno.serve(async (req) => {
       .select("agent_id, auto_reply, paused_until")
       .eq("lead_id", lead_id).maybeSingle();
 
-    let agentId: string | null = null;
-    let autoReply = false;
+    let agentId: string | null = leadCfg?.agent_id ?? null;
+    let autoReply = !!leadCfg?.auto_reply;
 
-    if (leadCfg) {
-      autoReply = !!leadCfg.auto_reply;
-      agentId = leadCfg.agent_id ?? null;
-      if (leadCfg.paused_until && new Date(leadCfg.paused_until).getTime() > Date.now()) {
-        return json({ skipped: true, reason: "paused" });
-      }
+    if (leadCfg?.paused_until && new Date(leadCfg.paused_until).getTime() > Date.now()) {
+      return json({ skipped: true, reason: "paused" });
     }
 
-    if ((!agentId || !leadCfg) && lead.stage_id) {
+    // Fallback to stage default whenever the lead-level config didn't fully
+    // resolve an enabled agent (handles the "empty lead_ai_settings row" case).
+    if ((!agentId || !autoReply) && lead.stage_id) {
       const { data: stageCfg } = await supabase
         .from("stage_ai_defaults")
         .select("agent_id, auto_reply").eq("stage_id", lead.stage_id).maybeSingle();
       if (stageCfg) {
-        if (!leadCfg) autoReply = !!stageCfg.auto_reply;
-        if (!agentId) agentId = stageCfg.agent_id;
+        if (!agentId) agentId = stageCfg.agent_id ?? null;
+        if (!autoReply) autoReply = !!stageCfg.auto_reply;
       }
     }
 
     if (!autoReply || !agentId) return json({ skipped: true, reason: "not-enabled" });
 
-    // Look up debounce window from agent
+    // Look up agent
     const { data: agent } = await supabase
-      .from("ai_agents").select("debounce_seconds, enabled").eq("id", agentId).single();
+      .from("ai_agents").select("debounce_seconds, enabled, tools").eq("id", agentId).single();
     if (!agent?.enabled) return json({ skipped: true, reason: "agent-disabled" });
+
+    // For from_me messages, only silent agents (classificador) should run —
+    // a chatty agent must never reply on top of the human atendente.
+    const silent = isSilentAgent(agent.tools as string[] | null);
+    if (from_me && !silent) return json({ skipped: true, reason: "from_me-non-silent" });
+
     const debounce = Math.max(Number(agent.debounce_seconds) || 8, 1);
     const runAt = new Date(Date.now() + debounce * 1000).toISOString();
 
@@ -64,8 +89,6 @@ Deno.serve(async (req) => {
     const fireDispatcher = async () => {
       try {
         await new Promise((r) => setTimeout(r, (debounce + 1) * 1000));
-        // Re-check: only fire if THIS lead's pending row is still due (not already
-        // claimed by another invocation or the cron). Avoids burst spam.
         const { data: still } = await supabase
           .from("pending_replies").select("lead_id").eq("lead_id", lead_id).maybeSingle();
         if (!still) return;
@@ -84,7 +107,7 @@ Deno.serve(async (req) => {
       EdgeRuntime.waitUntil(fireDispatcher());
     }
 
-    return json({ ok: true, queued: true, run_at: runAt, debounce_seconds: debounce });
+    return json({ ok: true, queued: true, run_at: runAt, debounce_seconds: debounce, silent });
   } catch (e) {
     console.error("ai-auto-reply", e);
     return json({ error: String(e) }, 500);
