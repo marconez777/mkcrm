@@ -255,12 +255,21 @@ Deno.serve(async (req) => {
     let leadCtx = "";
     if (lead_id) {
       const { data: lead } = await supabase.from("leads")
-        .select("name, phone, email, company, deal_value, notes, tags, stage_id").eq("id", lead_id).single();
+        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id").eq("id", lead_id).single();
       if (lead) {
         const { data: stage } = lead.stage_id
           ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
           : { data: null };
-        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}`;
+        let stagesList = "";
+        if (lead.pipeline_id) {
+          const { data: allStages } = await supabase.from("pipeline_stages")
+            .select("name, position").eq("pipeline_id", lead.pipeline_id).order("position");
+          if (allStages?.length) {
+            stagesList = `\n\n## Estágios disponíveis no funil (use exatamente um destes nomes em move_lead_stage)\n` +
+              allStages.map((s: any) => `- ${s.name}`).join("\n");
+          }
+        }
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}${stagesList}`;
       }
     }
 
