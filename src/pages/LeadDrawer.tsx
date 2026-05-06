@@ -79,18 +79,6 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
   }
 
-  async function saveDetails() {
-    const { error } = await supabase.from("leads").update({
-      name: form.name || null,
-      email: form.email || null,
-      company: form.company || null,
-      deal_value: form.deal_value ?? null,
-      notes: form.notes || null,
-      stage_id: form.stage_id || null,
-      tags: form.tags || [],
-    }).eq("id", lead!.id);
-    if (error) toast.error(error.message); else toast.success("Salvo");
-  }
 
   async function remove() {
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de mensagens será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
