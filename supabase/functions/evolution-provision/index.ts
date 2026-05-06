@@ -49,9 +49,6 @@ Deno.serve(async (req) => {
     ]);
     const isSuper = roles?.some((r: any) => r.role === "super_admin");
     if (!member && !isSuper) return json({ error: "Forbidden" }, 403);
-    if (member && !["owner", "admin"].includes(member.role) && !isSuper) {
-      return json({ error: "Only owners or admins can provision WhatsApp" }, 403);
-    }
 
     const body = await req.json().catch(() => ({}));
     const name = String(body?.name ?? "").trim() || "WhatsApp";
