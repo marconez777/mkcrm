@@ -93,6 +93,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
     setImporting(true);
     setProgress("Preparando…");
 
+    let createdPipelineId: string | null = null;
     try {
       // 1. Get clinic_id
       const { data: { user } } = await supabase.auth.getUser();
@@ -113,6 +114,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         })
         .select("id").single();
       if (pErr || !pipeline) throw new Error(pErr?.message ?? "Erro ao criar funil");
+      createdPipelineId = pipeline.id;
 
       // 3. Cria etapas (preserva ordem de aparição)
       setProgress("Criando etapas…");
@@ -140,6 +142,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         await supabase.from("lead_custom_fields").insert(
           newFields.map((f, i) => ({
             field_key: f.key, label: f.label, field_type: f.type, position: basePos + i,
+            clinic_id: clinicId,
           }))
         );
       }
@@ -271,6 +274,14 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
       onOpenChange(false);
       setFile(null); setPreview(null); setPipelineName("");
     } catch (e: any) {
+      // Rollback: remove pipeline criado e tudo que veio junto (etapas + leads inseridos)
+      if (createdPipelineId) {
+        try {
+          await supabase.from("leads").delete().eq("pipeline_id", createdPipelineId);
+          await supabase.from("pipeline_stages").delete().eq("pipeline_id", createdPipelineId);
+          await supabase.from("pipelines").delete().eq("id", createdPipelineId);
+        } catch {}
+      }
       toast.error(e.message);
     } finally {
       setImporting(false);

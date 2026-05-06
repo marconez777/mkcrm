@@ -1,72 +1,26 @@
-# Auto-provisionamento de WhatsApp via Evolution API
+## Problema
 
-Criar fluxo "1 clique" para gerar novas instâncias Evolution sem o admin precisar configurar URL/API Key manualmente.
+A migração anterior adicionou o índice por clínica `leads_clinic_phone_key`, mas **não removeu** o índice global antigo `leads_phone_unique` — por isso o erro `duplicate key value violates unique constraint "leads_phone_unique"` continua acontecendo quando duas clínicas têm o mesmo telefone.
 
-## 1. Secrets (servidor Evolution global)
+Existe o mesmo problema em `lead_custom_fields`: o índice `lead_custom_fields_field_key_key` é **global**, então uma clínica não consegue criar uma chave (`interesse`, `procedimentos`, etc.) que outra clínica já criou — daí o 409 Conflict no print.
 
-Vou solicitar via `add_secret`:
-- `EVOLUTION_GLOBAL_URL` — URL pública da Evolution (ex: `https://api.seudominio.com`)
-- `EVOLUTION_GLOBAL_API_KEY` — `AUTHENTICATION_API_KEY` do `.env` do servidor Evolution
+Como a importação não é transacional, quando falha no meio: o funil, etapas e campos personalizados já foram criados, e alguns leads também — por isso você vê 1 lead no funil "Gestão interna" mesmo após o erro.
 
-Esses secrets ficam no backend; clínicas nunca veem.
+## Correções
 
-## 2. Nova edge function `evolution-provision`
+### 1. Migração SQL
+- `DROP INDEX IF EXISTS public.leads_phone_unique` (remove restrição global de telefone).
+- `DROP INDEX IF EXISTS public.lead_custom_fields_field_key_key` e criar `UNIQUE (clinic_id, field_key)` no lugar.
 
-Fluxo:
-1. Valida JWT + permissão (Owner/Admin/Super Admin) via `clinic_members`.
-2. Recebe `{ name }` (rótulo amigável da conexão).
-3. Gera `instanceName` único: `clinic-{slug}-{shortid}`.
-4. Gera `webhook_token` (uuid) e `apiKey` da instância (uuid).
-5. POST `${EVOLUTION_GLOBAL_URL}/instance/create` com header `apikey: EVOLUTION_GLOBAL_API_KEY`:
-   ```json
-   {
-     "instanceName": "...",
-     "token": "<apiKey por instância>",
-     "qrcode": true,
-     "integration": "WHATSAPP-BAILEYS",
-     "webhook": {
-       "url": "https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/evolution-webhook?token=<webhook_token>",
-       "byEvents": false,
-       "events": ["MESSAGES_UPSERT","MESSAGES_UPDATE","CONTACTS_UPSERT","CONNECTION_UPDATE"]
-     }
-   }
-   ```
-6. Insere em `whatsapp_instances` com `clinic_id`, `name`, `evolution_url=EVOLUTION_GLOBAL_URL`, `evolution_api_key=<apiKey instância>`, `evolution_instance=instanceName`, `webhook_token`.
-7. Se for a primeira da clínica → marca `is_default = true`.
-8. Retorna `{ instance_id, instanceName }` para o front abrir o QR.
+### 2. `KommoImportDialog.tsx`
+- Filtrar `lead_custom_fields` existentes e novos **por `clinic_id`** (já filtra na leitura, mas a checagem de duplicidade precisa considerar o novo índice composto).
+- Setar `clinic_id` explicitamente ao inserir custom fields (hoje depende só do default — funciona, mas fica explícito).
+- **Cleanup em caso de erro**: se a inserção de leads falhar, apagar o `pipeline` recém-criado (cascade leva etapas e leads parciais junto), para não deixar lixo no Kanban.
+- Mensagem de erro mais clara quando ainda houver conflito de telefone (indicar qual telefone).
 
-Config: adicionar `[functions.evolution-provision]` com `verify_jwt = false` (validação manual via `getClaims`).
+### Sobre "Tipo: Gestão interna"
+O tipo está sendo gravado corretamente (a screenshot mostra "gestão interna" no funil). O lead apareceu porque a importação inseriu parcialmente antes de travar — o cleanup acima resolve.
 
-## 3. UI — `src/pages/Settings.tsx`
-
-Reorganizar a aba WhatsApp:
-
-**Topo: lista "Minhas Conexões"** (uma row por instância da clínica)
-- Nome + status (`open` / `connecting` / `close`) + botões: Escanear QR, Reiniciar, Desconectar, Excluir.
-- Status busca via `evolution-health` existente.
-
-**Botão "+ Novo WhatsApp"** abre dialog simples:
-- Campo "Nome da conexão" (ex: "Recepção", "Dr. João").
-- Ao confirmar → chama `evolution-provision` → abre QR automaticamente.
-
-**Seção "Configuração avançada" (collapse, oculta por padrão)**
-- Mantém os campos manuais URL / API Key / Instance Name para o caso de servidor próprio.
-
-## 4. Hook em `useAuth` / queries
-- Listar instâncias filtra por `clinic_id` (RLS já existente).
-- Excluir instância: chama nova função `evolution-delete-instance` (DELETE `/instance/delete/{name}` + remove row). Opcional nesta etapa — posso entregar junto.
-
-## Detalhes técnicos
-- Reaproveita `_shared/evolution.ts` (`evoFetch`, `REQUIRED_EVENTS`).
-- Não altera schema do banco — `whatsapp_instances` já tem todas as colunas.
-- Webhook continua roteando por `?token=` (já implementado).
-- Apenas Owner/Admin podem provisionar/excluir (Professional/Viewer veem read-only).
-
-## Arquivos
-- `supabase/functions/evolution-provision/index.ts` (novo)
-- `supabase/functions/evolution-delete-instance/index.ts` (novo, opcional)
-- `supabase/config.toml` (registrar nova função)
-- `src/pages/Settings.tsx` (UI reformulada)
-- `src/components/settings/WhatsAppConnectionsList.tsx` (novo, opcional para organizar)
-
-Após aprovar, peço os 2 secrets e implemento.
+## Resultado esperado
+- Importações de clínicas diferentes podem reusar telefones e nomes de campos.
+- Em caso de falha, o funil parcial é removido automaticamente.
