@@ -235,6 +235,7 @@ export default function KanbanPage() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
+  const [kommoImportOpen, setKommoImportOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
