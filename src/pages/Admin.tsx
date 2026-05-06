@@ -134,7 +134,7 @@ export default function Admin() {
                 <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                 <TableCell>{c.plan}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convidar owner</Button>
+                  <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Gerar convite</Button>
                   <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
                 </TableCell>
               </TableRow>
@@ -143,18 +143,47 @@ export default function Admin() {
         </Table>
       </div>
 
-      <Dialog open={!!openInvite} onOpenChange={(o) => !o && setOpenInvite(null)}>
+      <Dialog open={!!openInvite} onOpenChange={(o) => !o && closeInvite()}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Convidar owner — {openInvite?.name}</DialogTitle></DialogHeader>
-          <form onSubmit={sendInvite} className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required />
+          <DialogHeader><DialogTitle>Gerar convite — {openInvite?.name}</DialogTitle></DialogHeader>
+          {!generatedLink ? (
+            <form onSubmit={generateInvite} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Email do convidado</Label>
+                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required placeholder="pessoa@clinica.com" />
+                <p className="text-xs text-muted-foreground">O convite só pode ser aceito por quem fizer login com este email.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Papel</Label>
+                <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
+                  <option value="owner">Owner (dono da clínica)</option>
+                  <option value="admin">Admin</option>
+                  <option value="professional">Profissional</option>
+                  <option value="viewer">Visualizador</option>
+                </select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={closeInvite}>Cancelar</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Gerar link</Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Link de convite</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={generatedLink.url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+                  <Button type="button" variant="outline" onClick={copyLink}><Copy className="h-4 w-4" /></Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Envie manualmente para <strong>{inviteEmail}</strong> (WhatsApp, email, etc). Expira em {new Date(generatedLink.expires_at).toLocaleDateString("pt-BR")}.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button type="button" onClick={closeInvite}>Concluir</Button>
+              </DialogFooter>
             </div>
-            <DialogFooter>
-              <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Enviar convite</Button>
-            </DialogFooter>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
