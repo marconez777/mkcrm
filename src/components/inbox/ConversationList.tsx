@@ -401,6 +401,7 @@ export default function ConversationList(props: {
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />Excluir conversa
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
