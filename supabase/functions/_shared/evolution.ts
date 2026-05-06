@@ -380,5 +380,5 @@ export async function ingestMessage(
     }
   }
 
-  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage, message_id: messageId, type, needs_media: isMediaType(type) };
+  return { lead_id: lead!.id, external_id: externalId, source, isNew: isNewMessage, message_id: messageId, type, needs_media: isMediaType(type) && (isNewMessage || existingNeedsMedia) };
 }
