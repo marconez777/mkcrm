@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 import { FUNCTIONS_URL, getFunctionHeaders } from "@/lib/supabase-env";
 import { addNote, getNotes, removeNote, subscribeNotes, type InternalNote } from "@/lib/internal-notes";
 import { useWaAvatar } from "@/hooks/useWaAvatar";
+import { useConfirm } from "@/hooks/useDialogs";
 import type { BackfillProgressEvent, SyncLeadResult } from "../../../supabase/functions/_shared/types";
 
 const PAGE_SIZE = 50;
