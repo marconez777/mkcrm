@@ -56,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 px-3 py-2">
-          {items.map((it) => (
+          {navItems.map((it) => (
             <NavLink
               key={it.to}
               to={it.to}
