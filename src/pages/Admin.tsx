@@ -54,23 +54,30 @@ export default function Admin() {
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
-  async function sendInvite(e: React.FormEvent) {
+  async function generateInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!openInvite) return;
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("clinic-invite", {
-        body: { clinic_id: openInvite.id, email: inviteEmail, role: "owner" },
+        body: { clinic_id: openInvite.id, email: inviteEmail, role: inviteRole },
       });
       if (error) throw error;
-      if (data?.email_error) {
-        await navigator.clipboard.writeText(data.invite_url).catch(() => {});
-        toast.warning(`Convite criado mas email falhou. Link copiado.`);
-      } else {
-        toast.success("Convite enviado");
-      }
-      setOpenInvite(null); setInviteEmail("");
+      setGeneratedLink({ url: data.invite_url, expires_at: data.expires_at });
+      toast.success("Convite criado");
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function copyLink() {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedLink.url);
+      toast.success("Link copiado");
+    } catch { toast.error("Não foi possível copiar"); }
+  }
+
+  function closeInvite() {
+    setOpenInvite(null); setInviteEmail(""); setInviteRole("owner"); setGeneratedLink(null);
   }
 
   async function toggleStatus(c: Clinic) {
