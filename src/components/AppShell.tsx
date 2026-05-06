@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, MessageSquareText, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import mkLogo from "@/assets/mk-logo.png";
 
 const items = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
