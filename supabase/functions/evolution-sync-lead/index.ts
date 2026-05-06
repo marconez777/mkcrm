@@ -138,10 +138,10 @@ Deno.serve(async (req) => {
     totalSeen = items.length;
     for (const it of items) {
       try {
-        if (lastTs) {
-          const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
-          if (itTs && itTs <= lastTs) continue;
-        }
+        // Skip by timestamp only if it's not a media message (mídia pode estar sem media_url ainda)
+        const itTs = it?.messageTimestamp ? Number(it.messageTimestamp) * 1000 : 0;
+        const isMedia = !!(it?.message?.imageMessage || it?.message?.videoMessage || it?.message?.audioMessage || it?.message?.documentMessage || it?.message?.stickerMessage);
+        if (lastTs && itTs && itTs <= lastTs && !isMedia) continue;
         const r: any = await ingestMessage(it, "sync", { silent, instanceId: instance.id });
         if (r?.isNew) imported++;
         if (r?.needs_media && r?.message_id) {
