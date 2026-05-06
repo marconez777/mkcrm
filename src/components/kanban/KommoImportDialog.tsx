@@ -180,7 +180,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
       // chunk de 500 para não estourar URL
       for (let i = 0; i < uniquePhones.length; i += 500) {
         const chunk = uniquePhones.slice(i, i + 500);
-        const { data } = await supabase.from("leads").select("id, phone").in("phone", chunk);
+        const { data } = await supabase.from("leads").select("id, phone").eq("clinic_id", clinicId).in("phone", chunk);
         (data ?? []).forEach((l: any) => existingLeadsMap.set(l.phone, l.id));
       }
 
