@@ -139,9 +139,9 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
 });
 
 function Column({
-  stage, leads, onOpenLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
+  stage, leads, onOpenLead, onMoveLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
 }: {
-  stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void;
+  stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
   onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
 }) {
