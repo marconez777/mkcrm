@@ -107,6 +107,13 @@ export default function PipelineSwitcher({ pipelines, current, leads, onSelect, 
           <Plus className="mr-2 h-4 w-4" />Adicionar funil
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <EditPipelineDialog
+        pipeline={editing}
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
     </DropdownMenu>
   );
 }
