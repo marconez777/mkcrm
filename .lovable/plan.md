@@ -1,41 +1,23 @@
-## Objetivo
+## Problema
 
-Garantir que mensagens recebidas no WhatsApp criem leads **apenas em um único funil específico** vinculado àquele número, e que funis do tipo **"Gestão interna"** nunca recebam leads automaticamente.
+Ao criar ou excluir um funil, a lista lateral só atualiza após recarregar a página.
 
-## Comportamento desejado
+## Causa
 
-- Cada instância de WhatsApp pode estar ligada a **no máximo um funil** (do tipo "Vendas").
-- Quando chega mensagem nova de um número desconhecido:
-  - Procura o funil `kind='sales'` cujo `whatsapp_instance_id` = instância que recebeu.
-  - Cria o lead na **primeira etapa** desse funil (e grava `pipeline_id`).
-  - Se nenhum funil estiver vinculado àquela instância, usa o funil marcado como `is_default=true` (fallback).
-  - Se nem isso existir, **não cria lead** (skip).
-- Funis "Gestão interna" nunca podem ter `whatsapp_instance_id` → portanto nunca recebem entrada automática. Só aceitam leads via importação ou criação manual.
-- Importação Kommo e criação manual continuam funcionando normalmente em qualquer funil.
+O hook `usePipelines` já tem uma subscription Supabase Realtime escutando mudanças na tabela `pipelines`, mas a tabela **não está incluída na publicação `supabase_realtime`** do banco. Por isso nenhum evento chega ao cliente.
 
-## Mudanças técnicas
+Verifiquei: `pipeline_stages` e `leads` estão na publicação, mas `pipelines` não.
+
+## Solução
 
 **1. Migração de banco**
-- Índice único parcial em `pipelines(clinic_id, whatsapp_instance_id)` onde `whatsapp_instance_id IS NOT NULL` — impede dois funis usarem a mesma instância.
-- Trigger de validação: se `kind='internal'`, força `whatsapp_instance_id = NULL` (ou rejeita).
-- Limpeza: zerar `whatsapp_instance_id` de funis `internal` existentes.
+- `ALTER PUBLICATION supabase_realtime ADD TABLE public.pipelines;`
+- `ALTER TABLE public.pipelines REPLICA IDENTITY FULL;` (garante payload completo em UPDATE/DELETE)
 
-**2. `supabase/functions/_shared/evolution.ts`** (criação de lead via webhook)
-- Em vez de pegar a primeira `pipeline_stages` da clínica, buscar:
-  1. Funil `kind='sales'` com `whatsapp_instance_id = instanceId` → primeira etapa dele.
-  2. Senão, funil `is_default=true` da clínica → primeira etapa.
-  3. Senão, retornar `{ skipped: true, reason: "no-inbound-pipeline" }`.
-- Gravar `pipeline_id` no lead (hoje só grava `stage_id`).
-
-**3. UI — `NewPipelineDialog.tsx` e `KommoImportDialog.tsx`**
-- Esconder/desabilitar seletor de instância WhatsApp quando `kind='internal'`.
-- No seletor de instância (sales), filtrar instâncias **já usadas** por outro funil (ou marcá-las como "já vinculada a X") para evitar erro do índice único.
-
-**4. `Kanban.tsx` / edição de funil** (se houver)
-- Mesma regra: ao trocar `kind` para internal, limpar a instância.
+**2. Reforço no cliente (`src/hooks/usePipelines.ts`)**
+- Após `insert`/`update`/`delete` feitos localmente (renomear, definir padrão, excluir, criar), também atualizar o estado local imediatamente como fallback otimista — assim, mesmo se o evento Realtime atrasar, a UI responde na hora.
+- Manter a subscription para sincronizar entre abas/usuários.
 
 ## Resultado
 
-- Apenas um funil "oficial de entrada" por número de WhatsApp.
-- Funis de gestão interna 100% manuais.
-- Outros funis de vendas existem normalmente, mas só recebem leads via importação ou criação manual.
+Criar, renomear, definir padrão e excluir funis refletem instantaneamente na sidebar e no switcher, sem refresh.
