@@ -71,8 +71,8 @@ function saveUi(ui: { collapsed: string[]; compact: boolean }) {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; compact?: boolean }>(function LeadCard(
-  { lead, onOpen, compact },
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
+  { lead, onOpen, onMove, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
@@ -86,8 +86,27 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       {...listeners}
       onClick={() => onOpen(lead)}
       data-kanban-card
-      className={`group cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
+      className={`group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
     >
+      <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="rounded p-1 text-muted-foreground hover:bg-accent"
+              title="Mais ações"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
+              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <div className="flex items-start gap-2">
         <div className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary ${compact ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"}`}>
           {initials}
