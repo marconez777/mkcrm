@@ -71,6 +71,23 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     if (error) toast.error("Falha: " + error.message); else toast.success("Reenviando...");
   }
 
+  async function deleteMessage(m: Message) {
+    const canForEveryone = m.from_me && !!m.external_id;
+    if (!(await confirm({
+      title: "Excluir mensagem?",
+      description: canForEveryone
+        ? "Será apagada para todos no WhatsApp e removida daqui."
+        : "Será removida apenas deste CRM.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    }))) return;
+    const { data, error } = await supabase.functions.invoke("evolution-delete-message", {
+      body: { message_id: m.id, for_everyone: canForEveryone },
+    });
+    if (error || (data as any)?.error) toast.error("Falha: " + (error?.message || (data as any)?.error));
+    else toast.success("Mensagem excluída");
+  }
+
   async function syncHistory() {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead!.id } });
