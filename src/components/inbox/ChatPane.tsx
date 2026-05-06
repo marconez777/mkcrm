@@ -843,6 +843,7 @@ function VirtualizedMessages(props: {
                   pulseAndScroll={pulseAndScroll}
                   resend={resend}
                   onForward={props.onForward}
+                  onDelete={onDelete}
                 />
               )}
             </div>
