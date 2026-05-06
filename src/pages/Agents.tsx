@@ -364,7 +364,7 @@ export default function Agents() {
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         <div className="flex items-center justify-between p-4">
           <h2 className="text-sm font-semibold">Agentes</h2>
-          <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
+          {canManage && <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>}
         </div>
         <div className="px-2">
           {agents.map((a) => (
