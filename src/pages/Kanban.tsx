@@ -249,6 +249,7 @@ export default function KanbanPage() {
   const { pipelines, current, currentId, setCurrentId } = usePipelines();
   const [active, setActive] = useState<Lead | null>(null);
   const [openLead, setOpenLead] = useState<Lead | null>(null);
+  const [movingLead, setMovingLead] = useState<Lead | null>(null);
   const [newColOpen, setNewColOpen] = useState(false);
   const [newColName, setNewColName] = useState("");
   const [newLeadOpen, setNewLeadOpen] = useState(false);
