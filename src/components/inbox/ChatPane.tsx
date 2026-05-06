@@ -5,7 +5,7 @@ import type { Lead, Message } from "@/types/crm";
 import {
   Loader2, RefreshCw, Check, CheckCheck, Clock, AlertCircle, RotateCw,
   Reply, X, ChevronDown, ChevronUp, Sparkles, Search, CalendarIcon, History, WifiOff,
-  StickyNote, Forward, Trash2, Download,
+  StickyNote, Forward, Trash2,
 } from "lucide-react";
 import Composer from "./Composer";
 import ForwardDialog from "./ForwardDialog";
