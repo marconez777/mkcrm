@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Lead, Message, Stage } from "@/types/crm";
+import type { Lead, Message } from "@/types/crm";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Loader2, Phone, Mail, Building2, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
+import { Send, Loader2, Phone, Trash2, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
+import { useAttendants } from "@/hooks/useAttendants";
 import { useConfirm } from "@/hooks/useDialogs";
+import ContextRail from "@/components/inbox/ContextRail";
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
