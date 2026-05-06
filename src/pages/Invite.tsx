@@ -69,7 +69,10 @@ export default function InvitePage() {
       if (rpcErr) throw rpcErr;
       await refreshMembership();
       toast.success(`Bem-vindo(a) à ${invite.clinic_name ?? "clínica"}!`);
-      nav("/", { replace: true });
+      const isManager = invite.role === "owner" || invite.role === "admin";
+      const { data: c } = await supabase.from("clinics").select("settings").eq("id", invite.clinic_id).maybeSingle();
+      const onboarded = !!(c?.settings as any)?.onboarded;
+      nav(isManager && !onboarded ? "/onboarding" : "/", { replace: true });
     } catch (e: any) {
       toast.error(e.message);
     } finally { setBusy(false); }
