@@ -107,13 +107,13 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
           </div>
         </header>
 
-        <Tabs defaultValue="chat" className="flex flex-1 flex-col overflow-hidden">
-          <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] grid-cols-2">
+        <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-2">
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="details">Detalhes</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat" className="m-0 flex flex-1 flex-col overflow-hidden">
+          <TabsContent value="chat" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
             <div ref={scrollerRef} className="scrollbar-thin flex-1 overflow-y-auto px-5 py-4" style={{ background: "hsl(var(--chat-bg))" }}>
               {messages.length === 0 && <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>}
               <div className="space-y-1.5">

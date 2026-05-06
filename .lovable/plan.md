@@ -1,21 +1,16 @@
 ## Problema
 
-Ao abrir um card no Pipeline e ir na aba **Detalhes**, há um grande espaço em branco no topo (entre as tabs e os campos) e os campos exibidos são muito limitados — faltam informações que já existem no painel do Inbox (Resumo IA, Atendente, Tags, Notas, Tarefas, Mensagens agendadas, Auto-resposta IA, Campos personalizados, Linha do tempo, etc.).
+No `LeadDrawer` (card do pipeline) há áreas brancas extras: abaixo da aba Detalhes (antes do Perfil) e abaixo do composer no Chat. O `ContextRail` aparece aninhado com altura própria além do conteúdo da tab.
 
 ## Causa
 
-`src/pages/LeadDrawer.tsx` (usado no Kanban) tem uma aba **Detalhes** própria, simplificada, com poucos campos e um padding grande que cria o espaço vazio. Já o painel do Inbox usa `src/components/inbox/ContextRail.tsx`, que é completo.
+- `SheetContent` tem `p-6` por padrão, criando padding interno.
+- `Tabs`/`TabsContent` não estão controlando altura corretamente: falta `min-h-0` no Tabs e `data-[state=inactive]:hidden` nas TabsContent. Resultado: ambas as tabs renderizam empilhadas, e o ContextRail (que tem seu próprio `flex-1 overflow-y-auto`) cresce abaixo do chat.
 
-## Solução
+## Solução em `src/pages/LeadDrawer.tsx`
 
-Reaproveitar o `ContextRail` na aba **Detalhes** do `LeadDrawer`, garantindo paridade total com o painel do Inbox.
-
-### Mudanças em `src/pages/LeadDrawer.tsx`
-
-1. Importar `ContextRail` e o hook `useAttendants`.
-2. Substituir todo o conteúdo da `<TabsContent value="details">` por `<ContextRail lead={lead} stages={stages} attendants={attendants} />`.
-3. Remover o padding `p-5` e o `space-y-4` da TabsContent — o ContextRail já tem seu próprio scroll/spacing internos, o que elimina o espaço em branco.
-4. Limpar imports e estado não mais usados (`form`, `saveDetails`, campos de Input/Select/Label específicos da aba removida).
-5. Manter Chat tab intacta.
-
-Resultado: a aba **Detalhes** no card do pipeline passa a ter exatamente as mesmas informações do painel das conversas (Resumo IA, Etapa, Atendente, Valor, Email, Empresa, Tags, Notas, Campos personalizados, Tarefas, Agendamentos, Auto-resposta IA, Linha do tempo) — sem espaço em branco.
+1. No `<SheetContent>`: já tem `p-0`, ok. Confirmar `flex-col h-full`.
+2. No `<Tabs>`: trocar `flex flex-1 flex-col overflow-hidden` por `flex min-h-0 flex-1 flex-col overflow-hidden`.
+3. Em `<TabsList>`: adicionar `shrink-0`.
+4. Em ambas `<TabsContent>`: adicionar `min-h-0` e `data-[state=inactive]:hidden` para garantir que a inativa não ocupe espaço.
+5. `TabsContent value="details"`: manter wrapper `flex min-h-0 flex-1 flex-col overflow-hidden` para que o ContextRail (que já é `flex-1 overflow-y-auto`) preencha exatamente o espaço.
