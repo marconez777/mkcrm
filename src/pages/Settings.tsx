@@ -11,6 +11,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "nunca";
