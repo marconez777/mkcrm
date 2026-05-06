@@ -257,15 +257,10 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         inserted += chunk.length;
       }
 
-      // Updates um por um (RLS-safe, simples)
-      let updated = 0;
-      for (const u of toUpdate) {
-        await supabase.from("leads").update(u.patch).eq("id", u.id);
-        updated++;
-        if (updated % 20 === 0) setProgress(`Atualizando ${updated}/${toUpdate.length}…`);
-      }
-
-      toast.success(`Importação concluída: ${inserted} novos, ${updated} atualizados${skipped ? `, ${skipped} ignorados` : ""}`);
+      const parts = [`${inserted} novos`];
+      if (alreadyExists) parts.push(`${alreadyExists} já existiam (mantidos no funil atual)`);
+      if (skipped) parts.push(`${skipped} ignorados`);
+      toast.success(`Importação concluída: ${parts.join(", ")}`);
       onCreated(pipeline.id);
       onOpenChange(false);
       setFile(null); setPreview(null); setPipelineName("");
