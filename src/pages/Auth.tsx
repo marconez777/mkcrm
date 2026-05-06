@@ -44,7 +44,7 @@ export default function AuthPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
             <MessageSquare className="h-5 w-5" />
           </div>
-          <h1 className="text-lg font-semibold">{mode === "signin" ? "Entrar" : "Criar conta"}</h1>
+          <h1 className="text-lg font-semibold">Entrar</h1>
           <p className="text-xs text-muted-foreground">Acesso à equipe de atendimento</p>
         </div>
         <form onSubmit={submit} className="space-y-3">
@@ -56,22 +56,15 @@ export default function AuthPage() {
           <div className="space-y-1.5">
             <Label htmlFor="password" className="text-xs">Senha</Label>
             <Input id="password" type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              autoComplete="current-password"
               required minLength={6}
               value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
             {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-            {mode === "signin" ? "Entrar" : "Criar conta"}
+            Entrar
           </Button>
         </form>
-        <div className="mt-4 text-center text-xs text-muted-foreground">
-          {mode === "signin" ? (
-            <>Sem conta? <button className="text-primary hover:underline" onClick={() => setMode("signup")}>Criar uma</button></>
-          ) : (
-            <>Já tem conta? <button className="text-primary hover:underline" onClick={() => setMode("signin")}>Entrar</button></>
-          )}
-        </div>
       </div>
     </div>
   );
