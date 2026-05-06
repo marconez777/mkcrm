@@ -317,6 +317,7 @@ export async function ingestMessage(
 
   let isNewMessage = false;
   let messageId: string | null = existing?.id ?? null;
+  const existingNeedsMedia = !!existing && !existing.media_url && isMediaType(type);
   if (existing) {
     const changed =
       existing.content !== content ||
