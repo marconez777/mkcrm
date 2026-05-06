@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Pipeline, Lead } from "@/types/crm";
-import { Plus, MoreVertical, Star, Pencil, Trash2, MessageCircleMore, FolderKanban } from "lucide-react";
+import { Plus, MoreVertical, Star, Pencil, Trash2, MessageCircleMore, FolderKanban, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useConfirm, usePrompt } from "@/hooks/useDialogs";
+import EditPipelineDialog from "./EditPipelineDialog";
 
 interface Props {
   pipelines: Pipeline[];
@@ -13,6 +14,7 @@ interface Props {
   onSelect: (id: string) => void;
   onNew: () => void;
   leads: Lead[];
+  whatsappInstances?: { id: string; name: string }[];
 }
 
 export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew, leads }: Props) {
