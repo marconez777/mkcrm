@@ -274,6 +274,14 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
       onOpenChange(false);
       setFile(null); setPreview(null); setPipelineName("");
     } catch (e: any) {
+      // Rollback: remove pipeline criado e tudo que veio junto (etapas + leads inseridos)
+      if (createdPipelineId) {
+        try {
+          await supabase.from("leads").delete().eq("pipeline_id", createdPipelineId);
+          await supabase.from("pipeline_stages").delete().eq("pipeline_id", createdPipelineId);
+          await supabase.from("pipelines").delete().eq("id", createdPipelineId);
+        } catch {}
+      }
       toast.error(e.message);
     } finally {
       setImporting(false);
