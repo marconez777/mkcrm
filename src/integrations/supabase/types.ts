@@ -28,7 +28,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           expected_contains?: string[]
           id?: string
@@ -78,7 +78,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           enabled?: boolean
           headers?: Json
@@ -126,7 +126,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           embedding?: string | null
@@ -188,7 +188,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           error?: string | null
           id?: string
@@ -262,7 +262,7 @@ export type Database = {
         Insert: {
           api_key?: string | null
           base_url?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           debounce_seconds?: number
           description?: string | null
@@ -341,7 +341,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           chunk_index?: number
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           document_id: string
@@ -400,7 +400,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           doc_summary?: string | null
@@ -449,7 +449,7 @@ export type Database = {
           tool_calls: Json | null
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           content?: string | null
           created_at?: string
           id?: string
@@ -497,7 +497,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           lead_id?: string | null
@@ -560,7 +560,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           automation_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           error?: string | null
           id?: string
@@ -614,7 +614,7 @@ export type Database = {
           name: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           color?: string
           created_at?: string
           id?: string
@@ -682,7 +682,7 @@ export type Database = {
         }
         Insert: {
           automation_id: string
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           detail?: string | null
           id?: string
@@ -726,7 +726,7 @@ export type Database = {
         Insert: {
           action_config?: Json
           action_type: string
-          clinic_id: string
+          clinic_id?: string
           cooldown_hours?: number
           created_at?: string
           description?: string | null
@@ -934,7 +934,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           lead_id: string
           paused_until?: string | null
@@ -985,7 +985,7 @@ export type Database = {
           position: number
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           field_key: string
           field_type?: string
@@ -1024,7 +1024,7 @@ export type Database = {
           type: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           lead_id: string
@@ -1062,7 +1062,7 @@ export type Database = {
         Insert: {
           author_id?: string | null
           author_name?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           lead_id: string
@@ -1096,7 +1096,7 @@ export type Database = {
           lead_id: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           count?: number
           hour_bucket: string
           last_bot_sent_at?: string | null
@@ -1130,7 +1130,7 @@ export type Database = {
           title: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           done_at?: string | null
           due_at: string
@@ -1193,7 +1193,7 @@ export type Database = {
           archived_at?: string | null
           attendant_id?: string | null
           avatar_url?: string | null
-          clinic_id: string
+          clinic_id?: string
           company?: string | null
           created_at?: string
           custom_fields?: Json
@@ -1289,7 +1289,7 @@ export type Database = {
           variables: Json
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           description?: string | null
@@ -1343,7 +1343,7 @@ export type Database = {
         }
         Insert: {
           client_message_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           content?: string | null
           created_at?: string
           delivery_status?: string | null
@@ -1408,7 +1408,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           lead_id: string
           run_at: string
@@ -1455,7 +1455,7 @@ export type Database = {
           position: number
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           color?: string
           created_at?: string
           id?: string
@@ -1503,7 +1503,7 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           color?: string
           created_at?: string
           id?: string
@@ -1585,7 +1585,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           id?: string
@@ -1644,7 +1644,7 @@ export type Database = {
           status: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           content: string
           created_at?: string
           id?: string
@@ -1733,7 +1733,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id: string
+          clinic_id?: string
           stage_id: string
         }
         Update: {
@@ -1775,7 +1775,7 @@ export type Database = {
         }
         Insert: {
           attendant_id: string
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           task_id: string
         }
@@ -1821,7 +1821,7 @@ export type Database = {
           task_id: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           file_name: string
           id?: string
@@ -1866,7 +1866,7 @@ export type Database = {
           position: number
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           name: string
@@ -1900,7 +1900,7 @@ export type Database = {
           text: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           done?: boolean
           id?: string
@@ -1945,7 +1945,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           name: string
@@ -1983,7 +1983,7 @@ export type Database = {
           task_id: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           label_id: string
           task_id: string
         }
@@ -2027,7 +2027,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
-          clinic_id: string
+          clinic_id?: string
           color?: string
           created_at?: string
           id?: string
@@ -2074,7 +2074,7 @@ export type Database = {
         }
         Insert: {
           board_id: string
-          clinic_id: string
+          clinic_id?: string
           column_id: string
           created_at?: string
           description?: string | null
@@ -2171,7 +2171,7 @@ export type Database = {
           source: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           error?: string | null
           event_type: string
           id?: string
@@ -2222,7 +2222,7 @@ export type Database = {
           webhook_token: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           connection_state?: string | null
           created_at?: string
           evolution_api_key: string
