@@ -946,7 +946,7 @@ function MessageRow(props: {
             {replied.content || `[${replied.message_type}]`}
           </button>
         )}
-        {m.media_url && <MediaBubble m={m} />}
+        {m.media_url && <WAMediaBubble m={m} fromMe={m.from_me} />}
         {(m.content || !m.media_url) && (
           <div className="whitespace-pre-wrap break-words">
             {searchTerm && m.content
