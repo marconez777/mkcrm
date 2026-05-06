@@ -246,6 +246,26 @@ export async function ingestMessage(
   const phone = phoneFromKey(item?.key);
   if (!phone) return { skipped: true, reason: "no-phone" };
 
+  // Resolve clinic_id from instance (service role bypasses RLS, so default current_clinic_id() = NULL).
+  let clinicId: string | null = null;
+  if (instanceId) {
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("clinic_id")
+      .eq("id", instanceId)
+      .maybeSingle();
+    clinicId = (inst as any)?.clinic_id ?? null;
+  }
+  if (!clinicId) {
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("clinic_id")
+      .eq("is_default", true)
+      .maybeSingle();
+    clinicId = (inst as any)?.clinic_id ?? null;
+  }
+  if (!clinicId) return { skipped: true, reason: "no-clinic" };
+
   const fromMe = !!item?.key?.fromMe;
   const externalId: string | null = item?.key?.id ?? null;
   const { type, content } = extractText(item.message);
@@ -266,6 +286,7 @@ export async function ingestMessage(
     .from("leads")
     .select("id, name, whatsapp_instance_id")
     .eq("phone", phone)
+    .eq("clinic_id", clinicId)
     .maybeSingle();
 
   let createdLead = false;
@@ -273,14 +294,16 @@ export async function ingestMessage(
     const { data: stage } = await supabase
       .from("pipeline_stages")
       .select("id")
+      .eq("clinic_id", clinicId)
       .order("position")
       .limit(1)
-      .single();
+      .maybeSingle();
     const { data: created, error } = await supabase
       .from("leads")
       .insert({
         phone,
         name: pushName,
+        clinic_id: clinicId,
         stage_id: stage?.id ?? null,
         whatsapp_instance_id: instanceId,
         last_message_at: ts,
@@ -340,6 +363,7 @@ export async function ingestMessage(
   } else {
     const insertRow: Record<string, unknown> = {
       lead_id: lead!.id,
+      clinic_id: clinicId,
       external_id: externalId,
       from_me: fromMe,
       message_type: type,
