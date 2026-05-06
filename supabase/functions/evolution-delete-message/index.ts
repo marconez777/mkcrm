@@ -60,6 +60,22 @@ Deno.serve(async (req) => {
     const { error: delErr } = await supabase.from("messages").delete().eq("id", message_id);
     if (delErr) throw delErr;
 
+    // Atualiza preview/last_message_at do lead com a mensagem mais recente restante
+    const { data: latest } = await supabase
+      .from("messages")
+      .select("content, message_type, timestamp")
+      .eq("lead_id", msg.lead_id)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    await supabase
+      .from("leads")
+      .update({
+        last_message_at: latest?.timestamp ?? null,
+        last_message_preview: latest ? (latest.content?.slice(0, 120) ?? `[${latest.message_type}]`) : null,
+      })
+      .eq("id", msg.lead_id);
+
     return json({ ok: true, evolution: evolutionStatus, detail: evolutionDetail });
   } catch (err) {
     console.error("evolution-delete-message error", err);
