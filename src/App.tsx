@@ -46,6 +46,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
               path="*"
               element={
