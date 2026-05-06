@@ -287,15 +287,18 @@ export default function KanbanPage() {
     else if (overData?.type === "lead") targetStageId = overData.lead.stage_id;
     if (!targetStageId || targetStageId === lead.stage_id) return;
     const previousStageId = lead.stage_id;
-    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId } : l));
-    await supabase.from("leads").update({ stage_id: targetStageId }).eq("id", lead.id);
+    const previousPosition = lead.position ?? 0;
+    const targetLeads = leads.filter((l) => l.stage_id === targetStageId);
+    const newPosition = targetLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
+    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition } : l));
+    await supabase.from("leads").update({ stage_id: targetStageId, position: newPosition }).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
     toast.success(`Movido para "${target?.name ?? "etapa"}"`, {
       action: previousStageId ? {
         label: "Desfazer",
         onClick: async () => {
-          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId } : l));
-          await supabase.from("leads").update({ stage_id: previousStageId }).eq("id", lead.id);
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition } : l));
+          await supabase.from("leads").update({ stage_id: previousStageId, position: previousPosition }).eq("id", lead.id);
         },
       } : undefined,
       duration: 6000,
