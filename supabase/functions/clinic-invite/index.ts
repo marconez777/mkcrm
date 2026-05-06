@@ -60,45 +60,7 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") ?? req.headers.get("referer")?.replace(/\/$/, "") ?? "https://crm.mkart.com.br";
     const inviteUrl = `${origin.replace(/\/$/, "")}/invite/${invite!.token}`;
 
-    // Send email via Resend gateway
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    let emailSent = false;
-    let emailError: string | null = null;
-    if (LOVABLE_API_KEY && RESEND_API_KEY) {
-      const resp = await fetch(`${GATEWAY_URL}/emails`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": RESEND_API_KEY,
-        },
-        body: JSON.stringify({
-          from: "MKart CRM <onboarding@resend.dev>",
-          to: [email],
-          subject: `Convite para ${clinic?.name ?? "clínica"} no MKart CRM`,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-              <h2 style="color:#0f172a">Você foi convidado(a)</h2>
-              <p>Olá! Você recebeu um convite para acessar <strong>${clinic?.name ?? "uma clínica"}</strong> no MKart CRM como <strong>${inviteRole}</strong>.</p>
-              <p style="margin:24px 0">
-                <a href="${inviteUrl}" style="background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Aceitar convite</a>
-              </p>
-              <p style="color:#64748b;font-size:12px">Ou copie este link: <br/>${inviteUrl}</p>
-              <p style="color:#94a3b8;font-size:12px;margin-top:24px">O convite expira em 7 dias.</p>
-            </div>`,
-        }),
-      });
-      if (!resp.ok) {
-        emailError = `Resend ${resp.status}: ${await resp.text()}`;
-      } else {
-        emailSent = true;
-      }
-    } else {
-      emailError = "Email não enviado (RESEND_API_KEY/LOVABLE_API_KEY ausente). Compartilhe o link manualmente.";
-    }
-
-    return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, email_sent: emailSent, email_error: emailError }), {
+    return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
