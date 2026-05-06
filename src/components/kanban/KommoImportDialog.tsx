@@ -251,12 +251,21 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         }
       }
 
-      // Insert em chunks
+      // Dedupe por telefone dentro do próprio arquivo (mantém a última ocorrência)
+      const dedupedMap = new Map<string, any>();
+      for (const item of toInsert) dedupedMap.set(item.phone, item);
+      const dedupedInsert = Array.from(dedupedMap.values());
+      const dupSkipped = toInsert.length - dedupedInsert.length;
+      skipped += dupSkipped;
+
+      // Upsert em chunks (onConflict clinic_id,phone evita erro de duplicado)
       let inserted = 0;
-      for (let i = 0; i < toInsert.length; i += 200) {
-        const chunk = toInsert.slice(i, i + 200);
-        setProgress(`Inserindo ${i + chunk.length}/${toInsert.length}…`);
-        const { error } = await supabase.from("leads").insert(chunk);
+      for (let i = 0; i < dedupedInsert.length; i += 200) {
+        const chunk = dedupedInsert.slice(i, i + 200);
+        setProgress(`Inserindo ${i + chunk.length}/${dedupedInsert.length}…`);
+        const { error } = await supabase
+          .from("leads")
+          .upsert(chunk, { onConflict: "clinic_id,phone", ignoreDuplicates: false });
         if (error) throw new Error(`Insert: ${error.message}`);
         inserted += chunk.length;
       }
