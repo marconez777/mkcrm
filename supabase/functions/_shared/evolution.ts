@@ -19,6 +19,29 @@ export const sb = () =>
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+/**
+ * Validate the caller's JWT. Returns the user id, or a Response if unauthorized.
+ * Also accepts the service role key (for internal cron / function-to-function calls).
+ */
+export async function requireUser(req: Request): Promise<string | Response> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+  const token = authHeader.slice("Bearer ".length).trim();
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRole && token === serviceRole) return "service_role";
+
+  const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+  try {
+    const { data, error } = await client.auth.getUser(token);
+    if (error || !data?.user) return json({ error: "Unauthorized" }, 401);
+    return data.user.id;
+  } catch {
+    return json({ error: "Unauthorized" }, 401);
+  }
+}
+
 export type Instance = {
   id: string;
   name: string;
