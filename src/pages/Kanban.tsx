@@ -45,7 +45,7 @@ import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import KommoImportDialog from "@/components/kanban/KommoImportDialog";
-import TopScrollbar from "@/components/kanban/TopScrollbar";
+import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 
@@ -185,23 +185,25 @@ function Column({
     return (
       <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
         <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title="Expandir">
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="h-4 w-4" />
         </button>
         {menu}
-        <span className="mt-1 h-2 w-2 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+        <span className="mt-1 h-3 w-3 rounded-full ring-2 ring-background" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+        <div className="mt-1 h-1 w-6 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
         <div ref={setNodeRef} className={`mt-2 flex flex-1 flex-col items-center justify-start gap-1 ${isOver ? "bg-primary/10" : ""}`}>
-          <div className="rotate-180 whitespace-nowrap text-xs font-semibold [writing-mode:vertical-rl]">{stage.name}</div>
-          <span className="mt-2 rounded bg-muted px-1.5 text-[10px] font-bold text-muted-foreground">{leads.length}</span>
+          <div className="rotate-180 whitespace-nowrap text-sm font-bold [writing-mode:vertical-rl]">{stage.name}</div>
+          <span className="mt-2 rounded bg-muted px-1.5 text-[11px] font-bold text-muted-foreground">{leads.length}</span>
         </div>
       </div>
     );
   }
 
+  const stageColor = stage.color || "hsl(var(--muted-foreground))";
   return (
     <div data-column-id={stage.id} className="kanban-snap flex w-80 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+      <div className="mb-1.5 flex items-center justify-between px-2 py-1.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-background shadow-sm" style={{ background: stageColor }} />
           {renaming ? (
             <input
               autoFocus
@@ -209,29 +211,30 @@ function Column({
               onChange={(e) => setNameDraft(e.target.value)}
               onBlur={commitRename}
               onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setNameDraft(stage.name); setRenaming(false); } }}
-              className="min-w-0 flex-1 rounded border bg-background px-1 text-sm font-semibold outline-none focus:ring-1 focus:ring-primary"
+              className="min-w-0 flex-1 rounded border bg-background px-1.5 py-0.5 text-base font-bold outline-none focus:ring-1 focus:ring-primary"
             />
           ) : (
             <span
-              className="truncate text-sm font-semibold"
+              className="truncate text-base font-bold"
               onDoubleClick={() => setRenaming(true)}
               title="Duplo-clique para renomear"
             >
               {stage.name}
             </span>
           )}
-          <span className="text-xs text-muted-foreground">{leads.length}</span>
+          <span className="text-sm font-medium text-muted-foreground">{leads.length}</span>
         </div>
         <div className="flex items-center gap-1">
           {totalValue > 0 && (
-            <span className="text-[10px] font-medium text-muted-foreground">{formatMoney(totalValue)}</span>
+            <span className="text-xs font-medium text-muted-foreground">{formatMoney(totalValue)}</span>
           )}
-          <button onClick={onToggleCollapse} className="rounded p-1 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
-            <Minimize2 className="h-3.5 w-3.5" />
+          <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
+            <Minimize2 className="h-4 w-4" />
           </button>
           {menu}
         </div>
       </div>
+      <div className="mb-2 h-[3px] w-full rounded-full" style={{ background: stageColor }} />
       <div
         ref={setNodeRef}
         data-kanban-column-body
@@ -265,9 +268,10 @@ export default function KanbanPage() {
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
+  const [editPipelineOpen, setEditPipelineOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
-  const { ref: scrollRef, overflow, scrollByPage, scrollToColumn, scrollX, viewportW, contentW } = useHorizontalScroll();
+  const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
   const leads = allLeads.filter((l) => l.pipeline_id === currentId);
@@ -401,6 +405,9 @@ export default function KanbanPage() {
                 Expandir todas ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
+              <Pencil className="mr-1 h-4 w-4" />Editar funil
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setKommoImportOpen(true)}>
               <Upload className="mr-1 h-4 w-4" />Importar Kommo
             </Button>
@@ -415,8 +422,6 @@ export default function KanbanPage() {
 
         {currentId ? (
           <>
-            <TopScrollbar targetRef={scrollRef} contentW={contentW} viewportW={viewportW} />
-
             <div className="relative flex-1 overflow-hidden">
               {overflow.left && (
                 <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à esquerda">
@@ -499,6 +504,14 @@ export default function KanbanPage() {
       </Dialog>
 
       <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
+
+      <EditPipelineDialog
+        pipeline={current ?? null}
+        open={editPipelineOpen}
+        onOpenChange={setEditPipelineOpen}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
 
       <NewPipelineDialog
         open={newPipelineOpen}
