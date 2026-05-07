@@ -273,31 +273,33 @@ export default function Agents() {
 
   const save = async () => {
     if (!selected) return;
+    const payload: any = {
+      name: selected.name,
+      description: selected.description,
+      system_prompt: selected.system_prompt,
+      provider: selected.provider,
+      base_url: selected.base_url,
+      model: selected.model,
+      temperature: selected.temperature,
+      enabled: selected.enabled,
+      tools: selected.tools,
+      embedding_model: selected.embedding_model,
+      reranker_provider: selected.reranker_provider ?? null,
+      max_iterations: selected.max_iterations ?? 6,
+      use_hyde: selected.use_hyde ?? false,
+      use_hybrid_search: selected.use_hybrid_search ?? true,
+      use_memory: selected.use_memory ?? true,
+      planning_mode: selected.planning_mode ?? false,
+      rag_top_k: selected.rag_top_k ?? 5,
+      debounce_seconds: selected.debounce_seconds ?? 8,
+    };
+    // Only update credentials if user typed something (avoids wiping existing keys)
+    if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
+    if (typeof selected.embedding_api_key === "string" && selected.embedding_api_key.length > 0) payload.embedding_api_key = selected.embedding_api_key;
+    if (typeof selected.reranker_api_key === "string" && selected.reranker_api_key.length > 0) payload.reranker_api_key = selected.reranker_api_key;
     const { error } = await supabase
       .from("ai_agents")
-      .update({
-        name: selected.name,
-        description: selected.description,
-        system_prompt: selected.system_prompt,
-        provider: selected.provider,
-        api_key: selected.api_key,
-        base_url: selected.base_url,
-        model: selected.model,
-        temperature: selected.temperature,
-        enabled: selected.enabled,
-        tools: selected.tools,
-        embedding_model: selected.embedding_model,
-        embedding_api_key: selected.embedding_api_key,
-        reranker_provider: selected.reranker_provider ?? null,
-        reranker_api_key: selected.reranker_api_key ?? null,
-        max_iterations: selected.max_iterations ?? 6,
-        use_hyde: selected.use_hyde ?? false,
-        use_hybrid_search: selected.use_hybrid_search ?? true,
-        use_memory: selected.use_memory ?? true,
-        planning_mode: selected.planning_mode ?? false,
-        rag_top_k: selected.rag_top_k ?? 5,
-        debounce_seconds: selected.debounce_seconds ?? 8,
-      })
+      .update(payload)
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
     toast.success("Agente salvo");
