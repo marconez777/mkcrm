@@ -415,15 +415,6 @@ export default function KanbanPage() {
 
         {currentId ? (
           <>
-            <PipelineOverview
-              stages={stages}
-              leads={leads}
-              scrollX={scrollX}
-              viewportW={viewportW}
-              contentW={contentW}
-              onJump={scrollToColumn}
-            />
-
             <TopScrollbar targetRef={scrollRef} contentW={contentW} viewportW={viewportW} />
 
             <div className="relative flex-1 overflow-hidden">
