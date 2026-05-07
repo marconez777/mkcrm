@@ -45,7 +45,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       loadCtx(s?.user?.id);
     });
-    return () => subscription.unsubscribe();
+
+    // Renova a sessão sempre que a aba volta a ficar visível ou recupera o foco,
+    // evitando "token expired" depois de o computador dormir / aba ficar inativa.
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        supabase.auth.getSession().then(({ data: { session: s } }) => {
+          if (!s) return;
+          // se faltam < 5min para expirar, força refresh
+          const expIn = (s.expires_at ?? 0) * 1000 - Date.now();
+          if (expIn < 5 * 60 * 1000) supabase.auth.refreshSession();
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    const interval = window.setInterval(refresh, 4 * 60 * 1000); // a cada 4min
+
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(interval);
+    };
   }, []);
 
   return (
