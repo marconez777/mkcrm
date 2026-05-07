@@ -91,7 +91,7 @@ export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
   function toggle() {
     const a = audioRef.current;
     if (!a) return;
-    if (a.paused) { a.play(); setPlaying(true); }
+    if (a.paused) { setCurrentAudio(a); a.play(); setPlaying(true); }
     else { a.pause(); setPlaying(false); }
   }
 
