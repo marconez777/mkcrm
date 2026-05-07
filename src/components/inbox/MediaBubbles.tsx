@@ -11,6 +11,15 @@ function fmtDuration(s: number) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+// Global single-audio coordinator: starting one audio pauses any other.
+let currentAudio: HTMLAudioElement | null = null;
+function setCurrentAudio(a: HTMLAudioElement) {
+  if (currentAudio && currentAudio !== a) {
+    try { currentAudio.pause(); } catch {}
+  }
+  currentAudio = a;
+}
+
 function fmtBytes(n?: number | null) {
   if (!n || !isFinite(n)) return "";
   if (n < 1024) return `${n} B`;
