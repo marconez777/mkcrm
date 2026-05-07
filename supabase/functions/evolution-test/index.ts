@@ -1,8 +1,10 @@
 // Tests Evolution API connection for a specific instance (or the default).
-import { corsHeaders, json, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { corsHeaders, json, loadInstance, evoFetch, requireUser } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
 
   try {
     let instanceId: string | null = null;

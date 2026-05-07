@@ -1,4 +1,4 @@
-import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chunkText, embed, type Agent } from "../_shared/ai.ts";
 
 async function loadAgent(agent_id: string): Promise<Agent | null> {
@@ -32,6 +32,8 @@ export async function ingestChunks(agent_id: string, doc_id: string, fullText: s
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
   const supabase = sb();
   try {
     const { agent_id, title, content, source = null, metadata = null } = await req.json();
