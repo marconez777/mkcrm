@@ -1,37 +1,37 @@
-## Melhorias no Kanban
+## Objetivo
+Deixar a rolagem horizontal do Kanban tão fluida quanto a do Kommo — sem "trancos" no scroll com a roda do mouse e com inércia suave ao soltar o arrasto.
 
-### 1) Traço da cor da coluna abaixo do título
-Em `src/pages/Kanban.tsx` (componente `Column`), adicionar uma barra horizontal de 3px logo abaixo do header da coluna, usando `stage.color`. Fica entre o `<div>` do título e o corpo da coluna (linha ~234), tanto visual quanto sutil:
-```
-<div className="mb-2 h-[3px] w-full rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
-```
-Aplicar também na versão colapsada (uma faixa vertical fina), mantendo o ponto colorido já existente.
+## Diagnóstico
+Hoje em `src/hooks/useHorizontalScroll.ts`:
 
-### 2) Botão "Editar funil" no header
-Em `src/pages/Kanban.tsx` (header, ~linha 395), adicionar um botão `Editar funil` (ícone `Pencil`) à esquerda dos atalhos existentes, que dispara abertura do `EditPipelineDialog` para o `current` pipeline. Para isso:
-- Adicionar estado `editPipelineOpen` em `KanbanPage`.
-- Importar `EditPipelineDialog` e renderizá-lo no final, recebendo `pipeline={current}`, `pipelines`, `whatsappInstances`, `onChanged` (recarrega via hooks já reativos).
-- Botão desabilitado se `!current`.
+- **Wheel handler** faz `el.scrollLeft += e.deltaY` direto a cada evento. Isso briga com o `scroll-behavior: smooth` (definido em `.kanban-scroll` no `index.css`) e com o trackpad/mouse de alta frequência, gerando saltos.
+- **Arrasto (pointer drag)** desativa `scroll-behavior` e ao soltar o ponteiro o board para imediatamente — sem inércia. Kommo aplica momentum (continua deslizando e desacelera).
+- Não há acumulação/normalização de delta — uma roda "notched" entrega 100px de uma vez, gerando pulo visível.
 
-### 3) Remover scrollbar superior + destacar a inferior
-- Remover o uso de `<TopScrollbar ... />` em `src/pages/Kanban.tsx` (linha 418) e o import (linha 48). Manter o arquivo do componente para não quebrar referências (ou removê-lo já que não é mais usado).
-- Em `src/index.css` (.kanban-scroll):
-  - Aumentar a altura para 14px em estado normal e 18px em hover.
-  - Thumb mais escuro (ex.: `hsl(var(--muted-foreground) / 0.55)`), com `:hover` mais opaco e `:active` na cor `--primary`.
-  - Adicionar transição suave `transition: background-color .15s, height .15s`.
-  - Para Firefox: `scrollbar-width: auto; scrollbar-color: hsl(var(--muted-foreground) / .55) transparent;` no `.kanban-scroll`.
+## Mudanças
 
-### 4) Cabeçalho da coluna mais destacado
-Em `Column` (Kanban.tsx, ~linha 200-234):
-- Aumentar gap/padding do header (`mb-3`, `px-2 py-1.5`).
-- Título: `text-base font-bold` (era `text-sm font-semibold`); `text-xs` para o contador → `text-sm font-medium text-muted-foreground`.
-- Bolinha colorida: `h-3 w-3` (era `h-2 w-2`) e adicionar leve sombra ou ring.
-- Ícones do menu (`MoreVertical`, `Minimize2`): aumentar para `h-4 w-4` e botão para `p-1.5`.
-- Manter largura da coluna (`w-80`) para não quebrar layout, ou opcional: `w-[340px]`.
+### 1) `src/hooks/useHorizontalScroll.ts` — rolagem com requestAnimationFrame
+- Substituir `el.scrollLeft += e.deltaY` por um **alvo acumulado + loop rAF** que interpola (`current += (target - current) * 0.22`) até estabilizar. Isso suaviza tanto trackpad como mouse com roda discreta.
+- Normalizar `deltaMode` (linha vs pixel): multiplicar por ~16 quando `deltaMode === 1`.
+- Garantir `scroll-behavior: auto` durante esse loop (o smooth do CSS conflita com rAF).
+- **Inércia ao soltar arrasto**: medir velocidade nos últimos ~80ms do `pointermove` (px/ms) e, no `pointerup`, iniciar um loop rAF que aplica `velocity *= 0.94` por frame até `|v| < 0.05`. Cancelar inércia se houver novo `pointerdown` ou wheel.
+- Cancelar o rAF no cleanup do `useEffect`.
 
-### Arquivos a editar
-- `src/pages/Kanban.tsx` — itens 1, 2, 4 + remoção do `TopScrollbar`.
-- `src/index.css` — item 3 (estilos `.kanban-scroll`).
-- (Opcional) excluir `src/components/kanban/TopScrollbar.tsx`.
+### 2) `src/index.css` — remover conflito de smooth-scroll
+- Em `.kanban-scroll`, trocar `scroll-behavior: smooth` por `scroll-behavior: auto`. A suavidade passa a vir do JS (rAF), evitando que o navegador "queime" deltas pequenos.
+- Manter visual da scrollbar inferior intocado.
+- Manter `scroll-snap-type: x proximity` (não atrapalha o rAF e ajuda o alinhamento final, igual Kommo).
 
-Sem mudanças de banco de dados ou de tipos.
+### 3) Sem mudanças em
+- `Kanban.tsx`, `EditPipelineDialog`, banco de dados, tipos. A API do hook (`ref`, `overflow`, `scrollByPage`, `scrollToEnd`, `scrollToColumn`, `scrollX`, `viewportW`, `contentW`) permanece a mesma.
+
+## Detalhes técnicos
+- O loop rAF usa um único `rafId` compartilhado entre wheel e inércia, com estado `{ target, current, velocity, mode: 'wheel'|'inertia'|null }` em `useRef`.
+- Clamp do `target` em `[0, scrollWidth - clientWidth]` para evitar overshoot.
+- `scrollByPage` e `scrollToEnd` continuam usando `el.scrollTo({ behavior: 'smooth' })` — esses são eventos pontuais (botão), onde o smooth nativo funciona bem.
+- Preservar a guarda atual: se o cursor estiver sobre uma coluna com scroll vertical próprio (`[data-kanban-column-body]`) e `deltaY` predominar, não sequestrar o evento.
+
+## Resultado esperado
+- Roda do mouse e trackpad deslizam continuamente, sem trancos.
+- Ao arrastar e soltar, o board continua deslizando com desaceleração natural (estilo Kommo).
+- Botões de paginação (`scrollByPage`) seguem com animação smooth nativa.
