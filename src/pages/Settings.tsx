@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 
 type Instance = {
   id: string;
@@ -36,6 +37,8 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [healingId, setHealingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [pipelinesCount, setPipelinesCount] = useState(0);
 
   async function load() {
     const { data } = await supabase
@@ -46,7 +49,10 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    supabase.from("pipelines").select("id", { count: "exact", head: true }).then(({ count }) => setPipelinesCount(count ?? 0));
+  }, []);
 
   async function createInstance() {
     if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
@@ -101,10 +107,11 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             <TabsTrigger value="fields">Campos do lead</TabsTrigger>
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
+            <TabsTrigger value="imports">Importações</TabsTrigger>
           </TabsList>
 
           <TabsContent value="connection" className="space-y-4">
@@ -191,8 +198,32 @@ export default function SettingsPage() {
           <TabsContent value="quick-replies" className="space-y-6">
             <QuickRepliesCard />
           </TabsContent>
+
+          <TabsContent value="imports" className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />Importar pipeline</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.
+                  </p>
+                </div>
+                <Button onClick={() => setImportOpen(true)}>
+                  <Upload className="mr-2 h-4 w-4" /> Importar pipeline
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      <ImportPipelineDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        whatsappInstances={instances.map((i) => ({ id: i.id, name: i.name }))}
+        nextPosition={pipelinesCount}
+        onCreated={() => { /* navigate? no-op */ }}
+      />
 
       <WhatsAppQrDialog
         open={!!qrFor}
