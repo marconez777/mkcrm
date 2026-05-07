@@ -11,6 +11,15 @@ function fmtDuration(s: number) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+// Global single-audio coordinator: starting one audio pauses any other.
+let currentAudio: HTMLAudioElement | null = null;
+function setCurrentAudio(a: HTMLAudioElement) {
+  if (currentAudio && currentAudio !== a) {
+    try { currentAudio.pause(); } catch {}
+  }
+  currentAudio = a;
+}
+
 function fmtBytes(n?: number | null) {
   if (!n || !isFinite(n)) return "";
   if (n < 1024) return `${n} B`;
@@ -67,22 +76,28 @@ export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
     const onTime = () => setCurrent(a.currentTime);
     const onMeta = () => setDuration(a.duration || 0);
     const onEnd = () => { setPlaying(false); setCurrent(0); };
+    const onPause = () => setPlaying(false);
+    const onPlay = () => { setCurrentAudio(a); setPlaying(true); };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("durationchange", onMeta);
     a.addEventListener("ended", onEnd);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("play", onPlay);
     return () => {
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("loadedmetadata", onMeta);
       a.removeEventListener("durationchange", onMeta);
       a.removeEventListener("ended", onEnd);
+      a.removeEventListener("pause", onPause);
+      a.removeEventListener("play", onPlay);
     };
   }, []);
 
   function toggle() {
     const a = audioRef.current;
     if (!a) return;
-    if (a.paused) { a.play(); setPlaying(true); }
+    if (a.paused) { setCurrentAudio(a); a.play(); setPlaying(true); }
     else { a.pause(); setPlaying(false); }
   }
 
