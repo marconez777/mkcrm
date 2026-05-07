@@ -505,6 +505,14 @@ export default function KanbanPage() {
 
       <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
 
+      <EditPipelineDialog
+        pipeline={current ?? null}
+        open={editPipelineOpen}
+        onOpenChange={setEditPipelineOpen}
+        pipelines={pipelines}
+        whatsappInstances={whatsappInstances}
+      />
+
       <NewPipelineDialog
         open={newPipelineOpen}
         onOpenChange={setNewPipelineOpen}
