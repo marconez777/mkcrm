@@ -1,29 +1,37 @@
-## Adicionar gerenciador de etapas no modal "Editar funil"
+## Melhorias no Kanban
 
-Adicionar uma seção no `EditPipelineDialog` (ou via Tabs) com gerenciamento completo de etapas: adicionar, renomear, reordenar (drag-and-drop vertical), trocar cor e remover (apenas vazias).
+### 1) Traço da cor da coluna abaixo do título
+Em `src/pages/Kanban.tsx` (componente `Column`), adicionar uma barra horizontal de 3px logo abaixo do header da coluna, usando `stage.color`. Fica entre o `<div>` do título e o corpo da coluna (linha ~234), tanto visual quanto sutil:
+```
+<div className="mb-2 h-[3px] w-full rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
+```
+Aplicar também na versão colapsada (uma faixa vertical fina), mantendo o ponto colorido já existente.
 
-### Arquivos
+### 2) Botão "Editar funil" no header
+Em `src/pages/Kanban.tsx` (header, ~linha 395), adicionar um botão `Editar funil` (ícone `Pencil`) à esquerda dos atalhos existentes, que dispara abertura do `EditPipelineDialog` para o `current` pipeline. Para isso:
+- Adicionar estado `editPipelineOpen` em `KanbanPage`.
+- Importar `EditPipelineDialog` e renderizá-lo no final, recebendo `pipeline={current}`, `pipelines`, `whatsappInstances`, `onChanged` (recarrega via hooks já reativos).
+- Botão desabilitado se `!current`.
 
-1. **Novo: `src/components/kanban/StagesManager.tsx`**
-   - Lista as etapas do funil ordenadas por `position`.
-   - Carrega `pipeline_stages` (id, name, color, position) + contagem de leads por etapa (uma query em `leads` filtrando `stage_id IN (...)`).
-   - Drag-and-drop vertical com `@dnd-kit/core` + `@dnd-kit/sortable` (já instalados).
-   - Cada linha:
-     - Handle `GripVertical` para arrastar.
-     - Bolinha de cor → `Popover` com paleta de 12 cores predefinidas.
-     - `Input` inline para o nome (salva no blur/Enter).
-     - Badge com contagem de leads.
-     - Botão lixeira (desabilitado se `lead_count > 0`, com tooltip).
-   - Rodapé com `Input` + botão "Adicionar" para criar nova etapa (`position = stages.length`, cor inicial rotaciona da paleta).
-   - Reordenação: ao soltar, atualiza `position` das etapas afetadas em paralelo no Supabase.
-   - Remoção: `useConfirm` + delete.
+### 3) Remover scrollbar superior + destacar a inferior
+- Remover o uso de `<TopScrollbar ... />` em `src/pages/Kanban.tsx` (linha 418) e o import (linha 48). Manter o arquivo do componente para não quebrar referências (ou removê-lo já que não é mais usado).
+- Em `src/index.css` (.kanban-scroll):
+  - Aumentar a altura para 14px em estado normal e 18px em hover.
+  - Thumb mais escuro (ex.: `hsl(var(--muted-foreground) / 0.55)`), com `:hover` mais opaco e `:active` na cor `--primary`.
+  - Adicionar transição suave `transition: background-color .15s, height .15s`.
+  - Para Firefox: `scrollbar-width: auto; scrollbar-color: hsl(var(--muted-foreground) / .55) transparent;` no `.kanban-scroll`.
 
-2. **Editar `src/components/kanban/EditPipelineDialog.tsx`**
-   - Aumentar largura do dialog para `max-w-2xl`.
-   - Envolver conteúdo em `Tabs` (shadcn) com duas abas: **"Geral"** (campos atuais: Nome, Tipo, WhatsApp, Mover leads) e **"Etapas"** (renderiza `<StagesManager pipelineId={pipeline.id} />`).
-   - Manter o footer Salvar/Cancelar como está (mudanças em etapas são salvas inline, não dependem do botão Salvar).
+### 4) Cabeçalho da coluna mais destacado
+Em `Column` (Kanban.tsx, ~linha 200-234):
+- Aumentar gap/padding do header (`mb-3`, `px-2 py-1.5`).
+- Título: `text-base font-bold` (era `text-sm font-semibold`); `text-xs` para o contador → `text-sm font-medium text-muted-foreground`.
+- Bolinha colorida: `h-3 w-3` (era `h-2 w-2`) e adicionar leve sombra ou ring.
+- Ícones do menu (`MoreVertical`, `Minimize2`): aumentar para `h-4 w-4` e botão para `p-1.5`.
+- Manter largura da coluna (`w-80`) para não quebrar layout, ou opcional: `w-[340px]`.
 
-### Notas
-- `@dnd-kit` já está nas dependências.
-- Nada de SQL novo, só CRUD em `pipeline_stages` (RLS já permite via `clinic_scoped`).
-- Não exclui etapas com leads — usuário precisa mover antes (mensagem clara).
+### Arquivos a editar
+- `src/pages/Kanban.tsx` — itens 1, 2, 4 + remoção do `TopScrollbar`.
+- `src/index.css` — item 3 (estilos `.kanban-scroll`).
+- (Opcional) excluir `src/components/kanban/TopScrollbar.tsx`.
+
+Sem mudanças de banco de dados ou de tipos.
