@@ -102,7 +102,7 @@ export default function SettingsCustomFields() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-6">
+    <div className="mx-auto flex h-screen max-w-3xl flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
         <div>
           <Link to="/settings" className="text-xs text-muted-foreground hover:underline">← Configurações</Link>
@@ -112,7 +112,7 @@ export default function SettingsCustomFields() {
         <Button onClick={newField}><Plus className="mr-2 h-4 w-4" />Novo campo</Button>
       </div>
 
-      <Card className="divide-y">
+      <Card className="flex-1 divide-y overflow-y-auto">
         {items.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhum campo criado ainda.</div>}
         {items.map((f, i) => (
           <div key={f.id} className="flex items-center gap-3 p-3">
