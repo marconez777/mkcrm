@@ -1,27 +1,19 @@
-## Problema
+## Mudanças no Kanban (`src/pages/Kanban.tsx`)
 
-Quando uma mensagem é uma resposta (quote a outra), o balão fica com layout quebrado: a citação aparece "vazando" do balão e o texto principal/timestamp desalinham — exatamente o que está circulado em vermelho na sua imagem.
+1. **Remover a barra de etapas duplicada no topo**
+   - Remover o componente `<PipelineOverview ... />` (linhas 414-421), que renderiza a faixa de "chips" com o nome de todas as etapas acima do board (a parte rabiscada na imagem).
+   - Remover também o import de `PipelineOverview` (linha 44), já que não será mais usado.
 
-## Causa raiz
+2. **Aumentar a largura das colunas**
+   - Em `Column` (linha 197), trocar `w-72` (288px) por `w-80` (320px), deixando os quadros um pouco maiores.
 
-Em `src/components/inbox/ChatPane.tsx` (≈linha 951), a citação (`replied`) é renderizada como um `<button>` com `block w-full ... text-[11px] line-clamp-2`.
+3. **No card do lead (`LeadCard`):**
+   - **Remover o valor (R$)** do rodapé do card. Tirar o trecho `{lead.deal_value != null && <span ...>{formatMoney(lead.deal_value)}</span>}` (linha 136). O valor continua sendo editável/visível ao abrir o lead no `LeadDrawer`.
+   - **Mostrar a data de entrada do lead** no lugar do valor. Usar `lead.created_at` formatado como `dd/mm/aaaa` (pt-BR), exibido à direita, no mesmo lugar onde aparecia o valor.
+   - O indicador de tempo da última mensagem (`timeAgo(lead.last_message_at)`) à esquerda permanece.
 
-Dois conflitos com o CSS global:
+4. Não mexer no total (`totalValue`) do header da coluna nem no `LeadDrawer` — o valor continua existindo, só não aparece mais no card do quadro.
 
-1. `src/index.css` força `font-size: max(15px, 1em) !important` em praticamente tudo, e tem uma regra que reescreve `.text-[11px]` para `15px !important`. Ou seja, o "text-[11px]" da citação na verdade renderiza em 15px, ocupando muito mais altura do que o esperado.
-2. `line-clamp-2` aplica `display: -webkit-box`, que junto com o `w-full` e a falta de `min-w-0` no balão pai faz o conteúdo "explodir" o bubble e o `border-l-2` parecer cortado.
-
-## Correção
-
-Em `src/components/inbox/ChatPane.tsx`, no `MessageRow`:
-
-- Adicionar `min-w-0` no `<div>` do balão (`max-w-[78%] rounded-lg ...`) para que o flexbox respeite o limite.
-- Substituir o `<button>` da citação por uma caixinha estilo WhatsApp:
-  - container `flex` com uma barrinha vertical (`w-1 rounded-full bg-primary/70`) e o conteúdo num `min-w-0 flex-1 overflow-hidden`;
-  - fundo levemente tingido (`bg-black/5 dark:bg-white/5`) e cantos arredondados;
-  - primeira linha com label "Você" / "Mensagem" em negrito;
-  - segunda linha com o trecho citado, truncado em 2 linhas via `-webkit-box` inline (já que classes utilitárias são sobrescritas pelo CSS global).
-
-Isso elimina o `w-full` problemático, encapsula a citação numa caixa que respeita o bubble, e mantém o visual coerente com o WhatsApp.
-
-Nenhum outro arquivo precisa mudar.
+### Observações
+- `lead.created_at` já existe no tipo `Lead` (é usado no sort da página).
+- Nenhum schema de banco precisa mudar.
