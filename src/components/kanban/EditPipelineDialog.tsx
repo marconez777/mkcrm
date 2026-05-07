@@ -93,84 +93,95 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>Editar funil</DialogTitle></DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Nome</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+        <Tabs defaultValue="general">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="stages">Etapas</TabsTrigger>
+          </TabsList>
 
-          <div className="space-y-1.5">
-            <Label>Tipo</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sales">Vendas (com WhatsApp)</SelectItem>
-                <SelectItem value="internal">Gestão interna</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {kind === "sales" && (
+          <TabsContent value="general" className="space-y-4 pt-3">
             <div className="space-y-1.5">
-              <Label>Número de WhatsApp</Label>
-              <Select value={instanceId} onValueChange={setInstanceId}>
-                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+              <Label>Nome</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Tipo</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nenhum (não recebe leads automaticamente)</SelectItem>
-                  {availableInstances.map((i) => (
-                    <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
-                  ))}
-                  {pipeline.whatsapp_instance_id && !availableInstances.some(i => i.id === pipeline.whatsapp_instance_id) && (
-                    <SelectItem value={pipeline.whatsapp_instance_id}>
-                      {whatsappInstances.find(i => i.id === pipeline.whatsapp_instance_id)?.name ?? "Atual"}
-                    </SelectItem>
-                  )}
+                  <SelectItem value="sales">Vendas (com WhatsApp)</SelectItem>
+                  <SelectItem value="internal">Gestão interna</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Apenas um funil por número. Instâncias já usadas em outros funis não aparecem.
-              </p>
             </div>
-          )}
 
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <ArrowRightLeft className="h-4 w-4" /> Mover leads para outro funil
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Este funil tem <strong>{leadCount}</strong> {leadCount === 1 ? "lead" : "leads"}.
-            </p>
-            {leadCount > 0 && (
-              <div className="space-y-2">
-                <Select value={moveTargetPipeline} onValueChange={setMoveTargetPipeline}>
-                  <SelectTrigger><SelectValue placeholder="Funil de destino" /></SelectTrigger>
+            {kind === "sales" && (
+              <div className="space-y-1.5">
+                <Label>Número de WhatsApp</Label>
+                <Select value={instanceId} onValueChange={setInstanceId}>
+                  <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
                   <SelectContent>
-                    {pipelines.filter((p) => p.id !== pipeline.id).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem value="none">Nenhum (não recebe leads automaticamente)</SelectItem>
+                    {availableInstances.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
                     ))}
+                    {pipeline.whatsapp_instance_id && !availableInstances.some(i => i.id === pipeline.whatsapp_instance_id) && (
+                      <SelectItem value={pipeline.whatsapp_instance_id}>
+                        {whatsappInstances.find(i => i.id === pipeline.whatsapp_instance_id)?.name ?? "Atual"}
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
-                {targetStages.length > 0 && (
-                  <Select value={moveTargetStage} onValueChange={setMoveTargetStage}>
-                    <SelectTrigger><SelectValue placeholder="Etapa de destino" /></SelectTrigger>
+                <p className="text-xs text-muted-foreground">
+                  Apenas um funil por número. Instâncias já usadas em outros funis não aparecem.
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ArrowRightLeft className="h-4 w-4" /> Mover leads para outro funil
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este funil tem <strong>{leadCount}</strong> {leadCount === 1 ? "lead" : "leads"}.
+              </p>
+              {leadCount > 0 && (
+                <div className="space-y-2">
+                  <Select value={moveTargetPipeline} onValueChange={setMoveTargetPipeline}>
+                    <SelectTrigger><SelectValue placeholder="Funil de destino" /></SelectTrigger>
                     <SelectContent>
-                      {targetStages.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      {pipelines.filter((p) => p.id !== pipeline.id).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-                <Button variant="secondary" size="sm" onClick={moveAllLeads} disabled={moving || !moveTargetStage}>
-                  {moving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Mover {leadCount} {leadCount === 1 ? "lead" : "leads"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+                  {targetStages.length > 0 && (
+                    <Select value={moveTargetStage} onValueChange={setMoveTargetStage}>
+                      <SelectTrigger><SelectValue placeholder="Etapa de destino" /></SelectTrigger>
+                      <SelectContent>
+                        {targetStages.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Button variant="secondary" size="sm" onClick={moveAllLeads} disabled={moving || !moveTargetStage}>
+                    {moving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Mover {leadCount} {leadCount === 1 ? "lead" : "leads"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="stages" className="pt-3">
+            <StagesManager pipelineId={pipeline.id} />
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
