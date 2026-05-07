@@ -1,7 +1,7 @@
 // Auto-reply with DEBOUNCE: batches bursts of incoming messages.
 // First inbound enqueues a pending_reply; subsequent ones extend run_at.
 // scheduled-dispatcher actually fires the reply after the quiet window.
-import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 
 // Tools that produce ZERO outbound text. If an agent only uses these,
 // it's a "silent" agent (e.g. classificador de pipeline) and can also be
@@ -26,6 +26,8 @@ function isSilentAgent(tools: string[] | null | undefined): boolean {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
   const supabase = sb();
 
   try {

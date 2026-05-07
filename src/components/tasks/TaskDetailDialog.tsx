@@ -39,6 +39,7 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
   const [done, setDone] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +52,17 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
     setDone(!!task.done_at);
     listAttachments(task.id).then(setAttachments).catch(() => setAttachments([]));
   }, [task?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        attachments.map(async (a) => [a.id, await attachmentPublicUrl(a.storage_path)] as const),
+      );
+      if (!cancelled) setAttachmentUrls(Object.fromEntries(entries));
+    })();
+    return () => { cancelled = true; };
+  }, [attachments]);
 
   const attMap = useMemo(() => new Map(attendants.map((a) => [a.id, a])), [attendants]);
   if (!task) return null;
@@ -280,7 +292,7 @@ export default function TaskDetailDialog({ task, assignees, checklist, attendant
               ) : (
                 <ul className="space-y-1.5">
                   {attachments.map((a) => {
-                    const url = attachmentPublicUrl(a.storage_path);
+                    const url = attachmentUrls[a.id] ?? "";
                     const isImage = (a.mime_type ?? "").startsWith("image/");
                     return (
                       <li key={a.id} className="group flex items-center gap-2 rounded-md p-1.5 hover:bg-muted/60">

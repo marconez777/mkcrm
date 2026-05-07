@@ -1,4 +1,4 @@
-import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chunkText, embed, type Agent } from "../_shared/ai.ts";
 
 function htmlToText(html: string): string {
@@ -12,19 +12,38 @@ function htmlToText(html: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
+const PRIVATE_HOST_RE = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|::1$|0\.0\.0\.0$)/i;
+
+function validateUrl(raw: string): { ok: true; url: URL } | { ok: false; error: string } {
+  let url: URL;
+  try { url = new URL(raw); } catch { return { ok: false, error: "URL inválida" }; }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return { ok: false, error: "Apenas http(s)" };
+  if (PRIVATE_HOST_RE.test(url.hostname)) return { ok: false, error: "Host bloqueado" };
+  return { ok: true, url };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
+
   const supabase = sb();
   try {
     const { agent_id, url, title: customTitle } = await req.json();
     if (!agent_id) return json({ error: "agent_id required" }, 400);
     if (!url) return json({ error: "url required" }, 400);
 
+    const v = validateUrl(String(url));
+    if (!v.ok) return json({ error: v.error }, 400);
+
     const { data: agent } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agent) return json({ error: "agent not found" }, 404);
     if (!agent.api_key && !agent.embedding_api_key) return json({ error: "Agente sem API key para embeddings" }, 400);
 
-    const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 LovableBot/1.0" } });
+    const resp = await fetch(v.url.toString(), {
+      headers: { "User-Agent": "Mozilla/5.0 LovableBot/1.0" },
+      redirect: "error",
+    });
     if (!resp.ok) return json({ error: `fetch failed ${resp.status}` }, 400);
     const ctype = resp.headers.get("content-type") || "";
     let text: string;
@@ -64,3 +83,4 @@ Deno.serve(async (req) => {
     return json({ error: String(e) }, 500);
   }
 });
+

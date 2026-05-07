@@ -132,8 +132,10 @@ export type TaskAttachment = {
 
 export const ATTACHMENTS_BUCKET = "task-attachments";
 
-export function attachmentPublicUrl(storagePath: string) {
-  return supabase.storage.from(ATTACHMENTS_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+export async function attachmentPublicUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).createSignedUrl(storagePath, 3600);
+  if (error || !data) return "";
+  return data.signedUrl;
 }
 
 export async function listAttachments(taskId: string): Promise<TaskAttachment[]> {

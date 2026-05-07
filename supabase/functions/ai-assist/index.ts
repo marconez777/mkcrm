@@ -1,6 +1,7 @@
 // AI helper for inbox: suggest replies and summarize lead conversation.
 // Uses Lovable AI Gateway (LOVABLE_API_KEY) — no per-agent setup needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { requireUser } from "../_shared/evolution.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +35,8 @@ async function callAI(messages: any[], model = "google/gemini-2.5-flash") {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
   try {
     const { lead_id, mode } = await req.json();
     if (!lead_id || !["suggest", "summary"].includes(mode)) {

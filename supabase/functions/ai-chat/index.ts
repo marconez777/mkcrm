@@ -1,6 +1,6 @@
 // AI chat with advanced RAG, MCP tools, parallel tool calls, citations.
 // Hardening: tool budget, duplicate-call detection, partial-failure handling, traces, timeouts.
-import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
@@ -223,6 +223,8 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
   const supabase = sb();
 
   try {
