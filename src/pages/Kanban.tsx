@@ -44,7 +44,7 @@ import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
-import KommoImportDialog from "@/components/kanban/KommoImportDialog";
+
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -263,7 +263,7 @@ export default function KanbanPage() {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newLead, setNewLead] = useState({ name: "", phone: "" });
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
-  const [kommoImportOpen, setKommoImportOpen] = useState(false);
+  
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
@@ -408,9 +408,6 @@ export default function KanbanPage() {
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
               <Pencil className="mr-1 h-4 w-4" />Editar funil
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setKommoImportOpen(true)}>
-              <Upload className="mr-1 h-4 w-4" />Importar Kommo
-            </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
               <Plus className="mr-1 h-4 w-4" />Nova coluna
             </Button>
@@ -521,13 +518,6 @@ export default function KanbanPage() {
         onCreated={(id) => setCurrentId(id)}
       />
 
-      <KommoImportDialog
-        open={kommoImportOpen}
-        onOpenChange={setKommoImportOpen}
-        whatsappInstances={whatsappInstances}
-        nextPosition={pipelines.length}
-        onCreated={(id) => setCurrentId(id)}
-      />
 
       <AlertDialog open={!!deletingStage} onOpenChange={(v) => !v && setDeletingStage(null)}>
         <AlertDialogContent>
