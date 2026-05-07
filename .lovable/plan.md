@@ -1,23 +1,27 @@
 ## Problema
 
-Ao criar ou excluir um funil, a lista lateral só atualiza após recarregar a página.
+Quando uma mensagem é uma resposta (quote a outra), o balão fica com layout quebrado: a citação aparece "vazando" do balão e o texto principal/timestamp desalinham — exatamente o que está circulado em vermelho na sua imagem.
 
-## Causa
+## Causa raiz
 
-O hook `usePipelines` já tem uma subscription Supabase Realtime escutando mudanças na tabela `pipelines`, mas a tabela **não está incluída na publicação `supabase_realtime`** do banco. Por isso nenhum evento chega ao cliente.
+Em `src/components/inbox/ChatPane.tsx` (≈linha 951), a citação (`replied`) é renderizada como um `<button>` com `block w-full ... text-[11px] line-clamp-2`.
 
-Verifiquei: `pipeline_stages` e `leads` estão na publicação, mas `pipelines` não.
+Dois conflitos com o CSS global:
 
-## Solução
+1. `src/index.css` força `font-size: max(15px, 1em) !important` em praticamente tudo, e tem uma regra que reescreve `.text-[11px]` para `15px !important`. Ou seja, o "text-[11px]" da citação na verdade renderiza em 15px, ocupando muito mais altura do que o esperado.
+2. `line-clamp-2` aplica `display: -webkit-box`, que junto com o `w-full` e a falta de `min-w-0` no balão pai faz o conteúdo "explodir" o bubble e o `border-l-2` parecer cortado.
 
-**1. Migração de banco**
-- `ALTER PUBLICATION supabase_realtime ADD TABLE public.pipelines;`
-- `ALTER TABLE public.pipelines REPLICA IDENTITY FULL;` (garante payload completo em UPDATE/DELETE)
+## Correção
 
-**2. Reforço no cliente (`src/hooks/usePipelines.ts`)**
-- Após `insert`/`update`/`delete` feitos localmente (renomear, definir padrão, excluir, criar), também atualizar o estado local imediatamente como fallback otimista — assim, mesmo se o evento Realtime atrasar, a UI responde na hora.
-- Manter a subscription para sincronizar entre abas/usuários.
+Em `src/components/inbox/ChatPane.tsx`, no `MessageRow`:
 
-## Resultado
+- Adicionar `min-w-0` no `<div>` do balão (`max-w-[78%] rounded-lg ...`) para que o flexbox respeite o limite.
+- Substituir o `<button>` da citação por uma caixinha estilo WhatsApp:
+  - container `flex` com uma barrinha vertical (`w-1 rounded-full bg-primary/70`) e o conteúdo num `min-w-0 flex-1 overflow-hidden`;
+  - fundo levemente tingido (`bg-black/5 dark:bg-white/5`) e cantos arredondados;
+  - primeira linha com label "Você" / "Mensagem" em negrito;
+  - segunda linha com o trecho citado, truncado em 2 linhas via `-webkit-box` inline (já que classes utilitárias são sobrescritas pelo CSS global).
 
-Criar, renomear, definir padrão e excluir funis refletem instantaneamente na sidebar e no switcher, sem refresh.
+Isso elimina o `w-full` problemático, encapsula a citação numa caixa que respeita o bubble, e mantém o visual coerente com o WhatsApp.
+
+Nenhum outro arquivo precisa mudar.
