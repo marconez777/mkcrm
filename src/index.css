@@ -102,18 +102,33 @@
   .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; }
 
-  .kanban-scroll { scroll-snap-type: x proximity; scroll-behavior: smooth; }
-  .kanban-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
-  .kanban-scroll::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.4); border-radius: 999px; }
-  .kanban-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
-  .kanban-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); background-clip: padding-box; border: 2px solid transparent; }
+  .kanban-scroll {
+    scroll-snap-type: x proximity;
+    scroll-behavior: smooth;
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.55) transparent;
+  }
+  .kanban-scroll::-webkit-scrollbar { height: 14px; width: 14px; transition: height .15s ease; }
+  .kanban-scroll::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.5); border-radius: 999px; }
+  .kanban-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.55);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    transition: background-color .15s ease;
+  }
+  .kanban-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.85);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  .kanban-scroll::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--primary));
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  .kanban-scroll:hover::-webkit-scrollbar { height: 18px; }
   .kanban-snap { scroll-snap-align: start; }
   .kanban-grabbing { cursor: grabbing !important; user-select: none; }
   .kanban-grabbing * { cursor: grabbing !important; }
-
-  .kanban-top-scroll { overflow-x: auto; overflow-y: hidden; height: 12px; }
-  .kanban-top-scroll::-webkit-scrollbar { height: 10px; }
-  .kanban-top-scroll::-webkit-scrollbar-track { background: hsl(var(--muted) / 0.4); border-radius: 999px; }
-  .kanban-top-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
-  .kanban-top-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); background-clip: padding-box; border: 2px solid transparent; }
 }
