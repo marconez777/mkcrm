@@ -239,8 +239,10 @@ export default function Agents() {
     setDocs(docs ?? []);
   };
 
+  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, embedding_model, reranker_provider, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds";
+
   const load = async () => {
-    const { data } = await supabase.from("ai_agents").select("*").order("created_at");
+    const { data } = await supabase.from("ai_agents").select(AGENT_COLS).order("created_at");
     setAgents((data ?? []) as any);
   };
   useEffect(() => { load(); }, []);
@@ -262,7 +264,7 @@ export default function Agents() {
         name: "Novo agente",
         system_prompt: "Você é um atendente prestativo. Responda em português.",
       })
-      .select("*")
+      .select(AGENT_COLS)
       .single();
     if (error) return toast.error(error.message);
     await load();
