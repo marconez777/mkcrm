@@ -76,15 +76,21 @@ export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
     const onTime = () => setCurrent(a.currentTime);
     const onMeta = () => setDuration(a.duration || 0);
     const onEnd = () => { setPlaying(false); setCurrent(0); };
+    const onPause = () => setPlaying(false);
+    const onPlay = () => { setCurrentAudio(a); setPlaying(true); };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("durationchange", onMeta);
     a.addEventListener("ended", onEnd);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("play", onPlay);
     return () => {
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("loadedmetadata", onMeta);
       a.removeEventListener("durationchange", onMeta);
       a.removeEventListener("ended", onEnd);
+      a.removeEventListener("pause", onPause);
+      a.removeEventListener("play", onPlay);
     };
   }, []);
 
