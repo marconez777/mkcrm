@@ -153,15 +153,36 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("sync ingest", e); }
     }
 
+    // Reprocessa mídias locais sem media_url usando o raw salvo (cobre casos onde
+    // findMessages não retorna a mensagem por mudança de JID/LID, ou downloadAndStoreMedia
+    // falhou na primeira tentativa via webhook).
+    let mediaRecovered = 0;
+    const { data: pendingMedia } = await supabase
+      .from("messages")
+      .select("id, raw")
+      .eq("lead_id", lead_id)
+      .is("media_url", null)
+      .in("message_type", ["audio", "image", "video", "document", "sticker"])
+      .order("timestamp", { ascending: false })
+      .limit(20);
+    for (const row of pendingMedia ?? []) {
+      const raw: any = (row as any).raw;
+      if (!raw?.message || !raw?.key) continue;
+      try {
+        await downloadAndStoreMedia((row as any).id, instance, raw);
+        mediaRecovered++;
+      } catch (e) { console.error("media recover", e); }
+    }
+
     await supabase.from("webhook_events").insert({
       event_type: "SYNC_LEAD",
       source: "sync",
-      payload: { lead_id, imported, total: totalSeen, pages, full: false },
+      payload: { lead_id, imported, total: totalSeen, pages, full: false, mediaRecovered },
       processed_at: new Date().toISOString(),
       lead_id,
     });
 
-    return json({ ok: true, imported, total: totalSeen, pages, full: false });
+    return json({ ok: true, imported, total: totalSeen, pages, full: false, mediaRecovered });
   } catch (err) {
     console.error("sync-lead error", err);
     return json({ error: String(err) }, 500);
