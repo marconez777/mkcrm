@@ -143,8 +143,9 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
       upsert: false,
     });
     if (up.error) throw up.error;
-    const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
-    const mediaUrl = pub.publicUrl;
+    const { data: signed, error: signErr } = await supabase.storage.from("chat-attachments").createSignedUrl(path, 60 * 60 * 24);
+    if (signErr || !signed) throw signErr ?? new Error("Falha ao gerar URL");
+    const mediaUrl = signed.signedUrl;
     const kind = detectKind(file.type || "");
     const cid = crypto.randomUUID();
     const { data, error } = await supabase.functions.invoke("evolution-send-media", {

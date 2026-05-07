@@ -212,10 +212,10 @@ export async function downloadAndStoreMedia(messageId: string, instance: Instanc
       console.error("storage upload error", up.error.message);
       return;
     }
-    const pub = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    const { data: signed } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 7);
     await supabase
       .from("messages")
-      .update({ media_url: pub.data.publicUrl, media_mime: mime })
+      .update({ media_url: signed?.signedUrl ?? null, media_mime: mime })
       .eq("id", messageId);
   } catch (e) {
     console.error("downloadAndStoreMedia error", e);
