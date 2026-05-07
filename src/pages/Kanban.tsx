@@ -41,7 +41,7 @@ import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import MoveLeadDialog from "@/components/kanban/MoveLeadDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
-import PipelineOverview from "@/components/kanban/PipelineOverview";
+
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import KommoImportDialog from "@/components/kanban/KommoImportDialog";
@@ -133,7 +133,11 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       )}
       <div className={`flex items-center justify-between text-[11px] text-muted-foreground ${compact ? "mt-1" : "mt-2"}`}>
         <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {timeAgo(lead.last_message_at)}</span>
-        {lead.deal_value != null && <span className="font-medium text-foreground">{formatMoney(lead.deal_value)}</span>}
+        {lead.created_at && (
+          <span title="Data de entrada do lead">
+            {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -194,7 +198,7 @@ function Column({
   }
 
   return (
-    <div data-column-id={stage.id} className="kanban-snap flex w-72 shrink-0 flex-col">
+    <div data-column-id={stage.id} className="kanban-snap flex w-80 shrink-0 flex-col">
       <div className="mb-2 flex items-center justify-between px-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: stage.color || "hsl(var(--muted-foreground))" }} />
