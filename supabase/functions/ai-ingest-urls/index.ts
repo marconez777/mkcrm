@@ -1,8 +1,11 @@
 // Batch URL ingestion: takes an array of URLs and ingests each by calling ai-ingest-url.
-import { corsHeaders, json } from "../_shared/evolution.ts";
+import { corsHeaders, json, requireUser } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
+
   try {
     const { agent_id = null, urls } = await req.json();
     if (!Array.isArray(urls) || urls.length === 0) return json({ error: "urls[] required" }, 400);
