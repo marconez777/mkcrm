@@ -940,7 +940,7 @@ function MessageRow(props: {
       {!m.from_me && actions}
       <div
         className={cn(
-          "max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
+          "min-w-0 max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
           failed && "ring-1 ring-destructive",
           pending && "opacity-70",
           isActiveMatch && "ring-2 ring-amber-400",
@@ -951,10 +951,26 @@ function MessageRow(props: {
         {replied && (
           <button
             onClick={() => pulseAndScroll(replied.id)}
-            className="mb-1 block w-full border-l-2 border-primary/60 pl-2 text-left text-[11px] text-muted-foreground line-clamp-2 hover:text-foreground"
+            className="mb-1.5 flex w-full items-stretch gap-2 overflow-hidden rounded-md bg-foreground/5 py-1 pr-2 text-left hover:bg-foreground/10"
             title="Ir para mensagem original"
           >
-            {replied.content || `[${replied.message_type}]`}
+            <span className="w-1 shrink-0 rounded-full bg-primary/70" />
+            <span className="min-w-0 flex-1 overflow-hidden">
+              <span className="block font-semibold text-primary/90 truncate">
+                {replied.from_me ? "Você" : "Mensagem"}
+              </span>
+              <span
+                className="block text-muted-foreground break-words"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {replied.content || `[${replied.message_type}]`}
+              </span>
+            </span>
           </button>
         )}
         {m.media_url && <WAMediaBubble m={m} fromMe={m.from_me} />}
