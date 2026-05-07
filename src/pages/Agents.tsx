@@ -461,7 +461,7 @@ export default function Agents() {
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <KeyRound className="h-4 w-4" /> Provedor & API key
                     <Badge variant="outline" className="ml-2 text-[10px]">{PROVIDER_LABEL[selected.provider]}</Badge>
-                    {!selected.api_key && <Badge variant="destructive" className="text-[10px]">sem key</Badge>}
+                    
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pb-4">
