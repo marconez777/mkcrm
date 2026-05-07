@@ -271,7 +271,7 @@ export default function KanbanPage() {
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
-  const { ref: scrollRef, overflow, scrollByPage, scrollToColumn, scrollX, viewportW, contentW } = useHorizontalScroll();
+  const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
   const leads = allLeads.filter((l) => l.pipeline_id === currentId);
