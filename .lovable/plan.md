@@ -1,33 +1,27 @@
-## Diagnóstico
+## Objetivo
+Eliminar a sobreposição ocasional entre imagens e mensagens no chat do inbox, especialmente quando a largura da área de conversa muda ao abrir/fechar o painel lateral de detalhes.
 
-A migração de segurança tornou o bucket `chat-attachments` privado e criou políticas RLS que assumem que cada arquivo está sob `<lead_id>/<arquivo>`. Mas o webhook salva como `<message_id>/<arquivo>`. Resultado: ao tentar gerar signed URL no cliente, o storage responde **404 "Object not found"** (404 mascarado de RLS deny). Daí imagens não carregam, áudio não toca e PDF não abre.
+## O que vou fazer
+1. Ajustar a virtualização em `src/components/inbox/ChatPane.tsx` para forçar re-medição também quando a largura do contêiner do chat mudar, não só quando a mídia terminar de carregar.
+2. Trocar o gatilho global atual por uma estratégia mais robusta de reflow/re-measure, usando observação do contêiner visível da lista e re-medição em `requestAnimationFrame` duplo quando necessário.
+3. Garantir que bolhas com mídia disparem nova medição não apenas no `onLoad`, mas também em casos de mudança de layout após resize/abertura do contexto.
+4. Validar que a correção fica restrita ao inbox e não altera comportamento do drawer antigo (`LeadDrawer`) nem outras telas.
 
-Confirmado nos logs de rede: `POST /storage/v1/object/sign/chat-attachments/<message_id>/...` → `404 not_found`. E em `storage.objects` os arquivos existem exatamente com esse path.
+## Arquivos envolvidos
+- `src/components/inbox/ChatPane.tsx`
+- `src/components/inbox/MediaBubbles.tsx`
+- `src/pages/Inbox.tsx` apenas se eu precisar observar explicitamente a abertura/fechamento do painel lateral
 
-Há também uma política duplicada bugada que compara `l.id` com `split_part(l.name, '/', 1)` (compara o id do lead com o nome da pessoa) — inútil.
+## Resultado esperado
+- Imagens não ficam mais por cima de mensagens adjacentes.
+- Abrir/fechar o painel de contexto não quebra o posicionamento das linhas virtualizadas.
+- Mensagens com imagem, vídeo e áudio continuam ocupando altura correta após carregamento.
 
-## Solução
-
-Migração SQL para reescrever as políticas de `storage.objects` do bucket `chat-attachments`:
-
-1. Dropar todas as 6 políticas atuais do bucket (`chat-attachments clinic read/insert/delete` + `chat_attachments_clinic_read/insert/delete`).
-2. Criar 3 novas políticas (SELECT/INSERT/DELETE) para `authenticated` que validam via `messages` → `leads`:
-
-```sql
-EXISTS (
-  SELECT 1
-  FROM public.messages m
-  JOIN public.leads l ON l.id = m.lead_id
-  WHERE m.id::text = split_part(objects.name, '/', 1)
-    AND l.clinic_id = public.current_clinic_id()
-)
-```
-
-3. Manter o bucket privado (não regredir segurança).
-
-Sem mudanças de código frontend — o `useSignedMediaUrl` já está correto e passará a funcionar assim que o RLS deixar a assinatura acontecer.
+## Detalhes técnicos
+- Hoje o `useVirtualizer` mede os itens com base na altura inicial e faz `measure()` quando a mídia carrega.
+- O problema aparece porque a largura útil do chat muda quando o painel lateral entra/sai, alterando a altura real das bolhas e invalidando os `translateY(...)` já calculados.
+- A correção vai focar em re-medição sincronizada da lista quando houver resize do contêiner e quando a mídia terminar de estabilizar o layout.
 
 ## Fora de escopo
-
-- Não mexer nas políticas de `task-attachments` (estrutura `<task_id>/...` está correta).
-- Não rodar backfill nem mudar webhook.
+- Não vou refazer o layout geral do inbox.
+- Não vou mexer nas regras de storage, download ou reprodução de mídia além do que for necessário para corrigir a sobreposição visual.

@@ -776,11 +776,29 @@ function VirtualizedMessages(props: {
   // and the ResizeObserver can miss the jump, causing bubbles to overlap.
   useEffect(() => {
     const onMedia = () => {
-      requestAnimationFrame(() => virtualizer.measure());
+      // Double rAF: wait for the browser to apply layout from the media size change
+      // before asking the virtualizer to recompute item offsets.
+      requestAnimationFrame(() => requestAnimationFrame(() => virtualizer.measure()));
     };
     window.addEventListener("msg-media-loaded", onMedia);
     return () => window.removeEventListener("msg-media-loaded", onMedia);
   }, [virtualizer]);
+
+  // Re-measure when the scroller width changes (e.g. side panels toggling).
+  // Bubble heights depend on width, so stale measurements cause overlap.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    let lastWidth = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (w === lastWidth) return;
+      lastWidth = w;
+      requestAnimationFrame(() => requestAnimationFrame(() => virtualizer.measure()));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [virtualizer, scrollerRef]);
 
   // Expose imperative scroll-to-message to parent
   useEffect(() => {
