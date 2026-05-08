@@ -145,40 +145,42 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
               </div>
             )}
 
-            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <ArrowRightLeft className="h-4 w-4" /> Mover leads para outro funil
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Este funil tem <strong>{leadCount}</strong> {leadCount === 1 ? "lead" : "leads"}.
-              </p>
-              {leadCount > 0 && (
-                <div className="space-y-2">
-                  <Select value={moveTargetPipeline} onValueChange={setMoveTargetPipeline}>
-                    <SelectTrigger><SelectValue placeholder="Funil de destino" /></SelectTrigger>
-                    <SelectContent>
-                      {pipelines.filter((p) => p.id !== pipeline.id).map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {targetStages.length > 0 && (
-                    <Select value={moveTargetStage} onValueChange={setMoveTargetStage}>
-                      <SelectTrigger><SelectValue placeholder="Etapa de destino" /></SelectTrigger>
+            {!isProfessional && (
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <ArrowRightLeft className="h-4 w-4" /> Mover leads para outro funil
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Este funil tem <strong>{leadCount}</strong> {leadCount === 1 ? "lead" : "leads"}.
+                </p>
+                {leadCount > 0 && (
+                  <div className="space-y-2">
+                    <Select value={moveTargetPipeline} onValueChange={setMoveTargetPipeline}>
+                      <SelectTrigger><SelectValue placeholder="Funil de destino" /></SelectTrigger>
                       <SelectContent>
-                        {targetStages.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        {pipelines.filter((p) => p.id !== pipeline.id).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
-                  <Button variant="secondary" size="sm" onClick={moveAllLeads} disabled={moving || !moveTargetStage}>
-                    {moving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Mover {leadCount} {leadCount === 1 ? "lead" : "leads"}
-                  </Button>
-                </div>
-              )}
-            </div>
+                    {targetStages.length > 0 && (
+                      <Select value={moveTargetStage} onValueChange={setMoveTargetStage}>
+                        <SelectTrigger><SelectValue placeholder="Etapa de destino" /></SelectTrigger>
+                        <SelectContent>
+                          {targetStages.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button variant="secondary" size="sm" onClick={moveAllLeads} disabled={moving || !moveTargetStage}>
+                      {moving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Mover {leadCount} {leadCount === 1 ? "lead" : "leads"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="stages" className="pt-3">
