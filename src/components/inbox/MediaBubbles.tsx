@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Mic, FileText, Image as ImageIcon, Film, X } from "lucide-react";
+import { Play, Pause, Download, Mic, FileText, Image as ImageIcon, Film, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/crm";
 import { toast } from "sonner";
+import { useSignedMediaUrl } from "@/lib/media-url";
 
 function fmtDuration(s: number) {
   if (!isFinite(s) || s < 0) s = 0;
@@ -62,7 +63,8 @@ async function downloadFile(url: string, filename: string) {
 const SPEEDS = [1, 1.5, 2];
 
 export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
-  const url = m.media_url!;
+  const { url: signedUrl, loading: urlLoading } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? "";
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
@@ -188,8 +190,17 @@ export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
 /* =========================== IMAGE =========================== */
 export function WhatsAppImage({ m }: { m: Message }) {
   const [open, setOpen] = useState(false);
-  const url = m.media_url!;
-  const filename = getFilename(url, m.media_mime ?? "image/jpeg", m.id, (m as any).raw);
+  const { url: signedUrl, loading: urlLoading } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? "";
+  const filename = getFilename(url || (m.media_url ?? ""), m.media_mime ?? "image/jpeg", m.id, (m as any).raw);
+
+  if (urlLoading || !url) {
+    return (
+      <div className="mb-1 flex h-40 w-60 items-center justify-center rounded-lg bg-muted/40">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -244,8 +255,16 @@ export function WhatsAppImage({ m }: { m: Message }) {
 
 /* =========================== VIDEO =========================== */
 export function WhatsAppVideo({ m }: { m: Message }) {
-  const url = m.media_url!;
-  const filename = getFilename(url, m.media_mime ?? "video/mp4", m.id, (m as any).raw);
+  const { url: signedUrl, loading: urlLoading } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? "";
+  const filename = getFilename(url || (m.media_url ?? ""), m.media_mime ?? "video/mp4", m.id, (m as any).raw);
+  if (urlLoading || !url) {
+    return (
+      <div className="mb-1 flex h-40 w-60 items-center justify-center rounded-lg bg-muted/40">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
   return (
     <div className="group relative mb-1 inline-block max-w-full">
       <video
@@ -269,7 +288,8 @@ export function WhatsAppVideo({ m }: { m: Message }) {
 
 /* =========================== DOCUMENT =========================== */
 export function WhatsAppDocument({ m, fromMe }: { m: Message; fromMe: boolean }) {
-  const url = m.media_url!;
+  const { url: signedUrl } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? m.media_url ?? "";
   const mime = m.media_mime ?? "";
   const raw = (m as any).raw;
   const filename = getFilename(url, mime, m.id, raw);
