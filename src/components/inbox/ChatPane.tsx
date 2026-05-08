@@ -656,30 +656,72 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       )}
 
-      <VirtualizedMessages
-        scrollerRef={scrollerRef}
+      <div
+        ref={scrollerRef}
         onScroll={onScroll}
-        loaded={loaded}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
-        topSentinelRef={topSentinelRef}
-        grouped={grouped}
-        messages={messages}
-        searchTerm={searchTerm}
-        matches={matches}
-        activeMatch={activeMatch}
-        pulseId={pulseId}
-        setReplyTo={setReplyTo}
-        pulseAndScroll={pulseAndScroll}
-        resend={resend}
-        stickToBottom={stickToBottom}
-        newCount={newCount}
-        jumpToBottom={jumpToBottom}
-        scrollToMsgRef={scrollToMsgRef}
-        leadId={lead.id}
-        onForward={(text: string) => setForwardText(text)}
-        onDelete={deleteMessage}
-      />
+        className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
+        style={{ background: "hsl(var(--chat-bg))" }}
+      >
+        <div ref={topSentinelRef} />
+        {loadingMore && (
+          <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
+          </div>
+        )}
+        {loaded && !hasMore && messages.length > 0 && (
+          <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
+        )}
+        {!loaded && (
+          <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
+          </div>
+        )}
+        {loaded && messages.length === 0 && (
+          <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
+        )}
+
+        <div className="flex flex-col">
+          {grouped.map((g: any) => {
+            if (g.kind === "date") {
+              return (
+                <div key={g.key} className="my-2 flex items-center justify-center pointer-events-none">
+                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                    {g.label}
+                  </span>
+                </div>
+              );
+            }
+            if (g.kind === "note") {
+              return <NoteRow key={g.key} note={g.n} onRemove={(id) => removeNote(lead.id, id)} />;
+            }
+            return (
+              <MessageRow
+                key={g.key}
+                m={g.m}
+                grouped={g.grouped}
+                messages={messages}
+                searchTerm={searchTerm}
+                matches={matches}
+                activeMatch={activeMatch}
+                pulseId={pulseId}
+                setReplyTo={setReplyTo}
+                pulseAndScroll={pulseAndScroll}
+                resend={resend}
+                onForward={(text: string) => setForwardText(text)}
+                onDelete={deleteMessage}
+              />
+            );
+          })}
+        </div>
+
+        {!stickToBottom && newCount > 0 && (
+          <button onClick={jumpToBottom}
+            className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
+            <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
+          </button>
+        )}
+      </div>
+
 
       {replyTo && (
         <div className="flex items-start gap-2 border-t bg-muted/30 px-4 py-2 text-xs">
