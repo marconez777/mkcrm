@@ -146,7 +146,6 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const topSentinelRef = useRef<HTMLDivElement>(null);
-  const scrollToMsgRef = useRef<((id: string) => void) | null>(null);
 
   useEffect(() => {
     setNotes(getNotes(lead.id));
