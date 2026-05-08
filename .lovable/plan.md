@@ -1,27 +1,36 @@
 ## Objetivo
-Eliminar a sobreposição ocasional entre imagens e mensagens no chat do inbox, especialmente quando a largura da área de conversa muda ao abrir/fechar o painel lateral de detalhes.
 
-## O que vou fazer
-1. Ajustar a virtualização em `src/components/inbox/ChatPane.tsx` para forçar re-medição também quando a largura do contêiner do chat mudar, não só quando a mídia terminar de carregar.
-2. Trocar o gatilho global atual por uma estratégia mais robusta de reflow/re-measure, usando observação do contêiner visível da lista e re-medição em `requestAnimationFrame` duplo quando necessário.
-3. Garantir que bolhas com mídia disparem nova medição não apenas no `onLoad`, mas também em casos de mudança de layout após resize/abertura do contexto.
-4. Validar que a correção fica restrita ao inbox e não altera comportamento do drawer antigo (`LeadDrawer`) nem outras telas.
+Unificar a experiência de conversa do card do Pipeline (kanban) com a da aba de Conversas (Inbox), trazendo anexos (imagem/áudio/vídeo/documento), sincronização de histórico, IA, agendamento, respostas rápidas, encaminhamento etc.
 
-## Arquivos envolvidos
-- `src/components/inbox/ChatPane.tsx`
-- `src/components/inbox/MediaBubbles.tsx`
-- `src/pages/Inbox.tsx` apenas se eu precisar observar explicitamente a abertura/fechamento do painel lateral
+## Diagnóstico
 
-## Resultado esperado
-- Imagens não ficam mais por cima de mensagens adjacentes.
-- Abrir/fechar o painel de contexto não quebra o posicionamento das linhas virtualizadas.
-- Mensagens com imagem, vídeo e áudio continuam ocupando altura correta após carregamento.
+Hoje, ao clicar num card do kanban, abre o `src/pages/LeadDrawer.tsx`, que possui um chat **simplificado** próprio:
+- só mostra `m.content || [tipo]` — sem renderizar mídia
+- composer básico (Textarea + botão Enviar) sem anexos, áudio, emoji, quick replies, agendamento
+- sem painel de IA, sem encaminhamento, sem reply
+- já tem botão "Sincronizar histórico", mas só isso
 
-## Detalhes técnicos
-- Hoje o `useVirtualizer` mede os itens com base na altura inicial e faz `measure()` quando a mídia carrega.
-- O problema aparece porque a largura útil do chat muda quando o painel lateral entra/sai, alterando a altura real das bolhas e invalidando os `translateY(...)` já calculados.
-- A correção vai focar em re-medição sincronizada da lista quando houver resize do contêiner e quando a mídia terminar de estabilizar o layout.
+A aba Inbox usa `ChatPane` (`src/components/inbox/ChatPane.tsx`), que já encapsula tudo: virtualização, `MediaBubble`, `Composer` (com upload, áudio, agenda, quick replies), sincronização, IA, etc. Assinatura: `<ChatPane lead={lead} />`.
+
+## Plano
+
+1. **Refatorar `src/pages/LeadDrawer.tsx`** para reutilizar `ChatPane` na aba "Chat":
+   - Remover estado/efeitos locais de `messages`, `send`, `resend`, `deleteMessage`, `syncHistory` e a UI manual de bolhas e composer.
+   - Manter o `Sheet` com header (avatar, nome, telefone, botão excluir lead) e as Tabs `Chat | Detalhes`.
+   - Na Tab "Chat", renderizar `<ChatPane lead={lead} />` ocupando toda a altura (`flex min-h-0 flex-1`).
+   - Na Tab "Detalhes", manter o `<ContextRail …/>` atual.
+   - O botão "Sincronizar histórico" no header pode ser mantido (já há equivalente dentro do ChatPane, mas é útil no header para acesso rápido).
+
+2. **Garantir layout** do `SheetContent` (max-w-2xl) para que a virtualização do `ChatPane` funcione (já tem `ResizeObserver` no scroller — testado na correção anterior).
+
+3. **Sem mudanças** em Kanban, ChatPane, Composer, MediaBubbles, RLS de storage, ou backend. É puramente uma refatoração de UI no LeadDrawer.
 
 ## Fora de escopo
-- Não vou refazer o layout geral do inbox.
-- Não vou mexer nas regras de storage, download ou reprodução de mídia além do que for necessário para corrigir a sobreposição visual.
+
+- Mudanças no kanban em si (cards, drag, colunas).
+- Mudanças no ChatPane/Composer.
+- Backend, storage, edge functions.
+
+## Resultado esperado
+
+Ao clicar em qualquer card do pipeline, a aba "Chat" do drawer fica idêntica à aba de Conversas: anexos visíveis, áudio reproduzindo, documentos baixáveis, composer completo (upload, áudio, quick replies, agendamento, IA), reply, encaminhamento e sincronização.
