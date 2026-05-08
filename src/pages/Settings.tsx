@@ -200,21 +200,23 @@ export default function SettingsPage() {
             <QuickRepliesCard />
           </TabsContent>
 
-          <TabsContent value="imports" className="space-y-6">
-            <Card className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />Importar pipeline</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.
-                  </p>
+          {!isProfessional && (
+            <TabsContent value="imports" className="space-y-6">
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />Importar pipeline</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.
+                    </p>
+                  </div>
+                  <Button onClick={() => setImportOpen(true)}>
+                    <Upload className="mr-2 h-4 w-4" /> Importar pipeline
+                  </Button>
                 </div>
-                <Button onClick={() => setImportOpen(true)}>
-                  <Upload className="mr-2 h-4 w-4" /> Importar pipeline
-                </Button>
-              </div>
-            </Card>
-          </TabsContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
