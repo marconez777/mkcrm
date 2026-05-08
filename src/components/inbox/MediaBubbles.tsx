@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Mic, FileText, Image as ImageIcon, Film, X } from "lucide-react";
+import { Play, Pause, Download, Mic, FileText, Image as ImageIcon, Film, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/crm";
 import { toast } from "sonner";
+import { useSignedMediaUrl } from "@/lib/media-url";
 
 function fmtDuration(s: number) {
   if (!isFinite(s) || s < 0) s = 0;
@@ -62,7 +63,8 @@ async function downloadFile(url: string, filename: string) {
 const SPEEDS = [1, 1.5, 2];
 
 export function WhatsAppAudio({ m, fromMe }: { m: Message; fromMe: boolean }) {
-  const url = m.media_url!;
+  const { url: signedUrl, loading: urlLoading } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? "";
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
