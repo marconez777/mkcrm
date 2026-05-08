@@ -1,37 +1,34 @@
-## Objetivo
-Deixar a rolagem horizontal do Kanban tão fluida quanto a do Kommo — sem "trancos" no scroll com a roda do mouse e com inércia suave ao soltar o arrasto.
+## Problema
 
-## Diagnóstico
-Hoje em `src/hooks/useHorizontalScroll.ts`:
+Após a migração de segurança, o bucket `chat-attachments` virou **privado**. Mas as mensagens antigas têm `media_url` salvo como URL pública (`/storage/v1/object/public/chat-attachments/...`), que agora retorna 403. Resultado: imagens não carregam, áudios não tocam, PDFs não abrem.
 
-- **Wheel handler** faz `el.scrollLeft += e.deltaY` direto a cada evento. Isso briga com o `scroll-behavior: smooth` (definido em `.kanban-scroll` no `index.css`) e com o trackpad/mouse de alta frequência, gerando saltos.
-- **Arrasto (pointer drag)** desativa `scroll-behavior` e ao soltar o ponteiro o board para imediatamente — sem inércia. Kommo aplica momentum (continua deslizando e desacelera).
-- Não há acumulação/normalização de delta — uma roda "notched" entrega 100px de uma vez, gerando pulo visível.
+Também os signed URLs gerados pelo webhook expiram em 7 dias, então mesmo mídia nova vai quebrar com o tempo.
 
-## Mudanças
+## Solução
 
-### 1) `src/hooks/useHorizontalScroll.ts` — rolagem com requestAnimationFrame
-- Substituir `el.scrollLeft += e.deltaY` por um **alvo acumulado + loop rAF** que interpola (`current += (target - current) * 0.22`) até estabilizar. Isso suaviza tanto trackpad como mouse com roda discreta.
-- Normalizar `deltaMode` (linha vs pixel): multiplicar por ~16 quando `deltaMode === 1`.
-- Garantir `scroll-behavior: auto` durante esse loop (o smooth do CSS conflita com rAF).
-- **Inércia ao soltar arrasto**: medir velocidade nos últimos ~80ms do `pointermove` (px/ms) e, no `pointerup`, iniciar um loop rAF que aplica `velocity *= 0.94` por frame até `|v| < 0.05`. Cancelar inércia se houver novo `pointerdown` ou wheel.
-- Cancelar o rAF no cleanup do `useEffect`.
+Resolver a URL no **cliente**, sob demanda, transformando o caminho do storage em um signed URL fresco (1h) toda vez que renderiza a bolha de mídia.
 
-### 2) `src/index.css` — remover conflito de smooth-scroll
-- Em `.kanban-scroll`, trocar `scroll-behavior: smooth` por `scroll-behavior: auto`. A suavidade passa a vir do JS (rAF), evitando que o navegador "queime" deltas pequenos.
-- Manter visual da scrollbar inferior intocado.
-- Manter `scroll-snap-type: x proximity` (não atrapalha o rAF e ajuda o alinhamento final, igual Kommo).
+### Mudanças
 
-### 3) Sem mudanças em
-- `Kanban.tsx`, `EditPipelineDialog`, banco de dados, tipos. A API do hook (`ref`, `overflow`, `scrollByPage`, `scrollToEnd`, `scrollToColumn`, `scrollX`, `viewportW`, `contentW`) permanece a mesma.
+1. **Novo helper `src/lib/media-url.ts`**
+   - `extractStoragePath(url)`: detecta URLs de `chat-attachments` (públicas ou assinadas) e extrai o `path`.
+   - `useSignedMediaUrl(url)`: hook que retorna `{ url: signedOrOriginal, loading }`. Faz `supabase.storage.from('chat-attachments').createSignedUrl(path, 3600)` com cache em memória por path (evita re-assinar a cada render). Se a URL não for do bucket privado, retorna como está.
 
-## Detalhes técnicos
-- O loop rAF usa um único `rafId` compartilhado entre wheel e inércia, com estado `{ target, current, velocity, mode: 'wheel'|'inertia'|null }` em `useRef`.
-- Clamp do `target` em `[0, scrollWidth - clientWidth]` para evitar overshoot.
-- `scrollByPage` e `scrollToEnd` continuam usando `el.scrollTo({ behavior: 'smooth' })` — esses são eventos pontuais (botão), onde o smooth nativo funciona bem.
-- Preservar a guarda atual: se o cursor estiver sobre uma coluna com scroll vertical próprio (`[data-kanban-column-body]`) e `deltaY` predominar, não sequestrar o evento.
+2. **`src/components/inbox/MediaBubbles.tsx`**
+   - `WhatsAppImage`, `WhatsAppAudio`, `WhatsAppVideo`, `WhatsAppDocument`: trocar uso direto de `m.media_url` por `useSignedMediaUrl(m.media_url)`. Mostrar skeleton enquanto resolve.
+   - `downloadFile` também passa a usar a URL resolvida.
 
-## Resultado esperado
-- Roda do mouse e trackpad deslizam continuamente, sem trancos.
-- Ao arrastar e soltar, o board continua deslizando com desaceleração natural (estilo Kommo).
-- Botões de paginação (`scrollByPage`) seguem com animação smooth nativa.
+3. **`src/pages/LeadDrawer.tsx`** (se renderizar mídia direto — verificar). Sem mudança se só mostra texto.
+
+### Detalhes técnicos
+
+- O path é extraído via regex tolerante a `/object/public/chat-attachments/<path>` e `/object/sign/chat-attachments/<path>?token=...`.
+- Cache simples `Map<path, {url, exp}>`; reassina quando faltam <5min.
+- Sem mudança no schema nem nos edge functions — o webhook continua salvando signed URL (que serve como fallback / contém o path).
+- Sem migração SQL.
+
+## Fora de escopo
+
+- Não vou tornar o bucket público de novo (regrediria a segurança aprovada).
+- Não vou rodar backfill para reescrever `media_url` — o cliente resolve dinamicamente, então URLs antigas funcionam imediatamente.
+- O segundo bug ("erro ao abrir janela esquerda") fica para próxima mensagem — preciso saber qual painel e qual erro exato (não há runtime error capturado no momento).
