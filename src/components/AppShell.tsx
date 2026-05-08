@@ -22,7 +22,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
   const { user, isSuperAdmin, membership } = useAuth();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
-  let navItems = items;
+  const isProfessional = membership?.role === "professional" && !isSuperAdmin;
+  const restricted = new Set(["/agents", "/automations", "/templates"]);
+  let navItems = isProfessional ? items.filter((i) => !restricted.has(i.to)) : items;
   if (isClinicAdmin) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
