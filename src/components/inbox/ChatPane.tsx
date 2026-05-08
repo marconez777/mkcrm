@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Message } from "@/types/crm";
 import {
@@ -147,7 +146,6 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const firstScrollRef = useRef(true);
   const topSentinelRef = useRef<HTMLDivElement>(null);
-  const scrollToMsgRef = useRef<((id: string) => void) | null>(null);
 
   useEffect(() => {
     setNotes(getNotes(lead.id));
@@ -269,7 +267,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }
 
   function pulseAndScroll(messageId: string) {
-    scrollToMsgRef.current?.(messageId);
+    const el = scrollerRef.current?.querySelector(`[data-msg-id="${messageId}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
     setPulseId(messageId);
     setTimeout(() => setPulseId((p) => (p === messageId ? null : p)), 1600);
   }
@@ -657,30 +656,72 @@ export default function ChatPane({ lead }: { lead: Lead }) {
         </div>
       )}
 
-      <VirtualizedMessages
-        scrollerRef={scrollerRef}
+      <div
+        ref={scrollerRef}
         onScroll={onScroll}
-        loaded={loaded}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
-        topSentinelRef={topSentinelRef}
-        grouped={grouped}
-        messages={messages}
-        searchTerm={searchTerm}
-        matches={matches}
-        activeMatch={activeMatch}
-        pulseId={pulseId}
-        setReplyTo={setReplyTo}
-        pulseAndScroll={pulseAndScroll}
-        resend={resend}
-        stickToBottom={stickToBottom}
-        newCount={newCount}
-        jumpToBottom={jumpToBottom}
-        scrollToMsgRef={scrollToMsgRef}
-        leadId={lead.id}
-        onForward={(text: string) => setForwardText(text)}
-        onDelete={deleteMessage}
-      />
+        className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
+        style={{ background: "hsl(var(--chat-bg))" }}
+      >
+        <div ref={topSentinelRef} />
+        {loadingMore && (
+          <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
+          </div>
+        )}
+        {loaded && !hasMore && messages.length > 0 && (
+          <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
+        )}
+        {!loaded && (
+          <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+            <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
+          </div>
+        )}
+        {loaded && messages.length === 0 && (
+          <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
+        )}
+
+        <div className="flex flex-col">
+          {grouped.map((g: any) => {
+            if (g.kind === "date") {
+              return (
+                <div key={g.key} className="my-2 flex items-center justify-center pointer-events-none">
+                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                    {g.label}
+                  </span>
+                </div>
+              );
+            }
+            if (g.kind === "note") {
+              return <NoteRow key={g.key} note={g.n} onRemove={(id) => removeNote(lead.id, id)} />;
+            }
+            return (
+              <MessageRow
+                key={g.key}
+                m={g.m}
+                grouped={g.grouped}
+                messages={messages}
+                searchTerm={searchTerm}
+                matches={matches}
+                activeMatch={activeMatch}
+                pulseId={pulseId}
+                setReplyTo={setReplyTo}
+                pulseAndScroll={pulseAndScroll}
+                resend={resend}
+                onForward={(text: string) => setForwardText(text)}
+                onDelete={deleteMessage}
+              />
+            );
+          })}
+        </div>
+
+        {!stickToBottom && newCount > 0 && (
+          <button onClick={jumpToBottom}
+            className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
+            <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
+          </button>
+        )}
+      </div>
+
 
       {replyTo && (
         <div className="flex items-start gap-2 border-t bg-muted/30 px-4 py-2 text-xs">
@@ -723,173 +764,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   );
 }
 
-// ---- Virtualized message list ---------------------------------------------
+// ---------------------------------------------------------------------------
 
-type GroupedItem =
-  | { kind: "date"; label: string; key: string }
-  | { kind: "msg"; m: Message; grouped: boolean; key: string }
-  | { kind: "note"; n: InternalNote; key: string };
-
-function VirtualizedMessages(props: {
-  scrollerRef: React.RefObject<HTMLDivElement>;
-  onScroll: () => void;
-  loaded: boolean;
-  loadingMore: boolean;
-  hasMore: boolean;
-  topSentinelRef: React.RefObject<HTMLDivElement>;
-  grouped: GroupedItem[];
-  messages: Message[];
-  searchTerm: string;
-  matches: Message[];
-  activeMatch: number;
-  pulseId: string | null;
-  setReplyTo: (m: Message) => void;
-  pulseAndScroll: (id: string) => void;
-  resend: (m: Message) => void;
-  stickToBottom: boolean;
-  newCount: number;
-  jumpToBottom: () => void;
-  scrollToMsgRef: React.MutableRefObject<((id: string) => void) | null>;
-  leadId: string;
-  onForward: (text: string) => void;
-  onDelete: (m: Message) => void;
-}) {
-  const {
-    scrollerRef, onScroll, loaded, loadingMore, hasMore, topSentinelRef, grouped,
-    messages, searchTerm, matches, activeMatch, pulseId,
-    setReplyTo, pulseAndScroll, resend, stickToBottom, newCount, jumpToBottom, scrollToMsgRef,
-    leadId, onForward, onDelete,
-  } = props;
-
-  const virtualizer = useVirtualizer({
-    count: grouped.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: (i) => (grouped[i]?.kind === "date" ? 32 : 64),
-    overscan: 12,
-    getItemKey: (i) => grouped[i]?.key ?? i,
-  });
-
-  // Re-measure after layout when grouped changes (status/text updates)
-  useLayoutEffect(() => { virtualizer.measure(); }, [grouped.length]);
-
-  // Re-measure when media (images/videos) finish loading — they grow after first paint
-  // and the ResizeObserver can miss the jump, causing bubbles to overlap.
-  useEffect(() => {
-    const onMedia = () => {
-      // Double rAF: wait for the browser to apply layout from the media size change
-      // before asking the virtualizer to recompute item offsets.
-      requestAnimationFrame(() => requestAnimationFrame(() => virtualizer.measure()));
-    };
-    window.addEventListener("msg-media-loaded", onMedia);
-    return () => window.removeEventListener("msg-media-loaded", onMedia);
-  }, [virtualizer]);
-
-  // Re-measure when the scroller width changes (e.g. side panels toggling).
-  // Bubble heights depend on width, so stale measurements cause overlap.
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    let lastWidth = el.clientWidth;
-    const ro = new ResizeObserver(() => {
-      const w = el.clientWidth;
-      if (w === lastWidth) return;
-      lastWidth = w;
-      requestAnimationFrame(() => requestAnimationFrame(() => virtualizer.measure()));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [virtualizer, scrollerRef]);
-
-  // Expose imperative scroll-to-message to parent
-  useEffect(() => {
-    scrollToMsgRef.current = (id: string) => {
-      const idx = grouped.findIndex((g) => g.kind === "msg" && g.m.id === id);
-      if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center", behavior: "smooth" });
-    };
-    return () => { scrollToMsgRef.current = null; };
-  }, [grouped, virtualizer, scrollToMsgRef]);
-
-  const items = virtualizer.getVirtualItems();
-  const totalSize = virtualizer.getTotalSize();
-
-  return (
-    <div
-      ref={scrollerRef}
-      onScroll={onScroll}
-      className="scrollbar-thin relative flex-1 overflow-y-auto px-4 py-4"
-      style={{ background: "hsl(var(--chat-bg))" }}
-    >
-      {!loaded && (
-        <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
-          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando mensagens…
-        </div>
-      )}
-
-      <div ref={topSentinelRef} />
-      {loadingMore && (
-        <div className="flex items-center justify-center py-2 text-[11px] text-muted-foreground">
-          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Carregando histórico…
-        </div>
-      )}
-      {loaded && !hasMore && messages.length > 0 && (
-        <div className="py-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">início da conversa</div>
-      )}
-      {loaded && messages.length === 0 && (
-        <div className="py-10 text-center text-xs text-muted-foreground">Sem mensagens ainda.</div>
-      )}
-
-      <div style={{ height: totalSize, width: "100%", position: "relative" }}>
-        {items.map((vi) => {
-          const g = grouped[vi.index];
-          if (!g) return null;
-          return (
-            <div
-              key={vi.key}
-              ref={virtualizer.measureElement}
-              data-index={vi.index}
-              style={{
-                position: "absolute", top: 0, left: 0, right: 0,
-                transform: `translateY(${vi.start}px)`,
-              }}
-            >
-              {g.kind === "date" ? (
-                <div className="my-2 flex items-center justify-center pointer-events-none">
-                  <span className="rounded-full bg-card/95 px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
-                    {g.label}
-                  </span>
-                </div>
-              ) : g.kind === "note" ? (
-                <NoteRow note={g.n} onRemove={(id) => removeNote(props.leadId, id)} />
-              ) : (
-                <MessageRow
-                  m={g.m}
-                  grouped={g.grouped}
-                  messages={messages}
-                  searchTerm={searchTerm}
-                  matches={matches}
-                  activeMatch={activeMatch}
-                  pulseId={pulseId}
-                  setReplyTo={setReplyTo}
-                  pulseAndScroll={pulseAndScroll}
-                  resend={resend}
-                  onForward={props.onForward}
-                  onDelete={onDelete}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {!stickToBottom && newCount > 0 && (
-        <button onClick={jumpToBottom}
-          className="sticky bottom-3 left-1/2 mx-auto flex -translate-x-1/2 items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-md">
-          <ChevronDown className="h-3 w-3" /> {newCount} nova{newCount > 1 ? "s" : ""}
-        </button>
-      )}
-    </div>
-  );
-}
 
 function NoteRow({ note, onRemove }: { note: InternalNote; onRemove: (id: string) => void }) {
   return (
