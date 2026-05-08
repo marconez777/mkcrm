@@ -267,7 +267,8 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   }
 
   function pulseAndScroll(messageId: string) {
-    scrollToMsgRef.current?.(messageId);
+    const el = scrollerRef.current?.querySelector(`[data-msg-id="${messageId}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
     setPulseId(messageId);
     setTimeout(() => setPulseId((p) => (p === messageId ? null : p)), 1600);
   }
