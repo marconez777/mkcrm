@@ -108,11 +108,11 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className={`grid w-full ${isProfessional ? "grid-cols-3" : "grid-cols-4"}`}>
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             <TabsTrigger value="fields">Campos do lead</TabsTrigger>
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
-            <TabsTrigger value="imports">Importações</TabsTrigger>
+            {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="connection" className="space-y-4">
