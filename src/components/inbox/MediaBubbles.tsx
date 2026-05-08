@@ -210,8 +210,7 @@ export function WhatsAppImage({ m }: { m: Message }) {
             src={url}
             alt=""
             loading="lazy"
-            onLoad={() => window.dispatchEvent(new Event("msg-media-loaded"))}
-            onError={() => window.dispatchEvent(new Event("msg-media-loaded"))}
+            
             className="max-h-80 w-auto max-w-full object-cover transition-transform group-hover:scale-[1.01]"
           />
         </button>
