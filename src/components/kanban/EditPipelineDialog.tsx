@@ -10,6 +10,7 @@ import { Loader2, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StagesManager from "./StagesManager";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   pipeline: Pipeline | null;
