@@ -29,6 +29,7 @@ type Instance = {
 export default function SettingsPage() {
   const { membership, isSuperAdmin } = useAuth();
   const canManage = isSuperAdmin || !!membership;
+  const isProfessional = membership?.role === "professional" && !isSuperAdmin;
 
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
