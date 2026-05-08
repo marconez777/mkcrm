@@ -288,7 +288,8 @@ export function WhatsAppVideo({ m }: { m: Message }) {
 
 /* =========================== DOCUMENT =========================== */
 export function WhatsAppDocument({ m, fromMe }: { m: Message; fromMe: boolean }) {
-  const url = m.media_url!;
+  const { url: signedUrl } = useSignedMediaUrl(m.media_url);
+  const url = signedUrl ?? m.media_url ?? "";
   const mime = m.media_mime ?? "";
   const raw = (m as any).raw;
   const filename = getFilename(url, mime, m.id, raw);
