@@ -22,6 +22,8 @@ interface Props {
 }
 
 export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipelines, whatsappInstances, onChanged }: Props) {
+  const { membership, isSuperAdmin } = useAuth();
+  const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"sales" | "internal">("sales");
   const [instanceId, setInstanceId] = useState<string>("none");
