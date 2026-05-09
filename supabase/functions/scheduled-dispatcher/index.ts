@@ -48,7 +48,9 @@ async function processPendingReplies(supabase: any) {
   for (const item of due ?? []) {
     // Atomically remove first (avoid double processing on overlap)
     const { data: claimed } = await supabase
-      .from("pending_replies").delete().eq("lead_id", item.lead_id).lte("run_at", nowIso).select("lead_id");
+      .from("pending_replies").delete()
+      .eq("lead_id", item.lead_id).eq("agent_id", item.agent_id)
+      .lte("run_at", nowIso).select("lead_id");
     if (!claimed || claimed.length === 0) { skipped++; continue; }
 
     try {
