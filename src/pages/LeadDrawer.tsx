@@ -4,7 +4,7 @@ import type { Lead } from "@/types/crm";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Phone, Trash2, RefreshCw } from "lucide-react";
+import { Loader2, Phone, Trash2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
 import { useAttendants } from "@/hooks/useAttendants";
@@ -18,6 +18,7 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   const { attendants } = useAttendants();
   const confirm = useConfirm();
   const [syncing, setSyncing] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   if (!lead) return null;
 
@@ -27,6 +28,29 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     setSyncing(false);
     if (error) toast.error("Falha: " + error.message);
     else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
+  }
+
+  async function reviewWithAi() {
+    if (!lead) return;
+    setReviewing(true);
+    try {
+      // 1. Descobre o Watcher da instância do lead
+      const { data: leadRow } = await supabase
+        .from("leads").select("whatsapp_instance_id").eq("id", lead.id).maybeSingle();
+      const instanceId = leadRow?.whatsapp_instance_id;
+      if (!instanceId) { toast.error("Lead sem WhatsApp vinculado"); return; }
+      const { data: inst } = await supabase
+        .from("whatsapp_instances").select("watcher_agent_id").eq("id", instanceId).maybeSingle();
+      const agentId = inst?.watcher_agent_id;
+      if (!agentId) { toast.error("Nenhum agente vigia configurado para esta conexão"); return; }
+      const { error } = await supabase.functions.invoke("ai-chat", {
+        body: { agent_id: agentId, lead_id: lead.id, messages: [] },
+      });
+      if (error) { toast.error("Falha: " + error.message); return; }
+      toast.success("Vigia revisou a conversa");
+    } finally {
+      setReviewing(false);
+    }
   }
 
   async function remove() {
