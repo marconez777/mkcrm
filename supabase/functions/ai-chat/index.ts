@@ -122,6 +122,30 @@ const BUILTIN_TOOLS: Record<string, any> = {
       },
     },
   },
+  add_lead_tag: {
+    type: "function",
+    function: {
+      name: "add_lead_tag",
+      description: "Adiciona uma tag ao lead atual (ex.: 'quente', 'frio', 'risco', 'interesse:cetamina').",
+      parameters: { type: "object", properties: { tag: { type: "string" } }, required: ["tag"] },
+    },
+  },
+  remove_lead_tag: {
+    type: "function",
+    function: {
+      name: "remove_lead_tag",
+      description: "Remove uma tag do lead atual.",
+      parameters: { type: "object", properties: { tag: { type: "string" } }, required: ["tag"] },
+    },
+  },
+  get_lead_state: {
+    type: "function",
+    function: {
+      name: "get_lead_state",
+      description: "Retorna o estado atual do lead: etapa atual, etapa anterior, tags, campos customizados e timestamp da última mensagem.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 };
 
 async function executeTool(name: string, args: any, ctx: { leadId: string | null; agent: any; supabase: any }) {
