@@ -73,6 +73,9 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             </div>
           </div>
           <div className="flex items-center gap-1 pr-10">
+            <Button variant="ghost" size="icon" onClick={reviewWithAi} disabled={reviewing} title="Revisar conversa com IA (vigia)">
+              {reviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
+            </Button>
             <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico completo">
               {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
