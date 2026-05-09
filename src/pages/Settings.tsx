@@ -25,7 +25,10 @@ type Instance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
+  watcher_agent_id: string | null;
 };
+
+type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin } = useAuth();
@@ -41,11 +44,12 @@ export default function SettingsPage() {
   const [healingId, setHealingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
+  const [agents, setAgents] = useState<AgentLite[]>([]);
 
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -54,7 +58,19 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
     supabase.from("pipelines").select("id", { count: "exact", head: true }).then(({ count }) => setPipelinesCount(count ?? 0));
+    supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name")
+      .then(({ data }) => setAgents((data as AgentLite[]) ?? []));
   }, []);
+
+  async function setWatcher(instanceId: string, agentId: string | null) {
+    const { error } = await supabase
+      .from("whatsapp_instances")
+      .update({ watcher_agent_id: agentId })
+      .eq("id", instanceId);
+    if (error) { toast.error(error.message); return; }
+    toast.success(agentId ? "Vigia atualizado" : "Vigia removido");
+    setInstances((prev) => prev.map((i) => i.id === instanceId ? { ...i, watcher_agent_id: agentId } : i));
+  }
 
   async function createInstance() {
     if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
