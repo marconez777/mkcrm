@@ -157,42 +157,64 @@ export default function SettingsPage() {
                 {instances.map((inst) => {
                   const open = inst.connection_state === "open";
                   return (
-                    <div key={inst.id} className="flex items-center gap-3 rounded-md border p-3">
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
-                        {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{inst.name}</span>
-                          {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                    <div key={inst.id} className="rounded-md border p-3 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                          {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">{inst.name}</span>
+                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                          </div>
                         </div>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
-                        <QrCode className="mr-2 h-3 w-3" />
-                        {open ? "Gerenciar" : "Escanear QR"}
-                      </Button>
-                      {canManage && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
-                              <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
-                            </DropdownMenuItem>
-                            {!inst.is_default && (
-                              <DropdownMenuItem onClick={() => setDefault(inst.id)}>
-                                <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                        <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
+                          <QrCode className="mr-2 h-3 w-3" />
+                          {open ? "Gerenciar" : "Escanear QR"}
+                        </Button>
+                        {canManage && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
+                                <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
-                              <Trash2 className="mr-2 h-3 w-3" /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {!inst.is_default && (
+                                <DropdownMenuItem onClick={() => setDefault(inst.id)}>
+                                  <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
+                                <Trash2 className="mr-2 h-3 w-3" /> Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      {canManage && (
+                        <div className="flex items-center gap-2 pl-12">
+                          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Vigia de IA:</span>
+                          <Select
+                            value={inst.watcher_agent_id ?? "__none__"}
+                            onValueChange={(v) => setWatcher(inst.id, v === "__none__" ? null : v)}
+                          >
+                            <SelectTrigger className="h-7 w-[260px] text-xs">
+                              <SelectValue placeholder="Sem vigia" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Sem vigia</SelectItem>
+                              {agents.map((a) => (
+                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       )}
                     </div>
                   );
