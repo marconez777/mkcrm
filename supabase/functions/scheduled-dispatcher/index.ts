@@ -102,8 +102,8 @@ async function processPendingReplies(supabase: any) {
       const aiData = await aiResp.json();
       if (!aiResp.ok) { failed++; continue; }
       const reply = (aiData.content ?? "").trim();
-      // Agentes "silenciosos" (ex.: classificador) só usam tools e não respondem texto
-      if (!reply) { replied++; continue; }
+      // Agentes silenciosos nunca enviam (vigia/classificador). Mesmo que produzam texto, descartamos.
+      if (silent || !reply) { replied++; continue; }
 
       const sendResp = await fetch(`${FUNCTIONS_URL}/evolution-send`, {
         method: "POST", headers: authHeaders,
