@@ -251,6 +251,7 @@ export type Database = {
           rag_top_k: number
           reranker_api_key: string | null
           reranker_provider: string | null
+          silent: boolean
           system_prompt: string
           temperature: number
           tools: Json
@@ -279,6 +280,7 @@ export type Database = {
           rag_top_k?: number
           reranker_api_key?: string | null
           reranker_provider?: string | null
+          silent?: boolean
           system_prompt: string
           temperature?: number
           tools?: Json
@@ -307,6 +309,7 @@ export type Database = {
           rag_top_k?: number
           reranker_api_key?: string | null
           reranker_provider?: string | null
+          silent?: boolean
           system_prompt?: string
           temperature?: number
           tools?: Json
@@ -1119,6 +1122,54 @@ export type Database = {
           },
         ]
       }
+      lead_stage_history: {
+        Row: {
+          clinic_id: string
+          from_stage_id: string | null
+          id: string
+          lead_id: string
+          moved_at: string
+          moved_by_agent_id: string | null
+          moved_by_user_id: string | null
+          to_stage_id: string | null
+        }
+        Insert: {
+          clinic_id?: string
+          from_stage_id?: string | null
+          id?: string
+          lead_id: string
+          moved_at?: string
+          moved_by_agent_id?: string | null
+          moved_by_user_id?: string | null
+          to_stage_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          from_stage_id?: string | null
+          id?: string
+          lead_id?: string
+          moved_at?: string
+          moved_by_agent_id?: string | null
+          moved_by_user_id?: string | null
+          to_stage_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_stage_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_stage_history_moved_by_agent_id_fkey"
+            columns: ["moved_by_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_tasks: {
         Row: {
           clinic_id: string
@@ -1400,21 +1451,21 @@ export type Database = {
       }
       pending_replies: {
         Row: {
-          agent_id: string | null
+          agent_id: string
           clinic_id: string
           created_at: string
           lead_id: string
           run_at: string
         }
         Insert: {
-          agent_id?: string | null
+          agent_id: string
           clinic_id?: string
           created_at?: string
           lead_id: string
           run_at: string
         }
         Update: {
-          agent_id?: string | null
+          agent_id?: string
           clinic_id?: string
           created_at?: string
           lead_id?: string
@@ -1438,7 +1489,7 @@ export type Database = {
           {
             foreignKeyName: "pending_replies_lead_id_fkey"
             columns: ["lead_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
@@ -2216,6 +2267,7 @@ export type Database = {
           last_poll_at: string | null
           name: string
           updated_at: string
+          watcher_agent_id: string | null
           webhook_last_error: string | null
           webhook_last_set_at: string | null
           webhook_ok: boolean | null
@@ -2234,6 +2286,7 @@ export type Database = {
           last_poll_at?: string | null
           name: string
           updated_at?: string
+          watcher_agent_id?: string | null
           webhook_last_error?: string | null
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
@@ -2252,6 +2305,7 @@ export type Database = {
           last_poll_at?: string | null
           name?: string
           updated_at?: string
+          watcher_agent_id?: string | null
           webhook_last_error?: string | null
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
@@ -2263,6 +2317,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_instances_watcher_agent_id_fkey"
+            columns: ["watcher_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
             referencedColumns: ["id"]
           },
         ]
