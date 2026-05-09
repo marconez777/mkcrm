@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { agent_id, messages: incoming = [], lead_id = null, thread_id = null, persist = false } = await req.json();
+    const { agent_id, messages: incomingRaw = [], lead_id = null, thread_id = null, persist = false } = await req.json();
     if (!agent_id) return json({ error: "agent_id required" }, 400);
 
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
@@ -308,6 +308,21 @@ Deno.serve(async (req) => {
     if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
+
+    // Manual review path: lead_id sem mensagens => carrega últimas 30 mensagens reais como turno único do user
+    let incoming = incomingRaw;
+    if (lead_id && (!incoming || incoming.length === 0)) {
+      const { data: msgs } = await supabase.from("messages")
+        .select("from_me, content, message_type, timestamp")
+        .eq("lead_id", lead_id).order("timestamp", { ascending: false }).limit(30);
+      const ordered = (msgs ?? []).reverse().filter((m: any) => m.content);
+      const transcript = ordered.map((m: any) => {
+        const when = new Date(m.timestamp).toISOString().slice(11, 16);
+        const who = m.from_me ? "atendente" : "lead";
+        return `[${who} ${when}] ${m.content}`;
+      }).join("\n");
+      incoming = [{ role: "user", content: `Revise a conversa abaixo e tome as ações cabíveis (mover etapa, tags, notas, tarefas). Não responda ao lead — apenas use ferramentas.\n\n---\n${transcript || "(sem mensagens)"}\n---` }];
+    }
 
     // RAG: advanced retrieval
     const lastUser = [...incoming].reverse().find((m: any) => m.role === "user");
