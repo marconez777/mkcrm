@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       try {
         await new Promise((r) => setTimeout(r, (debounce + 1) * 1000));
         const { data: still } = await supabase
-          .from("pending_replies").select("lead_id").eq("lead_id", lead_id).maybeSingle();
+          .from("pending_replies").select("lead_id").eq("lead_id", lead_id).eq("agent_id", agentId).maybeSingle();
         if (!still) return;
         await fetch(`${FUNCTIONS_URL}/scheduled-dispatcher`, {
           method: "POST",
