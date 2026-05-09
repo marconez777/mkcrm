@@ -1,73 +1,159 @@
-## Diagnóstico (revisão completa)
+# Plano revisado v2 — Pipeline Watcher (Fase 1)
 
-A captura confirma o sintoma clássico: bolhas se sobrepondo (texto, áudio, PDF e a transcrição de áudio caem em cima das mensagens vizinhas). Revisei `src/components/inbox/ChatPane.tsx` (1053 linhas), `src/components/inbox/MediaBubbles.tsx` e `src/components/inbox/Composer.tsx`.
+Beleza, alinhado. Sem colunas por tratamento — interesse vira **campo customizado** (`tratamento_interesse`) + **tag**. Watcher é por instância de WhatsApp / pipeline. Cron 03:00. Botão "Revisar com IA" visível para todos.
 
-A causa raiz é estrutural, não pontual: o `ChatPane` usa **`@tanstack/react-virtual`** com itens posicionados em `position: absolute; transform: translateY(...)`, calculando o offset de cada item via `measureElement`. Esse modelo entra em conflito com o conteúdo do nosso chat porque a altura final só é conhecida **depois** que vários eventos acontecem:
+## Etapas oficiais do pipeline (referência para o Watcher)
 
-1. Imagens / vídeos / PDFs assinam URL via `useSignedMediaUrl` (1 round-trip ao Storage), depois carregam (`onLoad`), depois trocam de placeholder para conteúdo real → 3 mudanças de altura por mídia.
-2. `AudioTranscript` muda de "Transcrever áudio" para um bloco multi-linha quando o usuário clica.
-3. Notas internas (`InternalNote`) são adicionadas no meio do array e re-mesclam o `grouped` por timestamp.
-4. A largura do container muda quando o `ContextRail` ou o `ConversationList` colapsam — bolhas com `max-w-[78%]` mudam de altura.
-5. Mensagens prepended (paginação infinita para cima) recalculam o `scrollTop` manualmente.
-6. Timestamps "Hoje/Ontem", agrupamento por autor e mensagens citadas (`replied`) introduzem alturas variáveis dentro do mesmo `key`.
+```text
+1.  Leads de entrada
+2.  Qualificação
+3.  Consulta agendada
+4.  Consulta paga
+5.  Consulta finalizada
+6.  Fechamento pendente — consulta
+7.  Lead parou de responder
+8.  Lead não qualificado
+9.  Fechamento pendente — procedimento
+10. Procedimento agendado
+11. Procedimento pago
+12. Retorno / Tratamento finalizado
+13. Paciente antigo
+14. Antigo — consulta/procedimento agendado
+15. Nutrição de leads inativos
+16. Administrativo
+```
 
-Tentamos contornar isso com `ResizeObserver` no scroller + `requestAnimationFrame` duplo + listener `msg-media-loaded`. Já é um sintoma de modelo errado: estamos lutando contra a virtualização ao invés de usá-la.
+Regras de movimentação que o Watcher vai aplicar (resumo do que vai pro system prompt):
 
-Pesquisa confirma: a [Discussion #195](https://github.com/TanStack/virtual/discussions/195) e a [#1013](https://github.com/TanStack/virtual/discussions/1013) do próprio TanStack Virtual reconhecem que listas de chat com itens dinâmicos / scroll reverso / mídia assíncrona são um caso particularmente frágil para essa biblioteca. A recomendação prática é trocar de abordagem.
+| Sinal observado na conversa | Ação |
+|---|---|
+| Lead respondeu uma mensagem da clínica e ainda está em "Leads de entrada" | mover para **Qualificação** + tag `quente` se houver indicador forte |
+| Secretária/lead acordam horário de consulta ("dia X às Y", "marcado", "confirmado") | mover para **Consulta agendada** + preencher `data_agendamento` |
+| Lead confirma pagamento da consulta ("paguei", "transferi", comprovante reconhecido) | mover para **Consulta paga** + `valor_pago` + `forma_pagamento` + tarefa "Confirmar dados" |
+| Secretária registra consulta realizada / lead fala "fui na consulta" | mover para **Consulta finalizada** |
+| Pós-consulta sem fechamento, lead ainda decidindo | mover para **Fechamento pendente — consulta** |
+| Lead negociando procedimento/protocolo, sem pagamento | **Fechamento pendente — procedimento** |
+| Procedimento marcado | **Procedimento agendado** + `data_procedimento` |
+| Pagamento de procedimento confirmado | **Procedimento pago** + valor + tarefa |
+| Tratamento concluído | **Retorno / Tratamento finalizado** |
+| Lead claramente fora de perfil (psiq. infantil, terapia de casal, fora da região, spam) | **Lead não qualificado** + tag `fora-perfil` |
+| Sem resposta do lead há ≥ 5 dias e fora de etapas pagas/agendadas | **Lead parou de responder** + tag `frio` |
+| Lead frio voltou a responder | tirar tag `frio` + voltar para a etapa anterior (via histórico) |
+| Pix sendo enviado pela secretária mas lead ainda não pagou | **só** tag `negociando-pagamento` (não move) |
+| Risco clínico (ideação, automutilação, surto, gestante em crise) | tag `risco` + tarefa máxima + `transfer_to_human` |
+| Contraindicação possível | tag `contraindicacao-possivel` + tarefa |
+| Mensagem ambígua | tag `ambiguo` + tarefa baixa, **não move** |
 
-## Nova abordagem (proposta)
+Etapas **13, 14, 15, 16** são geridas manualmente — o Watcher **não** move leads para elas (evita falso positivo). Só anota se detectar sinais (ex.: "sou paciente antigo" → tag `paciente-antigo` + tarefa de revisão).
 
-**Remover a virtualização das mensagens** e renderizar o `ChatPane` como um scroller nativo com flexbox vertical. Isso elimina, por construção, qualquer possibilidade de sobreposição: o navegador é quem faz o layout do fluxo, não nós.
+## Tags que vou criar (para você cadastrar/curar depois)
 
-Por que isso é viável aqui:
+Operacionais (ciclo de vida):
+- `quente`, `frio`, `negociando-pagamento`, `pagou`, `pronto-pra-agendar`, `ambiguo`, `fora-perfil`, `paciente-antigo`
 
-- O `PAGE_SIZE` é 50 e a paginação é *on demand* (sentinel no topo). Mesmo com vários "carregar mais", chegamos a algumas centenas de nós no DOM — totalmente dentro do orçamento do React/Chrome (testes do Slack, Linear e WhatsApp Web mostram que <2k nós de mensagem rodam fluidos sem virtualização).
-- Já temos `useWaAvatar`, `useSignedMediaUrl` e `MediaBubble` com `loading="lazy"` em imagens, então a memória de mídia continua controlada.
-- Reduz ~250 linhas do `ChatPane`, remove o componente interno `VirtualizedMessages`, todos os `ResizeObserver`/rAF/`measureElement` e o evento global `msg-media-loaded`.
+Clínicas / risco:
+- `risco`, `contraindicacao-possivel`
 
-### Mudanças concretas
+Interesse de tratamento (substituem as colunas):
+- `interesse:cetamina`, `interesse:emt`, `interesse:hipnose`, `interesse:alcoolismo`
 
-1. **`src/components/inbox/ChatPane.tsx`**
-   - Excluir o componente `VirtualizedMessages` e o import `useVirtualizer`.
-   - Substituir por um scroller simples:
-     ```tsx
-     <div ref={scrollerRef} onScroll={onScroll} className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4" style={{ background: "hsl(var(--chat-bg))" }}>
-       <div ref={topSentinelRef} />
-       {/* loaders */}
-       <div className="flex flex-col">
-         {grouped.map((g) => (g.kind === "date" ? <DateChip … /> : g.kind === "note" ? <NoteRow … /> : <MessageRow … />))}
-       </div>
-     </div>
-     ```
-   - Manter `IntersectionObserver` no `topSentinelRef` para paginar para cima.
-   - Trocar a preservação de scroll na paginação por uma versão simples e correta: medir `scrollHeight - scrollTop` antes do prepend e restaurar depois (já é o padrão; só precisa do `useLayoutEffect` em vez de `requestAnimationFrame` para evitar flash).
-   - `pulseAndScroll` passa a usar `document.querySelector('[data-msg-id="…"]').scrollIntoView({ block: "center", behavior: "smooth" })`.
-   - Remover listeners `msg-media-loaded` e o `ResizeObserver` de width.
+Origem (opcional, se já não vier de outro lugar):
+- `origem:instagram`, `origem:google`, `origem:indicacao`
 
-2. **`src/components/inbox/MediaBubbles.tsx`**
-   - Remover os `window.dispatchEvent(new Event("msg-media-loaded"))` em `onLoad`/`onError`/`onLoadedMetadata` — não são mais necessários.
-   - Aplicar `aspect-ratio` baseado em `width`/`height` do `raw.message.imageMessage` quando disponível, com `min-h-[120px]` enquanto carrega, para reduzir CLS visual (puramente cosmético).
+Você cadastra/renomeia depois — eu só preencho via Watcher conforme cair na conversa.
 
-3. **`src/components/inbox/ChatPane.tsx` (auto-scroll)**
-   - Manter `stickToBottom` + botão "novas mensagens", igual hoje, mas usando `el.scrollHeight` direto após o React commit (`useLayoutEffect` no `messages.length`).
+## Campos customizados que o Watcher vai preencher
 
-4. **Sem mudanças** em backend, RLS de Storage, edge functions, `Composer`, `ContextRail`, `LeadDrawer` ou qualquer outro componente.
+Já vou usar a estrutura existente (`lead_custom_fields` + `leads.custom_fields`). Sugestão de chaves (você confirma os nomes finais antes):
 
-### Plano B (caso a performance caia em conversas com 2k+ mensagens)
+- `queixa_principal` (text)
+- `tempo_sintoma` (text)
+- `tratamentos_previos` (textarea)
+- `idade` (number)
+- `cidade` (text)
+- `tratamento_interesse` (select: cetamina, emt, hipnose, alcoolismo, indefinido)
+- `valor_pago` (currency)
+- `forma_pagamento` (select: pix, cartao, boleto, dinheiro)
+- `data_agendamento` (datetime)
+- `data_procedimento` (datetime)
+- `data_resfriou` (date)
 
-Trocar `@tanstack/react-virtual` por **`react-virtuoso`** — a única biblioteca de virtualização React projetada especificamente para chats: alturas dinâmicas medidas automaticamente, `followOutput`, `initialTopMostItemIndex` e `firstItemIndex` para scroll reverso/prepend nativos. Adicionaríamos `react-virtuoso` como dependência e substituiríamos a lista por `<Virtuoso data={grouped} itemContent={…} followOutput="smooth" />`. Mantemos isso fora do escopo desta entrega — só implementaremos se houver lentidão real depois da migração.
+Watcher só preenche o que estiver **explícito** na conversa.
 
-## Validação
+## Watcher por instância de WhatsApp / pipeline
 
-- Abrir a conversa da Viviane Lutz (mesma do print) e rolar todo o histórico.
-- Pausar e retomar áudios, abrir o lightbox de imagem, baixar PDF.
-- Alternar `ContextRail` (P) e `ConversationList` para mudar a largura.
-- Adicionar nota interna no meio do histórico.
-- Carregar histórico antigo (scroll até o topo) e confirmar que a posição é preservada sem saltos.
-- Testar no LeadDrawer (kanban) também, já que reusa o `ChatPane`.
+Cada instância de WhatsApp oficial terá **seu próprio Watcher**, configurável em **Configurações → WhatsApp → [instância] → Watcher de IA**.
 
-## Fora de escopo
+- Nova coluna em `whatsapp_instances`: `watcher_agent_id uuid` (referência a `ai_agents.id`).
+- Ao receber webhook do Evolution, `ai-auto-reply` carrega o lead, descobre a instância → enfileira o `watcher_agent_id` daquela instância (em paralelo ao auto-reply normal de venda, quando este existir).
+- Como cada pipeline já tem `whatsapp_instance_id`, na prática cada pipeline oficial ganha seu Watcher dedicado. Funis sem instância (kanbans internos) não disparam Watcher.
+- O system prompt fica o mesmo; o que muda por instância pode ser o nome da clínica e a base de conhecimento (RAG escopado por `agent_id`).
 
-- Mudanças visuais (cores, tipografia, espaçamentos das bolhas).
-- Backend, mídia, RLS, transcrição, IA.
-- Trocar a lib de virtualização (Plano B só se necessário).
+## Mudanças concretas
+
+### Banco
+
+Migração:
+- `ALTER TABLE ai_agents ADD COLUMN silent boolean NOT NULL DEFAULT false;`
+- `ALTER TABLE whatsapp_instances ADD COLUMN watcher_agent_id uuid;`
+- Tabela `lead_stage_history (id, lead_id, stage_id, moved_at, moved_by_agent_id)` — para o Watcher saber "voltar pra etapa anterior" quando o lead frio responder. Trigger preenche em update de `leads.stage_id`.
+
+### Tools novas no `ai-chat`
+
+- `add_lead_tag(tag)` — append em `leads.tags`.
+- `remove_lead_tag(tag)` — remove do array.
+- `get_lead_state()` — retorna `{stage_name, tags, custom_fields, last_message_at, previous_stage_name}`.
+
+`schedule_message` fica **fora** da lista de tools do Watcher (impede acidente de envio).
+
+### Modo silencioso (`scheduled-dispatcher`)
+
+- Carrega `agent.silent`. Se `true`, descarta texto e nunca chama `evolution-send`. Continua gravando `ai_usage` e traces.
+
+### Botão "Revisar com IA"
+
+- `LeadDrawer.tsx` (header) e menu de ações do card no Kanban: botão pequeno com ícone `Sparkles` → invoca `ai-chat` passando `agent_id` (Watcher da instância do lead) + `lead_id` sem `messages`.
+- Edge function: quando `messages` vier vazio + `lead_id` presente → busca últimas 30 mensagens reais (`messages` table), formata `[remetente HH:mm] conteúdo`, manda como turno único do `user`.
+- Visível para todos os papéis (`owner`, `admin`, `professional`).
+
+### Cron `watch-stale-leads` (03:00 BRT)
+
+Edge function nova + agendamento via `pg_cron`/`pg_net`:
+- `SELECT id, whatsapp_instance_id FROM leads WHERE archived_at IS NULL AND last_message_at < now() - interval '5 days' AND NOT ('frio' = ANY(tags));`
+- Para cada lead, descobre o `watcher_agent_id` da instância e enfileira em `pending_replies`.
+- O Watcher recebe estado e move pra **"Lead parou de responder"** + tag `frio`.
+
+### Agente Watcher — registro
+
+Para cada instância:
+- `name`: "Pipeline Watcher — {nome da instância}"
+- `silent: true`, `model: google/gemini-3-flash-preview`, `temperature: 0.2`
+- `use_hybrid_search: true`, `use_hyde: false`, `use_memory: false`
+- `rag_top_k: 5`, `debounce_seconds: 20`, `max_iterations: 4`
+- `tools`: `move_lead_stage`, `set_lead_field`, `add_lead_note`, `add_lead_tag`, `remove_lead_tag`, `assign_attendant`, `create_task`, `transfer_to_human`, `search_knowledge_base`, `get_lead_state`
+- `system_prompt`: o seu, com placeholders trocados pelas 16 etapas oficiais e tags acima
+
+### Base de conhecimento (RAG do Watcher)
+
+5–7 docs curtos:
+1. `mapa-etapas.md` — quando mover para cada uma das 16, com exemplos.
+2. `red-flags.md` — risco clínico.
+3. `padroes-pagamento.md` — pix vs pago, extração de valor.
+4. `contraindicacoes.md` — pares (tratamento × condição).
+5. `fora-de-perfil.md`.
+6. `glossario-sintomas.md`.
+7. `tom-secretarias.md` — para distinguir voz.
+
+### Evals
+
+10–15 casos cobrindo os 7 exemplos do seu prompt + 3 específicos das etapas novas (consulta agendada, consulta paga, procedimento pago).
+
+## O que NÃO entra agora
+
+- Auto-reply de venda (cetamina/EMT/hipnose/alcoolismo) — fica como Fase 2.
+- Reativação automática de leads frios — Fase 3 (outro agente).
+- Mover para etapas 13–16 automaticamente.
+
+## Próximo passo
+
+Se aprovar, eu já começo pela migração (silent + watcher_agent_id + lead_stage_history) e pelas 3 tools novas no `ai-chat`. As tags e campos customizados eu deixo um script de seed para você revisar antes de rodar.

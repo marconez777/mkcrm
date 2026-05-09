@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 
 type Instance = {
@@ -24,7 +25,10 @@ type Instance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
+  watcher_agent_id: string | null;
 };
+
+type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin } = useAuth();
@@ -40,11 +44,12 @@ export default function SettingsPage() {
   const [healingId, setHealingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
+  const [agents, setAgents] = useState<AgentLite[]>([]);
 
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -53,7 +58,19 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
     supabase.from("pipelines").select("id", { count: "exact", head: true }).then(({ count }) => setPipelinesCount(count ?? 0));
+    supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name")
+      .then(({ data }) => setAgents((data as AgentLite[]) ?? []));
   }, []);
+
+  async function setWatcher(instanceId: string, agentId: string | null) {
+    const { error } = await supabase
+      .from("whatsapp_instances")
+      .update({ watcher_agent_id: agentId })
+      .eq("id", instanceId);
+    if (error) { toast.error(error.message); return; }
+    toast.success(agentId ? "Vigia atualizado" : "Vigia removido");
+    setInstances((prev) => prev.map((i) => i.id === instanceId ? { ...i, watcher_agent_id: agentId } : i));
+  }
 
   async function createInstance() {
     if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
@@ -140,42 +157,64 @@ export default function SettingsPage() {
                 {instances.map((inst) => {
                   const open = inst.connection_state === "open";
                   return (
-                    <div key={inst.id} className="flex items-center gap-3 rounded-md border p-3">
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
-                        {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{inst.name}</span>
-                          {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                    <div key={inst.id} className="rounded-md border p-3 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                          {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">{inst.name}</span>
+                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                          </div>
                         </div>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
-                        <QrCode className="mr-2 h-3 w-3" />
-                        {open ? "Gerenciar" : "Escanear QR"}
-                      </Button>
-                      {canManage && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
-                              <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
-                            </DropdownMenuItem>
-                            {!inst.is_default && (
-                              <DropdownMenuItem onClick={() => setDefault(inst.id)}>
-                                <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                        <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
+                          <QrCode className="mr-2 h-3 w-3" />
+                          {open ? "Gerenciar" : "Escanear QR"}
+                        </Button>
+                        {canManage && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
+                                <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
-                              <Trash2 className="mr-2 h-3 w-3" /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {!inst.is_default && (
+                                <DropdownMenuItem onClick={() => setDefault(inst.id)}>
+                                  <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
+                                <Trash2 className="mr-2 h-3 w-3" /> Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      {canManage && (
+                        <div className="flex items-center gap-2 pl-12">
+                          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Vigia de IA:</span>
+                          <Select
+                            value={inst.watcher_agent_id ?? "__none__"}
+                            onValueChange={(v) => setWatcher(inst.id, v === "__none__" ? null : v)}
+                          >
+                            <SelectTrigger className="h-7 w-[260px] text-xs">
+                              <SelectValue placeholder="Sem vigia" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Sem vigia</SelectItem>
+                              {agents.map((a) => (
+                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       )}
                     </div>
                   );

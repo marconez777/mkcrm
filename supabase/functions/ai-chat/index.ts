@@ -122,6 +122,30 @@ const BUILTIN_TOOLS: Record<string, any> = {
       },
     },
   },
+  add_lead_tag: {
+    type: "function",
+    function: {
+      name: "add_lead_tag",
+      description: "Adiciona uma tag ao lead atual (ex.: 'quente', 'frio', 'risco', 'interesse:cetamina').",
+      parameters: { type: "object", properties: { tag: { type: "string" } }, required: ["tag"] },
+    },
+  },
+  remove_lead_tag: {
+    type: "function",
+    function: {
+      name: "remove_lead_tag",
+      description: "Remove uma tag do lead atual.",
+      parameters: { type: "object", properties: { tag: { type: "string" } }, required: ["tag"] },
+    },
+  },
+  get_lead_state: {
+    type: "function",
+    function: {
+      name: "get_lead_state",
+      description: "Retorna o estado atual do lead: etapa atual, etapa anterior, tags, campos customizados e timestamp da última mensagem.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 };
 
 async function executeTool(name: string, args: any, ctx: { leadId: string | null; agent: any; supabase: any }) {
@@ -215,6 +239,54 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
         return { error: String(e) };
       }
     }
+    if (name === "add_lead_tag") {
+      if (!leadId) return { error: "no lead context" };
+      const tag = String(args.tag ?? "").trim();
+      if (!tag) return { error: "empty tag" };
+      const { data: lead } = await supabase.from("leads").select("tags").eq("id", leadId).single();
+      const current: string[] = Array.isArray(lead?.tags) ? lead!.tags : [];
+      if (current.includes(tag)) return { ok: true, unchanged: true };
+      await supabase.from("leads").update({ tags: [...current, tag] }).eq("id", leadId);
+      return { ok: true, tags: [...current, tag] };
+    }
+    if (name === "remove_lead_tag") {
+      if (!leadId) return { error: "no lead context" };
+      const tag = String(args.tag ?? "").trim();
+      const { data: lead } = await supabase.from("leads").select("tags").eq("id", leadId).single();
+      const current: string[] = Array.isArray(lead?.tags) ? lead!.tags : [];
+      const next = current.filter((t) => t !== tag);
+      if (next.length === current.length) return { ok: true, unchanged: true };
+      await supabase.from("leads").update({ tags: next }).eq("id", leadId);
+      return { ok: true, tags: next };
+    }
+    if (name === "get_lead_state") {
+      if (!leadId) return { error: "no lead context" };
+      const { data: lead } = await supabase.from("leads")
+        .select("name, stage_id, tags, custom_fields, last_message_at, stage_changed_at, attendant_id")
+        .eq("id", leadId).single();
+      const { data: stage } = lead?.stage_id
+        ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
+        : { data: null };
+      const { data: hist } = await supabase.from("lead_stage_history")
+        .select("from_stage_id, to_stage_id, moved_at")
+        .eq("lead_id", leadId).order("moved_at", { ascending: false }).limit(5);
+      let previousStageName: string | null = null;
+      const prevId = hist?.find((h: any) => h.from_stage_id && h.from_stage_id !== lead?.stage_id)?.from_stage_id;
+      if (prevId) {
+        const { data: ps } = await supabase.from("pipeline_stages").select("name").eq("id", prevId).single();
+        previousStageName = ps?.name ?? null;
+      }
+      return {
+        name: lead?.name ?? null,
+        stage_name: stage?.name ?? null,
+        previous_stage_name: previousStageName,
+        tags: lead?.tags ?? [],
+        custom_fields: lead?.custom_fields ?? {},
+        last_message_at: lead?.last_message_at ?? null,
+        stage_changed_at: lead?.stage_changed_at ?? null,
+        recent_stage_history: hist ?? [],
+      };
+    }
     return { error: `unknown tool: ${name}` };
   } catch (e) {
     return { error: String(e) };
@@ -228,7 +300,7 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { agent_id, messages: incoming = [], lead_id = null, thread_id = null, persist = false } = await req.json();
+    const { agent_id, messages: incomingRaw = [], lead_id = null, thread_id = null, persist = false } = await req.json();
     if (!agent_id) return json({ error: "agent_id required" }, 400);
 
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
@@ -236,6 +308,21 @@ Deno.serve(async (req) => {
     if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
+
+    // Manual review path: lead_id sem mensagens => carrega últimas 30 mensagens reais como turno único do user
+    let incoming = incomingRaw;
+    if (lead_id && (!incoming || incoming.length === 0)) {
+      const { data: msgs } = await supabase.from("messages")
+        .select("from_me, content, message_type, timestamp")
+        .eq("lead_id", lead_id).order("timestamp", { ascending: false }).limit(30);
+      const ordered = (msgs ?? []).reverse().filter((m: any) => m.content);
+      const transcript = ordered.map((m: any) => {
+        const when = new Date(m.timestamp).toISOString().slice(11, 16);
+        const who = m.from_me ? "atendente" : "lead";
+        return `[${who} ${when}] ${m.content}`;
+      }).join("\n");
+      incoming = [{ role: "user", content: `Revise a conversa abaixo e tome as ações cabíveis (mover etapa, tags, notas, tarefas). Não responda ao lead — apenas use ferramentas.\n\n---\n${transcript || "(sem mensagens)"}\n---` }];
+    }
 
     // RAG: advanced retrieval
     const lastUser = [...incoming].reverse().find((m: any) => m.role === "user");
