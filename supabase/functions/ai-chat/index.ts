@@ -239,6 +239,54 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
         return { error: String(e) };
       }
     }
+    if (name === "add_lead_tag") {
+      if (!leadId) return { error: "no lead context" };
+      const tag = String(args.tag ?? "").trim();
+      if (!tag) return { error: "empty tag" };
+      const { data: lead } = await supabase.from("leads").select("tags").eq("id", leadId).single();
+      const current: string[] = Array.isArray(lead?.tags) ? lead!.tags : [];
+      if (current.includes(tag)) return { ok: true, unchanged: true };
+      await supabase.from("leads").update({ tags: [...current, tag] }).eq("id", leadId);
+      return { ok: true, tags: [...current, tag] };
+    }
+    if (name === "remove_lead_tag") {
+      if (!leadId) return { error: "no lead context" };
+      const tag = String(args.tag ?? "").trim();
+      const { data: lead } = await supabase.from("leads").select("tags").eq("id", leadId).single();
+      const current: string[] = Array.isArray(lead?.tags) ? lead!.tags : [];
+      const next = current.filter((t) => t !== tag);
+      if (next.length === current.length) return { ok: true, unchanged: true };
+      await supabase.from("leads").update({ tags: next }).eq("id", leadId);
+      return { ok: true, tags: next };
+    }
+    if (name === "get_lead_state") {
+      if (!leadId) return { error: "no lead context" };
+      const { data: lead } = await supabase.from("leads")
+        .select("name, stage_id, tags, custom_fields, last_message_at, stage_changed_at, attendant_id")
+        .eq("id", leadId).single();
+      const { data: stage } = lead?.stage_id
+        ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
+        : { data: null };
+      const { data: hist } = await supabase.from("lead_stage_history")
+        .select("from_stage_id, to_stage_id, moved_at")
+        .eq("lead_id", leadId).order("moved_at", { ascending: false }).limit(5);
+      let previousStageName: string | null = null;
+      const prevId = hist?.find((h: any) => h.from_stage_id && h.from_stage_id !== lead?.stage_id)?.from_stage_id;
+      if (prevId) {
+        const { data: ps } = await supabase.from("pipeline_stages").select("name").eq("id", prevId).single();
+        previousStageName = ps?.name ?? null;
+      }
+      return {
+        name: lead?.name ?? null,
+        stage_name: stage?.name ?? null,
+        previous_stage_name: previousStageName,
+        tags: lead?.tags ?? [],
+        custom_fields: lead?.custom_fields ?? {},
+        last_message_at: lead?.last_message_at ?? null,
+        stage_changed_at: lead?.stage_changed_at ?? null,
+        recent_stage_history: hist ?? [],
+      };
+    }
     return { error: `unknown tool: ${name}` };
   } catch (e) {
     return { error: String(e) };
