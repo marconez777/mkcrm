@@ -67,21 +67,21 @@ Deno.serve(async (req) => {
 
     // Look up agent
     const { data: agent } = await supabase
-      .from("ai_agents").select("debounce_seconds, enabled, tools").eq("id", agentId).single();
+      .from("ai_agents").select("debounce_seconds, enabled, tools, silent").eq("id", agentId).single();
     if (!agent?.enabled) return json({ skipped: true, reason: "agent-disabled" });
 
-    // For from_me messages, only silent agents (classificador) should run —
+    // For from_me messages, only silent agents (classificador/watcher) should run —
     // a chatty agent must never reply on top of the human atendente.
-    const silent = isSilentAgent(agent.tools as string[] | null);
+    const silent = !!agent.silent || isSilentAgent(agent.tools as string[] | null);
     if (from_me && !silent) return json({ skipped: true, reason: "from_me-non-silent" });
 
     const debounce = Math.max(Number(agent.debounce_seconds) || 8, 1);
     const runAt = new Date(Date.now() + debounce * 1000).toISOString();
 
-    // Upsert pending reply (extends run_at if exists)
+    // Upsert pending reply (extends run_at se já houver fila para esse (lead, agente))
     await supabase.from("pending_replies").upsert({
       lead_id, agent_id: agentId, run_at: runAt,
-    }, { onConflict: "lead_id" });
+    }, { onConflict: "lead_id,agent_id" });
 
     // Trigger scheduled-dispatcher once after the debounce window expires.
     // pg_cron also runs every minute as a safety net; the dispatcher uses
