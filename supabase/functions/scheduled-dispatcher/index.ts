@@ -64,13 +64,15 @@ async function processPendingReplies(supabase: any) {
 
       // Load agent to know if it's "silent" (classifier-style: tools-only, no text reply).
       const { data: agentRow } = await supabase
-        .from("ai_agents").select("tools").eq("id", item.agent_id).maybeSingle();
+        .from("ai_agents").select("tools, silent").eq("id", item.agent_id).maybeSingle();
       const SILENT_TOOLS = new Set([
         "move_lead_stage","add_lead_note","set_lead_field","update_custom_field",
         "assign_attendant","remember_fact","transfer_to_human","create_task","schedule_message","get_lead_history",
+        "add_lead_tag","remove_lead_tag","get_lead_state","search_knowledge_base",
       ]);
       const tools: string[] = (agentRow?.tools as string[]) ?? [];
-      const silent = tools.length > 0 && tools.every((t) => SILENT_TOOLS.has(t));
+      const silentByTools = tools.length > 0 && tools.every((t) => SILENT_TOOLS.has(t));
+      const silent = !!agentRow?.silent || silentByTools;
 
       // Non-silent agents only respond to a user as the most recent turn,
       // and must not step on a human atendente that just answered.
