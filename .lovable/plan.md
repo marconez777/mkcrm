@@ -1,40 +1,94 @@
-## O que está acontecendo
+## O que descobri
 
-O "99" no header da inbox **não é um limite** — é só a contagem de leads já carregados na tela. O total de leads no banco é **1407**.
+- **Não parece ser limite de conversas.** O problema não está na inbox/paginação neste momento.
+- **A conexão do WhatsApp está aparecendo como aberta** no backend (`connection_state = open`) e o teste da instância também respondeu `open`.
+- **Os webhooks reais pararam de chegar em 06/05.**
+  - Último `MESSAGES_UPSERT`: **2026-05-06 14:18 UTC**
+  - Último `MESSAGES_UPDATE`: **2026-05-06 14:10 UTC**
+- **O watchdog/polling continua rodando a cada ~1 minuto**, então o sistema não está totalmente parado.
+- **Nas últimas 24h o banco não recebeu nenhuma mensagem nova** (`inbound_24h = 0`, `any_24h = 0`).
+- O polling recente está gravando vários registros com `created_at` de hoje, mas com `timestamp` antigo, ou seja: **ele está reimportando histórico velho**, não capturando mensagens novas de agora.
 
-A inbox usa paginação infinita (50 por vez, ordenado por `last_message_at desc`) com scroll. Quando você faz scroll para baixo ela carrega mais.
+## Causa mais provável
 
-### Por que não aparecem novas mensagens
+O cenário mais provável é uma **“sessão surda”** da integração WhatsApp:
 
-Confirmei no banco: estão chegando mensagens normalmente (143 na última hora — o backfill funcionou). O problema é no **handler de realtime** do `useLeadsPaginated.ts`:
+- a conexão continua marcada como **open**
+- o webhook continua marcado como **ok**
+- mas **novas mensagens não disparam `MESSAGES_UPSERT`**
+- e o polling atual **não está conseguindo resgatar mensagens realmente novas**
 
+Isso bate com relatos públicos que encontrei em:
+
+- **documentação do Evolution API**: webhooks dependem de `MESSAGES_UPSERT` ativo e endpoint respondendo 2xx
+- **issues do Evolution API**: casos em que mensagens chegam no WhatsApp, mas **não chegam no webhook**
+- **issues do Baileys**: sessões que ficam **“open” mas param de emitir `messages.upsert`** (“deaf sessions”)
+
+## Sobre o celular desligado
+
+**Pode influenciar, mas não explica sozinho este caso.**
+
+Em WhatsApp Multi-Device, o telefone principal desligado **nem sempre** interrompe tudo. Porém, quando a sessão já está degradada, o aparelho desligado pode piorar a sincronização ou impedir recuperação natural da conexão.
+
+Pelos sinais atuais, o problema principal parece ser mais:
+
+- **sessão da Evolution/Baileys travada para recebimento**, ou
+- **instância conectada mas sem entregar eventos novos**
+
+…do que simplesmente “a inbox não atualizou”.
+
+## Plano proposto
+
+### 1. Recuperação imediata
+- Reiniciar a instância WhatsApp pela função já existente de restart.
+- Validar se, após o restart, volta a entrar `MESSAGES_UPSERT`.
+- Confirmar com um envio de teste novo e checar se aparece no banco e na inbox.
+
+### 2. Blindagem contra recorrência
+- Adicionar detecção de **sessão aberta porém muda**:
+  - se `connection_state = open`
+  - e não houver webhook novo por X minutos
+  - e não houver mensagem nova por X minutos
+  - marcar a instância como degradada
+- Acionar **auto-restart** controlado quando essa condição persistir.
+
+### 3. Melhorar observabilidade no app
+- Mostrar na tela de configurações/saúde:
+  - último webhook recebido
+  - última mensagem inbound recebida
+  - status “conectado mas sem eventos”
+- Expor um botão claro de **Recuperar conexão**.
+
+### 4. Revisar o fallback de polling
+- Verificar se o endpoint `findMessages` está retornando mensagens novas mesmo quando o webhook falha.
+- Se não estiver, ajustar a estratégia de fallback para não depender só do comportamento atual.
+
+## Detalhes técnicos
+
+```text
+Hoje o sistema está assim:
+
+WhatsApp / Evolution
+   -> deveria enviar webhook MESSAGES_UPSERT
+   -> nosso backend grava em webhook_events
+   -> ingestão salva em messages
+   -> lead sobe na inbox
+
+O que parece estar acontecendo agora:
+
+conexão = open
+webhook_ok = true
+POLL_RUN = continua executando
+MESSAGES_UPSERT = não chega desde 06/05
+messages novas = 0 nas últimas 24h
+
+Conclusão:
+instância aparentemente viva, mas sem receber eventos novos
 ```
-.on("UPDATE", ..., (p) => {
-  const idx = prev.findIndex((x) => x.id === row.id);
-  if (idx === -1) return prev; // <-- IGNORA se lead não está na janela carregada
-  ...
-})
-```
 
-Quando uma mensagem nova chega para um lead que **não está nos 99 carregados**, o lead recebe UPDATE em `last_message_at` mas o handler ignora porque ele não está na lista. Resultado: leads que estavam "dormentes" e voltaram a conversar não sobem para o topo até dar refresh manual (F5).
+## Resultado esperado após implementar
 
-E não existe botão de refresh — você adivinhou certo.
-
-## Plano
-
-### 1. Botão de refresh no header da inbox
-Adicionar ícone de refresh ao lado do "Conversas 99" em `ConversationList.tsx`, que chama uma função `refresh()` exposta pelo hook `useLeadsPaginated` — recarrega a primeira página resetando o cursor.
-
-### 2. Corrigir o handler de UPDATE para puxar leads que entram na janela
-Em `useLeadsPaginated.ts`, quando chega UPDATE de um lead que não está na lista:
-- Se o `last_message_at` novo é mais recente que o cursor (ou seja, deveria estar na janela carregada), **inserir** o lead na lista em vez de ignorar.
-- Mantém ordenação correta sem precisar refresh manual.
-
-### 3. (Opcional) Auto-refresh leve quando a aba volta a ficar visível
-Listener de `visibilitychange`: se a aba ficou >2min em background, dispara `refresh()` automático ao voltar.
-
-## Arquivos afetados
-
-- `src/hooks/useLeadsPaginated.ts` — adicionar `refresh()`, corrigir UPDATE handler, opcional visibility listener
-- `src/components/inbox/ConversationList.tsx` — botão de refresh no header
-- `src/pages/Inbox.tsx` — passar `refresh` como prop
+- se a sessão travar de novo, o sistema detecta sozinho
+- o número não fica 2 dias “aberto mas mudo” sem aviso
+- você consegue ver no painel se o problema é inbox, webhook ou conexão da instância
+- novas mensagens voltam a entrar sem depender de descoberta manual
