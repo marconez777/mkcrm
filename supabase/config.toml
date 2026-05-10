@@ -41,3 +41,12 @@ verify_jwt = false
 
 [functions.evolution-delete-instance]
 verify_jwt = false
+
+[functions.tracking-ingest]
+verify_jwt = false
+
+[functions.tracking-pixel]
+verify_jwt = false
+
+[functions.tracking-claim]
+verify_jwt = false
