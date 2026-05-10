@@ -36,11 +36,11 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
 
   return (
     <div className="rounded-md border bg-muted/10 px-3 py-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Principal</div>
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-foreground">Principal</div>
       <div className="divide-y divide-border/30">
         {fields.map((f) => (
           <div key={f.id} className="grid min-h-[28px] grid-cols-[110px_1fr] items-center gap-2 py-1">
-            <span className="truncate text-xs text-muted-foreground">{f.label}</span>
+            <span className="truncate text-xs text-foreground">{f.label}</span>
             <FieldInput field={f} value={values[f.field_key]} onChange={(v) => set(f.field_key, v)} />
           </div>
         ))}
@@ -50,7 +50,7 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
 }
 
 const nakedInput =
-  "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:outline-none";
+  "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-foreground/70 focus:outline-none";
 
 function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: any; onChange: (v: any) => void }) {
   const [local, setLocal] = useState<any>(value ?? "");
@@ -69,7 +69,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             placeholder="..."
           />
           {field.field_type === "url" && local && (
-            <a href={local} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary">
+            <a href={local} target="_blank" rel="noreferrer" className="text-foreground hover:text-primary">
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
@@ -82,7 +82,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={() => onChange(local || null)}
-          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm text-foreground placeholder:text-foreground/70 shadow-none focus-visible:ring-0"
           placeholder="..."
         />
       );
@@ -102,7 +102,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "currency":
       return (
         <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">R$</span>
+          <span className="text-sm text-foreground">R$</span>
           <input
             type="number"
             value={local}
@@ -131,11 +131,10 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex items-center gap-1.5 text-left text-sm hover:text-primary",
-                !d && "text-muted-foreground"
+                "flex items-center gap-1.5 text-left text-sm text-foreground hover:text-primary"
               )}
             >
-              <CalendarIcon className="h-3.5 w-3.5 opacity-70" />
+              <CalendarIcon className="h-3.5 w-3.5" />
               {d && (
                 <span className="underline decoration-primary/40 underline-offset-2">
                   {format(d, field.field_type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy")}
