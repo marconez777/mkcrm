@@ -62,9 +62,11 @@ export default function ConversationList(props: {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   onCollapse?: () => void;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prompt = usePrompt();
   const confirm = useConfirm();
