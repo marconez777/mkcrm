@@ -123,6 +123,11 @@ export default function ConversationList(props: {
         <div className="flex items-center gap-2">
           <h1 className="text-base font-semibold">Conversas</h1>
           <span className="text-xs text-muted-foreground">{leads.length}</span>
+          {onRefresh && (
+            <Button size="icon" variant="ghost" onClick={onRefresh} disabled={refreshing} title="Atualizar conversas" className="h-7 w-7">
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            </Button>
+          )}
           <div className="flex-1" />
           <Button size="icon" variant="ghost" onClick={props.onNew} title="Nova conversa">
             <Plus className="h-4 w-4" />
