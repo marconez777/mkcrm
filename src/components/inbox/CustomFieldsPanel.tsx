@@ -69,7 +69,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             placeholder="..."
           />
           {field.field_type === "url" && local && (
-            <a href={local} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary">
+            <a href={local} target="_blank" rel="noreferrer" className="text-foreground hover:text-primary">
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
