@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
             source: "sync",
             payload: { processed, totalImported, leadCount: list.length },
             processed_at: new Date().toISOString(),
+            clinic_id: instance.clinic_id,
           });
           send({ type: "done", imported: totalImported, total: 0, pages: 0, processed, leads: list.length });
           controller.close();
@@ -133,6 +134,7 @@ Deno.serve(async (req) => {
       source: "sync",
       payload: { processed, totalImported, leadCount: list.length, perLead: perLead.slice(0, 50) },
       processed_at: new Date().toISOString(),
+      clinic_id: instance.clinic_id,
     });
 
     return json({ ok: true, processed, totalImported, leads: list.length });

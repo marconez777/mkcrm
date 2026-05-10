@@ -50,6 +50,7 @@ export type Instance = {
   evolution_instance: string;
   webhook_token: string;
   is_default?: boolean;
+  clinic_id: string;
 };
 
 /** Load a specific instance by id, or the default one if not provided. */

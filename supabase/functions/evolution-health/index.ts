@@ -126,6 +126,7 @@ async function pollRecentMessages(instance: Instance) {
     payload: { instance_id: instance.id, since, imported, skipped, error: pollError },
     processed_at: new Date().toISOString(),
     error: pollError,
+    clinic_id: instance.clinic_id,
   });
 
   return { imported, skipped, pollError };
