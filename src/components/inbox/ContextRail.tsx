@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import CustomFieldsPanel from "./CustomFieldsPanel";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
+import OriginPanel from "./OriginPanel";
 import { useConfirm } from "@/hooks/useDialogs";
 
 function timeAgo(iso: string) {
