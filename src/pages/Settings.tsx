@@ -26,6 +26,8 @@ type Instance = {
   webhook_ok: boolean | null;
   last_health_check: string | null;
   watcher_agent_id: string | null;
+  last_inbound_webhook_at: string | null;
+  last_auto_restart_at: string | null;
 };
 
 type AgentLite = { id: string; name: string };
@@ -49,7 +51,7 @@ export default function SettingsPage() {
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -114,6 +116,30 @@ export default function SettingsPage() {
     if (error) toast.error(error.message); else { toast.success("Verificação concluída"); load(); }
   }
 
+  async function recoverInstance(id: string) {
+    setHealingId(id);
+    const { data, error } = await supabase.functions.invoke("evolution-restart", { body: { instance_id: id } });
+    setHealingId(null);
+    if (error || (data as any)?.ok === false) {
+      toast.error("Falha ao recuperar: " + (error?.message ?? (data as any)?.error ?? "erro"));
+    } else {
+      toast.success("Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem");
+      load();
+    }
+  }
+
+  function formatRelative(iso: string | null): string {
+    if (!iso) return "nunca";
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "agora";
+    if (min < 60) return `há ${min}min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h}h`;
+    const d = Math.floor(h / 24);
+    return `há ${d}d`;
+  }
+
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
 
   return (
@@ -156,21 +182,35 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 {instances.map((inst) => {
                   const open = inst.connection_state === "open";
+                  const minutesSinceInbound = inst.last_inbound_webhook_at
+                    ? Math.floor((Date.now() - new Date(inst.last_inbound_webhook_at).getTime()) / 60000)
+                    : null;
+                  const deaf = open && (minutesSinceInbound === null || minutesSinceInbound >= 15);
                   return (
                     <div key={inst.id} className="rounded-md border p-3 space-y-2">
                       <div className="flex items-center gap-3">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${deaf ? "bg-amber-500/10 text-amber-600" : open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
                           {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium truncate">{inst.name}</span>
                             {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
+                            {deaf && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">conectado, sem eventos</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
                           </div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
+                            {inst.last_auto_restart_at && <> · Último auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                          </div>
                         </div>
+                        {deaf && canManage && (
+                          <Button variant="default" size="sm" onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
+                            <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> Recuperar
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
                           <QrCode className="mr-2 h-3 w-3" />
                           {open ? "Gerenciar" : "Escanear QR"}
@@ -183,6 +223,9 @@ export default function SettingsPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
                                 <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
+                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar conexão
                               </DropdownMenuItem>
                               {!inst.is_default && (
                                 <DropdownMenuItem onClick={() => setDefault(inst.id)}>

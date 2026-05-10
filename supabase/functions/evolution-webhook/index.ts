@@ -165,6 +165,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Marca quando recebemos o último evento "vivo" do WhatsApp.
+    // Usado pelo health watchdog para detectar sessão "surda" (open mas sem eventos).
+    if (eventType === "MESSAGES_UPSERT" || eventType === "MESSAGES_UPDATE" || eventType === "CONTACTS_UPSERT") {
+      await supabase
+        .from("whatsapp_instances")
+        .update({ last_inbound_webhook_at: new Date().toISOString() })
+        .eq("id", instance.id);
+    }
+
     if (auditId) {
       await supabase
         .from("webhook_events")
