@@ -131,11 +131,10 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex items-center gap-1.5 text-left text-sm hover:text-primary",
-                !d && "text-muted-foreground"
+                "flex items-center gap-1.5 text-left text-sm text-foreground hover:text-primary"
               )}
             >
-              <CalendarIcon className="h-3.5 w-3.5 opacity-70" />
+              <CalendarIcon className="h-3.5 w-3.5" />
               {d && (
                 <span className="underline decoration-primary/40 underline-offset-2">
                   {format(d, field.field_type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy")}
