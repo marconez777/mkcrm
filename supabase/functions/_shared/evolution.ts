@@ -51,6 +51,9 @@ export type Instance = {
   webhook_token: string;
   is_default?: boolean;
   clinic_id: string;
+  last_inbound_webhook_at?: string | null;
+  last_auto_restart_at?: string | null;
+  auto_restart_count?: number | null;
 };
 
 /** Load a specific instance by id, or the default one if not provided. */
