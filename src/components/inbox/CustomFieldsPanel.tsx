@@ -102,7 +102,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "currency":
       return (
         <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">R$</span>
+          <span className="text-sm text-foreground">R$</span>
           <input
             type="number"
             value={local}
