@@ -82,7 +82,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={() => onChange(local || null)}
-          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm text-foreground placeholder:text-foreground/70 shadow-none focus-visible:ring-0"
           placeholder="..."
         />
       );
