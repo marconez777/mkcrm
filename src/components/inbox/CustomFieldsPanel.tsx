@@ -37,7 +37,7 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
   return (
     <div className="rounded-md border bg-muted/10 px-3 py-2">
       <div className="mb-1 text-[10px] uppercase tracking-wide text-foreground">Principal</div>
-      <div className="divide-y divide-border/30">
+      <div className="divide-y-2 divide-foreground/40">
         {fields.map((f) => (
           <div key={f.id} className="grid min-h-[28px] grid-cols-[110px_1fr] items-center gap-2 py-1">
             <span className="truncate text-xs text-foreground">{f.label}</span>
