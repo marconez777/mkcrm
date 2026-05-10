@@ -137,6 +137,52 @@ async function pollRecentMessages(instance: Instance) {
   return { imported, skipped, pollError };
 }
 
+async function tryAutoRestart(instance: Instance & { last_inbound_webhook_at?: string | null; last_auto_restart_at?: string | null; auto_restart_count?: number | null }): Promise<{ attempted: boolean; reason: string; ok?: boolean; error?: string }> {
+  const supabase = sb();
+  const now = Date.now();
+  const lastInbound = instance.last_inbound_webhook_at ? new Date(instance.last_inbound_webhook_at).getTime() : 0;
+  const lastRestart = instance.last_auto_restart_at ? new Date(instance.last_auto_restart_at).getTime() : 0;
+  const minutesSinceInbound = lastInbound ? (now - lastInbound) / 60000 : Infinity;
+  const minutesSinceRestart = lastRestart ? (now - lastRestart) / 60000 : Infinity;
+
+  if (minutesSinceInbound < DEAF_THRESHOLD_MIN) return { attempted: false, reason: "events-recent" };
+  if (minutesSinceRestart < AUTO_RESTART_COOLDOWN_MIN) return { attempted: false, reason: "cooldown" };
+
+  try {
+    const resp = await evoFetch(
+      instance,
+      `/instance/restart/${encodeURIComponent(instance.evolution_instance)}`,
+      { method: "POST" },
+    );
+    const ok = resp.ok;
+    const detail = await resp.text().catch(() => "");
+    await supabase
+      .from("whatsapp_instances")
+      .update({
+        last_auto_restart_at: new Date().toISOString(),
+        auto_restart_count: (instance.auto_restart_count ?? 0) + 1,
+      })
+      .eq("id", instance.id);
+    await supabase.from("webhook_events").insert({
+      event_type: "AUTO_RESTART",
+      source: "poll",
+      payload: {
+        instance_id: instance.id,
+        reason: "deaf-session",
+        minutes_since_last_inbound: Math.round(minutesSinceInbound),
+        ok,
+        detail: detail.slice(0, 300),
+      },
+      processed_at: new Date().toISOString(),
+      error: ok ? null : `restart ${resp.status}`,
+      clinic_id: instance.clinic_id,
+    });
+    return { attempted: true, reason: "deaf-session", ok, error: ok ? undefined : `restart ${resp.status}` };
+  } catch (e) {
+    return { attempted: true, reason: "deaf-session", ok: false, error: String(e) };
+  }
+}
+
 async function processInstance(instance: Instance) {
   const supabase = sb();
   let connectionState = "unknown";
@@ -150,6 +196,12 @@ async function processInstance(instance: Instance) {
   const { webhookOk, lastError: webhookErr } = await ensureWebhook(instance);
   const poll = connectionState === "open" ? await pollRecentMessages(instance) : { skipped: "not-open" };
 
+  // Detecta sessão "surda": conexão aberta mas sem eventos de WhatsApp há muito tempo.
+  let autoRestart: any = { attempted: false, reason: "skip" };
+  if (connectionState === "open") {
+    autoRestart = await tryAutoRestart(instance as any);
+  }
+
   await supabase
     .from("whatsapp_instances")
     .update({
@@ -162,7 +214,7 @@ async function processInstance(instance: Instance) {
     })
     .eq("id", instance.id);
 
-  return { instance_id: instance.id, name: instance.name, connectionState, webhookOk, poll };
+  return { instance_id: instance.id, name: instance.name, connectionState, webhookOk, poll, autoRestart };
 }
 
 Deno.serve(async (req) => {
