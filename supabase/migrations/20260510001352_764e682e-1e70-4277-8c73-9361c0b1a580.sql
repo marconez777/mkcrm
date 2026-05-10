@@ -1,0 +1,1 @@
+DELETE FROM lead_custom_fields WHERE id = '38411fec-2b4d-4307-a947-1b31d042a161';
