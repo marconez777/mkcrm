@@ -12,6 +12,11 @@ import {
 } from "../_shared/evolution.ts";
 
 const POLL_WINDOW_MIN = 10;
+// Após N minutos com conexão "open" porém sem eventos novos do WhatsApp,
+// consideramos a sessão "surda" e tentamos um restart automático.
+const DEAF_THRESHOLD_MIN = 15;
+// Cooldown entre auto-restarts da mesma instância para evitar loop.
+const AUTO_RESTART_COOLDOWN_MIN = 20;
 
 function buildWebhookUrl(token: string) {
   const base = Deno.env.get("SUPABASE_URL")!;
