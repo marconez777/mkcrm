@@ -65,6 +65,7 @@ const App = () => (
                       <Route path="/metrics/ai" element={<Metrics />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
+                      <Route path="/settings/tracking" element={<SettingsTracking />} />
                       <Route path="/tasks" element={<Tasks />} />
                       <Route path="/team" element={<Team />} />
                       <Route path="*" element={<NotFound />} />
