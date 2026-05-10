@@ -116,7 +116,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
 
     case "boolean":
       return (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-start">
           <Switch checked={!!value} onCheckedChange={onChange} className="scale-75" />
         </div>
       );
@@ -175,7 +175,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
         <Select value={value ?? "__none"} onValueChange={(v) => onChange(v === "__none" ? null : v)}>
           <SelectTrigger
             className={cn(
-              "h-auto border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
+              "h-auto w-fit gap-1 border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
               !value && "text-muted-foreground"
             )}
           >
@@ -196,7 +196,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex w-full items-center justify-between gap-1 text-left text-sm hover:text-primary",
+                "flex w-fit items-center gap-1 text-left text-sm hover:text-primary",
                 arr.length === 0 && "text-muted-foreground"
               )}
             >
