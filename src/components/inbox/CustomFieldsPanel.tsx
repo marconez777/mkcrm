@@ -50,7 +50,7 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
 }
 
 const nakedInput =
-  "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:outline-none";
+  "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-foreground/70 focus:outline-none";
 
 function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: any; onChange: (v: any) => void }) {
   const [local, setLocal] = useState<any>(value ?? "");
