@@ -69,17 +69,21 @@ Deno.serve(async (req) => {
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
     const { data: lead } = await supabase
-      .from("leads").select("id, stage_id, whatsapp_instance_id").eq("id", lead_id).single();
+      .from("leads").select("id, stage_id, pipeline_id, whatsapp_instance_id").eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
 
     const results: Record<string, any> = {};
 
-    // 1. Watcher (silent) per WhatsApp instance — sempre tenta, independente de stage default.
+    // 1. Watcher (silent) per WhatsApp instance — opcionalmente restrito a um pipeline.
     if (lead.whatsapp_instance_id) {
       const { data: inst } = await supabase
-        .from("whatsapp_instances").select("watcher_agent_id").eq("id", lead.whatsapp_instance_id).maybeSingle();
+        .from("whatsapp_instances").select("watcher_agent_id, watcher_pipeline_id").eq("id", lead.whatsapp_instance_id).maybeSingle();
       if (inst?.watcher_agent_id) {
-        results.watcher = await enqueueAgent(supabase, lead_id, inst.watcher_agent_id, from_me);
+        if (inst.watcher_pipeline_id && inst.watcher_pipeline_id !== lead.pipeline_id) {
+          results.watcher = { skipped: true, reason: "pipeline-mismatch" };
+        } else {
+          results.watcher = await enqueueAgent(supabase, lead_id, inst.watcher_agent_id, from_me);
+        }
       }
     }
 
