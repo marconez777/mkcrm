@@ -1230,6 +1230,8 @@ export type Database = {
           marked_unread: boolean
           name: string | null
           notes: string | null
+          origin_confidence: string | null
+          origin_source: string | null
           phone: string
           pinned_at: string | null
           pipeline_id: string | null
@@ -1237,6 +1239,7 @@ export type Database = {
           stage_changed_at: string
           stage_id: string | null
           tags: string[]
+          tracking_session_id: string | null
           unread_count: number
           updated_at: string
           whatsapp_instance_id: string | null
@@ -1259,6 +1262,8 @@ export type Database = {
           marked_unread?: boolean
           name?: string | null
           notes?: string | null
+          origin_confidence?: string | null
+          origin_source?: string | null
           phone: string
           pinned_at?: string | null
           pipeline_id?: string | null
@@ -1266,6 +1271,7 @@ export type Database = {
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
+          tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
           whatsapp_instance_id?: string | null
@@ -1288,6 +1294,8 @@ export type Database = {
           marked_unread?: boolean
           name?: string | null
           notes?: string | null
+          origin_confidence?: string | null
+          origin_source?: string | null
           phone?: string
           pinned_at?: string | null
           pipeline_id?: string | null
@@ -1295,6 +1303,7 @@ export type Database = {
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
+          tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
           whatsapp_instance_id?: string | null
@@ -2175,6 +2184,151 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tracking_events: {
+        Row: {
+          clinic_id: string
+          id: string
+          occurred_at: string
+          payload: Json | null
+          referrer: string | null
+          session_id: string
+          title: string | null
+          type: string
+          url: string | null
+        }
+        Insert: {
+          clinic_id: string
+          id?: string
+          occurred_at?: string
+          payload?: Json | null
+          referrer?: string | null
+          session_id: string
+          title?: string | null
+          type: string
+          url?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          id?: string
+          occurred_at?: string
+          payload?: Json | null
+          referrer?: string | null
+          session_id?: string
+          title?: string | null
+          type?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_sessions: {
+        Row: {
+          claimed_at: string | null
+          clinic_id: string
+          country: string | null
+          created_at: string
+          device: string | null
+          first_referrer: string | null
+          first_url: string | null
+          id: string
+          ip_hash: string | null
+          landing_title: string | null
+          lead_id: string | null
+          ref: string | null
+          site_id: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          clinic_id: string
+          country?: string | null
+          created_at?: string
+          device?: string | null
+          first_referrer?: string | null
+          first_url?: string | null
+          id: string
+          ip_hash?: string | null
+          landing_title?: string | null
+          lead_id?: string | null
+          ref?: string | null
+          site_id: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          clinic_id?: string
+          country?: string | null
+          created_at?: string
+          device?: string | null
+          first_referrer?: string | null
+          first_url?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_title?: string | null
+          lead_id?: string | null
+          ref?: string | null
+          site_id?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_sessions_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_sites: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          domain: string
+          id: string
+          ingest_token: string
+          name: string
+        }
+        Insert: {
+          clinic_id?: string
+          created_at?: string
+          domain: string
+          id?: string
+          ingest_token?: string
+          name: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          domain?: string
+          id?: string
+          ingest_token?: string
+          name?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
