@@ -304,6 +304,23 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
         <LeadTasksPanel leadId={lead.id} />
         <ScheduledMessagesPanel leadId={lead.id} />
+        <OriginPanel
+          leadId={lead.id}
+          trackingSessionId={lead.tracking_session_id ?? null}
+          originSource={lead.origin_source ?? null}
+          originConfidence={lead.origin_confidence ?? null}
+          onChanged={async () => {
+            const { data } = await supabase.from("leads")
+              .select("origin_source, origin_confidence, tracking_session_id")
+              .eq("id", lead.id).maybeSingle();
+            if (data) {
+              setForm((f) => ({ ...f, ...data }));
+              (lead as any).origin_source = (data as any).origin_source;
+              (lead as any).origin_confidence = (data as any).origin_confidence;
+              (lead as any).tracking_session_id = (data as any).tracking_session_id;
+            }
+          }}
+        />
 
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
