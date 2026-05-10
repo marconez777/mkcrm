@@ -30,11 +30,12 @@ Deno.serve(async (req) => {
       return json({ ok: true, deduped: true });
     }
 
-    const { data: audit } = await supabase
+    const { data: audit, error: auditErr } = await supabase
       .from("webhook_events")
-      .insert({ event_type: eventType, payload: body, source: "webhook" })
+      .insert({ event_type: eventType, payload: body, source: "webhook", clinic_id: instance.clinic_id })
       .select("id")
       .single();
+    if (auditErr) console.error("webhook_events insert error", auditErr);
     auditId = audit?.id ?? null;
 
     let leadIdForAudit: string | null = null;
