@@ -116,7 +116,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
 
     case "boolean":
       return (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-start">
           <Switch checked={!!value} onCheckedChange={onChange} className="scale-75" />
         </div>
       );
