@@ -251,6 +251,7 @@ export type Database = {
           rag_top_k: number
           reranker_api_key: string | null
           reranker_provider: string | null
+          role: string | null
           silent: boolean
           system_prompt: string
           temperature: number
@@ -280,6 +281,7 @@ export type Database = {
           rag_top_k?: number
           reranker_api_key?: string | null
           reranker_provider?: string | null
+          role?: string | null
           silent?: boolean
           system_prompt: string
           temperature?: number
@@ -309,6 +311,7 @@ export type Database = {
           rag_top_k?: number
           reranker_api_key?: string | null
           reranker_provider?: string | null
+          role?: string | null
           silent?: boolean
           system_prompt?: string
           temperature?: number

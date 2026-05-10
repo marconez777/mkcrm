@@ -19,11 +19,11 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-async function callAI(messages: any[], model = "google/gemini-2.5-flash") {
+async function callAI(messages: any[], model = "google/gemini-2.5-flash", temperature = 0.5) {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, temperature: 0.5 }),
+    body: JSON.stringify({ model, messages, temperature }),
   });
   if (!r.ok) {
     const t = await r.text();
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     const sb = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: lead } = await sb
       .from("leads")
-      .select("name, phone, email, company, deal_value, notes, tags")
+      .select("name, phone, email, company, deal_value, notes, tags, clinic_id")
       .eq("id", lead_id)
       .single();
     const { data: msgs } = await sb
@@ -62,14 +62,28 @@ Deno.serve(async (req) => {
       .join("\n");
 
     if (mode === "summary") {
-      const content = await callAI([
-        {
-          role: "system",
-          content:
-            "Você resume conversas de WhatsApp de vendas em português. Em 2-3 frases curtas, descreva o status do lead, principal interesse e próximo passo recomendado. Sem títulos, sem markdown.",
-        },
-        { role: "user", content: `Lead: ${JSON.stringify(lead)}\n\nConversa:\n${conv}` },
-      ]);
+      // Look up the dedicated "summary" agent for this clinic (top performance)
+      const { data: agent } = await sb
+        .from("ai_agents")
+        .select("system_prompt, model, temperature")
+        .eq("role", "summary")
+        .eq("enabled", true)
+        .eq("clinic_id", (lead as any)?.clinic_id)
+        .maybeSingle();
+
+      const systemPrompt = agent?.system_prompt
+        ?? "Você resume conversas de WhatsApp de vendas em português. Em 2-3 frases curtas, descreva o status do lead, principal interesse e próximo passo recomendado. Sem títulos, sem markdown.";
+      const model = agent?.model ?? "openai/gpt-5";
+      const temperature = typeof agent?.temperature === "number" ? Number(agent.temperature) : 0.2;
+
+      const content = await callAI(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Lead: ${JSON.stringify(lead)}\n\nConversa:\n${conv}` },
+        ],
+        model,
+        temperature,
+      );
       await sb.from("leads").update({ ai_summary: content, ai_summary_at: new Date().toISOString() }).eq("id", lead_id);
       return json({ ok: true, summary: content });
     }
