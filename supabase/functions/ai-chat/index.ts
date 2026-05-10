@@ -340,7 +340,7 @@ Deno.serve(async (req) => {
     let leadCtx = "";
     if (lead_id) {
       const { data: lead } = await supabase.from("leads")
-        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id").eq("id", lead_id).single();
+        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id, custom_fields").eq("id", lead_id).single();
       if (lead) {
         const { data: stage } = lead.stage_id
           ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
@@ -354,7 +354,35 @@ Deno.serve(async (req) => {
               allStages.map((s: any) => `- ${s.name}`).join("\n");
           }
         }
-        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...lead, stage: stage?.name }, null, 2)}${stagesList}`;
+
+        // Custom field schema for the clinic — required for update_custom_field tool
+        let customFieldsBlock = "";
+        const { data: defs } = await supabase.from("lead_custom_fields")
+          .select("field_key, label, field_type, options")
+          .eq("clinic_id", agentRow.clinic_id).order("position");
+        if (defs?.length) {
+          const lines = defs.map((d: any) => {
+            const opts = Array.isArray(d.options) && d.options.length
+              ? ` | opções: ${d.options.join(" | ")}`
+              : "";
+            const hint =
+              d.field_type === "datetime" ? " (ISO 8601, ex.: 2026-05-15T14:00:00-03:00)" :
+              d.field_type === "date" ? " (YYYY-MM-DD)" :
+              d.field_type === "boolean" ? " (true/false)" :
+              d.field_type === "currency" || d.field_type === "number" ? " (número puro)" :
+              d.field_type === "multiselect" ? " (array de strings, use SOMENTE opções listadas)" :
+              d.field_type === "select" ? " (string, use SOMENTE uma das opções listadas)" :
+              "";
+            return `- ${d.field_key} — ${d.label} (${d.field_type}${hint})${opts}`;
+          }).join("\n");
+          const cur = lead.custom_fields ?? {};
+          customFieldsBlock =
+            `\n\n## Campos personalizados disponíveis (use EXATAMENTE estas keys em update_custom_field)\n${lines}` +
+            `\n\n### Valores atuais\n${JSON.stringify(cur, null, 2)}`;
+        }
+
+        const { custom_fields: _cf, ...leadRest } = lead as any;
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...leadRest, stage: stage?.name }, null, 2)}${stagesList}${customFieldsBlock}`;
       }
     }
 
