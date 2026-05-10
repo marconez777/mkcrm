@@ -175,7 +175,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
         <Select value={value ?? "__none"} onValueChange={(v) => onChange(v === "__none" ? null : v)}>
           <SelectTrigger
             className={cn(
-              "h-auto border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
+              "h-auto w-fit gap-1 border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
               !value && "text-muted-foreground"
             )}
           >
