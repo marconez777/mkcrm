@@ -175,8 +175,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
         <Select value={value ?? "__none"} onValueChange={(v) => onChange(v === "__none" ? null : v)}>
           <SelectTrigger
             className={cn(
-              "h-auto w-fit gap-1 border-0 bg-transparent p-0 text-sm shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60",
-              !value && "text-muted-foreground"
+              "h-auto w-fit gap-1 border-0 bg-transparent p-0 text-sm text-foreground shadow-none hover:text-primary focus:ring-0 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-100"
             )}
           >
             <SelectValue placeholder="Selecione" />
@@ -196,8 +195,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex w-fit items-center gap-1 text-left text-sm hover:text-primary",
-                arr.length === 0 && "text-muted-foreground"
+                "flex w-fit items-center gap-1 text-left text-sm text-foreground hover:text-primary"
               )}
             >
               {arr.length === 0 ? (
@@ -209,7 +207,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                   ))}
                 </span>
               )}
-              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+              <ChevronDown className="h-3 w-3 shrink-0" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="start">
