@@ -74,8 +74,8 @@ export default function OriginPanel({
         supabase.from("tracking_events" as any).select("id, type, url, title, occurred_at").eq("session_id", trackingSessionId).order("occurred_at").limit(200),
       ]);
       if (!active) return;
-      setSession(s as Sess | null);
-      setEvents((ev as Ev[]) ?? []);
+      setSession(s as unknown as Sess | null);
+      setEvents((ev as unknown as Ev[]) ?? []);
       setLoading(false);
     })();
     return () => { active = false; };
@@ -85,7 +85,7 @@ export default function OriginPanel({
     const { data } = await supabase.from("tracking_sessions" as any)
       .select("*").is("lead_id", null)
       .order("created_at", { ascending: false }).limit(20);
-    setUnclaimed((data as Sess[]) ?? []);
+    setUnclaimed((data as unknown as Sess[]) ?? []);
   }
 
   async function saveOrigin() {
