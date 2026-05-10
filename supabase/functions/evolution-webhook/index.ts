@@ -71,6 +71,21 @@ Deno.serve(async (req) => {
           }).catch((e) => console.error("auto-reply trigger failed", e));
           // @ts-ignore EdgeRuntime is available in Deno deploy
           if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
+
+          // Try to attach tracking session for inbound messages (idempotent).
+          if (!it?.key?.fromMe) {
+            const triggerClaim = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/tracking-claim`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+              },
+              body: JSON.stringify({ lead_id: res.lead_id }),
+            }).catch((e) => console.error("tracking-claim trigger failed", e));
+            // @ts-ignore
+            if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerClaim);
+          }
         }
       }
     } else if (eventType === "MESSAGES_UPDATE") {
