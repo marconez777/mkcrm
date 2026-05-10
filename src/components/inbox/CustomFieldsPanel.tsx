@@ -123,7 +123,8 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
 
     case "date":
     case "datetime": {
-      const d = value ? new Date(value) : undefined;
+      const parsed = value ? new Date(value) : undefined;
+      const d = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
       return (
         <Popover>
           <PopoverTrigger asChild>
