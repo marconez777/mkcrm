@@ -311,12 +311,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
         </div>
 
-        <CustomFieldsPanel
-          lead={lead}
-          fields={customDefs}
-          onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
-        />
-
         <LeadTasksPanel leadId={lead.id} />
         <ScheduledMessagesPanel leadId={lead.id} />
 
