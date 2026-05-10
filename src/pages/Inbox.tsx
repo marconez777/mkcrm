@@ -156,6 +156,8 @@ export default function InboxPage() {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
+            onRefresh={refresh}
+            refreshing={refreshing}
             onCollapse={() => setShowList(false)}
           />
         </aside>
