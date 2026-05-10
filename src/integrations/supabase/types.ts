@@ -2412,6 +2412,7 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          auto_restart_count: number
           clinic_id: string
           connection_state: string | null
           created_at: string
@@ -2420,7 +2421,9 @@ export type Database = {
           evolution_url: string
           id: string
           is_default: boolean
+          last_auto_restart_at: string | null
           last_health_check: string | null
+          last_inbound_webhook_at: string | null
           last_poll_at: string | null
           name: string
           updated_at: string
@@ -2432,6 +2435,7 @@ export type Database = {
           webhook_token: string
         }
         Insert: {
+          auto_restart_count?: number
           clinic_id?: string
           connection_state?: string | null
           created_at?: string
@@ -2440,7 +2444,9 @@ export type Database = {
           evolution_url: string
           id?: string
           is_default?: boolean
+          last_auto_restart_at?: string | null
           last_health_check?: string | null
+          last_inbound_webhook_at?: string | null
           last_poll_at?: string | null
           name: string
           updated_at?: string
@@ -2452,6 +2458,7 @@ export type Database = {
           webhook_token?: string
         }
         Update: {
+          auto_restart_count?: number
           clinic_id?: string
           connection_state?: string | null
           created_at?: string
@@ -2460,7 +2467,9 @@ export type Database = {
           evolution_url?: string
           id?: string
           is_default?: boolean
+          last_auto_restart_at?: string | null
           last_health_check?: string | null
+          last_inbound_webhook_at?: string | null
           last_poll_at?: string | null
           name?: string
           updated_at?: string
