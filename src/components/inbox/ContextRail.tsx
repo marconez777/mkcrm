@@ -270,16 +270,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground"><Building2 className="mr-1 inline h-3 w-3" />Empresa</Label>
-            <Input
-              value={form.company ?? ""}
-              onChange={(e) => setForm({ ...form, company: e.target.value })}
-              onBlur={() => patch({ company: form.company ?? null })}
-              className="h-9"
-            />
-          </div>
-
-          <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</Label>
             <div className="flex flex-wrap gap-1">
               {(form.tags ?? []).map((t) => (
