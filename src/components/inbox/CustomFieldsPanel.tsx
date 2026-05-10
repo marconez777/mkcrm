@@ -195,8 +195,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex w-fit items-center gap-1 text-left text-sm hover:text-primary",
-                arr.length === 0 && "text-muted-foreground"
+                "flex w-fit items-center gap-1 text-left text-sm text-foreground hover:text-primary"
               )}
             >
               {arr.length === 0 ? (
@@ -208,7 +207,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                   ))}
                 </span>
               )}
-              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+              <ChevronDown className="h-3 w-3 shrink-0" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-2" align="start">
