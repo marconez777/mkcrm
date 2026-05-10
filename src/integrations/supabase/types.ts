@@ -2271,6 +2271,7 @@ export type Database = {
           name: string
           updated_at: string
           watcher_agent_id: string | null
+          watcher_pipeline_id: string | null
           webhook_last_error: string | null
           webhook_last_set_at: string | null
           webhook_ok: boolean | null
@@ -2290,6 +2291,7 @@ export type Database = {
           name: string
           updated_at?: string
           watcher_agent_id?: string | null
+          watcher_pipeline_id?: string | null
           webhook_last_error?: string | null
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
@@ -2309,6 +2311,7 @@ export type Database = {
           name?: string
           updated_at?: string
           watcher_agent_id?: string | null
+          watcher_pipeline_id?: string | null
           webhook_last_error?: string | null
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
