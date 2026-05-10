@@ -193,7 +193,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           )}
         </div>
 
+        <CustomFieldsPanel
+          lead={lead}
+          fields={customDefs}
+          onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
+        />
+
         <div className="space-y-3">
+
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapa</Label>
             <Select value={form.stage_id ?? undefined} onValueChange={(v) => patch({ stage_id: v })}>
@@ -303,12 +310,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             />
           </div>
         </div>
-
-        <CustomFieldsPanel
-          lead={lead}
-          fields={customDefs}
-          onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
-        />
 
         <LeadTasksPanel leadId={lead.id} />
         <ScheduledMessagesPanel leadId={lead.id} />
