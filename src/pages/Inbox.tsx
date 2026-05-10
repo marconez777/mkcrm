@@ -17,7 +17,7 @@ export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
 export type SortKey = "recent" | "unread" | "oldest";
 
 export default function InboxPage() {
-  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore } = useLeadsPaginated();
+  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated();
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
@@ -156,6 +156,8 @@ export default function InboxPage() {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
+            onRefresh={refresh}
+            refreshing={refreshing}
             onCollapse={() => setShowList(false)}
           />
         </aside>

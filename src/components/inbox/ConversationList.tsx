@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,9 +62,11 @@ export default function ConversationList(props: {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   onCollapse?: () => void;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prompt = usePrompt();
   const confirm = useConfirm();
@@ -121,6 +123,11 @@ export default function ConversationList(props: {
         <div className="flex items-center gap-2">
           <h1 className="text-base font-semibold">Conversas</h1>
           <span className="text-xs text-muted-foreground">{leads.length}</span>
+          {onRefresh && (
+            <Button size="icon" variant="ghost" onClick={onRefresh} disabled={refreshing} title="Atualizar conversas" className="h-7 w-7">
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            </Button>
+          )}
           <div className="flex-1" />
           <Button size="icon" variant="ghost" onClick={props.onNew} title="Nova conversa">
             <Plus className="h-4 w-4" />

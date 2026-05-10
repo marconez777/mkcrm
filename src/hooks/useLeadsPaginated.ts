@@ -7,17 +7,15 @@ const PAGE_SIZE = 50;
 /**
  * Paginated leads hook ordered by last_message_at desc, with cursor pagination
  * and incremental realtime updates. Suitable for the Inbox conversation list.
- *
- * - loadMore() appends the next page (older) using a cursor on last_message_at.
- * - INSERT/UPDATE patch in place; new leads always go to the top.
- * - DELETE removes from the loaded set.
  */
 export function useLeadsPaginated() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const cursorRef = useRef<string | null>(null); // last_message_at of last loaded item
+  const [refreshing, setRefreshing] = useState(false);
+  const cursorRef = useRef<string | null>(null);
+  const lastVisibleAtRef = useRef<number>(Date.now());
 
   const sortFn = (a: Lead, b: Lead) => {
     const ap = a.pinned_at ? 1 : 0;
@@ -39,6 +37,15 @@ export function useLeadsPaginated() {
     setLoaded(true);
   }, []);
 
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadInitial();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadInitial]);
+
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -48,7 +55,7 @@ export function useLeadsPaginated() {
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .limit(PAGE_SIZE);
     if (cursorRef.current) q = q.lt("last_message_at", cursorRef.current);
-    else q = q.is("last_message_at", null); // tail (no-message leads)
+    else q = q.is("last_message_at", null);
     const { data } = await q;
     const arr = (data ?? []) as Lead[];
     if (arr.length > 0) {
@@ -77,10 +84,16 @@ export function useLeadsPaginated() {
         const row = p.new as Lead;
         setLeads((prev) => {
           const idx = prev.findIndex((x) => x.id === row.id);
-          if (idx === -1) return prev; // outside loaded window
-          const copy = prev.slice();
-          copy[idx] = { ...prev[idx], ...row };
-          return copy.sort(sortFn);
+          if (idx !== -1) {
+            const copy = prev.slice();
+            copy[idx] = { ...prev[idx], ...row };
+            return copy.sort(sortFn);
+          }
+          // Lead fora da janela: se ele "subiu" (last_message_at >= cursor) ou está fixado, inclui agora.
+          const cur = cursorRef.current;
+          const bubbledIn = row.pinned_at || !cur || (row.last_message_at && row.last_message_at > cur);
+          if (bubbledIn) return [row, ...prev].sort(sortFn);
+          return prev;
         });
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "leads" }, (p) => {
@@ -89,8 +102,26 @@ export function useLeadsPaginated() {
       })
       .subscribe();
 
-    return () => { active = false; supabase.removeChannel(ch); };
-  }, [loadInitial]);
+    // Auto-refresh quando a aba volta após >2min em background
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const away = Date.now() - lastVisibleAtRef.current;
+        if (away > 2 * 60 * 1000) {
+          refresh();
+        }
+        lastVisibleAtRef.current = Date.now();
+      } else {
+        lastVisibleAtRef.current = Date.now();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
-  return { leads, setLeads, loaded, hasMore, loadingMore, loadMore };
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadInitial, refresh]);
+
+  return { leads, setLeads, loaded, hasMore, loadingMore, loadMore, refresh, refreshing };
 }
