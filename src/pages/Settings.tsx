@@ -116,6 +116,30 @@ export default function SettingsPage() {
     if (error) toast.error(error.message); else { toast.success("Verificação concluída"); load(); }
   }
 
+  async function recoverInstance(id: string) {
+    setHealingId(id);
+    const { data, error } = await supabase.functions.invoke("evolution-restart", { body: { instance_id: id } });
+    setHealingId(null);
+    if (error || (data as any)?.ok === false) {
+      toast.error("Falha ao recuperar: " + (error?.message ?? (data as any)?.error ?? "erro"));
+    } else {
+      toast.success("Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem");
+      load();
+    }
+  }
+
+  function formatRelative(iso: string | null): string {
+    if (!iso) return "nunca";
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "agora";
+    if (min < 60) return `há ${min}min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h}h`;
+    const d = Math.floor(h / 24);
+    return `há ${d}d`;
+  }
+
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
 
   return (
