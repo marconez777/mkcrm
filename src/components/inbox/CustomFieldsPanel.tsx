@@ -196,7 +196,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
             <button
               type="button"
               className={cn(
-                "flex w-full items-center justify-between gap-1 text-left text-sm hover:text-primary",
+                "flex w-fit items-center gap-1 text-left text-sm hover:text-primary",
                 arr.length === 0 && "text-muted-foreground"
               )}
             >
