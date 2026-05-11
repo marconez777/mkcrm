@@ -272,9 +272,21 @@ export default function KanbanPage() {
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
+  const [query, setQuery] = useState("");
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
-  const leads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const normalizedQ = query.trim().toLowerCase();
+  const phoneQ = normalizedQ.replace(/\D/g, "");
+  const leads = normalizedQ
+    ? allPipelineLeads.filter((l) => {
+        const name = (l.name ?? "").toLowerCase();
+        const phone = (l.phone ?? "").replace(/\D/g, "");
+        if (name.includes(normalizedQ)) return true;
+        if (phoneQ && phone.includes(phoneQ)) return true;
+        return false;
+      })
+    : allPipelineLeads;
 
   useEffect(() => { saveUi(ui); }, [ui]);
 
