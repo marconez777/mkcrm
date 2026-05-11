@@ -66,6 +66,7 @@ async function ensureWebhook(instance: Instance) {
         { enabled: true, url: expected, events, webhookByEvents: false, webhookBase64: false },
       ];
       let lastBody = "";
+      let enumErrorBody = "";
       for (const body of payloads) {
         try {
           const resp = await evoFetch(
@@ -75,6 +76,7 @@ async function ensureWebhook(instance: Instance) {
           );
           lastBody = await resp.text();
           if (resp.ok) { webhookOk = true; break; }
+          if (lastBody.includes("is not one of enum values")) enumErrorBody = lastBody;
           errors.push(`a${attempt} ${resp.status}: ${lastBody.slice(0, 160)}`);
         } catch (e) {
           errors.push(`a${attempt} exc: ${e}`);
@@ -83,7 +85,8 @@ async function ensureWebhook(instance: Instance) {
       if (webhookOk) break;
       // Parse rejected event indexes from "events[N] is not one of enum values"
       const rejectedIdx = new Set<number>();
-      for (const m of lastBody.matchAll(/events\[(\d+)\] is not one of enum values/g)) {
+      const src = enumErrorBody || lastBody;
+      for (const m of src.matchAll(/events\[(\d+)\] is not one of enum values/g)) {
         rejectedIdx.add(Number(m[1]));
       }
       if (rejectedIdx.size === 0) break; // can't recover
