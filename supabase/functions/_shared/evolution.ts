@@ -322,9 +322,10 @@ export async function ingestMessage(
 
   let createdLead = false;
   if (!lead) {
-    // Resolve funil de entrada: APENAS funil de vendas vinculado a esta instância.
-    // Sem fallback — funis sem vínculo não recebem leads automáticos.
+    // Resolve funil de entrada: prioriza funil de vendas vinculado a esta instância.
+    // Fallback: primeiro funil de vendas da clínica (default → menor position → mais antigo).
     let pipelineId: string | null = null;
+    let pipelineFallback = false;
     if (instanceId) {
       const { data: pipe } = await supabase
         .from("pipelines")
@@ -334,6 +335,23 @@ export async function ingestMessage(
         .eq("whatsapp_instance_id", instanceId)
         .maybeSingle();
       pipelineId = (pipe as any)?.id ?? null;
+    }
+    if (!pipelineId) {
+      const { data: fallbackPipe } = await supabase
+        .from("pipelines")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("kind", "sales")
+        .order("is_default", { ascending: false })
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      pipelineId = (fallbackPipe as any)?.id ?? null;
+      if (pipelineId) {
+        pipelineFallback = true;
+        console.log("[ingestMessage] using fallback pipeline", { clinicId, instanceId, pipelineId });
+      }
     }
     if (!pipelineId) {
       return { skipped: true, reason: "no-inbound-pipeline" };
@@ -363,6 +381,16 @@ export async function ingestMessage(
     if (error) throw error;
     lead = created;
     createdLead = true;
+    if (pipelineFallback) {
+      try {
+        await supabase.from("lead_events").insert({
+          lead_id: lead!.id,
+          clinic_id: clinicId,
+          type: "pipeline_fallback_used",
+          payload: { instance_id: instanceId, pipeline_id: pipelineId },
+        });
+      } catch (_) { /* non-fatal */ }
+    }
   } else {
     const patch: Record<string, unknown> = {};
     if (pushName && !(lead as any).name) patch.name = pushName;
