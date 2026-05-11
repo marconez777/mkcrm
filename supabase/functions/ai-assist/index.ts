@@ -19,11 +19,30 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Map legacy / unsupported model identifiers to ones allowed by the Lovable AI Gateway.
+function normalizeModel(model?: string | null): string {
+  const fallback = "google/gemini-2.5-flash";
+  if (!model) return fallback;
+  const m = String(model).trim().toLowerCase();
+  // Already namespaced (e.g. "openai/gpt-5", "google/gemini-2.5-pro")
+  if (m.includes("/")) {
+    // Reject legacy openai models that the gateway no longer accepts
+    if (/openai\/(gpt-4o|gpt-4|gpt-3|gpt-4-turbo|gpt-4o-mini)/.test(m)) return fallback;
+    return m;
+  }
+  // Bare names: best-effort map
+  if (m.startsWith("gemini")) return `google/${m}`;
+  if (m.startsWith("gpt-5")) return `openai/${m}`;
+  // Legacy / unknown (gpt-4o, gpt-4, gpt-3.5, claude-*, etc.)
+  return fallback;
+}
+
 async function callAI(messages: any[], model = "google/gemini-2.5-flash", temperature = 0.5) {
+  const finalModel = normalizeModel(model);
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, temperature }),
+    body: JSON.stringify({ model: finalModel, messages, temperature }),
   });
   if (!r.ok) {
     const t = await r.text();
