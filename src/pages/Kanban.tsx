@@ -300,6 +300,11 @@ export default function KanbanPage() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "/") {
+        e.preventDefault();
+        (document.getElementById("kanban-search") as HTMLInputElement | null)?.focus();
+        return;
+      }
       if (e.key === "ArrowRight") { scrollByPage(1); }
       else if (e.key === "ArrowLeft") { scrollByPage(-1); }
       else if (e.key === "Home") { scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" }); }
