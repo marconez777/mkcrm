@@ -57,9 +57,14 @@ async function ensureWebhook(instance: Instance) {
 
   if (!webhookOk) {
     const payloads = [
-      { webhook: { enabled: true, url: expected, webhookByEvents: false, webhookBase64: false, events: REQUIRED_EVENTS } },
-      { enabled: true, url: expected, webhookByEvents: false, webhookBase64: false, events: REQUIRED_EVENTS },
+      // v2.x nested webhook object (snake_case keys)
+      { webhook: { enabled: true, url: expected, events: REQUIRED_EVENTS, webhook_by_events: false, webhook_base64: false } },
+      // v2.x nested webhook object (camelCase keys)
+      { webhook: { enabled: true, url: expected, events: REQUIRED_EVENTS, webhookByEvents: false, webhookBase64: false } },
+      // v1.x flat
+      { enabled: true, url: expected, events: REQUIRED_EVENTS, webhookByEvents: false, webhookBase64: false },
     ];
+    const errors: string[] = [];
     for (const body of payloads) {
       try {
         const resp = await evoFetch(
@@ -67,16 +72,17 @@ async function ensureWebhook(instance: Instance) {
           `/webhook/set/${encodeURIComponent(instance.evolution_instance)}`,
           { method: "POST", body: JSON.stringify(body) },
         );
+        const text = await resp.text();
         if (resp.ok) {
           webhookOk = true;
-          await resp.text();
           break;
         }
-        lastError = `set ${resp.status}: ${(await resp.text()).slice(0, 200)}`;
+        errors.push(`${resp.status}: ${text.slice(0, 200)}`);
       } catch (e) {
-        lastError = `set: ${e}`;
+        errors.push(`exc: ${e}`);
       }
     }
+    if (!webhookOk) lastError = `set tried ${payloads.length}: ${errors.join(" | ")}`;
   }
 
   return { webhookOk, lastError };
