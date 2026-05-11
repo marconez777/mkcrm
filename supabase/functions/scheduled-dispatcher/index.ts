@@ -167,7 +167,15 @@ async function processPendingReplies(supabase: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const supabase = sb();
-  const sched = await processScheduled(supabase);
-  const replies = await processPendingReplies(supabase);
-  return json({ ok: true, scheduled: sched, replies });
+  // Run both queues in parallel and let them finish even after the HTTP response returns
+  // (cron tick can be very short — without waitUntil the runtime may abort in-flight fetches).
+  const work = (async () => {
+    const sched = await processScheduled(supabase);
+    const replies = await processPendingReplies(supabase);
+    console.log(`[dispatcher] tick done scheduled=${JSON.stringify(sched)} replies=${JSON.stringify(replies)}`);
+  })();
+  // @ts-ignore EdgeRuntime is available in Supabase edge runtime
+  if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work);
+  else await work;
+  return json({ ok: true, queued: true });
 });
