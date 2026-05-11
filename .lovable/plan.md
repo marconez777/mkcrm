@@ -1,41 +1,47 @@
-## Plano: Religar funil + fallback automático
+## Coletor de leads das conversas
 
-### 1. Religar pipeline "Agendamentos Novo" à instância atual
-Atualizar `pipelines.whatsapp_instance_id`:
-- de: `b1cebe70-6372-422f-bea2-0ba1ae9579a8` (instância antiga, removida)
-- para: `1fbed71c-063b-45c9-8045-4cf8b42b4934` (instância atual `or-76da5186`)
+Cria um sistema que varre as conversas (chats) da Evolution API e cria leads para os números que ainda não existem no CRM, garantindo que nenhuma conversa fique de fora do pipeline.
 
-Executado via `supabase--insert` (UPDATE).
+### O que será feito
 
-### 2. Fallback permissivo no `ingestMessage`
-Em `supabase/functions/_shared/evolution.ts` (função `ingestMessage`), quando uma mensagem inbound chega de número desconhecido:
+**1. Nova edge function: `evolution-collect-leads`**
 
-**Comportamento atual:** busca pipeline com `whatsapp_instance_id = X`. Se não achar → descarta com `reason: "no-inbound-pipeline"`.
+Para cada instância WhatsApp configurada (ou apenas a passada via `instance_id`):
 
-**Novo comportamento:**
-1. Tenta achar pipeline vinculado à instância (atual)
-2. Se não achar, faz fallback: primeiro pipeline `kind = 'sales'` da clínica (ordenado por `is_default DESC, position ASC, created_at ASC`)
-3. Se mesmo assim não achar → continua descartando com log
-4. Quando o fallback for usado, registrar em `lead_events` (type: `pipeline_fallback_used`) para visibilidade
+- Lista todos os chats da Evolution via `/chat/findChats/{instance}` (paginado).
+- Para cada chat:
+  - Extrai telefone real (mesma lógica `phoneFromKey` — trata `@lid` com `remoteJidAlt`).
+  - Ignora grupos (`@g.us`) e números inválidos.
+  - Verifica se já existe lead em `leads` para `(phone, clinic_id)`.
+  - Se não existir: busca a última mensagem desse chat (`/chat/findMessages` página 1) e chama `ingestMessage` — o que reaproveita toda a lógica de criação de lead + fallback de pipeline já implementada (funil vinculado à instância → fallback para 1º funil de vendas).
+- Retorna `{ scanned, created, skipped, perInstance }` e grava um evento em `webhook_events` (tipo `COLLECT_LEADS`).
+- Aceita `{ stream: true }` para NDJSON de progresso (mesmo padrão do `evolution-backfill-all`).
 
-### 3. Limpeza de instância órfã (bônus opcional)
-Em `evolution-delete-instance/index.ts`, antes de deletar:
-- Buscar pipelines vinculados (`whatsapp_instance_id = <instância sendo deletada>`)
-- Religar automaticamente para a próxima instância `connected` da clínica (ou `NULL` se não houver outra)
-- Logar a mudança em `audit_log`
+**2. Cron automático (a cada 30 min)**
 
-Isso evita o problema se repetir no futuro.
+Via `pg_cron` + `pg_net`, agenda chamada periódica ao `evolution-collect-leads` sem `instance_id` (varre todas as instâncias da clínica).
 
-### 4. Recuperar leads perdidos das últimas horas
-Após o relink, rodar `evolution-backfill-all` (limit 500) para reprocessar mensagens recentes — agora o `ingestMessage` vai conseguir criar os leads que foram descartados.
+**3. Dedup leve**
+
+Tabela `webhook_dedup` já existente é usada para evitar reprocessar o mesmo chat dentro de 30 min (chave: `collect:{instance_id}:{phone}`).
+
+### Detalhes técnicos
+
+- **Reuso máximo**: a criação de lead passa pelo `ingestMessage` existente — toda a lógica de fallback de pipeline, resolução de `clinic_id`, `pushName`, etc. já funciona.
+- **Funil**: usa o vinculado à instância; se não houver, cai no primeiro funil de vendas da clínica (fallback que já existe no `_shared/evolution.ts`).
+- **Limite de segurança**: máx. 500 chats por instância por execução para evitar timeout (instâncias maiores são processadas em rodadas seguintes).
+- **Observabilidade**: logs por instância (`[collect-leads] instance=X scanned=N created=M`) e evento `COLLECT_LEADS` em `webhook_events` para auditoria.
+- **Cron**: `*/30 * * * *` chamando `evolution-collect-leads` com header `Authorization: Bearer <service_role>`.
 
 ### Arquivos afetados
-- `supabase/functions/_shared/evolution.ts` (fallback)
-- `supabase/functions/evolution-delete-instance/index.ts` (auto-relink)
-- UPDATE em `pipelines` (relink imediato)
-- Trigger manual de `evolution-backfill-all`
 
-### Validação
-- Confirmar que `pipelines` aponta para instância correta
-- Verificar logs do `evolution-webhook` após backfill (deve criar novos leads)
-- Confirmar contagem de leads criados nas últimas 2h
+```text
+supabase/functions/evolution-collect-leads/index.ts   (novo)
+supabase/functions/_shared/evolution.ts               (helper opcional findChats)
+supabase/insert (cron job pg_cron)                    (agendamento)
+```
+
+### Fora do escopo
+
+- UI de botão manual (você pediu apenas automático periódico).
+- Importar histórico completo de mensagens do chat — isso já é feito pelo `evolution-backfill-all`. Aqui o foco é **criar o lead**; o backfill posterior popula as mensagens antigas se desejado.
