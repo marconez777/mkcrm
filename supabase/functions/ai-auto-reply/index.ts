@@ -76,8 +76,9 @@ Deno.serve(async (req) => {
     if (!lead_id) return json({ error: "lead_id required" }, 400);
 
     const { data: lead } = await supabase
-      .from("leads").select("id, stage_id, pipeline_id, whatsapp_instance_id").eq("id", lead_id).single();
+      .from("leads").select("id, clinic_id, stage_id, pipeline_id, whatsapp_instance_id").eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
+    if (!lead.clinic_id) return json({ error: "lead missing clinic_id" }, 500);
 
     const results: Record<string, any> = {};
 
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
         if (inst.watcher_pipeline_id && inst.watcher_pipeline_id !== lead.pipeline_id) {
           results.watcher = { skipped: true, reason: "pipeline-mismatch" };
         } else {
-          results.watcher = await enqueueAgent(supabase, lead_id, inst.watcher_agent_id, from_me);
+          results.watcher = await enqueueAgent(supabase, lead_id, lead.clinic_id, inst.watcher_agent_id, from_me);
         }
       }
     }
@@ -120,7 +121,7 @@ Deno.serve(async (req) => {
     }
 
     if (autoReply && agentId) {
-      results.sales = await enqueueAgent(supabase, lead_id, agentId, from_me);
+      results.sales = await enqueueAgent(supabase, lead_id, lead.clinic_id, agentId, from_me);
     } else {
       results.sales = { skipped: true, reason: "not-enabled" };
     }
