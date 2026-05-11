@@ -131,6 +131,22 @@ export default function SettingsPage() {
     }
   }
 
+  async function recoverMissedMessages(id: string) {
+    setHealingId(id);
+    toast.info("Procurando mensagens perdidas — isso pode levar alguns minutos...");
+    const { data, error } = await supabase.functions.invoke("evolution-backfill-all", {
+      body: { instance_id: id, force: true, limit: 500 },
+    });
+    setHealingId(null);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message ?? (data as any)?.error));
+      return;
+    }
+    const imported = (data as any)?.totalImported ?? 0;
+    toast.success(imported > 0 ? `${imported} mensagens recuperadas` : "Nenhuma mensagem nova encontrada");
+    load();
+  }
+
   function formatRelative(iso: string | null): string {
     if (!iso) return "nunca";
     const diff = Date.now() - new Date(iso).getTime();
