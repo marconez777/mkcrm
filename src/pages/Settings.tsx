@@ -222,7 +222,11 @@ export default function SettingsPage() {
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
                             Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
-                            {inst.last_auto_restart_at && <> · Último auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_reconnect_at && <> · Última reconexão: {formatRelative(inst.last_reconnect_at)}</>}
+                            {inst.last_auto_restart_at && <> · Auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_backfill_at && (
+                              <> · Última recuperação: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} msgs)</>
+                            )}
                           </div>
                         </div>
                         {deaf && canManage && (
