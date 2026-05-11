@@ -54,6 +54,34 @@ Deno.serve(async (req) => {
       });
     } catch (e) { console.warn("evo delete failed", e); }
 
+    // Auto-relink: transfere funis vinculados a outra instância conectada da clínica (ou NULL)
+    try {
+      const { data: linkedPipes } = await admin
+        .from("pipelines")
+        .select("id, name")
+        .eq("clinic_id", inst.clinic_id)
+        .eq("whatsapp_instance_id", instance_id);
+      if (linkedPipes && linkedPipes.length > 0) {
+        const { data: nextInst } = await admin
+          .from("whatsapp_instances")
+          .select("id")
+          .eq("clinic_id", inst.clinic_id)
+          .neq("id", instance_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const nextId = (nextInst as any)?.id ?? null;
+        await admin
+          .from("pipelines")
+          .update({ whatsapp_instance_id: nextId })
+          .eq("clinic_id", inst.clinic_id)
+          .eq("whatsapp_instance_id", instance_id);
+        console.log("[delete-instance] relinked pipelines", { count: linkedPipes.length, from: instance_id, to: nextId });
+      }
+    } catch (e) {
+      console.warn("[delete-instance] relink failed", e);
+    }
+
     const { error } = await admin.from("whatsapp_instances").delete().eq("id", instance_id);
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
