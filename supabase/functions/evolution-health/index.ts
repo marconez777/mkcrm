@@ -56,33 +56,40 @@ async function ensureWebhook(instance: Instance) {
   }
 
   if (!webhookOk) {
-    const payloads = [
-      // v2.x nested webhook object (snake_case keys)
-      { webhook: { enabled: true, url: expected, events: REQUIRED_EVENTS, webhook_by_events: false, webhook_base64: false } },
-      // v2.x nested webhook object (camelCase keys)
-      { webhook: { enabled: true, url: expected, events: REQUIRED_EVENTS, webhookByEvents: false, webhookBase64: false } },
-      // v1.x flat
-      { enabled: true, url: expected, events: REQUIRED_EVENTS, webhookByEvents: false, webhookBase64: false },
-    ];
+    let events = [...REQUIRED_EVENTS];
     const errors: string[] = [];
-    for (const body of payloads) {
-      try {
-        const resp = await evoFetch(
-          instance,
-          `/webhook/set/${encodeURIComponent(instance.evolution_instance)}`,
-          { method: "POST", body: JSON.stringify(body) },
-        );
-        const text = await resp.text();
-        if (resp.ok) {
-          webhookOk = true;
-          break;
+    // up to 3 retries, removing events that the server rejects with "events[N] is not one of enum values"
+    for (let attempt = 0; attempt < 4 && !webhookOk && events.length > 0; attempt++) {
+      const payloads = [
+        { webhook: { enabled: true, url: expected, events, webhook_by_events: false, webhook_base64: false } },
+        { webhook: { enabled: true, url: expected, events, webhookByEvents: false, webhookBase64: false } },
+        { enabled: true, url: expected, events, webhookByEvents: false, webhookBase64: false },
+      ];
+      let lastBody = "";
+      for (const body of payloads) {
+        try {
+          const resp = await evoFetch(
+            instance,
+            `/webhook/set/${encodeURIComponent(instance.evolution_instance)}`,
+            { method: "POST", body: JSON.stringify(body) },
+          );
+          lastBody = await resp.text();
+          if (resp.ok) { webhookOk = true; break; }
+          errors.push(`a${attempt} ${resp.status}: ${lastBody.slice(0, 160)}`);
+        } catch (e) {
+          errors.push(`a${attempt} exc: ${e}`);
         }
-        errors.push(`${resp.status}: ${text.slice(0, 200)}`);
-      } catch (e) {
-        errors.push(`exc: ${e}`);
       }
+      if (webhookOk) break;
+      // Parse rejected event indexes from "events[N] is not one of enum values"
+      const rejectedIdx = new Set<number>();
+      for (const m of lastBody.matchAll(/events\[(\d+)\] is not one of enum values/g)) {
+        rejectedIdx.add(Number(m[1]));
+      }
+      if (rejectedIdx.size === 0) break; // can't recover
+      events = events.filter((_, i) => !rejectedIdx.has(i));
     }
-    if (!webhookOk) lastError = `set tried ${payloads.length}: ${errors.join(" | ")}`;
+    if (!webhookOk) lastError = `set failed: ${errors.slice(-3).join(" | ")}`;
   }
 
   return { webhookOk, lastError };
