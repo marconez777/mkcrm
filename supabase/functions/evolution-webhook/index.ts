@@ -94,6 +94,34 @@ Deno.serve(async (req) => {
           }
         }
       }
+    } else if (eventType === "MESSAGES_SET" || eventType === "MESSAGING_HISTORY_SET") {
+      // History sync after (re)connection — Baileys delivers backlog here.
+      // Ingest silently (no unread bump, no auto-reply trigger), idempotent by external_id.
+      let imported = 0;
+      const settled = await Promise.allSettled(
+        items.map((it: any) => ingestMessage(it, "webhook", { silent: true, instanceId: instance.id })),
+      );
+      for (let i = 0; i < settled.length; i++) {
+        const s = settled[i];
+        if (s.status !== "fulfilled") { console.error("history ingest error", s.reason); continue; }
+        const res: any = s.value;
+        if (res?.isNew) imported++;
+        if (res?.needs_media && res?.message_id) {
+          const it = items[i];
+          const t = downloadAndStoreMedia(res.message_id, instance, it);
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(t);
+          else t.catch((e) => console.error("history media task failed", e));
+        }
+      }
+      await supabase
+        .from("whatsapp_instances")
+        .update({
+          last_backfill_at: new Date().toISOString(),
+          last_backfill_imported: imported,
+        })
+        .eq("id", instance.id);
+      console.log(JSON.stringify({ event: eventType, history_imported: imported, total: items.length }));
     } else if (eventType === "MESSAGES_UPDATE") {
       const RANK: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
       const normalize = (s: string): string => {
