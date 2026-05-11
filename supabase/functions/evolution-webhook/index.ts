@@ -22,9 +22,14 @@ Deno.serve(async (req) => {
     body = await req.json();
     eventType = String(body.event || "unknown").toUpperCase().replace(/\./g, "_");
 
+    // Normalize items: history events sometimes wrap an array under { messages: [...] }.
+    let items: any[] = [];
+    if (Array.isArray(body.data)) items = body.data;
+    else if (Array.isArray(body.data?.messages)) items = body.data.messages;
+    else if (Array.isArray(body.data?.chats)) items = body.data.chats;
+    else items = [body.data];
+
     // Dedupe at the event-level. Prevents Evolution retries from double-processing.
-    // Hash on event + instance + first item key.id (or full body sample).
-    const items = Array.isArray(body.data) ? body.data : [body.data];
     const dedupKey = `${eventType}::${instance.id}::${items[0]?.key?.id ?? ""}::${items[0]?.messageTimestamp ?? items[0]?.status ?? ""}`;
     if (dedupKey && (await isWebhookDuplicate(supabase, dedupKey))) {
       return json({ ok: true, deduped: true });
