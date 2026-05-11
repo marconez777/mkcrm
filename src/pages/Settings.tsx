@@ -28,6 +28,9 @@ type Instance = {
   watcher_agent_id: string | null;
   last_inbound_webhook_at: string | null;
   last_auto_restart_at: string | null;
+  last_reconnect_at: string | null;
+  last_backfill_at: string | null;
+  last_backfill_imported: number | null;
 };
 
 type AgentLite = { id: string; name: string };
@@ -51,7 +54,7 @@ export default function SettingsPage() {
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -126,6 +129,22 @@ export default function SettingsPage() {
       toast.success("Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem");
       load();
     }
+  }
+
+  async function recoverMissedMessages(id: string) {
+    setHealingId(id);
+    toast.info("Procurando mensagens perdidas — isso pode levar alguns minutos...");
+    const { data, error } = await supabase.functions.invoke("evolution-backfill-all", {
+      body: { instance_id: id, force: true, limit: 500 },
+    });
+    setHealingId(null);
+    if (error || (data as any)?.error) {
+      toast.error("Falha: " + (error?.message ?? (data as any)?.error));
+      return;
+    }
+    const imported = (data as any)?.totalImported ?? 0;
+    toast.success(imported > 0 ? `${imported} mensagens recuperadas` : "Nenhuma mensagem nova encontrada");
+    load();
   }
 
   function formatRelative(iso: string | null): string {
@@ -203,7 +222,11 @@ export default function SettingsPage() {
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
                             Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
-                            {inst.last_auto_restart_at && <> · Último auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_reconnect_at && <> · Última reconexão: {formatRelative(inst.last_reconnect_at)}</>}
+                            {inst.last_auto_restart_at && <> · Auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_backfill_at && (
+                              <> · Última recuperação: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} msgs)</>
+                            )}
                           </div>
                         </div>
                         {deaf && canManage && (
@@ -226,6 +249,9 @@ export default function SettingsPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
                                 <RefreshCw className="mr-2 h-3 w-3" /> Recuperar conexão
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => recoverMissedMessages(inst.id)} disabled={healingId === inst.id}>
+                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar mensagens perdidas
                               </DropdownMenuItem>
                               {!inst.is_default && (
                                 <DropdownMenuItem onClick={() => setDefault(inst.id)}>

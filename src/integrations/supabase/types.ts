@@ -2422,9 +2422,12 @@ export type Database = {
           id: string
           is_default: boolean
           last_auto_restart_at: string | null
+          last_backfill_at: string | null
+          last_backfill_imported: number | null
           last_health_check: string | null
           last_inbound_webhook_at: string | null
           last_poll_at: string | null
+          last_reconnect_at: string | null
           name: string
           updated_at: string
           watcher_agent_id: string | null
@@ -2445,9 +2448,12 @@ export type Database = {
           id?: string
           is_default?: boolean
           last_auto_restart_at?: string | null
+          last_backfill_at?: string | null
+          last_backfill_imported?: number | null
           last_health_check?: string | null
           last_inbound_webhook_at?: string | null
           last_poll_at?: string | null
+          last_reconnect_at?: string | null
           name: string
           updated_at?: string
           watcher_agent_id?: string | null
@@ -2468,9 +2474,12 @@ export type Database = {
           id?: string
           is_default?: boolean
           last_auto_restart_at?: string | null
+          last_backfill_at?: string | null
+          last_backfill_imported?: number | null
           last_health_check?: string | null
           last_inbound_webhook_at?: string | null
           last_poll_at?: string | null
+          last_reconnect_at?: string | null
           name?: string
           updated_at?: string
           watcher_agent_id?: string | null

@@ -253,6 +253,10 @@ export async function downloadAndStoreMedia(messageId: string, instance: Instanc
 export const REQUIRED_EVENTS = [
   "MESSAGES_UPSERT",
   "MESSAGES_UPDATE",
+  "MESSAGES_SET",
+  "MESSAGING_HISTORY_SET",
+  "CHATS_UPSERT",
+  "CHATS_SET",
   "CONTACTS_UPSERT",
   "CONNECTION_UPDATE",
 ];
