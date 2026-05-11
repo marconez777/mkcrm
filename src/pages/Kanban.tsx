@@ -29,7 +29,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -272,9 +272,21 @@ export default function KanbanPage() {
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
+  const [query, setQuery] = useState("");
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
-  const leads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const normalizedQ = query.trim().toLowerCase();
+  const phoneQ = normalizedQ.replace(/\D/g, "");
+  const leads = normalizedQ
+    ? allPipelineLeads.filter((l) => {
+        const name = (l.name ?? "").toLowerCase();
+        const phone = (l.phone ?? "").replace(/\D/g, "");
+        if (name.includes(normalizedQ)) return true;
+        if (phoneQ && phone.includes(phoneQ)) return true;
+        return false;
+      })
+    : allPipelineLeads;
 
   useEffect(() => { saveUi(ui); }, [ui]);
 
@@ -288,6 +300,11 @@ export default function KanbanPage() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "/") {
+        e.preventDefault();
+        (document.getElementById("kanban-search") as HTMLInputElement | null)?.focus();
+        return;
+      }
       if (e.key === "ArrowRight") { scrollByPage(1); }
       else if (e.key === "ArrowLeft") { scrollByPage(-1); }
       else if (e.key === "Home") { scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" }); }
@@ -391,12 +408,32 @@ export default function KanbanPage() {
               whatsappInstances={whatsappInstances}
             />
             <p className="px-2 text-xs text-muted-foreground">
-              {leads.length} leads · {stages.length} etapas
+              {normalizedQ ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
               {current?.kind === "internal" && <> · gestão interna</>}
               {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="kanban-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por nome ou telefone…"
+                className="h-8 w-64 pl-7 pr-7 text-sm"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-accent"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>
