@@ -34,7 +34,7 @@ async function fireDispatcherAfter(debounce: number, supabase: any, leadId: stri
   } catch (err) { console.error("dispatcher trigger failed", err); }
 }
 
-async function enqueueAgent(supabase: any, leadId: string, agentId: string, fromMe: boolean) {
+async function enqueueAgent(supabase: any, leadId: string, clinicId: string, agentId: string, fromMe: boolean) {
   const { data: agent } = await supabase
     .from("ai_agents").select("debounce_seconds, enabled, tools, silent").eq("id", agentId).single();
   if (!agent?.enabled) return { skipped: true, reason: "agent-disabled" };
@@ -45,10 +45,17 @@ async function enqueueAgent(supabase: any, leadId: string, agentId: string, from
 
   const debounce = Math.max(Number(agent.debounce_seconds) || 8, 1);
   const runAt = new Date(Date.now() + debounce * 1000).toISOString();
-  await supabase.from("pending_replies").upsert(
-    { lead_id: leadId, agent_id: agentId, run_at: runAt },
+  // IMPORTANT: pass clinic_id explicitly. The column default current_clinic_id()
+  // returns NULL when invoked via service role (no auth.uid()), which would
+  // silently fail the NOT NULL constraint and break the entire watcher pipeline.
+  const { error: upsertErr } = await supabase.from("pending_replies").upsert(
+    { lead_id: leadId, agent_id: agentId, run_at: runAt, clinic_id: clinicId },
     { onConflict: "lead_id,agent_id" },
   );
+  if (upsertErr) {
+    console.error("pending_replies upsert failed", upsertErr);
+    return { skipped: true, reason: "enqueue-failed", error: upsertErr.message };
+  }
 
   // @ts-ignore EdgeRuntime
   if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
