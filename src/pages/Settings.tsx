@@ -28,6 +28,9 @@ type Instance = {
   watcher_agent_id: string | null;
   last_inbound_webhook_at: string | null;
   last_auto_restart_at: string | null;
+  last_reconnect_at: string | null;
+  last_backfill_at: string | null;
+  last_backfill_imported: number | null;
 };
 
 type AgentLite = { id: string; name: string };
