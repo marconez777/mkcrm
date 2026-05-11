@@ -381,6 +381,16 @@ export async function ingestMessage(
     if (error) throw error;
     lead = created;
     createdLead = true;
+    if (pipelineFallback) {
+      try {
+        await supabase.from("lead_events").insert({
+          lead_id: lead!.id,
+          clinic_id: clinicId,
+          type: "pipeline_fallback_used",
+          payload: { instance_id: instanceId, pipeline_id: pipelineId },
+        });
+      } catch (_) { /* non-fatal */ }
+    }
   } else {
     const patch: Record<string, unknown> = {};
     if (pushName && !(lead as any).name) patch.name = pushName;
