@@ -191,16 +191,45 @@ Deno.serve(async (req) => {
     } else if (eventType === "CONNECTION_UPDATE") {
       const state = items[0]?.state ?? body.data?.state;
       if (state) {
+        const newState = String(state);
+        const wasOpen = instance.connection_state === "open";
         await supabase
           .from("whatsapp_instances")
-          .update({ connection_state: String(state) })
+          .update({ connection_state: newState })
           .eq("id", instance.id);
+
+        // Transition into "open" → trigger automatic backfill to recover any
+        // messages that arrived while the session was down/silent.
+        if (newState === "open" && !wasOpen) {
+          await supabase
+            .from("whatsapp_instances")
+            .update({ last_reconnect_at: new Date().toISOString() })
+            .eq("id", instance.id);
+
+          const triggerBackfill = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-backfill-all`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+            },
+            body: JSON.stringify({ instance_id: instance.id, force: true, limit: 500 }),
+          }).catch((e) => console.error("auto-backfill trigger failed", e));
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerBackfill);
+        }
       }
     }
 
     // Marca quando recebemos o último evento "vivo" do WhatsApp.
     // Usado pelo health watchdog para detectar sessão "surda" (open mas sem eventos).
-    if (eventType === "MESSAGES_UPSERT" || eventType === "MESSAGES_UPDATE" || eventType === "CONTACTS_UPSERT") {
+    if (
+      eventType === "MESSAGES_UPSERT" ||
+      eventType === "MESSAGES_UPDATE" ||
+      eventType === "MESSAGES_SET" ||
+      eventType === "MESSAGING_HISTORY_SET" ||
+      eventType === "CONTACTS_UPSERT"
+    ) {
       await supabase
         .from("whatsapp_instances")
         .update({ last_inbound_webhook_at: new Date().toISOString() })
