@@ -1,47 +1,17 @@
-## Coletor de leads das conversas
+## Busca de leads no Pipeline
 
-Cria um sistema que varre as conversas (chats) da Evolution API e cria leads para os números que ainda não existem no CRM, garantindo que nenhuma conversa fique de fora do pipeline.
+Adicionar uma barra de busca no cabeçalho do pipeline (`src/pages/Kanban.tsx`) que filtra os cards por **nome** ou **telefone** em todas as colunas simultaneamente.
 
-### O que será feito
+### Comportamento
+- Input com ícone de lupa e placeholder "Buscar por nome ou telefone…", ao lado do switcher do funil.
+- Filtro client-side, case-insensitive, debounce leve (já é instantâneo no array em memória).
+- Telefone normalizado: ignora espaços, parênteses, traços e o "+" — `5511999…` casa com `(11) 99999-…`.
+- Atalho `/` foca o input (ignora se digitando em outro campo).
+- Botão "x" para limpar; ao limpar, mostra todos os leads novamente.
+- Contador no subtítulo passa a refletir o resultado: `12 de 83 leads` quando há filtro ativo.
+- As colunas continuam visíveis mesmo vazias (para o usuário ver onde **não** há resultado).
 
-**1. Nova edge function: `evolution-collect-leads`**
+### Arquivos
+- `src/pages/Kanban.tsx` — novo `useState("")` para query, normalização do telefone, aplicar `.filter()` antes de distribuir leads pelas colunas, input no header.
 
-Para cada instância WhatsApp configurada (ou apenas a passada via `instance_id`):
-
-- Lista todos os chats da Evolution via `/chat/findChats/{instance}` (paginado).
-- Para cada chat:
-  - Extrai telefone real (mesma lógica `phoneFromKey` — trata `@lid` com `remoteJidAlt`).
-  - Ignora grupos (`@g.us`) e números inválidos.
-  - Verifica se já existe lead em `leads` para `(phone, clinic_id)`.
-  - Se não existir: busca a última mensagem desse chat (`/chat/findMessages` página 1) e chama `ingestMessage` — o que reaproveita toda a lógica de criação de lead + fallback de pipeline já implementada (funil vinculado à instância → fallback para 1º funil de vendas).
-- Retorna `{ scanned, created, skipped, perInstance }` e grava um evento em `webhook_events` (tipo `COLLECT_LEADS`).
-- Aceita `{ stream: true }` para NDJSON de progresso (mesmo padrão do `evolution-backfill-all`).
-
-**2. Cron automático (a cada 30 min)**
-
-Via `pg_cron` + `pg_net`, agenda chamada periódica ao `evolution-collect-leads` sem `instance_id` (varre todas as instâncias da clínica).
-
-**3. Dedup leve**
-
-Tabela `webhook_dedup` já existente é usada para evitar reprocessar o mesmo chat dentro de 30 min (chave: `collect:{instance_id}:{phone}`).
-
-### Detalhes técnicos
-
-- **Reuso máximo**: a criação de lead passa pelo `ingestMessage` existente — toda a lógica de fallback de pipeline, resolução de `clinic_id`, `pushName`, etc. já funciona.
-- **Funil**: usa o vinculado à instância; se não houver, cai no primeiro funil de vendas da clínica (fallback que já existe no `_shared/evolution.ts`).
-- **Limite de segurança**: máx. 500 chats por instância por execução para evitar timeout (instâncias maiores são processadas em rodadas seguintes).
-- **Observabilidade**: logs por instância (`[collect-leads] instance=X scanned=N created=M`) e evento `COLLECT_LEADS` em `webhook_events` para auditoria.
-- **Cron**: `*/30 * * * *` chamando `evolution-collect-leads` com header `Authorization: Bearer <service_role>`.
-
-### Arquivos afetados
-
-```text
-supabase/functions/evolution-collect-leads/index.ts   (novo)
-supabase/functions/_shared/evolution.ts               (helper opcional findChats)
-supabase/insert (cron job pg_cron)                    (agendamento)
-```
-
-### Fora do escopo
-
-- UI de botão manual (você pediu apenas automático periódico).
-- Importar histórico completo de mensagens do chat — isso já é feito pelo `evolution-backfill-all`. Aqui o foco é **criar o lead**; o backfill posterior popula as mensagens antigas se desejado.
+Sem mudanças de backend ou schema.
