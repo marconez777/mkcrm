@@ -250,6 +250,9 @@ export default function SettingsPage() {
                               <DropdownMenuItem onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
                                 <RefreshCw className="mr-2 h-3 w-3" /> Recuperar conexão
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => recoverMissedMessages(inst.id)} disabled={healingId === inst.id}>
+                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar mensagens perdidas
+                              </DropdownMenuItem>
                               {!inst.is_default && (
                                 <DropdownMenuItem onClick={() => setDefault(inst.id)}>
                                   <Star className="mr-2 h-3 w-3" /> Definir como padrão
