@@ -408,12 +408,32 @@ export default function KanbanPage() {
               whatsappInstances={whatsappInstances}
             />
             <p className="px-2 text-xs text-muted-foreground">
-              {leads.length} leads · {stages.length} etapas
+              {normalizedQ ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
               {current?.kind === "internal" && <> · gestão interna</>}
               {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="kanban-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por nome ou telefone…"
+                className="h-8 w-64 pl-7 pr-7 text-sm"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-accent"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>
