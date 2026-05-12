@@ -48,6 +48,11 @@ function CardItem({ card, assignees, checklist, attendants, onOpen }: {
         {done ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
         <div className="min-w-0 flex-1 text-sm">{card.title}</div>
       </div>
+      {card.description && (
+        <div className="mt-1 line-clamp-2 whitespace-pre-wrap pl-6 text-xs text-muted-foreground">
+          {card.description}
+        </div>
+      )}
       {(due || checklist.length > 0 || card.description) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6 text-[11px] text-muted-foreground">
           {due && (
@@ -103,7 +108,7 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
   useEffect(() => setName(column.name), [column.name]);
 
   return (
-    <div ref={setNodeRef} className={cn("flex w-72 shrink-0 flex-col rounded-lg bg-muted/40 p-2", isOver && "ring-2 ring-primary/40")}>
+    <div ref={setNodeRef} className={cn("flex w-[36rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2", isOver && "ring-2 ring-primary/40")}>
       <div className="mb-2 flex items-center gap-2 px-1">
         {renaming ? (
           <Input
@@ -296,7 +301,7 @@ export default function Tasks() {
             />
           ))}
 
-          <div className="w-72 shrink-0">
+          <div className="w-[36rem] shrink-0">
             {addingCol ? (
               <div className="rounded-lg bg-muted/40 p-2">
                 <Input
