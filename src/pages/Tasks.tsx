@@ -73,15 +73,19 @@ function CardItem({ card, assignees, checklist, attendants, onOpen }: {
         </div>
       )}
       {assignees.length > 0 && (
-        <div className="mt-2 flex justify-end -space-x-1.5">
-          {assignees.slice(0, 4).map((id) => {
+        <div className="mt-2 flex flex-wrap justify-end gap-1">
+          {assignees.map((id) => {
             const a = attMap.get(id); if (!a) return null;
             return (
-              <Avatar key={id} className="h-5 w-5 border-2 border-card" title={a.name}>
-                <AvatarFallback style={{ background: a.color, color: "white", fontSize: 10 }}>
-                  {a.name.slice(0, 1).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <span
+                key={id}
+                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                style={{ background: a.color }}
+                title={a.name}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+                {a.name}
+              </span>
             );
           })}
         </div>
