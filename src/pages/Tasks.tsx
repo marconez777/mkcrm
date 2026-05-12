@@ -108,7 +108,7 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
   useEffect(() => setName(column.name), [column.name]);
 
   return (
-    <div ref={setNodeRef} className={cn("flex w-72 shrink-0 flex-col rounded-lg bg-muted/40 p-2", isOver && "ring-2 ring-primary/40")}>
+    <div ref={setNodeRef} className={cn("flex w-[36rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2", isOver && "ring-2 ring-primary/40")}>
       <div className="mb-2 flex items-center gap-2 px-1">
         {renaming ? (
           <Input
@@ -301,7 +301,7 @@ export default function Tasks() {
             />
           ))}
 
-          <div className="w-72 shrink-0">
+          <div className="w-[36rem] shrink-0">
             {addingCol ? (
               <div className="rounded-lg bg-muted/40 p-2">
                 <Input
