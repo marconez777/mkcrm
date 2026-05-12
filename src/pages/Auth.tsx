@@ -17,7 +17,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Entrar — CRM"; }, []);
+  useEffect(() => { document.title = "Entrar — MK CRM"; }, []);
 
   if (bootLoading) return null;
   if (session) return <Navigate to={from} replace />;
