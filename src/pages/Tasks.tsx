@@ -48,6 +48,11 @@ function CardItem({ card, assignees, checklist, attendants, onOpen }: {
         {done ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
         <div className="min-w-0 flex-1 text-sm">{card.title}</div>
       </div>
+      {card.description && (
+        <div className="mt-1 line-clamp-2 whitespace-pre-wrap pl-6 text-xs text-muted-foreground">
+          {card.description}
+        </div>
+      )}
       {(due || checklist.length > 0 || card.description) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6 text-[11px] text-muted-foreground">
           {due && (
