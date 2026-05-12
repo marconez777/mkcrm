@@ -28,7 +28,7 @@ export default function Onboarding() {
   const [inviteRole, setInviteRole] = useState<"admin" | "professional" | "viewer">("professional");
   const [generated, setGenerated] = useState<{ url: string; email: string }[]>([]);
 
-  useEffect(() => { document.title = "Onboarding — MKart CRM"; }, []);
+  useEffect(() => { document.title = "Onboarding — MK CRM"; }, []);
   useEffect(() => { if (membership?.clinic?.name) setClinicName(membership.clinic.name); }, [membership]);
 
   if (loading) return null;
@@ -89,7 +89,7 @@ export default function Onboarding() {
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-semibold">Bem-vindo(a) ao MKart CRM</h1>
+          <h1 className="text-2xl font-semibold">Bem-vindo(a) ao MK CRM</h1>
           <p className="text-sm text-muted-foreground">Vamos configurar sua clínica em 3 passos rápidos</p>
         </div>
 

@@ -30,7 +30,7 @@ export default function Admin() {
   const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "professional" | "viewer">("owner");
   const [generatedLink, setGeneratedLink] = useState<{ url: string; expires_at: string } | null>(null);
 
-  useEffect(() => { document.title = "Admin — MKart CRM"; }, []);
+  useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
   async function load() {
     const { data, error } = await supabase.from("clinics").select("*").order("created_at", { ascending: false });
