@@ -216,6 +216,40 @@ export default function Admin() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!openCreateUser} onOpenChange={(o) => !o && closeCreateUser()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar usuário — {openCreateUser?.name}</DialogTitle></DialogHeader>
+          <form onSubmit={createUser} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Nome (opcional)</Label>
+              <Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nome completo" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} required placeholder="pessoa@clinica.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Senha</Label>
+              <Input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" />
+              <p className="text-xs text-muted-foreground">O usuário poderá entrar imediatamente com este email e senha.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Papel</Label>
+              <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)}>
+                <option value="owner">Owner (dono da clínica)</option>
+                <option value="admin">Admin</option>
+                <option value="professional">Profissional</option>
+                <option value="viewer">Visualizador</option>
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeCreateUser}>Cancelar</Button>
+              <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar usuário</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
