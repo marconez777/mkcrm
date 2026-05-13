@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus } from "lucide-react";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string };
 
