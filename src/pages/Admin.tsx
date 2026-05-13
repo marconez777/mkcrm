@@ -24,11 +24,16 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [openInvite, setOpenInvite] = useState<Clinic | null>(null);
+  const [openCreateUser, setOpenCreateUser] = useState<Clinic | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "professional" | "viewer">("owner");
   const [generatedLink, setGeneratedLink] = useState<{ url: string; expires_at: string } | null>(null);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"owner" | "admin" | "professional" | "viewer">("professional");
 
   useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
