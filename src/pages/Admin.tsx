@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus } from "lucide-react";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string };
 
@@ -24,11 +24,16 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [openInvite, setOpenInvite] = useState<Clinic | null>(null);
+  const [openCreateUser, setOpenCreateUser] = useState<Clinic | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "professional" | "viewer">("owner");
   const [generatedLink, setGeneratedLink] = useState<{ url: string; expires_at: string } | null>(null);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"owner" | "admin" | "professional" | "viewer">("professional");
 
   useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
@@ -86,6 +91,30 @@ export default function Admin() {
     if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
   }
 
+  function closeCreateUser() {
+    setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional");
+  }
+
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!openCreateUser) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("clinic-create-user", {
+        body: {
+          clinic_id: openCreateUser.id,
+          email: newUserEmail,
+          password: newUserPassword,
+          full_name: newUserName || null,
+          role: newUserRole,
+        },
+      });
+      if (error) throw error;
+      toast.success("Usuário criado");
+      closeCreateUser();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -134,6 +163,7 @@ export default function Admin() {
                 <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                 <TableCell>{c.plan}</TableCell>
                 <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => setOpenCreateUser(c)}><UserPlus className="mr-1 h-3 w-3" />Criar usuário</Button>
                   <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Gerar convite</Button>
                   <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
                 </TableCell>
@@ -184,6 +214,40 @@ export default function Admin() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!openCreateUser} onOpenChange={(o) => !o && closeCreateUser()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar usuário — {openCreateUser?.name}</DialogTitle></DialogHeader>
+          <form onSubmit={createUser} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Nome (opcional)</Label>
+              <Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nome completo" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} required placeholder="pessoa@clinica.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Senha</Label>
+              <Input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" />
+              <p className="text-xs text-muted-foreground">O usuário poderá entrar imediatamente com este email e senha.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Papel</Label>
+              <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)}>
+                <option value="owner">Owner (dono da clínica)</option>
+                <option value="admin">Admin</option>
+                <option value="professional">Profissional</option>
+                <option value="viewer">Visualizador</option>
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeCreateUser}>Cancelar</Button>
+              <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar usuário</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
