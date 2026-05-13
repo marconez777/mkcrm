@@ -163,6 +163,7 @@ export default function Admin() {
                 <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                 <TableCell>{c.plan}</TableCell>
                 <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => setOpenCreateUser(c)}><UserPlus className="mr-1 h-3 w-3" />Criar usuário</Button>
                   <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Gerar convite</Button>
                   <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
                 </TableCell>
