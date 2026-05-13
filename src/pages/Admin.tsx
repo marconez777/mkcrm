@@ -91,6 +91,30 @@ export default function Admin() {
     if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
   }
 
+  function closeCreateUser() {
+    setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional");
+  }
+
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!openCreateUser) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("clinic-create-user", {
+        body: {
+          clinic_id: openCreateUser.id,
+          email: newUserEmail,
+          password: newUserPassword,
+          full_name: newUserName || null,
+          role: newUserRole,
+        },
+      });
+      if (error) throw error;
+      toast.success("Usuário criado");
+      closeCreateUser();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex items-center justify-between">
