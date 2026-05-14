@@ -14,7 +14,7 @@ export async function ingestChunks(agent_id: string, doc_id: string, fullText: s
   const rows: any[] = [];
   for (let i = 0; i < chunks.length; i += 16) {
     const batch = chunks.slice(i, i + 16);
-    const vectors = await embed(agent, batch);
+    const vectors = await embed(agent, batch, { agent_id, note: `ingest:doc:${doc_id}` });
     batch.forEach((c, j) => {
       rows.push({
         document_id: doc_id, agent_id,
