@@ -310,7 +310,6 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     throw e;
   }
 }
-}
 
 async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?: string | null): Promise<number[][]> {
   const url = (baseUrl?.replace(/\/+$/, "") || "https://api.openai.com/v1") + "/embeddings";
