@@ -16,6 +16,7 @@ import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
 import MetricsOps from "./pages/MetricsOps";
 import MetricsAiUsage from "./pages/MetricsAiUsage";
+import AgentMemories from "./pages/AgentMemories";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsTracking from "./pages/SettingsTracking";
@@ -67,6 +68,7 @@ const App = () => (
                       <Route path="/metrics" element={<MetricsOps />} />
                       <Route path="/metrics/ai" element={<Metrics />} />
                       <Route path="/metrics/ai-usage" element={<MetricsAiUsage />} />
+                      <Route path="/agents/memories" element={<AgentMemories />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
                       <Route path="/settings/tracking" element={<SettingsTracking />} />
