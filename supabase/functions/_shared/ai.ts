@@ -64,11 +64,37 @@ export async function chatCompletion(
   agent: Agent,
   messages: ChatMessage[],
   tools?: any[],
+  ctx?: LogCtx,
 ): Promise<NormalizedResponse> {
-  if (agent.provider === "openai") return openaiChat(agent, messages, tools);
-  if (agent.provider === "anthropic") return anthropicChat(agent, messages, tools);
-  if (agent.provider === "google") return googleChat(agent, messages, tools);
-  throw new Error(`unknown provider ${agent.provider}`);
+  const startedAt = Date.now();
+  let resp: NormalizedResponse;
+  try {
+    if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
+    else if (agent.provider === "anthropic") resp = await anthropicChat(agent, messages, tools);
+    else if (agent.provider === "google") resp = await googleChat(agent, messages, tools);
+    else throw new Error(`unknown provider ${agent.provider}`);
+  } catch (e) {
+    if (ctx) {
+      logUsage({
+        ...ctx, model: agent.model, operation: "chat", status: "error",
+        error: String(e).slice(0, 500), latency_ms: Date.now() - startedAt,
+      });
+    }
+    throw e;
+  }
+  if (ctx) {
+    const u = resp.usage;
+    logUsage({
+      ...ctx, model: agent.model, operation: "chat",
+      status: resp.ok ? "success" : "error",
+      input_tokens: u?.prompt_tokens ?? null,
+      output_tokens: u?.completion_tokens ?? null,
+      total_tokens: u?.total_tokens ?? null,
+      latency_ms: Date.now() - startedAt,
+      error: resp.ok ? (ctx.note ?? null) : (resp.errorText?.slice(0, 500) ?? `provider ${resp.status}`),
+    });
+  }
+  return resp;
 }
 
 async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
