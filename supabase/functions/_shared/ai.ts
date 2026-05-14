@@ -270,19 +270,46 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
 
 // ---------- EMBEDDINGS (always 768 dims to match ai_chunks) ----------
 
-export async function embed(agent: Agent, texts: string[]): Promise<number[][]> {
-  // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
-  // else use the same provider's native embedding endpoint.
-  if (agent.embedding_api_key) {
-    return openaiEmbed(agent.embedding_api_key, agent.embedding_model || "text-embedding-3-small", texts, agent.base_url);
+export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promise<number[][]> {
+  const startedAt = Date.now();
+  let model = "unknown";
+  try {
+    let vectors: number[][];
+    // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
+    // else use the same provider's native embedding endpoint.
+    if (agent.embedding_api_key) {
+      model = agent.embedding_model || "text-embedding-3-small";
+      vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
+    } else if (agent.provider === "openai") {
+      model = agent.embedding_model || "text-embedding-3-small";
+      vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
+    } else if (agent.provider === "google") {
+      model = agent.embedding_model || "text-embedding-004";
+      vectors = await googleEmbed(requireKey(agent), model, texts);
+    } else {
+      throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
+    }
+    if (ctx) {
+      // OpenAI/Google embedding APIs return token counts only on OpenAI; we estimate via char/4 fallback.
+      const approxIn = texts.reduce((s, t) => s + Math.ceil((t?.length ?? 0) / 4), 0);
+      logUsage({
+        ...ctx, model, operation: "embed", status: "success",
+        input_tokens: approxIn, output_tokens: 0, total_tokens: approxIn,
+        latency_ms: Date.now() - startedAt,
+        error: ctx.note ?? null,
+      });
+    }
+    return vectors;
+  } catch (e) {
+    if (ctx) {
+      logUsage({
+        ...ctx, model, operation: "embed", status: "error",
+        error: String(e).slice(0, 500), latency_ms: Date.now() - startedAt,
+      });
+    }
+    throw e;
   }
-  if (agent.provider === "openai") {
-    return openaiEmbed(requireKey(agent), agent.embedding_model || "text-embedding-3-small", texts, agent.base_url);
-  }
-  if (agent.provider === "google") {
-    return googleEmbed(requireKey(agent), agent.embedding_model || "text-embedding-004", texts);
-  }
-  throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
+}
 }
 
 async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?: string | null): Promise<number[][]> {
