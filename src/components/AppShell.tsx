@@ -26,7 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const restricted = new Set(["/agents", "/automations", "/sequences", "/templates"]);
   let navItems = isProfessional ? items.filter((i) => !restricted.has(i.to)) : items;
-  if (isClinicAdmin) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+  if (isClinicAdmin) navItems = [...navItems, { to: "/metrics/ai-usage", label: "Custos IA", icon: Coins }, { to: "/team", label: "Equipe", icon: Users }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
