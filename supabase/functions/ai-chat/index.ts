@@ -466,7 +466,7 @@ Deno.serve(async (req) => {
         error: resp.ok ? null : `${resp.status}`,
       });
       if (!resp.ok) {
-        await logUsage({ agent_id, lead_id, model: agent.model, status: "error", error: `provider ${resp.status}`, latency_ms: Date.now() - startedAt });
+        // chatCompletion auto-logs the error to ai_usage when ctx is provided.
         return json({ error: `${agent.provider} error ${resp.status}`, detail: resp.errorText?.slice(0, 400) }, 502);
       }
       const u = resp.usage;
