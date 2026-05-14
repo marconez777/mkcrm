@@ -19,14 +19,30 @@ const items = [
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
+type NavItem = { to: string; label: string; icon: typeof LayoutGrid; children?: NavItem[] };
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
   const { user, isSuperAdmin, membership } = useAuth();
+  const location = useLocation();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const restricted = new Set(["/agents", "/automations", "/sequences", "/templates"]);
-  let navItems = isProfessional ? items.filter((i) => !restricted.has(i.to)) : items;
-  if (isClinicAdmin) navItems = [...navItems, { to: "/agents/memories", label: "Memórias IA", icon: Brain }, { to: "/metrics/ai-usage", label: "Custos IA", icon: Coins }, { to: "/team", label: "Equipe", icon: Users }];
+  let navItems: NavItem[] = isProfessional ? items.filter((i) => !restricted.has(i.to)) : [...items];
+  if (isClinicAdmin) {
+    navItems = navItems.map((i) =>
+      i.to === "/agents"
+        ? {
+            ...i,
+            children: [
+              { to: "/agents/memories", label: "Memórias IA", icon: Brain },
+              { to: "/metrics/ai-usage", label: "Custos IA", icon: Coins },
+            ],
+          }
+        : i
+    );
+    navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+  }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
