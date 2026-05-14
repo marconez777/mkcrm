@@ -458,6 +458,7 @@ Deno.serve(async (req) => {
       const resp = await chatCompletion(
         agent, conv,
         budgetExhausted ? undefined : (tools.length > 0 ? tools : undefined),
+        { agent_id, lead_id, thread_id, note: `iter:${iter}` },
       );
       await logTrace(supabase, {
         run_id: runId, agent_id, thread_id, lead_id, step: step++, kind: "llm", name: agent.model,
