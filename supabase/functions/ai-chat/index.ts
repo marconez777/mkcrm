@@ -544,11 +544,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Aggregate "turn summary" row — one per user turn — so the cost dashboard
+    // can show "replied" + tools_called alongside the per-iteration rows above.
     await logUsage({
       agent_id, lead_id, thread_id: threadId, model: agent.model,
-      input_tokens: totalIn || null, output_tokens: totalOut || null, total_tokens: totalTok || null,
+      input_tokens: 0, output_tokens: 0, total_tokens: 0,
       latency_ms: Date.now() - startedAt, tools_called: usedTools.length,
-      replied: !!finalContent, status: "success",
+      replied: !!finalContent, status: "success", error: "turn:summary",
     });
 
     return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });
