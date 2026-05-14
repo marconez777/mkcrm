@@ -2,6 +2,19 @@
 // Chat: OpenAI / Anthropic / Google. Returned shape is normalized to OpenAI-like:
 //   { ok, status, choices:[{message:{content, tool_calls?:[{id,function:{name,arguments}}]}}], usage:{prompt_tokens,completion_tokens,total_tokens} }
 // Embeddings: provider-native (openai or google). All embeddings forced to 768 dims to match ai_chunks.
+//
+// All chat and embed calls auto-log to ai_usage when a `ctx` is provided.
+
+import { logUsage } from "./metrics.ts";
+
+export type LogCtx = {
+  agent_id?: string | null;
+  lead_id?: string | null;
+  thread_id?: string | null;
+  automation_id?: string | null;
+  /** Free-form label appended to error column when status==="success" (e.g. "hyde", "rewrite", "ingest"). */
+  note?: string | null;
+};
 
 export type Agent = {
   id: string;
