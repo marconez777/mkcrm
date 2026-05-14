@@ -68,6 +68,7 @@ const App = () => (
                       <Route path="/metrics" element={<MetricsOps />} />
                       <Route path="/metrics/ai" element={<Metrics />} />
                       <Route path="/metrics/ai-usage" element={<MetricsAiUsage />} />
+                      <Route path="/agents/memories" element={<AgentMemories />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
                       <Route path="/settings/tracking" element={<SettingsTracking />} />
