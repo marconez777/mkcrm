@@ -25,7 +25,7 @@ const fetchJSON = async (url: string, init: RequestInit) => {
 };
 
 /** Use a cheap LLM call to rewrite the user query using prior history. */
-async function rewriteQuery(agent: Agent, history: ChatMessage[], query: string): Promise<string> {
+async function rewriteQuery(agent: Agent, history: ChatMessage[], query: string, leadId?: string | null): Promise<string> {
   if (history.length < 2) return query;
   try {
     const sys: ChatMessage = {
@@ -36,7 +36,9 @@ async function rewriteQuery(agent: Agent, history: ChatMessage[], query: string)
     };
     const recent = history.slice(-6).map((m) => `${m.role}: ${m.content}`).join("\n");
     const usr: ChatMessage = { role: "user", content: `Conversa:\n${recent}\n\nPergunta atual: ${query}\n\nConsulta:` };
-    const r = await chatCompletion({ ...agent, temperature: 0 }, [sys, usr]);
+    const r = await chatCompletion({ ...agent, temperature: 0 }, [sys, usr], undefined, {
+      agent_id: agent.id, lead_id: leadId ?? null, note: "rag:rewrite",
+    });
     const out = r.choices?.[0]?.message?.content?.trim();
     return out && out.length < 400 ? out : query;
   } catch {
@@ -45,13 +47,15 @@ async function rewriteQuery(agent: Agent, history: ChatMessage[], query: string)
 }
 
 /** Generate a hypothetical answer (HyDE) — embed it instead of the question. */
-async function hydeAnswer(agent: Agent, query: string): Promise<string | undefined> {
+async function hydeAnswer(agent: Agent, query: string, leadId?: string | null): Promise<string | undefined> {
   try {
     const sys: ChatMessage = {
       role: "system",
       content: "Escreva um parágrafo curto que pareça ser a resposta ideal à pergunta. Seja específico e factual.",
     };
-    const r = await chatCompletion({ ...agent, temperature: 0.2 }, [sys, { role: "user", content: query }]);
+    const r = await chatCompletion({ ...agent, temperature: 0.2 }, [sys, { role: "user", content: query }], undefined, {
+      agent_id: agent.id, lead_id: leadId ?? null, note: "rag:hyde",
+    });
     return r.choices?.[0]?.message?.content?.trim() || undefined;
   } catch {
     return undefined;
