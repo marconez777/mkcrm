@@ -1339,6 +1339,186 @@ export type Database = {
           },
         ]
       }
+      message_sequence_enrollments: {
+        Row: {
+          clinic_id: string
+          current_step: number
+          ended_at: string | null
+          id: string
+          lead_id: string
+          next_run_at: string | null
+          sequence_id: string
+          source: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          clinic_id?: string
+          current_step?: number
+          ended_at?: string | null
+          id?: string
+          lead_id: string
+          next_run_at?: string | null
+          sequence_id: string
+          source?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          clinic_id?: string
+          current_step?: number
+          ended_at?: string | null
+          id?: string
+          lead_id?: string
+          next_run_at?: string | null
+          sequence_id?: string
+          source?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "message_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_sequence_runs: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          detail: string | null
+          enrollment_id: string
+          id: string
+          message_id: string | null
+          status: string
+          step_id: string | null
+        }
+        Insert: {
+          clinic_id?: string
+          created_at?: string
+          detail?: string | null
+          enrollment_id: string
+          id?: string
+          message_id?: string | null
+          status: string
+          step_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          detail?: string | null
+          enrollment_id?: string
+          id?: string
+          message_id?: string | null
+          status?: string
+          step_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_sequence_runs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "message_sequence_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_sequence_steps: {
+        Row: {
+          clinic_id: string
+          content: string | null
+          created_at: string
+          delay_minutes: number
+          id: string
+          position: number
+          send_window: Json | null
+          sequence_id: string
+          template_id: string | null
+        }
+        Insert: {
+          clinic_id?: string
+          content?: string | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          position?: number
+          send_window?: Json | null
+          sequence_id: string
+          template_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          content?: string | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          position?: number
+          send_window?: Json | null
+          sequence_id?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "message_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_sequences: {
+        Row: {
+          clinic_id: string
+          cooldown_days: number
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          name: string
+          public_token: string
+          stop_on_reply: boolean
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          clinic_id?: string
+          cooldown_days?: number
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name: string
+          public_token?: string
+          stop_on_reply?: boolean
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          cooldown_days?: number
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          public_token?: string
+          stop_on_reply?: boolean
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: []
+      }
       message_templates: {
         Row: {
           clinic_id: string
