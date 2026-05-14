@@ -232,7 +232,7 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
     }
     if (name === "remember_fact") {
       try {
-        const [vec] = await embed(agent, [args.content]);
+        const [vec] = await embed(agent, [args.content], { agent_id: agent.id, lead_id: leadId, note: "tool:remember_fact" });
         await supabase.from("agent_memory").insert({ agent_id: agent.id, lead_id: leadId, kind: args.kind, content: args.content, embedding: vec as any });
         return { ok: true };
       } catch (e) {
