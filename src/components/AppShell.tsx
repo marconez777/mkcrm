@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield, Users } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield, Users, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ const items = [
   { to: "/tasks", label: "Tarefas", icon: CalendarClock },
   { to: "/agents", label: "Agentes IA", icon: Bot },
   { to: "/automations", label: "Automações", icon: Zap },
+  { to: "/sequences", label: "Sequências", icon: Mail },
   { to: "/templates", label: "Templates", icon: FileText },
   { to: "/metrics", label: "Métricas", icon: BarChart3 },
   { to: "/metrics/ai", label: "Métricas IA", icon: Activity },
@@ -23,7 +24,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isSuperAdmin, membership } = useAuth();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
-  const restricted = new Set(["/agents", "/automations", "/templates"]);
+  const restricted = new Set(["/agents", "/automations", "/sequences", "/templates"]);
   let navItems = isProfessional ? items.filter((i) => !restricted.has(i.to)) : items;
   if (isClinicAdmin) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];

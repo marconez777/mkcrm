@@ -11,6 +11,7 @@ import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import Agents from "./pages/Agents";
 import Automations from "./pages/Automations";
+import Sequences from "./pages/Sequences";
 import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
 import MetricsOps from "./pages/MetricsOps";
@@ -60,6 +61,7 @@ const App = () => (
                       <Route path="/inbox/:leadId" element={<Inbox />} />
                       <Route path="/agents" element={<Agents />} />
                       <Route path="/automations" element={<Automations />} />
+                      <Route path="/sequences" element={<Sequences />} />
                       <Route path="/templates" element={<Templates />} />
                       <Route path="/metrics" element={<MetricsOps />} />
                       <Route path="/metrics/ai" element={<Metrics />} />
