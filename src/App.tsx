@@ -15,6 +15,7 @@ import Sequences from "./pages/Sequences";
 import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
 import MetricsOps from "./pages/MetricsOps";
+import MetricsAiUsage from "./pages/MetricsAiUsage";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsTracking from "./pages/SettingsTracking";
