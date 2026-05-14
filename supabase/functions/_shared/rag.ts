@@ -143,20 +143,20 @@ export async function retrieveContext(opts: {
   const { supabase, agent, query, history, leadId } = opts;
 
   // 1. Query rewriting
-  const rewritten = await rewriteQuery(agent, history, query);
+  const rewritten = await rewriteQuery(agent, history, query, leadId);
 
   // 2. Optional HyDE
   let textForEmbed = rewritten;
   let hyde: string | undefined;
   if (agent.use_hyde) {
-    hyde = await hydeAnswer(agent, rewritten);
+    hyde = await hydeAnswer(agent, rewritten, leadId);
     if (hyde) textForEmbed = hyde;
   }
 
   // 3. Embed
   let queryVec: number[] | null = null;
   try {
-    const [v] = await embed(agent, [textForEmbed]);
+    const [v] = await embed(agent, [textForEmbed], { agent_id: agent.id, lead_id: leadId ?? null, note: "rag:query" });
     queryVec = v;
   } catch (e) {
     console.error("rag embed error", e);
