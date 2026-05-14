@@ -1,6 +1,6 @@
 // Cron tick: processes due message_sequence_enrollments.
 // Runs every minute via pg_cron.
-import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 
 function renderVars(text: string, lead: any): string {
   const name = lead?.name || lead?.phone || "";
@@ -33,8 +33,6 @@ function inSendWindow(window: any): boolean {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  const auth = await requireUser(req);
-  if (auth instanceof Response) return auth;
   const supabase = sb();
 
   try {
