@@ -76,24 +76,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 px-3 py-2">
-          {navItems.map((it) => (
-            <NavLink
-              key={it.to}
-              to={it.to}
-              end
-              className={({ isActive }) =>
-                cn(
-                  "mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-                )
-              }
-            >
-              <it.icon className="h-4 w-4" />
-              {it.label}
-            </NavLink>
-          ))}
+          {navItems.map((it) => {
+            const childActive = it.children?.some((c) => location.pathname.startsWith(c.to));
+            const showChildren = it.children && (location.pathname === it.to || childActive);
+            return (
+              <div key={it.to}>
+                <NavLink
+                  to={it.to}
+                  end
+                  className={({ isActive }) =>
+                    cn(
+                      "mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                    )
+                  }
+                >
+                  <it.icon className="h-4 w-4" />
+                  {it.label}
+                </NavLink>
+                {showChildren && (
+                  <div className="ml-4 mb-1 border-l border-sidebar-border/40 pl-2">
+                    {it.children!.map((c) => (
+                      <NavLink
+                        key={c.to}
+                        to={c.to}
+                        end
+                        className={({ isActive }) =>
+                          cn(
+                            "mb-1 flex items-center gap-3 rounded-md px-3 py-1.5 text-xs transition-colors",
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                          )
+                        }
+                      >
+                        <c.icon className="h-3.5 w-3.5" />
+                        {c.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="mx-3 mb-2 flex items-center gap-1">
           <NavLink
