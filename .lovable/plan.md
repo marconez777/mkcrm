@@ -1,90 +1,66 @@
+## Objetivo
 
-# Automação de Mensagens (sequências tipo email marketing)
+Criar uma tela de **Histórico de uso da API de IA** com detalhamento por chamada (modelo, tokens, custo USD, agente, lead, ação), visível apenas para o **admin da clínica** (e super admin global). Já temos a tabela `ai_usage` populada — falta exibir com custo calculado e permitir filtragem/auditoria.
 
-Nova tela `/sequences` para criar **sequências de mensagens WhatsApp** disparadas por gatilhos, com steps em intervalos (minutos/horas/dias), parada automática na resposta do lead, e webhook público para o site de testes de depressão criar lead + iniciar sequência.
+Em paralelo, investigar o pico recente nos créditos da OpenAI usando os dados que já temos.
 
-## Conceito
+---
 
-```
-Gatilho  ─▶  Inscreve lead na Sequência  ─▶  Cron processa steps
-   │                                              │
-   ├ Lead movido para coluna X                    ├ Step 1 (após 0min)
-   ├ Webhook do site (teste de depressão)         ├ Step 2 (após 2h)
-   └ Manual (botão no lead)                       └ Step N (após 1d)
-                                                  
-Parada: lead respondeu  |  cancelado manualmente
-```
+## O que será entregue
 
-## Tela `/sequences`
+### 1. Tabela de preços por modelo (frontend, estática)
+Mapa `model → { input_per_1m, output_per_1m }` em `src/lib/ai-pricing.ts` cobrindo os modelos atualmente em uso (gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini, gpt-5-nano, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, embeddings text-embedding-3-*). Cálculo: `cost = input_tokens * in/1M + output_tokens * out/1M`.
 
-- **Lista** de sequências (nome, gatilho, status enabled/paused, nº de inscritos ativos, taxa de resposta).
-- **Editor** de sequência:
-  - Nome, descrição, enabled.
-  - **Gatilho**: `stage_enter` (escolhe pipeline+stage) ou `webhook` (mostra URL pública + token) ou `manual`.
-  - **Instância de WhatsApp**: dropdown (instância principal do CRM ou outra cadastrada). Permite cadastrar nova via Evolution.
-  - **Parar quando**: lead responder (default on), manualmente.
-  - **Cooldown de re-inscrição** (não reentrar nos próximos N dias).
-  - **Steps** (lista ordenável):
-    - Atraso desde o anterior (valor + unidade min/h/d).
-    - Conteúdo: escolhe um Template existente OU texto livre com variáveis `{{nome}}`, `{{primeiro_nome}}`, etc.
-    - (Opcional) Janela de envio: só entre HH:MM-HH:MM dias úteis, para não mandar de madrugada.
-- **Aba "Inscritos"** por sequência: lista de leads ativos/concluídos/cancelados, com próximo step e botão de cancelar.
+> Valores ficam em código (fáceis de atualizar) — sem tabela nova no banco.
 
-## Webhook público para o site
+### 2. Nova página `/metrics/ai-usage`
+Acessível só para `is_clinic_admin` (e super_admin). Adicionada ao menu junto com as outras métricas.
 
-Endpoint `POST /functions/v1/sequence-trigger` (sem JWT):
-```json
-{ "token": "<sequence_token>", "phone": "+5511...", "name": "Joana", "tags": ["teste-depressao"], "metadata": {...} }
-```
-- Valida token da sequência.
-- Cria/atualiza lead no clinic dono da sequência (matching por phone).
-- Inscreve na sequência (respeitando cooldown).
-- Retorna `{ ok, lead_id, enrollment_id }`.
+**Layout:**
+- **Cards de resumo** (período selecionado): custo total USD, tokens totais, nº de chamadas, % erro, custo médio por chamada.
+- **Filtros**: período (24h / 7d / 30d / customizado), modelo, agente, operação (chat/embed/tool), status, "só com erro".
+- **Gráfico** custo por dia empilhado por modelo (barras).
+- **Top consumidores**:
+  - Por agente (custo, chamadas, tokens)
+  - Por modelo (custo, tokens in/out)
+  - Por lead (top 20 leads que mais custaram — ajuda a achar loop/spam)
+  - Por operação (chat vs embed vs tool)
+- **Tabela detalhada** (paginada, 50/pág, ordenável):
+  `data | modelo | operação | agente | lead (link) | input | output | total | latência | status | custo USD | erro`
+  Linha clicável abre drawer com detalhes completos (incluindo `automation_id`, `thread_id`, mensagem de erro).
+- **Export CSV** do filtro atual.
 
-O site no outro projeto Lovable só precisa fazer um `fetch` para essa URL com o token que aparece no editor da sequência.
+### 3. RLS / acesso
+`ai_usage` já tem `clinic_scoped` (RLS por `clinic_id`). Não precisa de migração — apenas guard de rota no frontend (`is_clinic_admin` no `useAuth`). Atendentes comuns não veem.
 
-## Schema (migrations)
+### 4. Investigação do pico (entrego junto)
+Rodo consultas em `ai_usage` para os últimos 14 dias e te mostro:
+- Custo por dia × modelo (achar qual modelo disparou)
+- Top 10 agentes que mais consumiram nos últimos 3 dias vs. semana anterior
+- Top 10 leads que mais consumiram (loop de auto-reply?)
+- Operações com `tools_called` alto (possível loop de tool-calling)
+- Chamadas com `total_tokens` anormalmente grandes (RAG retornando contexto enorme?)
 
-- **`message_sequences`**: id, clinic_id, name, description, enabled, trigger_type (`stage_enter|webhook|manual`), trigger_config jsonb (stage_id), whatsapp_instance_id, stop_on_reply bool, cooldown_days int, public_token text unique (para webhook), created_at, updated_at.
-- **`message_sequence_steps`**: id, sequence_id, position, delay_minutes int, template_id nullable, content text nullable, send_window jsonb nullable (horários permitidos), created_at.
-- **`message_sequence_enrollments`**: id, clinic_id, sequence_id, lead_id, status (`active|completed|canceled|stopped_by_reply`), current_step int, next_run_at timestamptz, started_at, ended_at, source jsonb (de onde veio: stage/webhook/manual + payload).
-- **`message_sequence_runs`**: id, enrollment_id, step_id, status (`sent|failed|skipped`), message_id nullable, error text, created_at.
-- Índice em `enrollments(status, next_run_at)` para o cron.
-- RLS clinic_scoped em todas (igual padrão atual).
+Resultado vai como nota no chat para você decidir se ajustamos algo (ex.: baixar `max_iterations`, trocar modelo default, limitar `rag_top_k`).
 
-## Edge functions
+---
 
-1. **`sequence-trigger`** (verify_jwt=false): webhook público descrito acima.
-2. **`sequence-enroll`** (interno): cria enrollment, agenda step 1.
-3. **`sequence-tick`** (cron a cada 1min): pega enrollments `active` com `next_run_at <= now()`, renderiza variáveis, chama `evolution-send` (com a instância configurada), grava run, avança step ou completa.
-4. **Trigger DB** em `leads.stage_id`: chama `sequence-enroll` para sequências com `trigger_type='stage_enter'` e stage correspondente (via pg_net ou hook em edge function que já escuta mudanças — mais simples: cron `sequence-tick` também detecta novos enters comparando `stage_changed_at`).
-5. **Hook em `messages` INSERT** (from_me=false): se há enrollment ativo do lead com `stop_on_reply=true`, marca como `stopped_by_reply`. Implementado dentro do `evolution-webhook` que já processa inbound.
+## Detalhes técnicos
 
-## Múltiplas instâncias de WhatsApp
+- Arquivos novos:
+  - `src/lib/ai-pricing.ts` — tabela de preços + função `calcCost(model, in, out)`.
+  - `src/pages/MetricsAiUsage.tsx` — página completa.
+- Arquivos editados:
+  - `src/App.tsx` — rota `/metrics/ai-usage` protegida.
+  - `src/components/AppShell.tsx` — item de menu "Custos IA" visível só para admin da clínica.
+- Sem mudanças em edge functions, sem migração de banco.
+- Query base: `supabase.from("ai_usage").select("*").gte("created_at", ...)` com paginação via `.range()`.
+- Para somatórios do período inteiro (sem trazer 50k linhas pro browser), uso uma RPC simples `ai_usage_summary(since, until)` retornando agregados por modelo/agente/dia. **Essa sim precisa de migração** (uma função `SECURITY INVOKER`, respeita RLS automaticamente).
 
-Já existe `whatsapp_instance_id` em `pipelines` e `leads`. Adiciono o mesmo campo em `message_sequences` e o `sequence-tick` passa essa instância para `evolution-send`. Para cadastrar uma nova instância dedicada, reuso o fluxo de `evolution-provision` + QR já existente (na tela de Settings já dá pra criar; deixo um link rápido no editor).
+---
 
-## Sobre o n8n
+## Fora do escopo (posso fazer depois se quiser)
 
-Não é necessário — tudo que o JSON do n8n faz (ler planilha, filtrar horário, enviar texto) cabe em `sequence-tick` + Evolution. Vantagens de fazer aqui:
-- Inscrição automática por stage/webhook (n8n só lê planilha).
-- Para na resposta do lead automaticamente.
-- Métricas e logs no mesmo lugar do CRM.
-- Sem manter dois sistemas.
-
-Se quiser manter o n8n como executor, dá pra adicionar depois um `action_type='webhook'` que chama uma URL configurada — mas sugiro começar nativo.
-
-## Sobre IA / OpenAI
-
-A sequência em si não precisa de IA. Se quiser, em uma versão futura cada step pode ter flag "personalizar com IA" que passa o template + contexto do lead pelo Lovable AI Gateway antes de enviar. Fora do MVP.
-
-## Entregas do MVP
-
-1. Migrations das 4 tabelas + RLS + índices.
-2. Edge functions `sequence-trigger`, `sequence-tick` (cron 1min via pg_cron), `sequence-enroll`.
-3. Hook de parada em `evolution-webhook` (inbound → stop enrollment).
-4. Tela `/sequences` (lista + editor + inscritos) e link no menu lateral.
-5. Botão "Inscrever em sequência" no drawer do lead (gatilho manual).
-6. Doc curta para colar no projeto do site com o snippet de `fetch` para o webhook.
-
-Me confirma que posso seguir nesse formato (nativo no CRM, sem n8n) que já implemento.
+- Limites/alertas de gasto por clínica (ex.: avisar quando passar de X USD/dia).
+- Tela equivalente para o super_admin global ver custo agregado de todas as clínicas.
+- Armazenar `cost_usd` calculado direto na linha do `ai_usage` (hoje calculo no front).
