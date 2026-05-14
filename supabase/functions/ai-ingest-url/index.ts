@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     const rows: any[] = [];
     for (let i = 0; i < chunks.length; i += 16) {
       const batch = chunks.slice(i, i + 16);
-      const vectors = await embed(agent as Agent, batch);
+      const vectors = await embed(agent as Agent, batch, { agent_id, note: `ingest:url:${doc.id}` });
       batch.forEach((c, j) => {
         rows.push({
           document_id: doc.id, agent_id, chunk_index: i + j,

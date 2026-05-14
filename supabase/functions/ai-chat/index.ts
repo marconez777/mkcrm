@@ -232,7 +232,7 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
     }
     if (name === "remember_fact") {
       try {
-        const [vec] = await embed(agent, [args.content]);
+        const [vec] = await embed(agent, [args.content], { agent_id: agent.id, lead_id: leadId, note: "tool:remember_fact" });
         await supabase.from("agent_memory").insert({ agent_id: agent.id, lead_id: leadId, kind: args.kind, content: args.content, embedding: vec as any });
         return { ok: true };
       } catch (e) {
@@ -458,6 +458,7 @@ Deno.serve(async (req) => {
       const resp = await chatCompletion(
         agent, conv,
         budgetExhausted ? undefined : (tools.length > 0 ? tools : undefined),
+        { agent_id, lead_id, thread_id, note: `iter:${iter}` },
       );
       await logTrace(supabase, {
         run_id: runId, agent_id, thread_id, lead_id, step: step++, kind: "llm", name: agent.model,
@@ -465,7 +466,7 @@ Deno.serve(async (req) => {
         error: resp.ok ? null : `${resp.status}`,
       });
       if (!resp.ok) {
-        await logUsage({ agent_id, lead_id, model: agent.model, status: "error", error: `provider ${resp.status}`, latency_ms: Date.now() - startedAt });
+        // chatCompletion auto-logs the error to ai_usage when ctx is provided.
         return json({ error: `${agent.provider} error ${resp.status}`, detail: resp.errorText?.slice(0, 400) }, 502);
       }
       const u = resp.usage;
@@ -543,11 +544,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Aggregate "turn summary" row — one per user turn — so the cost dashboard
+    // can show "replied" + tools_called alongside the per-iteration rows above.
     await logUsage({
       agent_id, lead_id, thread_id: threadId, model: agent.model,
-      input_tokens: totalIn || null, output_tokens: totalOut || null, total_tokens: totalTok || null,
+      input_tokens: 0, output_tokens: 0, total_tokens: 0,
       latency_ms: Date.now() - startedAt, tools_called: usedTools.length,
-      replied: !!finalContent, status: "success",
+      replied: !!finalContent, status: "success", error: "turn:summary",
     });
 
     return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });

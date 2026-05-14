@@ -2,6 +2,19 @@
 // Chat: OpenAI / Anthropic / Google. Returned shape is normalized to OpenAI-like:
 //   { ok, status, choices:[{message:{content, tool_calls?:[{id,function:{name,arguments}}]}}], usage:{prompt_tokens,completion_tokens,total_tokens} }
 // Embeddings: provider-native (openai or google). All embeddings forced to 768 dims to match ai_chunks.
+//
+// All chat and embed calls auto-log to ai_usage when a `ctx` is provided.
+
+import { logUsage } from "./metrics.ts";
+
+export type LogCtx = {
+  agent_id?: string | null;
+  lead_id?: string | null;
+  thread_id?: string | null;
+  automation_id?: string | null;
+  /** Free-form label appended to error column when status==="success" (e.g. "hyde", "rewrite", "ingest"). */
+  note?: string | null;
+};
 
 export type Agent = {
   id: string;
@@ -51,11 +64,37 @@ export async function chatCompletion(
   agent: Agent,
   messages: ChatMessage[],
   tools?: any[],
+  ctx?: LogCtx,
 ): Promise<NormalizedResponse> {
-  if (agent.provider === "openai") return openaiChat(agent, messages, tools);
-  if (agent.provider === "anthropic") return anthropicChat(agent, messages, tools);
-  if (agent.provider === "google") return googleChat(agent, messages, tools);
-  throw new Error(`unknown provider ${agent.provider}`);
+  const startedAt = Date.now();
+  let resp: NormalizedResponse;
+  try {
+    if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
+    else if (agent.provider === "anthropic") resp = await anthropicChat(agent, messages, tools);
+    else if (agent.provider === "google") resp = await googleChat(agent, messages, tools);
+    else throw new Error(`unknown provider ${agent.provider}`);
+  } catch (e) {
+    if (ctx) {
+      logUsage({
+        ...ctx, model: agent.model, operation: "chat", status: "error",
+        error: String(e).slice(0, 500), latency_ms: Date.now() - startedAt,
+      });
+    }
+    throw e;
+  }
+  if (ctx) {
+    const u = resp.usage;
+    logUsage({
+      ...ctx, model: agent.model, operation: "chat",
+      status: resp.ok ? "success" : "error",
+      input_tokens: u?.prompt_tokens ?? null,
+      output_tokens: u?.completion_tokens ?? null,
+      total_tokens: u?.total_tokens ?? null,
+      latency_ms: Date.now() - startedAt,
+      error: resp.ok ? (ctx.note ?? null) : (resp.errorText?.slice(0, 500) ?? `provider ${resp.status}`),
+    });
+  }
+  return resp;
 }
 
 async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
@@ -231,19 +270,45 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
 
 // ---------- EMBEDDINGS (always 768 dims to match ai_chunks) ----------
 
-export async function embed(agent: Agent, texts: string[]): Promise<number[][]> {
-  // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
-  // else use the same provider's native embedding endpoint.
-  if (agent.embedding_api_key) {
-    return openaiEmbed(agent.embedding_api_key, agent.embedding_model || "text-embedding-3-small", texts, agent.base_url);
+export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promise<number[][]> {
+  const startedAt = Date.now();
+  let model = "unknown";
+  try {
+    let vectors: number[][];
+    // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
+    // else use the same provider's native embedding endpoint.
+    if (agent.embedding_api_key) {
+      model = agent.embedding_model || "text-embedding-3-small";
+      vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
+    } else if (agent.provider === "openai") {
+      model = agent.embedding_model || "text-embedding-3-small";
+      vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
+    } else if (agent.provider === "google") {
+      model = agent.embedding_model || "text-embedding-004";
+      vectors = await googleEmbed(requireKey(agent), model, texts);
+    } else {
+      throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
+    }
+    if (ctx) {
+      // OpenAI/Google embedding APIs return token counts only on OpenAI; we estimate via char/4 fallback.
+      const approxIn = texts.reduce((s, t) => s + Math.ceil((t?.length ?? 0) / 4), 0);
+      logUsage({
+        ...ctx, model, operation: "embed", status: "success",
+        input_tokens: approxIn, output_tokens: 0, total_tokens: approxIn,
+        latency_ms: Date.now() - startedAt,
+        error: ctx.note ?? null,
+      });
+    }
+    return vectors;
+  } catch (e) {
+    if (ctx) {
+      logUsage({
+        ...ctx, model, operation: "embed", status: "error",
+        error: String(e).slice(0, 500), latency_ms: Date.now() - startedAt,
+      });
+    }
+    throw e;
   }
-  if (agent.provider === "openai") {
-    return openaiEmbed(requireKey(agent), agent.embedding_model || "text-embedding-3-small", texts, agent.base_url);
-  }
-  if (agent.provider === "google") {
-    return googleEmbed(requireKey(agent), agent.embedding_model || "text-embedding-004", texts);
-  }
-  throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
 }
 
 async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?: string | null): Promise<number[][]> {
