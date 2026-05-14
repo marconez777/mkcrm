@@ -15,6 +15,7 @@ import Sequences from "./pages/Sequences";
 import Templates from "./pages/Templates";
 import Metrics from "./pages/Metrics";
 import MetricsOps from "./pages/MetricsOps";
+import MetricsAiUsage from "./pages/MetricsAiUsage";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsTracking from "./pages/SettingsTracking";
@@ -65,6 +66,7 @@ const App = () => (
                       <Route path="/templates" element={<Templates />} />
                       <Route path="/metrics" element={<MetricsOps />} />
                       <Route path="/metrics/ai" element={<Metrics />} />
+                      <Route path="/metrics/ai-usage" element={<MetricsAiUsage />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<SettingsCustomFields />} />
                       <Route path="/settings/tracking" element={<SettingsTracking />} />
