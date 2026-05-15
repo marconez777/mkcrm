@@ -1,52 +1,107 @@
-# Caminho B: pixel prefere `window.lvTrack.sessionId`
+## Objetivo
 
-## Mudança no `tracking-pixel/index.ts`
+Notificar o site institucional via webhook outbound sempre que um lead WhatsApp for confirmado pelo `tracking-claim` (claim por `ref` OU por `phone_fallback`).
 
-Substituir a linha que define `sid`:
+## Decisões
 
-```js
-var sid = (window.lvTrack && window.lvTrack.sessionId) || localStorage.getItem(STORE_KEY) || uuid();
-localStorage.setItem(STORE_KEY, sid);
-var refShort = sid.replace(/-/g,'').slice(0,10);
+- **URL**: hardcoded → `https://koponuzfswxpmntcwgkc.supabase.co/functions/v1/crm-whatsapp-confirmed`
+- **Secret**: apenas `EXTERNAL_APP_WEBHOOK_SECRET` (Bearer)
+- **Quando disparar**: `manual` ❌ · `tracking` ✅ · `phone_fallback` ✅ · `not_found` ❌
+- **Backoff**: 1min → 5min → 30min, parando após 24h (`status='dead'`)
+- **Idempotência**: única entrega por `lead_id`
+
+## Mudanças
+
+### 1. Migration: `external_webhook_deliveries`
+
+```text
+id uuid pk
+clinic_id uuid not null
+lead_id uuid not null
+endpoint text not null
+payload jsonb not null
+status text default 'pending'  -- pending | sent | failed | dead
+attempts int default 0
+next_attempt_at timestamptz default now()
+last_status_code int
+last_error text
+last_attempt_at timestamptz
+sent_at timestamptz
+created_at, updated_at
+UNIQUE (lead_id, endpoint)
+INDEX (status, next_attempt_at)
 ```
 
-Como `lvTrack` é injetado por outro `<script>`, há risco de o pixel rodar antes. Solução: pequeno polling (até 1s) antes do primeiro `pageview`/scan:
+RLS habilitado, sem políticas (acesso só via service role).
 
-```js
-function start(){
-  var sid = (window.lvTrack && window.lvTrack.sessionId) || localStorage.getItem(STORE_KEY) || uuid();
-  localStorage.setItem(STORE_KEY, sid);
-  // ... resto do script atual usando `sid` e `refShort`
+### 2. Secret
+
+Solicitar `EXTERNAL_APP_WEBHOOK_SECRET` via add_secret antes de codar.
+
+### 3. `tracking-claim/index.ts`
+
+Após `update` bem-sucedido (ramos `tracking` e `phone_fallback`), antes do `return`:
+- Buscar `lead.name`, `lead.phone`, e a 1ª mensagem inbound (texto + timestamp).
+- Determinar `ref`: o extraído da msg, ou — se veio via `phone_fallback` sem ref na msg — o `ref_short` da `tracking_session` casada.
+- `INSERT ... ON CONFLICT (lead_id, endpoint) DO NOTHING` em `external_webhook_deliveries` com payload completo.
+- `EdgeRuntime.waitUntil(fetch(dispatcherUrl, { id }))` para tentativa imediata sem bloquear resposta.
+
+### 4. Nova função `external-webhook-dispatcher`
+
+`verify_jwt = false`. Dois modos:
+- **Body `{id}`**: processa apenas aquele delivery (chamado pelo `tracking-claim`).
+- **Sem body / body vazio**: pega lote de até 50 com `status='pending'` E `next_attempt_at <= now()` (chamado pelo cron).
+
+Para cada entry:
+1. POST `endpoint` com `Authorization: Bearer ${EXTERNAL_APP_WEBHOOK_SECRET}` + `Content-Type: application/json`, timeout 10s.
+2. **2xx** → `status='sent'`, `sent_at=now()`.
+3. **Outros / timeout** → `attempts++`, `last_status_code`, `last_error`, `last_attempt_at`. Próximo `next_attempt_at`:
+   - tentativa 1 falhou → +1min
+   - tentativa 2 falhou → +5min
+   - tentativa 3 falhou → +30min
+   - tentativa 4+ falhou → repete +30min até `created_at + 24h`; depois disso → `status='dead'`.
+
+### 5. Cron (insert tool, não migration)
+
+Habilitar `pg_cron` + `pg_net` se necessário e agendar:
+
+```sql
+select cron.schedule(
+  'external-webhook-dispatcher-tick',
+  '* * * * *',
+  $$ select net.http_post(
+       url:='https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/external-webhook-dispatcher',
+       headers:='{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb,
+       body:='{}'::jsonb
+     ); $$
+);
+```
+
+### 6. Payload enviado
+
+```json
+{
+  "ref": "<10-char ref_short>",
+  "phone": "+55...",          // lead.phone (E.164 se possível)
+  "name": "...",              // lead.name
+  "first_message": "...",     // 1ª msg inbound text
+  "occurred_at": "<ISO>",     // timestamp da 1ª msg ou now()
+  "crm_lead_id": "<uuid>"     // lead.id
 }
-var tries = 0;
-(function wait(){
-  if (window.lvTrack && window.lvTrack.sessionId) return start();
-  if (tries++ > 20) return start(); // ~1s de espera máx
-  setTimeout(wait, 50);
-})();
 ```
 
-Efeitos:
-- `tracking-ingest` recebe `sessionId = lvTrack.sessionId` → `ref_short` derivado bate com o `(ref=...)` que o tracker do site injeta no link.
-- Se `lvTrack` nunca aparecer (site sem o tracker próprio), cai no `mk_sid` antigo — sem regressão.
-- `payload.phone_e164` continua vindo do nosso pixel (já implementado).
+### 7. `supabase/config.toml`
 
-## Deploy
+Adicionar bloco `[functions.external-webhook-dispatcher] verify_jwt = false`.
 
-Deploy de `tracking-pixel`. As páginas com cache de 5min renovam automaticamente.
+### 8. `docs/EDGE_FUNCTIONS.md`
 
-## Prompt para o projeto do site da clínica
+Adicionar entry curta para a nova função e mencionar o disparo no `tracking-claim`.
 
-Texto pronto para colar no outro projeto Lovable:
+## Ordem de execução
 
-> **Contexto:** o site usa um tracker próprio em `/tracker.js` que define `window.lvTrack = { sessionId: "<uuid>" }` e injeta `(ref=<10chars>)` no `text=` dos links de WhatsApp (`wa.me` / `api.whatsapp.com`), onde `<10chars>` = `lvTrack.sessionId.replace(/-/g,'').slice(0,10)`.
->
-> **O que precisa ser garantido:**
-> 1. `window.lvTrack` e `window.lvTrack.sessionId` precisam estar disponíveis **antes** de qualquer outro script de tracking rodar (inclusive o pixel do CRM, que é carregado por `<script src=".../functions/v1/tracking-pixel?t=TOKEN">`). Coloque o `<script src="/tracker.js">` **antes** do script do pixel no `<head>`, idealmente sem `defer`/`async`, ou garanta que ambos sejam síncronos na mesma ordem.
-> 2. O `sessionId` deve ser **estável por sessão de navegador** (persistir em `localStorage` com a mesma chave usada hoje, ex.: `lv_sid`). Não regenerar a cada page load.
-> 3. O ref injetado nos links de WhatsApp deve seguir exatamente: `(ref=<sessionId.replace(/-/g,'').slice(0,10)>)`. Não mudar o formato (regex do CRM espera `\bref[=:]\s*([A-Za-z0-9]{6,32})`).
-> 4. Se o usuário navegar via SPA (pushState), o tracker deve re-injetar o ref nos novos links renderizados (MutationObserver já cobre isso no pixel do CRM, mas o tracker do site precisa garantir o mesmo comportamento se reescrever links).
->
-> **O que NÃO precisa mudar:** ingestão de eventos do `lvTrack.track()` continua na tabela `events` do site. O CRM só lê o `ref` do texto da 1ª mensagem do WhatsApp.
->
-> **Teste de aceitação:** abrir o site, inspecionar um link `wa.me`, conferir que `text` termina com `(ref=XXXXXXXXXX)` onde `XXXXXXXXXX === window.lvTrack.sessionId.replace(/-/g,'').slice(0,10)`.
+1. Solicitar secret `EXTERNAL_APP_WEBHOOK_SECRET`.
+2. Migration (tabela).
+3. Função `external-webhook-dispatcher` + edit `tracking-claim` + `config.toml` + docs.
+4. Insert tool: cron schedule.
+5. Smoke test via curl_edge_functions.
