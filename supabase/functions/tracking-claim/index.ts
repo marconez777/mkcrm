@@ -91,13 +91,13 @@ Deno.serve(async (req) => {
         if (match) { ref = match[1]; break; }
       }
     }
-    let target: { id: string; utm_source?: string | null; utm_medium?: string | null; first_referrer?: string | null } | null = null;
+    let target: { id: string; utm_source?: string | null; utm_medium?: string | null; first_referrer?: string | null; ref_short?: string | null } | null = null;
     let confidence: "tracking" | "phone_fallback" = "tracking";
 
     if (ref) {
       const { data: byRef } = await supabase
         .from("tracking_sessions")
-        .select("id, utm_source, utm_medium, first_referrer")
+        .select("id, utm_source, utm_medium, first_referrer, ref_short")
         .eq("clinic_id", lead.clinic_id)
         .eq("ref_short", ref.toLowerCase())
         .gte("created_at", new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString())
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       if (hit) {
         const { data: sess } = await supabase
           .from("tracking_sessions")
-          .select("id, utm_source, utm_medium, first_referrer")
+          .select("id, utm_source, utm_medium, first_referrer, ref_short")
           .eq("id", hit.session_id)
           .maybeSingle();
         if (sess) { target = sess; confidence = "phone_fallback"; }
@@ -142,6 +142,64 @@ Deno.serve(async (req) => {
       origin_confidence: confidence,
     }).eq("id", lead.id);
     await supabase.from("tracking_sessions").update({ lead_id: lead.id, claimed_at: new Date().toISOString() }).eq("id", target.id);
+
+    // Enqueue outbound webhook to external site (clinic site)
+    try {
+      const refOut = ref || target.ref_short || null;
+      if (refOut) {
+        // fetch lead details + 1st inbound message timestamp
+        const { data: leadFull } = await supabase
+          .from("leads").select("name, phone").eq("id", lead.id).maybeSingle();
+        const { data: firstMsg } = await supabase
+          .from("messages")
+          .select("content, timestamp")
+          .eq("lead_id", lead.id).eq("from_me", false)
+          .not("content", "is", null)
+          .order("timestamp", { ascending: true })
+          .limit(1).maybeSingle();
+
+        const endpoint = "https://koponuzfswxpmntcwgkc.supabase.co/functions/v1/crm-whatsapp-confirmed";
+        const payload = {
+          ref: refOut,
+          phone: leadFull?.phone ?? lead.phone ?? null,
+          name: leadFull?.name ?? null,
+          first_message: firstMsg?.content ?? null,
+          occurred_at: firstMsg?.timestamp ?? new Date().toISOString(),
+          crm_lead_id: lead.id,
+        };
+
+        const { data: ins } = await supabase
+          .from("external_webhook_deliveries")
+          .insert({
+            clinic_id: lead.clinic_id,
+            lead_id: lead.id,
+            endpoint,
+            payload,
+            status: "pending",
+            next_attempt_at: new Date().toISOString(),
+          })
+          .select("id")
+          .maybeSingle();
+
+        if (ins?.id) {
+          const dispatcherUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/external-webhook-dispatcher`;
+          // Fire-and-forget immediate attempt
+          // @ts-ignore EdgeRuntime
+          (globalThis as any).EdgeRuntime?.waitUntil(
+            fetch(dispatcherUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "",
+              },
+              body: JSON.stringify({ id: ins.id }),
+            }).catch((e) => console.error("dispatch immediate fail", e)),
+          );
+        }
+      }
+    } catch (e) {
+      console.error("ewd enqueue fail", e);
+    }
 
     return json({ ok: true, ref, session_id: target.id, origin, confidence });
   } catch (err) {

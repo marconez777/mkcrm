@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.sequence-enroll]
 verify_jwt = false
+
+[functions.external-webhook-dispatcher]
+verify_jwt = false
