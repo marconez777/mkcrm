@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, clinic_id, tracking_session_id, origin_source, origin_confidence")
+      .select("id, clinic_id, phone, tracking_session_id, origin_source, origin_confidence")
       .eq("id", lead_id)
       .maybeSingle();
     if (!lead) return json({ error: "lead not found" }, 404);
