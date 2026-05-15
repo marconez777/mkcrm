@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, clinic_id, tracking_session_id, origin_source, origin_confidence")
+      .select("id, clinic_id, phone, tracking_session_id, origin_source, origin_confidence")
       .eq("id", lead_id)
       .maybeSingle();
     if (!lead) return json({ error: "lead not found" }, 404);
@@ -91,28 +91,59 @@ Deno.serve(async (req) => {
         if (match) { ref = match[1]; break; }
       }
     }
-    if (!ref) return json({ ok: true, no_ref: true });
+    let target: { id: string; utm_source?: string | null; utm_medium?: string | null; first_referrer?: string | null } | null = null;
+    let confidence: "tracking" | "phone_fallback" = "tracking";
 
-    // find session by ref prefix (we use first 10 chars of uuid without dashes)
-    const { data: sessions } = await supabase
-      .from("tracking_sessions")
-      .select("id, utm_source, utm_medium, first_referrer")
-      .eq("clinic_id", lead.clinic_id)
-      .gte("created_at", new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString())
-      .limit(200);
+    if (ref) {
+      const { data: byRef } = await supabase
+        .from("tracking_sessions")
+        .select("id, utm_source, utm_medium, first_referrer")
+        .eq("clinic_id", lead.clinic_id)
+        .eq("ref_short", ref.toLowerCase())
+        .gte("created_at", new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byRef) target = byRef;
+    }
 
-    const target = (sessions ?? []).find((s) => s.id.replace(/-/g, "").toLowerCase().startsWith(ref!.toLowerCase()));
+    // Phone fallback: most recent wa_click in last 30min whose payload phone matches lead.phone
+    if (!target && lead.phone) {
+      const phoneDigits = lead.phone.replace(/\D/g, "");
+      const since = new Date(Date.now() - 1000 * 60 * 30).toISOString();
+      const { data: events } = await supabase
+        .from("tracking_events")
+        .select("session_id, payload, created_at")
+        .eq("clinic_id", lead.clinic_id)
+        .eq("type", "wa_click")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      const hit = (events ?? []).find((e: any) => {
+        const p = String(e?.payload?.phone_e164 ?? "").replace(/\D/g, "");
+        return p && (p === phoneDigits || phoneDigits.endsWith(p) || p.endsWith(phoneDigits));
+      });
+      if (hit) {
+        const { data: sess } = await supabase
+          .from("tracking_sessions")
+          .select("id, utm_source, utm_medium, first_referrer")
+          .eq("id", hit.session_id)
+          .maybeSingle();
+        if (sess) { target = sess; confidence = "phone_fallback"; }
+      }
+    }
+
     if (!target) return json({ ok: true, ref, not_found: true });
 
     const origin = deriveOrigin(target);
     await supabase.from("leads").update({
       tracking_session_id: target.id,
       origin_source: origin,
-      origin_confidence: "tracking",
+      origin_confidence: confidence,
     }).eq("id", lead.id);
     await supabase.from("tracking_sessions").update({ lead_id: lead.id, claimed_at: new Date().toISOString() }).eq("id", target.id);
 
-    return json({ ok: true, ref, session_id: target.id, origin });
+    return json({ ok: true, ref, session_id: target.id, origin, confidence });
   } catch (err) {
     console.error("tracking-claim", err);
     return json({ error: String(err) }, 500);

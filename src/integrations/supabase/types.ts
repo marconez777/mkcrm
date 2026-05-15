@@ -2423,6 +2423,7 @@ export type Database = {
           landing_title: string | null
           lead_id: string | null
           ref: string | null
+          ref_short: string | null
           site_id: string
           user_agent: string | null
           utm_campaign: string | null
@@ -2444,6 +2445,7 @@ export type Database = {
           landing_title?: string | null
           lead_id?: string | null
           ref?: string | null
+          ref_short?: string | null
           site_id: string
           user_agent?: string | null
           utm_campaign?: string | null
@@ -2465,6 +2467,7 @@ export type Database = {
           landing_title?: string | null
           lead_id?: string | null
           ref?: string | null
+          ref_short?: string | null
           site_id?: string
           user_agent?: string | null
           utm_campaign?: string | null
