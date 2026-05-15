@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       if (hit) {
         const { data: sess } = await supabase
           .from("tracking_sessions")
-          .select("id, utm_source, utm_medium, first_referrer")
+          .select("id, utm_source, utm_medium, first_referrer, ref_short")
           .eq("id", hit.session_id)
           .maybeSingle();
         if (sess) { target = sess; confidence = "phone_fallback"; }
