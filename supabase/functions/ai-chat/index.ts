@@ -548,7 +548,9 @@ Deno.serve(async (req) => {
     // can show "replied" + tools_called alongside the per-iteration rows above.
     await logUsage({
       agent_id, lead_id, thread_id: threadId, model: agent.model,
-      input_tokens: 0, output_tokens: 0, total_tokens: 0,
+      input_tokens: totalIn,
+      output_tokens: totalOut,
+      total_tokens: totalTok || (totalIn + totalOut),
       latency_ms: Date.now() - startedAt, tools_called: usedTools.length,
       replied: !!finalContent, status: "success", error: "turn:summary",
     });
