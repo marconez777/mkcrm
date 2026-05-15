@@ -23,11 +23,12 @@ var lastUrl=location.href;
 var origPush=history.pushState;history.pushState=function(){var r=origPush.apply(this,arguments);setTimeout(function(){if(location.href!==lastUrl){lastUrl=location.href;pageview();}},0);return r;};
 window.addEventListener('popstate',function(){if(location.href!==lastUrl){lastUrl=location.href;pageview();}});
 // rewrite wa.me links + capture clicks
+function phoneFromHref(href){try{var u=new URL(href);var m=u.pathname.match(/(\\d{6,20})/);if(m)return m[1];var p=u.searchParams.get('phone');if(p)return String(p).replace(/\\D/g,'');}catch(e){}return null;}
 function rewriteWa(a){try{var href=a.getAttribute('href')||'';if(!/^https?:\\/\\/(wa\\.me|api\\.whatsapp\\.com)/i.test(href))return;var url=new URL(href);var text=url.searchParams.get('text')||'';if(text.indexOf('ref=')===-1){text=(text?text+' ':'')+'(ref='+refShort+')';url.searchParams.set('text',text);a.setAttribute('href',url.toString());}}catch(e){}}
 function scanLinks(){document.querySelectorAll('a[href*="wa.me"],a[href*="api.whatsapp.com"]').forEach(rewriteWa);}
 scanLinks();
 var mo=new MutationObserver(function(){scanLinks();});mo.observe(document.documentElement,{childList:true,subtree:true});
-document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href*="wa.me"],a[href*="api.whatsapp.com"]');if(a){send({type:'wa_click',url:location.href,title:document.title,payload:{href:a.getAttribute('href')}});}},true);
+document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href*="wa.me"],a[href*="api.whatsapp.com"]');if(a){var hrefV=a.getAttribute('href')||'';send({type:'wa_click',url:location.href,title:document.title,payload:{href:hrefV,phone_e164:phoneFromHref(hrefV)}});}},true);
 window.mkTrack=function(name,payload){send({type:'custom',url:location.href,title:document.title,payload:Object.assign({name:name},payload||{})});};
 }catch(e){console.error('mk-pixel',e);}
 })();`;
