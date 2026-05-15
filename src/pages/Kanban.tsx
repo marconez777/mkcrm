@@ -48,6 +48,7 @@ import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
+import PipelineDateFilter, { EMPTY_DATE_FILTER, presetToValue, type DateFilterValue } from "@/components/kanban/PipelineDateFilter";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
