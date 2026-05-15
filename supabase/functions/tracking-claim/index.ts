@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     if (ref) {
       const { data: byRef } = await supabase
         .from("tracking_sessions")
-        .select("id, utm_source, utm_medium, first_referrer")
+        .select("id, utm_source, utm_medium, first_referrer, ref_short")
         .eq("clinic_id", lead.clinic_id)
         .eq("ref_short", ref.toLowerCase())
         .gte("created_at", new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString())
