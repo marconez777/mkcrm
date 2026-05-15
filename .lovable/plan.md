@@ -1,55 +1,42 @@
-## Filtro de data no Pipeline
+## Contexto
 
-Adicionar um filtro de período no topo do Kanban que mostra apenas os leads cuja **data de entrada (`created_at`)** caia dentro do período selecionado. Os leads fora do intervalo somem das colunas, mas continuam no banco.
+Já existem na base: tabela `tracking_sites`, edge functions `tracking-pixel`/`tracking-ingest`/`tracking-claim`, página `src/pages/SettingsTracking.tsx` (rota `/settings/tracking`), e `evolution-webhook` já chama `tracking-claim` ao criar lead (linhas 83-91). Falta apenas: criar a row do site, expor a página no menu, e te devolver o token.
 
-### UI
+## Plano
 
-Novo botão "Período" na toolbar do Kanban (`src/pages/Kanban.tsx`), ao lado do campo de busca, abrindo um Popover com:
+### 1. Inserir site no banco (Clínica ÓR — `cf038458-457d-4c1a-9ac4-c88c3c8353a1`)
 
-- **Atalhos por dia**: Hoje, Ontem, Últimos 7 dias, Últimos 30 dias, Últimos 90 dias
-- **Atalhos por mês**: Este mês, Mês passado, e seletor "Mês/Ano específico"
-- **Intervalo personalizado**: dois calendários (de — até) usando o `Calendar` do shadcn
-- Botão "Limpar" para remover o filtro
-
-Quando ativo, o botão mostra o período escolhido (ex.: "Últimos 30 dias", "Out/2025", "01/05–15/05") e fica destacado. Um pequeno contador "X leads" aparece ao lado.
-
-### Lógica de filtro
-
-No componente `KanbanPage`, adicionar estado:
-
-```ts
-type DateFilter = { from: Date | null; to: Date | null; label: string | null };
-const [dateFilter, setDateFilter] = useState<DateFilter>({ from: null, to: null, label: null });
+```sql
+INSERT INTO public.tracking_sites (clinic_id, name, domain, ingest_token)
+VALUES (
+  'cf038458-457d-4c1a-9ac4-c88c3c8353a1',
+  'Clínica OHR — site institucional',
+  'clinicaohrpsiquiatria.com',
+  gen_random_uuid()
+)
+RETURNING id, ingest_token;
 ```
 
-A lista `leads` derivada passa a aplicar o filtro **em cima de `allPipelineLeads`**, antes do filtro de busca:
+Depois te devolvo no chat:
+- O `ingest_token` gerado
+- A URL do pixel: `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/tracking-pixel?t=<TOKEN>`
+- O `<script>` pronto pra colar antes de `</body>`
 
-```ts
-const dateFiltered = dateFilter.from
-  ? allPipelineLeads.filter((l) => {
-      if (!l.created_at) return false;
-      const t = new Date(l.created_at).getTime();
-      if (dateFilter.from && t < dateFilter.from.getTime()) return false;
-      if (dateFilter.to && t > dateFilter.to.getTime()) return false;
-      return true;
-    })
-  : allPipelineLeads;
-```
+### 2. Expor "Rastreamento" como aba em Configurações
 
-E em seguida o filtro textual (já existente) opera sobre `dateFiltered`.
+Em `src/pages/Settings.tsx`:
+- Adicionar `<TabsTrigger value="tracking">Rastreamento</TabsTrigger>` ao `TabsList` (e ajustar `grid-cols-N`).
+- Adicionar `<TabsContent value="tracking">` que renderiza o conteúdo de `SettingsTracking` (extrair em componente reutilizável ou importar a página direto).
+- Restringir aos não-`professional` (admin/owner), igual à aba "Importações".
 
-### Persistência
+A rota standalone `/settings/tracking` continua funcionando.
 
-Salvar o filtro no `localStorage` junto com `UI_KEY` (apenas o preset ativo, não as datas absolutas — para "Hoje" recalcular a cada abertura). Estende `loadUi/saveUi` com `dateFilterPreset?: string` e `dateFilterCustom?: { from: string; to: string }`.
+### 3. tracking-claim no webhook
 
-### Arquivos
+Já está integrado em `supabase/functions/evolution-webhook/index.ts` (chamada fire-and-forget após criação de lead com o `ref` extraído da 1ª mensagem). Nenhuma alteração necessária — só confirmo no chat.
 
-- `src/pages/Kanban.tsx` — toolbar, estado, filtro
-- `src/components/kanban/PipelineDateFilter.tsx` (novo) — Popover com presets + calendário; recebe `value` e `onChange`
+## Arquivos afetados
 
-### Detalhes técnicos
-
-- Usar `date-fns` (já no projeto) para `startOfDay`, `endOfDay`, `startOfMonth`, `endOfMonth`, `subDays`, `subMonths`
-- Calendário: `Calendar` do shadcn em modo `range`, com `className="p-3 pointer-events-auto"` para funcionar dentro do Popover
-- O filtro **não** altera contagens dos funis na sidebar (`PipelineSidebar`) — apenas o que é renderizado nas colunas. Caso queira refletir lá também, é simples adicionar depois.
-- Não toca em backend / RLS / migrations.
+- `supabase/insert` (INSERT em `tracking_sites`)
+- `src/pages/Settings.tsx` (nova aba)
+- Possivelmente extrair o corpo de `SettingsTracking.tsx` em `src/components/settings/TrackingSitesPanel.tsx` para reuso entre rota e aba.
