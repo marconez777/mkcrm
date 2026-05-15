@@ -310,6 +310,14 @@ export default function SettingsPage() {
           </TabsContent>
 
           {!isProfessional && (
+            <TabsContent value="tracking" className="space-y-6">
+              <Card className="p-6">
+                <TrackingSitesPanel />
+              </Card>
+            </TabsContent>
+          )}
+
+          {!isProfessional && (
             <TabsContent value="imports" className="space-y-6">
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
