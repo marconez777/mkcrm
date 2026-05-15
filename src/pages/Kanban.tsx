@@ -48,6 +48,7 @@ import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
+import PipelineDateFilter, { EMPTY_DATE_FILTER, presetToValue, type DateFilterValue } from "@/components/kanban/PipelineDateFilter";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -64,12 +65,33 @@ function formatMoney(v: number | null) {
 }
 
 const UI_KEY = "pipeline:ui:v1";
-function loadUi(): { collapsed: string[]; compact: boolean } {
+type SavedUi = { collapsed: string[]; compact: boolean; dateFilterPreset?: string | null; dateFilterCustom?: { from: string; to: string } | null };
+function loadUi(): SavedUi {
   try { return { collapsed: [], compact: false, ...JSON.parse(localStorage.getItem(UI_KEY) || "{}") }; }
   catch { return { collapsed: [], compact: false }; }
 }
-function saveUi(ui: { collapsed: string[]; compact: boolean }) {
+function saveUi(ui: SavedUi) {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
+}
+
+function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
+  if (ui.dateFilterPreset && ui.dateFilterPreset !== "custom" && !ui.dateFilterPreset.startsWith("m:")) {
+    return presetToValue(ui.dateFilterPreset);
+  }
+  if (ui.dateFilterPreset?.startsWith("m:") && ui.dateFilterCustom) {
+    const from = new Date(ui.dateFilterCustom.from);
+    const to = new Date(ui.dateFilterCustom.to);
+    return { from, to, label: from.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }), preset: ui.dateFilterPreset };
+  }
+  if (ui.dateFilterPreset === "custom" && ui.dateFilterCustom) {
+    const from = new Date(ui.dateFilterCustom.from);
+    const to = new Date(ui.dateFilterCustom.to);
+    const label = from.getTime() === to.getTime()
+      ? from.toLocaleDateString("pt-BR")
+      : `${from.toLocaleDateString("pt-BR")}–${to.toLocaleDateString("pt-BR")}`;
+    return { from, to, label, preset: "custom" };
+  }
+  return EMPTY_DATE_FILTER;
 }
 
 const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
@@ -268,6 +290,7 @@ export default function KanbanPage() {
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
@@ -276,19 +299,36 @@ export default function KanbanPage() {
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
   const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const dateFiltered = dateFilter.from
+    ? allPipelineLeads.filter((l) => {
+        if (!l.created_at) return false;
+        const t = new Date(l.created_at).getTime();
+        if (dateFilter.from && t < dateFilter.from.getTime()) return false;
+        if (dateFilter.to && t > dateFilter.to.getTime()) return false;
+        return true;
+      })
+    : allPipelineLeads;
   const normalizedQ = query.trim().toLowerCase();
   const phoneQ = normalizedQ.replace(/\D/g, "");
   const leads = normalizedQ
-    ? allPipelineLeads.filter((l) => {
+    ? dateFiltered.filter((l) => {
         const name = (l.name ?? "").toLowerCase();
         const phone = (l.phone ?? "").replace(/\D/g, "");
         if (name.includes(normalizedQ)) return true;
         if (phoneQ && phone.includes(phoneQ)) return true;
         return false;
       })
-    : allPipelineLeads;
+    : dateFiltered;
 
-  useEffect(() => { saveUi(ui); }, [ui]);
+  useEffect(() => {
+    saveUi({
+      ...ui,
+      dateFilterPreset: dateFilter.preset ?? null,
+      dateFilterCustom: dateFilter.from && dateFilter.to
+        ? { from: dateFilter.from.toISOString(), to: dateFilter.to.toISOString() }
+        : null,
+    });
+  }, [ui, dateFilter]);
 
   useEffect(() => {
     supabase.from("whatsapp_instances").select("id, name").then(({ data }) => {
@@ -408,7 +448,7 @@ export default function KanbanPage() {
               whatsappInstances={whatsappInstances}
             />
             <p className="px-2 text-xs text-muted-foreground">
-              {normalizedQ ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
+              {(normalizedQ || dateFilter.from) ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
               {current?.kind === "internal" && <> · gestão interna</>}
               {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
             </p>
@@ -434,6 +474,7 @@ export default function KanbanPage() {
                 </button>
               )}
             </div>
+            <PipelineDateFilter value={dateFilter} onChange={setDateFilter} />
             <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>

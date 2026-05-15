@@ -1,66 +1,55 @@
-## Objetivo
+## Filtro de data no Pipeline
 
-Criar uma tela de **Histórico de uso da API de IA** com detalhamento por chamada (modelo, tokens, custo USD, agente, lead, ação), visível apenas para o **admin da clínica** (e super admin global). Já temos a tabela `ai_usage` populada — falta exibir com custo calculado e permitir filtragem/auditoria.
+Adicionar um filtro de período no topo do Kanban que mostra apenas os leads cuja **data de entrada (`created_at`)** caia dentro do período selecionado. Os leads fora do intervalo somem das colunas, mas continuam no banco.
 
-Em paralelo, investigar o pico recente nos créditos da OpenAI usando os dados que já temos.
+### UI
 
----
+Novo botão "Período" na toolbar do Kanban (`src/pages/Kanban.tsx`), ao lado do campo de busca, abrindo um Popover com:
 
-## O que será entregue
+- **Atalhos por dia**: Hoje, Ontem, Últimos 7 dias, Últimos 30 dias, Últimos 90 dias
+- **Atalhos por mês**: Este mês, Mês passado, e seletor "Mês/Ano específico"
+- **Intervalo personalizado**: dois calendários (de — até) usando o `Calendar` do shadcn
+- Botão "Limpar" para remover o filtro
 
-### 1. Tabela de preços por modelo (frontend, estática)
-Mapa `model → { input_per_1m, output_per_1m }` em `src/lib/ai-pricing.ts` cobrindo os modelos atualmente em uso (gpt-4o, gpt-4o-mini, gpt-5, gpt-5-mini, gpt-5-nano, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, embeddings text-embedding-3-*). Cálculo: `cost = input_tokens * in/1M + output_tokens * out/1M`.
+Quando ativo, o botão mostra o período escolhido (ex.: "Últimos 30 dias", "Out/2025", "01/05–15/05") e fica destacado. Um pequeno contador "X leads" aparece ao lado.
 
-> Valores ficam em código (fáceis de atualizar) — sem tabela nova no banco.
+### Lógica de filtro
 
-### 2. Nova página `/metrics/ai-usage`
-Acessível só para `is_clinic_admin` (e super_admin). Adicionada ao menu junto com as outras métricas.
+No componente `KanbanPage`, adicionar estado:
 
-**Layout:**
-- **Cards de resumo** (período selecionado): custo total USD, tokens totais, nº de chamadas, % erro, custo médio por chamada.
-- **Filtros**: período (24h / 7d / 30d / customizado), modelo, agente, operação (chat/embed/tool), status, "só com erro".
-- **Gráfico** custo por dia empilhado por modelo (barras).
-- **Top consumidores**:
-  - Por agente (custo, chamadas, tokens)
-  - Por modelo (custo, tokens in/out)
-  - Por lead (top 20 leads que mais custaram — ajuda a achar loop/spam)
-  - Por operação (chat vs embed vs tool)
-- **Tabela detalhada** (paginada, 50/pág, ordenável):
-  `data | modelo | operação | agente | lead (link) | input | output | total | latência | status | custo USD | erro`
-  Linha clicável abre drawer com detalhes completos (incluindo `automation_id`, `thread_id`, mensagem de erro).
-- **Export CSV** do filtro atual.
+```ts
+type DateFilter = { from: Date | null; to: Date | null; label: string | null };
+const [dateFilter, setDateFilter] = useState<DateFilter>({ from: null, to: null, label: null });
+```
 
-### 3. RLS / acesso
-`ai_usage` já tem `clinic_scoped` (RLS por `clinic_id`). Não precisa de migração — apenas guard de rota no frontend (`is_clinic_admin` no `useAuth`). Atendentes comuns não veem.
+A lista `leads` derivada passa a aplicar o filtro **em cima de `allPipelineLeads`**, antes do filtro de busca:
 
-### 4. Investigação do pico (entrego junto)
-Rodo consultas em `ai_usage` para os últimos 14 dias e te mostro:
-- Custo por dia × modelo (achar qual modelo disparou)
-- Top 10 agentes que mais consumiram nos últimos 3 dias vs. semana anterior
-- Top 10 leads que mais consumiram (loop de auto-reply?)
-- Operações com `tools_called` alto (possível loop de tool-calling)
-- Chamadas com `total_tokens` anormalmente grandes (RAG retornando contexto enorme?)
+```ts
+const dateFiltered = dateFilter.from
+  ? allPipelineLeads.filter((l) => {
+      if (!l.created_at) return false;
+      const t = new Date(l.created_at).getTime();
+      if (dateFilter.from && t < dateFilter.from.getTime()) return false;
+      if (dateFilter.to && t > dateFilter.to.getTime()) return false;
+      return true;
+    })
+  : allPipelineLeads;
+```
 
-Resultado vai como nota no chat para você decidir se ajustamos algo (ex.: baixar `max_iterations`, trocar modelo default, limitar `rag_top_k`).
+E em seguida o filtro textual (já existente) opera sobre `dateFiltered`.
 
----
+### Persistência
 
-## Detalhes técnicos
+Salvar o filtro no `localStorage` junto com `UI_KEY` (apenas o preset ativo, não as datas absolutas — para "Hoje" recalcular a cada abertura). Estende `loadUi/saveUi` com `dateFilterPreset?: string` e `dateFilterCustom?: { from: string; to: string }`.
 
-- Arquivos novos:
-  - `src/lib/ai-pricing.ts` — tabela de preços + função `calcCost(model, in, out)`.
-  - `src/pages/MetricsAiUsage.tsx` — página completa.
-- Arquivos editados:
-  - `src/App.tsx` — rota `/metrics/ai-usage` protegida.
-  - `src/components/AppShell.tsx` — item de menu "Custos IA" visível só para admin da clínica.
-- Sem mudanças em edge functions, sem migração de banco.
-- Query base: `supabase.from("ai_usage").select("*").gte("created_at", ...)` com paginação via `.range()`.
-- Para somatórios do período inteiro (sem trazer 50k linhas pro browser), uso uma RPC simples `ai_usage_summary(since, until)` retornando agregados por modelo/agente/dia. **Essa sim precisa de migração** (uma função `SECURITY INVOKER`, respeita RLS automaticamente).
+### Arquivos
 
----
+- `src/pages/Kanban.tsx` — toolbar, estado, filtro
+- `src/components/kanban/PipelineDateFilter.tsx` (novo) — Popover com presets + calendário; recebe `value` e `onChange`
 
-## Fora do escopo (posso fazer depois se quiser)
+### Detalhes técnicos
 
-- Limites/alertas de gasto por clínica (ex.: avisar quando passar de X USD/dia).
-- Tela equivalente para o super_admin global ver custo agregado de todas as clínicas.
-- Armazenar `cost_usd` calculado direto na linha do `ai_usage` (hoje calculo no front).
+- Usar `date-fns` (já no projeto) para `startOfDay`, `endOfDay`, `startOfMonth`, `endOfMonth`, `subDays`, `subMonths`
+- Calendário: `Calendar` do shadcn em modo `range`, com `className="p-3 pointer-events-auto"` para funcionar dentro do Popover
+- O filtro **não** altera contagens dos funis na sidebar (`PipelineSidebar`) — apenas o que é renderizado nas colunas. Caso queira refletir lá também, é simples adicionar depois.
+- Não toca em backend / RLS / migrations.
