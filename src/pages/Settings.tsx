@@ -11,6 +11,7 @@ import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppQrDialog } from "@/components/settings/WhatsAppQrDialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import TrackingSitesPanel from "@/components/settings/TrackingSitesPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -170,10 +171,11 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
-          <TabsList className={`grid w-full ${isProfessional ? "grid-cols-3" : "grid-cols-4"}`}>
+          <TabsList className={`grid w-full ${isProfessional ? "grid-cols-3" : "grid-cols-5"}`}>
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             <TabsTrigger value="fields">Campos do lead</TabsTrigger>
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
+            {!isProfessional && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
@@ -307,6 +309,14 @@ export default function SettingsPage() {
           <TabsContent value="quick-replies" className="space-y-6">
             <QuickRepliesCard />
           </TabsContent>
+
+          {!isProfessional && (
+            <TabsContent value="tracking" className="space-y-6">
+              <Card className="p-6">
+                <TrackingSitesPanel />
+              </Card>
+            </TabsContent>
+          )}
 
           {!isProfessional && (
             <TabsContent value="imports" className="space-y-6">
