@@ -65,12 +65,33 @@ function formatMoney(v: number | null) {
 }
 
 const UI_KEY = "pipeline:ui:v1";
-function loadUi(): { collapsed: string[]; compact: boolean } {
+type SavedUi = { collapsed: string[]; compact: boolean; dateFilterPreset?: string | null; dateFilterCustom?: { from: string; to: string } | null };
+function loadUi(): SavedUi {
   try { return { collapsed: [], compact: false, ...JSON.parse(localStorage.getItem(UI_KEY) || "{}") }; }
   catch { return { collapsed: [], compact: false }; }
 }
-function saveUi(ui: { collapsed: string[]; compact: boolean }) {
+function saveUi(ui: SavedUi) {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
+}
+
+function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
+  if (ui.dateFilterPreset && ui.dateFilterPreset !== "custom" && !ui.dateFilterPreset.startsWith("m:")) {
+    return presetToValue(ui.dateFilterPreset);
+  }
+  if (ui.dateFilterPreset?.startsWith("m:") && ui.dateFilterCustom) {
+    const from = new Date(ui.dateFilterCustom.from);
+    const to = new Date(ui.dateFilterCustom.to);
+    return { from, to, label: from.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }), preset: ui.dateFilterPreset };
+  }
+  if (ui.dateFilterPreset === "custom" && ui.dateFilterCustom) {
+    const from = new Date(ui.dateFilterCustom.from);
+    const to = new Date(ui.dateFilterCustom.to);
+    const label = from.getTime() === to.getTime()
+      ? from.toLocaleDateString("pt-BR")
+      : `${from.toLocaleDateString("pt-BR")}–${to.toLocaleDateString("pt-BR")}`;
+    return { from, to, label, preset: "custom" };
+  }
+  return EMPTY_DATE_FILTER;
 }
 
 const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
