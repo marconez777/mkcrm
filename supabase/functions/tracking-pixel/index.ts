@@ -11,8 +11,8 @@ var TOKEN=${JSON.stringify(token)};
 var INGEST=${JSON.stringify(ingest)};
 var STORE_KEY='mk_sid';
 function uuid(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():('xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx').replace(/[xy]/g,function(c){var r=Math.random()*16|0;return (c=='x'?r:(r&0x3|0x8)).toString(16);});}
-var sid=localStorage.getItem(STORE_KEY)||uuid();localStorage.setItem(STORE_KEY,sid);
-var refShort=sid.replace(/-/g,'').slice(0,10);
+var sid,refShort;
+function initSid(){sid=(window.lvTrack&&window.lvTrack.sessionId)||localStorage.getItem(STORE_KEY)||uuid();localStorage.setItem(STORE_KEY,sid);refShort=sid.replace(/-/g,'').slice(0,10);}
 function getMeta(){var u=new URL(location.href);var p={};['utm_source','utm_medium','utm_campaign','utm_term','utm_content','ref'].forEach(function(k){var v=u.searchParams.get(k);if(v)p[k]=v;});if(document.referrer)p.referrer=document.referrer;
 var saved=sessionStorage.getItem('mk_meta');if(saved){try{var s=JSON.parse(saved);Object.keys(s).forEach(function(k){if(!p[k])p[k]=s[k];});}catch(e){}}
 sessionStorage.setItem('mk_meta',JSON.stringify(p));return p;}
