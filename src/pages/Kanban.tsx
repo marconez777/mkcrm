@@ -290,6 +290,7 @@ export default function KanbanPage() {
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
@@ -298,17 +299,26 @@ export default function KanbanPage() {
 
   const stages = allStages.filter((s) => s.pipeline_id === currentId);
   const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
+  const dateFiltered = dateFilter.from
+    ? allPipelineLeads.filter((l) => {
+        if (!l.created_at) return false;
+        const t = new Date(l.created_at).getTime();
+        if (dateFilter.from && t < dateFilter.from.getTime()) return false;
+        if (dateFilter.to && t > dateFilter.to.getTime()) return false;
+        return true;
+      })
+    : allPipelineLeads;
   const normalizedQ = query.trim().toLowerCase();
   const phoneQ = normalizedQ.replace(/\D/g, "");
   const leads = normalizedQ
-    ? allPipelineLeads.filter((l) => {
+    ? dateFiltered.filter((l) => {
         const name = (l.name ?? "").toLowerCase();
         const phone = (l.phone ?? "").replace(/\D/g, "");
         if (name.includes(normalizedQ)) return true;
         if (phoneQ && phone.includes(phoneQ)) return true;
         return false;
       })
-    : allPipelineLeads;
+    : dateFiltered;
 
   useEffect(() => { saveUi(ui); }, [ui]);
 
