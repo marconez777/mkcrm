@@ -159,13 +159,17 @@ Deno.serve(async (req) => {
           .limit(1).maybeSingle();
 
         const endpoint = "https://koponuzfswxpmntcwgkc.supabase.co/functions/v1/crm-whatsapp-confirmed";
+        const phoneRaw = leadFull?.phone ?? lead.phone ?? null;
+        const phoneE164 = phoneRaw
+          ? (String(phoneRaw).startsWith("+") ? String(phoneRaw) : "+" + String(phoneRaw).replace(/\D/g, ""))
+          : null;
         const payload = {
           ref: refOut,
-          phone: leadFull?.phone ?? lead.phone ?? null,
+          phone_e164: phoneE164,
           name: leadFull?.name ?? null,
           first_message: firstMsg?.content ?? null,
           occurred_at: firstMsg?.timestamp ?? new Date().toISOString(),
-          crm_lead_id: lead.id,
+          crm_external_id: lead.id,
         };
 
         const { data: ins } = await supabase
