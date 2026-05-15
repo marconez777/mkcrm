@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
         id: sessionId,
         clinic_id: site.clinic_id,
         site_id: site.id,
+        ref_short: sessionId.replace(/-/g, "").toLowerCase().slice(0, 10),
         ref: meta.ref ?? null,
         utm_source: meta.utm_source ?? null,
         utm_medium: meta.utm_medium ?? null,
