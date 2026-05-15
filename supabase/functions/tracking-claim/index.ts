@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         if (match) { ref = match[1]; break; }
       }
     }
-    let target: { id: string; utm_source?: string | null; utm_medium?: string | null; first_referrer?: string | null } | null = null;
+    let target: { id: string; utm_source?: string | null; utm_medium?: string | null; first_referrer?: string | null; ref_short?: string | null } | null = null;
     let confidence: "tracking" | "phone_fallback" = "tracking";
 
     if (ref) {
