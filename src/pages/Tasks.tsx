@@ -253,9 +253,18 @@ export default function Tasks() {
     const targetArr = targetColId === card.column_id ? sourceArr : (tasksByColumn[targetColId] ?? []).slice();
     targetArr.splice(targetIndex, 0, { ...card, column_id: targetColId });
 
+    // Auto done/undone based on target column name
+    const targetCol = columns.find((c) => c.id === targetColId);
+    const isDoneCol = !!targetCol && /conclu[ií]d/i.test(targetCol.name);
+    const wasDoneCol = card.column_id !== targetColId &&
+      !!columns.find((c) => c.id === card.column_id && /conclu[ií]d/i.test(c.name));
+    let doneAtPatch: { done_at: string | null } | null = null;
+    if (isDoneCol && !card.done_at) doneAtPatch = { done_at: new Date().toISOString() };
+    else if (!isDoneCol && wasDoneCol && card.done_at) doneAtPatch = { done_at: null };
+
     // Optimistic update
     setTasks((prev) => prev.map((t) => {
-      if (t.id === card.id) return { ...t, column_id: targetColId };
+      if (t.id === card.id) return { ...t, column_id: targetColId, ...(doneAtPatch ?? {}) };
       return t;
     }));
 
@@ -265,6 +274,7 @@ export default function Tasks() {
     if (targetColId !== card.column_id) {
       sourceArr.forEach((t, i) => updates.push(moveTask(t.id, card.column_id, i)));
     }
+    if (doneAtPatch) updates.push(updateTask(card.id, doneAtPatch));
     await Promise.all(updates);
   }
 
