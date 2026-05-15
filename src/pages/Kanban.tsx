@@ -484,13 +484,13 @@ export default function KanbanPage() {
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
-              <Pencil className="mr-1 h-4 w-4" />Editar funil
+              <Pencil className="mr-1 h-4 w-4" />Editar
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />Nova coluna
+              <Plus className="mr-1 h-4 w-4" />Coluna
             </Button>
             <Button size="sm" onClick={() => setNewLeadOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />Novo {current?.kind === "internal" ? "card" : "lead"}
+              <Plus className="mr-1 h-4 w-4" />{current?.kind === "internal" ? "Card" : "Lead"}
             </Button>
           </div>
         </header>
