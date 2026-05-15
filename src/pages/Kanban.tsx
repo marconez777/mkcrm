@@ -474,6 +474,7 @@ export default function KanbanPage() {
                 </button>
               )}
             </div>
+            <PipelineDateFilter value={dateFilter} onChange={setDateFilter} />
             <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>
