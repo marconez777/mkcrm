@@ -448,7 +448,7 @@ export default function KanbanPage() {
               whatsappInstances={whatsappInstances}
             />
             <p className="px-2 text-xs text-muted-foreground">
-              {normalizedQ ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
+              {(normalizedQ || dateFilter.from) ? `${leads.length} de ${allPipelineLeads.length}` : leads.length} leads · {stages.length} etapas
               {current?.kind === "internal" && <> · gestão interna</>}
               {current?.kind === "sales" && current?.whatsapp_instance_id && <> · WhatsApp vinculado</>}
             </p>
