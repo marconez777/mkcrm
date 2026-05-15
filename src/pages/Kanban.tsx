@@ -320,7 +320,15 @@ export default function KanbanPage() {
       })
     : dateFiltered;
 
-  useEffect(() => { saveUi(ui); }, [ui]);
+  useEffect(() => {
+    saveUi({
+      ...ui,
+      dateFilterPreset: dateFilter.preset ?? null,
+      dateFilterCustom: dateFilter.from && dateFilter.to
+        ? { from: dateFilter.from.toISOString(), to: dateFilter.to.toISOString() }
+        : null,
+    });
+  }, [ui, dateFilter]);
 
   useEffect(() => {
     supabase.from("whatsapp_instances").select("id, name").then(({ data }) => {
