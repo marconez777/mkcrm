@@ -95,6 +95,32 @@ export default function Admin() {
     if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
   }
 
+  function featuresEnabledCount(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    return FEATURES.filter((x) => isFeatureEnabled(f, x.key)).length;
+  }
+
+  function openFeaturesDialog(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    const draft: Record<string, boolean> = {};
+    for (const x of FEATURES) draft[x.key] = isFeatureEnabled(f, x.key);
+    setFeaturesDraft(draft);
+    setOpenFeatures(c);
+  }
+
+  async function saveFeatures() {
+    if (!openFeatures) return;
+    setBusy(true);
+    try {
+      const nextSettings = { ...(openFeatures.settings ?? {}), features: featuresDraft };
+      const { error } = await supabase.from("clinics").update({ settings: nextSettings }).eq("id", openFeatures.id);
+      if (error) throw error;
+      toast.success("Recursos atualizados");
+      setOpenFeatures(null);
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
   function closeCreateUser() {
     setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional");
   }
