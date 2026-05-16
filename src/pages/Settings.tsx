@@ -37,9 +37,11 @@ type Instance = {
 type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
-  const { membership, isSuperAdmin } = useAuth();
+  const { membership, isSuperAdmin, hasFeature } = useAuth();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
+  const showTracking = !isProfessional && hasFeature("tracking");
+  const showFields = hasFeature("custom_fields");
 
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
