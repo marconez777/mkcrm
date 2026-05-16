@@ -37,6 +37,11 @@ type Automation = {
   preset_key: string | null;
 };
 type Tpl = { id: string; slug: string; name: string };
+type Segment = { id: string; name: string };
+
+const toDays = (m: number) => Math.floor((m || 0) / 1440);
+const toHours = (m: number) => Math.floor(((m || 0) % 1440) / 60);
+const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(0, Math.min(23, h)) * 60);
 
 const PRESETS = [
   {
@@ -77,17 +82,20 @@ export default function EmailAutomations() {
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Automation[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [editing, setEditing] = useState<Automation | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
     if (!clinicId) return;
-    const [{ data: a }, { data: t }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: s }] = await Promise.all([
       supabase.from("email_automations").select("*").order("created_at", { ascending: false }),
       supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
+      supabase.from("email_segments").select("id,name").eq("clinic_id", clinicId).order("name"),
     ]);
     setItems((a ?? []) as any);
     setTemplates((t ?? []) as any);
+    setSegments((s ?? []) as any);
   }
 
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
@@ -272,6 +280,23 @@ export default function EmailAutomations() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Segmento (opcional)</Label>
+                <Select
+                  value={editing.trigger_config?.segment_id ?? "__all__"}
+                  onValueChange={(v) => setEditing({
+                    ...editing,
+                    trigger_config: { ...editing.trigger_config, segment_id: v === "__all__" ? null : v },
+                  })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os leads (sem filtro)</SelectItem>
+                    {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Filtra os leads que entram nesta automação.</p>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Passos</Label>
@@ -301,11 +326,31 @@ export default function EmailAutomations() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px]">Atraso (minutos)</Label>
-                        <Input type="number" min={0} value={s.delay_minutes} onChange={(e) => {
-                          const next = [...editing.steps]; next[i] = { ...s, delay_minutes: Number(e.target.value) };
-                          setEditing({ ...editing, steps: next });
-                        }} className="h-8" />
+                        <Label className="text-[11px]">Atraso</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number" min={0}
+                            value={toDays(s.delay_minutes)}
+                            onChange={(e) => {
+                              const next = [...editing.steps];
+                              next[i] = { ...s, delay_minutes: toMinutes(Number(e.target.value), toHours(s.delay_minutes)) };
+                              setEditing({ ...editing, steps: next });
+                            }}
+                            className="h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">d</span>
+                          <Input
+                            type="number" min={0} max={23}
+                            value={toHours(s.delay_minutes)}
+                            onChange={(e) => {
+                              const next = [...editing.steps];
+                              next[i] = { ...s, delay_minutes: toMinutes(toDays(s.delay_minutes), Number(e.target.value)) };
+                              setEditing({ ...editing, steps: next });
+                            }}
+                            className="h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">h</span>
+                        </div>
                       </div>
                     </div>
                   </Card>
