@@ -175,9 +175,9 @@ export default function SettingsPage() {
         <Tabs defaultValue="connection" className="w-full">
           <TabsList className="inline-flex w-auto justify-start gap-1">
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
-            <TabsTrigger value="fields">Campos</TabsTrigger>
+            {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
-            {!isProfessional && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
+            {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
