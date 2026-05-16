@@ -42,6 +42,7 @@ export default function SettingsPage() {
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const showTracking = !isProfessional && hasFeature("tracking");
   const showFields = hasFeature("custom_fields");
+  const showEmail = hasFeature("email_marketing");
 
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
