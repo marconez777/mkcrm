@@ -1,91 +1,139 @@
 
-## Objetivo
+# Email Marketing Multi-Tenant — Plano Final (v2)
 
-Permitir que o **Super Admin** ligue/desligue telas e recursos para cada clínica do CRM. As clínicas só veem (e só conseguem acessar) o que estiver liberado.
+Mudança vs. v1: **secrets gerenciados pelo painel Super Admin → Integrações**, sem pop-up do `add_secret`. Você configura depois quando quiser.
 
-## Modelo de dados
+---
 
-Reaproveitar a coluna existente `clinics.settings jsonb` (já existe, default `{}`) — sem nova tabela.
+## 1. Segredos via UI (Super Admin → Integrações)
 
-Convenção:
-```json
-{
-  "features": {
-    "inbox": true,
-    "tasks": true,
-    "agents": true,
-    "automations": true,
-    "sequences": true,
-    "templates": true,
-    "metrics": true,
-    "metrics_ai": true,
-    "metrics_ai_usage": true,
-    "tracking": true,
-    "custom_fields": true,
-    "team": true
-  }
-}
-```
+Nova aba `Admin → Integrações` mostra cards para cada secret global:
 
-Regra: **flag ausente = liberada** (compatível com clínicas atuais). `Pipeline` e `Configurações` ficam sempre disponíveis (não bloqueáveis), assim como `/admin` (super admin) e `/auth`.
+| Secret | Status | Ação |
+|---|---|---|
+| `RESEND_API_KEY` | ✅ Configurado | "Atualizar" |
+| `RESEND_WEBHOOK_SECRET` | ⚠️ Não configurado | "Configurar" |
 
-Catálogo das features (fonte única) em `src/lib/features.ts`:
-- `key` → `{ label, route(s), navMatch }`
-- Inclui também as features sem rota dedicada que queremos governar futuramente (ex.: `tracking` controla o card no Settings).
+Botões "Atualizar"/"Configurar" disparam `update_secret`/`add_secret` no momento (não no início). Edge functions verificam presença antes de operar: `send-email` só roda se `RESEND_API_KEY` setado; `resend-webhook` valida assinatura só se `RESEND_WEBHOOK_SECRET` setado (caso contrário aceita sem verificar e loga warning — útil em dev).
 
-## Backend
+Vantagem: você sobe toda a infra agora e configura o webhook secret quando cadastrar o endpoint no Resend.
 
-Migration:
+---
 
-1. Função `has_feature(_clinic uuid, _key text) returns boolean` `SECURITY DEFINER`:
-   - lê `clinics.settings->'features'->>_key`;
-   - retorna `true` quando ausente/`null` ou `'true'`, `false` quando `'false'`.
-2. Helper `current_clinic_has_feature(_key text)` que combina com `current_clinic_id()`.
-3. Reforço em RLS de tabelas “feature-gated” como camada extra (defense in depth):
-   - `automations`, `message_sequences`, `message_sequence_steps`, `message_sequence_enrollments`, `message_templates`, `ai_agents`.
-   - Adicionar a cada policy `clinic_scoped` existente uma policy adicional `feature_gated` que exige `current_clinic_has_feature('<key>')`. Mantém a policy original (políticas são OR-uma-com-outra → trocar a existing por uma combinada usando `AND` é o caminho correto: dropar e recriar com `clinic_id = current_clinic_id() AND current_clinic_has_feature('automations')` etc.).
-4. Política do `clinics.settings`: já coberta por `clinics_admin_update`. Adicionar trigger que **bloqueia** updates em `settings.features` quando `NOT is_super_admin()` (admin de clínica não pode auto-liberar features).
+## 2. Feature flag
 
-## UI — Super Admin (`src/pages/Admin.tsx`)
+`src/lib/features.ts` ganha `{ key: "email_marketing", label: "Email Marketing" }`. Funciona com o sistema atual (`hasFeature`, `current_clinic_has_feature`).
 
-Nova ação na linha de cada clínica: botão **Recursos** abre `Dialog` com a lista do catálogo + `Switch` por feature. Ao salvar:
-```ts
-await supabase.from("clinics").update({
-  settings: { ...c.settings, features: nextFeatures }
-}).eq("id", c.id);
-```
-Mostrar contagem `N/M habilitadas` na tabela.
+---
 
-## UI — clínica
+## 3. Schema multi-tenant
 
-1. **`useAuth`**: estender `Membership.clinic` com `settings: { features?: Record<string, boolean> }` (já vem do select, basta incluir `settings` no `select`). Expor helper `hasFeature(key)` no contexto.
-2. **`AppShell`**: filtrar `navItems` pelo `hasFeature(item.featureKey)`. Mapear cada item do `items[]` para sua `featureKey` (Pipeline e Settings sem key = sempre).
-3. **Guard de rota**: novo componente `<FeatureRoute feature="...">` que redireciona para `/` com toast “Recurso indisponível” quando bloqueado. Aplicar em `App.tsx` nas rotas correspondentes.
-4. **Settings**: esconder o card *Tracking* / *Custom fields* quando a feature respectiva estiver off.
+Migração `*_email_marketing.sql`. Tabelas (todas com `clinic_id uuid not null references clinics(id) on delete cascade`):
 
-## Gating extra
+- **`email_domains`** — `domain, resend_domain_id, status, dns_records jsonb, region, last_checked_at`. Unique `(clinic_id, domain)`.
+- **`email_template_folders`**
+- **`email_templates`** — Unique `(clinic_id, slug)`.
+- **`email_queue`** — índice único parcial `(clinic_id, template_slug, lower(recipient_email), related_lead_table) WHERE status='pending' AND related_lead_table IS NOT NULL AND related_lead_table <> 'leads_internal'`.
+- **`email_logs`** — append-only. Unique parcial em `resend_id`.
+- **`email_unsubscribes`** — `PK (clinic_id, email)`.
+- **`email_segments`**, **`email_automations`**, **`email_campaigns`**.
+- **`email_send_state`** — `clinic_id, sent_today int, quota_resets_at` (quota por clínica).
+- **`app_settings`** global (HMAC + cron service role key, super admin only).
 
-- Edge functions sensíveis (`ai-chat`, `ai-auto-reply`, `automations-tick`, `sequence-tick`) consultam `current_clinic_has_feature` antes de processar — retornam `403` se desligado. Evita execução server-side mesmo se alguém chamar direto.
+`clinics.settings.email = { quota_daily: 1000 }` — super admin edita no diálogo "Recursos".
 
-## Entregáveis
+### RLS
+- Tabelas da clínica: `has_clinic_access(clinic_id) AND current_clinic_has_feature('email_marketing')`. Super admin bypass.
+- `email_logs`/`email_unsubscribes`: insert só service-role.
+- `email_domains`: write super admin; read clínica dona + super admin.
 
-```text
-supabase/migrations/<ts>_clinic_features.sql
-src/lib/features.ts                  (catálogo)
-src/hooks/useAuth.tsx                (+ settings, hasFeature)
-src/components/FeatureRoute.tsx      (novo)
-src/components/AppShell.tsx          (filtro do menu)
-src/App.tsx                          (envolver rotas)
-src/pages/Admin.tsx                  (botão + dialog "Recursos")
-src/pages/Settings.tsx               (esconde cards bloqueados)
-supabase/functions/ai-chat/index.ts          (+ check)
-supabase/functions/ai-auto-reply/index.ts    (+ check)
-supabase/functions/automations-tick/index.ts (+ check)
-supabase/functions/sequence-tick/index.ts    (+ check)
-```
+### Funções SQL
+- `enqueue_email(_clinic_id, _template_slug, _recipient_email, ...)` com dedup por `(clinic, template, email, contexto)`.
+- `generate/verify_unsubscribe_token(_clinic_id, _email)` — HMAC.
+- `invoke_edge_function(_name, _body)` wrapper.
+- `reset_email_send_state()` (cron diário 0h).
 
-## Comportamento default
+---
 
-- Toda clínica existente continua com tudo liberado (chave ausente = on).
-- Super admin pode desligar individualmente sem migração de dados.
-- Admin/owner da clínica **vê** o estado atual das features (read-only) na tela Equipe/Configurações? → Fora do escopo desta entrega; só super admin gerencia.
+## 4. Edge functions
+
+| Função | Auth | Função |
+|---|---|---|
+| `email-domain-manage` | super admin JWT | `create/verify/delete` via Resend API. |
+| `send-email` | service-role OU admin JWT | Render + suppression + dedup + quota + envio + log. Bloqueia se feature off, domínio não verificado ou quota atingida. |
+| `process-email-queue` | cron 1min | Lock otimista, backoff (quota → 9h BRT amanhã, rate-limit → respeita `Retry-After`). |
+| `resend-webhook` | público (Svix se `RESEND_WEBHOOK_SECRET` setado) | Atualiza logs; hard bounce/complaint → upsert em `email_unsubscribes` da clínica do log. |
+| `unsubscribe` | público + HMAC | Cancela jobs pendentes da clínica. |
+| `dispatch-campaign` + `process-scheduled-campaigns` | service-role / cron 5min | Resolve segmento, enfileira `related_lead_table='campaign_<id>'`. |
+| `backfill-resend-events` | super admin | Re-sincroniza histórico. |
+
+---
+
+## 5. UI — Super Admin (`src/pages/Admin.tsx`)
+
+1. **Aba "Integrações"** (nova): cards de secrets globais (Resend API + webhook). Status verde/amarelo + botão.
+2. **Diálogo "Recursos" da clínica**: toggle `email_marketing` + campo numérico **"Quota diária de emails"** (default 1000).
+3. **Botão "Domínios"** por clínica: dialog lista `email_domains`, adicionar, tabela DNS copiável, botão "Verificar".
+
+---
+
+## 6. UI — Clínica
+
+### Menu (`AppShell.tsx`)
+Item **"Email Marketing"** com `featureKey: "email_marketing"`.
+
+### Rotas (`src/pages/email/`)
+`/email` (dashboard com alerta "configure domínio"), `/email/templates`, `/email/templates/:id` (editor blocos + DOMPurify), `/email/queue`, `/email/logs`, `/email/unsubscribes`, `/email/segments`, `/email/automations`, `/email/campaigns`. Todas em `<FeatureRoute feature="email_marketing">`.
+
+### Configurações (`Settings.tsx`)
+Card **"Domínio de email"** (visível se feature on + role owner/admin): adicionar domínio próprio (`mail.minhaclinica.com.br`), tabela de DNS copiável com tutorial passo-a-passo, botão "Verificar". **Zero menção a "Resend".**
+
+### Página pública `/unsubscribe`
+Sem auth. Recebe `?clinic=...&email=...&token=...`.
+
+---
+
+## 7. Automações — UX (resposta à pergunta c)
+
+Tela `/email/automations` com duas seções:
+
+### A. Receitas prontas (1-clique)
+1. **Boas-vindas a novos leads** — trigger `lead_created`, 1 step.
+2. **Sequência de aquecimento** — trigger `stage_enter` (clínica escolhe etapa), 3 steps (D+0, D+2, D+7).
+3. **Reativação de inativos** — trigger `lead_inactive_days` (reaproveita `watch-stale-leads`), 1 step.
+
+Ao ativar: cria `email_templates` (com texto default editável) + `email_automations`.
+
+### B. Personalizado
+CRUD com triggers limitados a dropdown: *Lead criado*, *Mudou para etapa X*, *Inativo há N dias*, *Tag adicionada*. Passos = `template + delay_days`.
+
+Triggers SQL novos:
+- `tg_on_new_lead_email_automation()` — itera `email_automations WHERE clinic_id=NEW.clinic_id AND active=true AND trigger_type='lead_created'` e chama `enqueue_email`.
+- `tg_on_stage_change_email_automation()` — análogo.
+
+Se nenhuma automação ativa → no-op. Integrações futuras (Lovable forms, WordPress) que inserem em `leads` disparam automaticamente.
+
+---
+
+## 8. Quota por clínica
+
+`clinics.settings.email.quota_daily` (super admin). `email_send_state(clinic_id, sent_today, quota_resets_at)`. `send-email` incrementa e checa; se passou → reagenda. Dashboard mostra "Envios hoje: 342/1000". Cron diário zera contadores.
+
+---
+
+## 9. Bugs do blueprint antecipados
+
+Todos os 18 itens da seção 6 do blueprint aplicados desde o início.
+
+---
+
+## 10. Ordem de execução (após aprovação)
+
+1. Migração SQL.
+2. 8 edge functions.
+3. `src/lib/features.ts` + `Admin.tsx` (Integrações + Quota + Domínios).
+4. UI clínica (menu + 9 páginas + card Settings).
+5. Página pública `/unsubscribe`.
+6. Você abre `Admin → Integrações` quando quiser configurar `RESEND_WEBHOOK_SECRET`. Sem ele a infra roda em modo "aceita webhook sem assinatura" + warning.
+
+Posso prosseguir?
