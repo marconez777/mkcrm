@@ -9,14 +9,8 @@ import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
-import Agents from "./pages/Agents";
-import Automations from "./pages/Automations";
 import Sequences from "./pages/Sequences";
-import Templates from "./pages/Templates";
-import Metrics from "./pages/Metrics";
-import MetricsOps from "./pages/MetricsOps";
-import MetricsAiUsage from "./pages/MetricsAiUsage";
-import AgentMemories from "./pages/AgentMemories";
+import AiHub from "./pages/ai/AiHub";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsTracking from "./pages/SettingsTracking";
@@ -66,14 +60,18 @@ const App = () => (
                       <Route path="/" element={<Kanban />} />
                       <Route path="/inbox" element={<FeatureRoute feature="inbox"><Inbox /></FeatureRoute>} />
                       <Route path="/inbox/:leadId" element={<FeatureRoute feature="inbox"><Inbox /></FeatureRoute>} />
-                      <Route path="/agents" element={<FeatureRoute feature="agents"><Agents /></FeatureRoute>} />
-                      <Route path="/automations" element={<FeatureRoute feature="automations"><Automations /></FeatureRoute>} />
+                      <Route path="/ai" element={<AiHub />} />
+                      <Route path="/ai/agents" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/memories" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
+                      <Route path="/agents" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
+                      <Route path="/agents/memories" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
+                      <Route path="/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
                       <Route path="/sequences" element={<FeatureRoute feature="sequences"><Sequences /></FeatureRoute>} />
-                      <Route path="/templates" element={<FeatureRoute feature="templates"><Templates /></FeatureRoute>} />
-                      <Route path="/metrics" element={<FeatureRoute feature="metrics"><MetricsOps /></FeatureRoute>} />
-                      <Route path="/metrics/ai" element={<FeatureRoute feature="metrics_ai"><Metrics /></FeatureRoute>} />
-                      <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><MetricsAiUsage /></FeatureRoute>} />
-                      <Route path="/agents/memories" element={<FeatureRoute feature="agents"><AgentMemories /></FeatureRoute>} />
+                      <Route path="/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
+                      <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/tracking" element={<FeatureRoute feature="tracking"><SettingsTracking /></FeatureRoute>} />

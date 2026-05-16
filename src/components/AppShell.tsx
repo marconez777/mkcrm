@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Coins, Brain, LayoutDashboard, Megaphone, Workflow } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,12 +12,8 @@ const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: Fea
   { to: "/", label: "Pipeline", icon: LayoutGrid },
   { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
   { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
-  { to: "/agents", label: "Agentes IA", icon: Bot, feature: "agents" },
-  { to: "/automations", label: "Automações", icon: Zap, feature: "automations" },
+  { to: "/ai", label: "IA", icon: Sparkles },
   { to: "/sequences", label: "Sequências", icon: Mail, feature: "sequences" },
-  { to: "/templates", label: "Templates", icon: FileText, feature: "templates" },
-  { to: "/metrics", label: "Métricas", icon: BarChart3, feature: "metrics" },
-  { to: "/metrics/ai", label: "Métricas IA", icon: Activity, feature: "metrics_ai" },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
@@ -29,23 +25,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
-  const restricted = new Set(["/agents", "/automations", "/sequences", "/templates"]);
+  const restricted = new Set(["/ai", "/sequences"]);
   let navItems: NavItem[] = isProfessional ? items.filter((i) => !restricted.has(i.to)) : [...items];
   navItems = navItems.filter((i) => !i.feature || hasFeature(i.feature));
   if (isClinicAdmin) {
-    navItems = navItems.map((i) =>
-      i.to === "/agents"
-        ? {
-            ...i,
-            children: [
-              { to: "/agents/memories", label: "Memórias IA", icon: Brain, feature: "agents" },
-              ...(hasFeature("metrics_ai_usage")
-                ? [{ to: "/metrics/ai-usage", label: "Custos IA", icon: Coins, feature: "metrics_ai_usage" as FeatureKey }]
-                : []),
-            ],
-          }
-        : i
-    );
     if (hasFeature("team")) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
   if (hasFeature("email_marketing")) {
