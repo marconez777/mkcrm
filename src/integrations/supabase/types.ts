@@ -611,6 +611,27 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          created_at: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       attendants: {
         Row: {
           clinic_id: string
@@ -905,6 +926,541 @@ export type Database = {
           lead_id?: string | null
         }
         Relationships: []
+      }
+      email_automations: {
+        Row: {
+          active: boolean
+          clinic_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          preset_key: string | null
+          steps: Json
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          clinic_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          preset_key?: string | null
+          steps?: Json
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          clinic_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          preset_key?: string | null
+          steps?: Json
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automations_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_campaigns: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          enqueued_count: number
+          error: string | null
+          failed_count: number
+          id: string
+          name: string
+          scheduled_for: string | null
+          segment_id: string | null
+          sent_at: string | null
+          sent_count: number
+          status: string
+          template_slug: string
+          test_email: string | null
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          enqueued_count?: number
+          error?: string | null
+          failed_count?: number
+          id?: string
+          name: string
+          scheduled_for?: string | null
+          segment_id?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: string
+          template_slug: string
+          test_email?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          enqueued_count?: number
+          error?: string | null
+          failed_count?: number
+          id?: string
+          name?: string
+          scheduled_for?: string | null
+          segment_id?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: string
+          template_slug?: string
+          test_email?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaigns_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaigns_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "email_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_domains: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          dns_records: Json
+          domain: string
+          id: string
+          last_checked_at: string | null
+          region: string
+          resend_domain_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          dns_records?: Json
+          domain: string
+          id?: string
+          last_checked_at?: string | null
+          region?: string
+          resend_domain_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          dns_records?: Json
+          domain?: string
+          id?: string
+          last_checked_at?: string | null
+          region?: string
+          resend_domain_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_domains_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_logs: {
+        Row: {
+          bounced_at: string | null
+          clicked_at: string | null
+          clinic_id: string
+          complained_at: string | null
+          created_at: string
+          delivered_at: string | null
+          error: string | null
+          events: Json
+          id: string
+          opened_at: string | null
+          recipient_email: string
+          related_lead_id: string | null
+          related_lead_table: string | null
+          resend_id: string | null
+          sent_at: string
+          status: string
+          subject: string
+          template_slug: string | null
+        }
+        Insert: {
+          bounced_at?: string | null
+          clicked_at?: string | null
+          clinic_id: string
+          complained_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          events?: Json
+          id?: string
+          opened_at?: string | null
+          recipient_email: string
+          related_lead_id?: string | null
+          related_lead_table?: string | null
+          resend_id?: string | null
+          sent_at?: string
+          status?: string
+          subject: string
+          template_slug?: string | null
+        }
+        Update: {
+          bounced_at?: string | null
+          clicked_at?: string | null
+          clinic_id?: string
+          complained_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          events?: Json
+          id?: string
+          opened_at?: string | null
+          recipient_email?: string
+          related_lead_id?: string | null
+          related_lead_table?: string | null
+          resend_id?: string | null
+          sent_at?: string
+          status?: string
+          subject?: string
+          template_slug?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_queue: {
+        Row: {
+          attempts: number
+          clinic_id: string
+          created_at: string
+          error: string | null
+          force_send: boolean
+          id: string
+          recipient_email: string
+          recipient_name: string | null
+          related_lead_id: string | null
+          related_lead_table: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          template_slug: string | null
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          attempts?: number
+          clinic_id: string
+          created_at?: string
+          error?: string | null
+          force_send?: boolean
+          id?: string
+          recipient_email: string
+          recipient_name?: string | null
+          related_lead_id?: string | null
+          related_lead_table?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          template_slug?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          attempts?: number
+          clinic_id?: string
+          created_at?: string
+          error?: string | null
+          force_send?: boolean
+          id?: string
+          recipient_email?: string
+          recipient_name?: string | null
+          related_lead_id?: string | null
+          related_lead_table?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          template_slug?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_segments: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          filters: Json
+          id: string
+          name: string
+          source_table: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          filters?: Json
+          id?: string
+          name: string
+          source_table?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          filters?: Json
+          id?: string
+          name?: string
+          source_table?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_segments_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_send_state: {
+        Row: {
+          clinic_id: string
+          quota_resets_at: string
+          sent_today: number
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          quota_resets_at?: string
+          sent_today?: number
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          quota_resets_at?: string
+          sent_today?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_send_state_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_template_folders: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_folders_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          active: boolean
+          blocks_json: Json | null
+          category: string
+          clinic_id: string
+          created_at: string
+          description: string | null
+          folder_id: string | null
+          from_email: string
+          from_name: string
+          html_body: string
+          id: string
+          is_preset: boolean
+          name: string
+          preheader: string | null
+          preset_label: string | null
+          reply_to: string | null
+          slug: string
+          subject: string
+          text_body: string | null
+          updated_at: string
+          variables_schema: Json
+        }
+        Insert: {
+          active?: boolean
+          blocks_json?: Json | null
+          category?: string
+          clinic_id: string
+          created_at?: string
+          description?: string | null
+          folder_id?: string | null
+          from_email: string
+          from_name: string
+          html_body: string
+          id?: string
+          is_preset?: boolean
+          name: string
+          preheader?: string | null
+          preset_label?: string | null
+          reply_to?: string | null
+          slug: string
+          subject: string
+          text_body?: string | null
+          updated_at?: string
+          variables_schema?: Json
+        }
+        Update: {
+          active?: boolean
+          blocks_json?: Json | null
+          category?: string
+          clinic_id?: string
+          created_at?: string
+          description?: string | null
+          folder_id?: string | null
+          from_email?: string
+          from_name?: string
+          html_body?: string
+          id?: string
+          is_preset?: boolean
+          name?: string
+          preheader?: string | null
+          preset_label?: string | null
+          reply_to?: string | null
+          slug?: string
+          subject?: string
+          text_body?: string | null
+          updated_at?: string
+          variables_schema?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_template_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_unsubscribes: {
+        Row: {
+          clinic_id: string
+          email: string
+          reason: string | null
+          source: string | null
+          unsubscribed_at: string
+        }
+        Insert: {
+          clinic_id: string
+          email: string
+          reason?: string | null
+          source?: string | null
+          unsubscribed_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          email?: string
+          reason?: string | null
+          source?: string | null
+          unsubscribed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_unsubscribes_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       embedding_cache: {
         Row: {
@@ -2749,6 +3305,7 @@ export type Database = {
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
+      clinic_email_quota: { Args: { _clinic_id: string }; Returns: number }
       clinic_has_feature: {
         Args: { _clinic_id: string; _key: string }
         Returns: boolean
@@ -2759,10 +3316,32 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
       }
+      enqueue_email: {
+        Args: {
+          _clinic_id: string
+          _force_send?: boolean
+          _recipient_email: string
+          _recipient_name?: string
+          _related_lead_id?: string
+          _related_lead_table?: string
+          _scheduled_at?: string
+          _template_slug: string
+          _variables?: Json
+        }
+        Returns: string
+      }
+      generate_unsubscribe_token: {
+        Args: { _clinic_id: string; _email: string }
+        Returns: string
+      }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
         Returns: undefined
+      }
+      invoke_edge_function: {
+        Args: { _body?: Json; _function_name: string }
+        Returns: number
       }
       is_clinic_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
@@ -2823,6 +3402,11 @@ export type Database = {
           kind: string
           similarity: number
         }[]
+      }
+      reset_email_send_state: { Args: never; Returns: undefined }
+      verify_unsubscribe_token: {
+        Args: { _clinic_id: string; _email: string; _token: string }
+        Returns: boolean
       }
     }
     Enums: {
