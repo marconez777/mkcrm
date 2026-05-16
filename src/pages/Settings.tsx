@@ -179,6 +179,7 @@ export default function SettingsPage() {
             {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
             {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
+            {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
