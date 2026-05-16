@@ -36,6 +36,8 @@ export default function Admin() {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserRole, setNewUserRole] = useState<"owner" | "admin" | "professional" | "viewer">("professional");
+  const [openFeatures, setOpenFeatures] = useState<Clinic | null>(null);
+  const [featuresDraft, setFeaturesDraft] = useState<Record<string, boolean>>({});
 
   useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
