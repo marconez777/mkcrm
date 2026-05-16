@@ -9,7 +9,6 @@ import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
-import Sequences from "./pages/Sequences";
 import AiHub from "./pages/ai/AiHub";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
