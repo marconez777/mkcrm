@@ -12,6 +12,10 @@ import { toast } from "sonner";
 import { Loader2, Plus, Mail, Copy, UserPlus, Sliders } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { FEATURES, isFeatureEnabled, type FeatureKey } from "@/lib/features";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
+import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
+import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
@@ -147,31 +151,39 @@ export default function Admin() {
 
   return (
     <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Painel Super Admin</h1>
-          <p className="text-sm text-muted-foreground">Gerenciar clínicas e convites</p>
-        </div>
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova clínica</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Criar clínica</DialogTitle></DialogHeader>
-            <form onSubmit={createClinic} className="space-y-3">
-              <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={name} onChange={(e) => { setName(e.target.value); if (!slug) setSlug(slugify(e.target.value)); }} required />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Slug</Label>
-                <Input value={slug} onChange={(e) => setSlug(slugify(e.target.value))} required />
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Painel Super Admin</h1>
+        <p className="text-sm text-muted-foreground">Gerenciar clínicas, integrações e cotas</p>
       </div>
+
+      <Tabs defaultValue="clinics" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="clinics">Clínicas</TabsTrigger>
+          <TabsTrigger value="integrations">Integrações</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="clinics" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+              <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Nova clínica</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Criar clínica</DialogTitle></DialogHeader>
+                <form onSubmit={createClinic} className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Nome</Label>
+                    <Input value={name} onChange={(e) => { setName(e.target.value); if (!slug) setSlug(slugify(e.target.value)); }} required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Slug</Label>
+                    <Input value={slug} onChange={(e) => setSlug(slugify(e.target.value))} required />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
 
       <div className="rounded-lg border bg-card">
         <Table>
@@ -305,6 +317,14 @@ export default function Admin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-4">
+          <IntegrationsKeysCard />
+          <IntegrationsDomainsTable clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} />
+          <IntegrationsQuotaTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
