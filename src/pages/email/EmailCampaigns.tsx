@@ -76,7 +76,8 @@ export default function EmailCampaigns() {
   function startCreate() {
     setEditing({
       id: "", name: "", template_slug: "", segment_id: null, status: "draft",
-      scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0, created_at: "",
+      scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0,
+      test_email: user?.email ?? null, test_sent_at: null, created_at: "",
     });
     setScheduleDate("");
   }
@@ -91,16 +92,37 @@ export default function EmailCampaigns() {
         name: editing.name,
         template_slug: editing.template_slug,
         segment_id: editing.segment_id,
+        test_email: editing.test_email,
         scheduled_for: scheduleDate ? new Date(scheduleDate).toISOString() : null,
         status: scheduleDate ? "scheduled" : "draft",
       };
       const q = editing.id
         ? supabase.from("email_campaigns").update(payload).eq("id", editing.id)
-        : supabase.from("email_campaigns").insert(payload);
-      const { error } = await q;
+        : supabase.from("email_campaigns").insert(payload).select("id").single();
+      const { data, error } = await q;
       if (error) throw error;
       toast.success("Campanha salva");
-      setEditing(null);
+      if (!editing.id && data) setEditing({ ...editing, id: (data as any).id });
+      else setEditing(null);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    if (!editing?.id) { toast.error("Salve a campanha antes de enviar teste"); return; }
+    const dest = editing.test_email?.trim();
+    if (!dest) { toast.error("Informe o email de teste"); return; }
+    setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("dispatch-campaign", {
+        body: { campaign_id: editing.id, test_only: true, test_email_override: dest },
+      });
+      if (error) throw error;
+      toast.success(`Teste enviado para ${dest}`);
       await load();
     } catch (e: any) {
       toast.error(e.message);
