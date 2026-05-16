@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Mail, CheckCircle2, MousePointerClick, AlertTriangle } from "lucide-react";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Mail,
+  CheckCircle2,
+  MousePointerClick,
+  AlertTriangle,
+  Eye,
+  Clock,
+  Activity,
+} from "lucide-react";
 
 type Log = {
   id: string;
@@ -33,6 +60,14 @@ type Log = {
   bounced_at: string | null;
   error: string | null;
 };
+
+type QueueRow = { status: string };
+
+const RANGES = [
+  { id: "24h", label: "24h", hours: 24 },
+  { id: "7d", label: "7 dias", hours: 24 * 7 },
+  { id: "30d", label: "30 dias", hours: 24 * 30 },
+];
 
 function statusBadge(s: string) {
   const map: Record<string, "default" | "secondary" | "destructive"> = {
@@ -48,41 +83,79 @@ function statusBadge(s: string) {
   return <Badge variant={map[s] ?? "secondary"}>{s}</Badge>;
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  sent: "hsl(var(--primary))",
+  delivered: "hsl(var(--primary))",
+  opened: "hsl(var(--chart-2, 142 71% 45%))",
+  clicked: "hsl(var(--chart-3, 262 83% 58%))",
+  failed: "hsl(var(--destructive))",
+  bounced: "hsl(var(--destructive))",
+  complained: "hsl(var(--destructive))",
+};
+
 export default function EmailDashboard() {
   const { membership } = useAuth();
   const clinicId = membership?.clinic_id;
   const [logs, setLogs] = useState<Log[]>([]);
+  const [queue, setQueue] = useState<QueueRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [templateFilter, setTemplateFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [sentToday, setSentToday] = useState(0);
   const [quota, setQuota] = useState(1000);
+  const [range, setRange] = useState(RANGES[1]);
+  const [loading, setLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   async function load() {
     if (!clinicId) return;
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const [{ data: ls }, { data: state }, { data: c }] = await Promise.all([
+    setLoading(true);
+    const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
+    const [{ data: ls }, { data: q }, { data: state }, { data: c }] = await Promise.all([
       supabase
         .from("email_logs")
         .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,error")
         .gte("sent_at", since)
         .order("sent_at", { ascending: false })
-        .limit(500),
+        .limit(1000),
+      supabase.from("email_queue").select("status").eq("clinic_id", clinicId),
       supabase.from("email_send_state").select("sent_today").eq("clinic_id", clinicId).maybeSingle(),
       supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle(),
     ]);
     setLogs((ls ?? []) as any);
+    setQueue((q ?? []) as any);
     setSentToday((state as any)?.sent_today ?? 0);
     setQuota(Number((c as any)?.settings?.email?.quota_daily ?? 1000));
+    setLastUpdate(new Date());
+    setLoading(false);
   }
 
   useEffect(() => {
     if (clinicId) load();
-  }, [clinicId]);
+  }, [clinicId, range.id]);
 
   useEffect(() => {
     document.title = "Email — Dashboard";
   }, []);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!clinicId) return;
+    const ch = supabase
+      .channel(`email-dash-${clinicId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "email_logs" },
+        () => load(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "email_queue", filter: `clinic_id=eq.${clinicId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [clinicId, range.id]);
 
   const stats = useMemo(() => {
     const total = logs.length;
@@ -96,10 +169,18 @@ export default function EmailDashboard() {
       opened,
       clicked,
       failed,
+      deliveredPct: total ? Math.round((delivered / total) * 100) : 0,
       openPct: total ? Math.round((opened / total) * 100) : 0,
       clickPct: total ? Math.round((clicked / total) * 100) : 0,
+      failedPct: total ? Math.round((failed / total) * 100) : 0,
     };
   }, [logs]);
+
+  const queueStats = useMemo(() => {
+    const m: Record<string, number> = { pending: 0, processing: 0, failed: 0, sent: 0, cancelled: 0 };
+    for (const r of queue) m[r.status] = (m[r.status] ?? 0) + 1;
+    return m;
+  }, [queue]);
 
   const templates = useMemo(() => {
     const set = new Set(logs.map((l) => l.template_slug).filter(Boolean) as string[]);
@@ -115,39 +196,114 @@ export default function EmailDashboard() {
     });
   }, [logs, statusFilter, templateFilter, search]);
 
-  // simple daily aggregation
-  const byDay = useMemo(() => {
+  // Time series (envios/dia ou /hora)
+  const timeSeries = useMemo(() => {
+    const isHourly = range.hours <= 24;
+    const buckets = new Map<string, { key: string; sent: number; opened: number; clicked: number; failed: number }>();
+    const fmt = (d: Date) =>
+      isHourly
+        ? `${String(d.getHours()).padStart(2, "0")}:00`
+        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    // Pré-popular para garantir continuidade
+    const now = new Date();
+    const steps = isHourly ? 24 : Math.min(30, Math.ceil(range.hours / 24));
+    for (let i = steps - 1; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * (isHourly ? 3600_000 : 86400_000));
+      const k = fmt(d);
+      buckets.set(k, { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 });
+    }
+
+    for (const l of logs) {
+      const d = new Date(l.sent_at);
+      const k = fmt(d);
+      const b = buckets.get(k) ?? { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 };
+      b.sent++;
+      if (l.opened_at) b.opened++;
+      if (l.clicked_at) b.clicked++;
+      if (["failed", "bounced", "complained"].includes(l.status)) b.failed++;
+      buckets.set(k, b);
+    }
+    return Array.from(buckets.values());
+  }, [logs, range.hours]);
+
+  // Top templates
+  const byTemplate = useMemo(() => {
     const m = new Map<string, number>();
     for (const l of logs) {
-      const d = l.sent_at.slice(0, 10);
-      m.set(d, (m.get(d) ?? 0) + 1);
+      const k = l.template_slug ?? "(sem template)";
+      m.set(k, (m.get(k) ?? 0) + 1);
     }
     return Array.from(m.entries())
-      .sort()
-      .slice(-7);
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
   }, [logs]);
-  const maxDay = Math.max(1, ...byDay.map(([, n]) => n));
+
+  // Status pie
+  const byStatus = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of logs) {
+      const effective = l.clicked_at ? "clicked" : l.opened_at ? "opened" : l.status;
+      m.set(effective, (m.get(effective) ?? 0) + 1);
+    }
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value }));
+  }, [logs]);
 
   const quotaPct = quota > 0 ? Math.round((sentToday / quota) * 100) : 0;
 
+  const chartConfig = {
+    sent: { label: "Enviados", color: "hsl(var(--primary))" },
+    opened: { label: "Abertos", color: "hsl(142 71% 45%)" },
+    clicked: { label: "Cliques", color: "hsl(262 83% 58%)" },
+    failed: { label: "Falhas", color: "hsl(var(--destructive))" },
+    count: { label: "Envios", color: "hsl(var(--primary))" },
+  };
+
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Email Marketing</h1>
-        <p className="text-sm text-muted-foreground">Visão geral dos últimos 7 dias.</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Email Marketing</h1>
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <Activity className="h-3 w-3" />
+            Atualizado em tempo real • {lastUpdate.toLocaleTimeString("pt-BR")}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-md border p-1 text-xs">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r)}
+                className={`rounded px-3 py-1 transition ${
+                  range.id === r.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            {loading ? "Atualizando..." : "Atualizar"}
+          </Button>
+        </div>
       </div>
 
+      {/* Stat cards */}
       <div className="grid gap-3 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><Mail className="h-3 w-3" />Enviados</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.total}</div>
+          <div className="text-xs text-muted-foreground">no período</div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3 w-3" />Entregues</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.delivered}</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.deliveredPct}%</div>
+          <div className="text-xs text-muted-foreground">{stats.delivered} entregas</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">Abertura</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Eye className="h-3 w-3" />Abertura</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.openPct}%</div>
           <div className="text-xs text-muted-foreground">{stats.opened} aberturas</div>
         </Card>
@@ -158,37 +314,144 @@ export default function EmailDashboard() {
         </Card>
       </div>
 
+      {/* Time-series chart */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-semibold">Atividade ao longo do tempo</div>
+          <div className="text-xs text-muted-foreground">{range.label}</div>
+        </div>
+        <ChartContainer config={chartConfig} className="h-[260px] w-full">
+          <AreaChart data={timeSeries}>
+            <defs>
+              <linearGradient id="gSent" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gOpened" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gClicked" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(262 83% 58%)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(262 83% 58%)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="key" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} allowDecimals={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Area type="monotone" dataKey="sent" stroke="hsl(var(--primary))" fill="url(#gSent)" strokeWidth={2} />
+            <Area type="monotone" dataKey="opened" stroke="hsl(142 71% 45%)" fill="url(#gOpened)" strokeWidth={2} />
+            <Area type="monotone" dataKey="clicked" stroke="hsl(262 83% 58%)" fill="url(#gClicked)" strokeWidth={2} />
+          </AreaChart>
+        </ChartContainer>
+      </Card>
+
       <div className="grid gap-3 md:grid-cols-3">
-        <Card className="p-4 md:col-span-2">
-          <div className="text-sm font-semibold mb-3">Envios por dia</div>
-          <div className="flex items-end gap-2 h-32">
-            {byDay.length === 0 && <div className="text-xs text-muted-foreground self-center">Sem dados ainda</div>}
-            {byDay.map(([d, n]) => (
-              <div key={d} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full bg-primary/70 rounded-t" style={{ height: `${(n / maxDay) * 100}%` }} />
-                <div className="text-[10px] text-muted-foreground">{d.slice(5)}</div>
-                <div className="text-[10px] tabular-nums">{n}</div>
+        {/* Funnel */}
+        <Card className="p-4 md:col-span-1">
+          <div className="text-sm font-semibold mb-3">Funil</div>
+          <div className="space-y-2">
+            {[
+              { label: "Enviados", n: stats.total, pct: 100, color: "bg-primary" },
+              { label: "Entregues", n: stats.delivered, pct: stats.deliveredPct, color: "bg-primary/80" },
+              { label: "Abertos", n: stats.opened, pct: stats.openPct, color: "bg-emerald-500" },
+              { label: "Clicaram", n: stats.clicked, pct: stats.clickPct, color: "bg-violet-500" },
+            ].map((s) => (
+              <div key={s.label}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">{s.label}</span>
+                  <span className="tabular-nums">{s.n} · {s.pct}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full ${s.color}`} style={{ width: `${Math.min(100, s.pct)}%` }} />
+                </div>
               </div>
             ))}
           </div>
         </Card>
-        <Card className="p-4 space-y-2">
-          <div className="text-sm font-semibold">Cota diária</div>
-          <div className="text-xs text-muted-foreground">{sentToday} / {quota} envios hoje</div>
-          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className={`h-full ${quotaPct > 90 ? "bg-destructive" : "bg-primary"}`}
-              style={{ width: `${Math.min(100, quotaPct)}%` }}
-            />
+
+        {/* Status pie */}
+        <Card className="p-4 md:col-span-1">
+          <div className="text-sm font-semibold mb-3">Distribuição de status</div>
+          {byStatus.length === 0 ? (
+            <div className="text-xs text-muted-foreground h-[180px] flex items-center justify-center">Sem dados</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie data={byStatus} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
+                  {byStatus.map((d, i) => (
+                    <Cell key={i} fill={STATUS_COLORS[d.name] ?? `hsl(${(i * 60) % 360} 60% 55%)`} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="flex flex-wrap gap-2 text-[11px] mt-2">
+            {byStatus.map((d, i) => (
+              <span key={i} className="flex items-center gap-1">
+                <span
+                  className="inline-block h-2 w-2 rounded-sm"
+                  style={{ background: STATUS_COLORS[d.name] ?? `hsl(${(i * 60) % 360} 60% 55%)` }}
+                />
+                {d.name} ({d.value})
+              </span>
+            ))}
+          </div>
+        </Card>
+
+        {/* Quota + fila */}
+        <Card className="p-4 md:col-span-1 space-y-3">
+          <div>
+            <div className="text-sm font-semibold">Cota diária</div>
+            <div className="text-xs text-muted-foreground">{sentToday} / {quota} envios hoje</div>
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden mt-1">
+              <div
+                className={`h-full ${quotaPct > 90 ? "bg-destructive" : "bg-primary"}`}
+                style={{ width: `${Math.min(100, quotaPct)}%` }}
+              />
+            </div>
+          </div>
+          <div className="pt-2 border-t">
+            <div className="text-sm font-semibold mb-2 flex items-center gap-2"><Clock className="h-3 w-3" />Fila</div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded bg-muted/50 p-2">
+                <div className="text-muted-foreground">Pendentes</div>
+                <div className="text-lg font-semibold tabular-nums">{queueStats.pending ?? 0}</div>
+              </div>
+              <div className="rounded bg-muted/50 p-2">
+                <div className="text-muted-foreground">Falhas</div>
+                <div className="text-lg font-semibold tabular-nums text-destructive">{queueStats.failed ?? 0}</div>
+              </div>
+            </div>
           </div>
           {stats.failed > 0 && (
-            <div className="flex items-center gap-2 text-xs text-destructive pt-2">
-              <AlertTriangle className="h-3 w-3" />{stats.failed} envios com falha nos últimos 7 dias
+            <div className="flex items-center gap-2 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3" />{stats.failed} envios com falha no período
             </div>
           )}
         </Card>
       </div>
 
+      {/* Top templates */}
+      <Card className="p-4">
+        <div className="text-sm font-semibold mb-3">Top templates</div>
+        {byTemplate.length === 0 ? (
+          <div className="text-xs text-muted-foreground py-6 text-center">Sem dados</div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-[220px] w-full">
+            <BarChart data={byTemplate} layout="vertical" margin={{ left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} allowDecimals={false} />
+              <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={140} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </Card>
+
+      {/* Recent logs */}
       <Card className="p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold mr-2">Últimos envios</div>
