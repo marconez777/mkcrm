@@ -68,7 +68,8 @@ const App = () => (
                       <Route path="/agents" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
                       <Route path="/agents/memories" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
                       <Route path="/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
-                      <Route path="/sequences" element={<FeatureRoute feature="sequences"><Sequences /></FeatureRoute>} />
+                      <Route path="/sequences" element={<FeatureRoute feature="sequences"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/sequences" element={<FeatureRoute feature="sequences"><AiHub /></FeatureRoute>} />
                       <Route path="/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
                       <Route path="/settings" element={<Settings />} />
