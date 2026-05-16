@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload, Sparkles } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload, Sparkles, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +42,7 @@ export default function SettingsPage() {
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const showTracking = !isProfessional && hasFeature("tracking");
   const showFields = hasFeature("custom_fields");
+  const showEmail = hasFeature("email_marketing");
 
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -178,6 +179,7 @@ export default function SettingsPage() {
             {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
             {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
+            {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
@@ -318,6 +320,22 @@ export default function SettingsPage() {
             <TabsContent value="tracking" className="space-y-6">
               <Card className="p-6">
                 <TrackingSitesPanel />
+              </Card>
+            </TabsContent>
+          )}
+
+          {showEmail && (
+            <TabsContent value="email" className="space-y-6">
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />Email Marketing</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Configure o domínio de envio, registros DNS (SPF/DKIM/DMARC) e preferências padrão (remetente e reply-to).
+                    </p>
+                  </div>
+                  <Link to="/settings/email"><Button variant="outline">Abrir</Button></Link>
+                </div>
               </Card>
             </TabsContent>
           )}

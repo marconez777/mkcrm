@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Coins, Brain } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Bot, Zap, FileText, BarChart3, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Coins, Brain, LayoutDashboard, Megaphone, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,6 +47,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         : i
     );
     if (hasFeature("team")) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+  }
+  if (hasFeature("email_marketing")) {
+    const emailItem: NavItem = {
+      to: "/email",
+      label: "Email",
+      icon: Mail,
+      feature: "email_marketing",
+      children: [
+        { to: "/email/templates", label: "Templates", icon: FileText, feature: "email_marketing" },
+        { to: "/email/automations", label: "Automações", icon: Workflow, feature: "email_marketing" },
+        { to: "/email/campaigns", label: "Campanhas", icon: Megaphone, feature: "email_marketing" },
+      ],
+    };
+    const settingsIdx = navItems.findIndex((i) => i.to === "/settings");
+    if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
+    else navItems = [...navItems, emailItem];
   }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
