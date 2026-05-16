@@ -78,9 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const features = membership?.clinic?.settings?.features ?? null;
+  const hasFeature = (key: FeatureKey) => isSuperAdmin || isFeatureEnabled(features, key);
+
   return (
     <AuthCtx.Provider value={{
-      session, user: session?.user ?? null, loading, membership, isSuperAdmin,
+      session, user: session?.user ?? null, loading, membership, isSuperAdmin, hasFeature,
       refreshMembership: () => loadCtx(session?.user?.id),
     }}>
       {children}
