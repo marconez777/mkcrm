@@ -314,8 +314,7 @@ export default function SettingsPage() {
             <QuickRepliesCard />
           </TabsContent>
 
-          {!isProfessional && (
-            <TabsContent value="tracking" className="space-y-6">
+          {showTracking && (
               <Card className="p-6">
                 <TrackingSitesPanel />
               </Card>
