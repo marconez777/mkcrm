@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy, UserPlus } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { FEATURES, isFeatureEnabled, type FeatureKey } from "@/lib/features";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -34,12 +36,14 @@ export default function Admin() {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserRole, setNewUserRole] = useState<"owner" | "admin" | "professional" | "viewer">("professional");
+  const [openFeatures, setOpenFeatures] = useState<Clinic | null>(null);
+  const [featuresDraft, setFeaturesDraft] = useState<Record<string, boolean>>({});
 
   useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
   async function load() {
     const { data, error } = await supabase.from("clinics").select("*").order("created_at", { ascending: false });
-    if (error) toast.error(error.message); else setClinics(data ?? []);
+    if (error) toast.error(error.message); else setClinics((data ?? []) as any);
   }
   useEffect(() => { if (isSuperAdmin) load(); }, [isSuperAdmin]);
 
@@ -89,6 +93,32 @@ export default function Admin() {
     const next = c.status === "active" ? "suspended" : "active";
     const { error } = await supabase.from("clinics").update({ status: next }).eq("id", c.id);
     if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
+  }
+
+  function featuresEnabledCount(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    return FEATURES.filter((x) => isFeatureEnabled(f, x.key)).length;
+  }
+
+  function openFeaturesDialog(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    const draft: Record<string, boolean> = {};
+    for (const x of FEATURES) draft[x.key] = isFeatureEnabled(f, x.key);
+    setFeaturesDraft(draft);
+    setOpenFeatures(c);
+  }
+
+  async function saveFeatures() {
+    if (!openFeatures) return;
+    setBusy(true);
+    try {
+      const nextSettings = { ...(openFeatures.settings ?? {}), features: featuresDraft };
+      const { error } = await supabase.from("clinics").update({ settings: nextSettings }).eq("id", openFeatures.id);
+      if (error) throw error;
+      toast.success("Recursos atualizados");
+      setOpenFeatures(null);
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
   function closeCreateUser() {
@@ -163,6 +193,7 @@ export default function Admin() {
                 <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                 <TableCell>{c.plan}</TableCell>
                 <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />Recursos ({featuresEnabledCount(c)}/{FEATURES.length})</Button>
                   <Button size="sm" variant="outline" onClick={() => setOpenCreateUser(c)}><UserPlus className="mr-1 h-3 w-3" />Criar usuário</Button>
                   <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Gerar convite</Button>
                   <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
@@ -248,6 +279,30 @@ export default function Admin() {
               <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar usuário</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!openFeatures} onOpenChange={(o) => !o && setOpenFeatures(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Recursos — {openFeatures?.name}</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
+            <p className="text-xs text-muted-foreground mb-2">Desligue os recursos que esta clínica não deve ver/usar. As telas correspondentes ficam ocultas e o backend bloqueia o acesso.</p>
+            {FEATURES.map((f) => (
+              <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">{f.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{f.key}</div>
+                </div>
+                <Switch
+                  checked={featuresDraft[f.key] ?? true}
+                  onCheckedChange={(v) => setFeaturesDraft((d) => ({ ...d, [f.key]: v }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpenFeatures(null)}>Cancelar</Button>
+            <Button type="button" onClick={saveFeatures} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

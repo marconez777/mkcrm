@@ -2749,6 +2749,11 @@ export type Database = {
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
+      clinic_has_feature: {
+        Args: { _clinic_id: string; _key: string }
+        Returns: boolean
+      }
+      current_clinic_has_feature: { Args: { _key: string }; Returns: boolean }
       current_clinic_id: { Args: never; Returns: string }
       current_clinic_role: {
         Args: never

@@ -37,9 +37,11 @@ type Instance = {
 type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
-  const { membership, isSuperAdmin } = useAuth();
+  const { membership, isSuperAdmin, hasFeature } = useAuth();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
+  const showTracking = !isProfessional && hasFeature("tracking");
+  const showFields = hasFeature("custom_fields");
 
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -173,9 +175,9 @@ export default function SettingsPage() {
         <Tabs defaultValue="connection" className="w-full">
           <TabsList className="inline-flex w-auto justify-start gap-1">
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
-            <TabsTrigger value="fields">Campos</TabsTrigger>
+            {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
-            {!isProfessional && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
+            {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
 
@@ -294,23 +296,25 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="fields" className="space-y-6">
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">Campos personalizados do lead</div>
-                  <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+          {showFields && (
+            <TabsContent value="fields" className="space-y-6">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">Campos personalizados do lead</div>
+                    <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                  </div>
+                  <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
                 </div>
-                <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
-              </div>
-            </Card>
-          </TabsContent>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="quick-replies" className="space-y-6">
             <QuickRepliesCard />
           </TabsContent>
 
-          {!isProfessional && (
+          {showTracking && (
             <TabsContent value="tracking" className="space-y-6">
               <Card className="p-6">
                 <TrackingSitesPanel />

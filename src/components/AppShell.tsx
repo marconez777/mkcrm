@@ -6,42 +6,47 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import mkLogo from "@/assets/mk-logo.png";
 
-const items = [
+import type { FeatureKey } from "@/lib/features";
+
+const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey }[] = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
-  { to: "/inbox", label: "Conversas", icon: Inbox },
-  { to: "/tasks", label: "Tarefas", icon: CalendarClock },
-  { to: "/agents", label: "Agentes IA", icon: Bot },
-  { to: "/automations", label: "Automações", icon: Zap },
-  { to: "/sequences", label: "Sequências", icon: Mail },
-  { to: "/templates", label: "Templates", icon: FileText },
-  { to: "/metrics", label: "Métricas", icon: BarChart3 },
-  { to: "/metrics/ai", label: "Métricas IA", icon: Activity },
+  { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
+  { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
+  { to: "/agents", label: "Agentes IA", icon: Bot, feature: "agents" },
+  { to: "/automations", label: "Automações", icon: Zap, feature: "automations" },
+  { to: "/sequences", label: "Sequências", icon: Mail, feature: "sequences" },
+  { to: "/templates", label: "Templates", icon: FileText, feature: "templates" },
+  { to: "/metrics", label: "Métricas", icon: BarChart3, feature: "metrics" },
+  { to: "/metrics/ai", label: "Métricas IA", icon: Activity, feature: "metrics_ai" },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
-type NavItem = { to: string; label: string; icon: typeof LayoutGrid; children?: NavItem[] };
+type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
-  const { user, isSuperAdmin, membership } = useAuth();
+  const { user, isSuperAdmin, membership, hasFeature } = useAuth();
   const location = useLocation();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const restricted = new Set(["/agents", "/automations", "/sequences", "/templates"]);
   let navItems: NavItem[] = isProfessional ? items.filter((i) => !restricted.has(i.to)) : [...items];
+  navItems = navItems.filter((i) => !i.feature || hasFeature(i.feature));
   if (isClinicAdmin) {
     navItems = navItems.map((i) =>
       i.to === "/agents"
         ? {
             ...i,
             children: [
-              { to: "/agents/memories", label: "Memórias IA", icon: Brain },
-              { to: "/metrics/ai-usage", label: "Custos IA", icon: Coins },
+              { to: "/agents/memories", label: "Memórias IA", icon: Brain, feature: "agents" },
+              ...(hasFeature("metrics_ai_usage")
+                ? [{ to: "/metrics/ai-usage", label: "Custos IA", icon: Coins, feature: "metrics_ai_usage" as FeatureKey }]
+                : []),
             ],
           }
         : i
     );
-    navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+    if (hasFeature("team")) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
