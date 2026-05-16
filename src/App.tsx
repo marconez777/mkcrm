@@ -23,6 +23,7 @@ import FeatureRoute from "./components/FeatureRoute";
 import Unsubscribe from "./pages/Unsubscribe";
 import EmailHub from "./pages/email/EmailHub";
 import SettingsEmailDomain from "./pages/email/SettingsEmailDomain";
+import EmailTemplateEditor from "./pages/email/EmailTemplateEditor";
 
 const queryClient = new QueryClient();
 
@@ -78,8 +79,13 @@ const App = () => (
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
                       <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/templates/:id" element={<FeatureRoute feature="email_marketing"><EmailTemplateEditor /></FeatureRoute>} />
                       <Route path="/email/automations" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/campaigns" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/queue" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/logs" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/segments" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/unsubscribes" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/tasks" element={<FeatureRoute feature="tasks"><Tasks /></FeatureRoute>} />
                       <Route path="/team" element={<FeatureRoute feature="team"><Team /></FeatureRoute>} />
                       <Route path="*" element={<NotFound />} />

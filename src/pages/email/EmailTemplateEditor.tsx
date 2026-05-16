@@ -100,7 +100,7 @@ export default function EmailTemplateEditor() {
         navigate("/email/templates");
         return;
       }
-      setTpl(data as Tpl);
+      setTpl(data as unknown as Tpl);
       const initial = Array.isArray(data.blocks_json) && data.blocks_json.length > 0
         ? (data.blocks_json as EmailBlock[])
         : [];
