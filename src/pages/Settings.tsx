@@ -296,17 +296,19 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="fields" className="space-y-6">
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">Campos personalizados do lead</div>
-                  <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+          {showFields && (
+            <TabsContent value="fields" className="space-y-6">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">Campos personalizados do lead</div>
+                    <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                  </div>
+                  <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
                 </div>
-                <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
-              </div>
-            </Card>
-          </TabsContent>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="quick-replies" className="space-y-6">
             <QuickRepliesCard />
