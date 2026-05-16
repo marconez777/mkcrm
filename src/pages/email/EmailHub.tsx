@@ -50,6 +50,7 @@ export default function EmailHub() {
             <TabsContent value="segments" className="mt-0"><EmailSegments /></TabsContent>
             <TabsContent value="queue" className="mt-0"><EmailQueue /></TabsContent>
             <TabsContent value="logs" className="mt-0"><EmailLogs /></TabsContent>
+            <TabsContent value="reports" className="mt-0"><EmailReports /></TabsContent>
             <TabsContent value="unsubscribes" className="mt-0"><EmailUnsubscribes /></TabsContent>
           </div>
         </Tabs>
