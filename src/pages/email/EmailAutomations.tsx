@@ -280,6 +280,23 @@ export default function EmailAutomations() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Segmento (opcional)</Label>
+                <Select
+                  value={editing.trigger_config?.segment_id ?? "__all__"}
+                  onValueChange={(v) => setEditing({
+                    ...editing,
+                    trigger_config: { ...editing.trigger_config, segment_id: v === "__all__" ? null : v },
+                  })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os leads (sem filtro)</SelectItem>
+                    {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Filtra os leads que entram nesta automação.</p>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Passos</Label>
