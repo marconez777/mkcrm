@@ -21,7 +21,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Loader2, Plus, RefreshCw, Trash2, Eye } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2, Eye } from "lucide-react";
+import DnsWizard from "@/components/email/DnsWizard";
 
 type Clinic = { id: string; name: string };
 type DnsRecord = {
