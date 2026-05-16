@@ -26,6 +26,7 @@ import Team from "./pages/Team";
 import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
+import FeatureRoute from "./components/FeatureRoute";
 
 const queryClient = new QueryClient();
 
