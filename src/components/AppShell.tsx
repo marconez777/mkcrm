@@ -63,6 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const settingsIdx = navItems.findIndex((i) => i.to === "/settings");
     if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
     else navItems = [...navItems, emailItem];
+  }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
