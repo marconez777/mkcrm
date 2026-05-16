@@ -244,10 +244,18 @@ export default function EmailCampaigns() {
                 <Label className="flex items-center gap-2"><Calendar className="h-3 w-3" />Agendar para (opcional)</Label>
                 <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
               </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-2"><Beaker className="h-3 w-3" />Email de teste</Label>
+                <Input type="email" placeholder="voce@exemplo.com" value={editing.test_email ?? ""} onChange={(e) => setEditing({ ...editing, test_email: e.target.value })} />
+                {editing.test_sent_at && <p className="text-xs text-muted-foreground">Último teste: {new Date(editing.test_sent_at).toLocaleString("pt-BR")}</p>}
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={sendTest} disabled={busy || !editing?.id}>
+              <Beaker className="mr-1 h-3 w-3" />Enviar teste
+            </Button>
             <Button onClick={save} disabled={busy}>
               {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar
             </Button>
