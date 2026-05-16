@@ -41,7 +41,7 @@ export default function Admin() {
 
   async function load() {
     const { data, error } = await supabase.from("clinics").select("*").order("created_at", { ascending: false });
-    if (error) toast.error(error.message); else setClinics(data ?? []);
+    if (error) toast.error(error.message); else setClinics((data ?? []) as any);
   }
   useEffect(() => { if (isSuperAdmin) load(); }, [isSuperAdmin]);
 
