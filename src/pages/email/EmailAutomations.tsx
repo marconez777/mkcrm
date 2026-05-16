@@ -82,17 +82,20 @@ export default function EmailAutomations() {
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Automation[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [editing, setEditing] = useState<Automation | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
     if (!clinicId) return;
-    const [{ data: a }, { data: t }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: s }] = await Promise.all([
       supabase.from("email_automations").select("*").order("created_at", { ascending: false }),
       supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
+      supabase.from("email_segments").select("id,name").eq("clinic_id", clinicId).order("name"),
     ]);
     setItems((a ?? []) as any);
     setTemplates((t ?? []) as any);
+    setSegments((s ?? []) as any);
   }
 
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
