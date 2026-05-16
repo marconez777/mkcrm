@@ -317,6 +317,14 @@ export default function Admin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-4">
+          <IntegrationsKeysCard />
+          <IntegrationsDomainsTable clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} />
+          <IntegrationsQuotaTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
