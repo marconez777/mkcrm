@@ -1,0 +1,330 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { Plus, Trash2, Loader2, Sparkles, Workflow } from "lucide-react";
+
+type Step = { template_slug: string; delay_minutes: number };
+type Automation = {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger_type: string;
+  trigger_config: Record<string, any>;
+  steps: Step[];
+  active: boolean;
+  preset_key: string | null;
+};
+type Tpl = { id: string; slug: string; name: string };
+
+const PRESETS = [
+  {
+    key: "welcome",
+    name: "Boas-vindas a novos leads",
+    description: "Envia um email de boas-vindas assim que o lead é criado.",
+    trigger_type: "lead_created",
+    steps: [{ template_slug: "", delay_minutes: 0 }],
+  },
+  {
+    key: "warmup",
+    name: "Sequência de aquecimento (3 emails)",
+    description: "3 emails ao longo de 7 dias para apresentar a clínica.",
+    trigger_type: "lead_created",
+    steps: [
+      { template_slug: "", delay_minutes: 0 },
+      { template_slug: "", delay_minutes: 60 * 24 * 3 },
+      { template_slug: "", delay_minutes: 60 * 24 * 7 },
+    ],
+  },
+  {
+    key: "reactivation",
+    name: "Reativação de inativos",
+    description: "Email para leads sem interação recente.",
+    trigger_type: "lead_stage_changed",
+    steps: [{ template_slug: "", delay_minutes: 0 }],
+  },
+];
+
+const TRIGGERS = [
+  { value: "lead_created", label: "Lead criado" },
+  { value: "lead_stage_changed", label: "Lead mudou de estágio" },
+  { value: "lead_tag_added", label: "Tag adicionada ao lead" },
+];
+
+export default function EmailAutomations() {
+  const { membership } = useAuth();
+  const clinicId = membership?.clinic_id;
+  const [items, setItems] = useState<Automation[]>([]);
+  const [templates, setTemplates] = useState<Tpl[]>([]);
+  const [editing, setEditing] = useState<Automation | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    if (!clinicId) return;
+    const [{ data: a }, { data: t }] = await Promise.all([
+      supabase.from("email_automations").select("*").order("created_at", { ascending: false }),
+      supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
+    ]);
+    setItems((a ?? []) as any);
+    setTemplates((t ?? []) as any);
+  }
+
+  useEffect(() => { if (clinicId) load(); }, [clinicId]);
+  useEffect(() => { document.title = "Email — Automações"; }, []);
+
+  function presetActive(key: string) {
+    return items.find((i) => i.preset_key === key && i.active);
+  }
+
+  async function togglePreset(preset: typeof PRESETS[number], on: boolean) {
+    if (!clinicId) return;
+    setBusy(true);
+    try {
+      const existing = items.find((i) => i.preset_key === preset.key);
+      if (existing) {
+        const { error } = await supabase.from("email_automations").update({ active: on }).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("email_automations").insert({
+          clinic_id: clinicId,
+          name: preset.name,
+          description: preset.description,
+          preset_key: preset.key,
+          trigger_type: preset.trigger_type,
+          trigger_config: {},
+          steps: preset.steps,
+          active: on,
+        });
+        if (error) throw error;
+      }
+      toast.success(on ? "Receita ativada" : "Receita desativada");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startCreate() {
+    setEditing({
+      id: "", name: "", description: "", trigger_type: "lead_created",
+      trigger_config: {}, steps: [{ template_slug: "", delay_minutes: 0 }],
+      active: false, preset_key: null,
+    });
+  }
+
+  async function save() {
+    if (!editing || !clinicId) return;
+    setBusy(true);
+    try {
+      const payload = {
+        clinic_id: clinicId,
+        name: editing.name,
+        description: editing.description,
+        trigger_type: editing.trigger_type,
+        trigger_config: editing.trigger_config,
+        steps: editing.steps,
+        active: editing.active,
+        preset_key: editing.preset_key,
+      };
+      const q = editing.id
+        ? supabase.from("email_automations").update(payload).eq("id", editing.id)
+        : supabase.from("email_automations").insert(payload);
+      const { error } = await q;
+      if (error) throw error;
+      toast.success("Automação salva");
+      setEditing(null);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(a: Automation) {
+    const { error } = await supabase.from("email_automations").update({ active: !a.active }).eq("id", a.id);
+    if (error) toast.error(error.message); else load();
+  }
+
+  async function remove(a: Automation) {
+    if (!confirm(`Excluir automação "${a.name}"?`)) return;
+    const { error } = await supabase.from("email_automations").delete().eq("id", a.id);
+    if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
+  }
+
+  const custom = items.filter((i) => !i.preset_key);
+
+  return (
+    <div className="mx-auto max-w-6xl p-6 space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Automações de Email</h1>
+        <p className="text-sm text-muted-foreground">Dispare emails automaticamente baseado em eventos.</p>
+      </div>
+
+      <Tabs defaultValue="presets">
+        <TabsList>
+          <TabsTrigger value="presets"><Sparkles className="mr-2 h-3 w-3" />Receitas prontas</TabsTrigger>
+          <TabsTrigger value="custom"><Workflow className="mr-2 h-3 w-3" />Personalizado</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="presets" className="space-y-3">
+          {PRESETS.map((p) => {
+            const active = !!presetActive(p.key);
+            return (
+              <Card key={p.key} className="p-4 flex items-start gap-4">
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">{p.name}</div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Disparo: {TRIGGERS.find((t) => t.value === p.trigger_type)?.label ?? p.trigger_type} ·{" "}
+                    {p.steps.length} email{p.steps.length > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={active} onCheckedChange={(v) => togglePreset(p, v)} disabled={busy} />
+                  <span className="text-xs text-muted-foreground">{active ? "Ativa" : "Inativa"}</span>
+                </div>
+              </Card>
+            );
+          })}
+          <p className="text-xs text-muted-foreground">
+            Edite os templates usados em cada receita na aba <strong>Templates</strong>.
+            As receitas usam os slugs padrão (welcome, warmup-1, warmup-2, warmup-3, reactivation).
+          </p>
+        </TabsContent>
+
+        <TabsContent value="custom" className="space-y-3">
+          <div className="flex justify-end">
+            <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" />Nova automação</Button>
+          </div>
+          {custom.length === 0 ? (
+            <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma automação personalizada</Card>
+          ) : (
+            <div className="space-y-2">
+              {custom.map((a) => (
+                <Card key={a.id} className="p-4 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{a.name}</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {TRIGGERS.find((t) => t.value === a.trigger_type)?.label ?? a.trigger_type}
+                      </Badge>
+                      <Badge variant={a.active ? "default" : "secondary"} className="text-[10px]">
+                        {a.active ? "Ativa" : "Pausada"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{a.steps?.length ?? 0} passo(s)</p>
+                  </div>
+                  <Switch checked={a.active} onCheckedChange={() => toggleActive(a)} />
+                  <Button size="sm" variant="outline" onClick={() => setEditing({ ...a })}>Editar</Button>
+                  <Button size="sm" variant="ghost" onClick={() => remove(a)}><Trash2 className="h-3 w-3" /></Button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? "Editar automação" : "Nova automação"}</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Nome</Label>
+                <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição</Label>
+                <Input value={editing.description ?? ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Disparo</Label>
+                <Select value={editing.trigger_type} onValueChange={(v) => setEditing({ ...editing, trigger_type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TRIGGERS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Passos</Label>
+                  <Button size="sm" variant="outline" onClick={() => setEditing({ ...editing, steps: [...editing.steps, { template_slug: "", delay_minutes: 60 * 24 }] })}>
+                    <Plus className="mr-1 h-3 w-3" />Passo
+                  </Button>
+                </div>
+                {editing.steps.map((s, i) => (
+                  <Card key={i} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold">Passo {i + 1}</span>
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing({ ...editing, steps: editing.steps.filter((_, j) => j !== i) })}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Template</Label>
+                        <Select value={s.template_slug} onValueChange={(v) => {
+                          const next = [...editing.steps]; next[i] = { ...s, template_slug: v };
+                          setEditing({ ...editing, steps: next });
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent>
+                            {templates.map((t) => <SelectItem key={t.id} value={t.slug}>{t.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Atraso (minutos)</Label>
+                        <Input type="number" min={0} value={s.delay_minutes} onChange={(e) => {
+                          const next = [...editing.steps]; next[i] = { ...s, delay_minutes: Number(e.target.value) };
+                          setEditing({ ...editing, steps: next });
+                        }} className="h-8" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={editing.active} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
+                <span className="text-sm">Ativar automação</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button onClick={save} disabled={busy}>
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
