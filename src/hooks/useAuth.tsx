@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadCtx(uid: string | undefined) {
     if (!uid) { setMembership(null); setIsSuperAdmin(false); return; }
     const [{ data: m }, { data: roles }] = await Promise.all([
-      supabase.from("clinic_members").select("clinic_id, role, clinic:clinics(id,name,slug,status)").eq("user_id", uid).maybeSingle(),
+      supabase.from("clinic_members").select("clinic_id, role, clinic:clinics(id,name,slug,status,settings)").eq("user_id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setMembership((m as any) ?? null);
