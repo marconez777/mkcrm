@@ -49,7 +49,7 @@ type Tpl = { id: string; slug: string; name: string };
 type Segment = { id: string; name: string };
 
 export default function EmailCampaigns() {
-  const { membership } = useAuth();
+  const { membership, user } = useAuth();
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Campaign[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
