@@ -423,6 +423,52 @@ export default function EmailTemplateEditor() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import HTML */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Importar HTML</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Cole um HTML (completo ou fragmento). Será convertido em blocos editáveis. Estilos avançados podem virar blocos "HTML cru".
+            </p>
+            <Textarea
+              value={importHtml}
+              onChange={(e) => setImportHtml(e.target.value)}
+              placeholder="<table>...</table> ou <h1>...</h1><p>...</p>"
+              className="font-mono text-xs min-h-[280px]"
+            />
+            <div className="flex items-center gap-3 text-xs">
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> Substituir blocos
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Adicionar ao final
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                try {
+                  const parsed = htmlToBlocks(importHtml);
+                  if (parsed.length === 0) { toast.error("Nada para importar"); return; }
+                  setBlocks((prev) => importMode === "replace" ? parsed : [...prev, ...parsed]);
+                  setImportOpen(false);
+                  toast.success(`${parsed.length} bloco(s) importado(s)`);
+                } catch (e: any) {
+                  toast.error(e?.message ?? "Falha ao importar");
+                }
+              }}
+            >
+              Importar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
