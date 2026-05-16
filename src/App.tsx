@@ -27,6 +27,7 @@ import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 import FeatureRoute from "./components/FeatureRoute";
+import Unsubscribe from "./pages/Unsubscribe";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/invite/:token" element={<Invite />} />
+            <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
