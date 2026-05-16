@@ -1,127 +1,142 @@
 ## Contexto
 
-O projeto já tem **infra de e-mail completa e funcional** (multi-tenant por `clinic_id`): tabelas `email_templates/queue/logs/unsubscribes/campaigns/automations/domains/send_state`, edge functions `send-email`, `process-email-queue`, `resend-webhook` (com Svix), `email-unsubscribe`, `backfill-resend-events`, `dispatch-campaign`, `process-scheduled-campaigns`, `automations-tick`, RPCs `enqueue_email`, `generate_unsubscribe_token`, cron jobs, RLS, supressão, dedup, backoff de quota. Slug atual aceita kebab-case e fica mantido.
+O módulo de email já está completo e multi-tenant (`clinic_id` + RLS por clínica): tabelas, RPCs `enqueue_email` / `generate_unsubscribe_token`, edge functions `send-email` / `process-email-queue` / `process-scheduled-campaigns` / `resend-webhook` / `email-unsubscribe` / `dispatch-campaign` / `backfill-resend-events`, editor visual de blocos (dnd-kit + tiptap), páginas Dashboard/Templates/Editor/Queue/Logs/Unsubscribes/Segments/Campaigns/Automations, dedup, supressão, backoff de quota, cron jobs, realtime no dashboard.
 
-Este plano **NÃO recria** o que existe. Foca em (1) editor visual de templates, (2) páginas admin faltantes, (3) folders/segments novos, (4) pequenos ajustes (webhook secret, página `/unsubscribe` branded).
+Este plano **não recria nada**. Foca apenas nos 4 gaps confirmados:
+
+1. Daily-summary (cron 8h BRT)
+2. Test mode em campanhas
+3. Relatórios detalhados por template e por campanha
+4. Automation builder visual em modo fluxo
+
+Editor fica como está. Webhook segue sem secret (`RESEND_WEBHOOK_SECRET` configurado depois).
 
 ---
 
-## Passo 1 — Secrets e settings
-
-- Solicitar `RESEND_WEBHOOK_SECRET` (Svix) via `add_secret`.
-- Verificar `app_settings.unsubscribe_hmac_secret` (já usado pelo `generate_unsubscribe_token`). Se faltar, gerar 32 bytes random e inserir.
-- Verificar `app_settings.cron_service_role_key`. Se faltar, pedir ao usuário.
-
-## Passo 2 — Migration (apenas adições)
-
-Adicionar **sem mexer no que existe**:
-
-- `email_template_folders` (id, clinic_id, name, parent_id, sort, timestamps) + RLS por clinic.
-- `email_templates`: adicionar colunas `folder_id uuid`, `blocks jsonb default '[]'`, `preheader text`, `version int default 1`. Manter `html_body`, `subject`, etc. já existentes.
-- `email_segments` (id, clinic_id, name, description, filters jsonb, active, timestamps) + RLS.
-- Índice único parcial de dedup em `email_queue` (clinic_id, template_slug, lower(recipient_email), related_lead_table) WHERE status IN ('pending','processing') — se ainda não existir.
-- RPC `cancel_pending_emails_for(_clinic_id, _email)` para uso em insert de unsubscribe.
-- Trigger AFTER INSERT em `email_unsubscribes` chamando essa RPC.
-- `ALTER PUBLICATION supabase_realtime ADD TABLE email_queue` (para a tela de Campaign mostrar progresso).
-
-Nenhum drop, nenhum rename. Constraint de slug fica como está (kebab-case).
-
-## Passo 3 — Libs do editor
-
-- `bun add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-color @tiptap/extension-text-style dompurify @types/dompurify`.
-
-## Passo 4 — Core do editor (`src/lib/email/`)
-
-- `types.ts`: `EmailBlock` discriminated union. Tipos: `heading | paragraph | image | cta | divider | spacer | avatar | signature | youtube | columns | raw`.
-- `blocksToHtml.ts`: render table-based (600px container, fundo `#f6f6f6`/`#ffffff`, padding 24px). Cada bloco vira `<tr><td>` com estilo inline. Imagens com `display:block;max-width:100%`. Footer com `{{unsubscribe_url}}` + endereço (de `app_settings.email_footer_address`). Detecta se o template já contém `{{unsubscribe_url}}` e não duplica.
-- `htmlToBlocks.ts`: parser básico via `DOMParser` (client-only, guard `typeof window`). Mapeia `<h1-3>`, `<p>`, `<img>`, `<a class="btn">`, `<hr>` → blocos. Resto vira `raw`.
-- `sanitize.ts`: wrapper DOMPurify com allowlist segura.
-- `variables.ts`: lista de variáveis disponíveis `[name, first_name, unsubscribe_url, lead_id, ...]`.
-
-## Passo 5 — Editor visual (`src/pages/email/EmailTemplateEditor.tsx`)
-
-Rota nova: `/emails/templates/:id` (dentro do `EmailHub` ou rota standalone com voltar).
-
-Layout 3 colunas:
+## Passo 1 — Migration (apenas adições)
 
 ```text
-┌──────────┬─────────────────────┬──────────┐
-│ Paleta   │  Canvas (600px)     │ Inspector│
-│ (260px)  │  Sortable blocks    │  (340px) │
-│ dnd-kit  │  toolbar flutuante  │  props   │
-└──────────┴─────────────────────┴──────────┘
+- email_campaigns: ADD COLUMN test_email TEXT, test_sent_at TIMESTAMPTZ
+- email_automations.steps: garantir shape { template_slug, delay_days, filters? }
+- RPC report_template_stats(_clinic_id, _slug, _from, _to)
+   → retorna { sent, delivered, opened, clicked, bounced, complained,
+                open_rate, click_rate, best_hour }
+- RPC report_campaign_stats(_clinic_id, _campaign_id)
+   → mesma forma + funil
+- Índice em email_logs(template_slug, sent_at) e (clinic_id, sent_at)
+   se ainda não existir
 ```
 
-- Paleta: cards arrastáveis para cada `BlockType`.
-- Canvas: `<SortableContext>` com blocos. Click seleciona; hover mostra ↑↓/duplicar/excluir.
-- Inspector: form dinâmico por tipo. `paragraph` abre `<TipTapEditor/>` inline (bold/italic/link/color). Cores via `<input type="color">`.
-- Toolbar superior: nome editável, slug (mask kebab-case), botões **Salvar / Pré-visualizar / Enviar teste / Ver HTML / Voltar**.
-- Autosave debounce 2s em `localStorage` (chave `email-template-draft:${id}`).
-- Modal "Enviar teste" pede e-mail e invoca `send-email` direto (force=true).
-- Pré-visualizar: dialog full-screen com iframe `srcDoc={sanitize(blocksToHtml(blocks))}`.
+Nada de DROP / RENAME. RLS continua via `has_clinic_access(clinic_id)`.
 
-## Passo 6 — Página Templates revisada (`EmailTemplates.tsx`)
+## Passo 2 — Edge function `daily-summary`
 
-- Sidebar de folders (drag entre folders via dnd-kit).
-- Botão "Novo template" abre o editor com slug em branco.
-- Botão "Nova pasta".
-- Ações por linha: editar, duplicar, ativar/desativar, excluir.
+```text
+supabase/functions/daily-summary/index.ts
+- POST sem body, autoriza por service role
+- Para cada clinic ativo com email_marketing on:
+    - conta leads novos 24h
+    - conta emails enviados / abertos / cliques / bounces 24h
+    - top 3 templates por envio
+    - quota usada
+- Renderiza HTML inline (sem template — é interno)
+- Lê emails dos admins via clinic_members.role IN ('owner','admin')
+- Chama send-email com force=true (bypass de supressão)
+- Logs próprios em console
+```
 
-## Passo 7 — Novas páginas dentro do `EmailHub`
+Cron via `pg_cron` + `pg_net` (insert SQL, não migration):
 
-Adicionar abas no `EmailHub.tsx`:
+```sql
+SELECT cron.schedule('email-daily-summary', '0 11 * * *',  -- 08:00 BRT
+  $$ SELECT public.invoke_edge_function('daily-summary', '{}'::jsonb) $$);
+```
 
-- **Fila** (`EmailQueue.tsx`): tabela paginada de `email_queue` com filtros (status/slug/email/período). Ações em massa: cancelar, reenviar (clona com `scheduled_at=now()`). Botão "Processar agora" → `supabase.functions.invoke('process-email-queue')`.
-- **Logs** (`EmailLogs.tsx`): timeline de `email_logs` (eventos do Resend). Filtros e drill-down por e-mail.
-- **Unsubscribes** (`EmailUnsubscribes.tsx`): lista + busca + export CSV + botão "Rodar backfill agora" (loop até 10 batches via `backfill-resend-events`).
-- **Segments** (`EmailSegments.tsx`): builder de filtros (campo/operador/valor) + preview de contagem (query em `leads`).
+## Passo 3 — Test mode em campanhas
 
-## Passo 8 — Página pública `/unsubscribe`
+**Backend (`dispatch-campaign`)**:
+- Aceita body `{ campaign_id, test_only?: true }`.
+- Se `test_only`: enfileira 1 envio para `campaigns.test_email` com `force=true` + variáveis sample do primeiro lead do segmento; **não** marca campanha como sending/sent, só atualiza `test_sent_at`.
 
-Substitui o `Unsubscribe.tsx` atual (se existir, ajusta). Lê `?clinic=&email=&token=` da URL, chama edge function `email-unsubscribe` com `action: "validate"`, mostra botão "Confirmar descadastro". Após sucesso, mensagem branded com opção de reativar.
+**UI (`EmailCampaigns.tsx`)**:
+- Dialog ganha campo "Email de teste" (default = `user.email`).
+- Botão "Enviar teste" ao lado de "Salvar" no dialog.
+- Na tabela, novo botão `Beaker` em campanhas draft/scheduled → reabre dialog em modo teste.
+- Toast com link "ver no log".
 
-## Passo 9 — Polimentos
+## Passo 4 — Relatórios detalhados
 
-- `EmailHub` ganha abas: Dashboard | Templates | Campanhas | Automações | **Fila** | **Logs** | **Segments** | **Unsubscribes** | Config domínio.
-- Dashboard: cards de enviados hoje/7d/30d, abertura, clique, fila pendente, falhas 24h, supressos + bar chart (recharts).
-- Realtime em `email_queue` na aba Campanhas para progresso ao vivo.
-- Toasts via `sonner` em todas as ações.
+Nova página `src/pages/email/EmailReports.tsx` + aba em `EmailHub`.
 
-## Passo 10 — Webhook Resend
+Layout:
 
-- Documentar endpoint `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/resend-webhook` em uma seção do Settings do EmailHub, com botão de copiar.
+```text
+┌─────────────────────────────────────────────────┐
+│  Tabs: Por template │ Por campanha              │
+├─────────────────────────────────────────────────┤
+│  Filtros: período (7/30/90d) + template/camp.   │
+├─────────────────────────────────────────────────┤
+│  Cards: enviados, entregues %, abertura %,      │
+│         clique %, bounces, descadastros         │
+│  Funnel chart (recharts)                        │
+│  Bar chart por hora do dia (melhor horário)     │
+│  Tabela detalhada de envios recentes            │
+└─────────────────────────────────────────────────┘
+```
 
-## Passo 11 — Checklist final
+- Dados via RPCs `report_template_stats` / `report_campaign_stats`.
+- "Melhor horário" = hora com maior `opened_count / sent_count`.
+- Export CSV.
 
-Rodar:
-- Slug kebab-case valida.
-- Editor arrasta/reordena/edita/salva.
-- "Enviar teste" chega no inbox.
-- Webhook (após você cadastrar no Resend) marca delivered/opened.
-- Bounce/complaint cancela pending.
-- `/unsubscribe` valida token e descadastra.
+## Passo 5 — Automation builder visual
+
+Reescrever `src/pages/email/EmailAutomations.tsx` em layout fluxo:
+
+```text
+[ Trigger ]      lead_created / stage_enter / test_completed
+    │
+    ▼
+[ Filtros ]      tags, stage_id, score min/max  (opcional)
+    │
+    ▼
+[ Step 1 ]       template + delay (Xd Xh)   ← drag-drop reordenar
+    │
+    ▼
+[ Step 2 ]       template + delay
+    │
+    ▼
+[ + Adicionar step ]
+```
+
+- Componente `AutomationFlow.tsx` usando `@dnd-kit/sortable`.
+- Cada step = card com Select(template) + Input(dias) + Input(horas) + botão excluir.
+- Painel lateral direito: settings da automação (nome, descrição, toggle active, trigger_type, trigger_config).
+- Validação: pelo menos 1 step, template existe e ativo.
+- Salva tudo em `email_automations` (mesma tabela atual, só shape do `steps` jsonb).
+- Trigger novo `test_completed`: documentar como string livre; o usuário enfileira via RPC quando o teste é concluído. Sem código extra de trigger no banco neste passo.
+
+## Passo 6 — Polimento
+
+- `EmailHub` ganha aba **Relatórios**.
+- `Dashboard` adiciona link "Ver relatório completo" → `/emails/reports`.
+- Documentar endpoint do webhook Resend em `SettingsEmailDomain` com botão copiar (já existe? confirmar e adicionar se não).
+
+## Passo 7 — Checklist de aceite
+
+```text
+[ ] daily-summary chega no inbox do owner às 08:00 BRT
+[ ] campanha em draft permite enviar teste sem mudar status
+[ ] relatório de template mostra abertura% e melhor hora
+[ ] automation builder permite drag-drop, edição inline, salva
+[ ] nada quebrou em queue/logs/unsubscribes/segments/templates
+```
 
 ---
 
 ## Detalhes técnicos
 
-- **Multi-tenant preservado**: todas queries filtram por `current_clinic_id()`. Nada vira "global".
-- **Slug**: regex de input no front `^[a-z][a-z0-9-]*$`. Sem mudança no DB.
-- **Sem editar** `client.ts` ou `types.ts`.
-- **Edge functions existentes ficam intactas** — apenas o front passa a chamar `process-email-queue` e `backfill-resend-events` via `functions.invoke` a partir das novas telas.
-- **Timer types**: `ReturnType<typeof setTimeout>` no autosave.
-- **DOMParser**: só dentro de `useEffect` ou handlers (client-only).
-- **Bundle**: editor é code-split via `React.lazy` para não pesar o app principal.
-
-## Arquivos criados/modificados
-
-Novos:
-- `src/lib/email/{types,blocksToHtml,htmlToBlocks,sanitize,variables}.ts`
-- `src/components/email/editor/{Palette,Canvas,Inspector,TipTapEditor,blocks/*}.tsx`
-- `src/pages/email/{EmailTemplateEditor,EmailQueue,EmailLogs,EmailUnsubscribes,EmailSegments}.tsx`
-- `src/pages/Unsubscribe.tsx` (reescrito branded)
-
-Editados:
-- `src/pages/email/{EmailHub,EmailTemplates}.tsx`
-- `src/App.tsx` (rota do editor)
-- 1 migration (adições)
+- RPCs e migration aplicadas via `supabase--migration` em uma única call.
+- Cron de daily-summary via `supabase--insert` (SQL com chave de serviço).
+- Edge function `daily-summary` deployada com `supabase--deploy_edge_functions`.
+- Tudo respeita `clinic_id` + RLS existente.
+- Tailwind semantic tokens, shadcn, sem cores hardcoded.
