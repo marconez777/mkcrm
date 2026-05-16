@@ -326,11 +326,31 @@ export default function EmailAutomations() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px]">Atraso (minutos)</Label>
-                        <Input type="number" min={0} value={s.delay_minutes} onChange={(e) => {
-                          const next = [...editing.steps]; next[i] = { ...s, delay_minutes: Number(e.target.value) };
-                          setEditing({ ...editing, steps: next });
-                        }} className="h-8" />
+                        <Label className="text-[11px]">Atraso</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number" min={0}
+                            value={toDays(s.delay_minutes)}
+                            onChange={(e) => {
+                              const next = [...editing.steps];
+                              next[i] = { ...s, delay_minutes: toMinutes(Number(e.target.value), toHours(s.delay_minutes)) };
+                              setEditing({ ...editing, steps: next });
+                            }}
+                            className="h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">d</span>
+                          <Input
+                            type="number" min={0} max={23}
+                            value={toHours(s.delay_minutes)}
+                            onChange={(e) => {
+                              const next = [...editing.steps];
+                              next[i] = { ...s, delay_minutes: toMinutes(toDays(s.delay_minutes), Number(e.target.value)) };
+                              setEditing({ ...editing, steps: next });
+                            }}
+                            className="h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">h</span>
+                        </div>
                       </div>
                     </div>
                   </Card>
