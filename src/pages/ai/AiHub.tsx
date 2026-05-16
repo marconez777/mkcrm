@@ -7,8 +7,9 @@ import AgentMemories from "@/pages/AgentMemories";
 import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Automations from "@/pages/Automations";
 import Templates from "@/pages/Templates";
+import Sequences from "@/pages/Sequences";
 
-type TabDef = { value: string; path: string; aliases?: string[]; label: string; feature?: "agents" | "metrics_ai_usage" | "automations" | "templates" };
+type TabDef = { value: string; path: string; aliases?: string[]; label: string; feature?: "agents" | "metrics_ai_usage" | "automations" | "templates" | "sequences" };
 
 const TABS: TabDef[] = [
   { value: "dashboard", path: "/ai", label: "Dashboard" },
@@ -16,6 +17,7 @@ const TABS: TabDef[] = [
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", feature: "agents" },
   { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos IA", feature: "metrics_ai_usage" },
   { value: "automations", path: "/ai/automations", aliases: ["/automations"], label: "Automações", feature: "automations" },
+  { value: "sequences", path: "/ai/sequences", aliases: ["/sequences"], label: "Sequências", feature: "sequences" },
   { value: "templates", path: "/ai/templates", aliases: ["/templates"], label: "Templates", feature: "templates" },
 ];
 
