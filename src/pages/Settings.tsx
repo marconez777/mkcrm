@@ -315,6 +315,7 @@ export default function SettingsPage() {
           </TabsContent>
 
           {showTracking && (
+            <TabsContent value="tracking" className="space-y-6">
               <Card className="p-6">
                 <TrackingSitesPanel />
               </Card>
