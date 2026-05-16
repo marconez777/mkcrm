@@ -13,7 +13,8 @@ export type FeatureKey =
   | "metrics_ai_usage"
   | "tracking"
   | "custom_fields"
-  | "team";
+  | "team"
+  | "email_marketing";
 
 export const FEATURES: { key: FeatureKey; label: string; description?: string }[] = [
   { key: "inbox", label: "Conversas (Inbox)" },
@@ -28,6 +29,7 @@ export const FEATURES: { key: FeatureKey; label: string; description?: string }[
   { key: "tracking", label: "Tracking de origem" },
   { key: "custom_fields", label: "Campos personalizados" },
   { key: "team", label: "Equipe" },
+  { key: "email_marketing", label: "Email Marketing", description: "Templates, automações e campanhas por email" },
 ];
 
 export function isFeatureEnabled(
