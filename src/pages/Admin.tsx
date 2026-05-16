@@ -12,6 +12,10 @@ import { toast } from "sonner";
 import { Loader2, Plus, Mail, Copy, UserPlus, Sliders } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { FEATURES, isFeatureEnabled, type FeatureKey } from "@/lib/features";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
+import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
+import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
