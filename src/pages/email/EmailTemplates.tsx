@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
@@ -57,6 +58,7 @@ const EMPTY: Tpl = {
 
 export default function EmailTemplates() {
   const { membership } = useAuth();
+  const navigate = useNavigate();
   const clinicId = membership?.clinic_id;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
@@ -189,7 +191,7 @@ export default function EmailTemplates() {
           <h1 className="text-2xl font-semibold">Templates de Email</h1>
           <p className="text-sm text-muted-foreground">Crie modelos reutilizáveis para campanhas e automações.</p>
         </div>
-        <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" />Novo template</Button>
+        <Button onClick={() => navigate("/email/templates/new")}><Plus className="mr-2 h-4 w-4" />Novo template</Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
@@ -232,7 +234,7 @@ export default function EmailTemplates() {
                     </div>
                     <div className="text-xs text-muted-foreground truncate">{t.subject}</div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Editar</Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/email/templates/${t.id}`)}>Editar</Button>
                   <Button size="sm" variant="ghost" onClick={() => duplicate(t)}><Copy className="h-3 w-3" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(t)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
