@@ -27,7 +27,7 @@ export default function AiDashboard() {
       const [usage7, usage30, agents, autos] = await Promise.all([
         supabase.from("ai_usage").select("created_at").eq("clinic_id", clinicId).gte("created_at", since7),
         supabase.from("ai_usage").select("total_tokens").eq("clinic_id", clinicId).gte("created_at", since30),
-        supabase.from("agents").select("id", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("enabled", true),
+        supabase.from("ai_agents").select("id", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("enabled", true),
         supabase.from("automations").select("id", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("enabled", true),
       ]);
       const rows = usage7.data ?? [];
