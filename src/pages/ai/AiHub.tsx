@@ -52,6 +52,7 @@ export default function AiHub() {
           <TabsContent value="memories" className="mt-0"><AgentMemories /></TabsContent>
           <TabsContent value="usage" className="mt-0"><MetricsAiUsage /></TabsContent>
           <TabsContent value="automations" className="mt-0"><Automations /></TabsContent>
+          <TabsContent value="sequences" className="mt-0"><Sequences /></TabsContent>
           <TabsContent value="templates" className="mt-0"><Templates /></TabsContent>
         </Tabs>
       </div>
