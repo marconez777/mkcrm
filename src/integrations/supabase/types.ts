@@ -1237,6 +1237,7 @@ export type Database = {
       }
       email_segments: {
         Row: {
+          active: boolean
           clinic_id: string
           created_at: string
           created_by: string | null
@@ -1248,6 +1249,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active?: boolean
           clinic_id: string
           created_at?: string
           created_by?: string | null
@@ -1259,6 +1261,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active?: boolean
           clinic_id?: string
           created_at?: string
           created_by?: string | null
@@ -1366,6 +1369,7 @@ export type Database = {
           text_body: string | null
           updated_at: string
           variables_schema: Json
+          version: number
         }
         Insert: {
           active?: boolean
@@ -1389,6 +1393,7 @@ export type Database = {
           text_body?: string | null
           updated_at?: string
           variables_schema?: Json
+          version?: number
         }
         Update: {
           active?: boolean
@@ -1412,6 +1417,7 @@ export type Database = {
           text_body?: string | null
           updated_at?: string
           variables_schema?: Json
+          version?: number
         }
         Relationships: [
           {
@@ -3302,6 +3308,10 @@ export type Database = {
     }
     Functions: {
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
+      cancel_pending_emails_for: {
+        Args: { _clinic_id: string; _email: string }
+        Returns: number
+      }
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
