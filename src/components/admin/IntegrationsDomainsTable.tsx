@@ -279,7 +279,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
             <DnsWizard
               domain={openDns}
               onUpdated={(next) => {
-                setOpenDns(next);
+                setOpenDns((prev) => (prev ? { ...prev, ...next } : prev));
                 setDomains((arr) => arr.map((d) => (d.id === next.id ? { ...d, ...next } : d)));
               }}
             />
