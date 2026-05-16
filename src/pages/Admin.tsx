@@ -281,6 +281,30 @@ export default function Admin() {
           </form>
         </DialogContent>
       </Dialog>
+      <Dialog open={!!openFeatures} onOpenChange={(o) => !o && setOpenFeatures(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Recursos — {openFeatures?.name}</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
+            <p className="text-xs text-muted-foreground mb-2">Desligue os recursos que esta clínica não deve ver/usar. As telas correspondentes ficam ocultas e o backend bloqueia o acesso.</p>
+            {FEATURES.map((f) => (
+              <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">{f.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{f.key}</div>
+                </div>
+                <Switch
+                  checked={featuresDraft[f.key] ?? true}
+                  onCheckedChange={(v) => setFeaturesDraft((d) => ({ ...d, [f.key]: v }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpenFeatures(null)}>Cancelar</Button>
+            <Button type="button" onClick={saveFeatures} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
