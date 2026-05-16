@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy, UserPlus } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { FEATURES, isFeatureEnabled, type FeatureKey } from "@/lib/features";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
