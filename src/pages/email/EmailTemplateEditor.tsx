@@ -12,14 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Send, Eye, Code as CodeIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Send, Eye, Code as CodeIcon, Loader2, FileInput } from "lucide-react";
 import Palette from "@/components/email/editor/Palette";
 import Canvas from "@/components/email/editor/Canvas";
 import Inspector from "@/components/email/editor/Inspector";
 import { EMAIL_VARIABLES } from "@/lib/email/variables";
 import { newBlock, type EmailBlock, type BlockType } from "@/lib/email/types";
 import { blocksToHtml, htmlContainsUnsubscribeVar } from "@/lib/email/blocksToHtml";
+import { htmlToBlocks } from "@/lib/email/htmlToBlocks";
 import { sanitizeHtml } from "@/lib/email/sanitize";
 
 const SLUG_RE = /^[a-z][a-z0-9-]*$/;
@@ -66,6 +68,9 @@ export default function EmailTemplateEditor() {
   const [htmlOpen, setHtmlOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importHtml, setImportHtml] = useState("");
+  const [importMode, setImportMode] = useState<"replace" | "append">("replace");
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { document.title = "Editor de Email"; }, []);
@@ -101,9 +106,20 @@ export default function EmailTemplateEditor() {
         return;
       }
       setTpl(data as unknown as Tpl);
-      const initial = Array.isArray(data.blocks_json) && data.blocks_json.length > 0
-        ? (data.blocks_json as EmailBlock[])
-        : [];
+      // Migração: se não houver blocks_json mas houver html_body legado, converte
+      let initial: EmailBlock[] = [];
+      if (Array.isArray(data.blocks_json) && (data.blocks_json as any[]).length > 0) {
+        initial = data.blocks_json as unknown as EmailBlock[];
+      } else if (typeof data.html_body === "string" && data.html_body.trim().length > 0) {
+        try {
+          initial = htmlToBlocks(data.html_body);
+          if (initial.length > 0) {
+            toast.info(`HTML legado importado em ${initial.length} bloco(s). Salve para persistir.`);
+          }
+        } catch (e) {
+          console.warn("htmlToBlocks failed", e);
+        }
+      }
       // localStorage draft
       const draft = typeof window !== "undefined" ? localStorage.getItem(`email-template-draft:${id}`) : null;
       if (draft) {
