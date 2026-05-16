@@ -55,14 +55,14 @@ Deno.serve(async (req) => {
       // From: pega domínio verificado da clínica ou fallback
       const { data: domain } = await supabase
         .from("email_domains")
-        .select("from_email, from_name, status")
+        .select("domain, status")
         .eq("clinic_id", c.id)
         .eq("status", "verified")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const from = domain?.from_email
-        ? `${domain.from_name ?? c.name} <${domain.from_email}>`
+      const from = domain?.domain
+        ? `${c.name} <no-reply@${domain.domain}>`
         : `Resumo <onboarding@resend.dev>`;
 
       // Destinatários
