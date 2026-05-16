@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2 } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker } from "lucide-react";
 
 type Campaign = {
   id: string;
@@ -41,6 +41,8 @@ type Campaign = {
   total_recipients: number;
   sent_count: number;
   failed_count: number;
+  test_email: string | null;
+  test_sent_at: string | null;
   created_at: string;
 };
 type Tpl = { id: string; slug: string; name: string };
