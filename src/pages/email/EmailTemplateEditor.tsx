@@ -301,6 +301,7 @@ export default function EmailTemplateEditor() {
           className="max-w-[200px] h-8 font-mono text-xs"
         />
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setImportHtml(""); setImportOpen(true); }}><FileInput className="h-3.5 w-3.5 mr-1" />Importar HTML</Button>
           <Button variant="outline" size="sm" onClick={() => setHtmlOpen(true)}><CodeIcon className="h-3.5 w-3.5 mr-1" />HTML</Button>
           <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}><Eye className="h-3.5 w-3.5 mr-1" />Preview</Button>
           <Button variant="outline" size="sm" onClick={() => setTestOpen(true)} disabled={!tpl.id}><Send className="h-3.5 w-3.5 mr-1" />Enviar teste</Button>
