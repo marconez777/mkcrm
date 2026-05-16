@@ -9,6 +9,7 @@ import EmailLogs from "./EmailLogs";
 import EmailSegments from "./EmailSegments";
 import EmailUnsubscribes from "./EmailUnsubscribes";
 import EmailReports from "./EmailReports";
+import EmailSites from "./EmailSites";
 
 const TABS = [
   { value: "dashboard", path: "/email", label: "Dashboard" },
@@ -17,6 +18,7 @@ const TABS = [
   { value: "campaigns", path: "/email/campaigns", label: "Campanhas" },
   { value: "reports", path: "/email/reports", label: "Relatórios" },
   { value: "segments", path: "/email/segments", label: "Segmentos" },
+  { value: "sites", path: "/email/sites", label: "Sites" },
   { value: "queue", path: "/email/queue", label: "Fila" },
   { value: "logs", path: "/email/logs", label: "Logs" },
   { value: "unsubscribes", path: "/email/unsubscribes", label: "Descadastros" },
@@ -48,6 +50,7 @@ export default function EmailHub() {
             <TabsContent value="automations" className="mt-0"><EmailAutomations /></TabsContent>
             <TabsContent value="campaigns" className="mt-0"><EmailCampaigns /></TabsContent>
             <TabsContent value="segments" className="mt-0"><EmailSegments /></TabsContent>
+            <TabsContent value="sites" className="mt-0"><EmailSites /></TabsContent>
             <TabsContent value="queue" className="mt-0"><EmailQueue /></TabsContent>
             <TabsContent value="logs" className="mt-0"><EmailLogs /></TabsContent>
             <TabsContent value="reports" className="mt-0"><EmailReports /></TabsContent>
