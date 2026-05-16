@@ -12,14 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Send, Eye, Code as CodeIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Send, Eye, Code as CodeIcon, Loader2, FileInput } from "lucide-react";
 import Palette from "@/components/email/editor/Palette";
 import Canvas from "@/components/email/editor/Canvas";
 import Inspector from "@/components/email/editor/Inspector";
 import { EMAIL_VARIABLES } from "@/lib/email/variables";
 import { newBlock, type EmailBlock, type BlockType } from "@/lib/email/types";
 import { blocksToHtml, htmlContainsUnsubscribeVar } from "@/lib/email/blocksToHtml";
+import { htmlToBlocks } from "@/lib/email/htmlToBlocks";
 import { sanitizeHtml } from "@/lib/email/sanitize";
 
 const SLUG_RE = /^[a-z][a-z0-9-]*$/;
@@ -66,6 +68,9 @@ export default function EmailTemplateEditor() {
   const [htmlOpen, setHtmlOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importHtml, setImportHtml] = useState("");
+  const [importMode, setImportMode] = useState<"replace" | "append">("replace");
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { document.title = "Editor de Email"; }, []);
@@ -101,9 +106,20 @@ export default function EmailTemplateEditor() {
         return;
       }
       setTpl(data as unknown as Tpl);
-      const initial = Array.isArray(data.blocks_json) && data.blocks_json.length > 0
-        ? (data.blocks_json as EmailBlock[])
-        : [];
+      // Migração: se não houver blocks_json mas houver html_body legado, converte
+      let initial: EmailBlock[] = [];
+      if (Array.isArray(data.blocks_json) && (data.blocks_json as any[]).length > 0) {
+        initial = data.blocks_json as unknown as EmailBlock[];
+      } else if (typeof data.html_body === "string" && data.html_body.trim().length > 0) {
+        try {
+          initial = htmlToBlocks(data.html_body);
+          if (initial.length > 0) {
+            toast.info(`HTML legado importado em ${initial.length} bloco(s). Salve para persistir.`);
+          }
+        } catch (e) {
+          console.warn("htmlToBlocks failed", e);
+        }
+      }
       // localStorage draft
       const draft = typeof window !== "undefined" ? localStorage.getItem(`email-template-draft:${id}`) : null;
       if (draft) {
@@ -285,6 +301,7 @@ export default function EmailTemplateEditor() {
           className="max-w-[200px] h-8 font-mono text-xs"
         />
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setImportHtml(""); setImportOpen(true); }}><FileInput className="h-3.5 w-3.5 mr-1" />Importar HTML</Button>
           <Button variant="outline" size="sm" onClick={() => setHtmlOpen(true)}><CodeIcon className="h-3.5 w-3.5 mr-1" />HTML</Button>
           <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}><Eye className="h-3.5 w-3.5 mr-1" />Preview</Button>
           <Button variant="outline" size="sm" onClick={() => setTestOpen(true)} disabled={!tpl.id}><Send className="h-3.5 w-3.5 mr-1" />Enviar teste</Button>
@@ -403,6 +420,52 @@ export default function EmailTemplateEditor() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setTestOpen(false)}>Cancelar</Button>
             <Button onClick={sendTest}><Send className="h-3.5 w-3.5 mr-1" />Enviar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import HTML */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Importar HTML</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Cole um HTML (completo ou fragmento). Será convertido em blocos editáveis. Estilos avançados podem virar blocos "HTML cru".
+            </p>
+            <Textarea
+              value={importHtml}
+              onChange={(e) => setImportHtml(e.target.value)}
+              placeholder="<table>...</table> ou <h1>...</h1><p>...</p>"
+              className="font-mono text-xs min-h-[280px]"
+            />
+            <div className="flex items-center gap-3 text-xs">
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> Substituir blocos
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Adicionar ao final
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                try {
+                  const parsed = htmlToBlocks(importHtml);
+                  if (parsed.length === 0) { toast.error("Nada para importar"); return; }
+                  setBlocks((prev) => importMode === "replace" ? parsed : [...prev, ...parsed]);
+                  setImportOpen(false);
+                  toast.success(`${parsed.length} bloco(s) importado(s)`);
+                } catch (e: any) {
+                  toast.error(e?.message ?? "Falha ao importar");
+                }
+              }}
+            >
+              Importar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
