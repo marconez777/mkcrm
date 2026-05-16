@@ -994,6 +994,7 @@ export type Database = {
           status: string
           template_slug: string
           test_email: string | null
+          test_sent_at: string | null
           total_recipients: number
           updated_at: string
         }
@@ -1013,6 +1014,7 @@ export type Database = {
           status?: string
           template_slug: string
           test_email?: string | null
+          test_sent_at?: string | null
           total_recipients?: number
           updated_at?: string
         }
@@ -1032,6 +1034,7 @@ export type Database = {
           status?: string
           template_slug?: string
           test_email?: string | null
+          test_sent_at?: string | null
           total_recipients?: number
           updated_at?: string
         }
@@ -3411,6 +3414,45 @@ export type Database = {
           id: string
           kind: string
           similarity: number
+        }[]
+      }
+      report_campaign_stats: {
+        Args: { _campaign_id: string; _clinic_id: string }
+        Returns: {
+          best_hour: number
+          bounce_rate: number
+          bounced: number
+          click_rate: number
+          clicked: number
+          complained: number
+          delivered: number
+          failed: number
+          hourly: Json
+          open_rate: number
+          opened: number
+          sent: number
+        }[]
+      }
+      report_template_stats: {
+        Args: {
+          _clinic_id: string
+          _from?: string
+          _template_slug: string
+          _to?: string
+        }
+        Returns: {
+          best_hour: number
+          bounce_rate: number
+          bounced: number
+          click_rate: number
+          clicked: number
+          complained: number
+          delivered: number
+          failed: number
+          hourly: Json
+          open_rate: number
+          opened: number
+          sent: number
         }[]
       }
       reset_email_send_state: { Args: never; Returns: undefined }
