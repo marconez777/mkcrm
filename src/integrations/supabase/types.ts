@@ -3358,6 +3358,10 @@ export type Database = {
       }
       is_clinic_admin: { Args: { _user_id?: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
+      lead_matches_segment: {
+        Args: { _lead_id: string; _segment_id: string }
+        Returns: boolean
+      }
       log_agent_trace: {
         Args: {
           p_agent_id: string
