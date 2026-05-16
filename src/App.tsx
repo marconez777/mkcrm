@@ -28,10 +28,7 @@ import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 import FeatureRoute from "./components/FeatureRoute";
 import Unsubscribe from "./pages/Unsubscribe";
-import EmailDashboard from "./pages/email/EmailDashboard";
-import EmailTemplates from "./pages/email/EmailTemplates";
-import EmailAutomations from "./pages/email/EmailAutomations";
-import EmailCampaigns from "./pages/email/EmailCampaigns";
+import EmailHub from "./pages/email/EmailHub";
 import SettingsEmailDomain from "./pages/email/SettingsEmailDomain";
 
 const queryClient = new QueryClient();
@@ -81,10 +78,10 @@ const App = () => (
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/tracking" element={<FeatureRoute feature="tracking"><SettingsTracking /></FeatureRoute>} />
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
-                      <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailDashboard /></FeatureRoute>} />
-                      <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailTemplates /></FeatureRoute>} />
-                      <Route path="/email/automations" element={<FeatureRoute feature="email_marketing"><EmailAutomations /></FeatureRoute>} />
-                      <Route path="/email/campaigns" element={<FeatureRoute feature="email_marketing"><EmailCampaigns /></FeatureRoute>} />
+                      <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/automations" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/campaigns" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/tasks" element={<FeatureRoute feature="tasks"><Tasks /></FeatureRoute>} />
                       <Route path="/team" element={<FeatureRoute feature="team"><Team /></FeatureRoute>} />
                       <Route path="*" element={<NotFound />} />

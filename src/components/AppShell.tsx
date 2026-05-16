@@ -49,17 +49,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (hasFeature("team")) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
   if (hasFeature("email_marketing")) {
-    const emailItem: NavItem = {
-      to: "/email",
-      label: "Email",
-      icon: Mail,
-      feature: "email_marketing",
-      children: [
-        { to: "/email/templates", label: "Templates", icon: FileText, feature: "email_marketing" },
-        { to: "/email/automations", label: "Automações", icon: Workflow, feature: "email_marketing" },
-        { to: "/email/campaigns", label: "Campanhas", icon: Megaphone, feature: "email_marketing" },
-      ],
-    };
+    const emailItem: NavItem = { to: "/email", label: "Email", icon: Mail, feature: "email_marketing" };
     const settingsIdx = navItems.findIndex((i) => i.to === "/settings");
     if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
     else navItems = [...navItems, emailItem];
@@ -104,7 +94,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div key={it.to}>
                 <NavLink
                   to={it.to}
-                  end
+                  end={it.to === "/"}
                   className={({ isActive }) =>
                     cn(
                       "mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
