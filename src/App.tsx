@@ -28,6 +28,11 @@ import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 import FeatureRoute from "./components/FeatureRoute";
 import Unsubscribe from "./pages/Unsubscribe";
+import EmailDashboard from "./pages/email/EmailDashboard";
+import EmailTemplates from "./pages/email/EmailTemplates";
+import EmailAutomations from "./pages/email/EmailAutomations";
+import EmailCampaigns from "./pages/email/EmailCampaigns";
+import SettingsEmailDomain from "./pages/email/SettingsEmailDomain";
 
 const queryClient = new QueryClient();
 
