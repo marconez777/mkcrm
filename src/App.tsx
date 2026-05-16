@@ -60,21 +60,21 @@ const App = () => (
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Kanban />} />
-                      <Route path="/inbox" element={<Inbox />} />
-                      <Route path="/inbox/:leadId" element={<Inbox />} />
-                      <Route path="/agents" element={<Agents />} />
-                      <Route path="/automations" element={<Automations />} />
-                      <Route path="/sequences" element={<Sequences />} />
-                      <Route path="/templates" element={<Templates />} />
-                      <Route path="/metrics" element={<MetricsOps />} />
-                      <Route path="/metrics/ai" element={<Metrics />} />
-                      <Route path="/metrics/ai-usage" element={<MetricsAiUsage />} />
-                      <Route path="/agents/memories" element={<AgentMemories />} />
+                      <Route path="/inbox" element={<FeatureRoute feature="inbox"><Inbox /></FeatureRoute>} />
+                      <Route path="/inbox/:leadId" element={<FeatureRoute feature="inbox"><Inbox /></FeatureRoute>} />
+                      <Route path="/agents" element={<FeatureRoute feature="agents"><Agents /></FeatureRoute>} />
+                      <Route path="/automations" element={<FeatureRoute feature="automations"><Automations /></FeatureRoute>} />
+                      <Route path="/sequences" element={<FeatureRoute feature="sequences"><Sequences /></FeatureRoute>} />
+                      <Route path="/templates" element={<FeatureRoute feature="templates"><Templates /></FeatureRoute>} />
+                      <Route path="/metrics" element={<FeatureRoute feature="metrics"><MetricsOps /></FeatureRoute>} />
+                      <Route path="/metrics/ai" element={<FeatureRoute feature="metrics_ai"><Metrics /></FeatureRoute>} />
+                      <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><MetricsAiUsage /></FeatureRoute>} />
+                      <Route path="/agents/memories" element={<FeatureRoute feature="agents"><AgentMemories /></FeatureRoute>} />
                       <Route path="/settings" element={<Settings />} />
-                      <Route path="/settings/fields" element={<SettingsCustomFields />} />
-                      <Route path="/settings/tracking" element={<SettingsTracking />} />
-                      <Route path="/tasks" element={<Tasks />} />
-                      <Route path="/team" element={<Team />} />
+                      <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
+                      <Route path="/settings/tracking" element={<FeatureRoute feature="tracking"><SettingsTracking /></FeatureRoute>} />
+                      <Route path="/tasks" element={<FeatureRoute feature="tasks"><Tasks /></FeatureRoute>} />
+                      <Route path="/team" element={<FeatureRoute feature="team"><Team /></FeatureRoute>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
