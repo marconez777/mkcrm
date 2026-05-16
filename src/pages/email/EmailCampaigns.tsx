@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2 } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker } from "lucide-react";
 
 type Campaign = {
   id: string;
@@ -41,13 +41,15 @@ type Campaign = {
   total_recipients: number;
   sent_count: number;
   failed_count: number;
+  test_email: string | null;
+  test_sent_at: string | null;
   created_at: string;
 };
 type Tpl = { id: string; slug: string; name: string };
 type Segment = { id: string; name: string };
 
 export default function EmailCampaigns() {
-  const { membership } = useAuth();
+  const { membership, user } = useAuth();
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Campaign[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
@@ -74,7 +76,8 @@ export default function EmailCampaigns() {
   function startCreate() {
     setEditing({
       id: "", name: "", template_slug: "", segment_id: null, status: "draft",
-      scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0, created_at: "",
+      scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0,
+      test_email: user?.email ?? null, test_sent_at: null, created_at: "",
     });
     setScheduleDate("");
   }
@@ -89,16 +92,37 @@ export default function EmailCampaigns() {
         name: editing.name,
         template_slug: editing.template_slug,
         segment_id: editing.segment_id,
+        test_email: editing.test_email,
         scheduled_for: scheduleDate ? new Date(scheduleDate).toISOString() : null,
         status: scheduleDate ? "scheduled" : "draft",
       };
       const q = editing.id
         ? supabase.from("email_campaigns").update(payload).eq("id", editing.id)
-        : supabase.from("email_campaigns").insert(payload);
-      const { error } = await q;
+        : supabase.from("email_campaigns").insert(payload).select("id").single();
+      const { data, error } = await q;
       if (error) throw error;
       toast.success("Campanha salva");
-      setEditing(null);
+      if (!editing.id && data) setEditing({ ...editing, id: (data as any).id });
+      else setEditing(null);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    if (!editing?.id) { toast.error("Salve a campanha antes de enviar teste"); return; }
+    const dest = editing.test_email?.trim();
+    if (!dest) { toast.error("Informe o email de teste"); return; }
+    setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("dispatch-campaign", {
+        body: { campaign_id: editing.id, test_only: true, test_email_override: dest },
+      });
+      if (error) throw error;
+      toast.success(`Teste enviado para ${dest}`);
       await load();
     } catch (e: any) {
       toast.error(e.message);
@@ -220,10 +244,18 @@ export default function EmailCampaigns() {
                 <Label className="flex items-center gap-2"><Calendar className="h-3 w-3" />Agendar para (opcional)</Label>
                 <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
               </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-2"><Beaker className="h-3 w-3" />Email de teste</Label>
+                <Input type="email" placeholder="voce@exemplo.com" value={editing.test_email ?? ""} onChange={(e) => setEditing({ ...editing, test_email: e.target.value })} />
+                {editing.test_sent_at && <p className="text-xs text-muted-foreground">Último teste: {new Date(editing.test_sent_at).toLocaleString("pt-BR")}</p>}
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={sendTest} disabled={busy || !editing?.id}>
+              <Beaker className="mr-1 h-3 w-3" />Enviar teste
+            </Button>
             <Button onClick={save} disabled={busy}>
               {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar
             </Button>
