@@ -1,9 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isFeatureEnabled, type FeatureKey } from "@/lib/features";
 
 type ClinicRole = "owner" | "admin" | "professional" | "viewer";
-type Membership = { clinic_id: string; role: ClinicRole; clinic: { id: string; name: string; slug: string; status: string } | null } | null;
+type ClinicSettings = { features?: Record<string, boolean> } & Record<string, any>;
+type Membership = {
+  clinic_id: string;
+  role: ClinicRole;
+  clinic: { id: string; name: string; slug: string; status: string; settings: ClinicSettings } | null;
+} | null;
 
 type Ctx = {
   session: Session | null;
@@ -11,11 +17,13 @@ type Ctx = {
   loading: boolean;
   membership: Membership;
   isSuperAdmin: boolean;
+  hasFeature: (key: FeatureKey) => boolean;
   refreshMembership: () => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx>({
-  session: null, user: null, loading: true, membership: null, isSuperAdmin: false, refreshMembership: async () => {},
+  session: null, user: null, loading: true, membership: null, isSuperAdmin: false,
+  hasFeature: () => true, refreshMembership: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
