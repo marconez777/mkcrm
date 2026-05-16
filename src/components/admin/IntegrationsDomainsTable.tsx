@@ -266,71 +266,25 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       </Table>
 
       <Dialog open={!!openDns} onOpenChange={(o) => !o && setOpenDns(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registros DNS — {openDns?.domain}</DialogTitle>
+            <DialogTitle>DNS — {openDns?.domain}</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Peça à clínica para cadastrar estes registros no provedor de DNS dela e depois clique em
-            "Verificar agora".
+            Peça à clínica para cadastrar estes registros no provedor de DNS dela. A verificação
+            roda automaticamente a cada 20 segundos enquanto este diálogo estiver aberto.
           </p>
-          <div className="rounded-md border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>TTL</TableHead>
-                  <TableHead>Prio</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(openDns?.dns_records ?? []).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
-                      Sem registros (tente verificar para sincronizar)
-                    </TableCell>
-                  </TableRow>
-                )}
-                {(openDns?.dns_records ?? []).map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-mono text-xs">{r.type ?? r.record}</TableCell>
-                    <TableCell className="font-mono text-xs break-all">{r.name}</TableCell>
-                    <TableCell className="font-mono text-xs break-all max-w-[280px]">{r.value}</TableCell>
-                    <TableCell className="text-xs">{r.ttl ?? "Auto"}</TableCell>
-                    <TableCell className="text-xs">{r.priority ?? "—"}</TableCell>
-                    <TableCell>
-                      {r.status && (
-                        <Badge variant={statusVariant(r.status)} className="text-[10px]">
-                          {r.status}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => copy(r.value ?? "")}
-                        disabled={!r.value}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {openDns && (
+            <DnsWizard
+              domain={openDns}
+              onUpdated={(next) => {
+                setOpenDns(next);
+                setDomains((arr) => arr.map((d) => (d.id === next.id ? { ...d, ...next } : d)));
+              }}
+            />
+          )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpenDns(null)}>
-              Fechar
-            </Button>
-            <Button onClick={() => openDns && verifyDomain(openDns)} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Verificar agora
-            </Button>
+            <Button onClick={() => setOpenDns(null)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
