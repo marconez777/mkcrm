@@ -13,7 +13,6 @@ const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: Fea
   { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
   { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
   { to: "/ai", label: "IA", icon: Sparkles },
-  { to: "/sequences", label: "Sequências", icon: Mail, feature: "sequences" },
   { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
@@ -25,7 +24,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
-  const restricted = new Set(["/ai", "/sequences"]);
+  const restricted = new Set(["/ai"]);
   let navItems: NavItem[] = isProfessional ? items.filter((i) => !restricted.has(i.to)) : [...items];
   navItems = navItems.filter((i) => !i.feature || hasFeature(i.feature));
   if (isClinicAdmin) {
