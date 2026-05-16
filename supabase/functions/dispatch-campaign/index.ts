@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { campaign_id } = body ?? {};
+    const { campaign_id, test_only, test_email_override } = body ?? {};
     if (!campaign_id) return jsonResponse({ error: "missing campaign_id" }, { status: 400 });
 
     const { data: campaign, error: cErr } = await supabase
@@ -35,6 +35,50 @@ Deno.serve(async (req) => {
       .eq("id", campaign_id)
       .maybeSingle();
     if (cErr || !campaign) return jsonResponse({ error: cErr?.message || "campaign not found" }, { status: 404 });
+
+    // === TEST MODE — não muda status, envia 1 email força ===
+    if (test_only) {
+      const dest = (test_email_override || campaign.test_email || "").trim();
+      if (!dest) return jsonResponse({ error: "test_email missing" }, { status: 400 });
+
+      // Variables sample (1º lead do segmento)
+      const filters = campaign.segment_id
+        ? (await supabase.from("email_segments").select("filters").eq("id", campaign.segment_id).maybeSingle()).data?.filters ?? {}
+        : {};
+      let sampleQ = supabase.from("leads").select("id, name, email")
+        .eq("clinic_id", campaign.clinic_id).not("email", "is", null).limit(1);
+      if (Array.isArray(filters?.stage_ids) && filters.stage_ids.length) sampleQ = sampleQ.in("stage_id", filters.stage_ids);
+      if (Array.isArray(filters?.tags) && filters.tags.length) sampleQ = sampleQ.overlaps("tags", filters.tags);
+      const { data: sample } = await sampleQ;
+      const s = sample?.[0];
+
+      const { data: qid, error: qErr } = await supabase.rpc("enqueue_email", {
+        _clinic_id: campaign.clinic_id,
+        _template_slug: campaign.template_slug,
+        _recipient_email: dest,
+        _recipient_name: s?.name ?? "Teste",
+        _variables: { name: s?.name ?? "Teste", campaign_id, test: true },
+        _scheduled_at: new Date().toISOString(),
+        _related_lead_id: null,
+        _related_lead_table: `campaign_test_${campaign_id}`,
+        _force_send: true,
+      });
+      if (qErr) return jsonResponse({ error: qErr.message }, { status: 500 });
+
+      await supabase.from("email_campaigns")
+        .update({ test_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", campaign_id);
+
+      // Dispara processamento imediato
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+        body: "{}",
+      }).catch(() => {});
+
+      return jsonResponse({ ok: true, test: true, queue_id: qid, to: dest });
+    }
+
     if (campaign.status === "sent" || campaign.status === "sending") {
       return jsonResponse({ skipped: true, reason: "already_processing", status: campaign.status });
     }
