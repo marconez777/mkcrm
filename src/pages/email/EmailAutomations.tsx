@@ -37,6 +37,11 @@ type Automation = {
   preset_key: string | null;
 };
 type Tpl = { id: string; slug: string; name: string };
+type Segment = { id: string; name: string };
+
+const toDays = (m: number) => Math.floor((m || 0) / 1440);
+const toHours = (m: number) => Math.floor(((m || 0) % 1440) / 60);
+const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(0, Math.min(23, h)) * 60);
 
 const PRESETS = [
   {
