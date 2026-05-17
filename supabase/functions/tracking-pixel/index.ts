@@ -40,7 +40,17 @@ Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const url = new URL(req.url);
   const token = url.searchParams.get("t") ?? "";
-  const ingest = `${url.origin}/functions/v1/tracking-ingest`;
+  // Always build an https origin — the function might be invoked via http
+  // (proxies, x-forwarded-proto missing, etc.) and the page that loads the
+  // pixel is usually https, which would block any http ingest as Mixed Content.
+  const envUrl = Deno.env.get("SUPABASE_URL") || "";
+  let originBase = envUrl.replace(/\/+$/, "");
+  if (!originBase) {
+    originBase = `https://${url.host}`;
+  } else if (originBase.startsWith("http://")) {
+    originBase = "https://" + originBase.slice("http://".length);
+  }
+  const ingest = `${originBase}/functions/v1/tracking-ingest`;
   return new Response(SCRIPT(token, ingest), {
     headers: {
       ...cors,
