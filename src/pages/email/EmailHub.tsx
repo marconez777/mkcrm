@@ -9,7 +9,7 @@ import EmailLogs from "./EmailLogs";
 import EmailSegments from "./EmailSegments";
 import EmailUnsubscribes from "./EmailUnsubscribes";
 import EmailReports from "./EmailReports";
-import EmailSites from "./EmailSites";
+
 
 const TABS = [
   { value: "dashboard", path: "/email", label: "Dashboard" },
