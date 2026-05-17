@@ -318,14 +318,6 @@ export default function SettingsPage() {
             <QuickRepliesCard />
           </TabsContent>
 
-          {showTracking && (
-            <TabsContent value="tracking" className="space-y-6">
-              <Card className="p-6">
-                <TrackingSitesPanel />
-              </Card>
-            </TabsContent>
-          )}
-
           {showEmail && (
             <TabsContent value="email" className="space-y-4">
               <Card className="p-6">
