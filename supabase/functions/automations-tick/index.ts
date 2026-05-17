@@ -73,6 +73,70 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       .limit(50);
     return data ?? [];
   }
+  if (a.trigger_type === "before_appointment") {
+    const cfg = a.trigger_config ?? {};
+    const fieldKey: string = cfg.field_key;
+    const offsetMin = Number(cfg.offset_minutes ?? 60);
+    const tz: string = cfg.tz || "America/Sao_Paulo";
+    const preferred: string | undefined = cfg.preferred_time; // "HH:MM"
+    const businessOnly: boolean = !!cfg.business_hours_only;
+    if (!fieldKey) return [];
+
+    const now = new Date();
+    // Janela ampla — refinamos no filtro
+    const winStart = new Date(now.getTime() - 5 * 60_000);
+    const winEnd = new Date(now.getTime() + offsetMin * 60_000 + 24 * 3600_000);
+
+    let q = supabase
+      .from("leads")
+      .select("id, stage_id, custom_fields")
+      .not("custom_fields->>" + fieldKey, "is", null)
+      .is("archived_at", null)
+      .limit(200);
+    if (cfg.stage_id) q = q.eq("stage_id", cfg.stage_id);
+    const { data } = await q;
+
+    // Hora local atual no tz
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", weekday: "short",
+    }).formatToParts(now);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+    const localHM = `${get("hour")}:${get("minute")}`;
+    const localWeekday = get("weekday"); // Mon, Tue...
+    const isWeekday = !["Sat", "Sun"].includes(localWeekday);
+    const localHour = Number(get("hour"));
+
+    if (businessOnly && (!isWeekday || localHour < 8 || localHour >= 18)) return [];
+    if (preferred && localHM < preferred) return [];
+
+    const out: any[] = [];
+    for (const l of data ?? []) {
+      const raw = (l.custom_fields as any)?.[fieldKey];
+      if (!raw) continue;
+      const appt = new Date(raw);
+      if (isNaN(appt.getTime())) continue;
+      const target = new Date(appt.getTime() - offsetMin * 60_000);
+      // Dispara se passamos o alvo mas ainda faltam >=5min para a consulta
+      if (now >= target && now <= new Date(appt.getTime() - 5 * 60_000)) {
+        out.push(l);
+      }
+      // Para o caso D-1 com preferred_time: garante que estamos no mesmo dia local do target
+      if (preferred) {
+        const targetParts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+        }).formatToParts(target);
+        const nowDay = `${get("year")}-${get("month")}-${get("day")}`;
+        const tgtDay = `${targetParts.find(p=>p.type==="year")?.value}-${targetParts.find(p=>p.type==="month")?.value}-${targetParts.find(p=>p.type==="day")?.value}`;
+        if (nowDay !== tgtDay) {
+          // remove se acabamos de adicionar
+          if (out[out.length - 1]?.id === l.id) out.pop();
+        }
+      }
+    }
+    return out;
+  }
   return [];
 }
 

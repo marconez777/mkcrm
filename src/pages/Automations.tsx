@@ -26,6 +26,7 @@ type Automation = {
 const TRIGGERS = [
   { id: "no_reply_after", label: "Lead sem resposta há X horas" },
   { id: "stage_idle", label: "Lead parado num estágio há X horas" },
+  { id: "before_appointment", label: "Lembrete antes de data marcada (consulta)" },
 ];
 
 const ACTIONS = [
@@ -42,19 +43,22 @@ export default function Automations() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
+  const [dateFields, setDateFields] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
-    const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
+    const [{ data: a }, { data: ag }, { data: st }, { data: tp }, { data: cf }] = await Promise.all([
       supabase.from("automations").select("*").order("created_at"),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
+      supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
     ]);
     setList((a ?? []) as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
+    setDateFields(cf ?? []);
   };
   useEffect(() => { load(); }, []);
 
@@ -250,6 +254,88 @@ export default function Automations() {
                     <Input type="number" min="1" value={selected.trigger_config?.hours ?? 48}
                       onChange={(e) => updTrigger({ hours: Number(e.target.value) })} />
                   </div>
+                </div>
+              )}
+
+              {selected.trigger_type === "before_appointment" && (
+                <div className="space-y-3">
+                  {dateFields.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum campo personalizado de data encontrado. Crie um em Configurações → Campos personalizados (tipo Data ou Data e hora).
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <Label>Campo de data/hora da consulta</Label>
+                        <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                          value={selected.trigger_config?.field_key ?? ""}
+                          onChange={(e) => updTrigger({ field_key: e.target.value })}>
+                          <option value="">— escolha —</option>
+                          {dateFields.map((f) => (
+                            <option key={f.field_key} value={f.field_key}>
+                              {f.label} ({f.field_type})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Antecedência</Label>
+                          <div className="flex gap-2">
+                            <Input type="number" min="1"
+                              value={(() => {
+                                const m = Number(selected.trigger_config?.offset_minutes ?? 60);
+                                const u = selected.trigger_config?.offset_unit ?? (m % 1440 === 0 ? "days" : m % 60 === 0 ? "hours" : "minutes");
+                                return u === "days" ? m / 1440 : u === "hours" ? m / 60 : m;
+                              })()}
+                              onChange={(e) => {
+                                const n = Number(e.target.value);
+                                const u = selected.trigger_config?.offset_unit ?? "hours";
+                                const m = u === "days" ? n * 1440 : u === "hours" ? n * 60 : n;
+                                updTrigger({ offset_minutes: m });
+                              }} />
+                            <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                              value={selected.trigger_config?.offset_unit ?? (((selected.trigger_config?.offset_minutes ?? 60) % 1440 === 0) ? "days" : "hours")}
+                              onChange={(e) => updTrigger({ offset_unit: e.target.value })}>
+                              <option value="minutes">min</option>
+                              <option value="hours">horas</option>
+                              <option value="days">dias</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Hora preferencial (opcional)</Label>
+                          <Input type="time"
+                            value={selected.trigger_config?.preferred_time ?? ""}
+                            onChange={(e) => updTrigger({ preferred_time: e.target.value || undefined })} />
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Ideal para D-1: segura o envio até esse horário (ex.: 15:00).
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Estágio (opcional)</Label>
+                          <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                            value={selected.trigger_config?.stage_id ?? ""}
+                            onChange={(e) => updTrigger({ stage_id: e.target.value || undefined })}>
+                            <option value="">— qualquer —</option>
+                            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-end justify-between gap-3">
+                          <div>
+                            <Label>Apenas horário comercial</Label>
+                            <p className="text-[11px] text-muted-foreground">Seg–Sex, 08–18h</p>
+                          </div>
+                          <Switch
+                            checked={!!selected.trigger_config?.business_hours_only}
+                            onCheckedChange={(v) => updTrigger({ business_hours_only: v })}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </Card>
