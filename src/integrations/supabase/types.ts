@@ -1734,51 +1734,68 @@ export type Database = {
           attempts: number
           clinic_id: string
           created_at: string
-          endpoint: string
+          delivered_at: string | null
+          endpoint: string | null
           id: string
           last_attempt_at: string | null
           last_error: string | null
           last_status_code: number | null
-          lead_id: string
+          lead_id: string | null
           next_attempt_at: string
           payload: Json
           sent_at: string | null
+          site_id: string | null
           status: string
+          type: string | null
           updated_at: string
         }
         Insert: {
           attempts?: number
           clinic_id: string
           created_at?: string
-          endpoint: string
+          delivered_at?: string | null
+          endpoint?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
           last_status_code?: number | null
-          lead_id: string
+          lead_id?: string | null
           next_attempt_at?: string
           payload: Json
           sent_at?: string | null
+          site_id?: string | null
           status?: string
+          type?: string | null
           updated_at?: string
         }
         Update: {
           attempts?: number
           clinic_id?: string
           created_at?: string
-          endpoint?: string
+          delivered_at?: string | null
+          endpoint?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
           last_status_code?: number | null
-          lead_id?: string
+          lead_id?: string | null
           next_attempt_at?: string
           payload?: Json
           sent_at?: string | null
+          site_id?: string | null
           status?: string
+          type?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "external_webhook_deliveries_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_ai_settings: {
         Row: {
@@ -1946,6 +1963,35 @@ export type Database = {
           },
         ]
       }
+      lead_journey_cache: {
+        Row: {
+          expires_at: string
+          fetched_at: string
+          lead_id: string
+          payload: Json
+        }
+        Insert: {
+          expires_at: string
+          fetched_at?: string
+          lead_id: string
+          payload: Json
+        }
+        Update: {
+          expires_at?: string
+          fetched_at?: string
+          lead_id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_journey_cache_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_reply_counters: {
         Row: {
           clinic_id: string
@@ -2077,7 +2123,10 @@ export type Database = {
           custom_fields: Json
           deal_value: number | null
           email: string | null
+          fbclid: string | null
+          gclid: string | null
           id: string
+          landing_page: string | null
           last_message_at: string | null
           last_message_preview: string | null
           marked_unread: boolean
@@ -2089,12 +2138,17 @@ export type Database = {
           pinned_at: string | null
           pipeline_id: string | null
           position: number
+          ref_short: string | null
+          site_id: string | null
           stage_changed_at: string
           stage_id: string | null
           tags: string[]
           tracking_session_id: string | null
           unread_count: number
           updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
           whatsapp_instance_id: string | null
         }
         Insert: {
@@ -2109,7 +2163,10 @@ export type Database = {
           custom_fields?: Json
           deal_value?: number | null
           email?: string | null
+          fbclid?: string | null
+          gclid?: string | null
           id?: string
+          landing_page?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           marked_unread?: boolean
@@ -2121,12 +2178,17 @@ export type Database = {
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
+          ref_short?: string | null
+          site_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
           tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           whatsapp_instance_id?: string | null
         }
         Update: {
@@ -2141,7 +2203,10 @@ export type Database = {
           custom_fields?: Json
           deal_value?: number | null
           email?: string | null
+          fbclid?: string | null
+          gclid?: string | null
           id?: string
+          landing_page?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           marked_unread?: boolean
@@ -2153,12 +2218,17 @@ export type Database = {
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
+          ref_short?: string | null
+          site_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
           tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           whatsapp_instance_id?: string | null
         }
         Relationships: [
@@ -2174,6 +2244,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_sites"
             referencedColumns: ["id"]
           },
           {
@@ -3343,26 +3420,38 @@ export type Database = {
         Row: {
           clinic_id: string
           created_at: string
+          data_residency: string
           domain: string
           id: string
           ingest_token: string
+          journey_api_url: string | null
           name: string
+          webhook_secret_in: string | null
+          webhook_secret_out: string | null
         }
         Insert: {
           clinic_id?: string
           created_at?: string
+          data_residency?: string
           domain: string
           id?: string
           ingest_token?: string
+          journey_api_url?: string | null
           name: string
+          webhook_secret_in?: string | null
+          webhook_secret_out?: string | null
         }
         Update: {
           clinic_id?: string
           created_at?: string
+          data_residency?: string
           domain?: string
           id?: string
           ingest_token?: string
+          journey_api_url?: string | null
           name?: string
+          webhook_secret_in?: string | null
+          webhook_secret_out?: string | null
         }
         Relationships: []
       }
