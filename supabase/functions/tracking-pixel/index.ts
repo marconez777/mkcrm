@@ -16,7 +16,7 @@ function initSid(){sid=(window.lvTrack&&window.lvTrack.sessionId)||localStorage.
 function getMeta(){var u=new URL(location.href);var p={};['utm_source','utm_medium','utm_campaign','utm_term','utm_content','ref'].forEach(function(k){var v=u.searchParams.get(k);if(v)p[k]=v;});if(document.referrer)p.referrer=document.referrer;
 var saved=sessionStorage.getItem('mk_meta');if(saved){try{var s=JSON.parse(saved);Object.keys(s).forEach(function(k){if(!p[k])p[k]=s[k];});}catch(e){}}
 sessionStorage.setItem('mk_meta',JSON.stringify(p));return p;}
-function send(ev){try{fetch(INGEST,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteToken:TOKEN,sessionId:sid,meta:getMeta(),event:ev}),keepalive:true});}catch(e){}}
+function send(ev){try{var body=JSON.stringify({siteToken:TOKEN,sessionId:sid,meta:getMeta(),event:ev});var isNav=ev&&ev.type==='wa_click';if(isNav&&navigator.sendBeacon){try{var blob=new Blob([body],{type:'application/json'});if(navigator.sendBeacon(INGEST,blob))return;}catch(e){}}fetch(INGEST,{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true,mode:'cors',credentials:'omit'}).catch(function(err){try{console.warn('mk-pixel ingest fail',err);}catch(e){}});}catch(e){try{console.warn('mk-pixel send err',e);}catch(_){}}}
 function pageview(){send({type:'pageview',url:location.href,title:document.title,referrer:document.referrer});}
 function phoneFromHref(href){try{var u=new URL(href);var m=u.pathname.match(/(\\d{6,20})/);if(m)return m[1];var p=u.searchParams.get('phone');if(p)return String(p).replace(/\\D/g,'');}catch(e){}return null;}
 function rewriteWa(a){try{var href=a.getAttribute('href')||'';if(!/^https?:\\/\\/(wa\\.me|api\\.whatsapp\\.com)/i.test(href))return;var url=new URL(href);var text=url.searchParams.get('text')||'';if(text.indexOf('ref=')===-1){text=(text?text+' ':'')+'(ref='+refShort+')';url.searchParams.set('text',text);a.setAttribute('href',url.toString());}}catch(e){}}
@@ -40,7 +40,17 @@ Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const url = new URL(req.url);
   const token = url.searchParams.get("t") ?? "";
-  const ingest = `${url.origin}/functions/v1/tracking-ingest`;
+  // Always build an https origin — the function might be invoked via http
+  // (proxies, x-forwarded-proto missing, etc.) and the page that loads the
+  // pixel is usually https, which would block any http ingest as Mixed Content.
+  const envUrl = Deno.env.get("SUPABASE_URL") || "";
+  let originBase = envUrl.replace(/\/+$/, "");
+  if (!originBase) {
+    originBase = `https://${url.host}`;
+  } else if (originBase.startsWith("http://")) {
+    originBase = "https://" + originBase.slice("http://".length);
+  }
+  const ingest = `${originBase}/functions/v1/tracking-ingest`;
   return new Response(SCRIPT(token, ingest), {
     headers: {
       ...cors,
