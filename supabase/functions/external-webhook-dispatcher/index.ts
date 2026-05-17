@@ -135,7 +135,12 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
         last_error: null,
         attempts: row.attempts + 1,
       }).eq("id", row.id);
-      console.log("ewd sent", { id: row.id, status: statusCode, ms: Date.now() - startedAt });
+      console.log("ewd sent", {
+        id: row.id,
+        status: statusCode,
+        ms: Date.now() - startedAt,
+        resp_body: DEBUG_HMAC ? respText.slice(0, 1000) : undefined,
+      });
       return;
     }
     errorMsg = `HTTP ${statusCode}: ${respText.slice(0, 500)}`;
