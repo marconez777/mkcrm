@@ -43,6 +43,7 @@ export default function Automations() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
+  const [dateFields, setDateFields] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
