@@ -381,26 +381,8 @@ Deno.serve(async (req) => {
             `\n\n### Valores atuais\n${JSON.stringify(cur, null, 2)}`;
         }
 
-        // Tracking session block — gives the agent ground-truth origin/page data.
-        let trackingBlock = "";
-        if ((lead as any).tracking_session_id) {
-          const { data: sess } = await supabase.from("tracking_sessions")
-            .select("utm_source, utm_medium, utm_campaign, first_url, first_referrer, landing_title, device, created_at")
-            .eq("id", (lead as any).tracking_session_id).maybeSingle();
-          const { data: evs } = await supabase.from("tracking_events")
-            .select("type, url, title, occurred_at")
-            .eq("session_id", (lead as any).tracking_session_id)
-            .order("occurred_at").limit(20);
-          if (sess) {
-            trackingBlock = `\n\n## Origem rastreada (CONFIRMADA pelo pixel — fonte de verdade)\n${JSON.stringify(sess, null, 2)}` +
-              (evs?.length ? `\n\n### Páginas/Eventos visitados\n${evs.map((e: any) => `- [${e.type}] ${e.title || e.url} (${e.occurred_at})`).join("\n")}` : "");
-          }
-        } else {
-          trackingBlock = `\n\n## Origem rastreada\nNenhuma sessão de tracking ligada a este lead. NÃO chute a origem — só preencha se o cliente disser explicitamente onde nos viu.`;
-        }
-
-        const { custom_fields: _cf, tracking_session_id: _ts, ...leadRest } = lead as any;
-        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...leadRest, stage: stage?.name }, null, 2)}${stagesList}${customFieldsBlock}${trackingBlock}`;
+        const { custom_fields: _cf, ...leadRest } = lead as any;
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...leadRest, stage: stage?.name }, null, 2)}${stagesList}${customFieldsBlock}`;
       }
     }
 
