@@ -18,7 +18,7 @@ const TABS = [
   { value: "campaigns", path: "/email/campaigns", label: "Campanhas" },
   { value: "reports", path: "/email/reports", label: "Relatórios" },
   { value: "segments", path: "/email/segments", label: "Segmentos" },
-  { value: "sites", path: "/email/sites", label: "Sites" },
+  
   { value: "queue", path: "/email/queue", label: "Fila" },
   { value: "logs", path: "/email/logs", label: "Logs" },
   { value: "unsubscribes", path: "/email/unsubscribes", label: "Descadastros" },
