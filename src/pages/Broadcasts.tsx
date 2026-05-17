@@ -54,7 +54,7 @@ function BroadcastList() {
 
   const load = async () => {
     const { data } = await supabase.from("broadcasts").select("*").order("created_at", { ascending: false });
-    setItems((data ?? []) as Broadcast[]);
+    setItems((data ?? []) as unknown as Broadcast[]);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -151,7 +151,7 @@ function BroadcastEditor({ id }: { id: string }) {
       supabase.from("broadcast_events").select("*").eq("broadcast_id", id).order("created_at", { ascending: false }).limit(100),
     ]);
     if (!b) { toast.error("Campanha não encontrada"); navigate("/ai/broadcasts"); return; }
-    setBc(b as Broadcast);
+    setBc(b as unknown as Broadcast);
     setGroups(((g ?? []) as any[]).map((x) => ({ ...x, parts: (x.broadcast_message_parts ?? []).sort((a: any, b: any) => a.position - b.position) })));
     setInstances((ins ?? []) as any);
     setPipelines((p ?? []) as any);
