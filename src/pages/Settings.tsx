@@ -210,7 +210,9 @@ export default function SettingsPage() {
                   const minutesSinceInbound = inst.last_inbound_webhook_at
                     ? Math.floor((Date.now() - new Date(inst.last_inbound_webhook_at).getTime()) / 60000)
                     : null;
-                  const deaf = open && (minutesSinceInbound === null || minutesSinceInbound >= 15);
+                  // Sessão "travada": >2h sem QUALQUER evento da Evolution (mensagem, presence, chat, etc).
+                  // Períodos normais de silêncio (ninguém escreve por 30min) NÃO contam mais como travado.
+                  const deaf = open && (minutesSinceInbound === null || minutesSinceInbound >= 120);
                   return (
                     <div key={inst.id} className="rounded-md border p-3 space-y-2">
                       <div className="flex items-center gap-3">
@@ -221,7 +223,7 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium truncate">{inst.name}</span>
                             {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
-                            {deaf && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">conectado, sem eventos</span>}
+                            {deaf && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">sessão travada (sem sinal há 2h+)</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
