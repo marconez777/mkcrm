@@ -71,7 +71,7 @@ export default function Templates() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         <div className="flex items-center justify-between p-4">
           <h2 className="text-sm font-semibold">Templates</h2>
