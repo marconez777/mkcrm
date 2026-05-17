@@ -325,16 +325,28 @@ export default function SettingsPage() {
           )}
 
           {showEmail && (
-            <TabsContent value="email" className="space-y-6">
+            <TabsContent value="email" className="space-y-4">
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />Email Marketing</h2>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />Domínio de envio</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Configure o domínio de envio, registros DNS (SPF/DKIM/DMARC) e preferências padrão (remetente e reply-to).
                     </p>
                   </div>
                   <Link to="/settings/email"><Button variant="outline">Abrir</Button></Link>
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração com o site</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Conecte o site da clínica (WordPress, HTML ou React/Lovable) ao CRM. Leads enviados pelo formulário entram automaticamente nas automações de e-mail.
+                    </p>
+                  </div>
+                  <Link to="/settings/email/sites"><Button variant="outline">Abrir</Button></Link>
                 </div>
               </Card>
             </TabsContent>
