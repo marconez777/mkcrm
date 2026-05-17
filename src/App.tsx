@@ -82,7 +82,7 @@ const App = () => (
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
-                      <Route path="/settings/tracking" element={<FeatureRoute feature="tracking"><SettingsTracking /></FeatureRoute>} />
+                      
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
                       <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
