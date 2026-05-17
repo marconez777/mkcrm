@@ -91,7 +91,7 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
   const signed = `v1:${timestamp}:${body}`;
   const signatureHex = await hmacSha256Hex(secret, signed);
 
-  if (DEBUG_HMAC || true) {
+  if (DEBUG_HMAC) {
     console.log("ewd hmac-debug", {
       id: row.id,
       site_id: row.site_id,
