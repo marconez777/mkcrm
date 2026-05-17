@@ -5,22 +5,37 @@ import AiDashboard from "./AiDashboard";
 import Agents from "@/pages/Agents";
 import AgentMemories from "@/pages/AgentMemories";
 import MetricsAiUsage from "@/pages/MetricsAiUsage";
-import Automations from "@/pages/Automations";
-import Templates from "@/pages/Templates";
-import Sequences from "@/pages/Sequences";
 import Broadcasts from "@/pages/Broadcasts";
+import Messages from "./Messages";
+import type { FeatureKey } from "@/lib/features";
 
-type TabDef = { value: string; path: string; aliases?: string[]; matchPrefix?: string; label: string; feature?: "agents" | "metrics_ai_usage" | "automations" | "templates" | "sequences" | "broadcasts" };
+type TabDef = {
+  value: string;
+  path: string;
+  aliases?: string[];
+  matchPrefix?: string;
+  label: string;
+  features?: FeatureKey[]; // visible if ANY of these is enabled (default: all)
+};
 
 const TABS: TabDef[] = [
   { value: "dashboard", path: "/ai", label: "Dashboard" },
-  { value: "agents", path: "/ai/agents", aliases: ["/agents"], label: "Agentes IA", feature: "agents" },
-  { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", feature: "agents" },
-  { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos IA", feature: "metrics_ai_usage" },
-  { value: "automations", path: "/ai/automations", aliases: ["/automations"], label: "Automações", feature: "automations" },
-  { value: "sequences", path: "/ai/sequences", aliases: ["/sequences"], label: "Sequências", feature: "sequences" },
-  { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", feature: "broadcasts" },
-  { value: "templates", path: "/ai/templates", aliases: ["/templates"], label: "Templates", feature: "templates" },
+  { value: "agents", path: "/ai/agents", aliases: ["/agents"], label: "Agentes IA", features: ["agents"] },
+  { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
+  { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos IA", features: ["metrics_ai_usage"] },
+  {
+    value: "messages",
+    path: "/ai/messages",
+    matchPrefix: "/ai/messages",
+    aliases: [
+      "/ai/sequences", "/sequences",
+      "/ai/automations", "/automations",
+      "/ai/templates", "/templates",
+    ],
+    label: "Mensagens",
+    features: ["sequences", "automations", "templates"],
+  },
+  { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", features: ["broadcasts"] },
 ];
 
 export default function AiHub() {
@@ -28,7 +43,7 @@ export default function AiHub() {
   const navigate = useNavigate();
   const { hasFeature } = useAuth();
 
-  const visible = TABS.filter((t) => !t.feature || hasFeature(t.feature));
+  const visible = TABS.filter((t) => !t.features || t.features.some((f) => hasFeature(f)));
 
   const current =
     visible.find((t) => t.matchPrefix && location.pathname.startsWith(t.matchPrefix))?.value ??
@@ -54,10 +69,8 @@ export default function AiHub() {
           <TabsContent value="agents" className="mt-0"><Agents /></TabsContent>
           <TabsContent value="memories" className="mt-0"><AgentMemories /></TabsContent>
           <TabsContent value="usage" className="mt-0"><MetricsAiUsage /></TabsContent>
-          <TabsContent value="automations" className="mt-0"><Automations /></TabsContent>
-          <TabsContent value="sequences" className="mt-0"><Sequences /></TabsContent>
+          <TabsContent value="messages" className="mt-0"><Messages /></TabsContent>
           <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>
-          <TabsContent value="templates" className="mt-0"><Templates /></TabsContent>
         </Tabs>
       </div>
     </div>

@@ -76,8 +76,10 @@ export default function CommandPalette() {
     { label: "Conversas", path: "/inbox", icon: Inbox },
     { label: "Tarefas", path: "/tasks", icon: CalendarClock },
     { label: "Agentes IA", path: "/agents", icon: Bot },
-    { label: "Automações", path: "/automations", icon: Zap },
-    { label: "Templates", path: "/templates", icon: FileText },
+    { label: "Mensagens", path: "/ai/messages", icon: Zap },
+    { label: "Sequências", path: "/ai/messages/sequences", icon: Zap },
+    { label: "Automações", path: "/ai/messages/automations", icon: Zap },
+    { label: "Templates", path: "/ai/messages/templates", icon: FileText },
     { label: "Métricas", path: "/metrics", icon: BarChart3 },
     { label: "Configurações", path: "/settings", icon: Settings },
   ];
