@@ -229,20 +229,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Marca quando recebemos o último evento "vivo" do WhatsApp.
-    // Usado pelo health watchdog para detectar sessão "surda" (open mas sem eventos).
-    if (
-      eventType === "MESSAGES_UPSERT" ||
-      eventType === "MESSAGES_UPDATE" ||
-      eventType === "MESSAGES_SET" ||
-      eventType === "MESSAGING_HISTORY_SET" ||
-      eventType === "CONTACTS_UPSERT"
-    ) {
-      await supabase
-        .from("whatsapp_instances")
-        .update({ last_inbound_webhook_at: new Date().toISOString() })
-        .eq("id", instance.id);
-    }
+    // Marca qualquer evento da Evolution como "sinal de vida" da sessão.
+    // Antes filtrávamos só por MESSAGES_*, mas isso gerava falso positivo
+    // quando ninguém escrevia por >15min. Qualquer evento (presence, chats,
+    // connection update) prova que a Evolution está conversando conosco.
+    await supabase
+      .from("whatsapp_instances")
+      .update({ last_inbound_webhook_at: new Date().toISOString() })
+      .eq("id", instance.id);
 
     if (auditId) {
       await supabase
