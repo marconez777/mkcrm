@@ -20,7 +20,9 @@ const sb = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 const FALLBACK_SECRET = Deno.env.get("EXTERNAL_APP_WEBHOOK_SECRET") || "";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
-const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") !== "0"; // default ON until end of Gate D
+// DEBUG_HMAC: default OFF. To enable temporarily, set env var DEBUG_HMAC=1 on the edge function.
+// When ON, logs timestamp + signed-string preview + signature. NEVER logs the secret. Body is truncated.
+const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") === "1";
 
 function nextDelayMs(attempts: number): number {
   if (attempts <= 1) return 60 * 1000;
@@ -100,7 +102,8 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
       timestamp,
       signed_preview: signed.slice(0, 200) + (signed.length > 200 ? "…" : ""),
       signed_len: signed.length,
-      body,
+      body_preview: body.slice(0, 200) + (body.length > 200 ? "…" : ""),
+      body_len: body.length,
       signature: signatureHex,
     });
   }
@@ -124,8 +127,11 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
     });
     clearTimeout(t);
     statusCode = resp.status;
+    const respCt = (resp.headers.get("content-type") || "").toLowerCase();
     const respText = await resp.text();
-    if (resp.ok) {
+
+    // Sanity check: 2xx + JSON content-type required. SPA catch-alls return HTML.
+    if (resp.ok && respCt.includes("application/json")) {
       await supabase.from("external_webhook_deliveries").update({
         status: "sent",
         sent_at: new Date().toISOString(),
@@ -139,11 +145,16 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
         id: row.id,
         status: statusCode,
         ms: Date.now() - startedAt,
-        resp_body: respText.slice(0, 1000),
+        resp_ct: respCt,
+        resp_preview: respText.slice(0, 200),
       });
       return;
     }
-    errorMsg = `HTTP ${statusCode}: ${respText.slice(0, 500)}`;
+    if (resp.ok && !respCt.includes("application/json")) {
+      errorMsg = `bad_response_content_type: got "${respCt || "(none)"}" status ${statusCode} preview=${respText.slice(0, 200)}`;
+    } else {
+      errorMsg = `HTTP ${statusCode}: ${respText.slice(0, 500)}`;
+    }
   } catch (e) {
     errorMsg = String(e).slice(0, 500);
   }

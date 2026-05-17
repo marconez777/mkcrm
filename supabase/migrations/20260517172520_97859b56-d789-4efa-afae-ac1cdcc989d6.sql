@@ -1,0 +1,1 @@
+ALTER TABLE public.tracking_sites ADD COLUMN IF NOT EXISTS bridge_endpoint text;
