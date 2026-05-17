@@ -20,7 +20,7 @@ const sb = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 const FALLBACK_SECRET = Deno.env.get("EXTERNAL_APP_WEBHOOK_SECRET") || "";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
-const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") === "1";
+const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") !== "0"; // default ON until end of Gate D
 
 function nextDelayMs(attempts: number): number {
   if (attempts <= 1) return 60 * 1000;
