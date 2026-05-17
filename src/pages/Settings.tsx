@@ -332,17 +332,8 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              <Card className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração com o site</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Conecte o site da clínica (WordPress, HTML ou React/Lovable) ao CRM. Leads enviados pelo formulário entram automaticamente nas automações de e-mail.
-                    </p>
-                  </div>
-                  <Link to="/email/sites"><Button variant="outline">Abrir</Button></Link>
-                </div>
-              </Card>
+
+
             </TabsContent>
           )}
 
