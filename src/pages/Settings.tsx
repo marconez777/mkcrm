@@ -346,7 +346,7 @@ export default function SettingsPage() {
                       Conecte o site da clínica (WordPress, HTML ou React/Lovable) ao CRM. Leads enviados pelo formulário entram automaticamente nas automações de e-mail.
                     </p>
                   </div>
-                  <Link to="/settings/email/sites"><Button variant="outline">Abrir</Button></Link>
+                  <Link to="/email/sites"><Button variant="outline">Abrir</Button></Link>
                 </div>
               </Card>
             </TabsContent>
