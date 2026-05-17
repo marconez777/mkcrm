@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     // 2) Resolve site `remote` da clínica (Fase 1: só Clínica ÓR é remote)
     const { data: remoteSite } = await supabase
       .from("tracking_sites")
-      .select("id, domain")
+      .select("id, domain, bridge_endpoint")
       .eq("clinic_id", lead.clinic_id)
       .eq("data_residency", "remote")
       .limit(1)
