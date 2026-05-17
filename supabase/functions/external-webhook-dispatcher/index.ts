@@ -20,7 +20,7 @@ const sb = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 const FALLBACK_SECRET = Deno.env.get("EXTERNAL_APP_WEBHOOK_SECRET") || "";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
-const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") === "1";
+const DEBUG_HMAC = Deno.env.get("DEBUG_HMAC") !== "0"; // default ON until end of Gate D
 
 function nextDelayMs(attempts: number): number {
   if (attempts <= 1) return 60 * 1000;
@@ -135,7 +135,12 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
         last_error: null,
         attempts: row.attempts + 1,
       }).eq("id", row.id);
-      console.log("ewd sent", { id: row.id, status: statusCode, ms: Date.now() - startedAt });
+      console.log("ewd sent", {
+        id: row.id,
+        status: statusCode,
+        ms: Date.now() - startedAt,
+        resp_body: respText.slice(0, 1000),
+      });
       return;
     }
     errorMsg = `HTTP ${statusCode}: ${respText.slice(0, 500)}`;

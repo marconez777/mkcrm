@@ -1,91 +1,87 @@
-## Objetivo
+## Resposta aos 3 pontos abertos do Gate D
 
-Adicionar automações de **lembrete de consulta** lendo a data/hora já armazenada no campo personalizado existente (ex.: `data_horario` na clínica ÓR — tipo `datetime`). Casos típicos:
+### Ponto 1 — payload real do tracking-claim (Gate C)
 
-1. **D-1**: 1 dia antes, segurar envio até ~15h (horário comercial).
-2. **D-0**: no mesmo dia, 1 hora antes da consulta.
+A delivery `e9dd5e61…` que usei no Gate D foi um insert manual meu **só para exercitar o HMAC**, e por isso veio enxuta. Ela **não representa** o que o `tracking-claim` produz.
 
-Reusa toda a infra de Automações que já existe (`automations`, `automation_runs`, cooldown, cron `automations-tick` a cada 5 min, action `send_template`). Só adiciona **1 novo tipo de gatilho**.
+A delivery real enfileirada na Fase C é `88c8a6ba-a612-4d7a-95d9-726c2d4d7048`. O body dela em `external_webhook_deliveries.payload`, exatamente como está hoje no banco, é:
 
-## Como a data é lida
-
-O campo já existe no sistema de custom fields (`lead_custom_fields` + `leads.custom_fields jsonb`). Ex.: a clínica ÓR tem `data_horario` (datetime) e `enviar_dia` (date). Não precisa criar tabela nova nem migration.
-
-O gatilho aceita qualquer custom field de tipo `date` ou `datetime` da clínica.
-
-## Mudanças
-
-### 1. Novo trigger `before_appointment` em `supabase/functions/automations-tick/index.ts`
-
-`trigger_config`:
-```text
+```json
 {
-  field_key: "data_horario",     // ex.: clínica ÓR
-  offset_minutes: 1440,           // 1440 = 1 dia | 60 = 1h
-  preferred_time: "15:00",        // opcional — só dispara após essa hora local
-  tz: "America/Sao_Paulo",
-  business_hours_only: true,      // opcional — seg–sex 08–18
-  stage_id: null                  // opcional — filtra por etapa
+  "type": "lead.matched",
+  "event_id": "678e241d-3591-4c3c-bb90-29d465a3141f",
+  "occurred_at": "2026-05-17T16:45:48.074575+00:00",
+  "schema_version": 1,
+  "lead": {
+    "crm_lead_id": "d0b4185f-547d-424c-b135-09c9c4232f08",
+    "ref_short": "test123456",
+    "phone_e164": "+5511999999000",
+    "name": "Gate C Test",
+    "email": null
+  },
+  "data": {
+    "first_message": "oi, vim do site (ref=test123456)",
+    "first_message_at": "2026-05-17T16:45:48.074575+00:00"
+  }
 }
 ```
 
-Lógica:
-- `appt` = `leads.custom_fields[field_key]` parseado como timestamptz
-- `target = appt - offset_minutes`
-- Dispara se `now >= target` **e** `now <= appt - 5min` (não envia depois da consulta começar)
-- Se `preferred_time` setado: só dispara se hora local atual ≥ `preferred_time`
-- Se `business_hours_only`: dia útil + entre 08:00–18:00 local
-- Cooldown da automação previne duplicação
-- Query inicial filtra `custom_fields ? field_key` e `(custom_fields->>field_key)::timestamptz` dentro de uma janela razoável
+Ou seja: `type`, `occurred_at`, `crm_lead_id`, `phone_e164`, `name`, `email` **estão todos presentes**. O `tracking-claim` está cumprindo o contrato — quem estava errado era o body de teste do dispatcher.
 
-### 2. UI em `src/pages/Automations.tsx`
+### Ponto 3 antecipado — `type` no body ou só no header?
 
-Adicionar à lista `TRIGGERS`:
-- `{ id: "before_appointment", label: "Lembrete antes de data marcada (consulta)" }`
+Como o body real **já tem** `type`, minha proposta é manter **redundância** (body + header `X-CRM-Event`). O site pode validar qualquer um — recomendado preferir o do body (assinado dentro do HMAC) e usar o header só como dica de roteamento. Aguardo seu OK pra registrar isso no contrato.
 
-Form ao selecionar:
-- **Campo de data** (select): lista `lead_custom_fields` onde `field_type IN ('date','datetime')`. Mostra `label` + `field_key`. Se vazio, aviso com link para Configurações → Campos personalizados.
-- **Antecedência**: número + unidade (minutos/horas/dias) → grava `offset_minutes`.
-- **Hora preferencial** (input `time`, opcional): dica "ideal para lembrete D-1 — segura o envio até esse horário."
-- **Apenas horário comercial** (Switch, default off): seg–sex 08–18.
-- **Etapa** (select, opcional).
+### O que vou rodar agora (re-Gate D)
 
-Ação recomendada: `send_template` (já existe). Sem mudança.
+Antes de fechar Gate D, vou:
 
-Default sugerido de `cooldown_hours` ao criar este tipo: **23h** (evita duplicar D-1).
+1. **Re-enqueue + dispatch da delivery real `88c8a6ba…`** (depois de resetar pra `pending`). Mostrar:
+   - body raw enviado (= JSON acima)
+   - `signed = v1:${ts}:${body}` completo
+   - todos os headers
+   - **response body do site** (não só status), via captura do `respText` no dispatcher (já existe, só preciso logar)
+2. **Teste negativo A — tamper signature**: chamar manualmente o endpoint do site com `X-CRM-Signature` com 1 char trocado → esperar 401.
+3. **Teste negativo B — timestamp velho**: chamar com `X-CRM-Timestamp` de 10min atrás (assinatura recalculada com esse ts) → esperar 401.
+4. **Teste negativo C — idempotência**: chamar 2x com mesmo `event_id` (a delivery já tem) → 1ª `matched_session:false` (ref `test123456` não existe no site), 2ª `dedup:true`. Verificar via `read_query` no lado CRM que não há duplicidade (a checagem real é no site).
 
-### 3. Sem mudanças no banco
+Esses 3 testes negativos rodo direto via `curl` (fora do dispatcher) reusando o mesmo `webhook_secret_out` da ÓR, montando os headers à mão. Não tocam nenhum arquivo.
 
-Schema atual já suporta tudo. A automação grava o novo `trigger_type` como string no campo `trigger_type` (já é livre).
+Pequena alteração de código necessária: ampliar o log do dispatcher para incluir `respText` no `console.log("ewd sent", …)` quando `DEBUG_HMAC=1`. Sem isso, só temos o status. Removo depois junto com o resto do debug.
 
-## Fluxo do usuário (exemplo ÓR)
+---
 
-1. Em **Mensagens → Templates**, criar 2 templates:
-   - "Lembrete D-1": `Oi {{primeiro_nome}}! Lembrete: sua consulta é amanhã. Posso confirmar?`
-   - "Lembrete 1h antes": `{{primeiro_nome}}, sua consulta começa em 1 hora.`
-2. Em **Mensagens → Automações**, criar 2 automações:
-   - **A — Lembrete D-1**
-     - Gatilho: `before_appointment`, campo `data_horario`, antecedência **1 dia**, hora preferencial **15:00**, horário comercial **ON**
-     - Etapa (opcional): "Consulta Agendada"
-     - Ação: enviar template "Lembrete D-1"
-     - Cooldown: 23h
-   - **B — Lembrete 1h antes**
-     - Gatilho: `before_appointment`, campo `data_horario`, antecedência **1 hora**
-     - Ação: enviar template "Lembrete 1h antes"
-     - Cooldown: 50min (`cooldown_hours = 1` arredondado ou suportar minutos — ver fora do escopo)
+## Fase E — `get-lead-journey` assinado
 
-## Fora do escopo
+Plano de implementação:
 
-- Suportar cooldown em minutos (hoje é só em horas — 1h serve para o caso B).
-- Tabela própria de agendamentos / integração Google Calendar.
-- Confirmação da consulta via resposta do lead (IA classifica).
-- Cancelar lembrete automático se a data for limpa — já funciona, basta esvaziar o campo.
+**Arquivo:** `supabase/functions/get-lead-journey/index.ts` (verificar se já existe; se não, criar do zero seguindo o padrão do dispatcher).
 
-## Critérios de aceite
+1. **Resolver `webhook_secret_out`** da `tracking_sites` correspondente ao lead (via `leads.site_id → tracking_sites.webhook_secret_out`). Sem secret → 502 `no_signing_secret`.
+2. **Resolver URL do site**: `https://<tracking_sites.domain>/functions/v1/crm-lead-journey?ref_short=<lead.ref_short>` (ou conforme contrato; query string é o material assinado).
+3. **Assinar GET**: `signed = "v1:" + ts + ":" + url.search` (incluindo o `?`, em UTF-8). HMAC-SHA-256 → hex lowercase, mesma função `hmacSha256Hex` do dispatcher.
+4. **Headers enviados**:
+   - `X-CRM-Timestamp: <unix seconds>`
+   - `X-CRM-Signature: v1=<hex>`
+   - `Accept: application/json`
+   - (sem `X-CRM-Event` / `X-CRM-Event-Id` — não há evento, é leitura)
+5. **Timeout 10s**, sem retry (chamada síncrona, é leitura). Em erro retornar `{ ok:false, error }` com status apropriado.
+6. **Retorno** do edge para o cliente CRM: o JSON do site como está (`{ journey: […] }` ou o que vier), mais metadados mínimos.
 
-- Novo gatilho aparece no editor de automação.
-- Select de campo só lista custom fields de tipo data/data-hora da clínica logada.
-- Lead da ÓR com `data_horario = amanhã 10:00` + automação A: recebe a mensagem hoje a partir das 15:00 (não antes).
-- Lead com `data_horario = hoje 16:00` + automação B: recebe a mensagem por volta de 15:00–15:05.
-- Lead sem o campo preenchido nunca entra como candidato.
-- Cooldown impede reenvio se o cron rodar duas vezes na janela.
+**Gate E** vou mostrar:
+- URL final chamada (com query string)
+- headers exatos (incluindo `signed` recomputado pra você validar com Python)
+- response body JSON do site
+
+Sem mudanças de schema. Sem alterar dispatcher / tracking-claim / tracking-pixel.
+
+---
+
+## Ordem de execução
+
+1. Logar `respText` no dispatcher (1 linha) + redeploy.
+2. Re-dispatch `88c8a6ba…` → mostrar body real + headers + response body do site.
+3. Rodar testes negativos A/B/C via `curl` manual.
+4. **Pausa para seu OK no Gate D final + decisão `type` redundante.**
+5. Implementar `get-lead-journey` conforme acima.
+6. **Pausa no Gate E** com URL/headers/response.
