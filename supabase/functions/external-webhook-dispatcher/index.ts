@@ -139,7 +139,7 @@ async function deliver(supabase: any, row: any, secretCache: Map<string, string>
         id: row.id,
         status: statusCode,
         ms: Date.now() - startedAt,
-        resp_body: DEBUG_HMAC ? respText.slice(0, 1000) : undefined,
+        resp_body: respText.slice(0, 1000),
       });
       return;
     }
