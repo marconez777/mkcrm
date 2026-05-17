@@ -42,15 +42,6 @@ verify_jwt = false
 [functions.evolution-delete-instance]
 verify_jwt = false
 
-[functions.tracking-ingest]
-verify_jwt = false
-
-[functions.tracking-pixel]
-verify_jwt = false
-
-[functions.tracking-claim]
-verify_jwt = false
-
 [functions.sequence-trigger]
 verify_jwt = false
 
@@ -58,7 +49,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.sequence-enroll]
-verify_jwt = false
-
-[functions.external-webhook-dispatcher]
 verify_jwt = false

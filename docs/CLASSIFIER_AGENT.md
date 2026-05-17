@@ -101,16 +101,13 @@ Cada ferramenta é uma "ação" que o LLM pode pedir. O `ai-chat` executa em nom
 Toda vez que `ai-chat` roda o classificador, ele monta um system prompt compondo, **nesta ordem**:
 
 1. O `system_prompt` do agente (regras do classificador, ver §6).
-2. **Lead atual** — JSON com `name`, `phone`, `email`, `tags`, `notes`, `deal_value`, `origin_*`, e o nome da `stage` atual.
+2. **Lead atual** — JSON com `name`, `phone`, `email`, `tags`, `notes`, `deal_value`, e o nome da `stage` atual.
 3. **Estágios disponíveis no funil** — lista com os nomes do pipeline daquele lead. Serve como dicionário fechado para o `move_lead_stage`.
 4. **Campos personalizados disponíveis** — para cada campo definido em `lead_custom_fields` daquela clínica:
    - `field_key — Label (tipo + dica de formato) | opções: …`
    - Mais um bloco **"Valores atuais"** com o JSON do que já está preenchido.
-5. **Origem rastreada** — duas situações:
-   - Se o lead tem `tracking_session_id`: JSON da `tracking_sessions` (utm_*, primeira URL, referrer, dispositivo, data) + lista dos últimos 20 `tracking_events` (página, clique, etc.). Esse bloco é marcado como **"CONFIRMADA pelo pixel — fonte de verdade"**.
-   - Se não tem: instrução explícita "NÃO chute a origem".
-6. **RAG** — trechos da base de conhecimento que casam com a última mensagem (busca híbrida vetorial + FTS).
-7. As últimas mensagens do lead, no formato `[lead 14:32] mensagem` / `[atendente 14:33] resposta`.
+5. **RAG** — trechos da base de conhecimento que casam com a última mensagem (busca híbrida vetorial + FTS).
+6. As últimas mensagens do lead, no formato `[lead 14:32] mensagem` / `[atendente 14:33] resposta`.
 
 ---
 
@@ -206,4 +203,3 @@ O que acontece:
 
 - `update_custom_field` **não valida no servidor** se o `value` está dentro das `options` de um `select` — ele confia no prompt. Se o modelo errar a opção, o valor é gravado mesmo assim.
 - O parâmetro `value` é sempre `string`. Para `multiselect`, isso significa que arrays precisam ser passados como JSON string e podem não ser interpretados como array no front. (Possível melhoria: aceitar `string | string[]`.)
-- O bloco de tracking só aparece para leads que já vieram com `?ref=` no link do WhatsApp. Leads antigos ficam sem timeline — intencional.

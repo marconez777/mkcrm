@@ -11,7 +11,7 @@ export type FeatureKey =
   | "metrics"
   | "metrics_ai"
   | "metrics_ai_usage"
-  | "tracking"
+  
   | "custom_fields"
   | "team"
   | "email_marketing"
@@ -27,7 +27,7 @@ export const FEATURES: { key: FeatureKey; label: string; description?: string }[
   { key: "metrics", label: "Métricas (Operação)" },
   { key: "metrics_ai", label: "Métricas IA" },
   { key: "metrics_ai_usage", label: "Custos IA" },
-  { key: "tracking", label: "Tracking de origem" },
+  
   { key: "custom_fields", label: "Campos personalizados" },
   { key: "team", label: "Equipe" },
   { key: "email_marketing", label: "Email Marketing", description: "Templates, automações e campanhas por email" },
