@@ -11,7 +11,7 @@ export type FeatureKey =
   | "metrics"
   | "metrics_ai"
   | "metrics_ai_usage"
-  | "tracking"
+  
   | "custom_fields"
   | "team"
   | "email_marketing"
