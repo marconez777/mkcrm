@@ -3418,6 +3418,7 @@ export type Database = {
       }
       tracking_sites: {
         Row: {
+          bridge_endpoint: string | null
           clinic_id: string
           created_at: string
           data_residency: string
@@ -3430,6 +3431,7 @@ export type Database = {
           webhook_secret_out: string | null
         }
         Insert: {
+          bridge_endpoint?: string | null
           clinic_id?: string
           created_at?: string
           data_residency?: string
@@ -3442,6 +3444,7 @@ export type Database = {
           webhook_secret_out?: string | null
         }
         Update: {
+          bridge_endpoint?: string | null
           clinic_id?: string
           created_at?: string
           data_residency?: string
