@@ -1729,74 +1729,6 @@ export type Database = {
         }
         Relationships: []
       }
-      external_webhook_deliveries: {
-        Row: {
-          attempts: number
-          clinic_id: string
-          created_at: string
-          delivered_at: string | null
-          endpoint: string | null
-          id: string
-          last_attempt_at: string | null
-          last_error: string | null
-          last_status_code: number | null
-          lead_id: string | null
-          next_attempt_at: string
-          payload: Json
-          sent_at: string | null
-          site_id: string | null
-          status: string
-          type: string | null
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          clinic_id: string
-          created_at?: string
-          delivered_at?: string | null
-          endpoint?: string | null
-          id?: string
-          last_attempt_at?: string | null
-          last_error?: string | null
-          last_status_code?: number | null
-          lead_id?: string | null
-          next_attempt_at?: string
-          payload: Json
-          sent_at?: string | null
-          site_id?: string | null
-          status?: string
-          type?: string | null
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          clinic_id?: string
-          created_at?: string
-          delivered_at?: string | null
-          endpoint?: string | null
-          id?: string
-          last_attempt_at?: string | null
-          last_error?: string | null
-          last_status_code?: number | null
-          lead_id?: string | null
-          next_attempt_at?: string
-          payload?: Json
-          sent_at?: string | null
-          site_id?: string | null
-          status?: string
-          type?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "external_webhook_deliveries_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "tracking_sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
@@ -1963,35 +1895,6 @@ export type Database = {
           },
         ]
       }
-      lead_journey_cache: {
-        Row: {
-          expires_at: string
-          fetched_at: string
-          lead_id: string
-          payload: Json
-        }
-        Insert: {
-          expires_at: string
-          fetched_at?: string
-          lead_id: string
-          payload: Json
-        }
-        Update: {
-          expires_at?: string
-          fetched_at?: string
-          lead_id?: string
-          payload?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_journey_cache_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: true
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_reply_counters: {
         Row: {
           clinic_id: string
@@ -2132,18 +2035,13 @@ export type Database = {
           marked_unread: boolean
           name: string | null
           notes: string | null
-          origin_confidence: string | null
-          origin_source: string | null
           phone: string
           pinned_at: string | null
           pipeline_id: string | null
           position: number
-          ref_short: string | null
-          site_id: string | null
           stage_changed_at: string
           stage_id: string | null
           tags: string[]
-          tracking_session_id: string | null
           unread_count: number
           updated_at: string
           utm_campaign: string | null
@@ -2172,18 +2070,13 @@ export type Database = {
           marked_unread?: boolean
           name?: string | null
           notes?: string | null
-          origin_confidence?: string | null
-          origin_source?: string | null
           phone: string
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
-          ref_short?: string | null
-          site_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
-          tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
           utm_campaign?: string | null
@@ -2212,18 +2105,13 @@ export type Database = {
           marked_unread?: boolean
           name?: string | null
           notes?: string | null
-          origin_confidence?: string | null
-          origin_source?: string | null
           phone?: string
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
-          ref_short?: string | null
-          site_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
-          tracking_session_id?: string | null
           unread_count?: number
           updated_at?: string
           utm_campaign?: string | null
@@ -2244,13 +2132,6 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "tracking_sites"
             referencedColumns: ["id"]
           },
           {
@@ -3294,169 +3175,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      tracking_events: {
-        Row: {
-          clinic_id: string
-          id: string
-          occurred_at: string
-          payload: Json | null
-          referrer: string | null
-          session_id: string
-          title: string | null
-          type: string
-          url: string | null
-        }
-        Insert: {
-          clinic_id: string
-          id?: string
-          occurred_at?: string
-          payload?: Json | null
-          referrer?: string | null
-          session_id: string
-          title?: string | null
-          type: string
-          url?: string | null
-        }
-        Update: {
-          clinic_id?: string
-          id?: string
-          occurred_at?: string
-          payload?: Json | null
-          referrer?: string | null
-          session_id?: string
-          title?: string | null
-          type?: string
-          url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tracking_events_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "tracking_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tracking_sessions: {
-        Row: {
-          claimed_at: string | null
-          clinic_id: string
-          country: string | null
-          created_at: string
-          device: string | null
-          first_referrer: string | null
-          first_url: string | null
-          id: string
-          ip_hash: string | null
-          landing_title: string | null
-          lead_id: string | null
-          ref: string | null
-          ref_short: string | null
-          site_id: string
-          user_agent: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-        }
-        Insert: {
-          claimed_at?: string | null
-          clinic_id: string
-          country?: string | null
-          created_at?: string
-          device?: string | null
-          first_referrer?: string | null
-          first_url?: string | null
-          id: string
-          ip_hash?: string | null
-          landing_title?: string | null
-          lead_id?: string | null
-          ref?: string | null
-          ref_short?: string | null
-          site_id: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Update: {
-          claimed_at?: string | null
-          clinic_id?: string
-          country?: string | null
-          created_at?: string
-          device?: string | null
-          first_referrer?: string | null
-          first_url?: string | null
-          id?: string
-          ip_hash?: string | null
-          landing_title?: string | null
-          lead_id?: string | null
-          ref?: string | null
-          ref_short?: string | null
-          site_id?: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tracking_sessions_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "tracking_sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tracking_sites: {
-        Row: {
-          bridge_endpoint: string | null
-          clinic_id: string
-          created_at: string
-          data_residency: string
-          domain: string
-          id: string
-          ingest_token: string
-          journey_api_url: string | null
-          name: string
-          webhook_secret_in: string | null
-          webhook_secret_out: string | null
-        }
-        Insert: {
-          bridge_endpoint?: string | null
-          clinic_id?: string
-          created_at?: string
-          data_residency?: string
-          domain: string
-          id?: string
-          ingest_token?: string
-          journey_api_url?: string | null
-          name: string
-          webhook_secret_in?: string | null
-          webhook_secret_out?: string | null
-        }
-        Update: {
-          bridge_endpoint?: string | null
-          clinic_id?: string
-          created_at?: string
-          data_residency?: string
-          domain?: string
-          id?: string
-          ingest_token?: string
-          journey_api_url?: string | null
-          name?: string
-          webhook_secret_in?: string | null
-          webhook_secret_out?: string | null
-        }
-        Relationships: []
       }
       user_roles: {
         Row: {
