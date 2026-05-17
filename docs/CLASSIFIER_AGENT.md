@@ -203,4 +203,3 @@ O que acontece:
 
 - `update_custom_field` **não valida no servidor** se o `value` está dentro das `options` de um `select` — ele confia no prompt. Se o modelo errar a opção, o valor é gravado mesmo assim.
 - O parâmetro `value` é sempre `string`. Para `multiselect`, isso significa que arrays precisam ser passados como JSON string e podem não ser interpretados como array no front. (Possível melhoria: aceitar `string | string[]`.)
-- O bloco de tracking só aparece para leads que já vieram com `?ref=` no link do WhatsApp. Leads antigos ficam sem timeline — intencional.
