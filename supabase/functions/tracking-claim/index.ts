@@ -231,9 +231,10 @@ Deno.serve(async (req) => {
         },
       };
 
-      // Endpoint legado é preenchido para compatibilidade com o dispatcher antigo,
-      // mas o dispatcher novo (Fase D) resolverá a URL a partir de tracking_sites.domain.
-      const endpoint = `https://${remoteSite.domain}/functions/v1/crm-lead-event`;
+      // Endpoint: prioriza bridge_endpoint configurado por tenant; fallback derivado do domínio.
+      const endpoint = (remoteSite as any).bridge_endpoint && String((remoteSite as any).bridge_endpoint).trim().length > 0
+        ? String((remoteSite as any).bridge_endpoint).trim()
+        : `https://${remoteSite.domain}/functions/v1/crm-lead-event`;
 
       const { data: ins, error: insErr } = await supabase
         .from("external_webhook_deliveries")
