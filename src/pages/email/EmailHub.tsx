@@ -50,7 +50,7 @@ export default function EmailHub() {
             <TabsContent value="automations" className="mt-0"><EmailAutomations /></TabsContent>
             <TabsContent value="campaigns" className="mt-0"><EmailCampaigns /></TabsContent>
             <TabsContent value="segments" className="mt-0"><EmailSegments /></TabsContent>
-            <TabsContent value="sites" className="mt-0"><EmailSites /></TabsContent>
+            
             <TabsContent value="queue" className="mt-0"><EmailQueue /></TabsContent>
             <TabsContent value="logs" className="mt-0"><EmailLogs /></TabsContent>
             <TabsContent value="reports" className="mt-0"><EmailReports /></TabsContent>
