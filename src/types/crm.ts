@@ -57,9 +57,6 @@ export type Lead = {
   marked_unread?: boolean;
   ai_summary?: string | null;
   ai_summary_at?: string | null;
-  origin_source?: string | null;
-  origin_confidence?: string | null;
-  tracking_session_id?: string | null;
 };
 
 export type Message = {
