@@ -26,6 +26,7 @@ type Automation = {
 const TRIGGERS = [
   { id: "no_reply_after", label: "Lead sem resposta há X horas" },
   { id: "stage_idle", label: "Lead parado num estágio há X horas" },
+  { id: "before_appointment", label: "Lembrete antes de data marcada (consulta)" },
 ];
 
 const ACTIONS = [
