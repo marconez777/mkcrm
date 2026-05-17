@@ -78,9 +78,8 @@ Deno.serve(async (req) => {
           // @ts-ignore EdgeRuntime is available in Deno deploy
           if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerAutoReply);
 
-          // Try to attach tracking session for inbound messages (idempotent).
+          // Mark broadcast recipient as replied (best-effort).
           if (!it?.key?.fromMe) {
-            // Mark broadcast recipient as replied (best-effort).
             try {
               const supa = sb();
               const { data: leadRow } = await supa.from("leads").select("phone, clinic_id").eq("id", res.lead_id).maybeSingle();
@@ -88,17 +87,6 @@ Deno.serve(async (req) => {
                 await supa.rpc("broadcast_mark_replied", { _clinic_id: leadRow.clinic_id, _phone: leadRow.phone });
               }
             } catch (e) { console.error("broadcast_mark_replied failed", e); }
-            const triggerClaim = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/tracking-claim`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-              },
-              body: JSON.stringify({ lead_id: res.lead_id }),
-            }).catch((e) => console.error("tracking-claim trigger failed", e));
-            // @ts-ignore
-            if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(triggerClaim);
           }
         }
       }
