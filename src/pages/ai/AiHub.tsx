@@ -22,7 +22,6 @@ const TABS: TabDef[] = [
   { value: "dashboard", path: "/ai", label: "Dashboard" },
   { value: "agents", path: "/ai/agents", aliases: ["/agents"], label: "Agentes IA", features: ["agents"] },
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
-  { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos IA", features: ["metrics_ai_usage"] },
   {
     value: "messages",
     path: "/ai/messages",
@@ -36,6 +35,7 @@ const TABS: TabDef[] = [
     features: ["sequences", "automations", "templates"],
   },
   { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", features: ["broadcasts"] },
+  { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos", features: ["metrics_ai_usage"] },
 ];
 
 export default function AiHub() {
