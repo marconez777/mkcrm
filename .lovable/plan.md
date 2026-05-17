@@ -1,133 +1,101 @@
-## Objetivo
+# Disparo em Massa WhatsApp (nativo)
 
-Permitir que qualquer site de clínica (WordPress, HTML estático ou React/Lovable) envie leads diretamente para o CRM, disparando automaticamente as automações de e-mail já existentes ("Lead criado", segmentos, sequências).
+Painel em **IA → Disparo em massa** que envia direto pela Evolution API (mesma usada no atendimento), sem depender de n8n. Multi-clínica, com RLS, feature flag `broadcasts`.
 
-Hoje já existe a infraestrutura de tracking pixel (`tracking_sites` + `tracking-ingest`) e os triggers de e-mail (`tg_email_on_lead_created`, `lead_matches_segment`). Falta a "ponte" pública: um endpoint que recebe POST de formulários externos, cria o lead na clínica certa e amarra a sessão de tracking — o resto (e-mails) já acontece sozinho.
+## 1. Conceito de envio
 
-## Arquitetura
+- Cada **broadcast** tem uma **fila de destinatários** (lead do pipeline ou contato avulso importado).
+- Mensagens são organizadas em **grupos** (mínimo 1, padrão 3, sem limite máximo). Cada grupo tem N **partes** (mensagens curtas).
+- **Rotação round-robin entre grupos**: contato 1 → grupo 1 (todas as partes em sequência), contato 2 → grupo 2, contato 3 → grupo 3, contato 4 → grupo 1…
+- **Throttle por destinatário**: intervalo mínimo de **15 min** entre destinatários consecutivos da mesma instância (configurável, default 20 min).
+- **Janela horária / dias da semana**: envia só dentro da janela; fora dela, pausa e reagenda para a próxima abertura.
+- **Instância dedicada recomendada** (para reduzir risco de banimento) — seletor mostra todas as instâncias da clínica e marca a default do pipeline.
+
+## 2. Estrutura de dados
 
 ```text
- Site da clínica (WP/HTML/React)
-        │
-        │  1) pixel.js (já existe) → tracking-ingest  → tracking_sessions
-        │
-        │  2) <form> submit  → POST /lead-capture
-        │           { siteToken, sessionId?, email, name, phone, tags, customFields }
-        ▼
-   Edge Function: lead-capture  (nova, pública, sem JWT)
-        │
-        ├─ valida siteToken em tracking_sites  → clinic_id
-        ├─ dedup por (clinic_id, email|phone)
-        ├─ INSERT em leads (com origin_source, tracking_session_id)
-        ├─ adiciona tags ("site", "form:contato", etc)
-        └─ retorna { ok, lead_id }
-        │
-        ▼
-  Trigger SQL tg_email_on_lead_created  → enqueue_email (já implementado)
+broadcasts
+  id, clinic_id, name, status (draft|running|paused|done|failed)
+  whatsapp_instance_id, throttle_seconds (>=900)
+  send_window jsonb { start:"08:00", end:"18:00", tz, weekdays:[1..5] }
+  source jsonb { pipeline_id?, stage_ids?[], include_imported:bool }
+  totals jsonb { queued, sent, failed, replied, read }
+  created_by, created_at, updated_at
+
+broadcast_message_groups
+  id, broadcast_id, position (1..N), name
+
+broadcast_message_parts
+  id, group_id, position, content (text), media_url?, media_kind?
+
+broadcast_recipients
+  id, broadcast_id, clinic_id
+  lead_id?, phone, name, custom jsonb
+  group_assigned (int)   -- definido no "congelar audiência" via round-robin
+  status (pending|sending|sent|failed|skipped|replied)
+  parts_sent int default 0
+  next_send_at timestamptz
+  last_error text
+  unique (broadcast_id, phone)
+
+broadcast_events
+  id, broadcast_id, recipient_id?, type (queued|sent|delivered|read|replied|failed|paused|resumed)
+  payload jsonb, created_at
 ```
 
-Reusa o `ingest_token` já existente em `tracking_sites` — o mesmo token serve para o pixel e para o formulário. Nada novo no banco.
+RLS por `clinic_id` (membros da clínica leem/escrevem; super_admin tudo). Feature flag `broadcasts` em `lib/features.ts`.
 
-## O que vai ser implementado
+## 3. Edge functions
 
-### 1. Edge Function `lead-capture` (pública, `verify_jwt = false`)
+- **`broadcast-tick`** (cron 1 min): para cada broadcast `running`, verifica janela horária; pega o próximo recipient com `next_send_at <= now()`; envia a próxima parte do grupo atribuído via `evolution-send` (reaproveita helper existente); incrementa `parts_sent`; quando todas as partes do grupo do recipient foram enviadas, marca `sent`, agenda o próximo recipient para `now() + throttle_seconds` (com jitter ±10%) respeitando a janela.
+- **`broadcast-control`**: `start`, `pause`, `resume`, `cancel`, `freeze_audience` (materializa lista de recipients a partir de pipeline/stages/import e faz o round-robin de grupos), `add_contacts` (CSV/XLSX já parseado no client → array de `{phone,name,custom}`).
+- **Tracking de respostas/leitura**: já vem do webhook da Evolution (`messages.upsert`/`status`) — adicionar handler que, ao receber mensagem `fromMe=false` de um número que tem recipient `sent`, marca `replied` e cria evento.
 
-- POST `{ siteToken, sessionId?, email?, phone?, name?, tags?, customFields?, source? }`
-- CORS aberto (`Access-Control-Allow-Origin: *`) para funcionar em qualquer domínio.
-- Valida `siteToken` → resolve `clinic_id`.
-- Exige pelo menos `email` ou `phone`.
-- Dedup: se já existe lead com mesmo email/phone na clínica → atualiza (merge de tags, custom_fields, último `tracking_session_id`) ao invés de criar duplicado.
-- Se `sessionId` veio, marca `tracking_sessions.lead_id` e copia `utm_*` para `origin_source`/`origin_confidence` (mesma lógica do `tracking-claim`).
-- Tags default: `["site"]` + tags vindas do form.
-- Retorna `{ ok: true, lead_id }` (ou `{ ok: true, already: true }` no merge).
-- Rate limit simples por `ip_hash` (ex.: 30 req/min) para evitar spam de bot.
-- Opcional: campo `honeypot` no body — se preenchido, retorna 200 silencioso sem criar lead.
+## 4. UI — `src/pages/Broadcasts.tsx` (rota `/ai/broadcasts`)
 
-### 2. UI: aba "Integração de site" em `SettingsEmailDomain` (ou nova em `/email/sites`)
+**Lista de broadcasts** com status, progresso, criado em.
 
-Para cada `tracking_site` da clínica, mostrar 3 abas com snippets prontos para copiar:
+**Editor** (abas):
 
-**a) WordPress** — bloco HTML/JS que pode ser colado em qualquer página via "Custom HTML" do Gutenberg, ou num shortcode/Elementor:
-```html
-<form id="mk-lead-form">
-  <input name="name"  placeholder="Nome" required>
-  <input name="email" type="email" placeholder="E-mail" required>
-  <input name="phone" placeholder="WhatsApp">
-  <input name="_hp" style="display:none" tabindex="-1" autocomplete="off">
-  <button type="submit">Quero contato</button>
-</form>
-<script>
-(function(){
-  var f = document.getElementById('mk-lead-form');
-  f.addEventListener('submit', async function(e){
-    e.preventDefault();
-    var fd = new FormData(f);
-    if (fd.get('_hp')) return;
-    await fetch('https://<edge>/lead-capture', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        siteToken: '<TOKEN_DA_CLINICA>',
-        sessionId: window.MK_SESSION_ID || null,
-        name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'),
-        tags: ['form:contato'],
-      })
-    });
-    f.reset(); alert('Recebido!');
-  });
-})();
-</script>
-```
+1. **Configuração** — nome, instância WhatsApp, throttle (slider min 15 min, default 20), janela (start/end + checkboxes Seg-Dom), modo execução (imediato / agendado).
+2. **Mensagens** — botão "Adicionar grupo" (default já cria 3: A/B/C). Em cada grupo, lista de partes (Textarea) com botão "Adicionar parte". Preview do round-robin: "Contato 1 → Grupo A | Contato 2 → Grupo B | Contato 3 → Grupo C | Contato 4 → Grupo A…".
+3. **Audiência** — duas fontes combináveis:
+   - **Do pipeline**: seletor de pipeline + checkboxes de stages (preview com contagem).
+   - **Importar contatos**: botão "Baixar template Excel" (gera .xlsx com colunas `telefone`, `nome`, `custom1`, `custom2`) e drop zone que aceita .xlsx/.csv (parse com `xlsx` no client, valida telefone com regex BR). Lista paginada com remover.
+   - Botão **"Congelar audiência"** (chama `broadcast-control freeze_audience`) — após congelar, novos leads na coluna não entram automaticamente.
+4. **Dashboard / Execução** — botões **Play / Pause / Cancelar**; cards em tempo real (queued, enviados, falhas, respostas, taxa de leitura); gráfico de envios por hora; tabela de recipients com filtro por status, com ação "Reenviar" para falhas. Polling a cada 5s + realtime em `broadcast_events`.
+5. **Relatórios** — taxa de entrega/leitura/resposta por grupo (compara performance A/B/C), melhor horário, falhas por motivo, export CSV.
 
-**b) HTML puro** — mesmo snippet acima, standalone.
+## 5. Detalhes técnicos
 
-**c) React/Lovable** — componente `<LeadForm token="..." />` que faz o mesmo fetch, com TypeScript:
-```tsx
-await fetch(`${import.meta.env.VITE_LEAD_CAPTURE_URL}`, {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ siteToken, email, name, phone, tags: ['lovable-site'] }),
-});
-```
+- Parse Excel: `xlsx` (já comum) no client; template gerado on-the-fly.
+- Normalização de telefone: helper `lib/phone.ts` (E.164 BR, remove máscara, valida 10-13 dígitos).
+- Atribuição de grupo: na hora do `freeze_audience`, `group_assigned = ((row_number-1) % total_groups) + 1`, embaralhando a ordem dos recipients para distribuir leads "frescos" entre grupos.
+- Janela horária: cron tick converte `now()` para `tz` da janela; se fora, atualiza `next_send_at` para próxima abertura.
+- Throttle: aplicado **por instância** (não por broadcast), para se duas campanhas usarem a mesma instância não estourarem o limite — query considera última mensagem enviada pela instância em `messages`.
+- Dedup: `unique(broadcast_id, phone)` impede importar o mesmo número 2x; opção "também ignorar números já enviados em outros broadcasts dos últimos X dias".
+- Sem auto-restart: se Evolution retornar erro de instância, pausa o broadcast e registra evento.
 
-Cada aba mostra também:
-- URL do endpoint
-- `siteToken` da clínica (com botão "copiar")
-- Instrução de como instalar também o pixel (já documentado em outra tela)
+## 6. Arquivos
 
-### 3. Plugin WordPress (opcional, fase 2)
+Criar:
+- `supabase/migrations/<ts>_broadcasts.sql` (tabelas, RLS, índices, feature flag)
+- `supabase/functions/broadcast-tick/index.ts`
+- `supabase/functions/broadcast-control/index.ts`
+- `src/pages/Broadcasts.tsx`
+- `src/components/broadcasts/{ConfigTab,MessagesTab,AudienceTab,DashboardTab,ReportsTab,ContactsImport,GroupEditor}.tsx`
+- `src/lib/phone.ts`, `src/lib/broadcast-template.ts` (gerar .xlsx)
 
-Plugin `.zip` minúsculo que:
-- Adiciona página de settings onde o admin cola só o `siteToken`.
-- Registra shortcode `[mk_lead_form]`.
-- Hook em Contact Form 7 / WPForms / Elementor Forms para repassar submissões automaticamente sem precisar trocar o form.
+Editar:
+- `src/App.tsx` (rotas `/ai/broadcasts` e `/ai/broadcasts/:id` com `FeatureRoute feature="broadcasts"`)
+- `src/pages/ai/AiHub.tsx` (card "Disparo em massa")
+- `src/lib/features.ts` (adicionar `broadcasts`)
+- `supabase/functions/evolution-webhook/index.ts` (marcar `replied` quando recipient responde)
+- `supabase/config.toml` (verify_jwt=false em `broadcast-tick` se necessário para cron)
 
-Fica para uma segunda etapa — o snippet acima já cobre 90% dos casos hoje.
+Cron via `pg_cron` chamando `broadcast-tick` a cada minuto.
 
-## Como o e-mail é disparado
-
-Não muda nada no fluxo de e-mail. Assim que `lead-capture` faz `INSERT INTO leads`:
-1. `tg_email_on_lead_created` roda.
-2. Itera nas `email_automations` ativas com `trigger_type='lead_created'`.
-3. Aplica filtro de segmento via `lead_matches_segment` (já implementado).
-4. Chama `enqueue_email` para cada step com seu delay.
-5. `process-email-queue` dispara via Resend.
-
-Ou seja: o usuário cria a automação na UI, gruda o snippet no site, e leads do site entram na sequência de e-mail automaticamente.
-
-## Segurança
-
-- `siteToken` é semi-público (vai no JS do site) — por isso usamos rate limit + honeypot + validação de origem opcional (`tracking_sites.domain` pode ser comparado com o header `Origin`).
-- Sem service_role no client.
-- RLS de `leads` continua intocada — só o edge function (service_role) escreve.
-
-## Detalhes técnicos
-
-- Função em `supabase/functions/lead-capture/index.ts`, deploy automático.
-- Sem migration nova (reusa tabelas existentes). Se quiser auditoria futura, dá pra adicionar `leads.capture_source text` numa migration mínima.
-- Rate limit: tabela leve `lead_capture_rate (ip_hash, window_start, count)` ou em memória do edge (suficiente para começo).
-- Resposta sempre 200 (mesmo em erro de validação leve) para não vazar informação para spammers; logs internos via `console.error`.
-
-## Entregáveis
-
-1. `supabase/functions/lead-capture/index.ts` (novo)
-2. Componente `SiteIntegrationSnippets.tsx` com as 3 abas, plugado em `SettingsEmailDomain` ou nova rota `/email/sites`
-3. Documentação curta no próprio painel (passo a passo: criar site → copiar token → colar snippet)
+## Fora do escopo
+- IA gerando textos (usuário escreve as partes manualmente; pode-se adicionar depois)
+- A/B test estatístico automático (só relatório comparativo)
+- Envio de mídia rica (1ª versão = texto; mídia entra em V2 reaproveitando `evolution-send-media`)

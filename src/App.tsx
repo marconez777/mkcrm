@@ -24,6 +24,7 @@ import Unsubscribe from "./pages/Unsubscribe";
 import EmailHub from "./pages/email/EmailHub";
 import SettingsEmailDomain from "./pages/email/SettingsEmailDomain";
 import EmailTemplateEditor from "./pages/email/EmailTemplateEditor";
+import Broadcasts from "./pages/Broadcasts";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,8 @@ const App = () => (
                       <Route path="/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
                       <Route path="/sequences" element={<FeatureRoute feature="sequences"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/sequences" element={<FeatureRoute feature="sequences"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/broadcasts" element={<FeatureRoute feature="broadcasts"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/broadcasts/:id" element={<FeatureRoute feature="broadcasts"><AiHub /></FeatureRoute>} />
                       <Route path="/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
                       <Route path="/settings" element={<Settings />} />

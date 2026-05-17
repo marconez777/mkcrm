@@ -788,6 +788,243 @@ export type Database = {
           },
         ]
       }
+      broadcast_events: {
+        Row: {
+          broadcast_id: string
+          clinic_id: string
+          created_at: string
+          id: string
+          payload: Json
+          recipient_id: string | null
+          type: string
+        }
+        Insert: {
+          broadcast_id: string
+          clinic_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          recipient_id?: string | null
+          type: string
+        }
+        Update: {
+          broadcast_id?: string
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          recipient_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_events_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_events_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcast_message_groups: {
+        Row: {
+          broadcast_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          broadcast_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position: number
+        }
+        Update: {
+          broadcast_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_message_groups_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcast_message_parts: {
+        Row: {
+          content: string
+          created_at: string
+          group_id: string
+          id: string
+          position: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          group_id: string
+          id?: string
+          position: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_message_parts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_message_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          clinic_id: string
+          created_at: string
+          custom: Json
+          group_position: number | null
+          id: string
+          last_error: string | null
+          lead_id: string | null
+          name: string | null
+          next_send_at: string
+          parts_sent: number
+          phone: string
+          replied_at: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          broadcast_id: string
+          clinic_id: string
+          created_at?: string
+          custom?: Json
+          group_position?: number | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          name?: string | null
+          next_send_at?: string
+          parts_sent?: number
+          phone: string
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          broadcast_id?: string
+          clinic_id?: string
+          created_at?: string
+          custom?: Json
+          group_position?: number | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string | null
+          name?: string | null
+          next_send_at?: string
+          parts_sent?: number
+          phone?: string
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_recipients_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcasts: {
+        Row: {
+          audience_frozen_at: string | null
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          scheduled_at: string | null
+          send_window: Json
+          source: Json
+          status: string
+          throttle_seconds: number
+          totals: Json
+          updated_at: string
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          audience_frozen_at?: string | null
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          scheduled_at?: string | null
+          send_window?: Json
+          source?: Json
+          status?: string
+          throttle_seconds?: number
+          totals?: Json
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          audience_frozen_at?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          scheduled_at?: string | null
+          send_window?: Json
+          source?: Json
+          status?: string
+          throttle_seconds?: number
+          totals?: Json
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_invites: {
         Row: {
           accepted_at: string | null
@@ -3311,6 +3548,19 @@ export type Database = {
     }
     Functions: {
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
+      broadcast_freeze_audience: {
+        Args: {
+          _broadcast_id: string
+          _extra_contacts?: Json
+          _pipeline_id: string
+          _stage_ids: string[]
+        }
+        Returns: number
+      }
+      broadcast_mark_replied: {
+        Args: { _clinic_id: string; _phone: string }
+        Returns: undefined
+      }
       cancel_pending_emails_for: {
         Args: { _clinic_id: string; _email: string }
         Returns: number

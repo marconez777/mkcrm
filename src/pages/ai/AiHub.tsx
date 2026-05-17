@@ -8,8 +8,9 @@ import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Automations from "@/pages/Automations";
 import Templates from "@/pages/Templates";
 import Sequences from "@/pages/Sequences";
+import Broadcasts from "@/pages/Broadcasts";
 
-type TabDef = { value: string; path: string; aliases?: string[]; label: string; feature?: "agents" | "metrics_ai_usage" | "automations" | "templates" | "sequences" };
+type TabDef = { value: string; path: string; aliases?: string[]; matchPrefix?: string; label: string; feature?: "agents" | "metrics_ai_usage" | "automations" | "templates" | "sequences" | "broadcasts" };
 
 const TABS: TabDef[] = [
   { value: "dashboard", path: "/ai", label: "Dashboard" },
@@ -18,6 +19,7 @@ const TABS: TabDef[] = [
   { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos IA", feature: "metrics_ai_usage" },
   { value: "automations", path: "/ai/automations", aliases: ["/automations"], label: "Automações", feature: "automations" },
   { value: "sequences", path: "/ai/sequences", aliases: ["/sequences"], label: "Sequências", feature: "sequences" },
+  { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", feature: "broadcasts" },
   { value: "templates", path: "/ai/templates", aliases: ["/templates"], label: "Templates", feature: "templates" },
 ];
 
@@ -29,6 +31,7 @@ export default function AiHub() {
   const visible = TABS.filter((t) => !t.feature || hasFeature(t.feature));
 
   const current =
+    visible.find((t) => t.matchPrefix && location.pathname.startsWith(t.matchPrefix))?.value ??
     visible.find((t) => t.path === location.pathname || t.aliases?.includes(location.pathname))?.value ??
     "dashboard";
 
@@ -53,6 +56,7 @@ export default function AiHub() {
           <TabsContent value="usage" className="mt-0"><MetricsAiUsage /></TabsContent>
           <TabsContent value="automations" className="mt-0"><Automations /></TabsContent>
           <TabsContent value="sequences" className="mt-0"><Sequences /></TabsContent>
+          <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>
           <TabsContent value="templates" className="mt-0"><Templates /></TabsContent>
         </Tabs>
       </div>

@@ -14,7 +14,8 @@ export type FeatureKey =
   | "tracking"
   | "custom_fields"
   | "team"
-  | "email_marketing";
+  | "email_marketing"
+  | "broadcasts";
 
 export const FEATURES: { key: FeatureKey; label: string; description?: string }[] = [
   { key: "inbox", label: "Conversas (Inbox)" },
@@ -30,6 +31,7 @@ export const FEATURES: { key: FeatureKey; label: string; description?: string }[
   { key: "custom_fields", label: "Campos personalizados" },
   { key: "team", label: "Equipe" },
   { key: "email_marketing", label: "Email Marketing", description: "Templates, automações e campanhas por email" },
+  { key: "broadcasts", label: "Disparo em massa WhatsApp", description: "Campanhas de envio em massa via WhatsApp com rotação de grupos" },
 ];
 
 export function isFeatureEnabled(

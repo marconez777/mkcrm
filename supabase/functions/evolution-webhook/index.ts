@@ -80,6 +80,14 @@ Deno.serve(async (req) => {
 
           // Try to attach tracking session for inbound messages (idempotent).
           if (!it?.key?.fromMe) {
+            // Mark broadcast recipient as replied (best-effort).
+            try {
+              const supa = sb();
+              const { data: leadRow } = await supa.from("leads").select("phone, clinic_id").eq("id", res.lead_id).maybeSingle();
+              if (leadRow?.phone && leadRow?.clinic_id) {
+                await supa.rpc("broadcast_mark_replied", { _clinic_id: leadRow.clinic_id, _phone: leadRow.phone });
+              }
+            } catch (e) { console.error("broadcast_mark_replied failed", e); }
             const triggerClaim = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/tracking-claim`, {
               method: "POST",
               headers: {
