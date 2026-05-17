@@ -40,7 +40,7 @@ export default function SettingsPage() {
   const { membership, isSuperAdmin, hasFeature } = useAuth();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
-  const showTracking = !isProfessional && hasFeature("tracking");
+  const showTracking = false;
   const showFields = hasFeature("custom_fields");
   const showEmail = hasFeature("email_marketing");
 
