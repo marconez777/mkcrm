@@ -1,56 +1,91 @@
 ## Objetivo
 
-Reduzir o ruído visual no hub AI juntando **Automações**, **Sequências** e **Templates** em uma única aba **"Mensagens"** com sub-abas internas. **Disparo em massa** continua como aba própria (tem dashboard/risco próprios).
+Adicionar automações de **lembrete de consulta** lendo a data/hora já armazenada no campo personalizado existente (ex.: `data_horario` na clínica ÓR — tipo `datetime`). Casos típicos:
 
-Mudança puramente de navegação — nenhuma tabela, edge function ou lógica de negócio é tocada.
+1. **D-1**: 1 dia antes, segurar envio até ~15h (horário comercial).
+2. **D-0**: no mesmo dia, 1 hora antes da consulta.
 
-## Antes / Depois
+Reusa toda a infra de Automações que já existe (`automations`, `automation_runs`, cooldown, cron `automations-tick` a cada 5 min, action `send_template`). Só adiciona **1 novo tipo de gatilho**.
 
-```text
-Antes:  Dashboard | Agentes IA | Memórias IA | Custos IA | Automações | Sequências | Disparo em massa | Templates
-Depois: Dashboard | Agentes IA | Memórias IA | Custos IA | Mensagens ▾ | Disparo em massa
-                                                              ├─ Sequências
-                                                              ├─ Automações
-                                                              └─ Templates
-```
+## Como a data é lida
 
-A aba **Mensagens** abre com sub-abas (Tabs do shadcn) e cada sub-aba renderiza o componente já existente sem alteração.
+O campo já existe no sistema de custom fields (`lead_custom_fields` + `leads.custom_fields jsonb`). Ex.: a clínica ÓR tem `data_horario` (datetime) e `enviar_dia` (date). Não precisa criar tabela nova nem migration.
+
+O gatilho aceita qualquer custom field de tipo `date` ou `datetime` da clínica.
 
 ## Mudanças
 
-### 1. `src/pages/ai/AiHub.tsx`
-- Remover as 3 entradas independentes (`automations`, `sequences`, `templates`) da lista `TABS`.
-- Adicionar 1 entrada nova `messages` com `path: "/ai/messages"` e `matchPrefix: "/ai/messages"`.
-- Visível se **qualquer** das 3 features (`automations`, `sequences`, `templates`) estiver habilitada (em vez de uma só).
-- Renderizar `<Messages />` no `TabsContent`.
+### 1. Novo trigger `before_appointment` em `supabase/functions/automations-tick/index.ts`
 
-### 2. Novo `src/pages/ai/Messages.tsx`
-- Página com `Tabs` internas: **Sequências** (default), **Automações**, **Templates**.
-- A sub-aba ativa é sincronizada com a rota: `/ai/messages/sequences`, `/ai/messages/automations`, `/ai/messages/templates`. Default `/ai/messages` → sequences (ou a primeira liberada por feature flag).
-- Cada `TabsContent` renderiza o componente existente sem mudanças: `<Sequences />`, `<Automations />`, `<Templates />`.
-- Esconde sub-abas conforme `hasFeature("sequences" | "automations" | "templates")`.
+`trigger_config`:
+```text
+{
+  field_key: "data_horario",     // ex.: clínica ÓR
+  offset_minutes: 1440,           // 1440 = 1 dia | 60 = 1h
+  preferred_time: "15:00",        // opcional — só dispara após essa hora local
+  tz: "America/Sao_Paulo",
+  business_hours_only: true,      // opcional — seg–sex 08–18
+  stage_id: null                  // opcional — filtra por etapa
+}
+```
 
-### 3. `src/App.tsx`
-- Adicionar rotas `/ai/messages` e `/ai/messages/:tab` apontando para o `AiHub`.
-- Manter as rotas antigas (`/ai/sequences`, `/ai/automations`, `/ai/templates`, e os aliases `/sequences`, `/automations`, `/templates`) como **redirects** para o sub-path equivalente em `/ai/messages/...` para não quebrar links salvos, command palette e bookmarks.
+Lógica:
+- `appt` = `leads.custom_fields[field_key]` parseado como timestamptz
+- `target = appt - offset_minutes`
+- Dispara se `now >= target` **e** `now <= appt - 5min` (não envia depois da consulta começar)
+- Se `preferred_time` setado: só dispara se hora local atual ≥ `preferred_time`
+- Se `business_hours_only`: dia útil + entre 08:00–18:00 local
+- Cooldown da automação previne duplicação
+- Query inicial filtra `custom_fields ? field_key` e `(custom_fields->>field_key)::timestamptz` dentro de uma janela razoável
 
-### 4. `src/components/CommandPalette.tsx` (se houver entradas para essas páginas)
-- Atualizar destinos das ações para apontar para `/ai/messages/sequences|automations|templates`.
+### 2. UI em `src/pages/Automations.tsx`
 
-### 5. `src/components/AppShell.tsx` (sidebar — se mostrar essas páginas)
-- Substituir 3 itens por 1 item "Mensagens", se aplicável.
+Adicionar à lista `TRIGGERS`:
+- `{ id: "before_appointment", label: "Lembrete antes de data marcada (consulta)" }`
+
+Form ao selecionar:
+- **Campo de data** (select): lista `lead_custom_fields` onde `field_type IN ('date','datetime')`. Mostra `label` + `field_key`. Se vazio, aviso com link para Configurações → Campos personalizados.
+- **Antecedência**: número + unidade (minutos/horas/dias) → grava `offset_minutes`.
+- **Hora preferencial** (input `time`, opcional): dica "ideal para lembrete D-1 — segura o envio até esse horário."
+- **Apenas horário comercial** (Switch, default off): seg–sex 08–18.
+- **Etapa** (select, opcional).
+
+Ação recomendada: `send_template` (já existe). Sem mudança.
+
+Default sugerido de `cooldown_hours` ao criar este tipo: **23h** (evita duplicar D-1).
+
+### 3. Sem mudanças no banco
+
+Schema atual já suporta tudo. A automação grava o novo `trigger_type` como string no campo `trigger_type` (já é livre).
+
+## Fluxo do usuário (exemplo ÓR)
+
+1. Em **Mensagens → Templates**, criar 2 templates:
+   - "Lembrete D-1": `Oi {{primeiro_nome}}! Lembrete: sua consulta é amanhã. Posso confirmar?`
+   - "Lembrete 1h antes": `{{primeiro_nome}}, sua consulta começa em 1 hora.`
+2. Em **Mensagens → Automações**, criar 2 automações:
+   - **A — Lembrete D-1**
+     - Gatilho: `before_appointment`, campo `data_horario`, antecedência **1 dia**, hora preferencial **15:00**, horário comercial **ON**
+     - Etapa (opcional): "Consulta Agendada"
+     - Ação: enviar template "Lembrete D-1"
+     - Cooldown: 23h
+   - **B — Lembrete 1h antes**
+     - Gatilho: `before_appointment`, campo `data_horario`, antecedência **1 hora**
+     - Ação: enviar template "Lembrete 1h antes"
+     - Cooldown: 50min (`cooldown_hours = 1` arredondado ou suportar minutos — ver fora do escopo)
 
 ## Fora do escopo
 
-- Nenhuma mudança em tabelas, RPCs, edge functions, RLS.
-- Nenhuma mudança nos componentes `Templates.tsx`, `Sequences.tsx`, `Automations.tsx` (eles continuam idênticos, só passam a viver dentro do `<Messages />`).
-- `Disparo em massa` permanece como aba própria do hub.
-- Feature flags continuam funcionando por módulo (sequences, automations, templates separadas).
+- Suportar cooldown em minutos (hoje é só em horas — 1h serve para o caso B).
+- Tabela própria de agendamentos / integração Google Calendar.
+- Confirmação da consulta via resposta do lead (IA classifica).
+- Cancelar lembrete automático se a data for limpa — já funciona, basta esvaziar o campo.
 
 ## Critérios de aceite
 
-- A aba "Mensagens" aparece no hub AI no lugar das 3 antigas.
-- Dentro dela, as 3 sub-abas funcionam com o conteúdo idêntico ao de hoje.
-- Links antigos (`/ai/sequences` etc.) abrem a aba correta sem 404.
-- Se a clínica tiver só 1 das 3 features habilitada, a aba "Mensagens" aparece e só mostra a sub-aba liberada.
-- Disparo em massa segue como aba independente.
+- Novo gatilho aparece no editor de automação.
+- Select de campo só lista custom fields de tipo data/data-hora da clínica logada.
+- Lead da ÓR com `data_horario = amanhã 10:00` + automação A: recebe a mensagem hoje a partir das 15:00 (não antes).
+- Lead com `data_horario = hoje 16:00` + automação B: recebe a mensagem por volta de 15:00–15:05.
+- Lead sem o campo preenchido nunca entra como candidato.
+- Cooldown impede reenvio se o cron rodar duas vezes na janela.
