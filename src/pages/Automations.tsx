@@ -47,16 +47,18 @@ export default function Automations() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [{ data: a }, { data: ag }, { data: st }, { data: tp }] = await Promise.all([
+    const [{ data: a }, { data: ag }, { data: st }, { data: tp }, { data: cf }] = await Promise.all([
       supabase.from("automations").select("*").order("created_at"),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
+      supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
     ]);
     setList((a ?? []) as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
+    setDateFields(cf ?? []);
   };
   useEffect(() => { load(); }, []);
 
