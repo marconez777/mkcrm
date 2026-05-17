@@ -9,7 +9,7 @@ const SCRIPT = (token: string, ingest: string) => `(function(){
 try{
 var TOKEN=${JSON.stringify(token)};
 var INGEST=${JSON.stringify(ingest)};
-var STORE_KEY='mk_sid';
+var STORE_KEY='lv_sid';
 function uuid(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():('xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx').replace(/[xy]/g,function(c){var r=Math.random()*16|0;return (c=='x'?r:(r&0x3|0x8)).toString(16);});}
 var sid,refShort;
 function initSid(){sid=(window.lvTrack&&window.lvTrack.sessionId)||localStorage.getItem(STORE_KEY)||uuid();localStorage.setItem(STORE_KEY,sid);refShort=sid.replace(/-/g,'').slice(0,10);}
