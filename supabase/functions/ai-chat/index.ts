@@ -340,7 +340,7 @@ Deno.serve(async (req) => {
     let leadCtx = "";
     if (lead_id) {
       const { data: lead } = await supabase.from("leads")
-        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id, custom_fields, origin_source, origin_confidence, tracking_session_id").eq("id", lead_id).single();
+        .select("name, phone, email, company, deal_value, notes, tags, stage_id, pipeline_id, custom_fields").eq("id", lead_id).single();
       if (lead) {
         const { data: stage } = lead.stage_id
           ? await supabase.from("pipeline_stages").select("name").eq("id", lead.stage_id).single()
