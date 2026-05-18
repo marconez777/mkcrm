@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +35,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const settingsIdx = navItems.findIndex((i) => i.to === "/settings");
     if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
     else navItems = [...navItems, emailItem];
+  }
+  if (isClinicAdmin || isSuperAdmin) {
+    navItems = [...navItems, { to: "/tracking-debug", label: "Tracking Debug", icon: Radar }];
   }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
