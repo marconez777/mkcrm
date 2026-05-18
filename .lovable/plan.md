@@ -1,143 +1,74 @@
-## Plano — `docs/AI.md`
+# Plano: ampliar análise de gargalos em `docs/AI.md`
 
-Documento técnico (8–10 páginas) que cobre o módulo de Inteligência Artificial do CRM: agentes multi-provider, RAG avançado, ferramentas, MCP, auto-reply com debounce, memória, traces, evals e custos.
+## Objetivo
 
-### Estrutura proposta
+Atualizar a seção **13.1 Gargalos e melhorias** do `docs/AI.md` para:
+1. Reescrever o item #1 deixando claro que o fix de `remember_fact.clinic_id` **já foi aplicado** no código.
+2. Adicionar **10 novos achados** que vieram da segunda passagem de análise (RAG, dispatcher, auto-reply, duplicação de código, perda de mensagem).
+3. Reorganizar o resumo executivo com a nova prioridade.
 
-**1. Visão geral**
-- O que é: agentes IA por clínica que conversam, classificam, executam ações no CRM (mover estágio, tags, tarefas, agendar mensagens) e consultam base de conhecimento via RAG.
-- Multi-provider: OpenAI, Anthropic, Google — chave por agente.
-- Dois modos: **vocal** (responde ao lead) e **silent / watcher** (apenas usa tools, não envia mensagem).
-- Stack: 10 edge functions (`ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-eval-run`, `ai-embed`, `ai-ingest-pdf|url|urls|document`, `agent-run-bulk`) + `scheduled-dispatcher` (cron) + 10 tabelas Postgres.
+Sem alteração de código nesta etapa — só documentação.
 
-**2. Arquitetura (diagrama em ASCII)**
-- Fluxo inbound: `evolution-webhook` → `ai-auto-reply` (debounce) → `pending_replies` → `scheduled-dispatcher` (cron 1 min) → `ai-chat` → `evolution-send`.
-- Fluxo manual: UI `/inbox` → `ai-assist` (Lovable Gateway) ou `ai-chat`.
-- Fluxo ingest: UI Agents → `ai-ingest-*` → embeddings 768d → `ai_chunks`.
+---
 
-**3. Telas (frontend)**
-- `/ai` `AiHub` + abas (`AiDashboard`, `Agents`, `AgentMemories`, `Messages` ⇒ Sequências/Automações/Templates, `Broadcasts`, `MetricsAiUsage`).
-- `AiDashboard.tsx` — KPIs (mensagens 7d, tokens 30d, agentes/automações ativos) + gráfico de barras 7d a partir de `ai_usage`.
-- `Agents.tsx` — CRUD de agentes; painéis `McpServersPanel` e `EvalsPanel`; documentos da base (upload PDF/URL/texto); seletor de tools, modelo, temperatura, RAG (top_k, HyDE, hybrid, memory), reranker, planning_mode, max_iterations, max_tool_calls, debounce, silent, role (`summary`).
-- `AgentMemories.tsx` — visualizador global de `agent_memory` com filtros por agente/kind/busca, link para o lead.
-- `MetricsAiUsage.tsx` — custo por modelo via `src/lib/ai-pricing.ts` (USD por 1M tokens), agregações por período/agente/operação.
+## Novos gargalos encontrados (a adicionar)
 
-**4. Edge Functions detalhadas**
+### 🔴 Crítico — mensagem perdida no dispatcher
+Em `scheduled-dispatcher/index.ts` o `pending_replies` é **deletado antes** de chamar `ai-chat`/`evolution-send` (claim atômico, linha 56-59). Se o `evolution-send` falhar (linha 140), o registro já foi removido → **a resposta é perdida sem retry**. O `ai_usage` registra erro, mas a mensagem nunca chega ao lead.
+**Fix sugerido:** marcar `pending_replies.status='processing'` com timestamp em vez de deletar; só remover após sucesso final; reenfileirar com backoff em falha.
 
-- **`ai-chat`** (núcleo, 545 linhas):
-  - Loop de até `max_iterations` (default 6, cap 12).
-  - Carrega `system_prompt` + `planning` prefix + contexto do lead (campos, estágio atual, **lista de estágios disponíveis**, custom fields schema com tipo/opções e valores atuais) + `ragContext` + instrução de citar `[1], [2]`.
-  - **14 built-in tools**: `move_lead_stage`, `add_lead_note`, `set_lead_field`, `assign_attendant`, `search_knowledge_base`, `create_task`, `schedule_message`, `get_lead_history`, `transfer_to_human` (pausa 24 h via `lead_ai_settings.paused_until`), `update_custom_field`, `remember_fact` (embed+insert em `agent_memory`), `add_lead_tag`, `remove_lead_tag`, `get_lead_state`.
-  - **MCP tools**: lista `agent_mcp_servers.enabled=true` → `listMcpTools` → expõe como `<server>__<tool>` ao LLM.
-  - Hardening: timeouts `TURN_TIMEOUT_MS=90s`, `TOOL_TIMEOUT_MS=15s`, paralelismo `pmap(4)`, **detecção de chamada duplicada** (>= 3 vezes mesmo `name+args` → bloqueia), orçamento `max_tool_calls` com mensagem de "produza resposta final".
-  - Modo *manual review*: se `lead_id` sem `messages`, monta transcript das últimas 30 mensagens e passa como turno único.
-  - Persistência opcional em `ai_threads` + `ai_messages`; trace por step em `agent_traces` (`kind: llm|tool`, latency, tokens, payload); `ai_usage` por iteração (via `chatCompletion(ctx)`) + linha resumo `turn:summary`.
+### 🟡 Código morto: cache de embedding/retrieval importado mas nunca usado
+`_shared/rag.ts:4` importa `getCachedEmbedding`, `setCachedEmbedding`, `getCachedRetrieval`, `setCachedRetrieval`, `withTimeout` — **nenhum é usado** no arquivo. A infra de cache existe em `utils.ts` mas o caminho de query ignora. Provável trabalho começado e não concluído.
+**Fix:** plugar o cache em `retrieveContext` (etapa 3 embed) e na própria RPC (etapa 4) usando hash da query reescrita + agent_id como chave.
 
-- **`ai-auto-reply`** (debounce):
-  - Trigger pelo `evolution-webhook` em cada inbound/outbound.
-  - Enfileira **watcher** (silent agent da `whatsapp_instances.watcher_agent_id`, opcionalmente restrito a `watcher_pipeline_id`) — roda inclusive em `from_me=true`.
-  - Enfileira **sales agent** via `lead_ai_settings` (override por lead) ou `stage_ai_defaults` (default por estágio) — pula se `from_me=true` e agente não-silent, pula se `paused_until > now`.
-  - Upsert em `pending_replies (lead_id, agent_id, run_at, clinic_id)` com `run_at = now + debounce_seconds`. **Bursts** estendem o `run_at` (não duplicam).
-  - `EdgeRuntime.waitUntil` agenda fetch ao `scheduled-dispatcher` após o debounce para não depender só do cron.
+### 🟡 `SILENT_TOOLS` duplicado em dois arquivos
+A lista de ferramentas que marcam um agente como silent aparece **idêntica** em `ai-auto-reply/index.ts:9-13` e `scheduled-dispatcher/index.ts:81-85`. Adicionar uma tool nova em só um lugar gera comportamento divergente entre enfileiramento e execução.
+**Fix:** mover para `_shared/agent-flags.ts` e importar dos dois lados.
 
-- **`scheduled-dispatcher`** (cron 1 min — documentado também no doc de e-mail):
-  - Faz `delete … returning` em `pending_replies` (claim atômico), chama `ai-chat` com `persist=true`, se não-silent e houver `reply` envia via `evolution-send`. Skip quando última msg não é do user, ou se humano respondeu nos últimos 5 min.
+### 🟡 Dispatcher trigger via `setTimeout` é frágil
+`ai-auto-reply/index.ts:23-35` faz `setTimeout(debounce+1s)` dentro de `EdgeRuntime.waitUntil`. Se a instância edge for reciclada nesse meio-tempo, o dispatcher só dispara no próximo tick do cron (até 1 min depois). UX percebe latência aleatória.
+**Fix:** disparar via `pg_notify` ou tabela `dispatcher_wakeup` consumida por trigger; ou simplesmente baixar o cron para 15s.
 
-- **`ai-assist`** (Lovable AI Gateway):
-  - Modos `summary` (usa agente `role='summary'` da clínica se existir, default `openai/gpt-5`, salva em `leads.ai_summary`) e `suggest` (3 respostas curtas em JSON).
-  - Normaliza modelo (`normalizeModel`) para evitar legados não suportados pelo gateway.
+### 🟡 Histórico fixo de 20 mensagens sem janela inteligente
+`scheduled-dispatcher:67-70` e `ai-chat` puxam sempre últimas 20 messages. Em conversas longas o modelo perde contexto inicial (lead pediu X há 50 turnos). Sem sumarização incremental no `agent_memory.kind='summary'`.
+**Fix:** quando histórico > 30 turnos, gerar summary via cheap model, salvar em `agent_memory` kind=summary e usar summary + últimas 10 mensagens.
 
-- **`ai-ingest-pdf` / `ai-ingest-url` / `ai-ingest-urls` / `ai-ingest-document`**:
-  - Extrai texto (`unpdf` para PDF, sanitização HTML para URL com SSRF guard `PRIVATE_HOST_RE` e `redirect: error`).
-  - `chunkText(800, 100)` → `embed(agent, batch)` em lotes de 16 → insere `ai_chunks` (768 dims) + `ai_documents`.
+### 🟡 `processScheduled` é serial
+`scheduled-dispatcher:17-38` itera 50 mensagens com `for` + `await`. Se cada send leva 2s, 50 mensagens = 100s — estoura o limite de execução da edge.
+**Fix:** `pmap(items, 10, sender)` (já existe `pmap` em utils.ts).
 
-- **`ai-embed`** — wrapper público da função `embed`.
+### 🟡 Risco de loop dispatcher → webhook → auto-reply
+Quando o dispatcher envia via `evolution-send`, a Evolution emite `MESSAGES_UPSERT` com `from_me=true`. O `evolution-webhook` repassa para `ai-auto-reply`, que **ainda enfileira agentes silenciosos** (`from_me && silent`). Cada resposta do bot pode disparar nova rodada do classificador — custo de tokens dobra. O `pending_replies` agrupa, mas ainda gera trace + embed.
+**Fix:** marcar mensagens enviadas pelo bot com `bot_id` (já há `client_message_id`) e o webhook ignorar para fins de auto-reply.
 
-- **`ai-eval-run`** — roda todos `agent_evals` do agente, chama `ai-chat`, marca `last_passed = expected_contains.every(includes)`.
+### 🟢 `ai_usage` sem coluna `cost_usd` materializada
+Cálculo de custo é feito no frontend (`MetricsAiUsage` + `ai-pricing.ts`). Toda mudança de preço exige redeploy. E histórico fica volátil se preço muda.
+**Fix:** materializar `cost_usd` no insert (preço da época). Frontend só agrega.
 
-- **`agent-run-bulk`** — enfileira `pending_replies` para todos os leads ativos (opcionalmente só com inbound) para rodar o classificador/vigia em massa.
+### 🟢 `ai_documents.content` duplica conteúdo dos chunks
+Cada documento guarda `content` completo + N linhas em `ai_chunks.content`. Em base grande, dobra storage. `ai_documents.content` parece só ser usado em edição/UI.
+**Fix:** mover conteúdo bruto para storage bucket (`ai-docs`), guardar só URL + summary.
 
-**5. Camada compartilhada `_shared/`**
+### 🟢 RLS de `embedding_cache` está aberta (sem policies)
+Tabela tem RLS habilitada mas **nenhuma policy** → acesso só via service role. Funcional, mas se um dia for consultada via cliente autenticado vai falhar silenciosamente. Documentar ou adicionar policy `SELECT for authenticated`.
 
-- **`ai.ts`** — abstração multi-provider:
-  - `chatCompletion(agent, msgs, tools?, ctx?)` → resposta normalizada estilo OpenAI (incl. `tool_calls`); converte payload e parses de retorno para Anthropic (`tool_use`/`tool_result`) e Google (`functionCall`/`functionResponse`).
-  - `embed()` força 768 dimensões (compat com índices `pgvector` em `ai_chunks` e `agent_memory`); usa `embedding_api_key` OpenAI-compat se fornecida, senão nativo do provider; Anthropic não suporta embed nativo.
-  - `chunkText(size=800, overlap=100)`.
-  - Auto-logging em `ai_usage` via `logUsage` quando `ctx` é passado.
+---
 
-- **`rag.ts`** — RAG avançado em 7 passos:
-  1. `rewriteQuery` (LLM, temp 0, usa últimas 6 mensagens).
-  2. `hydeAnswer` opcional (`use_hyde`).
-  3. `embed` (com cache em `utils.ts`).
-  4. Retrieve híbrido (`match_chunks_hybrid` RRF) ou só vetorial (`match_chunks`), `fetchPool = topK * 4`.
-  5. `rerank` opcional (Cohere `rerank-multilingual-v3.0`, Jina `jina-reranker-v2-base-multilingual`, Voyage `rerank-2`).
-  6. Anexa `doc_title` via lookup em `ai_documents`.
-  7. `match_memories` (recall em `agent_memory` por lead).
-  - `formatContext` produz markdown com "## Memórias do agente sobre este lead" e "## Trechos da base de conhecimento".
+## Estrutura da edição
 
-- **`mcp.ts`** — cliente MCP Streamable HTTP mínimo: `initialize` + `tools/list` + `tools/call`, suporta SSE, namespaca ferramentas como `<server>__<tool>`, converte para schema OpenAI.
+Substituir a subseção 13.1 atual por uma versão expandida com:
 
-- **`utils.ts`** — `stableStringify`, `withTimeout`, `pmap`, `logTrace`, caches in-memory (embedding e retrieval).
+- **🔴 Críticos (2 itens):** memórias (já aplicado, marcar ✅) + mensagem perdida no dispatcher (novo).
+- **🔴 Configuração (1 item):** `remember_fact` no agente silencioso ativo.
+- **🟡 Médios (8 itens):** cache morto, SILENT_TOOLS duplicado, setTimeout frágil, histórico fixo, scheduled serial, loop bot, retenção `ai_usage`/`agent_traces`, orçamento de tokens no RAG.
+- **🟢 Pequenos / UX (6 itens):** custo materializado, dedup `ai_documents.content`, RLS `embedding_cache`, erros tipados do provider, cron de evals, JSON denso no prompt, reranker default, agrupamento de tools na UI.
 
-- **`metrics.ts`** — `logUsage()` (insert em `ai_usage`).
+Atualizar o **resumo executivo** (tabela) com priorização revisada — adicionar linha P0 do dispatcher e linhas P1 dos novos achados.
 
-**6. Esquema do banco**
+Adicionar mini-bloco **"Como reproduzir o bug do dispatcher"** (3 linhas SQL + 1 curl) para o time conseguir testar antes do fix.
 
-| Tabela | Função | Pontos-chave |
-|---|---|---|
-| `ai_agents` | agente por clínica | `provider`, `api_key`, `model` (default `google/gemini-3-flash-preview`), `temperature`, `tools jsonb[]`, `silent`, `role` (único `summary` por clínica), flags RAG (`use_hyde`, `use_hybrid_search`, `use_memory`, `rag_top_k`, `planning_mode`), `max_iterations`, `max_tool_calls`, `debounce_seconds`, `reranker_*` |
-| `ai_documents` | doc da base | `agent_id`, `title`, `content`, `source`, `metadata` |
-| `ai_chunks` | chunk vetorial | `vector(768)`, coluna gerada `tsv tsvector('portuguese')` para FTS híbrido, RLS por `clinic_id` |
-| `ai_threads` / `ai_messages` | histórico opcional | escritos só se `persist=true` |
-| `ai_usage` | custo/telemetria | `operation` (`chat`/`embed`), `status`, tokens, `latency_ms`, `tools_called`, `replied`, linha extra `error='turn:summary'` por turno |
-| `agent_memory` | memória persistente | `kind ∈ {summary,fact,preference}`, `vector(768)`, recall por lead via `match_memories` |
-| `agent_traces` | traces por step | `run_id`, `step`, `kind` (`llm`/`tool`), `latency_ms`, payload |
-| `agent_evals` | testes de regressão | `prompt`, `expected_contains[]`, `last_passed` |
-| `agent_mcp_servers` | servidores MCP | `url`, `headers`, `enabled` |
-| `lead_ai_settings` | override por lead | `agent_id`, `auto_reply`, `paused_until` |
-| `stage_ai_defaults` | default por estágio | herdado quando o lead não tem override |
-| `pending_replies` | fila de debounce | PK `(lead_id, agent_id)`, `run_at`, `clinic_id` |
+## Não-objetivos desta etapa
 
-**RPCs** (SECURITY DEFINER, escopadas por `clinic_id`): `match_chunks`, `match_chunks_hybrid` (RRF), `match_memories`. RLS por `clinic_id` em todas as tabelas; `current_clinic_id()` resolve via `auth.uid()`.
-
-**7. Tools — referência completa**
-Tabela com nome → ação → parâmetros → efeitos colaterais (insert em `lead_events`, `lead_internal_notes`, etc.).
-
-**8. Modos de operação**
-- **Vendas (vocal)**: responde no WhatsApp; ativado por `lead_ai_settings.auto_reply=true` ou `stage_ai_defaults.auto_reply=true`. Pode ser pausado por 24h via `transfer_to_human`.
-- **Watcher / Classificador (silent)**: detectado por `agent.silent=true` ou por **todas** as tools selecionadas serem `SILENT_TOOLS`. Roda em mensagens do atendente também. Configurado em `whatsapp_instances.watcher_agent_id`/`watcher_pipeline_id`.
-- **Summary agent (`role='summary'`)**: usado pelo `ai-assist` para resumos do lead.
-
-**9. Configuração de um agente — passo a passo dev**
-1. Criar em `/ai/agents` — escolher provider, modelo, API key, `system_prompt`.
-2. Selecionar tools (built-in) + servidores MCP.
-3. RAG: ingerir docs, ajustar `rag_top_k`, ligar `use_hyde`/`use_hybrid_search`, configurar reranker.
-4. Ativar como sales (em `/lead/:id` ou `/settings` → defaults por estágio) ou como watcher (em `/settings/whatsapp`).
-5. Testar via `EvalsPanel` ou “Run now” no inbox.
-
-**10. Custos & observabilidade**
-- `src/lib/ai-pricing.ts` mapeia preços por modelo (in/out por 1M tokens) com fallback por prefixo; `MetricsAiUsage.tsx` agrega.
-- `agent_traces` permite reconstruir um turno completo (LLM steps + tool steps com payload).
-- Logs do dispatcher: `[dispatcher] -> ai-chat lead=…` / `OK` / `FAIL` / `skip reason=…`.
-
-**11. Segurança & limites**
-- API keys de agentes ficam em coluna `text` (server-only; nunca expostas ao client — Agents.tsx só envia delta via supabase-js sob RLS de owner/admin).
-- SSRF guard em `ai-ingest-url`.
-- Lovable AI Gateway no `ai-assist` usa `LOVABLE_API_KEY` server-side.
-- Tool call dedup, timeouts, budgets.
-
-**12. Limitações conhecidas**
-- Cache de embedding/retrieval só por instância edge (não compartilhado).
-- `chunkText` é naive (char-based), sem segmentação semântica.
-- `match_chunks_hybrid` usa RRF com pesos fixos.
-- Embeddings forçados a 768 dims (precisa truncar / pad em modelos que retornam outro tamanho — implementado via param `dimensions`/`outputDimensionality`).
-- `agent_evals` mede só `expected_contains` (sem similaridade semântica).
-
-**13. Cheatsheet para devs**
-- Adicionar nova tool built-in: registrar em `BUILTIN_TOOLS` + branch em `executeTool` + adicionar à lista `TOOLS` em `Agents.tsx` + (se silent) à `SILENT_TOOLS` em `ai-auto-reply` e `scheduled-dispatcher`.
-- Adicionar novo provider: implementar `xxxChat` em `_shared/ai.ts` e ramo em `chatCompletion`; eventualmente `xxxEmbed`.
-- Mudar modelo padrão: `ai_agents.model` default.
-- Reset memória de um lead: `delete from agent_memory where lead_id=…`.
-
-### Saída
-Um único arquivo `docs/AI.md` em português. Sem alterações em código.
+- Não alterar código de edge functions, RLS ou migrations.
+- Não criar tasks de implementação dos fixes — só documentar para discussão.
+- Não tocar `OVERVIEW.md`, `EMAIL.md`, `TRACKING.md`.
