@@ -94,6 +94,18 @@ function pathOf(u?: string | null) {
   try { return new URL(u).pathname || "/"; } catch { return u; }
 }
 
+function SourceCell({ source, medium, campaign, channelGroup }: { source: string | null; medium: string | null; campaign: string | null; channelGroup?: string | null }) {
+  if (!source && !medium && !campaign) return <span className="text-muted-foreground">—</span>;
+  const label = source || "(direct)";
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-medium">{label}{medium ? ` / ${medium}` : ""}</span>
+      {campaign && <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">{campaign}</span>}
+      {channelGroup && <Badge variant="outline" className="w-fit text-[10px]">{channelGroup}</Badge>}
+    </div>
+  );
+}
+
 export default function Tracking() {
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [customFrom, setCustomFrom] = useState("");
