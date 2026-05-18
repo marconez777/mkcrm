@@ -58,10 +58,16 @@ export default function LeadJourneyTab({ leadId, clinicId }: { leadId: string; c
     let cancelled = false;
     (async () => {
       setLoading(true);
+      let resolvedClinicId = clinicId;
+      if (!resolvedClinicId) {
+        const { data: leadRow } = await supabase.from("leads").select("clinic_id").eq("id", leadId).maybeSingle();
+        resolvedClinicId = (leadRow as any)?.clinic_id;
+      }
+      if (!resolvedClinicId) { setLoading(false); return; }
       const { data: linkRows } = await supabase
         .from("tracking_identity_links")
         .select("visitor_id, link_source, linked_at")
-        .eq("clinic_id", clinicId)
+        .eq("clinic_id", resolvedClinicId)
         .eq("lead_id", leadId)
         .order("linked_at", { ascending: true });
 
