@@ -36,6 +36,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
     else navItems = [...navItems, emailItem];
   }
+  if (isClinicAdmin || isSuperAdmin) {
+    navItems = [...navItems, { to: "/tracking-debug", label: "Tracking Debug", icon: Radar }];
+  }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
