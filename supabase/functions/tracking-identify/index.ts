@@ -144,6 +144,88 @@ Deno.serve(async (req) => {
     }, { onConflict: "clinic_id,visitor_id,lead_id" });
   if (linkErr) console.log("[tracking-identify] link_error", linkErr);
 
+  // === Passo 4.5 — Congelar atribuição em tracking_lead_sources ===
+  try {
+    const { data: firstSession } = await supabase
+      .from("tracking_sessions")
+      .select("*")
+      .eq("clinic_id", clinic.id)
+      .eq("visitor_id", visitor_id)
+      .order("started_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    let conversionSession: any = null;
+    if (session_id) {
+      const { data } = await supabase
+        .from("tracking_sessions")
+        .select("*")
+        .eq("clinic_id", clinic.id)
+        .eq("session_id", session_id)
+        .maybeSingle();
+      conversionSession = data;
+    }
+    if (!conversionSession) {
+      const { data } = await supabase
+        .from("tracking_sessions")
+        .select("*")
+        .eq("clinic_id", clinic.id)
+        .eq("visitor_id", visitor_id)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      conversionSession = data;
+    }
+
+    const buildSourceRow = (sourceType: "first_touch" | "conversion_touch", session: any) => {
+      if (!session) return null;
+      return {
+        clinic_id: clinic.id,
+        lead_id: resolvedLeadId,
+        visitor_id,
+        session_id: session.session_id ?? null,
+        source_type: sourceType,
+        source: session.source ?? null,
+        medium: session.medium ?? null,
+        campaign: session.campaign ?? null,
+        content: session.utm_content ?? null,
+        term: session.utm_term ?? null,
+        channel_group: null,
+        landing_page: session.landing_page ?? null,
+        conversion_page: sourceType === "conversion_touch" ? session.landing_page : null,
+        referrer: session.referrer ?? null,
+        gclid: session.gclid ?? null,
+        gbraid: session.gbraid ?? null,
+        wbraid: session.wbraid ?? null,
+        fbclid: session.fbclid ?? null,
+        fbp: session.fbp ?? null,
+        fbc: session.fbc ?? null,
+        ttclid: session.ttclid ?? null,
+        msclkid: session.msclkid ?? null,
+        li_fat_id: session.li_fat_id ?? null,
+        confidence_score: null,
+        raw_params: session.raw_params ?? null,
+      };
+    };
+
+    const rows = [
+      buildSourceRow("first_touch", firstSession),
+      buildSourceRow("conversion_touch", conversionSession),
+    ].filter(Boolean);
+
+    if (rows.length > 0) {
+      const { error: lsErr } = await supabase
+        .from("tracking_lead_sources")
+        .upsert(rows as any[], {
+          onConflict: "clinic_id,lead_id,source_type",
+          ignoreDuplicates: false,
+        });
+      if (lsErr) console.error("[tracking-identify] lead_sources_upsert_error", lsErr);
+    }
+  } catch (e) {
+    console.error("[tracking-identify] lead_sources_unexpected_error", e);
+  }
+
   // Backfill past events for this visitor
   const { error: bfErr } = await supabase
     .from("tracking_events")
