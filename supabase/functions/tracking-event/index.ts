@@ -255,21 +255,54 @@ Deno.serve(async (req) => {
   }
 
   // 1) Visitors: upsert WITHOUT clobbering first_* fields on conflict.
-  //    Strategy: insert new; on conflict, only bump last_seen_at + device fields.
+  //    Strategy: insert new; on conflict, only bump last_* + device fields.
   for (const v of visitorRows.values()) {
-    // Try insert (treats as new). If exists, update only last_seen_at + device fields.
+    const attr = v.__attr;
+    const nowIso = v.last_seen_at;
+    // strip helper field
+    const { __attr, ...vRow } = v;
+
+    const insertRow: Record<string, any> = {
+      ...vRow,
+      last_source: attr.source,
+      last_medium: attr.medium,
+      last_campaign: attr.campaign,
+      last_channel_group: attr.channel_group,
+      last_seen_attribution_at: nowIso,
+    };
+    if (attr.source !== "direct") {
+      insertRow.last_non_direct_source = attr.source;
+      insertRow.last_non_direct_medium = attr.medium;
+      insertRow.last_non_direct_campaign = attr.campaign;
+      insertRow.last_non_direct_channel_group = attr.channel_group;
+      insertRow.last_non_direct_at = nowIso;
+    }
+
     const { error: insErr } = await supabase
       .from("tracking_visitors")
-      .insert(v);
+      .insert(insertRow);
     if (insErr) {
+      const updatePayload: Record<string, any> = {
+        last_seen_at: nowIso,
+        device_type: v.device_type,
+        browser: v.browser,
+        operating_system: v.operating_system,
+        last_source: attr.source,
+        last_medium: attr.medium,
+        last_campaign: attr.campaign,
+        last_channel_group: attr.channel_group,
+        last_seen_attribution_at: nowIso,
+      };
+      if (attr.source !== "direct") {
+        updatePayload.last_non_direct_source = attr.source;
+        updatePayload.last_non_direct_medium = attr.medium;
+        updatePayload.last_non_direct_campaign = attr.campaign;
+        updatePayload.last_non_direct_channel_group = attr.channel_group;
+        updatePayload.last_non_direct_at = nowIso;
+      }
       await supabase
         .from("tracking_visitors")
-        .update({
-          last_seen_at: v.last_seen_at,
-          device_type: v.device_type,
-          browser: v.browser,
-          operating_system: v.operating_system,
-        })
+        .update(updatePayload)
         .eq("clinic_id", v.clinic_id)
         .eq("visitor_id", v.visitor_id);
     }
