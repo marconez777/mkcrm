@@ -262,7 +262,14 @@ Deno.serve(async (req) => {
 // ============================================================================
 // Tracking association: code in message body, ctwa_clid, or phone fallback.
 // ============================================================================
-const TRACKING_CODE_RE = /MK-[A-HJ-NP-Z2-9]{6}/;
+// Matches the new format `(ref=xxxxxxxxxx)` (10-char lowercase hex)
+// and the legacy format `MK-XXXXXX` (6-char uppercase) for backwards compat.
+const TRACKING_CODE_RE = /(?:ref=([a-f0-9]{10})|(MK-[A-HJ-NP-Z2-9]{6}))/i;
+function extractTrackingCode(text: string): string | null {
+  const m = text.match(TRACKING_CODE_RE);
+  if (!m) return null;
+  return (m[1] ? m[1].toLowerCase() : m[2]?.toUpperCase()) ?? null;
+}
 
 function extractMessageText(item: any): string {
   const m = item?.message ?? {};
