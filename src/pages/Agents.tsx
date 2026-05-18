@@ -639,15 +639,23 @@ export default function Agents() {
                     <Badge variant="outline" className="ml-2 text-[10px]">{selected.tools.length}</Badge>
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-2 pb-4">
-                  {TOOLS.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={selected.tools.includes(t.id)}
-                        onCheckedChange={() => toggleTool(t.id)}
-                      />
-                      {t.label}
-                    </label>
+                <AccordionContent className="space-y-4 pb-4">
+                  {TOOL_GROUPS.map((g) => (
+                    <div key={g.group} className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
+                      {g.tools.map((t) => (
+                        <label key={t.id} className="flex items-start gap-2 text-sm">
+                          <Switch
+                            checked={selected.tools.includes(t.id)}
+                            onCheckedChange={() => toggleTool(t.id)}
+                          />
+                          <span className="flex-1">
+                            {t.label}
+                            {t.hint && <span className="block text-xs text-muted-foreground">{t.hint}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </AccordionContent>
               </AccordionItem>
