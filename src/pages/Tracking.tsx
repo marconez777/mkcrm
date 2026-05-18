@@ -479,7 +479,7 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
                   {filteredVisitors.map((v) => {
                     const f = vFlags[v.visitor_id];
@@ -493,6 +493,8 @@ export default function Tracking() {
                         <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(pathOf(f?.lastPage), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
+                        <TableCell className="text-xs"><SourceCell source={v.first_source} medium={v.first_medium} campaign={v.first_campaign} /></TableCell>
+                        <TableCell className="text-xs"><SourceCell source={v.last_non_direct_source} medium={v.last_non_direct_medium} campaign={v.last_non_direct_campaign} channelGroup={v.last_non_direct_channel_group} /></TableCell>
                         <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
                         <TableCell className="text-center text-xs">{f?.events ?? 0}</TableCell>
                         <TableCell className="text-center">{f?.wa ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
