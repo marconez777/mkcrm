@@ -106,15 +106,21 @@ export async function chatCompletion(
 
 async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
   const url = (agent.base_url?.replace(/\/+$/, "") || "https://api.openai.com/v1") + "/chat/completions";
+  // OpenAI reasoning models (o1, o3, o4, gpt-5*) only accept temperature=1 (default) and
+  // reject the `temperature` field entirely with 400 invalid_request_error.
+  const isReasoning = /^(o\d|gpt-5)/i.test(agent.model);
+  const body: Record<string, unknown> = {
+    model: agent.model,
+    messages,
+    tools: tools && tools.length > 0 ? tools : undefined,
+  };
+  if (!isReasoning) {
+    body.temperature = Number(agent.temperature) || 0.7;
+  }
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${requireKey(agent)}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: agent.model,
-      messages,
-      temperature: Number(agent.temperature) || 0.7,
-      tools: tools && tools.length > 0 ? tools : undefined,
-    }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
   const data = await r.json();
