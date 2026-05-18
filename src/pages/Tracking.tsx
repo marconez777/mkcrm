@@ -475,14 +475,9 @@ export default function Tracking() {
                   <TableRow>
                     <TableHead>visitor_id</TableHead>
                     <TableHead>Primeira</TableHead>
-                    <TableHead>Última</TableHead>
                     <TableHead>Primeira página</TableHead>
-                    <TableHead>Última página</TableHead>
                     <TableHead>Referrer</TableHead>
-                    <TableHead>Origem (primeira)</TableHead>
-                    <TableHead>Origem (última não-direta)</TableHead>
                     <TableHead className="text-center">Sess.</TableHead>
-                    <TableHead className="text-center">Ev.</TableHead>
                     <TableHead className="text-center">WA</TableHead>
                     <TableHead className="text-center">Form</TableHead>
                     <TableHead className="text-center">Submit</TableHead>
@@ -493,7 +488,7 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
                   {filteredVisitors.map((v) => {
                     const f = vFlags[v.visitor_id];
