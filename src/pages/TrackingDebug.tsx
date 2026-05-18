@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, Eye } from "lucide-react";
+import { toast } from "sonner";
 
 type EventRow = {
   id: string;
@@ -64,6 +65,8 @@ const PERIODS = {
   "7d": { label: "Últimos 7 dias", ms: 7 * 24 * 60 * 60 * 1000 },
 } as const;
 type PeriodKey = keyof typeof PERIODS;
+const OR_CLINIC_ID = "cf038458-457d-4c1a-9ac4-c88c3c8353a1";
+const OR_PROJECT_ID = "or";
 
 function fmtTime(s?: string | null) {
   if (!s) return "—";
@@ -94,6 +97,7 @@ export default function TrackingDebug() {
     events: EventRow[];
   } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const since = useMemo(() => new Date(Date.now() - PERIODS[period].ms).toISOString(), [period]);
   const since24h = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), []);
@@ -103,10 +107,10 @@ export default function TrackingDebug() {
     try {
       // Summary (always 24h)
       const [v24, s24, e24, evCounts] = await Promise.all([
-        supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true }).gte("last_seen_at", since24h),
-        supabase.from("tracking_sessions").select("session_id", { count: "exact", head: true }).gte("started_at", since24h),
-        supabase.from("tracking_events").select("id", { count: "exact", head: true }).gte("event_time", since24h),
-        supabase.from("tracking_events").select("event_name").gte("event_time", since24h).limit(10000),
+        supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("last_seen_at", since24h),
+        supabase.from("tracking_sessions").select("session_id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("started_at", since24h),
+        supabase.from("tracking_events").select("id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("event_time", since24h),
+        supabase.from("tracking_events").select("event_name").eq("clinic_id", OR_CLINIC_ID).gte("event_time", since24h).limit(10000),
       ]);
       const counts: Record<string, number> = {};
       (evCounts.data ?? []).forEach((r: any) => { counts[r.event_name] = (counts[r.event_name] ?? 0) + 1; });
@@ -121,7 +125,7 @@ export default function TrackingDebug() {
       });
 
       // Events table
-      let q = supabase.from("tracking_events").select("*").gte("event_time", since).order("event_time", { ascending: false }).limit(200);
+      let q = supabase.from("tracking_events").select("*").eq("clinic_id", OR_CLINIC_ID).gte("event_time", since).order("event_time", { ascending: false }).limit(200);
       if (eventNameFilter.trim()) q = q.ilike("event_name", `%${eventNameFilter.trim()}%`);
       if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       if (pageUrlFilter.trim()) q = q.ilike("page_url", `%${pageUrlFilter.trim()}%`);
@@ -129,7 +133,7 @@ export default function TrackingDebug() {
       setEvents((evData as EventRow[]) ?? []);
 
       // Visitors table
-      let vq = supabase.from("tracking_visitors").select("*").gte("last_seen_at", since).order("last_seen_at", { ascending: false }).limit(100);
+      let vq = supabase.from("tracking_visitors").select("*").eq("clinic_id", OR_CLINIC_ID).gte("last_seen_at", since).order("last_seen_at", { ascending: false }).limit(100);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       const { data: vData } = await vq;
       setVisitors((vData as VisitorRow[]) ?? []);
@@ -146,9 +150,9 @@ export default function TrackingDebug() {
     setJourneyData(null);
     try {
       const [v, s, e] = await Promise.all([
-        supabase.from("tracking_visitors").select("*").eq("visitor_id", visitorId).maybeSingle(),
-        supabase.from("tracking_sessions").select("*").eq("visitor_id", visitorId).order("started_at", { ascending: false }).limit(50),
-        supabase.from("tracking_events").select("*").eq("visitor_id", visitorId).order("event_time", { ascending: true }).limit(500),
+        supabase.from("tracking_visitors").select("*").eq("clinic_id", OR_CLINIC_ID).eq("visitor_id", visitorId).maybeSingle(),
+        supabase.from("tracking_sessions").select("*").eq("clinic_id", OR_CLINIC_ID).eq("visitor_id", visitorId).order("started_at", { ascending: false }).limit(50),
+        supabase.from("tracking_events").select("*").eq("clinic_id", OR_CLINIC_ID).eq("visitor_id", visitorId).order("event_time", { ascending: true }).limit(500),
       ]);
       setJourneyData({
         visitor: (v.data as VisitorRow) ?? null,
@@ -164,17 +168,61 @@ export default function TrackingDebug() {
   const whatsappClicks = journeyData?.events.filter(e => e.event_name === "whatsapp_click") ?? [];
   const formEvents = journeyData?.events.filter(e => e.event_name.startsWith("form_")) ?? [];
 
+  const sendTestEvent = async () => {
+    setSendingTest(true);
+    try {
+      const payload = {
+        project_id: OR_PROJECT_ID,
+        visitor_id: `debug_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+        session_id: `debug_s_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+        event_id: `debug_e_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+        event_name: "test_event",
+        event_type: "custom",
+        event_time: new Date().toISOString(),
+        page_url: window.location.origin + "/tracking-debug?source=internal-test",
+        page_path: "/tracking-debug",
+        page_title: document.title,
+        referrer: window.location.origin,
+        properties: {
+          source: "tracking_debug",
+          button: "Enviar evento de teste",
+          clinic_id: OR_CLINIC_ID,
+        },
+      };
+
+      const { data, error } = await supabase.functions.invoke("tracking-event", {
+        body: payload,
+      });
+
+      if (error) throw error;
+      toast.success("Evento de teste enviado.");
+      await load();
+      console.log("[tracking-debug] test_event_result", data);
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao enviar evento de teste.");
+      console.error("[tracking-debug] test_event_error", err);
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   return (
     <div className="h-full overflow-auto p-6">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Auditoria de Tracking</h1>
           <p className="text-sm text-muted-foreground">Validação dos eventos recebidos pelo pixel da clínica.</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">clinic_id: {OR_CLINIC_ID} · project_id: {OR_PROJECT_ID}</p>
         </div>
-        <Button onClick={load} disabled={loading} size="sm">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={sendTestEvent} disabled={loading || sendingTest} size="sm" variant="outline">
+            {sendingTest ? "Enviando…" : "Enviar evento de teste"}
+          </Button>
+          <Button onClick={load} disabled={loading || sendingTest} size="sm">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
