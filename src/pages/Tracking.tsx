@@ -167,7 +167,7 @@ export default function Tracking() {
       setAllEventNames(Array.from(new Set(allEv.map((e) => e.event_name))).sort());
 
       // visitors in window
-      let vq = supabase.from("tracking_visitors").select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer")
+      let vq = supabase.from("tracking_visitors").select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer, first_source, first_medium, first_campaign, last_source, last_medium, last_campaign, last_channel_group, last_non_direct_source, last_non_direct_medium, last_non_direct_campaign, last_non_direct_channel_group")
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO)
         .order("last_seen_at", { ascending: false }).limit(1000);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
