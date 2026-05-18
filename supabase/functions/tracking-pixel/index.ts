@@ -81,6 +81,22 @@ function buildScript(projectId: string) {
       return t.length>max?t.slice(0,max):t;
     }catch(e){return null;}
   }
+  function readCookie(name){
+    try{
+      var m=document.cookie.match(new RegExp('(?:^|; )'+name.replace(/[.$?*|{}()\\[\\]\\\\+]/g,'\\\\$&')+'=([^;]*)'));
+      return m?decodeURIComponent(m[1]):null;
+    }catch(e){return null;}
+  }
+  function collectAllParams(u){
+    try{
+      var out={};
+      u.searchParams.forEach(function(value,key){
+        if(key.length>64||value.length>512)return;
+        out[key]=value;
+      });
+      return Object.keys(out).length?out:null;
+    }catch(e){return null;}
+  }
   function send(payload){
     try{
       var body=JSON.stringify(payload);
@@ -95,6 +111,14 @@ function buildScript(projectId: string) {
   }
   function baseEvent(name,extra){
     var p=qs();
+    var urlObj;
+    try{urlObj=new URL(window.location.href);}catch(e){urlObj=null;}
+    var fbclid=p.fbclid||null;
+    var fbp=readCookie("_fbp");
+    var fbc=readCookie("_fbc");
+    if(fbclid&&!fbc){fbc="fb.1."+Date.now()+"."+fbclid;}
+    var ttclid=p.ttclid||null;
+    var li_fat_id=p.li_fat_id||null;
     var ev={
       project_id:PROJECT_ID,
       visitor_id:getVid(),
