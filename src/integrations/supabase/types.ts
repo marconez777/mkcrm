@@ -1164,6 +1164,44 @@ export type Database = {
         }
         Relationships: []
       }
+      deleted_leads: {
+        Row: {
+          clinic_id: string
+          deleted_at: string
+          deleted_by_user_id: string | null
+          id: string
+          lead_id: string | null
+          phone: string
+          source: string
+        }
+        Insert: {
+          clinic_id: string
+          deleted_at?: string
+          deleted_by_user_id?: string | null
+          id?: string
+          lead_id?: string | null
+          phone: string
+          source?: string
+        }
+        Update: {
+          clinic_id?: string
+          deleted_at?: string
+          deleted_by_user_id?: string | null
+          id?: string
+          lead_id?: string | null
+          phone?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_leads_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_automations: {
         Row: {
           active: boolean
