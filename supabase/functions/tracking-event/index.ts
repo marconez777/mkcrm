@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
 
     // Normalization rules (variations → canonical source/medium/channel_group).
     // Does NOT modify raw_params; raw input is preserved.
-    const ruleMatch = applyRules(attr.source, rules);
+    const ruleMatch = applyRules(attr.source, attr.medium, rules);
     if (ruleMatch) {
       if (ruleMatch.source) attr.source = ruleMatch.source;
       if (ruleMatch.medium) attr.medium = ruleMatch.medium;
