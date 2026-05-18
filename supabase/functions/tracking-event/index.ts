@@ -66,24 +66,26 @@ async function getRulesForClinic(clinic_id: string): Promise<Rule[]> {
 
 function applyRules(
   source: string | null | undefined,
+  medium: string | null | undefined,
   rules: Rule[],
 ): { source: string | null; medium: string | null; channel_group: string | null } | null {
-  if (!source) return null;
-  const src = String(source).toLowerCase();
+  const src = source ? String(source).toLowerCase() : null;
+  const med = medium ? String(medium).toLowerCase() : null;
   for (const r of rules) {
-    const input = r.input_source?.toLowerCase();
-    if (!input) continue;
-    if (r.match_type === 'exact' && src === input) {
+    const inSrc = r.input_source?.toLowerCase() || null;
+    const inMed = r.input_medium?.toLowerCase() || null;
+    if (!inSrc && !inMed) continue;
+
+    const matches = (value: string | null, target: string | null): boolean => {
+      if (!target) return true; // rule does not constrain this field
+      if (!value) return false;
+      return r.match_type === 'exact' ? value === target : value.includes(target);
+    };
+
+    if (matches(src, inSrc) && matches(med, inMed)) {
       return {
-        source: r.normalized_source ?? source,
-        medium: r.normalized_medium ?? null,
-        channel_group: r.channel_group ?? null,
-      };
-    }
-    if (r.match_type === 'contains' && src.includes(input)) {
-      return {
-        source: r.normalized_source ?? source,
-        medium: r.normalized_medium ?? null,
+        source: r.normalized_source ?? source ?? null,
+        medium: r.normalized_medium ?? medium ?? null,
         channel_group: r.channel_group ?? null,
       };
     }
