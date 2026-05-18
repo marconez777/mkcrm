@@ -33,6 +33,64 @@ async function sha256Hex(input: string) {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ============ Traffic source normalization rules (cached per instance) ============
+type Rule = {
+  match_type: 'exact' | 'contains';
+  input_source: string | null;
+  input_medium: string | null;
+  normalized_source: string | null;
+  normalized_medium: string | null;
+  channel_group: string | null;
+  priority: number;
+};
+const ruleCacheByClinic = new Map<string, { rules: Rule[]; stamp: number }>();
+const RULE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getRulesForClinic(clinic_id: string): Promise<Rule[]> {
+  const cached = ruleCacheByClinic.get(clinic_id);
+  if (cached && Date.now() - cached.stamp < RULE_CACHE_TTL_MS) return cached.rules;
+  const { data, error } = await supabase
+    .from('traffic_source_rules')
+    .select('match_type, input_source, input_medium, normalized_source, normalized_medium, channel_group, priority')
+    .or(`clinic_id.is.null,clinic_id.eq.${clinic_id}`)
+    .eq('active', true)
+    .order('priority', { ascending: true });
+  if (error) {
+    console.error('[tracking-event] failed loading rules', error.message);
+    return cached?.rules ?? [];
+  }
+  const rules = (data || []) as Rule[];
+  ruleCacheByClinic.set(clinic_id, { rules, stamp: Date.now() });
+  return rules;
+}
+
+function applyRules(
+  source: string | null | undefined,
+  rules: Rule[],
+): { source: string | null; medium: string | null; channel_group: string | null } | null {
+  if (!source) return null;
+  const src = String(source).toLowerCase();
+  for (const r of rules) {
+    const input = r.input_source?.toLowerCase();
+    if (!input) continue;
+    if (r.match_type === 'exact' && src === input) {
+      return {
+        source: r.normalized_source ?? source,
+        medium: r.normalized_medium ?? null,
+        channel_group: r.channel_group ?? null,
+      };
+    }
+    if (r.match_type === 'contains' && src.includes(input)) {
+      return {
+        source: r.normalized_source ?? source,
+        medium: r.normalized_medium ?? null,
+        channel_group: r.channel_group ?? null,
+      };
+    }
+  }
+  return null;
+}
+
 function parseUA(ua: string) {
   const u = ua.toLowerCase();
   let device_type = "desktop";
