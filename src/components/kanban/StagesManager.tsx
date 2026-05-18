@@ -59,7 +59,7 @@ export default function StagesManager({ pipelineId }: Props) {
     setLoading(true);
     const { data: stageData } = await supabase
       .from("pipeline_stages")
-      .select("id,name,color,position")
+      .select("id,name,color,position,is_terminal")
       .eq("pipeline_id", pipelineId)
       .order("position");
     const ids = (stageData ?? []).map((s) => s.id);
