@@ -47,7 +47,7 @@ function eventVariant(name: string): "default" | "secondary" | "outline" {
   return "outline";
 }
 
-export default function LeadJourneyTab({ leadId, clinicId }: { leadId: string; clinicId: string }) {
+export default function LeadJourneyTab({ leadId, clinicId }: { leadId: string; clinicId?: string }) {
   const [loading, setLoading] = useState(true);
   const [links, setLinks] = useState<Link[]>([]);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
