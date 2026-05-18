@@ -13,6 +13,7 @@ import { deleteLead } from "@/lib/delete-lead";
 import ContextRail from "@/components/inbox/ContextRail";
 import ChatPane from "@/components/inbox/ChatPane";
 import LeadJourneyTab from "@/components/lead/LeadJourneyTab";
+import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const open = !!lead;
