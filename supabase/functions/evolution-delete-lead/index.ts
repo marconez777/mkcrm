@@ -7,6 +7,7 @@ Deno.serve(async (req) => {
   if (auth instanceof Response) return auth;
 
   const supabase = sb();
+  let tombstoneDeletedAt: string | null = null;
 
   try {
     const { lead_id } = await req.json();
@@ -21,12 +22,14 @@ Deno.serve(async (req) => {
     if (leadErr) throw leadErr;
     if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
+    tombstoneDeletedAt = new Date().toISOString();
     const { error: tombstoneErr } = await supabase
       .from("deleted_leads")
       .insert({
         clinic_id: lead.clinic_id,
         lead_id: lead.id,
         phone: lead.phone,
+        deleted_at: tombstoneDeletedAt,
         deleted_by_user_id: auth === "service_role" ? null : auth,
         source: "manual",
       });
@@ -36,7 +39,15 @@ Deno.serve(async (req) => {
       .from("leads")
       .delete()
       .eq("id", lead.id);
-    if (deleteErr) throw deleteErr;
+    if (deleteErr) {
+      await supabase
+        .from("deleted_leads")
+        .delete()
+        .eq("clinic_id", lead.clinic_id)
+        .eq("phone", lead.phone)
+        .eq("deleted_at", tombstoneDeletedAt);
+      throw deleteErr;
+    }
 
     return json({ ok: true, lead_id: lead.id });
   } catch (err) {
