@@ -291,10 +291,13 @@ export default function TrackingDebug() {
           <p className="mt-1 font-mono text-xs text-muted-foreground">clinic_id: {OR_CLINIC_ID} · project_id: {OR_PROJECT_ID}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={sendTestEvent} disabled={loading || sendingTest} size="sm" variant="outline">
+          <Button onClick={sendTestEvent} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
             {sendingTest ? "Enviando…" : "Enviar evento de teste"}
           </Button>
-          <Button onClick={load} disabled={loading || sendingTest} size="sm">
+          <Button onClick={createTestJourney} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
+            {creatingJourney ? "Criando…" : "Criar jornada de teste"}
+          </Button>
+          <Button onClick={load} disabled={loading || sendingTest || creatingJourney} size="sm">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
