@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Eye } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { Link as RouterLink } from "react-router-dom";
+import { linkVisitorToLead } from "@/lib/tracking-identify";
 
 type EventRow = {
   id: string;
