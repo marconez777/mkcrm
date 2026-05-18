@@ -50,3 +50,12 @@ verify_jwt = false
 
 [functions.sequence-enroll]
 verify_jwt = false
+
+[functions.tracking-pixel]
+verify_jwt = false
+
+[functions.tracking-config]
+verify_jwt = false
+
+[functions.tracking-event]
+verify_jwt = false
