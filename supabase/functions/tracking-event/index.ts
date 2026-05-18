@@ -398,6 +398,45 @@ Deno.serve(async (req) => {
     if (sErr) console.log("[tracking-event] sessions_insert_error", sErr);
   }
 
+  // 2.5) Resolve visitor → lead from tracking_identity_links and stamp lead_id on events.
+  //      Also bump leads.last_activity_at for any leads that received events.
+  const uniqueVisitors = Array.from(new Set(eventRows.map((e) => e.visitor_id)));
+  if (uniqueVisitors.length > 0) {
+    const { data: links } = await supabase
+      .from("tracking_identity_links")
+      .select("visitor_id, lead_id, linked_at")
+      .eq("clinic_id", clinic.id)
+      .in("visitor_id", uniqueVisitors);
+
+    if (links && links.length > 0) {
+      // If a visitor has multiple links, prefer the most recent one.
+      const visitorToLead = new Map<string, string>();
+      const linkedAtByVisitor = new Map<string, string>();
+      for (const l of links) {
+        const prev = linkedAtByVisitor.get(l.visitor_id);
+        if (!prev || String(l.linked_at) > prev) {
+          visitorToLead.set(l.visitor_id, l.lead_id);
+          linkedAtByVisitor.set(l.visitor_id, String(l.linked_at));
+        }
+      }
+      const affectedLeads = new Set<string>();
+      for (const ev of eventRows) {
+        const leadId = visitorToLead.get(ev.visitor_id);
+        if (leadId) {
+          ev.lead_id = leadId;
+          affectedLeads.add(leadId);
+        }
+      }
+      if (affectedLeads.size > 0) {
+        await supabase
+          .from("leads")
+          .update({ last_site_activity_at: new Date().toISOString() })
+          .in("id", Array.from(affectedLeads))
+          .eq("clinic_id", clinic.id);
+      }
+    }
+  }
+
   // 3) Events: insert with idempotency on (clinic_id, event_id).
   if (eventRows.length > 0) {
     const { error: eErr } = await supabase

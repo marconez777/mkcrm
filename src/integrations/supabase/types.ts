@@ -2146,6 +2146,7 @@ export type Database = {
           last_classified_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
+          last_site_activity_at: string | null
           marked_unread: boolean
           name: string | null
           notes: string | null
@@ -2182,6 +2183,7 @@ export type Database = {
           last_classified_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_site_activity_at?: string | null
           marked_unread?: boolean
           name?: string | null
           notes?: string | null
@@ -2218,6 +2220,7 @@ export type Database = {
           last_classified_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_site_activity_at?: string | null
           marked_unread?: boolean
           name?: string | null
           notes?: string | null

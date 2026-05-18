@@ -1,0 +1,2 @@
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_site_activity_at timestamp with time zone;
+CREATE INDEX IF NOT EXISTS idx_leads_last_site_activity ON public.leads(clinic_id, last_site_activity_at DESC) WHERE last_site_activity_at IS NOT NULL;
