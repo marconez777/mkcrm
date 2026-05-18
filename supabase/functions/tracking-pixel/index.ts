@@ -235,6 +235,38 @@ function buildScript(projectId: string) {
           page_title:document.title||null,
           location:sanitizeText(anchor.getAttribute("data-track-location"),120)
         });
+        // Rewrite to wa-redirect so we can stamp a tracking_code in the message.
+        try{
+          if(!anchor.getAttribute("data-mk-rewritten")){
+            var phone="";
+            try{
+              var u=new URL(href, window.location.href);
+              if(/wa\\.me$/i.test(u.hostname)){
+                phone=(u.pathname||"").replace(/^\\//,"").split("/")[0].replace(/\\D/g,"");
+              } else if(/whatsapp\\.com$/i.test(u.hostname)){
+                phone=(u.searchParams.get("phone")||"").replace(/\\D/g,"");
+              }
+            }catch(_){}
+            if(phone){
+              var existingMsg="";
+              try{
+                var u2=new URL(href, window.location.href);
+                existingMsg=u2.searchParams.get("text")||"";
+              }catch(_){}
+              var qs2=[
+                "p="+encodeURIComponent(PROJECT_ID),
+                "v="+encodeURIComponent(getVid()),
+                "s="+encodeURIComponent(getSid()),
+                "to="+encodeURIComponent(phone)
+              ];
+              if(existingMsg)qs2.push("msg="+encodeURIComponent(existingMsg));
+              anchor.setAttribute("href", WA_REDIRECT+"?"+qs2.join("&"));
+              anchor.setAttribute("data-mk-rewritten","1");
+              if(!anchor.getAttribute("target"))anchor.setAttribute("target","_blank");
+              anchor.setAttribute("rel","noopener noreferrer");
+            }
+          }
+        }catch(_){}
       }
     }catch(err){}
   },true);
