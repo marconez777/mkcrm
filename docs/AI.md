@@ -568,8 +568,9 @@ Análise feita em 18/05/2026 — três passagens. **A maioria das melhorias já 
 #### 10. ✅ APLICADO — Orçamento de tokens no RAG
 - `_shared/rag.ts` agora corta chunks recuperados quando `sum(content.length) > 16_000` (~4k tokens). Mantém ao menos 1 chunk. Preserva top-K ranqueado pelo reranker.
 
-#### 11. ✅ APLICADO (parcial) — Retenção de `ai_usage`/`agent_traces`
-- `cleanup_agent_caches()` estendido: deleta `ai_usage > 90d` e `embedding_cache > 30d` (em adição às retenções pré-existentes de `agent_traces > 14d`, `rag_cache > 1h`, etc.). Falta apenas a tabela agregada `ai_usage_daily` para acelerar dashboards de longo prazo.
+#### 11. ✅ APLICADO — Retenção + view agregada de `ai_usage`
+- `cleanup_agent_caches()` deleta `ai_usage > 90d` e `embedding_cache > 30d` (em adição às retenções pré-existentes de `agent_traces > 14d`, `rag_cache > 1h`, etc.).
+- Criada **view `ai_usage_daily`** (`security_invoker=on`) agregando `calls`, `errors`, `input/output/total_tokens`, `cost_usd` e `avg_latency_ms` por `clinic_id × agent_id × model × operation × day`. Dashboards do `/ai` podem ler dela em vez de fazer `sum()` sobre milhões de rows.
 
 ### 🟢 Pequenos / UX
 
@@ -582,8 +583,8 @@ Análise feita em 18/05/2026 — três passagens. **A maioria das melhorias já 
 #### 14. ✅ APLICADO — RLS explícita em `embedding_cache`
 - Adicionada policy `embedding_cache_read_authenticated` (SELECT for authenticated). Escritas continuam via service role.
 
-#### 15. ⏳ Pendente — Erros tipados de provider (429/timeout → retryable)
-- Marginal. Decisão futura se o cliente passar a precisar.
+#### 15. ✅ APLICADO — Erros tipados de provider (`retryable`)
+- `NormalizedResponse` ganhou flag `retryable: boolean`. Helper `isRetryableStatus(s)` retorna `true` para 408/425/429/5xx. Os três adapters (`openaiChat`, `anthropicChat`, `googleChat`) preenchem o flag a partir do `r.status`. O `scheduled-dispatcher` e o `ai-auto-reply` podem usar isso para decidir entre retry-com-backoff e fail-fast — hoje o caminho de retry só dispara em exceção; em rodada futura passamos a respeitar também `retryable` retornado.
 
 #### 16. ⏳ Pendente — Cron diário de evals
 - Próxima ação: agendar `ai-eval-run` via `cron.schedule` para rodar 1x/dia em agentes ativos e expor `last_passed` no `/ai`.
@@ -591,8 +592,8 @@ Análise feita em 18/05/2026 — três passagens. **A maioria das melhorias já 
 #### 17. ✅ APLICADO — JSON compacto no prompt
 - `ai-chat/index.ts` trocou `JSON.stringify(lead, null, 2)` por `JSON.stringify(lead)` no bloco "Lead atual" e em "Valores atuais" de campos customizados. Economia esperada: ~15-25% tokens/turno em contexto do lead.
 
-#### 18. ⏳ Pendente — Agrupar tools na UI de `Agents.tsx`
-- UI puro. Próxima rodada de design.
+#### 18. ✅ APLICADO — Agrupar tools na UI de `Agents.tsx`
+- Lista plana virou 4 grupos (`Pipeline & Lead`, `Conversa & Histórico`, `Conhecimento & Memória`, `Agendamentos & Tarefas`). `remember_fact` agora vem com hint explicando que é silenciosa e recomendada em agentes observadores — reduz a chance de repetir o gargalo do #3.
 
 ---
 
@@ -601,26 +602,27 @@ Análise feita em 18/05/2026 — três passagens. **A maioria das melhorias já 
 | Prio | Item | Status |
 |---|---|---|
 | 🔴 P0 | #1 Fix `remember_fact.clinic_id` | ✅ aplicado |
-| 🔴 P0 | #1b Auditoria sistêmica de `clinic_id` em service role | ⏳ pendente |
+| 🔴 P0 | #1b Guard `clinic_id NULL` em service role | ✅ aplicado |
 | 🔴 P0 | #2 Loss-protection no dispatcher (claim/retry) | ✅ aplicado |
 | 🔴 P0 | #3 Habilitar `remember_fact` no agente ativo | ⏳ decisão de produto |
 | 🟡 P1 | #4 Cache de embedding no RAG | ✅ aplicado |
 | 🟡 P1 | #5 `SILENT_TOOLS` centralizado | ✅ aplicado |
-| 🟡 P1 | #6 Latência do dispatcher (cron 15s) | ⏳ pendente |
+| 🟡 P1 | #6 Latência do dispatcher (cron 15s / pg_notify) | ⏳ pendente |
 | 🟡 P1 | #7 Sumarização incremental | ⏳ pendente |
 | 🟡 P1 | #8 `processScheduled` paralelizado (pmap) | ✅ aplicado |
 | 🟡 P1 | #9 Quebra de loop bot/webhook (`bot_agent_id`) | ✅ aplicado |
 | 🟡 P1 | #10 Orçamento de tokens no RAG | ✅ aplicado |
-| 🟡 P1 | #11 Retenção `ai_usage`/`embedding_cache` | ✅ aplicado |
+| 🟡 P1 | #11 Retenção + view `ai_usage_daily` | ✅ aplicado |
 | 🟢 P2 | #12 `cost_usd` materializado | ✅ aplicado |
 | 🟢 P2 | #13 Dedup `ai_documents.content` | ⏳ breaking |
 | 🟢 P2 | #14 RLS `embedding_cache` | ✅ aplicado |
-| 🟢 P2 | #15 Erros tipados de provider | ⏳ pendente |
+| 🟢 P2 | #15 Erros tipados de provider (`retryable`) | ✅ aplicado |
 | 🟢 P2 | #16 Cron diário de evals | ⏳ pendente |
 | 🟢 P2 | #17 Prompt compacto | ✅ aplicado |
-| 🟢 P2 | #18 Agrupar tools na UI | ⏳ UI |
+| 🟢 P2 | #18 Agrupar tools na UI | ✅ aplicado |
 
-**Aplicados nesta rodada: 12 de 18 itens** (3 P0, 6 P1, 3 P2).
+**Aplicados no acumulado: 16 de 18 itens** (4 P0, 6 P1, 6 P2). Restantes: #3 (decisão de produto — habilitar `remember_fact` no Classificador), #6 (operação de cron), #7 (feature de sumarização), #13 (breaking de storage), #16 (cron de evals).
+
 
 ### Como validar a entrega dos fixes
 
