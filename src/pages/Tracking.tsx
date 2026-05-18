@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,8 @@ export default function Tracking() {
   const [customTo, setCustomTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const { isSuperAdmin, membership } = useAuth();
+  const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
 
   // global filters
   const [eventNameFilter, setEventNameFilter] = useState("");
@@ -326,13 +329,17 @@ export default function Tracking() {
           <p className="text-sm text-muted-foreground">Visão geral consolidada de visitantes, sessões, eventos e conversão em leads.</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> Debug
-          </label>
-          {debugMode && (
-            <Button asChild size="sm" variant="outline">
-              <RouterLink to="/tracking-debug">Auditoria / Debug</RouterLink>
-            </Button>
+          {debugAvailable && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> Debug
+              </label>
+              {debugMode && (
+                <Button asChild size="sm" variant="outline">
+                  <RouterLink to="/tracking-debug">Auditoria / Debug</RouterLink>
+                </Button>
+              )}
+            </>
           )}
           <Button onClick={load} disabled={loading} size="sm">
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />

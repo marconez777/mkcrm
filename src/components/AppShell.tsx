@@ -38,7 +38,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
   if (isClinicAdmin || isSuperAdmin) {
     navItems = [...navItems, { to: "/tracking", label: "Tracking", icon: Radar }];
-    navItems = [...navItems, { to: "/tracking-debug", label: "Tracking Debug", icon: Radar }];
+    const debugEnabled = (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
+    if (isSuperAdmin || debugEnabled) {
+      navItems = [...navItems, { to: "/tracking-debug", label: "Tracking Debug", icon: Radar }];
+    }
   }
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 

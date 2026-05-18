@@ -121,10 +121,8 @@ Deno.serve(async (req) => {
   const rawOrigin = req.headers.get("Origin") || req.headers.get("Referer");
   const host = originHost(rawOrigin);
   const projectId = events[0]?.project_id;
-  console.log("[tracking-event] received", { project_id: projectId, origin: rawOrigin, host, count: events.length });
 
   if (!projectId || typeof projectId !== "string") {
-    console.log("[tracking-event] missing_project_id");
     return new Response(JSON.stringify({ error: "missing_project_id" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -137,14 +135,12 @@ Deno.serve(async (req) => {
     .eq("slug", projectId)
     .maybeSingle();
   if (!clinic) {
-    console.log("[tracking-event] unknown_project", { project_id: projectId });
     return new Response(JSON.stringify({ error: "unknown_project" }), {
       status: 404, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
   const tcfg = ((clinic.settings as any)?.tracking) || {};
   if (tcfg.enabled === false) {
-    console.log("[tracking-event] disabled", { clinic_id: clinic.id });
     return new Response(JSON.stringify({ ok: true, ignored: true }), {
       status: 200, headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -154,12 +150,10 @@ Deno.serve(async (req) => {
   const originAllowed = isOriginAllowed(allowed, host);
   const internalAuthorized = !originAllowed ? await isInternalAuthorized(req, clinic.id) : false;
   if (!originAllowed && !internalAuthorized) {
-    console.log("[tracking-event] origin_blocked", { clinic_id: clinic.id, host, allowed, internal_authorized: false });
     return new Response(JSON.stringify({ error: "origin_not_allowed", host, allowed }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
-  console.log("[tracking-event] origin_allowed", { clinic_id: clinic.id, host, internal_authorized: internalAuthorized });
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "0.0.0.0";
   const rlKey = `${clinic.id}:${ip}`;
@@ -278,8 +272,6 @@ Deno.serve(async (req) => {
       .upsert(eventRows, { onConflict: "clinic_id,event_id", ignoreDuplicates: true });
     if (eErr) {
       console.log("[tracking-event] events_insert_error", eErr);
-    } else {
-      console.log("[tracking-event] events_inserted", { clinic_id: clinic.id, count: eventRows.length, names: eventRows.map(e => e.event_name) });
     }
   }
 
