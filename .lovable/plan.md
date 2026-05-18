@@ -1,73 +1,122 @@
-# Onda 1 — Fundação Imutável de Atribuição
+# Onda 2: Inteligência de Atribuição
 
-Mudança 100% aditiva ao módulo de tracking. Sem refatorar nada existente. Sem UI nova.
+100% aditivo. Não toca em `tracking_identity_links`, rate-limit, allowlist, batch size, UI ou colunas `first_*`. Sessões antigas não são reclassificadas (`ignoreDuplicates: true` mantido).
 
-## Entregáveis
+## 1. Migration `add_tracking_attribution_intelligence.sql`
 
-### 1. Migration — `add_tracking_attribution_foundation.sql`
+Idempotente (`add column if not exists`).
 
-Nova migration idempotente, criada via `supabase--migration`:
+- **`tracking_sessions`**: `channel_group text`, `confidence_score int`, `attribution_reason text`.
+- **`tracking_visitors` (last_touch)**: `last_source`, `last_medium`, `last_campaign`, `last_channel_group`, `last_seen_attribution_at timestamptz`.
+- **`tracking_visitors` (last_non_direct_touch)**: `last_non_direct_source`, `last_non_direct_medium`, `last_non_direct_campaign`, `last_non_direct_channel_group`, `last_non_direct_at timestamptz`.
+- **Backfill**: `UPDATE tracking_visitors SET last_* = first_*` onde `last_source IS NULL AND first_source IS NOT NULL` (apenas para não quebrar relatórios na transição).
 
-- `ALTER TABLE tracking_sessions ADD COLUMN IF NOT EXISTS` para: `fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring`, `raw_referrer` (text) e `raw_params` (jsonb).
-- `CREATE TABLE IF NOT EXISTS tracking_lead_sources` (fotografia imutável da atribuição) com colunas: `clinic_id`, `lead_id`, `visitor_id`, `session_id`, `source_type` (check `first_touch|conversion_touch|last_non_direct`), `source`, `medium`, `campaign`, `content`, `term`, `channel_group`, `landing_page`, `conversion_page`, `referrer`, todos click IDs (`gclid`, `gbraid`, `wbraid`, `fbclid`, `fbp`, `fbc`, `ttclid`, `msclkid`, `li_fat_id`), `confidence_score`, `raw_params`, `created_at`.
-- `UNIQUE (clinic_id, lead_id, source_type)`.
-- Índices: `(clinic_id, lead_id)` e `(clinic_id, visitor_id)`.
-- RLS habilitado com policies select/insert/update no padrão `clinic_id = current_clinic_id()` (mesmo padrão das demais tabelas tracking).
+## 2. Novo arquivo `supabase/functions/_shared/attribution.ts`
 
-### 2. `supabase/functions/tracking-pixel/index.ts` (tracker.js gerado)
+Função pura `resolveTrafficSource(input)` retornando `{source, medium, campaign, content, term, channel_group, confidence_score, attribution_reason}`.
 
-Adições dentro da string `buildScript`, sem remover nada:
+Normalização: `trim + lowercase + remove protocol + remove www`.
 
-- Helper `readCookie(name)` com escape de regex.
-- Helper `collectAllParams(url)` que percorre `url.searchParams`, limita key>64 / value>512 e retorna objeto ou null.
-- No bloco onde UTMs/click IDs são lidos:
-  - Lê `fbclid` da URL, `_fbp` e `_fbc` dos cookies.
-  - Se `fbclid` presente e `_fbc` ausente, monta `fbc = 'fb.1.' + Date.now() + '.' + fbclid`.
-  - Lê `ttclid` e `li_fat_id` da URL.
-- No payload `baseEvent` adiciona: `fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring` (`window.location.search`), `raw_referrer` (`document.referrer` cru), `raw_params` (saída de `collectAllParams`).
-- `sanitizeUrl` permanece intocado — `page_url` continua sanitizado, os `raw_*` são paralelos para auditoria.
+Prioridade determinística:
+1. **Click IDs** (95 se coerente com UTM, 85 se incoerente):
+   - `gclid|gbraid|wbraid` → google/cpc, paid_search, `google_click_id`
+   - `fbclid|fbc` → meta (ou facebook/instagram se coerente)/paid_social, paid_social, `meta_click_id`
+   - `ttclid` (90) → tiktok/paid_social, `tiktok_click_id`
+   - `msclkid` (90) → microsoft/cpc, paid_search, `microsoft_click_id`
+   - `li_fat_id` (90) → linkedin/paid_social, paid_social, `linkedin_click_id`
+2. **UTMs** (80 com campaign, 70 sem) → classifyChannel(source, medium), reason `utm`
+3. **Referrer** (65 buscadores google/bing/duckduckgo, 55 sociais instagram/facebook/linkedin/youtube, 50 outros) → organic_search / organic_social / referral
+4. **Direct** (30) → direct/none, channel_group `direct`, reason `no_referrer_no_params`
 
-### 3. `supabase/functions/tracking-event/index.ts`
+`classifyChannel` mapeia medium → `paid_search | paid_social | organic_search | organic_social | email | referral | other | unknown`.
 
-No objeto `sessionRow` do upsert em `tracking_sessions`, adicionar os 7 novos campos (`fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring`, `raw_referrer`, `raw_params`) com `event.<campo> ?? null`. Manter `ignoreDuplicates: true` para que sessões antigas não sejam sobrescritas (primeira atribuição imutável). `tracking_visitors` permanece inalterado.
+## 3. `tracking-event/index.ts` — usar resolveTrafficSource na criação da sessão
 
-### 4. `supabase/functions/tracking-identify/index.ts`
+Import do `_shared/attribution.ts`. Dentro do loop `for (const ev of events)`, antes de montar `sessionRow`:
 
-Inserir novo passo 4.5 entre o upsert de `tracking_identity_links` e o backfill de `tracking_events`:
+```ts
+const attr = resolveTrafficSource({
+  utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
+  utm_content: ev.utm_content, utm_term: ev.utm_term,
+  gclid: ev.gclid, gbraid: ev.gbraid, wbraid: ev.wbraid,
+  fbclid: ev.fbclid, fbp: ev.fbp, fbc: ev.fbc,
+  ttclid: ev.ttclid, msclkid: ev.msclkid, li_fat_id: ev.li_fat_id,
+  referrer: ev.referrer,
+});
+```
 
-- Buscar `firstSession` (mais antiga por `started_at asc` para `clinic_id+visitor_id`).
-- Buscar `conversionSession`: se `session_id` veio no body, busca por ele; senão pega a mais recente do visitor.
-- Helper `buildSourceRow(sourceType, session)` mapeando campos da sessão para a linha de `tracking_lead_sources` (com `channel_group` e `confidence_score` em null — Onda 2; `conversion_page` só preenchido em `conversion_touch`).
-- `upsert` array com `first_touch` e `conversion_touch` (filtrando null), `onConflict: 'clinic_id,lead_id,source_type'`, `ignoreDuplicates: false`.
-- Erro nesse upsert apenas loga (`console.error`) e não interrompe — backfill e evento `lead_identified` continuam.
+No `sessionRows.set(...)` (linha ~195): sobrescrever `source/medium/campaign/utm_content/utm_term` com os valores de `attr` e adicionar `channel_group`, `confidence_score`, `attribution_reason`. Todos os click IDs e `raw_*` da Onda 1 continuam vindo do `ev.*`. Upsert mantém `ignoreDuplicates: true` (Onda 1).
 
-## Regras inegociáveis aplicadas
+## 4. `tracking-event/index.ts` — last_* e last_non_direct_* em `tracking_visitors`
 
-- Tudo aditivo: nenhuma coluna/função/upsert existente é alterada.
-- `tracking_identity_links` não é tocada.
-- `ignoreDuplicates: true` mantido em `tracking_sessions` e `tracking_events`.
-- RLS clinic-scoped igual ao padrão atual.
-- Sem novas dependências npm.
-- Sem mudanças em `Tracking.tsx` / `TrackingDebug.tsx`.
-- Sem `resolveTrafficSource`, sem `confidence_score`, sem `last_*` — tudo isso é Onda 2.
+Calcular `attr` por evento já no loop (item 3). Agregar no Map de visitors o `attr` do **último evento por visitor no batch**.
 
-## Ordem de execução
+No **INSERT** (visitor novo) — adicionar campos last_* (= first_*) e, se `attr.source !== 'direct'`, last_non_direct_* também. `first_*` permanece imutável (já é setado só no INSERT).
 
-1. Aplicar migration (com aprovação do usuário).
-2. Editar `tracking-pixel/index.ts` (tracker).
-3. Editar `tracking-event/index.ts` (persistir novos campos da sessão).
-4. Editar `tracking-identify/index.ts` (congelar atribuição).
-5. Deploy das 3 edge functions modificadas.
+No **UPDATE** (visitor existente) — substituir payload por:
 
-## Validação pós-deploy (critérios de aceitação)
+```ts
+const updatePayload: any = {
+  last_seen_at: v.last_seen_at,
+  device_type: v.device_type, browser: v.browser, operating_system: v.operating_system,
+  last_source: v.attr.source,
+  last_medium: v.attr.medium,
+  last_campaign: v.attr.campaign,
+  last_channel_group: v.attr.channel_group,
+  last_seen_attribution_at: v.last_seen_at,
+};
+if (v.attr.source !== 'direct') {
+  Object.assign(updatePayload, {
+    last_non_direct_source: v.attr.source,
+    last_non_direct_medium: v.attr.medium,
+    last_non_direct_campaign: v.attr.campaign,
+    last_non_direct_channel_group: v.attr.channel_group,
+    last_non_direct_at: v.last_seen_at,
+  });
+}
+```
 
-Verificar via `tracking-debug` ou query direta:
-- Migration roda 2x sem erro.
-- `?fbclid=test123` → `tracking_sessions.fbclid='test123'` e `fbc='fb.1.<ts>.test123'`.
-- Cookie `_fbp` setado → `tracking_sessions.fbp` populado.
-- `?ttclid=abc` e `?li_fat_id=xyz` persistidos.
-- `raw_querystring`, `raw_referrer`, `raw_params` populados (raw_params inclui parâmetros desconhecidos como `?foo=bar`).
-- Após `tracking-identify` com 2+ sessões: 2 linhas em `tracking_lead_sources` (first_touch + conversion_touch).
-- Segunda chamada de identify para mesmo `(lead_id, visitor_id)` não duplica (upsert por unique key).
-- Eventos antigos seguem aparecendo em `/tracking` sem regressão.
-- Se `tracking_lead_sources` falhar, `tracking_events.lead_id` ainda é atualizado.
+**Regra crítica:** `direct` nunca sobrescreve `last_non_direct_*`.
+
+## 5. `tracking-pixel/index.ts` — quebra de sessão por mudança de campanha
+
+Adicionar constante `STORAGE_SID_SIG = "_mk_sid_sig"`. Adicionar helper `getCampaignSignature()` que lê de `window.location.search` os params `gclid|gbraid|wbraid|fbclid|ttclid|msclkid|li_fat_id|utm_source|utm_campaign` e retorna concatenação com `|`.
+
+Reescrever `getSid()`:
+- Ler `sid`, `exp`, `lastSig` de sessionStorage.
+- `expired = !sid || now > exp`.
+- `hasCampaignSignal = nowSig && nowSig.replace(/\|/g,'').length > 0`.
+- `campaignChanged = hasCampaignSignal && lastSig && nowSig !== lastSig`.
+- Se `expired || campaignChanged` → gera novo sid.
+- Sempre renova `exp`.
+- **Só atualiza** `_mk_sid_sig` quando `hasCampaignSignal` (navegação interna sem UTMs preserva última assinatura conhecida).
+
+## 6. `tracking-identify/index.ts` — channel_group/confidence_score + last_non_direct
+
+Em `buildSourceRow`: trocar `channel_group: null` por `session.channel_group ?? null` e `confidence_score: null` por `session.confidence_score ?? null`.
+
+Após buscar `firstSession`/`conversionSession`, buscar visitor:
+
+```ts
+const { data: visitor } = await supabase
+  .from('tracking_visitors')
+  .select('last_non_direct_source,last_non_direct_medium,last_non_direct_campaign,last_non_direct_channel_group,last_non_direct_at')
+  .eq('clinic_id', clinic.id).eq('visitor_id', visitor_id).maybeSingle();
+```
+
+Se `visitor?.last_non_direct_source` existe **E** difere de `conversionSession?.source`, adicionar row extra `source_type: 'last_non_direct'` (com `session_id: null`, click IDs `null`, `confidence_score: null`, raw_params `null`). Mesmo upsert com `onConflict: 'clinic_id,lead_id,source_type'`.
+
+## Critérios de aceitação (do brief)
+
+- Migration idempotente; backfill `first_* → last_*` em visitors existentes.
+- `?gclid=abc&utm_source=newsletter` → source=google, medium=cpc, reason=google_click_id, score=85, channel=paid_search.
+- `?utm_source=instagram&utm_medium=social&utm_campaign=teste` → score=80, reason=utm, channel=organic_social.
+- Referrer google.com sem params → google/organic, score=65, reason=referrer_google.
+- Sem nada → direct/none, score=30.
+- Visitor entra via `?fbclid=...` e volta sem UTMs: `last_source=direct`, `last_non_direct_source=meta`, `first_source=meta` (imutável).
+- Mesma aba `/?fbclid=abc` → `/contato`: mesmo session_id. `/?fbclid=abc` → `/?gclid=xyz`: novo session_id. Timeout 30min → novo session_id.
+- `tracking_lead_sources` na identificação contém first_touch + conversion_touch + (se aplicável) last_non_direct com `channel_group` e `confidence_score`.
+
+## Fora do escopo
+
+UI/Tracking.tsx, `traffic_source_rules`, reprocessamento de sessões antigas, modelos multi-touch, mudanças em batch size/rate-limit/allowlist/identity_links.

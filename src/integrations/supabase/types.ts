@@ -3514,9 +3514,12 @@ export type Database = {
       }
       tracking_sessions: {
         Row: {
+          attribution_reason: string | null
           browser: string | null
           campaign: string | null
+          channel_group: string | null
           clinic_id: string
+          confidence_score: number | null
           created_at: string
           device_type: string | null
           ended_at: string | null
@@ -3548,9 +3551,12 @@ export type Database = {
           wbraid: string | null
         }
         Insert: {
+          attribution_reason?: string | null
           browser?: string | null
           campaign?: string | null
+          channel_group?: string | null
           clinic_id: string
+          confidence_score?: number | null
           created_at?: string
           device_type?: string | null
           ended_at?: string | null
@@ -3582,9 +3588,12 @@ export type Database = {
           wbraid?: string | null
         }
         Update: {
+          attribution_reason?: string | null
           browser?: string | null
           campaign?: string | null
+          channel_group?: string | null
           clinic_id?: string
+          confidence_score?: number | null
           created_at?: string
           device_type?: string | null
           ended_at?: string | null
@@ -3631,7 +3640,17 @@ export type Database = {
           first_seen_at: string
           first_source: string | null
           id: string
+          last_campaign: string | null
+          last_channel_group: string | null
+          last_medium: string | null
+          last_non_direct_at: string | null
+          last_non_direct_campaign: string | null
+          last_non_direct_channel_group: string | null
+          last_non_direct_medium: string | null
+          last_non_direct_source: string | null
           last_seen_at: string
+          last_seen_attribution_at: string | null
+          last_source: string | null
           operating_system: string | null
           updated_at: string
           visitor_id: string
@@ -3649,7 +3668,17 @@ export type Database = {
           first_seen_at?: string
           first_source?: string | null
           id?: string
+          last_campaign?: string | null
+          last_channel_group?: string | null
+          last_medium?: string | null
+          last_non_direct_at?: string | null
+          last_non_direct_campaign?: string | null
+          last_non_direct_channel_group?: string | null
+          last_non_direct_medium?: string | null
+          last_non_direct_source?: string | null
           last_seen_at?: string
+          last_seen_attribution_at?: string | null
+          last_source?: string | null
           operating_system?: string | null
           updated_at?: string
           visitor_id: string
@@ -3667,7 +3696,17 @@ export type Database = {
           first_seen_at?: string
           first_source?: string | null
           id?: string
+          last_campaign?: string | null
+          last_channel_group?: string | null
+          last_medium?: string | null
+          last_non_direct_at?: string | null
+          last_non_direct_campaign?: string | null
+          last_non_direct_channel_group?: string | null
+          last_non_direct_medium?: string | null
+          last_non_direct_source?: string | null
           last_seen_at?: string
+          last_seen_attribution_at?: string | null
+          last_source?: string | null
           operating_system?: string | null
           updated_at?: string
           visitor_id?: string
