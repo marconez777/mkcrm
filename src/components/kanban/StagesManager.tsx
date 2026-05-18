@@ -35,6 +35,7 @@ interface Stage {
   name: string;
   color: string;
   position: number;
+  is_terminal: boolean;
   lead_count: number;
 }
 
