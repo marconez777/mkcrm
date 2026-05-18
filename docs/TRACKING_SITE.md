@@ -3,7 +3,7 @@
 O pixel do CRM **já está instalado** na Clínica ÓR via:
 
 ```html
-<script async src="https://crm.mkart.com.br/functions/v1/tracking-pixel?project_id=or"></script>
+<script async src="https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/tracking-pixel?project_id=or"></script>
 ```
 
 Não é preciso mudar o snippet. O `tracker.js` é servido pelo CRM e atualiza automaticamente. Este guia é **opcional**, para refinar a precisão dos eventos.
