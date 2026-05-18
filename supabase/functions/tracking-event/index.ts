@@ -96,8 +96,13 @@ Deno.serve(async (req) => {
     });
   }
 
+  const rawOrigin = req.headers.get("Origin") || req.headers.get("Referer");
+  const host = originHost(rawOrigin);
   const projectId = events[0]?.project_id;
+  console.log("[tracking-event] received", { project_id: projectId, origin: rawOrigin, host, count: events.length });
+
   if (!projectId || typeof projectId !== "string") {
+    console.log("[tracking-event] missing_project_id");
     return new Response(JSON.stringify({ error: "missing_project_id" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -110,23 +115,27 @@ Deno.serve(async (req) => {
     .eq("slug", projectId)
     .maybeSingle();
   if (!clinic) {
+    console.log("[tracking-event] unknown_project", { project_id: projectId });
     return new Response(JSON.stringify({ error: "unknown_project" }), {
       status: 404, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
   const tcfg = ((clinic.settings as any)?.tracking) || {};
   if (tcfg.enabled === false) {
+    console.log("[tracking-event] disabled", { clinic_id: clinic.id });
     return new Response(JSON.stringify({ ok: true, ignored: true }), {
       status: 200, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 
-  const host = originHost(req.headers.get("Origin") || req.headers.get("Referer"));
-  if (!isOriginAllowed(tcfg.allowed_domains || [], host)) {
-    return new Response(JSON.stringify({ error: "origin_not_allowed", host }), {
+  const allowed = tcfg.allowed_domains || [];
+  if (!isOriginAllowed(allowed, host)) {
+    console.log("[tracking-event] origin_blocked", { clinic_id: clinic.id, host, allowed });
+    return new Response(JSON.stringify({ error: "origin_not_allowed", host, allowed }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
+  console.log("[tracking-event] origin_allowed", { clinic_id: clinic.id, host });
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "0.0.0.0";
   const rlKey = `${clinic.id}:${ip}`;
