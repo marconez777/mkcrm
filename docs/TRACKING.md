@@ -68,3 +68,30 @@ Guia para o time do site: [`TRACKING_SITE.md`](./TRACKING_SITE.md).
 ## Não inclui nesta fase
 
 `/identify`, vínculo visitor→lead, tracking de WhatsApp, classificação de origem, telas de UI, Smartlook, envio para Google/Meta Ads.
+
+## Fase 2 — Identidade & Jornada
+
+Tabela `tracking_identity_links`: liga `visitor_id` ↔ `lead_id` por clínica. Guarda apenas hashes SHA-256 de e-mail e telefone, nunca o valor puro. RLS por `has_clinic_access`.
+
+### Edge function `tracking-identify`
+
+`POST /functions/v1/tracking-identify` com `{ project_id, visitor_id, session_id?, lead_id?, email?, phone?, whatsapp_id?, source_event?, properties? }`.
+
+- Resolve `clinic_id` por `project_id` (slug).
+- Valida `Origin` contra `allowed_domains` ou autoriza chamada interna (membro da clínica).
+- Se `lead_id` não vier, tenta resolver por `email`/`phone` dentro da clínica.
+- Upsert em `tracking_identity_links` (único por `clinic_id+visitor_id+lead_id`).
+- Backfill: `tracking_events` desse `visitor_id` recebe `lead_id`.
+- Insere evento `lead_identified` (type `identity`).
+
+### Helper interno
+
+```ts
+import { linkVisitorToLead } from "@/lib/tracking-identify";
+await linkVisitorToLead({ clinic_id, visitor_id, lead_id, source_event: "form_submit_success" });
+```
+
+### UI
+
+- Aba **Jornada** no lead drawer (`LeadJourneyTab`): resumo do visitante principal, sessões, timeline de eventos, visitantes vinculados.
+- `/tracking-debug`: coluna **lead vinculado** + botões **Abrir lead** e **Criar jornada de teste** (gera visitor + eventos + identify com `test_mode=true`).
