@@ -409,11 +409,11 @@ export default function TrackingDebug() {
             <TableHeader>
               <TableRow>
                 <TableHead>visitor_id</TableHead>
+                <TableHead>lead vinculado</TableHead>
                 <TableHead>first_seen_at</TableHead>
                 <TableHead>last_seen_at</TableHead>
                 <TableHead>first_landing_page</TableHead>
                 <TableHead>first_referrer</TableHead>
-                <TableHead>created_at</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -421,21 +421,34 @@ export default function TrackingDebug() {
               {visitors.length === 0 && (
                 <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
               )}
-              {visitors.map((v) => (
+              {visitors.map((v) => {
+                const link = linkedByVisitor[v.visitor_id];
+                return (
                 <TableRow key={v.visitor_id}>
                   <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 18)}</TableCell>
+                  <TableCell className="text-xs">
+                    {link ? (
+                      <span title={link.lead_id}>{link.name || link.lead_id.slice(0, 8)}</span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.first_seen_at)}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.last_seen_at)}</TableCell>
                   <TableCell className="text-xs"><span title={v.first_landing_page ?? ""}>{truncate(v.first_landing_page, 50)}</span></TableCell>
                   <TableCell className="text-xs"><span title={v.first_referrer ?? ""}>{truncate(v.first_referrer, 40)}</span></TableCell>
-                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.created_at)}</TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
-                      <Eye className="h-3 w-3" /> Ver jornada
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {link && (
+                        <Button asChild size="sm" variant="ghost" title="Abrir lead">
+                          <RouterLink to={`/kanban?lead=${link.lead_id}`}><ExternalLink className="h-3 w-3" /></RouterLink>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
+                        <Eye className="h-3 w-3" /> Ver jornada
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         </CardContent>
