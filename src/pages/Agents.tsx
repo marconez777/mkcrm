@@ -48,19 +48,40 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   openai: "OpenAI", anthropic: "Anthropic", google: "Google AI",
 };
 
-const TOOLS = [
-  { id: "move_lead_stage", label: "Mover lead de estágio" },
-  { id: "add_lead_note", label: "Anotar no lead" },
-  { id: "set_lead_field", label: "Atualizar campo do lead" },
-  { id: "assign_attendant", label: "Atribuir atendente" },
-  { id: "search_knowledge_base", label: "Buscar na base (RAG)" },
-  { id: "create_task", label: "Criar tarefa" },
-  { id: "schedule_message", label: "Agendar mensagem" },
-  { id: "get_lead_history", label: "Ler histórico do lead" },
-  { id: "transfer_to_human", label: "Transferir para humano" },
-  { id: "update_custom_field", label: "Atualizar campo custom" },
-  { id: "remember_fact", label: "Memorizar fato/preferência" },
+const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
+  {
+    group: "Pipeline & Lead",
+    tools: [
+      { id: "move_lead_stage", label: "Mover lead de estágio" },
+      { id: "set_lead_field", label: "Atualizar campo do lead" },
+      { id: "update_custom_field", label: "Atualizar campo custom" },
+      { id: "assign_attendant", label: "Atribuir atendente" },
+    ],
+  },
+  {
+    group: "Conversa & Histórico",
+    tools: [
+      { id: "add_lead_note", label: "Anotar no lead" },
+      { id: "get_lead_history", label: "Ler histórico do lead" },
+      { id: "transfer_to_human", label: "Transferir para humano" },
+    ],
+  },
+  {
+    group: "Conhecimento & Memória",
+    tools: [
+      { id: "search_knowledge_base", label: "Buscar na base (RAG)" },
+      { id: "remember_fact", label: "Memorizar fato/preferência", hint: "Silenciosa — recomendada em agentes observadores" },
+    ],
+  },
+  {
+    group: "Agendamentos & Tarefas",
+    tools: [
+      { id: "create_task", label: "Criar tarefa" },
+      { id: "schedule_message", label: "Agendar mensagem" },
+    ],
+  },
 ];
+const TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
 
 function McpServersPanel({ agentId }: { agentId: string }) {
   const [servers, setServers] = useState<any[]>([]);
