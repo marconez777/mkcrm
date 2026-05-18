@@ -146,6 +146,13 @@ function buildScript(projectId: string) {
       timezone:(Intl&&Intl.DateTimeFormat&&Intl.DateTimeFormat().resolvedOptions().timeZone)||null,
       screen_width:window.screen&&window.screen.width||null,
       screen_height:window.screen&&window.screen.height||null,
+      fbp:fbp,
+      fbc:fbc,
+      ttclid:ttclid,
+      li_fat_id:li_fat_id,
+      raw_querystring:window.location.search||null,
+      raw_referrer:document.referrer||null,
+      raw_params:urlObj?collectAllParams(urlObj):null,
       properties:extra||{}
     };
     return ev;
