@@ -12,6 +12,11 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+const anonClient = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_ANON_KEY")!,
+);
+
 // Tiny in-memory rate limiter: 60 req/min per (ip+clinic)
 const rl = new Map<string, { c: number; t: number }>();
 function rateLimited(key: string) {
@@ -73,6 +78,28 @@ function isOriginAllowed(allowed: string[], host: string | null): boolean {
   return hosts.some((d) => d === host || host.endsWith("." + d));
 }
 
+async function isInternalAuthorized(req: Request, clinicId: string) {
+  const authHeader = req.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return false;
+
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData?.user) return false;
+
+  const userId = userData.user.id;
+  const [{ data: superRow }, { data: memberRow }] = await Promise.all([
+    supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin").maybeSingle(),
+    supabase.from("clinic_members").select("clinic_id, role").eq("user_id", userId).eq("clinic_id", clinicId).maybeSingle(),
+  ]);
+
+  return !!superRow || (memberRow?.clinic_id === clinicId && (memberRow?.role === "owner" || memberRow?.role === "admin"));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") {
@@ -129,13 +156,15 @@ Deno.serve(async (req) => {
   }
 
   const allowed = tcfg.allowed_domains || [];
-  if (!isOriginAllowed(allowed, host)) {
-    console.log("[tracking-event] origin_blocked", { clinic_id: clinic.id, host, allowed });
+  const originAllowed = isOriginAllowed(allowed, host);
+  const internalAuthorized = !originAllowed ? await isInternalAuthorized(req, clinic.id) : false;
+  if (!originAllowed && !internalAuthorized) {
+    console.log("[tracking-event] origin_blocked", { clinic_id: clinic.id, host, allowed, internal_authorized: false });
     return new Response(JSON.stringify({ error: "origin_not_allowed", host, allowed }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
-  console.log("[tracking-event] origin_allowed", { clinic_id: clinic.id, host });
+  console.log("[tracking-event] origin_allowed", { clinic_id: clinic.id, host, internal_authorized: internalAuthorized });
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "0.0.0.0";
   const rlKey = `${clinic.id}:${ip}`;
