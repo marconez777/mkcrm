@@ -478,9 +478,9 @@ export default function Tracking() {
                     <TableHead>Primeira página</TableHead>
                     <TableHead>Referrer</TableHead>
                     <TableHead className="text-center">Sess.</TableHead>
-                    <TableHead className="text-center">WA</TableHead>
-                    <TableHead className="text-center">Form</TableHead>
-                    <TableHead className="text-center">Submit</TableHead>
+                    <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
+                    <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
+                    <TableHead className="text-center" title="form_submit_attempt / form_submit">Submit</TableHead>
                     <TableHead>Lead</TableHead>
                     <TableHead>Etapa</TableHead>
                     <TableHead></TableHead>
