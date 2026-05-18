@@ -227,7 +227,12 @@ Deno.serve(async (req) => {
       .eq("visitor_id", visitor_id)
       .maybeSingle();
 
-    if (visitor?.last_non_direct_source && conversionSession?.source !== visitor.last_non_direct_source) {
+    const sameAsConversion = !!conversionSession
+      && conversionSession.source === visitor?.last_non_direct_source
+      && conversionSession.medium === visitor?.last_non_direct_medium
+      && (conversionSession.campaign ?? null) === (visitor?.last_non_direct_campaign ?? null);
+
+    if (visitor?.last_non_direct_source && !sameAsConversion) {
       rows.push({
         clinic_id: clinic.id,
         lead_id: resolvedLeadId,
