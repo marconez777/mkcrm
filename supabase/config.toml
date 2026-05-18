@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.ai-analyst-run]
 verify_jwt = false
+
+[functions.external-lead-capture]
+verify_jwt = false
