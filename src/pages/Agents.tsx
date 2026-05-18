@@ -48,19 +48,40 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   openai: "OpenAI", anthropic: "Anthropic", google: "Google AI",
 };
 
-const TOOLS = [
-  { id: "move_lead_stage", label: "Mover lead de estágio" },
-  { id: "add_lead_note", label: "Anotar no lead" },
-  { id: "set_lead_field", label: "Atualizar campo do lead" },
-  { id: "assign_attendant", label: "Atribuir atendente" },
-  { id: "search_knowledge_base", label: "Buscar na base (RAG)" },
-  { id: "create_task", label: "Criar tarefa" },
-  { id: "schedule_message", label: "Agendar mensagem" },
-  { id: "get_lead_history", label: "Ler histórico do lead" },
-  { id: "transfer_to_human", label: "Transferir para humano" },
-  { id: "update_custom_field", label: "Atualizar campo custom" },
-  { id: "remember_fact", label: "Memorizar fato/preferência" },
+const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
+  {
+    group: "Pipeline & Lead",
+    tools: [
+      { id: "move_lead_stage", label: "Mover lead de estágio" },
+      { id: "set_lead_field", label: "Atualizar campo do lead" },
+      { id: "update_custom_field", label: "Atualizar campo custom" },
+      { id: "assign_attendant", label: "Atribuir atendente" },
+    ],
+  },
+  {
+    group: "Conversa & Histórico",
+    tools: [
+      { id: "add_lead_note", label: "Anotar no lead" },
+      { id: "get_lead_history", label: "Ler histórico do lead" },
+      { id: "transfer_to_human", label: "Transferir para humano" },
+    ],
+  },
+  {
+    group: "Conhecimento & Memória",
+    tools: [
+      { id: "search_knowledge_base", label: "Buscar na base (RAG)" },
+      { id: "remember_fact", label: "Memorizar fato/preferência", hint: "Silenciosa — recomendada em agentes observadores" },
+    ],
+  },
+  {
+    group: "Agendamentos & Tarefas",
+    tools: [
+      { id: "create_task", label: "Criar tarefa" },
+      { id: "schedule_message", label: "Agendar mensagem" },
+    ],
+  },
 ];
+const TOOLS = TOOL_GROUPS.flatMap((g) => g.tools);
 
 function McpServersPanel({ agentId }: { agentId: string }) {
   const [servers, setServers] = useState<any[]>([]);
@@ -618,15 +639,23 @@ export default function Agents() {
                     <Badge variant="outline" className="ml-2 text-[10px]">{selected.tools.length}</Badge>
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-2 pb-4">
-                  {TOOLS.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={selected.tools.includes(t.id)}
-                        onCheckedChange={() => toggleTool(t.id)}
-                      />
-                      {t.label}
-                    </label>
+                <AccordionContent className="space-y-4 pb-4">
+                  {TOOL_GROUPS.map((g) => (
+                    <div key={g.group} className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
+                      {g.tools.map((t) => (
+                        <label key={t.id} className="flex items-start gap-2 text-sm">
+                          <Switch
+                            checked={selected.tools.includes(t.id)}
+                            onCheckedChange={() => toggleTool(t.id)}
+                          />
+                          <span className="flex-1">
+                            {t.label}
+                            {t.hint && <span className="block text-xs text-muted-foreground">{t.hint}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </AccordionContent>
               </AccordionItem>

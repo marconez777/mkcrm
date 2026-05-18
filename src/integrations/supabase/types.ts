@@ -3669,7 +3669,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ai_usage_daily: {
+        Row: {
+          agent_id: string | null
+          avg_latency_ms: number | null
+          calls: number | null
+          clinic_id: string | null
+          cost_usd: number | null
+          day: string | null
+          errors: number | null
+          input_tokens: number | null
+          model: string | null
+          operation: string | null
+          output_tokens: number | null
+          total_tokens: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
