@@ -12,11 +12,6 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const anonClient = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_ANON_KEY")!,
-);
-
 // Tiny in-memory rate limiter: 60 req/min per (ip+clinic)
 const rl = new Map<string, { c: number; t: number }>();
 function rateLimited(key: string) {
