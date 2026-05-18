@@ -1,122 +1,91 @@
-# Onda 2: Inteligência de Atribuição
+# Onda 3: Normalização de variações + UI de atribuição
 
-100% aditivo. Não toca em `tracking_identity_links`, rate-limit, allowlist, batch size, UI ou colunas `first_*`. Sessões antigas não são reclassificadas (`ignoreDuplicates: true` mantido).
+100% aditivo. Não toca em `tracking-pixel`/tracker.js, não recalcula sessões antigas, não modifica `raw_params`.
 
-## 1. Migration `add_tracking_attribution_intelligence.sql`
+## 1. Migration `add_tracking_normalization_rules.sql`
 
-Idempotente (`add column if not exists`).
+Tabela `traffic_source_rules`:
+- `id uuid pk default gen_random_uuid()`, `clinic_id uuid null` (null = global), `match_type text check in ('exact','contains')`, `input_source text`, `input_medium text`, `normalized_source text`, `normalized_medium text`, `channel_group text`, `priority int default 100`, `active boolean default true`, `created_at timestamptz default now()`.
+- Index `(active, priority, clinic_id)`.
+- RLS habilitada:
+  - SELECT: `clinic_id is null OR clinic_id = current_clinic_id()`
+  - INSERT/UPDATE: `clinic_id = current_clinic_id()` (globais ficam reservadas a service_role / SQL direto)
+- Seeds 21 regras globais (clinic_id NULL, priority 10): fb→facebook/paid_social; facebook.com/m.facebook.com/l.facebook.com→facebook/organic_social; ig/insta/instagram.com/l.instagram.com→instagram/organic_social; metaads/meta-ads→meta/paid_social; googleads/google-ads/adwords→google/paid_search; youtube.com/m.youtube.com→youtube/organic_social; linkedin.com→linkedin/organic_social; tiktok.com→tiktok/organic_social; wa/whatsapp→whatsapp/referral; bing.com→bing/organic_search; duckduckgo.com→duckduckgo/organic_search. `ON CONFLICT DO NOTHING`.
 
-- **`tracking_sessions`**: `channel_group text`, `confidence_score int`, `attribution_reason text`.
-- **`tracking_visitors` (last_touch)**: `last_source`, `last_medium`, `last_campaign`, `last_channel_group`, `last_seen_attribution_at timestamptz`.
-- **`tracking_visitors` (last_non_direct_touch)**: `last_non_direct_source`, `last_non_direct_medium`, `last_non_direct_campaign`, `last_non_direct_channel_group`, `last_non_direct_at timestamptz`.
-- **Backfill**: `UPDATE tracking_visitors SET last_* = first_*` onde `last_source IS NULL AND first_source IS NOT NULL` (apenas para não quebrar relatórios na transição).
+## 2. `tracking-event/index.ts` — aplicar regras pós-resolveTrafficSource
 
-## 2. Novo arquivo `supabase/functions/_shared/attribution.ts`
-
-Função pura `resolveTrafficSource(input)` retornando `{source, medium, campaign, content, term, channel_group, confidence_score, attribution_reason}`.
-
-Normalização: `trim + lowercase + remove protocol + remove www`.
-
-Prioridade determinística:
-1. **Click IDs** (95 se coerente com UTM, 85 se incoerente):
-   - `gclid|gbraid|wbraid` → google/cpc, paid_search, `google_click_id`
-   - `fbclid|fbc` → meta (ou facebook/instagram se coerente)/paid_social, paid_social, `meta_click_id`
-   - `ttclid` (90) → tiktok/paid_social, `tiktok_click_id`
-   - `msclkid` (90) → microsoft/cpc, paid_search, `microsoft_click_id`
-   - `li_fat_id` (90) → linkedin/paid_social, paid_social, `linkedin_click_id`
-2. **UTMs** (80 com campaign, 70 sem) → classifyChannel(source, medium), reason `utm`
-3. **Referrer** (65 buscadores google/bing/duckduckgo, 55 sociais instagram/facebook/linkedin/youtube, 50 outros) → organic_search / organic_social / referral
-4. **Direct** (30) → direct/none, channel_group `direct`, reason `no_referrer_no_params`
-
-`classifyChannel` mapeia medium → `paid_search | paid_social | organic_search | organic_social | email | referral | other | unknown`.
-
-## 3. `tracking-event/index.ts` — usar resolveTrafficSource na criação da sessão
-
-Import do `_shared/attribution.ts`. Dentro do loop `for (const ev of events)`, antes de montar `sessionRow`:
+No topo do módulo (escopo da edge, persiste entre invocações na mesma instância):
 
 ```ts
-const attr = resolveTrafficSource({
-  utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
-  utm_content: ev.utm_content, utm_term: ev.utm_term,
-  gclid: ev.gclid, gbraid: ev.gbraid, wbraid: ev.wbraid,
-  fbclid: ev.fbclid, fbp: ev.fbp, fbc: ev.fbc,
-  ttclid: ev.ttclid, msclkid: ev.msclkid, li_fat_id: ev.li_fat_id,
-  referrer: ev.referrer,
-});
+type Rule = { match_type:'exact'|'contains'; input_source:string|null; normalized_source:string|null; normalized_medium:string|null; channel_group:string|null; priority:number };
+const ruleCacheByClinic = new Map<string,{rules:Rule[];stamp:number}>();
+const RULE_CACHE_TTL_MS = 5*60*1000;
+async function getRulesForClinic(clinic_id:string): Promise<Rule[]> { /* select com .or('clinic_id.is.null,clinic_id.eq.'+clinic_id) + active=true + order priority asc, cache 5min */ }
+function applyRules(source:string|null, rules:Rule[]): {source,medium,channel_group}|null { /* lowercase compare; first match (já ordenado por priority) vence */ }
 ```
 
-No `sessionRows.set(...)` (linha ~195): sobrescrever `source/medium/campaign/utm_content/utm_term` com os valores de `attr` e adicionar `channel_group`, `confidence_score`, `attribution_reason`. Todos os click IDs e `raw_*` da Onda 1 continuam vindo do `ev.*`. Upsert mantém `ignoreDuplicates: true` (Onda 1).
-
-## 4. `tracking-event/index.ts` — last_* e last_non_direct_* em `tracking_visitors`
-
-Calcular `attr` por evento já no loop (item 3). Agregar no Map de visitors o `attr` do **último evento por visitor no batch**.
-
-No **INSERT** (visitor novo) — adicionar campos last_* (= first_*) e, se `attr.source !== 'direct'`, last_non_direct_* também. `first_*` permanece imutável (já é setado só no INSERT).
-
-No **UPDATE** (visitor existente) — substituir payload por:
+Antes do loop de eventos (handler), `const rules = await getRulesForClinic(clinic.id);`. Dentro do loop, depois de `const attr = resolveTrafficSource(...)`:
 
 ```ts
-const updatePayload: any = {
-  last_seen_at: v.last_seen_at,
-  device_type: v.device_type, browser: v.browser, operating_system: v.operating_system,
-  last_source: v.attr.source,
-  last_medium: v.attr.medium,
-  last_campaign: v.attr.campaign,
-  last_channel_group: v.attr.channel_group,
-  last_seen_attribution_at: v.last_seen_at,
-};
-if (v.attr.source !== 'direct') {
-  Object.assign(updatePayload, {
-    last_non_direct_source: v.attr.source,
-    last_non_direct_medium: v.attr.medium,
-    last_non_direct_campaign: v.attr.campaign,
-    last_non_direct_channel_group: v.attr.channel_group,
-    last_non_direct_at: v.last_seen_at,
-  });
+const m = applyRules(attr.source, rules);
+if (m) {
+  attr.source = m.source ?? attr.source;
+  if (m.medium) attr.medium = m.medium;
+  if (m.channel_group) attr.channel_group = m.channel_group;
 }
 ```
 
-**Regra crítica:** `direct` nunca sobrescreve `last_non_direct_*`.
+`raw_params` permanece intocado.
 
-## 5. `tracking-pixel/index.ts` — quebra de sessão por mudança de campanha
+## 3. `src/components/leads/LeadAttributionCard.tsx` (novo)
 
-Adicionar constante `STORAGE_SID_SIG = "_mk_sid_sig"`. Adicionar helper `getCampaignSignature()` que lê de `window.location.search` os params `gclid|gbraid|wbraid|fbclid|ttclid|msclkid|li_fat_id|utm_source|utm_campaign` e retorna concatenação com `|`.
+Busca `tracking_lead_sources` filtrando por `lead_id` (RLS já scope clinic). Estados: loading (Skeleton), vazio ("Sem dados de origem. Esse lead não foi vinculado a um visitante rastreado."), e com dados.
 
-Reescrever `getSid()`:
-- Ler `sid`, `exp`, `lastSig` de sessionStorage.
-- `expired = !sid || now > exp`.
-- `hasCampaignSignal = nowSig && nowSig.replace(/\|/g,'').length > 0`.
-- `campaignChanged = hasCampaignSignal && lastSig && nowSig !== lastSig`.
-- Se `expired || campaignChanged` → gera novo sid.
-- Sempre renova `exp`.
-- **Só atualiza** `_mk_sid_sig` quando `hasCampaignSignal` (navegação interna sem UTMs preserva última assinatura conhecida).
+Render: agrupa por `source_type` (conversion_touch, first_touch, last_non_direct). Para cada bloco usa `SourceBlock` com título, badge de `confidence_score`, linha `source / medium`, campanha, channel_group e página. `conversion_touch` recebe `highlight` (border/bg sutis via design tokens).
 
-## 6. `tracking-identify/index.ts` — channel_group/confidence_score + last_non_direct
+`ClickIdsRow` (uma vez, baseado em conversion_touch ?? first_touch): lê `gclid, fbclid, fbp, fbc, ttclid, msclkid, li_fat_id`, e renderiza **só nome em Badge "capturado"** quando truthy. Nunca exibir o valor.
 
-Em `buildSourceRow`: trocar `channel_group: null` por `session.channel_group ?? null` e `confidence_score: null` por `session.confidence_score ?? null`.
+Cleanup via `cancelled` flag no useEffect.
 
-Após buscar `firstSession`/`conversionSession`, buscar visitor:
+## 4. Integrar no `src/pages/LeadDrawer.tsx`
 
-```ts
-const { data: visitor } = await supabase
-  .from('tracking_visitors')
-  .select('last_non_direct_source,last_non_direct_medium,last_non_direct_campaign,last_non_direct_channel_group,last_non_direct_at')
-  .eq('clinic_id', clinic.id).eq('visitor_id', visitor_id).maybeSingle();
-```
+Adicionar `<LeadAttributionCard leadId={lead.id} />` na coluna lateral / abaixo das informações principais (decisão pontual ao implementar — sem alterar lógica do drawer).
 
-Se `visitor?.last_non_direct_source` existe **E** difere de `conversionSession?.source`, adicionar row extra `source_type: 'last_non_direct'` (com `session_id: null`, click IDs `null`, `confidence_score: null`, raw_params `null`). Mesmo upsert com `onConflict: 'clinic_id,lead_id,source_type'`.
+## 5. Aba "Atribuição" em `src/pages/Tracking.tsx` + `src/pages/tracking/AttributionTab.tsx`
 
-## Critérios de aceitação (do brief)
+Em `Tracking.tsx`:
+- Adicionar `<TabsTrigger value="attribution">Atribuição</TabsTrigger>` (linha ~438) e respectivo `<TabsContent value="attribution"><AttributionTab clinicId={membership?.clinic?.id} from={sinceISO} to={untilISO} /></TabsContent>` (após o de visitors).
+- Renderizar `AttributionTab` apenas quando `clinicId` definido.
 
-- Migration idempotente; backfill `first_* → last_*` em visitors existentes.
-- `?gclid=abc&utm_source=newsletter` → source=google, medium=cpc, reason=google_click_id, score=85, channel=paid_search.
-- `?utm_source=instagram&utm_medium=social&utm_campaign=teste` → score=80, reason=utm, channel=organic_social.
-- Referrer google.com sem params → google/organic, score=65, reason=referrer_google.
-- Sem nada → direct/none, score=30.
-- Visitor entra via `?fbclid=...` e volta sem UTMs: `last_source=direct`, `last_non_direct_source=meta`, `first_source=meta` (imutável).
-- Mesma aba `/?fbclid=abc` → `/contato`: mesmo session_id. `/?fbclid=abc` → `/?gclid=xyz`: novo session_id. Timeout 30min → novo session_id.
-- `tracking_lead_sources` na identificação contém first_touch + conversion_touch + (se aplicável) last_non_direct com `channel_group` e `confidence_score`.
+`AttributionTab` (novo arquivo `src/pages/tracking/AttributionTab.tsx`):
+- useEffect com cleanup busca `tracking_lead_sources` filtrando `clinic_id`, `source_type='conversion_touch'`, `created_at` entre `from`/`to` (período obrigatório, **nunca sem filtro**).
+- `useMemo` agrupa por `${channel_group}|${source}|${medium}` agregando: leads (count) e confidence média (sum/count).
+- Renderiza Table: Canal | Origem | Mídia | Leads | Confiança média. Ordenado por leads desc.
+- Estados: loading text, vazio ("Sem leads com atribuição no período"), tabela.
 
-## Fora do escopo
+## Regras inegociáveis
 
-UI/Tracking.tsx, `traffic_source_rules`, reprocessamento de sessões antigas, modelos multi-touch, mudanças em batch size/rate-limit/allowlist/identity_links.
+- Globais (`clinic_id IS NULL`) read-only para clínicas via RLS; só service_role/SQL direto altera.
+- Cache de regras por instância, TTL 5min — aceitável.
+- Normalização **nunca** toca `raw_params`.
+- UI lê **exclusivamente** de `tracking_lead_sources` (canônica) — sem joins reconstrutivos.
+- Click IDs aparecem só como badge "capturado" (nome) — nunca valor em texto.
+
+## Fora de escopo
+
+- Editor de regras na UI.
+- Mudanças em tracker.js / tracking-pixel.
+- Recálculo de sessões antigas.
+- Onda 4.
+
+## Critérios de aceitação
+
+- Migration cria 21 regras globais.
+- `?utm_source=fb&utm_medium=cpc` → session `source='facebook'`.
+- `?utm_source=IG` → `source='instagram'`.
+- `?utm_source=googleads` → `source='google'`, `channel_group='paid_search'`.
+- `raw_params` preserva `fb`, `IG`, `googleads` originais.
+- Card do lead mostra conversion_touch, first_touch, last_non_direct (quando existirem), confidence_score e badges de identificadores capturados.
+- Lead sem sources → "Sem dados de origem".
+- Aba Atribuição agrupa canal × origem × mídia com contagem e confiança média do período.
+- Nenhum valor de click ID em texto na UI.

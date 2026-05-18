@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Eye, ExternalLink } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
+import { AttributionTab } from "@/pages/tracking/AttributionTab";
 
 type EventRow = {
   id: string;
@@ -436,6 +437,7 @@ export default function Tracking() {
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
           <TabsTrigger value="pages">Páginas</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="attribution">Atribuição</TabsTrigger>
         </TabsList>
 
         {/* Visitantes */}
@@ -668,6 +670,14 @@ export default function Tracking() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="attribution">
+          {membership?.clinic?.id ? (
+            <AttributionTab clinicId={membership.clinic.id} from={sinceISO} to={untilISO} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Sem clínica selecionada.</p>
+          )}
         </TabsContent>
       </Tabs>
 

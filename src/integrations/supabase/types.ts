@@ -3713,6 +3713,48 @@ export type Database = {
         }
         Relationships: []
       }
+      traffic_source_rules: {
+        Row: {
+          active: boolean
+          channel_group: string | null
+          clinic_id: string | null
+          created_at: string
+          id: string
+          input_medium: string | null
+          input_source: string | null
+          match_type: string
+          normalized_medium: string | null
+          normalized_source: string | null
+          priority: number
+        }
+        Insert: {
+          active?: boolean
+          channel_group?: string | null
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          input_medium?: string | null
+          input_source?: string | null
+          match_type: string
+          normalized_medium?: string | null
+          normalized_source?: string | null
+          priority?: number
+        }
+        Update: {
+          active?: boolean
+          channel_group?: string | null
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          input_medium?: string | null
+          input_source?: string | null
+          match_type?: string
+          normalized_medium?: string | null
+          normalized_source?: string | null
+          priority?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
