@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         campaign: session.campaign ?? null,
         content: session.utm_content ?? null,
         term: session.utm_term ?? null,
-        channel_group: null,
+        channel_group: session.channel_group ?? null,
         landing_page: session.landing_page ?? null,
         conversion_page: sourceType === "conversion_touch" ? session.landing_page : null,
         referrer: session.referrer ?? null,
@@ -203,20 +203,52 @@ Deno.serve(async (req) => {
         ttclid: session.ttclid ?? null,
         msclkid: session.msclkid ?? null,
         li_fat_id: session.li_fat_id ?? null,
-        confidence_score: null,
+        confidence_score: session.confidence_score ?? null,
         raw_params: session.raw_params ?? null,
       };
     };
 
-    const rows = [
+    const rows: any[] = [
       buildSourceRow("first_touch", firstSession),
       buildSourceRow("conversion_touch", conversionSession),
     ].filter(Boolean);
 
+    // last_non_direct touch (if visitor has one and it differs from conversion source)
+    const { data: visitor } = await supabase
+      .from("tracking_visitors")
+      .select("last_non_direct_source,last_non_direct_medium,last_non_direct_campaign,last_non_direct_channel_group,last_non_direct_at")
+      .eq("clinic_id", clinic.id)
+      .eq("visitor_id", visitor_id)
+      .maybeSingle();
+
+    if (visitor?.last_non_direct_source && conversionSession?.source !== visitor.last_non_direct_source) {
+      rows.push({
+        clinic_id: clinic.id,
+        lead_id: resolvedLeadId,
+        visitor_id,
+        session_id: null,
+        source_type: "last_non_direct",
+        source: visitor.last_non_direct_source,
+        medium: visitor.last_non_direct_medium,
+        campaign: visitor.last_non_direct_campaign,
+        content: null,
+        term: null,
+        channel_group: visitor.last_non_direct_channel_group,
+        landing_page: null,
+        conversion_page: null,
+        referrer: null,
+        gclid: null, gbraid: null, wbraid: null,
+        fbclid: null, fbp: null, fbc: null,
+        ttclid: null, msclkid: null, li_fat_id: null,
+        confidence_score: null,
+        raw_params: null,
+      });
+    }
+
     if (rows.length > 0) {
       const { error: lsErr } = await supabase
         .from("tracking_lead_sources")
-        .upsert(rows as any[], {
+        .upsert(rows, {
           onConflict: "clinic_id,lead_id,source_type",
           ignoreDuplicates: false,
         });
