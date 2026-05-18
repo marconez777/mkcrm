@@ -119,7 +119,7 @@ export default function StagesManager({ pipelineId }: Props) {
     setStages((s) => s.filter((x) => x.id !== stage.id));
   }
 
-  async function updateStage(id: string, patch: Partial<Pick<Stage, "name" | "color">>) {
+  async function updateStage(id: string, patch: Partial<Pick<Stage, "name" | "color" | "is_terminal">>) {
     setStages((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     const { error } = await supabase.from("pipeline_stages").update(patch).eq("id", id);
     if (error) toast.error(error.message);
