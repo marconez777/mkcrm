@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { lead_id, text, client_message_id, quoted_external_id } = await req.json();
+    const { lead_id, text, client_message_id, quoted_external_id, bot_agent_id } = await req.json();
     if (!lead_id || !text?.trim()) {
       return json({ error: "lead_id and text required" }, 400);
     }
@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
           status: "pending",
           timestamp: nowIso,
           reply_to_external_id: quoted_external_id ?? null,
+          bot_agent_id: bot_agent_id ?? null,
         })
         .select("id")
         .single();

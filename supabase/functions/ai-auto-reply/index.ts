@@ -4,18 +4,12 @@
 //
 // Also enqueues the per-instance "Pipeline Watcher" (silent agent) in parallel,
 // regardless of who sent the message — vigia avalia conversa de ambos os lados.
+//
+// Bot-loop guard: when the incoming message is from_me AND it was sent by an AI
+// agent (messages.bot_agent_id set by evolution-send/dispatcher), skip enqueue
+// entirely — otherwise every bot reply triggers another watcher run.
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
-
-const SILENT_TOOLS = new Set([
-  "move_lead_stage","add_lead_note","set_lead_field","update_custom_field",
-  "assign_attendant","remember_fact","transfer_to_human","create_task","schedule_message","get_lead_history",
-  "add_lead_tag","remove_lead_tag","get_lead_state","search_knowledge_base",
-]);
-
-function isSilentByTools(tools: string[] | null | undefined): boolean {
-  if (!tools || tools.length === 0) return false;
-  return tools.every((t) => SILENT_TOOLS.has(t));
-}
+import { isSilentByTools } from "../_shared/agent-flags.ts";
 
 const FUNCTIONS_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -49,7 +43,10 @@ async function enqueueAgent(supabase: any, leadId: string, clinicId: string, age
   // returns NULL when invoked via service role (no auth.uid()), which would
   // silently fail the NOT NULL constraint and break the entire watcher pipeline.
   const { error: upsertErr } = await supabase.from("pending_replies").upsert(
-    { lead_id: leadId, agent_id: agentId, run_at: runAt, clinic_id: clinicId },
+    {
+      lead_id: leadId, agent_id: agentId, run_at: runAt, clinic_id: clinicId,
+      status: "pending", attempts: 0, last_error: null, claimed_at: null,
+    },
     { onConflict: "lead_id,agent_id" },
   );
   if (upsertErr) {
@@ -79,6 +76,21 @@ Deno.serve(async (req) => {
       .from("leads").select("id, clinic_id, stage_id, pipeline_id, whatsapp_instance_id").eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
     if (!lead.clinic_id) return json({ error: "lead missing clinic_id" }, 500);
+
+    // Bot-loop guard: if the most recent message is from_me and came from a bot,
+    // skip enqueue entirely. Watchers are silent but still consume tokens.
+    if (from_me) {
+      const { data: lastMsg } = await supabase
+        .from("messages")
+        .select("bot_agent_id, from_me")
+        .eq("lead_id", lead_id)
+        .order("timestamp", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastMsg?.from_me && lastMsg?.bot_agent_id) {
+        return json({ ok: true, skipped: true, reason: "from_bot-loop-guard" });
+      }
+    }
 
     const results: Record<string, any> = {};
 

@@ -1,7 +1,10 @@
 // Advanced RAG: query rewrite + HyDE + hybrid search (RRF) + reranker + memory recall.
-// Hardening: embedding cache, retrieval cache, conditional reranker, score floor, HyDE timeout fallback.
+// Hardening: embedding cache (active), token budget on retrieved chunks, conditional reranker.
 import { embed, chatCompletion, type Agent, type ChatMessage } from "./ai.ts";
-import { getCachedEmbedding, setCachedEmbedding, getCachedRetrieval, setCachedRetrieval, withTimeout } from "./utils.ts";
+import { getCachedEmbedding, setCachedEmbedding } from "./utils.ts";
+
+// ~4 chars per token (pt-BR ratio). Budget keeps the prompt under ~4k tokens of context.
+const RAG_CHUNK_CHAR_BUDGET = 16_000;
 
 export type RetrievedChunk = {
   id: string;
@@ -153,11 +156,21 @@ export async function retrieveContext(opts: {
     if (hyde) textForEmbed = hyde;
   }
 
-  // 3. Embed
+  // 3. Embed (with cache hit short-circuit)
   let queryVec: number[] | null = null;
+  const embedModel = agent.embedding_model ?? "text-embedding-3-small";
   try {
-    const [v] = await embed(agent, [textForEmbed], { agent_id: agent.id, lead_id: leadId ?? null, note: "rag:query" });
-    queryVec = v;
+    const cached = await getCachedEmbedding(supabase, textForEmbed, embedModel);
+    if (cached) {
+      queryVec = cached;
+    } else {
+      const [v] = await embed(agent, [textForEmbed], { agent_id: agent.id, lead_id: leadId ?? null, note: "rag:query" });
+      queryVec = v;
+      if (v && Array.isArray(v)) {
+        // best-effort cache write; ignore errors
+        setCachedEmbedding(supabase, textForEmbed, embedModel, v).catch(() => {});
+      }
+    }
   } catch (e) {
     console.error("rag embed error", e);
   }
@@ -185,6 +198,19 @@ export async function retrieveContext(opts: {
     chunks = await rerank(agent.reranker_provider ?? null, agent.reranker_api_key ?? null, rewritten, chunks, topK);
   } else {
     chunks = chunks.slice(0, topK);
+  }
+
+  // 5b. Token budget — drop low-ranked chunks once we exceed the char budget
+  {
+    let used = 0;
+    const kept: RetrievedChunk[] = [];
+    for (const c of chunks) {
+      const len = (c.content ?? "").length;
+      if (used + len > RAG_CHUNK_CHAR_BUDGET && kept.length > 0) break;
+      kept.push(c);
+      used += len;
+    }
+    chunks = kept;
   }
 
   // 6. Attach doc titles

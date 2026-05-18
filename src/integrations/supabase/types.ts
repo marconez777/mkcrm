@@ -548,6 +548,7 @@ export type Database = {
           agent_id: string | null
           automation_id: string | null
           clinic_id: string
+          cost_usd: number | null
           created_at: string
           error: string | null
           id: string
@@ -567,6 +568,7 @@ export type Database = {
           agent_id?: string | null
           automation_id?: string | null
           clinic_id?: string
+          cost_usd?: number | null
           created_at?: string
           error?: string | null
           id?: string
@@ -586,6 +588,7 @@ export type Database = {
           agent_id?: string | null
           automation_id?: string | null
           clinic_id?: string
+          cost_usd?: number | null
           created_at?: string
           error?: string | null
           id?: string
@@ -2414,6 +2417,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          bot_agent_id: string | null
           client_message_id: string | null
           clinic_id: string
           content: string | null
@@ -2434,6 +2438,7 @@ export type Database = {
           timestamp: string
         }
         Insert: {
+          bot_agent_id?: string | null
           client_message_id?: string | null
           clinic_id?: string
           content?: string | null
@@ -2454,6 +2459,7 @@ export type Database = {
           timestamp?: string
         }
         Update: {
+          bot_agent_id?: string | null
           client_message_id?: string | null
           clinic_id?: string
           content?: string | null
@@ -2475,6 +2481,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "messages_bot_agent_id_fkey"
+            columns: ["bot_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "messages_clinic_id_fkey"
             columns: ["clinic_id"]
             isOneToOne: false
@@ -2493,24 +2506,36 @@ export type Database = {
       pending_replies: {
         Row: {
           agent_id: string
+          attempts: number
+          claimed_at: string | null
           clinic_id: string
           created_at: string
+          last_error: string | null
           lead_id: string
           run_at: string
+          status: string
         }
         Insert: {
           agent_id: string
+          attempts?: number
+          claimed_at?: string | null
           clinic_id?: string
           created_at?: string
+          last_error?: string | null
           lead_id: string
           run_at: string
+          status?: string
         }
         Update: {
           agent_id?: string
+          attempts?: number
+          claimed_at?: string | null
           clinic_id?: string
           created_at?: string
+          last_error?: string | null
           lead_id?: string
           run_at?: string
+          status?: string
         }
         Relationships: [
           {

@@ -1,7 +1,10 @@
 // Helper to record AI usage rows from edge functions.
 // Resolves clinic_id from agent_id (or lead_id) when not provided, since service-role
 // inserts cannot rely on the current_clinic_id() default.
+// Materializes cost_usd at insert time using ai-pricing.ts so historic rows
+// keep the price-of-the-day even if pricing changes later.
 import { sb } from "./evolution.ts";
+import { calcCostUsd } from "./ai-pricing.ts";
 
 export type UsageRecord = {
   clinic_id?: string | null;
@@ -37,6 +40,7 @@ export async function logUsage(rec: UsageRecord) {
       console.warn("logUsage skipped: clinic_id unresolved", { model: rec.model, op: rec.operation });
       return;
     }
+    const cost_usd = calcCostUsd(rec.model, rec.input_tokens, rec.output_tokens);
     await supabase.from("ai_usage").insert({
       operation: "chat",
       status: "success",
@@ -44,6 +48,7 @@ export async function logUsage(rec: UsageRecord) {
       replied: false,
       ...rec,
       clinic_id,
+      cost_usd,
     });
   } catch (e) {
     console.error("logUsage failed", e);
