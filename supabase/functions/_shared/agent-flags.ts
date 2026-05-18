@@ -17,6 +17,7 @@ export const SILENT_TOOLS = new Set<string>([
   "remove_lead_tag",
   "get_lead_state",
   "search_knowledge_base",
+  "generate_insight_report",
 ]);
 
 export function isSilentByTools(tools: string[] | null | undefined): boolean {
