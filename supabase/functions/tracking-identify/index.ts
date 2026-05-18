@@ -71,17 +71,18 @@ function safeProps(p: any): Record<string, unknown> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const corsHeaders = corsFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405, headers: { ...cors, "Content-Type": "application/json" },
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   let body: any;
   try { body = await req.json(); } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
 
   if (!project_id || !visitor_id) {
     return new Response(JSON.stringify({ error: "missing_required" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
     .from("clinics").select("id, settings").eq("slug", project_id).maybeSingle();
   if (!clinic) {
     return new Response(JSON.stringify({ error: "unknown_project" }), {
-      status: 404, headers: { ...cors, "Content-Type": "application/json" },
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -111,7 +112,7 @@ Deno.serve(async (req) => {
   if (!originAllowed && !internalAuthorized) {
     console.log("[tracking-identify] origin_blocked", { host, allowed });
     return new Response(JSON.stringify({ error: "origin_not_allowed", host }), {
-      status: 403, headers: { ...cors, "Content-Type": "application/json" },
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -133,7 +134,7 @@ Deno.serve(async (req) => {
 
   if (!resolvedLeadId) {
     return new Response(JSON.stringify({ error: "lead_not_resolved" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -299,6 +300,6 @@ Deno.serve(async (req) => {
   if (evErr) console.log("[tracking-identify] event_error", evErr);
 
   return new Response(JSON.stringify({ ok: true, lead_id: resolvedLeadId }), {
-    status: 200, headers: { ...cors, "Content-Type": "application/json" },
+    status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
