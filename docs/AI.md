@@ -521,6 +521,75 @@ Linhas estruturadas no `edge-function-logs` do `scheduled-dispatcher`:
 
 ---
 
+## 13.1 Gargalos identificados e melhorias propostas
+
+Análise feita em 18/05/2026 a partir do código atual + estado real do banco.
+
+### 🔴 Críticos (funcionalidade quebrada)
+
+#### 1. Memórias não são gravadas — `agent_memory.clinic_id` NOT NULL violado
+- **Sintoma:** `select count(*) from agent_memory` retorna **0** mesmo com o agente "Vendedor" tendo `remember_fact` habilitado.
+- **Causa raiz:** o `INSERT` em `ai-chat/index.ts` (tool `remember_fact`) **não passava `clinic_id`**. A coluna é `NOT NULL DEFAULT current_clinic_id()`, mas a edge function usa **service role** → `current_clinic_id()` devolve `NULL` → insert falha com violação de NOT NULL. O `try/catch` engolia o erro e devolvia sucesso para o modelo.
+- **Fix aplicado:** passar `clinic_id: agent.clinic_id` explicitamente, validar conteúdo, logar erros de insert e devolver mensagem real para o modelo.
+- **Ações adicionais recomendadas:**
+  - Auditar **todos** os INSERTs feitos por edge functions em tabelas com `clinic_id NOT NULL DEFAULT current_clinic_id()` — o mesmo bug pode estar latente em `lead_events`, `lead_tasks`, `lead_internal_notes`, `agent_traces`, `ai_usage`.
+  - Considerar trigger `BEFORE INSERT` que rejeite com mensagem clara quando `clinic_id IS NULL`, evitando bugs silenciosos.
+  - Adicionar painel em `/ai` com "memórias salvas hoje por agente" — regressão futura seria detectada em horas.
+
+#### 2. `remember_fact` indisponível no fluxo silencioso ativo
+- O agente que de fato roda no inbound (logs do dispatcher) é o **"Classificador de Pipeline"** (`e2b20d28...`), cujo array `tools` **não inclui** `remember_fact`. Só o "Vendedor" tem — e ele não é o agente padrão dos leads.
+- **Recomendação:** habilitar `remember_fact` (e `add_lead_tag`) também no Classificador, ou criar um agente "observer" dedicado a extrair fatos/preferências durante a conversa.
+
+### 🟡 Médios (performance / custo / observabilidade)
+
+#### 3. RAG embeda a query a cada turno sem usar `embedding_cache`
+- `_shared/rag.ts` chama `embed()` para a query em toda mensagem. A tabela `embedding_cache` existe mas só é populada por ingest — o caminho de query não consulta. Em conversas longas o custo repete desnecessariamente.
+- **Fix:** ler `embedding_cache` por `hash(query)+model` antes de chamar o provider; gravar miss.
+
+#### 4. `rag_top_k` sem orçamento de tokens
+- Com `rag_top_k=20` + HyDE + reranker, o system prompt enche rápido. Não há truncamento por tokens, só por contagem de chunks.
+- **Fix:** orçar contexto em tokens (ex.: 4k máx) e cortar pelo score do reranker.
+
+#### 5. `ai_usage` e `agent_traces` sem retenção
+- Crescem indefinidamente. `/ai/usage` ficará lento em 6 meses; o índice `ivfflat` em `agent_memory` exigirá `REINDEX` ao passar de ~50k linhas.
+- **Fix:** policy de retenção 90 dias + tabela agregada `ai_usage_daily` populada por cron.
+
+#### 6. Debounce de `ai-auto-reply` depende de lock no dispatcher
+- Em concorrência alta o `pending_replies` pode ter duas linhas para o mesmo `(lead_id, agent_id)` antes do dispatcher pegar. O `for update skip locked` mitiga, mas vale validar o índice único e o `on conflict do update`.
+
+### 🟢 Pequenos / UX
+
+#### 7. Erros de provider devolvidos genéricos
+- 429/timeout do LLM viram `500 { error: "..." }` sem distinção. Frontend não consegue oferecer retry inteligente.
+- **Fix:** mapear → `{ retryable: true, retry_after }`.
+
+#### 8. Sem **eval automático** em CI
+- `agent_evals` roda só manualmente. Sem cron que reroda evals para detectar regressões de prompt/modelo.
+- **Fix:** cron diário em `ai-eval-run` para agentes ativos, alerta no `/ai` se `last_passed=false`.
+
+#### 9. `system_prompt` gasta tokens com JSON literal do lead
+- `JSON.stringify(lead, null, 2)` gasta ~300 tokens/turno em campos raramente usados pelo modelo. Formato compacto (key: value, omitindo vazios) economiza ~15–25% por turno.
+
+#### 10. Reranker opcional sem fallback de qualidade
+- Sem `reranker_provider`, RAG cai em RRF puro. Considerar cross-encoder leve embutido via Lovable AI Gateway como default.
+
+#### 11. UI de tools em `Agents.tsx` sem agrupamento
+- Já são 14+ tools listadas em flat list. Agrupar em "Pipeline / Comunicação / Memória / Conhecimento" facilita configuração e reduz erro de seleção.
+
+### Resumo executivo
+
+| Prioridade | Item | Impacto |
+|---|---|---|
+| 🔴 P0 | Fix `remember_fact.clinic_id` (✅ aplicado) | Memórias voltam a persistir |
+| 🔴 P0 | Habilitar `remember_fact` no agente silencioso ativo | IA passa a aprender com cada lead |
+| 🟡 P1 | Cache de embedding em queries RAG | ~30% economia em embeddings |
+| 🟡 P1 | Retenção em `ai_usage` / `agent_traces` | Performance no longo prazo |
+| 🟡 P1 | Orçamento de tokens no RAG | ~20% economia/turno em conversas longas |
+| 🟢 P2 | Cron de evals + alertas | Detecta regressão de prompt cedo |
+| 🟢 P2 | Erros tipados do provider | Retry inteligente no frontend |
+
+---
+
 ## 14. Referências cruzadas
 
 - **Inbox / WhatsApp**: ver `docs/OVERVIEW.md`. O `evolution-webhook` é quem dispara `ai-auto-reply`.

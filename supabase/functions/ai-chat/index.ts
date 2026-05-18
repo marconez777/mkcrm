@@ -232,10 +232,26 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
     }
     if (name === "remember_fact") {
       try {
-        const [vec] = await embed(agent, [args.content], { agent_id: agent.id, lead_id: leadId, note: "tool:remember_fact" });
-        await supabase.from("agent_memory").insert({ agent_id: agent.id, lead_id: leadId, kind: args.kind, content: args.content, embedding: vec as any });
+        const content = String(args.content ?? "").trim();
+        const kind = args.kind === "preference" ? "preference" : "fact";
+        if (!content) return { error: "empty content" };
+        if (!agent.clinic_id) return { error: "missing clinic_id on agent" };
+        const [vec] = await embed(agent, [content], { agent_id: agent.id, lead_id: leadId, note: "tool:remember_fact" });
+        const { error } = await supabase.from("agent_memory").insert({
+          clinic_id: agent.clinic_id,
+          agent_id: agent.id,
+          lead_id: leadId,
+          kind,
+          content,
+          embedding: vec as any,
+        });
+        if (error) {
+          console.error("[remember_fact] insert error", error);
+          return { error: error.message };
+        }
         return { ok: true };
       } catch (e) {
+        console.error("[remember_fact] exception", e);
         return { error: String(e) };
       }
     }
