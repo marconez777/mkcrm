@@ -10,6 +10,8 @@ import {
   CATEGORY_ORDER,
   compareItems,
   trackingEventTitle,
+  crmEventTitle,
+  MILESTONE_TRACKING_EVENTS,
   type TimelineCategory,
   type TimelineItem,
 } from "./timeline/types";
