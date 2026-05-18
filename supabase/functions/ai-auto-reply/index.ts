@@ -94,18 +94,9 @@ Deno.serve(async (req) => {
 
     const results: Record<string, any> = {};
 
-    // 1. Watcher (silent) per WhatsApp instance — opcionalmente restrito a um pipeline.
-    if (lead.whatsapp_instance_id) {
-      const { data: inst } = await supabase
-        .from("whatsapp_instances").select("watcher_agent_id, watcher_pipeline_id").eq("id", lead.whatsapp_instance_id).maybeSingle();
-      if (inst?.watcher_agent_id) {
-        if (inst.watcher_pipeline_id && inst.watcher_pipeline_id !== lead.pipeline_id) {
-          results.watcher = { skipped: true, reason: "pipeline-mismatch" };
-        } else {
-          results.watcher = await enqueueAgent(supabase, lead_id, lead.clinic_id, inst.watcher_agent_id, from_me);
-        }
-      }
-    }
+    // 1. Watcher/Classificador agora roda APENAS em lote diário (classifier-daily-batch),
+    //    para reduzir drasticamente as chamadas de IA. Não enfileiramos mais aqui.
+    results.watcher = { skipped: true, reason: "moved-to-daily-batch" };
 
     // 2. Sales agent (per-lead override or per-stage default).
     const { data: leadCfg } = await supabase
