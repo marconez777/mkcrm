@@ -254,18 +254,8 @@ Deno.serve(async (req) => {
       if (ruleMatch.medium) attr.medium = ruleMatch.medium;
       if (ruleMatch.channel_group) attr.channel_group = ruleMatch.channel_group;
     }
-    const ua = String(ev.user_agent || req.headers.get("user-agent") || "");
-    const dev = parseUA(ua);
-    const now = ev.event_time ? new Date(ev.event_time).toISOString() : new Date().toISOString();
 
-    const attr = resolveTrafficSource({
-      utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
-      utm_content: ev.utm_content, utm_term: ev.utm_term,
-      gclid: ev.gclid, gbraid: ev.gbraid, wbraid: ev.wbraid,
-      fbclid: ev.fbclid, fbp: ev.fbp, fbc: ev.fbc,
-      ttclid: ev.ttclid, msclkid: ev.msclkid, li_fat_id: ev.li_fat_id,
-      referrer: ev.referrer,
-    });
+
 
     // visitor (collapse: keep last write per visitor in this batch)
     visitorRows.set(ev.visitor_id, {
