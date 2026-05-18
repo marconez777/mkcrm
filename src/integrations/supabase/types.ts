@@ -3230,6 +3230,63 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_identity_links: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          email_hash: string | null
+          id: string
+          lead_id: string
+          link_source: string | null
+          linked_at: string
+          phone_hash: string | null
+          updated_at: string
+          visitor_id: string
+          whatsapp_id: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          email_hash?: string | null
+          id?: string
+          lead_id: string
+          link_source?: string | null
+          linked_at?: string
+          phone_hash?: string | null
+          updated_at?: string
+          visitor_id: string
+          whatsapp_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          email_hash?: string | null
+          id?: string
+          lead_id?: string
+          link_source?: string | null
+          linked_at?: string
+          phone_hash?: string | null
+          updated_at?: string
+          visitor_id?: string
+          whatsapp_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_identity_links_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracking_identity_links_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tracking_sessions: {
         Row: {
           browser: string | null
