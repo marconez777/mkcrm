@@ -670,6 +670,14 @@ export default function Tracking() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="attribution">
+          {membership?.clinic?.id ? (
+            <AttributionTab clinicId={membership.clinic.id} from={sinceISO} to={untilISO} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Sem clínica selecionada.</p>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Jornada modal */}
