@@ -237,6 +237,17 @@ function SortableRow({
         type="button"
         variant="ghost"
         size="icon"
+        className={`h-7 w-7 ${stage.is_terminal ? "text-primary" : "text-muted-foreground"} hover:text-primary`}
+        onClick={() => onUpdate(stage.id, { is_terminal: !stage.is_terminal })}
+        title={stage.is_terminal ? "Etapa terminal (ganho/perdido) — clique para desmarcar" : "Marcar como etapa terminal (ignorada pelo classificador diário)"}
+      >
+        <Flag className={`h-3.5 w-3.5 ${stage.is_terminal ? "fill-current" : ""}`} />
+      </Button>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
         className="h-7 w-7 text-muted-foreground hover:text-destructive"
         onClick={() => onRemove(stage)}
         disabled={stage.lead_count > 0}
