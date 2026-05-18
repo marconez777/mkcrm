@@ -53,13 +53,24 @@ function parseUA(ua: string) {
 
 function originHost(origin: string | null): string | null {
   if (!origin) return null;
-  try { return new URL(origin).hostname; } catch { return null; }
+  try { return new URL(origin).hostname; } catch { /* fallthrough */ }
+  // Bare hostname fallback
+  const cleaned = origin.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return cleaned || null;
+}
+
+function toHost(entry: string): string | null {
+  if (!entry) return null;
+  const s = entry.trim();
+  try { return new URL(s).hostname; } catch { /* fallthrough */ }
+  return s.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || null;
 }
 
 function isOriginAllowed(allowed: string[], host: string | null): boolean {
   if (!host) return false;
   if (!allowed || allowed.length === 0) return true; // permissive if not configured
-  return allowed.some((d) => d === host || host.endsWith("." + d));
+  const hosts = allowed.map(toHost).filter(Boolean) as string[];
+  return hosts.some((d) => d === host || host.endsWith("." + d));
 }
 
 Deno.serve(async (req) => {
@@ -85,8 +96,13 @@ Deno.serve(async (req) => {
     });
   }
 
+  const rawOrigin = req.headers.get("Origin") || req.headers.get("Referer");
+  const host = originHost(rawOrigin);
   const projectId = events[0]?.project_id;
+  console.log("[tracking-event] received", { project_id: projectId, origin: rawOrigin, host, count: events.length });
+
   if (!projectId || typeof projectId !== "string") {
+    console.log("[tracking-event] missing_project_id");
     return new Response(JSON.stringify({ error: "missing_project_id" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -99,23 +115,27 @@ Deno.serve(async (req) => {
     .eq("slug", projectId)
     .maybeSingle();
   if (!clinic) {
+    console.log("[tracking-event] unknown_project", { project_id: projectId });
     return new Response(JSON.stringify({ error: "unknown_project" }), {
       status: 404, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
   const tcfg = ((clinic.settings as any)?.tracking) || {};
   if (tcfg.enabled === false) {
+    console.log("[tracking-event] disabled", { clinic_id: clinic.id });
     return new Response(JSON.stringify({ ok: true, ignored: true }), {
       status: 200, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 
-  const host = originHost(req.headers.get("Origin") || req.headers.get("Referer"));
-  if (!isOriginAllowed(tcfg.allowed_domains || [], host)) {
-    return new Response(JSON.stringify({ error: "origin_not_allowed", host }), {
+  const allowed = tcfg.allowed_domains || [];
+  if (!isOriginAllowed(allowed, host)) {
+    console.log("[tracking-event] origin_blocked", { clinic_id: clinic.id, host, allowed });
+    return new Response(JSON.stringify({ error: "origin_not_allowed", host, allowed }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
+  console.log("[tracking-event] origin_allowed", { clinic_id: clinic.id, host });
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "0.0.0.0";
   const rlKey = `${clinic.id}:${ip}`;
@@ -218,19 +238,25 @@ Deno.serve(async (req) => {
 
   // 2) Sessions: insert; ignore conflicts (existing session stays).
   if (sessionRows.size > 0) {
-    await supabase
+    const { error: sErr } = await supabase
       .from("tracking_sessions")
       .upsert(Array.from(sessionRows.values()), {
         onConflict: "clinic_id,session_id",
         ignoreDuplicates: true,
       });
+    if (sErr) console.log("[tracking-event] sessions_insert_error", sErr);
   }
 
   // 3) Events: insert with idempotency on (clinic_id, event_id).
   if (eventRows.length > 0) {
-    await supabase
+    const { error: eErr } = await supabase
       .from("tracking_events")
       .upsert(eventRows, { onConflict: "clinic_id,event_id", ignoreDuplicates: true });
+    if (eErr) {
+      console.log("[tracking-event] events_insert_error", eErr);
+    } else {
+      console.log("[tracking-event] events_inserted", { clinic_id: clinic.id, count: eventRows.length, names: eventRows.map(e => e.event_name) });
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, received: eventRows.length }), {
