@@ -325,6 +325,39 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
         recent_stage_history: hist ?? [],
       };
     }
+    if (name === "generate_insight_report") {
+      try {
+        if (!agent.clinic_id) return { error: "missing clinic_id on agent" };
+        const summary = String(args.summary ?? "").trim();
+        if (!summary) return { error: "empty summary" };
+        const arr = (v: any) => Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : [];
+        const validSentiments = ["positivo", "neutro", "negativo", "ambivalente"];
+        const sentiment = validSentiments.includes(args.sentiment) ? args.sentiment : null;
+        const { data, error } = await supabase.from("ai_insights").insert({
+          clinic_id: agent.clinic_id,
+          agent_id: agent.id,
+          lead_id: leadId,
+          summary,
+          sentiment,
+          top_objections: arr(args.top_objections),
+          top_doubts: arr(args.top_doubts),
+          top_interests: arr(args.top_interests),
+          drop_off_reasons: arr(args.drop_off_reasons),
+          recommendations: arr(args.recommendations),
+          period_start: args.period_start ?? null,
+          period_end: args.period_end ?? new Date().toISOString(),
+          raw: args,
+        }).select("id").single();
+        if (error) {
+          console.error("[generate_insight_report] insert error", error);
+          return { error: error.message };
+        }
+        return { ok: true, id: data.id };
+      } catch (e) {
+        console.error("[generate_insight_report] exception", e);
+        return { error: String(e) };
+      }
+    }
     return { error: `unknown tool: ${name}` };
   } catch (e) {
     return { error: String(e) };
