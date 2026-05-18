@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
