@@ -1,43 +1,32 @@
-## Objetivo
-Fazer a exclusão funcionar de forma confiável no CRM: ao excluir um lead/conversa, ele deve sumir de verdade; se o mesmo número mandar mensagem depois, deve nascer como um lead novo, sem herança do anterior.
+# Limpar documentação e planejamento
 
-## O que vou implementar
+Localizei todos os arquivos de documentação, planejamento e revisão no projeto. Nenhum arquivo com nome "audit" ou "review" foi encontrado (exceto `src/pages/email/EmailReports.tsx`, que é código da aplicação e **não será tocado**).
 
-1. **Corrigir o feedback e o fluxo de exclusão no frontend**
-   - Ajustar os pontos de delete na Inbox/Lead Drawer para tratar retorno e erro corretamente.
-   - Mostrar toast de sucesso/erro real.
-   - Remover o item da UI só quando a exclusão for confirmada pelo backend.
+## Arquivos a excluir
 
-2. **Blindar contra recriação imediata por histórico antigo da Evolution**
-   - Ajustar o fluxo de ingestão para distinguir:
-     - mensagem realmente nova após o delete;
-     - reprocessamento/backfill/histórico antigo da mesma conversa.
-   - Garantir que eventos históricos não recriem um lead apagado logo em seguida.
-   - Manter o comportamento desejado: se houver nova mensagem real depois, criar um lead novo do zero.
+**Pasta `docs/` inteira (12 arquivos):**
+- `docs/AI.md`
+- `docs/ARCHITECTURE.md`
+- `docs/AUTH.md`
+- `docs/AUTOMATIONS.md`
+- `docs/CLASSIFIER_AGENT.md`
+- `docs/DATABASE.md`
+- `docs/EDGE_FUNCTIONS.md`
+- `docs/EVOLUTION.md`
+- `docs/MANUAL.md`
+- `docs/SEQUENCES.md`
+- `docs/TRACKING.md`
+- `docs/TRACKING_SITE.md`
 
-3. **Preservar o comportamento atual do CRM**
-   - Não mexer na Jornada dentro do lead.
-   - Não bloquear permanentemente número.
-   - Não reabrir lead antigo.
-   - Não herdar mensagens/estado antigos para o novo lead.
+**Planejamento interno:**
+- `.lovable/plan.md`
 
-4. **Validar o fluxo completo**
-   - Excluir conversa/lead pelo CRM.
-   - Confirmar que o registro some da lista.
-   - Confirmar que sync/histórico antigo não faz ele voltar.
-   - Confirmar que uma nova mensagem legítima cria um novo lead limpo.
+## A confirmar
 
-## Arquivos mais prováveis
-- `src/components/inbox/ConversationList.tsx`
-- `src/pages/LeadDrawer.tsx`
-- `supabase/functions/_shared/evolution.ts`
-- possivelmente `supabase/functions/evolution-webhook/index.ts`
+- **`README.md`** (raiz): é o readme padrão do projeto. Por padrão **vou manter**, mas se quiser apago também — me avise.
 
-## Detalhes técnicos
-- Hoje o frontend chama `supabase.from("leads").delete().eq("id", ...)` e ignora erro em alguns pontos.
-- O banco aparenta permitir o delete; o indício mais forte é recriação posterior via ingestão da Evolution.
-- Há evidência disso no banco: vários leads com `created_at > last_message_at`, sinal típico de lead recriado por histórico antigo.
-- A correção deve ficar no critério de ingestão/backfill, não em bloqueio definitivo do telefone.
+## Não será tocado
 
-## Resultado esperado
-Depois da correção, excluir vai funcionar de forma previsível: o lead apagado não volta por sync antigo, mas volta como um lead novo apenas quando houver nova interação real.
+- Código-fonte em `src/`, `supabase/`
+- Memória do projeto (`mem://`) — não há nada salvo ainda
+- Configurações (`package.json`, `tsconfig.*`, etc.)
