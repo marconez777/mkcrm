@@ -10,11 +10,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 function buildScript(projectId: string) {
   const endpoint = `${SUPABASE_URL}/functions/v1/tracking-event`;
   const configEndpoint = `${SUPABASE_URL}/functions/v1/tracking-config?project_id=${encodeURIComponent(projectId)}`;
+  const waRedirect = `${SUPABASE_URL}/functions/v1/wa-redirect`;
   return `
 (function(){
   var PROJECT_ID=${JSON.stringify(projectId)};
   var ENDPOINT=${JSON.stringify(endpoint)};
   var CONFIG_ENDPOINT=${JSON.stringify(configEndpoint)};
+  var WA_REDIRECT=${JSON.stringify(waRedirect)};
   var COOKIE="_mk_vid";
   var STORAGE_VID="_mk_vid";
   var STORAGE_SID="_mk_sid";
@@ -236,6 +238,69 @@ function buildScript(projectId: string) {
       }
     }catch(err){}
   },true);
+
+  // ---- Proactive WhatsApp link rewrite ----
+  function extractWaPhone(href){
+    try{
+      var u=new URL(href, window.location.href);
+      if(/wa\\.me$/i.test(u.hostname)){
+        return (u.pathname||"").replace(/^\\//,"").split("/")[0].replace(/\\D/g,"");
+      }
+      if(/(api|web)\\.whatsapp\\.com$/i.test(u.hostname)){
+        return (u.searchParams.get("phone")||"").replace(/\\D/g,"");
+      }
+    }catch(_){}
+    return "";
+  }
+  function rewriteWaAnchor(a){
+    try{
+      if(!a||a.getAttribute("data-mk-rewritten"))return;
+      var href=a.getAttribute("href")||"";
+      if(!isWhatsAppHref(href))return;
+      var phone=extractWaPhone(href);
+      if(!phone)return;
+      var existingMsg="";
+      try{ existingMsg=new URL(href, window.location.href).searchParams.get("text")||""; }catch(_){}
+      var qs2=[
+        "p="+encodeURIComponent(PROJECT_ID),
+        "v="+encodeURIComponent(getVid()),
+        "s="+encodeURIComponent(getSid()),
+        "to="+encodeURIComponent(phone)
+      ];
+      if(existingMsg)qs2.push("msg="+encodeURIComponent(existingMsg));
+      a.setAttribute("data-mk-original-href",href);
+      a.setAttribute("href", WA_REDIRECT+"?"+qs2.join("&"));
+      a.setAttribute("data-mk-rewritten","1");
+      a.setAttribute("rel","noopener noreferrer");
+    }catch(_){}
+  }
+  function scanWaLinks(root){
+    try{
+      var nodes=(root||document).querySelectorAll&&(root||document).querySelectorAll("a[href]");
+      if(!nodes)return;
+      for(var i=0;i<nodes.length;i++)rewriteWaAnchor(nodes[i]);
+    }catch(_){}
+  }
+  if(document.readyState!=="loading")scanWaLinks(document);
+  else document.addEventListener("DOMContentLoaded",function(){scanWaLinks(document);});
+  try{
+    var mo=new MutationObserver(function(muts){
+      for(var i=0;i<muts.length;i++){
+        var m=muts[i];
+        if(m.type==="childList"){
+          m.addedNodes.forEach(function(n){
+            if(n.nodeType!==1)return;
+            if(n.tagName==="A")rewriteWaAnchor(n);
+            else scanWaLinks(n);
+          });
+        } else if(m.type==="attributes"&&m.target&&m.target.tagName==="A"&&m.attributeName==="href"){
+          m.target.removeAttribute("data-mk-rewritten");
+          rewriteWaAnchor(m.target);
+        }
+      }
+    });
+    mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["href"]});
+  }catch(_){}
 
   // ---- Form auto-capture ----
   var startedForms=new WeakSet();

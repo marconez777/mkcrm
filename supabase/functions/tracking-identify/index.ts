@@ -108,8 +108,10 @@ Deno.serve(async (req) => {
   const tcfg = ((clinic.settings as any)?.tracking) || {};
   const allowed = tcfg.allowed_domains || [];
   const originAllowed = isOriginAllowed(allowed, host);
-  const internalAuthorized = !originAllowed ? await isInternalAuthorized(req, clinic.id) : false;
-  if (!originAllowed && !internalAuthorized) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const isServiceRole = authHeader === `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+  const internalAuthorized = !originAllowed && !isServiceRole ? await isInternalAuthorized(req, clinic.id) : false;
+  if (!originAllowed && !isServiceRole && !internalAuthorized) {
     console.log("[tracking-identify] origin_blocked", { host, allowed });
     return new Response(JSON.stringify({ error: "origin_not_allowed", host }), {
       status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },

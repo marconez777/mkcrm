@@ -3437,6 +3437,7 @@ export type Database = {
           content: string | null
           conversion_page: string | null
           created_at: string
+          ctwa_clid: string | null
           fbc: string | null
           fbclid: string | null
           fbp: string | null
@@ -3466,6 +3467,7 @@ export type Database = {
           content?: string | null
           conversion_page?: string | null
           created_at?: string
+          ctwa_clid?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -3495,6 +3497,7 @@ export type Database = {
           content?: string | null
           conversion_page?: string | null
           created_at?: string
+          ctwa_clid?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
@@ -3527,6 +3530,7 @@ export type Database = {
           clinic_id: string
           confidence_score: number | null
           created_at: string
+          ctwa_clid: string | null
           device_type: string | null
           ended_at: string | null
           fbc: string | null
@@ -3564,6 +3568,7 @@ export type Database = {
           clinic_id: string
           confidence_score?: number | null
           created_at?: string
+          ctwa_clid?: string | null
           device_type?: string | null
           ended_at?: string | null
           fbc?: string | null
@@ -3601,6 +3606,7 @@ export type Database = {
           clinic_id?: string
           confidence_score?: number | null
           created_at?: string
+          ctwa_clid?: string | null
           device_type?: string | null
           ended_at?: string | null
           fbc?: string | null
@@ -3933,6 +3939,90 @@ export type Database = {
             columns: ["watcher_agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_intents: {
+        Row: {
+          campaign: string | null
+          clicked_at: string
+          clinic_id: string
+          created_at: string
+          id: string
+          landing_page: string | null
+          lead_id: string | null
+          matched_at: string | null
+          medium: string | null
+          phone_destination: string | null
+          referrer: string | null
+          session_id: string | null
+          source: string | null
+          status: string
+          tracking_code: string
+          updated_at: string
+          user_agent: string | null
+          utm_content: string | null
+          utm_term: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          campaign?: string | null
+          clicked_at?: string
+          clinic_id: string
+          created_at?: string
+          id?: string
+          landing_page?: string | null
+          lead_id?: string | null
+          matched_at?: string | null
+          medium?: string | null
+          phone_destination?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          status?: string
+          tracking_code: string
+          updated_at?: string
+          user_agent?: string | null
+          utm_content?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          campaign?: string | null
+          clicked_at?: string
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          landing_page?: string | null
+          lead_id?: string | null
+          matched_at?: string | null
+          medium?: string | null
+          phone_destination?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          status?: string
+          tracking_code?: string
+          updated_at?: string
+          user_agent?: string | null
+          utm_content?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_intents_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_intents_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
