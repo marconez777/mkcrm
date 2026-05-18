@@ -167,7 +167,7 @@ function SortableRow({
   onRemove,
 }: {
   stage: Stage;
-  onUpdate: (id: string, patch: Partial<Pick<Stage, "name" | "color">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<Stage, "name" | "color" | "is_terminal">>) => void;
   onRemove: (s: Stage) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id });
