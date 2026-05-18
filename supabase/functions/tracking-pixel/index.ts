@@ -117,11 +117,11 @@ function buildScript(projectId: string) {
       var body=JSON.stringify(payload);
       if(navigator.sendBeacon){
         try{
-          var blob=new Blob([body],{type:"application/json"});
+          var blob=new Blob([body],{type:"text/plain;charset=UTF-8"});
           if(navigator.sendBeacon(ENDPOINT,blob))return;
         }catch(e){}
       }
-      fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:body,keepalive:true,credentials:"omit"}).catch(function(){});
+      fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:body,keepalive:true,credentials:"omit"}).catch(function(){});
     }catch(e){}
   }
   function baseEvent(name,extra){

@@ -1,11 +1,16 @@
 // Returns public tracking config for a given project_id (clinic slug).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
+function corsFor(req: Request) {
+  const origin = req.headers.get("Origin") || "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin",
+  };
+}
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -13,13 +18,14 @@ const supabase = createClient(
 );
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const corsHeaders = corsFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const projectId = url.searchParams.get("project_id");
   if (!projectId) {
     return new Response(JSON.stringify({ enabled: false, error: "missing_project_id" }), {
       status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const { data } = await supabase
@@ -37,7 +43,7 @@ Deno.serve(async (req) => {
     }),
     {
       status: 200,
-      headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
     },
   );
 });
