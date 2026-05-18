@@ -313,6 +313,21 @@ export async function ingestMessage(
     : new Date().toISOString();
   const newStatus = item?.status ? String(item.status).toLowerCase() : (fromMe ? "sent" : "received");
 
+  const { data: deletedLead } = await supabase
+    .from("deleted_leads")
+    .select("deleted_at")
+    .eq("phone", phone)
+    .eq("clinic_id", clinicId)
+    .order("deleted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const deletedAtMs = deletedLead?.deleted_at ? new Date(deletedLead.deleted_at).getTime() : 0;
+  const messageTsMs = new Date(ts).getTime();
+  if (deletedAtMs && messageTsMs && messageTsMs <= deletedAtMs) {
+    return { skipped: true, reason: "message-before-lead-delete" };
+  }
+
   let { data: lead } = await supabase
     .from("leads")
     .select("id, name, whatsapp_instance_id")
