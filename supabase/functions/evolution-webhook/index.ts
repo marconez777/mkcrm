@@ -258,3 +258,206 @@ Deno.serve(async (req) => {
     return json({ error: String(err) }, 500);
   }
 });
+
+// ============================================================================
+// Tracking association: code in message body, ctwa_clid, or phone fallback.
+// ============================================================================
+const TRACKING_CODE_RE = /MK-[A-HJ-NP-Z2-9]{6}/;
+
+function extractMessageText(item: any): string {
+  const m = item?.message ?? {};
+  return (
+    m?.conversation
+    ?? m?.extendedTextMessage?.text
+    ?? m?.imageMessage?.caption
+    ?? m?.videoMessage?.caption
+    ?? m?.documentMessage?.caption
+    ?? m?.buttonsResponseMessage?.selectedDisplayText
+    ?? m?.listResponseMessage?.title
+    ?? ""
+  ) as string;
+}
+
+function extractCtwaClid(item: any): string | null {
+  const ctx = item?.message?.extendedTextMessage?.contextInfo
+    ?? item?.message?.imageMessage?.contextInfo
+    ?? item?.message?.videoMessage?.contextInfo
+    ?? item?.contextInfo
+    ?? null;
+  return (
+    ctx?.externalAdReply?.ctwaClid
+    ?? item?.message?.contextInfo?.externalAdReply?.ctwaClid
+    ?? item?.ctwaClid
+    ?? null
+  ) ?? null;
+}
+
+async function matchTrackingForInbound(opts: {
+  supabase: ReturnType<typeof sb>;
+  clinic_id: string;
+  lead_id: string;
+  item: any;
+}) {
+  const { supabase, clinic_id, lead_id, item } = opts;
+
+  // 1) Tracking code in latest 5 inbound messages of this lead
+  let code: string | null = null;
+  const currentText = extractMessageText(item);
+  const m1 = currentText.match(TRACKING_CODE_RE);
+  if (m1) code = m1[0];
+
+  if (!code) {
+    const { data: recent } = await supabase
+      .from("messages")
+      .select("content")
+      .eq("lead_id", lead_id)
+      .eq("from_me", false)
+      .order("timestamp", { ascending: false })
+      .limit(5);
+    for (const row of (recent ?? [])) {
+      const m = String((row as any).content ?? "").match(TRACKING_CODE_RE);
+      if (m) { code = m[0]; break; }
+    }
+  }
+
+  let visitor_id: string | null = null;
+  let session_id: string | null = null;
+  let intentRow: any = null;
+  let linkSource = "phone_fallback";
+
+  if (code) {
+    const { data } = await supabase
+      .from("whatsapp_intents")
+      .select("id, visitor_id, session_id, status")
+      .eq("clinic_id", clinic_id)
+      .eq("tracking_code", code)
+      .maybeSingle();
+    if (data?.visitor_id) {
+      visitor_id = data.visitor_id;
+      session_id = data.session_id;
+      intentRow = data;
+      linkSource = "whatsapp_tracking_code";
+    }
+  }
+
+  // 2) ctwa_clid (Click-to-WhatsApp Ads)
+  const ctwaClid = extractCtwaClid(item);
+  if (!visitor_id && ctwaClid) {
+    const { data: sess } = await supabase
+      .from("tracking_sessions")
+      .select("visitor_id, session_id")
+      .eq("clinic_id", clinic_id)
+      .eq("ctwa_clid", ctwaClid)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (sess?.visitor_id) {
+      visitor_id = sess.visitor_id;
+      session_id = sess.session_id;
+      linkSource = "ctwa_clid";
+    }
+  }
+
+  // 3) Fallback: most recent whatsapp_click session (last 2h)
+  if (!visitor_id) {
+    const { data: lead } = await supabase
+      .from("leads").select("phone").eq("id", lead_id).maybeSingle();
+    const phone: string | null = (lead as any)?.phone ?? null;
+
+    if (phone) {
+      // 3a) phone_hash already linked? skip identify (already linked) but still match intent.
+      const phoneHash = await sha256Hex(phone);
+      const { data: existingLink } = await supabase
+        .from("tracking_identity_links")
+        .select("visitor_id")
+        .eq("clinic_id", clinic_id)
+        .eq("phone_hash", phoneHash)
+        .limit(1).maybeSingle();
+      if (existingLink?.visitor_id) {
+        visitor_id = existingLink.visitor_id;
+        linkSource = "phone_hash_existing";
+      }
+    }
+  }
+
+  if (!visitor_id) {
+    // 4) Last whatsapp_click event within 2h, unlinked.
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data: ev } = await supabase
+      .from("tracking_events")
+      .select("visitor_id, session_id")
+      .eq("clinic_id", clinic_id)
+      .eq("event_name", "whatsapp_click")
+      .is("lead_id", null)
+      .gte("event_time", since)
+      .order("event_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ev?.visitor_id) {
+      visitor_id = ev.visitor_id;
+      session_id = ev.session_id;
+      linkSource = "whatsapp_click_recent";
+    }
+  }
+
+  if (!visitor_id) {
+    console.log("[tracking-match] no visitor", { clinic_id, lead_id, code, ctwaClid });
+    return;
+  }
+
+  // Resolve clinic slug for tracking-identify project_id param.
+  const { data: clinic } = await supabase
+    .from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
+  if (!clinic?.slug) return;
+
+  const { data: leadFull } = await supabase
+    .from("leads").select("phone").eq("id", lead_id).maybeSingle();
+
+  const identifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/tracking-identify`;
+  const resp = await fetch(identifyUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      // Identify checks origin allowlist OR internal authorization. Service role here
+      // doesn't carry a user JWT, so we rely on internal call by injecting Origin to match.
+      "Origin": `https://${clinic.slug}.internal`,
+    },
+    body: JSON.stringify({
+      project_id: clinic.slug,
+      visitor_id,
+      session_id,
+      lead_id,
+      phone: (leadFull as any)?.phone ?? null,
+      source_event: linkSource,
+      properties: { tracking_code: code, ctwa_clid: ctwaClid },
+    }),
+  });
+
+  if (!resp.ok) {
+    console.log("[tracking-match] identify failed", await resp.text().catch(() => ""));
+  }
+
+  // Mark intent matched + ctwa session-source pin
+  if (intentRow?.id) {
+    await supabase.from("whatsapp_intents")
+      .update({ status: "matched", matched_at: new Date().toISOString(), lead_id })
+      .eq("id", intentRow.id);
+  }
+  if (ctwaClid && visitor_id && session_id) {
+    await supabase.from("tracking_sessions")
+      .update({ ctwa_clid: ctwaClid })
+      .eq("clinic_id", clinic_id)
+      .eq("session_id", session_id);
+  }
+
+  console.log("[tracking-match] linked", { lead_id, visitor_id, linkSource });
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const norm = input.replace(/\D/g, "");
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
