@@ -39,6 +39,8 @@ export type NormalizedResponse = {
   ok: boolean;
   status: number;
   errorText?: string;
+  /** True for 429/408/5xx/network errors — caller may retry with backoff. */
+  retryable?: boolean;
   choices: Array<{
     message: {
       role: "assistant";
@@ -52,6 +54,11 @@ export type NormalizedResponse = {
   }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 };
+
+/** HTTP statuses we treat as transient (rate-limit / timeout / upstream failure). */
+export function isRetryableStatus(s: number): boolean {
+  return s === 408 || s === 425 || s === 429 || (s >= 500 && s <= 599);
+}
 
 function requireKey(agent: Agent) {
   if (!agent.api_key) throw new Error(`Agent ${agent.id} sem api_key configurada`);
