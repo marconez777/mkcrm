@@ -205,13 +205,3 @@ export function resolveTrafficSource(input: AttributionInput): AttributionResult
     attribution_reason: "no_referrer_no_params",
   };
 }
-
-  // --- Prioridade 4: Direct ---
-  return {
-    source: "direct", medium: "none",
-    campaign: null, content: null, term: null,
-    channel_group: "direct",
-    confidence_score: 30,
-    attribution_reason: "no_referrer_no_params",
-  };
-}
