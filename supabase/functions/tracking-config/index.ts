@@ -1,0 +1,43 @@
+// Returns public tracking config for a given project_id (clinic slug).
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const url = new URL(req.url);
+  const projectId = url.searchParams.get("project_id");
+  if (!projectId) {
+    return new Response(JSON.stringify({ enabled: false, error: "missing_project_id" }), {
+      status: 400,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+  const { data } = await supabase
+    .from("clinics")
+    .select("settings")
+    .eq("slug", projectId)
+    .maybeSingle();
+
+  const t = (data?.settings as any)?.tracking || {};
+  return new Response(
+    JSON.stringify({
+      enabled: t.enabled !== false,
+      session_timeout_minutes: t.session_timeout_minutes || 30,
+      consent_required: t.consent_required === true,
+    }),
+    {
+      status: 200,
+      headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+    },
+  );
+});

@@ -1,87 +1,126 @@
-## Resposta aos 3 pontos abertos do Gate D
+## Plano — Fase 1: Fundação do tracking first-party
 
-### Ponto 1 — payload real do tracking-claim (Gate C)
+Escopo mínimo aprovado: tabelas base + endpoint `/tracking/event` + `tracker.js` servido por edge function. Multi-clínica desde o dia 1. Zero reaproveitamento do sistema antigo.
 
-A delivery `e9dd5e61…` que usei no Gate D foi um insert manual meu **só para exercitar o HMAC**, e por isso veio enxuta. Ela **não representa** o que o `tracking-claim` produz.
+Tudo que **não** é Fase 1 (identify, WhatsApp tracking, classificação, telas, Smartlook, Ads) fica para rodadas futuras.
 
-A delivery real enfileirada na Fase C é `88c8a6ba-a612-4d7a-95d9-726c2d4d7048`. O body dela em `external_webhook_deliveries.payload`, exatamente como está hoje no banco, é:
+---
 
+### 1. Migração de banco
+
+Três tabelas novas em `public`, todas com `clinic_id` + RLS:
+
+**`tracking_visitors`**
+- `visitor_id` (text, único por clínica), `clinic_id`
+- `first_seen_at`, `last_seen_at`
+- `first_landing_page`, `first_referrer`
+- `first_source`, `first_medium`, `first_campaign` (UTM bruto da 1ª sessão)
+- `device_type`, `browser`, `operating_system` (parse simples do UA no server)
+- `consent_status` (default `'unknown'`)
+- `created_at`, `updated_at`
+- Índice único `(clinic_id, visitor_id)`
+
+**`tracking_sessions`**
+- `session_id` (text), `visitor_id`, `clinic_id`
+- `started_at`, `ended_at` (nullable)
+- `landing_page`, `referrer`
+- `source`, `medium`, `campaign`, `utm_content`, `utm_term`
+- `gclid`, `fbclid`, `msclkid`, `gbraid`, `wbraid`
+- `device_type`, `browser`, `operating_system`
+- `ip_hash` (sha256 do IP + salt da clínica, sem IP cru), `user_agent`
+- `created_at`, `updated_at`
+- Índice `(clinic_id, visitor_id, started_at desc)`
+
+**`tracking_events`**
+- `event_id` (text, único por clínica — idempotência), `clinic_id`
+- `visitor_id`, `session_id`, `lead_id` (nullable, vazio na Fase 1)
+- `event_name`, `event_type` (`page_view` | `session_start` | `custom`)
+- `event_time`, `page_url`, `page_path`, `page_title`, `referrer`
+- `properties` jsonb, `created_at`
+- Índice único `(clinic_id, event_id)` para deduplicação
+- Índice `(clinic_id, visitor_id, event_time desc)`
+
+**RLS**: policy uniforme `clinic_scoped` (`clinic_id = current_clinic_id()`), seguindo o padrão das outras tabelas do CRM. Edge functions usam service-role e fazem o scoping manual via `project_id` recebido.
+
+**Identificação de cliente (no lugar do tracking_sites antigo)**:
+- Reuso de `clinics.settings -> 'tracking'` (jsonb) para guardar config por cliente:
+  - `enabled` (bool), `allowed_domains` (array), `session_timeout_minutes` (int), `consent_required` (bool)
+- `project_id` enviado pelo pixel = `clinic.slug` (já existe, já único). Edge resolve `slug → clinic_id`.
+- Sem secret no navegador. Auth feita por **CORS allowlist** (`allowed_domains`) + rate limit por IP.
+
+### 2. Edge functions (3 novas)
+
+```
+supabase/functions/tracking-pixel/index.ts    → GET, serve tracker.js
+supabase/functions/tracking-config/index.ts   → GET ?project_id=slug, retorna config pública
+supabase/functions/tracking-event/index.ts    → POST eventos (1 ou batch)
+```
+
+Todas com `verify_jwt = false` e CORS dinâmico (Allow-Origin = origem da request se estiver em `allowed_domains`).
+
+**`tracking-pixel`** retorna JS minificado com `Content-Type: application/javascript`, `Cache-Control: public, max-age=3600`. Aceita `?project_id=` na query para embutir config.
+
+**`tracking-event`**:
+- Valida `project_id` → resolve `clinic_id`
+- Valida origem (Origin header ∈ `allowed_domains`)
+- Valida payload com zod (visitor_id, session_id, event_id, event_name obrigatórios)
+- Upsert em `tracking_visitors` (first_seen mantido, last_seen atualizado)
+- Upsert em `tracking_sessions` (cria se novo session_id, atualiza ended_at)
+- Insert em `tracking_events` com `ON CONFLICT (clinic_id, event_id) DO NOTHING` (idempotência)
+- Rate limit simples in-memory (ou tabela leve) por IP+clinic
+
+### 3. Pixel (tracker.js)
+
+Gerado pela edge `tracking-pixel`. Conteúdo:
+
+- Lê/cria `visitor_id` em cookie first-party `_mk_vid` (1 ano) + localStorage como fallback
+- Lê/cria `session_id` em sessionStorage com timeout configurável (default 30 min)
+- Captura no `page_view` inicial: URL, path, title, referrer, todos UTMs, todos click IDs (gclid/gbraid/wbraid/fbclid/msclkid), UA, idioma, timezone, screen size
+- Envia via `navigator.sendBeacon` (fallback `fetch` com `keepalive`)
+- Auto-rastreia mudança de rota (SPA: history.pushState/replaceState/popstate)
+- API global `window.mkTrack(eventName, properties)` para eventos custom (clicks, etc — usado em fases futuras)
+- ~3–4 KB minificado
+
+### 4. Configuração da Clínica ÓR
+
+Após deploy, INSERT em `clinics.settings.tracking` para a clínica ÓR via tool `supabase--insert`:
 ```json
 {
-  "type": "lead.matched",
-  "event_id": "678e241d-3591-4c3c-bb90-29d465a3141f",
-  "occurred_at": "2026-05-17T16:45:48.074575+00:00",
-  "schema_version": 1,
-  "lead": {
-    "crm_lead_id": "d0b4185f-547d-424c-b135-09c9c4232f08",
-    "ref_short": "test123456",
-    "phone_e164": "+5511999999000",
-    "name": "Gate C Test",
-    "email": null
-  },
-  "data": {
-    "first_message": "oi, vim do site (ref=test123456)",
-    "first_message_at": "2026-05-17T16:45:48.074575+00:00"
-  }
+  "enabled": true,
+  "allowed_domains": ["clinicaohrpsiquiatria.com", "www.clinicaohrpsiquiatria.com"],
+  "session_timeout_minutes": 30,
+  "consent_required": false
 }
 ```
 
-Ou seja: `type`, `occurred_at`, `crm_lead_id`, `phone_e164`, `name`, `email` **estão todos presentes**. O `tracking-claim` está cumprindo o contrato — quem estava errado era o body de teste do dispatcher.
+Site da ÓR adiciona uma linha:
+```html
+<script async src="https://crm.mkart.com.br/functions/v1/tracking-pixel?project_id=clinica-or"></script>
+```
 
-### Ponto 3 antecipado — `type` no body ou só no header?
+### 5. Não-objetivos desta fase
 
-Como o body real **já tem** `type`, minha proposta é manter **redundância** (body + header `X-CRM-Event`). O site pode validar qualquer um — recomendado preferir o do body (assinado dentro do HMAC) e usar o header só como dica de roteamento. Aguardo seu OK pra registrar isso no contrato.
+- ❌ Sem endpoint `/identify` (lead linking)
+- ❌ Sem tabelas `tracking_attribution`, `tracking_click_ids`, `tracking_whatsapp`, `tracking_identity_links`, `tracking_conversion_exports` (vêm nas fases 3–5/8)
+- ❌ Sem nenhuma tela no CRM
+- ❌ Sem motor de classificação de origem (só guarda dados brutos)
+- ❌ Sem rastreamento de cliques/formulários (só `page_view` e `session_start` automáticos; `mkTrack` fica disponível mas não usado)
+- ❌ Sem Smartlook, sem Google Ads, sem Meta CAPI
 
-### O que vou rodar agora (re-Gate D)
+### 6. Critério de sucesso da Fase 1
 
-Antes de fechar Gate D, vou:
+1. Site da ÓR carrega `tracker.js` sem erro de CORS.
+2. Cada acesso gera linha em `tracking_visitors` (novo) ou atualiza `last_seen_at` (recorrente).
+3. Cada visita gera linha em `tracking_sessions` com UTMs e click IDs corretos.
+4. Cada page_view gera linha em `tracking_events` com `event_id` único.
+5. Reenviar o mesmo evento não duplica (idempotência via `event_id`).
+6. Outra clínica não consegue ler dados da ÓR (RLS).
 
-1. **Re-enqueue + dispatch da delivery real `88c8a6ba…`** (depois de resetar pra `pending`). Mostrar:
-   - body raw enviado (= JSON acima)
-   - `signed = v1:${ts}:${body}` completo
-   - todos os headers
-   - **response body do site** (não só status), via captura do `respText` no dispatcher (já existe, só preciso logar)
-2. **Teste negativo A — tamper signature**: chamar manualmente o endpoint do site com `X-CRM-Signature` com 1 char trocado → esperar 401.
-3. **Teste negativo B — timestamp velho**: chamar com `X-CRM-Timestamp` de 10min atrás (assinatura recalculada com esse ts) → esperar 401.
-4. **Teste negativo C — idempotência**: chamar 2x com mesmo `event_id` (a delivery já tem) → 1ª `matched_session:false` (ref `test123456` não existe no site), 2ª `dedup:true`. Verificar via `read_query` no lado CRM que não há duplicidade (a checagem real é no site).
+### 7. Ordem de implementação (1 rodada de execução)
 
-Esses 3 testes negativos rodo direto via `curl` (fora do dispatcher) reusando o mesmo `webhook_secret_out` da ÓR, montando os headers à mão. Não tocam nenhum arquivo.
+1. Migração das 3 tabelas + RLS
+2. Edge `tracking-pixel` + `tracking-config` + `tracking-event`
+3. Insert config da ÓR
+4. Documento curto `docs/TRACKING.md` com snippet de instalação
 
-Pequena alteração de código necessária: ampliar o log do dispatcher para incluir `respText` no `console.log("ewd sent", …)` quando `DEBUG_HMAC=1`. Sem isso, só temos o status. Removo depois junto com o resto do debug.
-
----
-
-## Fase E — `get-lead-journey` assinado
-
-Plano de implementação:
-
-**Arquivo:** `supabase/functions/get-lead-journey/index.ts` (verificar se já existe; se não, criar do zero seguindo o padrão do dispatcher).
-
-1. **Resolver `webhook_secret_out`** da `tracking_sites` correspondente ao lead (via `leads.site_id → tracking_sites.webhook_secret_out`). Sem secret → 502 `no_signing_secret`.
-2. **Resolver URL do site**: `https://<tracking_sites.domain>/functions/v1/crm-lead-journey?ref_short=<lead.ref_short>` (ou conforme contrato; query string é o material assinado).
-3. **Assinar GET**: `signed = "v1:" + ts + ":" + url.search` (incluindo o `?`, em UTF-8). HMAC-SHA-256 → hex lowercase, mesma função `hmacSha256Hex` do dispatcher.
-4. **Headers enviados**:
-   - `X-CRM-Timestamp: <unix seconds>`
-   - `X-CRM-Signature: v1=<hex>`
-   - `Accept: application/json`
-   - (sem `X-CRM-Event` / `X-CRM-Event-Id` — não há evento, é leitura)
-5. **Timeout 10s**, sem retry (chamada síncrona, é leitura). Em erro retornar `{ ok:false, error }` com status apropriado.
-6. **Retorno** do edge para o cliente CRM: o JSON do site como está (`{ journey: […] }` ou o que vier), mais metadados mínimos.
-
-**Gate E** vou mostrar:
-- URL final chamada (com query string)
-- headers exatos (incluindo `signed` recomputado pra você validar com Python)
-- response body JSON do site
-
-Sem mudanças de schema. Sem alterar dispatcher / tracking-claim / tracking-pixel.
-
----
-
-## Ordem de execução
-
-1. Logar `respText` no dispatcher (1 linha) + redeploy.
-2. Re-dispatch `88c8a6ba…` → mostrar body real + headers + response body do site.
-3. Rodar testes negativos A/B/C via `curl` manual.
-4. **Pausa para seu OK no Gate D final + decisão `type` redundante.**
-5. Implementar `get-lead-journey` conforme acima.
-6. **Pausa no Gate E** com URL/headers/response.
+Aguardando seu OK para começar.

@@ -3176,6 +3176,201 @@ export type Database = {
           },
         ]
       }
+      tracking_events: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          page_path: string | null
+          page_title: string | null
+          page_url: string | null
+          properties: Json
+          referrer: string | null
+          session_id: string | null
+          visitor_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          event_id: string
+          event_name: string
+          event_time?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          page_path?: string | null
+          page_title?: string | null
+          page_url?: string | null
+          properties?: Json
+          referrer?: string | null
+          session_id?: string | null
+          visitor_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          event_id?: string
+          event_name?: string
+          event_time?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          page_path?: string | null
+          page_title?: string | null
+          page_url?: string | null
+          properties?: Json
+          referrer?: string | null
+          session_id?: string | null
+          visitor_id?: string
+        }
+        Relationships: []
+      }
+      tracking_sessions: {
+        Row: {
+          browser: string | null
+          campaign: string | null
+          clinic_id: string
+          created_at: string
+          device_type: string | null
+          ended_at: string | null
+          fbclid: string | null
+          gbraid: string | null
+          gclid: string | null
+          id: string
+          ip_hash: string | null
+          landing_page: string | null
+          medium: string | null
+          msclkid: string | null
+          operating_system: string | null
+          referrer: string | null
+          session_id: string
+          source: string | null
+          started_at: string
+          updated_at: string
+          user_agent: string | null
+          utm_content: string | null
+          utm_term: string | null
+          visitor_id: string
+          wbraid: string | null
+        }
+        Insert: {
+          browser?: string | null
+          campaign?: string | null
+          clinic_id: string
+          created_at?: string
+          device_type?: string | null
+          ended_at?: string | null
+          fbclid?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          medium?: string | null
+          msclkid?: string | null
+          operating_system?: string | null
+          referrer?: string | null
+          session_id: string
+          source?: string | null
+          started_at?: string
+          updated_at?: string
+          user_agent?: string | null
+          utm_content?: string | null
+          utm_term?: string | null
+          visitor_id: string
+          wbraid?: string | null
+        }
+        Update: {
+          browser?: string | null
+          campaign?: string | null
+          clinic_id?: string
+          created_at?: string
+          device_type?: string | null
+          ended_at?: string | null
+          fbclid?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          medium?: string | null
+          msclkid?: string | null
+          operating_system?: string | null
+          referrer?: string | null
+          session_id?: string
+          source?: string | null
+          started_at?: string
+          updated_at?: string
+          user_agent?: string | null
+          utm_content?: string | null
+          utm_term?: string | null
+          visitor_id?: string
+          wbraid?: string | null
+        }
+        Relationships: []
+      }
+      tracking_visitors: {
+        Row: {
+          browser: string | null
+          clinic_id: string
+          consent_status: string
+          created_at: string
+          device_type: string | null
+          first_campaign: string | null
+          first_landing_page: string | null
+          first_medium: string | null
+          first_referrer: string | null
+          first_seen_at: string
+          first_source: string | null
+          id: string
+          last_seen_at: string
+          operating_system: string | null
+          updated_at: string
+          visitor_id: string
+        }
+        Insert: {
+          browser?: string | null
+          clinic_id: string
+          consent_status?: string
+          created_at?: string
+          device_type?: string | null
+          first_campaign?: string | null
+          first_landing_page?: string | null
+          first_medium?: string | null
+          first_referrer?: string | null
+          first_seen_at?: string
+          first_source?: string | null
+          id?: string
+          last_seen_at?: string
+          operating_system?: string | null
+          updated_at?: string
+          visitor_id: string
+        }
+        Update: {
+          browser?: string | null
+          clinic_id?: string
+          consent_status?: string
+          created_at?: string
+          device_type?: string | null
+          first_campaign?: string | null
+          first_landing_page?: string | null
+          first_medium?: string | null
+          first_referrer?: string | null
+          first_seen_at?: string
+          first_source?: string | null
+          id?: string
+          last_seen_at?: string
+          operating_system?: string | null
+          updated_at?: string
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
