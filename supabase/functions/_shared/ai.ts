@@ -116,7 +116,7 @@ async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       tools: tools && tools.length > 0 ? tools : undefined,
     }),
   });
-  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), choices: [] };
+  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
   const data = await r.json();
   return { ok: true, status: 200, choices: data.choices ?? [], usage: data.usage };
 }
@@ -174,7 +174,7 @@ async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[
       max_tokens: 2048,
     }),
   });
-  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), choices: [] };
+  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
   const data = await r.json();
   let text = "";
   const tool_calls: any[] = [];
@@ -247,7 +247,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       generationConfig: { temperature: Number(agent.temperature) || 0.7 },
     }),
   });
-  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), choices: [] };
+  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
   const data = await r.json();
   const cand = data.candidates?.[0];
   let text = "";
