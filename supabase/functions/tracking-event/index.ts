@@ -238,19 +238,25 @@ Deno.serve(async (req) => {
 
   // 2) Sessions: insert; ignore conflicts (existing session stays).
   if (sessionRows.size > 0) {
-    await supabase
+    const { error: sErr } = await supabase
       .from("tracking_sessions")
       .upsert(Array.from(sessionRows.values()), {
         onConflict: "clinic_id,session_id",
         ignoreDuplicates: true,
       });
+    if (sErr) console.log("[tracking-event] sessions_insert_error", sErr);
   }
 
   // 3) Events: insert with idempotency on (clinic_id, event_id).
   if (eventRows.length > 0) {
-    await supabase
+    const { error: eErr } = await supabase
       .from("tracking_events")
       .upsert(eventRows, { onConflict: "clinic_id,event_id", ignoreDuplicates: true });
+    if (eErr) {
+      console.log("[tracking-event] events_insert_error", eErr);
+    } else {
+      console.log("[tracking-event] events_inserted", { clinic_id: clinic.id, count: eventRows.length, names: eventRows.map(e => e.event_name) });
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, received: eventRows.length }), {
