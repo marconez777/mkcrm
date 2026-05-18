@@ -175,6 +175,9 @@ async function handlePendingReply(supabase: any, item: any, nowIso: string): Pro
     if (silent || !reply) {
       // Success path for silent agents (no message to send) — drop the claim.
       await supabase.from("pending_replies").delete().eq("lead_id", item.lead_id).eq("agent_id", item.agent_id);
+      if (silent) {
+        await supabase.from("leads").update({ last_classified_at: new Date().toISOString() }).eq("id", item.lead_id);
+      }
       return "replied";
     }
 
