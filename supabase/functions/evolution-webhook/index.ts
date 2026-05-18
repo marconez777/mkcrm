@@ -88,6 +88,18 @@ Deno.serve(async (req) => {
               }
             } catch (e) { console.error("broadcast_mark_replied failed", e); }
           }
+
+          // Inbound only: try to associate visitor_id → lead via tracking_code / ctwa_clid / phone.
+          if (!it?.key?.fromMe) {
+            const matchTask = matchTrackingForInbound({
+              supabase: sb(),
+              clinic_id: instance.clinic_id,
+              lead_id: res.lead_id,
+              item: it,
+            }).catch((e) => console.error("tracking-match failed", e));
+            // @ts-ignore
+            if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(matchTask);
+          }
         }
       }
     } else if (eventType === "MESSAGES_SET" || eventType === "MESSAGING_HISTORY_SET") {
