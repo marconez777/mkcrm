@@ -465,6 +465,8 @@ export default function Tracking() {
                     <TableHead>Primeira página</TableHead>
                     <TableHead>Última página</TableHead>
                     <TableHead>Referrer</TableHead>
+                    <TableHead>Origem (primeira)</TableHead>
+                    <TableHead>Origem (última não-direta)</TableHead>
                     <TableHead className="text-center">Sess.</TableHead>
                     <TableHead className="text-center">Ev.</TableHead>
                     <TableHead className="text-center">WA</TableHead>
