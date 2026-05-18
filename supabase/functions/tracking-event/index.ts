@@ -129,7 +129,7 @@ function toHost(entry: string): string | null {
 
 function isOriginAllowed(allowed: string[], host: string | null): boolean {
   if (!host) return false;
-  if (!allowed || allowed.length === 0) return true; // permissive if not configured
+  if (!allowed || allowed.length === 0) return false; // strict: must whitelist domains
   const hosts = allowed.map(toHost).filter(Boolean) as string[];
   return hosts.some((d) => d === host || host.endsWith("." + d));
 }
