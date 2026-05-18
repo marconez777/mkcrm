@@ -10,11 +10,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 function buildScript(projectId: string) {
   const endpoint = `${SUPABASE_URL}/functions/v1/tracking-event`;
   const configEndpoint = `${SUPABASE_URL}/functions/v1/tracking-config?project_id=${encodeURIComponent(projectId)}`;
+  const waRedirect = `${SUPABASE_URL}/functions/v1/wa-redirect`;
   return `
 (function(){
   var PROJECT_ID=${JSON.stringify(projectId)};
   var ENDPOINT=${JSON.stringify(endpoint)};
   var CONFIG_ENDPOINT=${JSON.stringify(configEndpoint)};
+  var WA_REDIRECT=${JSON.stringify(waRedirect)};
   var COOKIE="_mk_vid";
   var STORAGE_VID="_mk_vid";
   var STORAGE_SID="_mk_sid";
