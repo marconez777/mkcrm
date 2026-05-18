@@ -111,7 +111,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       const tasksQuery = supabase
         .from("lead_tasks")
-        .select("id, title, created_at, completed_at, status")
+        .select("id, title, created_at, done_at, due_at")
         .eq("clinic_id", resolvedClinicId)
         .eq("lead_id", leadId)
         .order("created_at", { ascending: false })
