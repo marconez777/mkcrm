@@ -310,8 +310,7 @@ async function matchTrackingForInbound(opts: {
   // 1) Tracking code in latest 5 inbound messages of this lead
   let code: string | null = null;
   const currentText = extractMessageText(item);
-  const m1 = currentText.match(TRACKING_CODE_RE);
-  if (m1) code = m1[0];
+  code = extractTrackingCode(currentText);
 
   if (!code) {
     const { data: recent } = await supabase
@@ -322,8 +321,8 @@ async function matchTrackingForInbound(opts: {
       .order("timestamp", { ascending: false })
       .limit(5);
     for (const row of (recent ?? [])) {
-      const m = String((row as any).content ?? "").match(TRACKING_CODE_RE);
-      if (m) { code = m[0]; break; }
+      const c = extractTrackingCode(String((row as any).content ?? ""));
+      if (c) { code = c; break; }
     }
   }
 
