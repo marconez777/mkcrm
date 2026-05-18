@@ -10,6 +10,8 @@ import {
   CATEGORY_ORDER,
   compareItems,
   trackingEventTitle,
+  crmEventTitle,
+  MILESTONE_TRACKING_EVENTS,
   type TimelineCategory,
   type TimelineItem,
 } from "./timeline/types";
@@ -77,13 +79,13 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
         .order("event_time", { ascending: false })
         .limit(200);
 
-      const messagesQuery = supabase
+      const firstMessageQuery = supabase
         .from("messages")
-        .select("id, timestamp, from_me, message_type, content")
+        .select("id, timestamp, from_me")
         .eq("clinic_id", resolvedClinicId)
         .eq("lead_id", leadId)
-        .order("timestamp", { ascending: false })
-        .limit(200);
+        .order("timestamp", { ascending: true })
+        .limit(1);
 
       const stageHistoryQuery = supabase
         .from("lead_stage_history")
@@ -133,8 +135,8 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
             .in("visitor_id", visitorIds)
         : Promise.resolve({ count: 0 } as { count: number });
 
-      const [trackRes, msgRes, stageRes, noteRes, crmRes, taskRes, visitorsRes, sessionsCountRes] = await Promise.all([
-        trackingEventsQuery, messagesQuery, stageHistoryQuery, notesQuery, crmEventsQuery, tasksQuery,
+      const [trackRes, firstMsgRes, stageRes, noteRes, crmRes, taskRes, visitorsRes, sessionsCountRes] = await Promise.all([
+        trackingEventsQuery, firstMessageQuery, stageHistoryQuery, notesQuery, crmEventsQuery, tasksQuery,
         visitorsQuery, sessionsCountQuery,
       ]);
 
@@ -156,6 +158,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
       const merged: TimelineItem[] = [];
 
       (trackRes.data || []).forEach((e) => {
+        if (!MILESTONE_TRACKING_EVENTS.has(e.event_name)) return;
         merged.push({
           id: `te-${e.id}`,
           at: e.event_time,
@@ -166,19 +169,16 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
         });
       });
 
-      (msgRes.data || []).forEach((m) => {
-        const direction = m.from_me ? "Enviada" : "Recebida";
-        const typeLabel = m.message_type && m.message_type !== "text" ? ` (${m.message_type})` : "";
-        const preview = (m.content || "").trim();
+      const firstMsg = (firstMsgRes.data || [])[0];
+      if (firstMsg) {
         merged.push({
-          id: `msg-${m.id}`,
-          at: m.timestamp,
-          category: "whatsapp",
-          title: `${direction}${typeLabel}`,
-          subtitle: preview ? (preview.length > 140 ? preview.slice(0, 140) + "…" : preview) : undefined,
-          meta: preview.length > 140 ? { content: preview } : null,
+          id: `first-contact-${firstMsg.id}`,
+          at: firstMsg.timestamp,
+          category: "site",
+          title: firstMsg.from_me ? "Primeiro contato (enviado pela clínica)" : "Primeiro contato no WhatsApp",
+          meta: null,
         });
-      });
+      }
 
       (stageRes.data || []).forEach((s) => {
         const from = s.from_stage_id ? stageMap.get(s.from_stage_id) || "—" : "—";
@@ -209,7 +209,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           id: `crm-${e.id}`,
           at: e.created_at,
           category: "crm",
-          title: e.type,
+          title: crmEventTitle(e.type),
           subtitle: undefined,
           meta: e.payload as Record<string, unknown> | null,
         });
