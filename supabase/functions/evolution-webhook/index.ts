@@ -262,7 +262,14 @@ Deno.serve(async (req) => {
 // ============================================================================
 // Tracking association: code in message body, ctwa_clid, or phone fallback.
 // ============================================================================
-const TRACKING_CODE_RE = /MK-[A-HJ-NP-Z2-9]{6}/;
+// Matches the new format `(ref=xxxxxxxxxx)` (10-char lowercase hex)
+// and the legacy format `MK-XXXXXX` (6-char uppercase) for backwards compat.
+const TRACKING_CODE_RE = /(?:ref=([a-f0-9]{10})|(MK-[A-HJ-NP-Z2-9]{6}))/i;
+function extractTrackingCode(text: string): string | null {
+  const m = text.match(TRACKING_CODE_RE);
+  if (!m) return null;
+  return (m[1] ? m[1].toLowerCase() : m[2]?.toUpperCase()) ?? null;
+}
 
 function extractMessageText(item: any): string {
   const m = item?.message ?? {};
@@ -303,8 +310,7 @@ async function matchTrackingForInbound(opts: {
   // 1) Tracking code in latest 5 inbound messages of this lead
   let code: string | null = null;
   const currentText = extractMessageText(item);
-  const m1 = currentText.match(TRACKING_CODE_RE);
-  if (m1) code = m1[0];
+  code = extractTrackingCode(currentText);
 
   if (!code) {
     const { data: recent } = await supabase
@@ -315,8 +321,8 @@ async function matchTrackingForInbound(opts: {
       .order("timestamp", { ascending: false })
       .limit(5);
     for (const row of (recent ?? [])) {
-      const m = String((row as any).content ?? "").match(TRACKING_CODE_RE);
-      if (m) { code = m[0]; break; }
+      const c = extractTrackingCode(String((row as any).content ?? ""));
+      if (c) { code = c; break; }
     }
   }
 
