@@ -38,7 +38,26 @@ Autenticação: sem JWT, sem secret no browser. Validação por **CORS allowlist
 <script async src="https://crm.mkart.com.br/functions/v1/tracking-pixel?project_id=or"></script>
 ```
 
-O pixel emite automaticamente `session_start` + `page_view` no boot, e novos `page_view` em mudanças de rota (SPA). Expõe `window.mkTrack(name, props)` para eventos custom (não usado nesta fase).
+## Eventos automáticos
+
+| Evento | Origem |
+|---|---|
+| `session_start` | Boot do pixel |
+| `page_view` | Boot + mudanças de rota SPA |
+| `whatsapp_click` | Clique em link `wa.me` / `api.whatsapp.com` / `web.whatsapp.com` / `whatsapp:` |
+| `form_start` | Primeiro focus/change dentro de um `<form>` (1x por form) |
+| `form_submit_attempt` | Submit de qualquer `<form>` (não garante sucesso) |
+| qualquer | Clique em elemento com `data-track-event="..."` |
+
+Eventos custom via `window.mkTrack(name, props)`.
+
+Envio com `navigator.sendBeacon` (fallback: `fetch keepalive`).
+
+URLs sanitizadas no cliente: mantidos `origin + pathname` e apenas UTMs + click IDs (gclid/gbraid/wbraid/fbclid/msclkid). Valores de inputs **nunca** são enviados.
+
+Cache do `tracker.js`: `no-store` durante Fase 1 (testes). Voltar a `max-age=3600` quando estabilizar.
+
+Guia para o time do site: [`TRACKING_SITE.md`](./TRACKING_SITE.md).
 
 ## Identificadores
 
