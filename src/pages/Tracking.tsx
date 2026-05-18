@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Eye, ExternalLink } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
+import { AttributionTab } from "@/pages/tracking/AttributionTab";
 
 type EventRow = {
   id: string;
