@@ -304,8 +304,8 @@ export default function Tracking() {
       if (!map[key]) map[key] = { pageviews: 0, visitors: new Set(), wa: 0, fs: 0, fa: 0, leads: new Set() };
       const r = map[key];
       if (e.event_name === "page_view") r.pageviews += 1;
-      if (e.event_name === "whatsapp_click") r.wa += 1;
-      if (e.event_name === "form_start") r.fs += 1;
+      if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") r.wa += 1;
+      if (e.event_name === "form_start" || e.event_name === "partial_form_capture") r.fs += 1;
       if (e.event_name === "form_submit_attempt") r.fa += 1;
       r.visitors.add(e.visitor_id);
       const ld = links[e.visitor_id];
