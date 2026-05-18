@@ -223,10 +223,10 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           title: `Tarefa criada: ${t.title}`,
           meta: null,
         });
-        if (t.completed_at) {
+        if (t.done_at) {
           merged.push({
             id: `task-d-${t.id}`,
-            at: t.completed_at,
+            at: t.done_at,
             category: "task",
             title: `Tarefa concluída: ${t.title}`,
             meta: null,
