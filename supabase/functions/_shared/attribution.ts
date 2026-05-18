@@ -39,10 +39,56 @@ function classifyChannel(source: string | null, medium: string | null): string {
   if (["paid_social", "social_paid"].includes(medium)) return "paid_social";
   if (medium === "organic") return "organic_search";
   if (["social", "organic_social"].includes(medium)) return "organic_social";
+  if (medium === "ai") return "ai_assistant";
   if (medium === "email") return "email";
   if (medium === "referral") return "referral";
   return "other";
 }
+
+// Referrer host → { source, medium, channel_group }
+// Order matters only inside the array (first match wins via String.includes on normalized referrer).
+const REFERRER_RULES: Array<{ match: string; source: string; medium: string; channel_group: string; reason: string }> = [
+  // AI assistants (treated as a distinct channel)
+  { match: "chat.openai.com", source: "chatgpt", medium: "ai", channel_group: "ai_assistant", reason: "ai_chatgpt" },
+  { match: "chatgpt.com", source: "chatgpt", medium: "ai", channel_group: "ai_assistant", reason: "ai_chatgpt" },
+  { match: "perplexity.ai", source: "perplexity", medium: "ai", channel_group: "ai_assistant", reason: "ai_perplexity" },
+  { match: "claude.ai", source: "claude", medium: "ai", channel_group: "ai_assistant", reason: "ai_claude" },
+  { match: "gemini.google.com", source: "gemini", medium: "ai", channel_group: "ai_assistant", reason: "ai_gemini" },
+  { match: "copilot.microsoft.com", source: "copilot", medium: "ai", channel_group: "ai_assistant", reason: "ai_copilot" },
+  { match: "you.com", source: "you", medium: "ai", channel_group: "ai_assistant", reason: "ai_you" },
+  { match: "poe.com", source: "poe", medium: "ai", channel_group: "ai_assistant", reason: "ai_poe" },
+  // Search engines (organic)
+  { match: "google.", source: "google", medium: "organic", channel_group: "organic_search", reason: "referrer_google" },
+  { match: "bing.", source: "bing", medium: "organic", channel_group: "organic_search", reason: "referrer_bing" },
+  { match: "duckduckgo.", source: "duckduckgo", medium: "organic", channel_group: "organic_search", reason: "referrer_duckduckgo" },
+  { match: "yahoo.", source: "yahoo", medium: "organic", channel_group: "organic_search", reason: "referrer_yahoo" },
+  { match: "yandex.", source: "yandex", medium: "organic", channel_group: "organic_search", reason: "referrer_yandex" },
+  { match: "ecosia.", source: "ecosia", medium: "organic", channel_group: "organic_search", reason: "referrer_ecosia" },
+  { match: "brave.com", source: "brave", medium: "organic", channel_group: "organic_search", reason: "referrer_brave" },
+  // Video
+  { match: "youtube.", source: "youtube", medium: "organic_social", channel_group: "organic_social", reason: "referrer_youtube" },
+  { match: "youtu.be", source: "youtube", medium: "organic_social", channel_group: "organic_social", reason: "referrer_youtube" },
+  // Social
+  { match: "instagram.", source: "instagram", medium: "organic_social", channel_group: "organic_social", reason: "referrer_instagram" },
+  { match: "l.instagram.", source: "instagram", medium: "organic_social", channel_group: "organic_social", reason: "referrer_instagram" },
+  { match: "facebook.", source: "facebook", medium: "organic_social", channel_group: "organic_social", reason: "referrer_facebook" },
+  { match: "l.facebook.", source: "facebook", medium: "organic_social", channel_group: "organic_social", reason: "referrer_facebook" },
+  { match: "m.facebook.", source: "facebook", medium: "organic_social", channel_group: "organic_social", reason: "referrer_facebook" },
+  { match: "linkedin.", source: "linkedin", medium: "organic_social", channel_group: "organic_social", reason: "referrer_linkedin" },
+  { match: "tiktok.", source: "tiktok", medium: "organic_social", channel_group: "organic_social", reason: "referrer_tiktok" },
+  { match: "reddit.", source: "reddit", medium: "organic_social", channel_group: "organic_social", reason: "referrer_reddit" },
+  { match: "pinterest.", source: "pinterest", medium: "organic_social", channel_group: "organic_social", reason: "referrer_pinterest" },
+  { match: "x.com", source: "x", medium: "organic_social", channel_group: "organic_social", reason: "referrer_x" },
+  { match: "t.co", source: "x", medium: "organic_social", channel_group: "organic_social", reason: "referrer_x" },
+  { match: "twitter.", source: "twitter", medium: "organic_social", channel_group: "organic_social", reason: "referrer_twitter" },
+  { match: "threads.net", source: "threads", medium: "organic_social", channel_group: "organic_social", reason: "referrer_threads" },
+  // Messaging
+  { match: "wa.me", source: "whatsapp", medium: "referral", channel_group: "referral", reason: "referrer_whatsapp" },
+  { match: "api.whatsapp.", source: "whatsapp", medium: "referral", channel_group: "referral", reason: "referrer_whatsapp" },
+  { match: "web.whatsapp.", source: "whatsapp", medium: "referral", channel_group: "referral", reason: "referrer_whatsapp" },
+  { match: "whatsapp.", source: "whatsapp", medium: "referral", channel_group: "referral", reason: "referrer_whatsapp" },
+  { match: "t.me", source: "telegram", medium: "referral", channel_group: "referral", reason: "referrer_telegram" },
+];
 
 export function resolveTrafficSource(input: AttributionInput): AttributionResult {
   const source = normalize(input.utm_source);
