@@ -26,10 +26,10 @@ function isOriginAllowed(allowed: string[], host: string | null): boolean {
 }
 
 function genCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "MK-";
-  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
+  // 10-char lowercase hex (e.g. "237e858b97")
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req) => {
