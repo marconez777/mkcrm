@@ -1,0 +1,438 @@
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw, Eye } from "lucide-react";
+
+type EventRow = {
+  id: string;
+  event_id: string;
+  event_name: string;
+  event_type: string;
+  event_time: string;
+  visitor_id: string;
+  session_id: string | null;
+  page_url: string | null;
+  page_path: string | null;
+  page_title: string | null;
+  referrer: string | null;
+  properties: any;
+};
+
+type VisitorRow = {
+  visitor_id: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  first_landing_page: string | null;
+  first_referrer: string | null;
+  first_source: string | null;
+  first_medium: string | null;
+  first_campaign: string | null;
+  created_at: string;
+};
+
+type SessionRow = {
+  session_id: string;
+  visitor_id: string;
+  started_at: string;
+  ended_at: string | null;
+  landing_page: string | null;
+  referrer: string | null;
+  source: string | null;
+  medium: string | null;
+  campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  gclid: string | null;
+  fbclid: string | null;
+  msclkid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
+  device_type: string | null;
+  browser: string | null;
+  operating_system: string | null;
+  user_agent: string | null;
+};
+
+const PERIODS = {
+  "1h": { label: "Última 1 hora", ms: 60 * 60 * 1000 },
+  "24h": { label: "Últimas 24 horas", ms: 24 * 60 * 60 * 1000 },
+  "7d": { label: "Últimos 7 dias", ms: 7 * 24 * 60 * 60 * 1000 },
+} as const;
+type PeriodKey = keyof typeof PERIODS;
+
+function fmtTime(s?: string | null) {
+  if (!s) return "—";
+  try { return new Date(s).toLocaleString(); } catch { return s; }
+}
+
+function truncate(s: string | null | undefined, n = 60) {
+  if (!s) return "—";
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+export default function TrackingDebug() {
+  const [period, setPeriod] = useState<PeriodKey>("24h");
+  const [eventNameFilter, setEventNameFilter] = useState("");
+  const [visitorFilter, setVisitorFilter] = useState("");
+  const [pageUrlFilter, setPageUrlFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [visitors, setVisitors] = useState<VisitorRow[]>([]);
+  const [summary, setSummary] = useState({
+    visitors24h: 0, sessions24h: 0, events24h: 0,
+    page_view: 0, whatsapp_click: 0, form_start: 0, form_submit_attempt: 0,
+  });
+  const [journeyVisitor, setJourneyVisitor] = useState<string | null>(null);
+  const [journeyData, setJourneyData] = useState<{
+    visitor: VisitorRow | null;
+    sessions: SessionRow[];
+    events: EventRow[];
+  } | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+
+  const since = useMemo(() => new Date(Date.now() - PERIODS[period].ms).toISOString(), [period]);
+  const since24h = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Summary (always 24h)
+      const [v24, s24, e24, evCounts] = await Promise.all([
+        supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true }).gte("last_seen_at", since24h),
+        supabase.from("tracking_sessions").select("session_id", { count: "exact", head: true }).gte("started_at", since24h),
+        supabase.from("tracking_events").select("id", { count: "exact", head: true }).gte("event_time", since24h),
+        supabase.from("tracking_events").select("event_name").gte("event_time", since24h).limit(10000),
+      ]);
+      const counts: Record<string, number> = {};
+      (evCounts.data ?? []).forEach((r: any) => { counts[r.event_name] = (counts[r.event_name] ?? 0) + 1; });
+      setSummary({
+        visitors24h: v24.count ?? 0,
+        sessions24h: s24.count ?? 0,
+        events24h: e24.count ?? 0,
+        page_view: counts.page_view ?? 0,
+        whatsapp_click: counts.whatsapp_click ?? 0,
+        form_start: counts.form_start ?? 0,
+        form_submit_attempt: counts.form_submit_attempt ?? 0,
+      });
+
+      // Events table
+      let q = supabase.from("tracking_events").select("*").gte("event_time", since).order("event_time", { ascending: false }).limit(200);
+      if (eventNameFilter.trim()) q = q.ilike("event_name", `%${eventNameFilter.trim()}%`);
+      if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+      if (pageUrlFilter.trim()) q = q.ilike("page_url", `%${pageUrlFilter.trim()}%`);
+      const { data: evData } = await q;
+      setEvents((evData as EventRow[]) ?? []);
+
+      // Visitors table
+      let vq = supabase.from("tracking_visitors").select("*").gte("last_seen_at", since).order("last_seen_at", { ascending: false }).limit(100);
+      if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+      const { data: vData } = await vq;
+      setVisitors((vData as VisitorRow[]) ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, [since, since24h, eventNameFilter, visitorFilter, pageUrlFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openJourney = async (visitorId: string) => {
+    setJourneyVisitor(visitorId);
+    setJourneyLoading(true);
+    setJourneyData(null);
+    try {
+      const [v, s, e] = await Promise.all([
+        supabase.from("tracking_visitors").select("*").eq("visitor_id", visitorId).maybeSingle(),
+        supabase.from("tracking_sessions").select("*").eq("visitor_id", visitorId).order("started_at", { ascending: false }).limit(50),
+        supabase.from("tracking_events").select("*").eq("visitor_id", visitorId).order("event_time", { ascending: true }).limit(500),
+      ]);
+      setJourneyData({
+        visitor: (v.data as VisitorRow) ?? null,
+        sessions: (s.data as SessionRow[]) ?? [],
+        events: (e.data as EventRow[]) ?? [],
+      });
+    } finally {
+      setJourneyLoading(false);
+    }
+  };
+
+  const pagesVisited = journeyData?.events.filter(e => e.event_name === "page_view") ?? [];
+  const whatsappClicks = journeyData?.events.filter(e => e.event_name === "whatsapp_click") ?? [];
+  const formEvents = journeyData?.events.filter(e => e.event_name.startsWith("form_")) ?? [];
+
+  return (
+    <div className="h-full overflow-auto p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Auditoria de Tracking</h1>
+          <p className="text-sm text-muted-foreground">Validação dos eventos recebidos pelo pixel da clínica.</p>
+        </div>
+        <Button onClick={load} disabled={loading} size="sm">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
+      </div>
+
+      <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
+        <CardContent className="py-3 text-sm">
+          <strong>Modo de validação:</strong> Para testar, abra o site da Clínica ÓR em uma aba anônima,
+          acesse algumas páginas, clique no WhatsApp e interaja com formulários. Depois volte aqui e clique em <em>Atualizar</em>.
+        </CardContent>
+      </Card>
+
+      {/* Resumo rápido */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+        {[
+          { label: "Visitantes 24h", value: summary.visitors24h },
+          { label: "Sessões 24h", value: summary.sessions24h },
+          { label: "Eventos 24h", value: summary.events24h },
+          { label: "page_view 24h", value: summary.page_view },
+          { label: "whatsapp_click 24h", value: summary.whatsapp_click },
+          { label: "form_start 24h", value: summary.form_start },
+          { label: "form_submit_attempt 24h", value: summary.form_submit_attempt },
+        ].map((c) => (
+          <Card key={c.label}>
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{c.label}</CardTitle></CardHeader>
+            <CardContent className="pt-0 text-2xl font-semibold">{c.value}</CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <Card className="mb-4">
+        <CardHeader><CardTitle className="text-sm">Filtros</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Período</label>
+            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(PERIODS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">event_name</label>
+            <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder="ex: page_view" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">visitor_id</label>
+            <Input value={visitorFilter} onChange={(e) => setVisitorFilter(e.target.value)} placeholder="parcial..." />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">page_url</label>
+            <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder="parcial..." />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Eventos */}
+      <Card className="mb-6">
+        <CardHeader><CardTitle className="text-sm">Últimos eventos recebidos ({events.length})</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>event_time</TableHead>
+                <TableHead>event_name</TableHead>
+                <TableHead>visitor_id</TableHead>
+                <TableHead>session_id</TableHead>
+                <TableHead>page_url</TableHead>
+                <TableHead>referrer</TableHead>
+                <TableHead>properties</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum evento encontrado.</TableCell></TableRow>
+              )}
+              {events.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(e.event_time)}</TableCell>
+                  <TableCell className="font-mono text-xs">{e.event_name}</TableCell>
+                  <TableCell className="font-mono text-xs">{truncate(e.visitor_id, 16)}</TableCell>
+                  <TableCell className="font-mono text-xs">{truncate(e.session_id, 16)}</TableCell>
+                  <TableCell className="text-xs"><span title={e.page_url ?? ""}>{truncate(e.page_url, 50)}</span></TableCell>
+                  <TableCell className="text-xs"><span title={e.referrer ?? ""}>{truncate(e.referrer, 40)}</span></TableCell>
+                  <TableCell className="max-w-[280px]">
+                    <pre className="overflow-x-auto whitespace-pre-wrap break-all text-[10px] text-muted-foreground">{JSON.stringify(e.properties ?? {}, null, 0)}</pre>
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="ghost" onClick={() => openJourney(e.visitor_id)} title="Ver jornada">
+                      <Eye className="h-3 w-3" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Visitantes */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Últimos visitantes ({visitors.length})</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>visitor_id</TableHead>
+                <TableHead>first_seen_at</TableHead>
+                <TableHead>last_seen_at</TableHead>
+                <TableHead>first_landing_page</TableHead>
+                <TableHead>first_referrer</TableHead>
+                <TableHead>created_at</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visitors.length === 0 && (
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+              )}
+              {visitors.map((v) => (
+                <TableRow key={v.visitor_id}>
+                  <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 18)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.first_seen_at)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.last_seen_at)}</TableCell>
+                  <TableCell className="text-xs"><span title={v.first_landing_page ?? ""}>{truncate(v.first_landing_page, 50)}</span></TableCell>
+                  <TableCell className="text-xs"><span title={v.first_referrer ?? ""}>{truncate(v.first_referrer, 40)}</span></TableCell>
+                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.created_at)}</TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
+                      <Eye className="h-3 w-3" /> Ver jornada
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Jornada */}
+      <Dialog open={!!journeyVisitor} onOpenChange={(o) => { if (!o) { setJourneyVisitor(null); setJourneyData(null); } }}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm">Jornada · {journeyVisitor}</DialogTitle>
+          </DialogHeader>
+          {journeyLoading && <div className="py-8 text-center text-sm text-muted-foreground">Carregando…</div>}
+          {journeyData && (
+            <div className="space-y-5 text-sm">
+              {/* Dados básicos */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Dados do visitante</h3>
+                {journeyData.visitor ? (
+                  <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-xs">
+                    <div><span className="text-muted-foreground">first_seen:</span> {fmtTime(journeyData.visitor.first_seen_at)}</div>
+                    <div><span className="text-muted-foreground">last_seen:</span> {fmtTime(journeyData.visitor.last_seen_at)}</div>
+                    <div><span className="text-muted-foreground">landing:</span> {truncate(journeyData.visitor.first_landing_page, 60)}</div>
+                    <div><span className="text-muted-foreground">referrer:</span> {truncate(journeyData.visitor.first_referrer, 60)}</div>
+                    <div><span className="text-muted-foreground">source:</span> {journeyData.visitor.first_source ?? "—"}</div>
+                    <div><span className="text-muted-foreground">medium:</span> {journeyData.visitor.first_medium ?? "—"}</div>
+                    <div><span className="text-muted-foreground">campaign:</span> {journeyData.visitor.first_campaign ?? "—"}</div>
+                  </div>
+                ) : <div className="text-muted-foreground text-xs">Visitante não encontrado em tracking_visitors.</div>}
+              </section>
+
+              {/* Sessões */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Sessões ({journeyData.sessions.length})</h3>
+                <div className="space-y-2">
+                  {journeyData.sessions.map((s) => (
+                    <div key={s.session_id} className="rounded-md border p-2 text-xs">
+                      <div className="flex flex-wrap gap-x-4">
+                        <span className="font-mono">{truncate(s.session_id, 20)}</span>
+                        <span>início: {fmtTime(s.started_at)}</span>
+                        <span>landing: {truncate(s.landing_page, 40)}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground">
+                        {s.source && <span>src={s.source}</span>}
+                        {s.medium && <span>med={s.medium}</span>}
+                        {s.campaign && <span>camp={s.campaign}</span>}
+                        {s.gclid && <span>gclid={truncate(s.gclid, 16)}</span>}
+                        {s.fbclid && <span>fbclid={truncate(s.fbclid, 16)}</span>}
+                        {s.msclkid && <span>msclkid={truncate(s.msclkid, 16)}</span>}
+                        {s.gbraid && <span>gbraid={truncate(s.gbraid, 16)}</span>}
+                        {s.wbraid && <span>wbraid={truncate(s.wbraid, 16)}</span>}
+                        {s.device_type && <span>{s.device_type}</span>}
+                        {s.browser && <span>{s.browser}</span>}
+                        {s.operating_system && <span>{s.operating_system}</span>}
+                      </div>
+                    </div>
+                  ))}
+                  {journeyData.sessions.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma sessão.</div>}
+                </div>
+              </section>
+
+              {/* Páginas */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Páginas acessadas ({pagesVisited.length})</h3>
+                <ul className="space-y-1 text-xs">
+                  {pagesVisited.map((p) => (
+                    <li key={p.id}>
+                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — {truncate(p.page_url, 80)}
+                    </li>
+                  ))}
+                  {pagesVisited.length === 0 && <li className="text-muted-foreground">—</li>}
+                </ul>
+              </section>
+
+              {/* WhatsApp */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Cliques em WhatsApp ({whatsappClicks.length})</h3>
+                <ul className="space-y-1 text-xs">
+                  {whatsappClicks.map((p) => (
+                    <li key={p.id}>
+                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — em {truncate(p.page_path, 40)}
+                      {p.properties?.location ? ` · ${p.properties.location}` : ""}
+                    </li>
+                  ))}
+                  {whatsappClicks.length === 0 && <li className="text-muted-foreground">—</li>}
+                </ul>
+              </section>
+
+              {/* Formulários */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Eventos de formulário ({formEvents.length})</h3>
+                <ul className="space-y-1 text-xs">
+                  {formEvents.map((p) => (
+                    <li key={p.id}>
+                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — <span className="font-mono">{p.event_name}</span> em {truncate(p.page_path, 40)}
+                    </li>
+                  ))}
+                  {formEvents.length === 0 && <li className="text-muted-foreground">—</li>}
+                </ul>
+              </section>
+
+              {/* Timeline completo */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Todos os eventos em ordem ({journeyData.events.length})</h3>
+                <div className="space-y-2">
+                  {journeyData.events.map((e) => (
+                    <div key={e.id} className="rounded-md border p-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-x-3">
+                        <span className="text-muted-foreground">{fmtTime(e.event_time)}</span>
+                        <span className="font-mono font-semibold">{e.event_name}</span>
+                        <span className="text-muted-foreground">{truncate(e.page_path, 40)}</span>
+                      </div>
+                      {e.properties && Object.keys(e.properties).length > 0 && (
+                        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[10px]">
+{JSON.stringify(e.properties, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
