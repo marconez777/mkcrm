@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 import { usePrompt, useConfirm } from "@/hooks/useDialogs";
+import { deleteLead } from "@/lib/delete-lead";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -404,7 +405,12 @@ export default function ConversationList(props: {
                         requireTyping: "EXCLUIR",
                       });
                       if (!ok) return;
-                      await supabase.from("leads").delete().eq("id", l.id);
+                      try {
+                        await deleteLead(l.id);
+                        toast.success("Conversa excluída");
+                      } catch (error) {
+                        toast.error("Falha ao excluir conversa", { description: error instanceof Error ? error.message : "Tente novamente." });
+                      }
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />Excluir conversa
