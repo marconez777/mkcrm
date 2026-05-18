@@ -162,25 +162,26 @@ async function isInternalAuthorized(req: Request, clinicId: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const corsHeaders = corsFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
       status: 405,
-      headers: { ...cors, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   let body: any;
   try { body = await req.json(); } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   const events = Array.isArray(body) ? body : [body];
   if (events.length === 0 || events.length > 50) {
     return new Response(JSON.stringify({ error: "bad_batch" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -190,7 +191,7 @@ Deno.serve(async (req) => {
 
   if (!projectId || typeof projectId !== "string") {
     return new Response(JSON.stringify({ error: "missing_project_id" }), {
-      status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -202,13 +203,13 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!clinic) {
     return new Response(JSON.stringify({ error: "unknown_project" }), {
-      status: 404, headers: { ...cors, "Content-Type": "application/json" },
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const tcfg = ((clinic.settings as any)?.tracking) || {};
   if (tcfg.enabled === false) {
     return new Response(JSON.stringify({ ok: true, ignored: true }), {
-      status: 200, headers: { ...cors, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -217,7 +218,7 @@ Deno.serve(async (req) => {
   const internalAuthorized = !originAllowed ? await isInternalAuthorized(req, clinic.id) : false;
   if (!originAllowed && !internalAuthorized) {
     return new Response(JSON.stringify({ error: "origin_not_allowed", host, allowed }), {
-      status: 403, headers: { ...cors, "Content-Type": "application/json" },
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -225,7 +226,7 @@ Deno.serve(async (req) => {
   const rlKey = `${clinic.id}:${ip}`;
   if (rateLimited(rlKey)) {
     return new Response(JSON.stringify({ error: "rate_limited" }), {
-      status: 429, headers: { ...cors, "Content-Type": "application/json" },
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -409,6 +410,6 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({ ok: true, received: eventRows.length }), {
     status: 200,
-    headers: { ...cors, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
