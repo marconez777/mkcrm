@@ -59,12 +59,12 @@ Deno.serve(async (req) => {
     return new Response("unknown_project", { status: 404, headers: corsHeaders });
   }
 
-  const tcfg = ((clinic.settings as any)?.tracking) || {};
-  const allowed: string[] = tcfg.allowed_domains || [];
-  if (allowed.length > 0 && !isOriginAllowed(allowed, host)) {
-    console.log("[wa-redirect] origin_blocked", { host, allowed });
-    return new Response("origin_not_allowed", { status: 403, headers: corsHeaders });
-  }
+  // NOTE: allowed_domains check intentionally removed for wa-redirect.
+  // Public link by nature (anyone with the URL can hit it). Browsers strip Referer
+  // on cross-origin navigations (rel="noopener noreferrer", strict referrer policies),
+  // so checking host here causes legitimate clicks to be blocked.
+  // Origin validation remains enforced on tracking-pixel and tracking-identify.
+  const _refHostForAudit = host;
 
   // Generate unique code (retry up to 5 times on collision)
   let code = "";
