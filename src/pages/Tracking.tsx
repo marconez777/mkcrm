@@ -88,6 +88,8 @@ export default function Tracking() {
   const [customTo, setCustomTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const { isSuperAdmin, membership } = useAuth();
+  const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
 
   // global filters
   const [eventNameFilter, setEventNameFilter] = useState("");
