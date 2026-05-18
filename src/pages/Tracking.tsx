@@ -220,8 +220,8 @@ export default function Tracking() {
       allEv.forEach((e) => {
         const f = flags[e.visitor_id] ?? { wa: false, fs: false, fa: false, sessions: 0, events: 0, lastPage: null };
         f.events += 1;
-        if (e.event_name === "whatsapp_click") f.wa = true;
-        if (e.event_name === "form_start") f.fs = true;
+        if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") f.wa = true;
+        if (e.event_name === "form_start" || e.event_name === "partial_form_capture") f.fs = true;
         if (e.event_name === "form_submit_attempt" || e.event_name === "form_submit") f.fa = true;
         if (!f.lastPage && e.page_url) f.lastPage = e.page_url;
         flags[e.visitor_id] = f;
