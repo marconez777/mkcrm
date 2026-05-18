@@ -10,7 +10,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 function buildScript(projectId: string) {
   const endpoint = `${SUPABASE_URL}/functions/v1/tracking-event`;
   const configEndpoint = `${SUPABASE_URL}/functions/v1/tracking-config?project_id=${encodeURIComponent(projectId)}`;
-  // Minimal pixel — page_view + SPA route changes + mkTrack() API.
   return `
 (function(){
   var PROJECT_ID=${JSON.stringify(projectId)};
@@ -21,6 +20,7 @@ function buildScript(projectId: string) {
   var STORAGE_SID="_mk_sid";
   var STORAGE_SID_EXP="_mk_sid_exp";
   var DEFAULT_SESSION_MIN=30;
+  var ALLOWED_QS=["utm_source","utm_medium","utm_campaign","utm_content","utm_term","gclid","gbraid","wbraid","fbclid","msclkid"];
   var cfg=null;
 
   function uuid(){
@@ -46,10 +46,10 @@ function buildScript(projectId: string) {
     try{sessionStorage.setItem(STORAGE_SID,s);sessionStorage.setItem(STORAGE_SID_EXP,String(now+timeout));}catch(e){}
     return s;
   }
-  function qs(){
+  function qs(u){
     var p={};
     try{
-      var s=window.location.search.replace(/^\\?/,"");
+      var s=(u||window.location.search).split("?").pop().split("#")[0].replace(/^\\?/,"");
       if(!s)return p;
       s.split("&").forEach(function(kv){
         var i=kv.indexOf("=");
@@ -59,12 +59,36 @@ function buildScript(projectId: string) {
     }catch(e){}
     return p;
   }
+  function sanitizeUrl(raw){
+    if(!raw)return null;
+    try{
+      var u=new URL(raw, window.location.href);
+      var keep=[];
+      ALLOWED_QS.forEach(function(k){
+        var v=u.searchParams.get(k);
+        if(v!=null)keep.push(encodeURIComponent(k)+"="+encodeURIComponent(v));
+      });
+      var out=u.origin+u.pathname;
+      if(keep.length)out+="?"+keep.join("&");
+      return out;
+    }catch(e){return null;}
+  }
+  function sanitizeText(s,max){
+    if(s==null)return null;
+    try{
+      var t=String(s).replace(/\\s+/g," ").trim();
+      if(!t)return null;
+      return t.length>max?t.slice(0,max):t;
+    }catch(e){return null;}
+  }
   function send(payload){
     try{
       var body=JSON.stringify(payload);
       if(navigator.sendBeacon){
-        var blob=new Blob([body],{type:"application/json"});
-        if(navigator.sendBeacon(ENDPOINT,blob))return;
+        try{
+          var blob=new Blob([body],{type:"application/json"});
+          if(navigator.sendBeacon(ENDPOINT,blob))return;
+        }catch(e){}
       }
       fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:body,keepalive:true,credentials:"omit"}).catch(function(){});
     }catch(e){}
@@ -79,10 +103,10 @@ function buildScript(projectId: string) {
       event_name:name,
       event_type:name==="page_view"?"page_view":(name==="session_start"?"session_start":"custom"),
       event_time:new Date().toISOString(),
-      page_url:window.location.href,
+      page_url:sanitizeUrl(window.location.href),
       page_path:window.location.pathname,
       page_title:document.title||null,
-      referrer:document.referrer||null,
+      referrer:sanitizeUrl(document.referrer||null),
       utm_source:p.utm_source||null,
       utm_medium:p.utm_medium||null,
       utm_campaign:p.utm_campaign||null,
@@ -102,9 +126,9 @@ function buildScript(projectId: string) {
     };
     return ev;
   }
-  function track(name,props){send(baseEvent(name,props||{}));}
+  function track(name,props){try{send(baseEvent(name,props||{}));}catch(e){}}
 
-  // SPA route tracking
+  // ---- SPA route tracking ----
   var lastPath=window.location.pathname+window.location.search;
   function onRoute(){
     var p=window.location.pathname+window.location.search;
@@ -118,11 +142,87 @@ function buildScript(projectId: string) {
   });
   window.addEventListener("popstate",onRoute);
 
-  // Bootstrap
-  function start(){
-    track("session_start");
-    track("page_view");
+  // ---- Click auto-capture (data-track-event + WhatsApp) ----
+  var WA_RE=/^(https?:)?\\/\\/(wa\\.me|api\\.whatsapp\\.com|web\\.whatsapp\\.com)\\//i;
+  function isWhatsAppHref(h){if(!h)return false;return WA_RE.test(h)||/^whatsapp:/i.test(h);}
+  function closestWithAttr(el,attr){while(el&&el.nodeType===1){if(el.hasAttribute&&el.hasAttribute(attr))return el;el=el.parentElement;}return null;}
+  function closestTag(el,tag){while(el&&el.nodeType===1){if(el.tagName&&el.tagName.toLowerCase()===tag)return el;el=el.parentElement;}return null;}
+
+  document.addEventListener("click",function(e){
+    try{
+      var target=e.target;
+      if(!target||target.nodeType!==1)return;
+      var tracked=closestWithAttr(target,"data-track-event");
+      var anchor=closestTag(target,"a");
+      var href=anchor&&anchor.getAttribute("href")||null;
+      var isWa=isWhatsAppHref(href);
+
+      if(tracked){
+        var name=tracked.getAttribute("data-track-event");
+        var props={
+          label:sanitizeText(tracked.getAttribute("data-track-label"),120),
+          location:sanitizeText(tracked.getAttribute("data-track-location"),120),
+          element_text:sanitizeText(tracked.innerText||tracked.textContent,120),
+          element_href:sanitizeUrl(href),
+          element_tag:(tracked.tagName||"").toLowerCase()
+        };
+        track(name,props);
+        // if it was also a WA link but the explicit event isn't whatsapp_click, also fire whatsapp_click
+        if(isWa&&name!=="whatsapp_click"){
+          track("whatsapp_click",{
+            href:sanitizeUrl(href),
+            button_text:sanitizeText(anchor.innerText||anchor.textContent,120),
+            page_path:window.location.pathname,
+            page_title:document.title||null,
+            location:props.location
+          });
+        }
+        return;
+      }
+      if(isWa&&anchor){
+        track("whatsapp_click",{
+          href:sanitizeUrl(href),
+          button_text:sanitizeText(anchor.innerText||anchor.textContent,120),
+          page_path:window.location.pathname,
+          page_title:document.title||null,
+          location:sanitizeText(anchor.getAttribute("data-track-location"),120)
+        });
+      }
+    }catch(err){}
+  },true);
+
+  // ---- Form auto-capture ----
+  var startedForms=new WeakSet();
+  function formProps(form){
+    return {
+      form_id:form.getAttribute("id")||null,
+      form_name:form.getAttribute("name")||null,
+      form_action:sanitizeUrl(form.getAttribute("action")||window.location.href),
+      page_path:window.location.pathname,
+      page_title:document.title||null
+    };
   }
+  function onFormInteract(e){
+    try{
+      var form=closestTag(e.target,"form");
+      if(!form||startedForms.has(form))return;
+      startedForms.add(form);
+      track("form_start",formProps(form));
+    }catch(err){}
+  }
+  document.addEventListener("focusin",onFormInteract,true);
+  document.addEventListener("change",onFormInteract,true);
+
+  document.addEventListener("submit",function(e){
+    try{
+      var form=e.target;
+      if(!form||form.tagName!=="FORM")return;
+      track("form_submit_attempt",formProps(form));
+    }catch(err){}
+  },true);
+
+  // ---- Bootstrap ----
+  function start(){track("session_start");track("page_view");}
   try{
     fetch(CONFIG_ENDPOINT,{credentials:"omit"}).then(function(r){return r.json();}).then(function(c){
       cfg=c||{};
@@ -151,7 +251,7 @@ Deno.serve((req) => {
     headers: {
       ...baseCors,
       "Content-Type": "application/javascript; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
     },
   });
 });
