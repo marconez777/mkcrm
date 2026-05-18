@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AiDashboard from "./AiDashboard";
 import Agents from "@/pages/Agents";
 import AgentMemories from "@/pages/AgentMemories";
+import AiInsights from "@/pages/AiInsights";
 import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Broadcasts from "@/pages/Broadcasts";
 import Messages from "./Messages";
@@ -22,6 +23,7 @@ const TABS: TabDef[] = [
   { value: "dashboard", path: "/ai", label: "Dashboard" },
   { value: "agents", path: "/ai/agents", aliases: ["/agents"], label: "Agentes IA", features: ["agents"] },
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
+  { value: "insights", path: "/ai/insights", label: "Insights", features: ["agents"] },
   {
     value: "messages",
     path: "/ai/messages",
@@ -68,6 +70,7 @@ export default function AiHub() {
           <TabsContent value="dashboard" className="mt-0"><AiDashboard /></TabsContent>
           <TabsContent value="agents" className="mt-0"><Agents /></TabsContent>
           <TabsContent value="memories" className="mt-0"><AgentMemories /></TabsContent>
+          <TabsContent value="insights" className="mt-0"><AiInsights /></TabsContent>
           <TabsContent value="usage" className="mt-0"><MetricsAiUsage /></TabsContent>
           <TabsContent value="messages" className="mt-0"><Messages /></TabsContent>
           <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>

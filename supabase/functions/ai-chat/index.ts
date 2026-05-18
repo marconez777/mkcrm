@@ -111,12 +111,29 @@ const BUILTIN_TOOLS: Record<string, any> = {
     type: "function",
     function: {
       name: "remember_fact",
-      description: "Salva uma informação importante (fato/preferência) sobre o lead na memória persistente do agente.",
+      description: "Salva uma informação durável sobre o lead na memória persistente do agente. Use sempre que identificar objeções, dúvidas, interesses, motivos de sumiço, comportamento, preferências, perfil, concorrentes, sensibilidade a preço ou gatilhos relevantes para futuras análises de copy/script e treinamento de outros agentes.",
       parameters: {
         type: "object",
         properties: {
-          kind: { type: "string", enum: ["fact", "preference"] },
-          content: { type: "string" },
+          kind: {
+            type: "string",
+            enum: [
+              "fact",
+              "preference",
+              "objection",
+              "doubt",
+              "interest",
+              "drop_off",
+              "behavior",
+              "profile",
+              "competitor",
+              "price_sensitivity",
+              "trigger",
+            ],
+            description: "Categoria taxonômica do fato (use a mais específica possível).",
+          },
+          content: { type: "string", description: "Frase auto-contida, factual e não duplicada (ex.: 'Lead disse que valor de R$1.200 está acima do orçamento dele').",
+          },
         },
         required: ["kind", "content"],
       },
@@ -255,7 +272,13 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
     if (name === "remember_fact") {
       try {
         const content = String(args.content ?? "").trim();
-        const kind = args.kind === "preference" ? "preference" : "fact";
+        const ALLOWED_KINDS = new Set([
+          "fact", "preference", "objection", "doubt", "interest",
+          "drop_off", "behavior", "profile", "competitor",
+          "price_sensitivity", "trigger",
+        ]);
+        const rawKind = String(args.kind ?? "fact");
+        const kind = ALLOWED_KINDS.has(rawKind) ? rawKind : "fact";
         if (!content) return { error: "empty content" };
         if (!agent.clinic_id) return { error: "missing clinic_id on agent" };
         const [vec] = await embed(agent, [content], { agent_id: agent.id, lead_id: leadId, note: "tool:remember_fact" });
@@ -271,7 +294,7 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
           console.error("[remember_fact] insert error", error);
           return { error: error.message };
         }
-        return { ok: true };
+        return { ok: true, kind };
       } catch (e) {
         console.error("[remember_fact] exception", e);
         return { error: String(e) };
