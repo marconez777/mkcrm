@@ -26,6 +26,7 @@ import SettingsEmailDomain from "./pages/email/SettingsEmailDomain";
 import EmailTemplateEditor from "./pages/email/EmailTemplateEditor";
 import Broadcasts from "./pages/Broadcasts";
 import TrackingDebug from "./pages/TrackingDebug";
+import Tracking from "./pages/Tracking";
 
 const queryClient = new QueryClient();
 
