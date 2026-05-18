@@ -443,6 +443,78 @@ export type Database = {
           },
         ]
       }
+      ai_insights: {
+        Row: {
+          agent_id: string | null
+          clinic_id: string
+          created_at: string
+          drop_off_reasons: Json
+          id: string
+          lead_id: string | null
+          period_end: string
+          period_start: string | null
+          raw: Json
+          recommendations: Json
+          sentiment: string | null
+          summary: string
+          thread_id: string | null
+          top_doubts: Json
+          top_interests: Json
+          top_objections: Json
+        }
+        Insert: {
+          agent_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          drop_off_reasons?: Json
+          id?: string
+          lead_id?: string | null
+          period_end?: string
+          period_start?: string | null
+          raw?: Json
+          recommendations?: Json
+          sentiment?: string | null
+          summary: string
+          thread_id?: string | null
+          top_doubts?: Json
+          top_interests?: Json
+          top_objections?: Json
+        }
+        Update: {
+          agent_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          drop_off_reasons?: Json
+          id?: string
+          lead_id?: string | null
+          period_end?: string
+          period_start?: string | null
+          raw?: Json
+          recommendations?: Json
+          sentiment?: string | null
+          summary?: string
+          thread_id?: string | null
+          top_doubts?: Json
+          top_interests?: Json
+          top_objections?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_insights_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_insights_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_messages: {
         Row: {
           clinic_id: string
