@@ -19,6 +19,7 @@ function buildScript(projectId: string) {
   var STORAGE_VID="_mk_vid";
   var STORAGE_SID="_mk_sid";
   var STORAGE_SID_EXP="_mk_sid_exp";
+  var STORAGE_SID_SIG="_mk_sid_sig";
   var DEFAULT_SESSION_MIN=30;
   var ALLOWED_QS=["utm_source","utm_medium","utm_campaign","utm_content","utm_term","gclid","gbraid","wbraid","fbclid","msclkid"];
   var cfg=null;
