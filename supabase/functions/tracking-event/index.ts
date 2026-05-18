@@ -53,13 +53,24 @@ function parseUA(ua: string) {
 
 function originHost(origin: string | null): string | null {
   if (!origin) return null;
-  try { return new URL(origin).hostname; } catch { return null; }
+  try { return new URL(origin).hostname; } catch { /* fallthrough */ }
+  // Bare hostname fallback
+  const cleaned = origin.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return cleaned || null;
+}
+
+function toHost(entry: string): string | null {
+  if (!entry) return null;
+  const s = entry.trim();
+  try { return new URL(s).hostname; } catch { /* fallthrough */ }
+  return s.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || null;
 }
 
 function isOriginAllowed(allowed: string[], host: string | null): boolean {
   if (!host) return false;
   if (!allowed || allowed.length === 0) return true; // permissive if not configured
-  return allowed.some((d) => d === host || host.endsWith("." + d));
+  const hosts = allowed.map(toHost).filter(Boolean) as string[];
+  return hosts.some((d) => d === host || host.endsWith("." + d));
 }
 
 Deno.serve(async (req) => {
