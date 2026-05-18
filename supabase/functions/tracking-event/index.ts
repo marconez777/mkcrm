@@ -430,7 +430,7 @@ Deno.serve(async (req) => {
       if (affectedLeads.size > 0) {
         await supabase
           .from("leads")
-          .update({ last_message_at: new Date().toISOString() })
+          .update({ last_site_activity_at: new Date().toISOString() })
           .in("id", Array.from(affectedLeads))
           .eq("clinic_id", clinic.id);
       }
