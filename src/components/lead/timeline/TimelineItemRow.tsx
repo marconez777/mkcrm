@@ -2,13 +2,12 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  Globe, MessageCircle, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight,
+  Globe, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight,
 } from "lucide-react";
 import type { TimelineCategory, TimelineItem } from "./types";
 
 const ICON: Record<TimelineCategory, React.ComponentType<{ className?: string }>> = {
   site: Globe,
-  whatsapp: MessageCircle,
   stage: GitBranch,
   note: StickyNote,
   task: CheckSquare,
@@ -17,12 +16,12 @@ const ICON: Record<TimelineCategory, React.ComponentType<{ className?: string }>
 
 const DOT_COLOR: Record<TimelineCategory, string> = {
   site: "bg-sky-500",
-  whatsapp: "bg-emerald-500",
   stage: "bg-violet-500",
   note: "bg-amber-500",
   task: "bg-blue-500",
   crm: "bg-muted-foreground",
 };
+
 
 function relative(iso: string) {
   const now = Date.now();
