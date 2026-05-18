@@ -394,11 +394,12 @@ Deno.serve(async (req) => {
           const cur = lead.custom_fields ?? {};
           customFieldsBlock =
             `\n\n## Campos personalizados disponíveis (use EXATAMENTE estas keys em update_custom_field)\n${lines}` +
-            `\n\n### Valores atuais\n${JSON.stringify(cur, null, 2)}`;
+            `\n\n### Valores atuais\n${JSON.stringify(cur)}`;
         }
 
         const { custom_fields: _cf, ...leadRest } = lead as any;
-        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...leadRest, stage: stage?.name }, null, 2)}${stagesList}${customFieldsBlock}`;
+        // Compact JSON (no indent) — saves ~15-25% tokens per turn on lead context.
+        leadCtx = `\n\n## Lead atual\n${JSON.stringify({ ...leadRest, stage: stage?.name })}${stagesList}${customFieldsBlock}`;
       }
     }
 
