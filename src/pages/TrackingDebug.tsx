@@ -228,6 +228,60 @@ export default function TrackingDebug() {
     }
   };
 
+  const createTestJourney = async () => {
+    setCreatingJourney(true);
+    try {
+      // pick most recent lead in this clinic to attach the journey
+      const { data: leadRow } = await supabase
+        .from("leads").select("id, name")
+        .eq("clinic_id", OR_CLINIC_ID)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!leadRow?.id) { toast.error("Nenhum lead disponível para vincular. Crie um lead primeiro."); return; }
+
+      const visitor = `debug_v_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const session = `debug_s_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const base = { project_id: OR_PROJECT_ID, visitor_id: visitor, session_id: session };
+      const now = Date.now();
+      const events = [
+        { event_name: "page_view", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/", page_path: "/", ts: now - 60_000 * 5 },
+        { event_name: "page_view", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/sobre", page_path: "/sobre", ts: now - 60_000 * 4 },
+        { event_name: "whatsapp_click", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/sobre", page_path: "/sobre", ts: now - 60_000 * 3 },
+        { event_name: "form_start", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/contato", page_path: "/contato", ts: now - 60_000 * 2 },
+      ].map((e) => ({
+        ...base,
+        event_id: `debug_e_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+        event_name: e.event_name,
+        event_type: e.event_type,
+        event_time: new Date(e.ts).toISOString(),
+        page_url: e.page_url,
+        page_path: e.page_path,
+        page_title: "[TEST]",
+        referrer: "https://google.com/",
+        properties: { test_mode: true, source: "tracking_debug" },
+      }));
+
+      const { error: evErr } = await supabase.functions.invoke("tracking-event", { body: events });
+      if (evErr) throw evErr;
+
+      await linkVisitorToLead({
+        clinic_id: OR_CLINIC_ID,
+        visitor_id: visitor,
+        lead_id: leadRow.id,
+        session_id: session,
+        source_event: "debug_test_journey",
+        project_id: OR_PROJECT_ID,
+        properties: { test_mode: true },
+      });
+
+      toast.success(`Jornada de teste criada e vinculada ao lead ${leadRow.name || leadRow.id.slice(0, 8)}.`);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao criar jornada de teste.");
+      console.error(err);
+    } finally {
+      setCreatingJourney(false);
+    }
+  };
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
