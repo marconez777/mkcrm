@@ -319,7 +319,7 @@ export default function Tracking() {
 
   // whatsapp report
   const whatsappReport = useMemo(() => {
-    const waEvents = events.filter((e) => e.event_name === "whatsapp_click");
+    const waEvents = events.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect");
     const uniqueVisitors = new Set(waEvents.map((e) => e.visitor_id));
     const pageMap: Record<string, number> = {};
     waEvents.forEach((e) => { const k = pathOf(e.page_url); pageMap[k] = (pageMap[k] ?? 0) + 1; });
