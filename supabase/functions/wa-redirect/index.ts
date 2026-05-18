@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const text = `${msgBase}\n\nCódigo: ${code}`;
+  const text = `${msgBase}\n\n---\n*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*\n(ref=${code})`;
   const dest = `https://wa.me/${toPhone}?text=${encodeURIComponent(text)}`;
   return new Response(null, { status: 302, headers: { ...corsHeaders, Location: dest } });
 });
