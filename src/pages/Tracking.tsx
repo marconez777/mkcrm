@@ -498,14 +498,9 @@ export default function Tracking() {
                       <TableRow key={v.visitor_id}>
                         <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 14)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{fmtTime(v.first_seen_at)}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{fmtTime(v.last_seen_at)}</TableCell>
                         <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
-                        <TableCell className="text-xs">{truncate(pathOf(f?.lastPage), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
-                        <TableCell className="text-xs"><SourceCell source={v.first_source} medium={v.first_medium} campaign={v.first_campaign} /></TableCell>
-                        <TableCell className="text-xs"><SourceCell source={v.last_non_direct_source} medium={v.last_non_direct_medium} campaign={v.last_non_direct_campaign} channelGroup={v.last_non_direct_channel_group} /></TableCell>
                         <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
-                        <TableCell className="text-center text-xs">{f?.events ?? 0}</TableCell>
                         <TableCell className="text-center">{f?.wa ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-center">{f?.fa ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
