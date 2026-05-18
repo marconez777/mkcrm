@@ -532,9 +532,9 @@ Análise feita em 18/05/2026 — três passagens. **A maioria das melhorias já 
 - **Fix:** `remember_fact` agora passa `clinic_id: agent.clinic_id`, valida conteúdo, loga o erro real do Postgres e devolve a mensagem ao modelo.
 - **Pendência:** auditar outros INSERTs de edge functions em tabelas com mesmo default (vide #1b).
 
-#### 1b. ⏳ Pendente — auditoria sistêmica de `current_clinic_id()` em service role
-- Risco latente em `lead_events`, `lead_tasks`, `lead_internal_notes`, `agent_traces`, `ai_usage`. O `ai-auto-reply` já tem comentário explícito sobre o problema, prova de que o time tropeçou nisso antes.
-- **Plano:** trigger `BEFORE INSERT` que rejeite com mensagem clara quando `clinic_id IS NULL`, transformando bugs silenciosos em erros visíveis. Painel em `/ai` com "memórias salvas hoje por agente".
+#### 1b. ✅ APLICADO — guard contra `clinic_id NULL` em service role
+- Criada função `assert_clinic_id_not_null()` + triggers `BEFORE INSERT` nas tabelas `agent_memory`, `agent_traces`, `ai_usage`, `lead_events`, `lead_tasks`. Inserts sem `clinic_id` agora falham com `clinic_id_required: tabela X exige clinic_id explicito` (SQLSTATE 23502) ao invés de serem silenciosamente engolidos. Bug do tipo do #1 vira erro imediato e rastreável.
+
 
 #### 2. ✅ APLICADO — Mensagem perdida quando `evolution-send` falha
 - **Antes:** `pending_replies` era deletado antes do envio. Se `evolution-send` falhasse, a mensagem era perdida sem retry.
