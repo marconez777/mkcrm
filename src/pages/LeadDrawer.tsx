@@ -102,8 +102,11 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             <ChatPane lead={lead} />
           </TabsContent>
 
-          <TabsContent value="details" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+          <TabsContent value="details" className="m-0 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto data-[state=inactive]:hidden">
             <ContextRail lead={lead} stages={stages} attendants={attendants} />
+            <div className="px-5 pb-5">
+              <LeadAttributionCard leadId={lead.id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="journey" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
