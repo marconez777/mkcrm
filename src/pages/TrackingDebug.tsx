@@ -140,7 +140,25 @@ export default function TrackingDebug() {
       let vq = supabase.from("tracking_visitors").select("*").eq("clinic_id", OR_CLINIC_ID).gte("last_seen_at", since).order("last_seen_at", { ascending: false }).limit(100);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       const { data: vData } = await vq;
-      setVisitors((vData as VisitorRow[]) ?? []);
+      const visitorsList = (vData as VisitorRow[]) ?? [];
+      setVisitors(visitorsList);
+
+      // Identity links
+      const ids = visitorsList.map((v) => v.visitor_id);
+      if (ids.length) {
+        const { data: links } = await supabase
+          .from("tracking_identity_links")
+          .select("visitor_id, lead_id, leads(id, name)")
+          .eq("clinic_id", OR_CLINIC_ID)
+          .in("visitor_id", ids);
+        const map: Record<string, { lead_id: string; name: string | null }> = {};
+        (links || []).forEach((l: any) => {
+          if (!map[l.visitor_id]) map[l.visitor_id] = { lead_id: l.lead_id, name: l.leads?.name ?? null };
+        });
+        setLinkedByVisitor(map);
+      } else {
+        setLinkedByVisitor({});
+      }
     } finally {
       setLoading(false);
     }
