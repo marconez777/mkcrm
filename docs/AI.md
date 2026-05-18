@@ -523,70 +523,139 @@ Linhas estruturadas no `edge-function-logs` do `scheduled-dispatcher`:
 
 ## 13.1 Gargalos identificados e melhorias propostas
 
-Análise feita em 18/05/2026 a partir do código atual + estado real do banco.
+Análise feita em 18/05/2026 a partir do código atual + estado real do banco. Segunda passagem (mesma data) ampliou os achados para 17 itens.
 
 ### 🔴 Críticos (funcionalidade quebrada)
 
-#### 1. Memórias não são gravadas — `agent_memory.clinic_id` NOT NULL violado
-- **Sintoma:** `select count(*) from agent_memory` retorna **0** mesmo com o agente "Vendedor" tendo `remember_fact` habilitado.
-- **Causa raiz:** o `INSERT` em `ai-chat/index.ts` (tool `remember_fact`) **não passava `clinic_id`**. A coluna é `NOT NULL DEFAULT current_clinic_id()`, mas a edge function usa **service role** → `current_clinic_id()` devolve `NULL` → insert falha com violação de NOT NULL. O `try/catch` engolia o erro e devolvia sucesso para o modelo.
-- **Fix aplicado:** passar `clinic_id: agent.clinic_id` explicitamente, validar conteúdo, logar erros de insert e devolver mensagem real para o modelo.
+#### 1. ✅ Memórias não eram gravadas — `agent_memory.clinic_id` NOT NULL violado
+- **Sintoma:** `select count(*) from agent_memory` retornava **0** mesmo com o agente "Vendedor" tendo `remember_fact` habilitado.
+- **Causa raiz:** o `INSERT` em `ai-chat/index.ts` (tool `remember_fact`) **não passava `clinic_id`**. A coluna é `NOT NULL DEFAULT current_clinic_id()`, mas a edge function usa **service role** → `current_clinic_id()` devolve `NULL` → insert falhava com violação de NOT NULL. O `try/catch` engolia o erro e devolvia sucesso para o modelo.
+- **Status: FIX APLICADO** — `remember_fact` agora passa `clinic_id: agent.clinic_id`, valida conteúdo, loga o erro real do Postgres e devolve a mensagem ao modelo.
 - **Ações adicionais recomendadas:**
-  - Auditar **todos** os INSERTs feitos por edge functions em tabelas com `clinic_id NOT NULL DEFAULT current_clinic_id()` — o mesmo bug pode estar latente em `lead_events`, `lead_tasks`, `lead_internal_notes`, `agent_traces`, `ai_usage`.
-  - Considerar trigger `BEFORE INSERT` que rejeite com mensagem clara quando `clinic_id IS NULL`, evitando bugs silenciosos.
+  - Auditar **todos** os INSERTs feitos por edge functions em tabelas com `clinic_id NOT NULL DEFAULT current_clinic_id()` — risco latente em `lead_events`, `lead_tasks`, `lead_internal_notes`, `agent_traces`, `ai_usage`. O `ai-auto-reply` já tem comentário explícito sobre o problema (linha 48-50), prova de que a equipe já tropeçou nisso.
+  - Criar trigger `BEFORE INSERT` que rejeite com mensagem clara quando `clinic_id IS NULL`, transformando bugs silenciosos em erros visíveis.
   - Adicionar painel em `/ai` com "memórias salvas hoje por agente" — regressão futura seria detectada em horas.
 
-#### 2. `remember_fact` indisponível no fluxo silencioso ativo
+#### 2. 🆕 Mensagem perdida quando `evolution-send` falha no dispatcher
+- **Local:** `scheduled-dispatcher/index.ts:54-147` (`handlePendingReply`).
+- **Causa:** o `pending_replies` é **deletado atomicamente antes** de chamar `ai-chat` (linha 56-59, claim). Se depois o `evolution-send` falhar (linha 140), o registro já foi removido → **a resposta gerada pela IA é perdida sem retry**. O `ai_usage` registra erro, mas a mensagem nunca chega ao lead.
+- **Impacto:** invisível em volume baixo. Em pico ou instabilidade da Evolution, leads recebem silêncio enquanto o time acha que a IA está respondendo.
+- **Fix sugerido:** trocar o claim de `DELETE` para `UPDATE status='processing', attempts=attempts+1, run_at=now()+backoff` (precisa adicionar colunas `status` e `attempts` em `pending_replies`). Só remover após `evolution-send` ok. Reagendar com backoff exponencial em falha, até 3 tentativas.
+
+#### 3. `remember_fact` indisponível no fluxo silencioso ativo
 - O agente que de fato roda no inbound (logs do dispatcher) é o **"Classificador de Pipeline"** (`e2b20d28...`), cujo array `tools` **não inclui** `remember_fact`. Só o "Vendedor" tem — e ele não é o agente padrão dos leads.
-- **Recomendação:** habilitar `remember_fact` (e `add_lead_tag`) também no Classificador, ou criar um agente "observer" dedicado a extrair fatos/preferências durante a conversa.
+- **Recomendação:** habilitar `remember_fact` (e `add_lead_tag`) também no Classificador, ou criar um agente "observer" dedicado a extrair fatos/preferências durante a conversa. Sem isso, o fix do item #1 não tem efeito prático no fluxo real.
 
-### 🟡 Médios (performance / custo / observabilidade)
+### 🟡 Médios (performance / custo / observabilidade / risco)
 
-#### 3. RAG embeda a query a cada turno sem usar `embedding_cache`
-- `_shared/rag.ts` chama `embed()` para a query em toda mensagem. A tabela `embedding_cache` existe mas só é populada por ingest — o caminho de query não consulta. Em conversas longas o custo repete desnecessariamente.
-- **Fix:** ler `embedding_cache` por `hash(query)+model` antes de chamar o provider; gravar miss.
+#### 4. 🆕 Código morto: cache de embedding/retrieval importado mas nunca usado
+- **Local:** `_shared/rag.ts:4` importa `getCachedEmbedding`, `setCachedEmbedding`, `getCachedRetrieval`, `setCachedRetrieval`, `withTimeout` — **nenhum é usado** no arquivo. Os helpers existem e funcionam em `_shared/utils.ts:43-90`.
+- **Diagnóstico:** trabalho começado e não concluído. Cada query reescrita por turno paga o custo de embedding sem necessidade — em uma conversa de 20 turnos, são 20 chamadas de embedding por query, sendo que ~40% das queries reescritas são idênticas em sessões repetidas.
+- **Fix:** plugar `getCachedEmbedding/setCachedEmbedding` na etapa 3 (embed) de `retrieveContext`, chave = `sha1(model + ':' + textForEmbed)`. Plugar `getCachedRetrieval/setCachedRetrieval` na etapa 4 com TTL curto (5 min) para evitar revarredura idêntica em bursts.
 
-#### 4. `rag_top_k` sem orçamento de tokens
+#### 5. 🆕 `SILENT_TOOLS` duplicado em dois arquivos
+- **Local:** lista idêntica em `ai-auto-reply/index.ts:9-13` e `scheduled-dispatcher/index.ts:81-85`. Toda nova built-in tool exige edição nos **dois** arquivos.
+- **Risco:** dessincronização silenciosa — auto-reply considera o agente silencioso (e enfileira em `from_me=true`), mas o dispatcher classifica como vocal (e bloqueia por "last-not-user"), ou vice-versa.
+- **Fix:** mover a constante para `_shared/agent-flags.ts` e importar nos dois lados. Bônus: exportar também `isSilentByTools()`.
+
+#### 6. 🆕 Trigger do dispatcher via `setTimeout` é frágil
+- **Local:** `ai-auto-reply/index.ts:23-35` faz `setTimeout(debounce+1s)` dentro de `EdgeRuntime.waitUntil`. Se a instância edge for reciclada nesse meio-tempo (cold-start em outra região, deploy), o dispatcher **só dispara no próximo tick do cron**, que é a cada 1 min.
+- **Sintoma:** latência aleatória da IA — às vezes responde em 9s (caso feliz visto nos logs: `latency=9519ms`), às vezes em ~70s.
+- **Fix opções (em ordem de simplicidade):**
+  - (a) Baixar o cron de `scheduled-dispatcher` para `*/15 * * * * *` (15s) — corta latência máxima de 60s para 15s, custo: 4× mais ticks vazios.
+  - (b) Usar `pg_notify('dispatcher_wakeup', payload)` no insert em `pending_replies` e ter um `LISTEN` num worker dedicado.
+  - (c) Adicionar uma coluna `run_at` indexada e o cron usar `min(run_at)` para auto-ajustar a frequência.
+
+#### 7. 🆕 Histórico fixo de 20 mensagens sem janela inteligente
+- **Local:** `scheduled-dispatcher:67-70` e `ai-chat` puxam sempre últimas 20 mensagens. Em conversas longas (frequente em leads em consideração), o modelo perde contexto inicial — lead pediu detalhe X há 50 turnos e a IA "esquece".
+- **Fix:** quando `count(messages) > 30` por lead/agente, gerar summary incremental via cheap model, salvar em `agent_memory(kind='summary')` e usar `summary + últimas 10 mensagens` no prompt. O schema já suporta (`kind` aceita `'summary'`).
+
+#### 8. 🆕 `processScheduled` é serial — risco de timeout em pico
+- **Local:** `scheduled-dispatcher:17-38` itera até 50 mensagens com `for ... await`. Se cada `evolution-send` leva 2s, 50 mensagens = 100s — estoura o limite de execução da edge (~150s, mas com margem).
+- **Fix:** trocar por `pmap(items, 10, sender)` (helper já existe em `_shared/utils.ts`). Mantém ordem por `send_at` no fetch e paraleliza o envio.
+
+#### 9. 🆕 Risco de loop dispatcher → webhook → auto-reply
+- **Fluxo:** dispatcher envia via `evolution-send` → Evolution emite `MESSAGES_UPSERT` com `from_me=true` → `evolution-webhook` chama `ai-auto-reply` → `ai-auto-reply` **enfileira agentes silenciosos** mesmo com `from_me=true` (intencional para o vigia). Cada resposta do bot dispara nova rodada do classificador.
+- **Impacto:** custo de tokens dobra em conversas longas. O debounce agrupa em parte, mas ainda há embed + trace por turno.
+- **Fix:** persistir o `client_message_id` (já gerado em `scheduled-dispatcher:137`) numa coluna `messages.bot_client_id`. No `evolution-webhook`, se a mensagem `from_me` tiver um `bot_client_id` reconhecido, pular o `ai-auto-reply`.
+
+#### 10. `rag_top_k` sem orçamento de tokens
 - Com `rag_top_k=20` + HyDE + reranker, o system prompt enche rápido. Não há truncamento por tokens, só por contagem de chunks.
 - **Fix:** orçar contexto em tokens (ex.: 4k máx) e cortar pelo score do reranker.
 
-#### 5. `ai_usage` e `agent_traces` sem retenção
+#### 11. `ai_usage` e `agent_traces` sem retenção
 - Crescem indefinidamente. `/ai/usage` ficará lento em 6 meses; o índice `ivfflat` em `agent_memory` exigirá `REINDEX` ao passar de ~50k linhas.
-- **Fix:** policy de retenção 90 dias + tabela agregada `ai_usage_daily` populada por cron.
+- **Fix:** policy de retenção 90 dias (`delete from ai_usage where created_at < now() - interval '90 days'` via cron) + tabela agregada `ai_usage_daily` (clinic_id, model, day, sum tokens, sum cost).
 
-#### 6. Debounce de `ai-auto-reply` depende de lock no dispatcher
-- Em concorrência alta o `pending_replies` pode ter duas linhas para o mesmo `(lead_id, agent_id)` antes do dispatcher pegar. O `for update skip locked` mitiga, mas vale validar o índice único e o `on conflict do update`.
+### 🟢 Pequenos / UX / hardening
 
-### 🟢 Pequenos / UX
+#### 12. 🆕 `ai_usage` sem coluna `cost_usd` materializada
+- Cálculo de custo é feito no frontend (`MetricsAiUsage` + `ai-pricing.ts`). Toda mudança de preço dos providers exige redeploy do frontend, e o histórico fica volátil — registros antigos passam a mostrar o preço novo.
+- **Fix:** materializar `cost_usd numeric(12,6)` no insert (preço da época). Frontend só agrega `sum(cost_usd)`.
 
-#### 7. Erros de provider devolvidos genéricos
+#### 13. 🆕 `ai_documents.content` duplica conteúdo dos chunks
+- Cada documento guarda `content` completo + N linhas em `ai_chunks.content`. Em base grande (PDFs longos), dobra storage. `ai_documents.content` parece só ser usado em edição/UI.
+- **Fix:** mover conteúdo bruto para storage bucket (`ai-docs`), guardar só URL + `doc_summary` na tabela. Chunks continuam idênticos.
+
+#### 14. 🆕 RLS de `embedding_cache` sem policies explícitas
+- Tabela tem RLS habilitada mas **nenhuma policy** — acesso só via service role. Funcional hoje, mas se um dia for consultada via cliente autenticado vai falhar silenciosamente sem mensagem útil.
+- **Fix:** ou (a) documentar explicitamente no schema que é "server-only", ou (b) adicionar policy `SELECT for authenticated USING (true)` se o cache puder ser global.
+
+#### 15. Erros de provider devolvidos genéricos
 - 429/timeout do LLM viram `500 { error: "..." }` sem distinção. Frontend não consegue oferecer retry inteligente.
-- **Fix:** mapear → `{ retryable: true, retry_after }`.
+- **Fix:** mapear → `{ retryable: true, retry_after }` e tratar no cliente.
 
-#### 8. Sem **eval automático** em CI
-- `agent_evals` roda só manualmente. Sem cron que reroda evals para detectar regressões de prompt/modelo.
+#### 16. Sem **eval automático** em CI
+- `agent_evals` roda só manualmente em `/ai/agents/:id` → tab Evals. Sem cron que reroda evals para detectar regressões de prompt/modelo.
 - **Fix:** cron diário em `ai-eval-run` para agentes ativos, alerta no `/ai` se `last_passed=false`.
 
-#### 9. `system_prompt` gasta tokens com JSON literal do lead
-- `JSON.stringify(lead, null, 2)` gasta ~300 tokens/turno em campos raramente usados pelo modelo. Formato compacto (key: value, omitindo vazios) economiza ~15–25% por turno.
+#### 17. `system_prompt` gasta tokens com JSON literal do lead
+- `JSON.stringify(lead, null, 2)` (linha 385 do `ai-chat`) gasta ~300 tokens/turno em campos raramente usados pelo modelo. Formato compacto (key: value, omitindo nulos) economiza ~15–25% por turno.
 
-#### 10. Reranker opcional sem fallback de qualidade
-- Sem `reranker_provider`, RAG cai em RRF puro. Considerar cross-encoder leve embutido via Lovable AI Gateway como default.
+#### 18. UI de tools em `Agents.tsx` sem agrupamento
+- Já são 14+ tools listadas em flat list. Agrupar em "Pipeline / Comunicação / Memória / Conhecimento" facilita configuração e reduz erro de seleção (vide item #3).
 
-#### 11. UI de tools em `Agents.tsx` sem agrupamento
-- Já são 14+ tools listadas em flat list. Agrupar em "Pipeline / Comunicação / Memória / Conhecimento" facilita configuração e reduz erro de seleção.
+---
 
-### Resumo executivo
+### Resumo executivo (priorizado)
 
-| Prioridade | Item | Impacto |
-|---|---|---|
-| 🔴 P0 | Fix `remember_fact.clinic_id` (✅ aplicado) | Memórias voltam a persistir |
-| 🔴 P0 | Habilitar `remember_fact` no agente silencioso ativo | IA passa a aprender com cada lead |
-| 🟡 P1 | Cache de embedding em queries RAG | ~30% economia em embeddings |
-| 🟡 P1 | Retenção em `ai_usage` / `agent_traces` | Performance no longo prazo |
-| 🟡 P1 | Orçamento de tokens no RAG | ~20% economia/turno em conversas longas |
-| 🟢 P2 | Cron de evals + alertas | Detecta regressão de prompt cedo |
-| 🟢 P2 | Erros tipados do provider | Retry inteligente no frontend |
+| Prio | Item | Impacto | Esforço |
+|---|---|---|---|
+| 🔴 P0 | #1 Fix `remember_fact.clinic_id` | Memórias persistem | ✅ aplicado |
+| 🔴 P0 | #2 Mensagem perdida no dispatcher | Confiabilidade de entrega | M (schema + lógica) |
+| 🔴 P0 | #3 Habilitar `remember_fact` no agente silencioso ativo | IA aprende com cada lead | XS (1 clique) |
+| 🟡 P1 | #4 Plugar cache de embedding/retrieval (código morto) | -30% custo embeddings | S |
+| 🟡 P1 | #5 Centralizar `SILENT_TOOLS` | Evita bug futuro | XS |
+| 🟡 P1 | #6 Reduzir latência do dispatcher | UX de resposta | S (cron 15s) / M (pg_notify) |
+| 🟡 P1 | #7 Sumarização incremental do histórico | Conversas longas funcionam | M |
+| 🟡 P1 | #8 Paralelizar `processScheduled` | Evita timeout em pico | XS |
+| 🟡 P1 | #9 Quebrar loop bot → webhook → auto-reply | -50% custo em conversas longas | S |
+| 🟡 P1 | #10 Orçamento de tokens no RAG | ~20% economia/turno | S |
+| 🟡 P1 | #11 Retenção em `ai_usage`/`agent_traces` | Performance longo prazo | S (cron) |
+| 🟢 P2 | #12 `cost_usd` materializado | Histórico imutável de custo | S |
+| 🟢 P2 | #13 Dedup `ai_documents.content` | Storage | M |
+| 🟢 P2 | #14 RLS `embedding_cache` | Hardening | XS |
+| 🟢 P2 | #15 Erros tipados de provider | Retry no frontend | S |
+| 🟢 P2 | #16 Cron de evals | Detecta regressão de prompt | S |
+| 🟢 P2 | #17 Prompt mais compacto | -20% tokens/turno | XS |
+| 🟢 P2 | #18 Agrupar tools na UI | UX | XS |
+
+### Como reproduzir o bug do dispatcher (item #2)
+
+```sql
+-- 1. Forçar erro no envio (apontar a Evolution para URL inválida) ou
+--    pausar a instância em /whatsapp e enviar mensagem ao lead de teste.
+-- 2. Aguardar o debounce (~8s) + tick do cron.
+-- 3. Conferir o que sobrou:
+select * from pending_replies where lead_id = '<id>';            -- 0 linhas (foi deletado)
+select * from ai_usage where lead_id = '<id>' order by created_at desc limit 1;  -- status='error'
+-- 4. A IA "gastou" tokens, mas o lead não recebeu nada. Sem retry.
+```
+
+Workaround manual até o fix: `INSERT INTO pending_replies (lead_id, agent_id, run_at, clinic_id) VALUES (...)` para reenfileirar.
+
+---
+
 
 ---
 
