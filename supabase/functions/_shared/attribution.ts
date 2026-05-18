@@ -172,37 +172,39 @@ export function resolveTrafficSource(input: AttributionInput): AttributionResult
   // --- Prioridade 3: Referrer ---
   const ref = normalize(input.referrer);
   if (ref) {
-    if (ref.includes("google.")) {
-      return { source: "google", medium: "organic", campaign: null, content: null, term: null,
-        channel_group: "organic_search", confidence_score: 65, attribution_reason: "referrer_google" };
+    for (const rule of REFERRER_RULES) {
+      if (ref.includes(rule.match)) {
+        const confidence =
+          rule.channel_group === "ai_assistant" ? 70 :
+          rule.channel_group === "organic_search" ? 65 :
+          rule.channel_group === "organic_social" ? 55 :
+          50;
+        return {
+          source: rule.source,
+          medium: rule.medium,
+          campaign: null, content: null, term: null,
+          channel_group: rule.channel_group,
+          confidence_score: confidence,
+          attribution_reason: rule.reason,
+        };
+      }
     }
-    if (ref.includes("bing.")) {
-      return { source: "bing", medium: "organic", campaign: null, content: null, term: null,
-        channel_group: "organic_search", confidence_score: 65, attribution_reason: "referrer_bing" };
-    }
-    if (ref.includes("duckduckgo.")) {
-      return { source: "duckduckgo", medium: "organic", campaign: null, content: null, term: null,
-        channel_group: "organic_search", confidence_score: 65, attribution_reason: "referrer_duckduckgo" };
-    }
-    if (ref.includes("instagram.") || ref.includes("l.instagram.")) {
-      return { source: "instagram", medium: "organic_social", campaign: null, content: null, term: null,
-        channel_group: "organic_social", confidence_score: 55, attribution_reason: "social_referrer" };
-    }
-    if (ref.includes("facebook.") || ref.includes("l.facebook.") || ref.includes("m.facebook.")) {
-      return { source: "facebook", medium: "organic_social", campaign: null, content: null, term: null,
-        channel_group: "organic_social", confidence_score: 55, attribution_reason: "social_referrer" };
-    }
-    if (ref.includes("linkedin.")) {
-      return { source: "linkedin", medium: "organic_social", campaign: null, content: null, term: null,
-        channel_group: "organic_social", confidence_score: 55, attribution_reason: "social_referrer" };
-    }
-    if (ref.includes("youtube.")) {
-      return { source: "youtube", medium: "organic_social", campaign: null, content: null, term: null,
-        channel_group: "organic_social", confidence_score: 55, attribution_reason: "social_referrer" };
-    }
-    return { source: ref, medium: "referral", campaign: null, content: null, term: null,
-      channel_group: "referral", confidence_score: 50, attribution_reason: "external_referrer" };
+    // Unknown external referrer
+    return {
+      source: ref, medium: "referral", campaign: null, content: null, term: null,
+      channel_group: "referral", confidence_score: 45, attribution_reason: "external_referrer",
+    };
   }
+
+  // --- Prioridade 4: Direct ---
+  return {
+    source: "direct", medium: "none",
+    campaign: null, content: null, term: null,
+    channel_group: "direct",
+    confidence_score: 30,
+    attribution_reason: "no_referrer_no_params",
+  };
+}
 
   // --- Prioridade 4: Direct ---
   return {
