@@ -177,6 +177,15 @@ Deno.serve(async (req) => {
     const dev = parseUA(ua);
     const now = ev.event_time ? new Date(ev.event_time).toISOString() : new Date().toISOString();
 
+    const attr = resolveTrafficSource({
+      utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
+      utm_content: ev.utm_content, utm_term: ev.utm_term,
+      gclid: ev.gclid, gbraid: ev.gbraid, wbraid: ev.wbraid,
+      fbclid: ev.fbclid, fbp: ev.fbp, fbc: ev.fbc,
+      ttclid: ev.ttclid, msclkid: ev.msclkid, li_fat_id: ev.li_fat_id,
+      referrer: ev.referrer,
+    });
+
     // visitor (collapse: keep last write per visitor in this batch)
     visitorRows.set(ev.visitor_id, {
       clinic_id: clinic.id,
@@ -184,12 +193,13 @@ Deno.serve(async (req) => {
       last_seen_at: now,
       first_landing_page: ev.page_url || null,
       first_referrer: ev.referrer || null,
-      first_source: ev.utm_source || null,
-      first_medium: ev.utm_medium || null,
-      first_campaign: ev.utm_campaign || null,
+      first_source: attr.source,
+      first_medium: attr.medium,
+      first_campaign: attr.campaign,
       device_type: dev.device_type,
       browser: dev.browser,
       operating_system: dev.operating_system,
+      __attr: attr,
     });
 
     if (ev.session_id) {
@@ -200,11 +210,14 @@ Deno.serve(async (req) => {
         started_at: now,
         landing_page: ev.page_url || null,
         referrer: ev.referrer || null,
-        source: ev.utm_source || null,
-        medium: ev.utm_medium || null,
-        campaign: ev.utm_campaign || null,
-        utm_content: ev.utm_content || null,
-        utm_term: ev.utm_term || null,
+        source: attr.source,
+        medium: attr.medium,
+        campaign: attr.campaign,
+        utm_content: attr.content,
+        utm_term: attr.term,
+        channel_group: attr.channel_group,
+        confidence_score: attr.confidence_score,
+        attribution_reason: attr.attribution_reason,
         gclid: ev.gclid || null,
         fbclid: ev.fbclid || null,
         msclkid: ev.msclkid || null,
