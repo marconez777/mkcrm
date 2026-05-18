@@ -12,7 +12,7 @@ import { useConfirm } from "@/hooks/useDialogs";
 import { deleteLead } from "@/lib/delete-lead";
 import ContextRail from "@/components/inbox/ContextRail";
 import ChatPane from "@/components/inbox/ChatPane";
-import LeadJourneyTab from "@/components/lead/LeadJourneyTab";
+import LeadTimelineTab from "@/components/lead/LeadTimelineTab";
 import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
@@ -95,7 +95,7 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
           <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-3">
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="details">Detalhes</TabsTrigger>
-            <TabsTrigger value="journey">Jornada</TabsTrigger>
+            <TabsTrigger value="journey">Linha do tempo</TabsTrigger>
           </TabsList>
 
           <TabsContent value="chat" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
