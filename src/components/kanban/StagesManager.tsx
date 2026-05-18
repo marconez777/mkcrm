@@ -100,7 +100,7 @@ export default function StagesManager({ pipelineId }: Props) {
     const { data, error } = await supabase
       .from("pipeline_stages")
       .insert({ pipeline_id: pipelineId, name: newName.trim(), position: nextPos, color: PALETTE[nextPos % PALETTE.length] })
-      .select("id,name,color,position")
+      .select("id,name,color,position,is_terminal")
       .single();
     setAdding(false);
     if (error) { toast.error(error.message); return; }
