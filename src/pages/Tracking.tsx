@@ -329,13 +329,17 @@ export default function Tracking() {
           <p className="text-sm text-muted-foreground">Visão geral consolidada de visitantes, sessões, eventos e conversão em leads.</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> Debug
-          </label>
-          {debugMode && (
-            <Button asChild size="sm" variant="outline">
-              <RouterLink to="/tracking-debug">Auditoria / Debug</RouterLink>
-            </Button>
+          {debugAvailable && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> Debug
+              </label>
+              {debugMode && (
+                <Button asChild size="sm" variant="outline">
+                  <RouterLink to="/tracking-debug">Auditoria / Debug</RouterLink>
+                </Button>
+              )}
+            </>
           )}
           <Button onClick={load} disabled={loading} size="sm">
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
