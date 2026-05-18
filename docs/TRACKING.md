@@ -35,7 +35,7 @@ Autenticação: sem JWT, sem secret no browser. Validação por **CORS allowlist
 ## Snippet de instalação no site
 
 ```html
-<script async src="https://crm.mkart.com.br/functions/v1/tracking-pixel?project_id=or"></script>
+<script async src="https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/tracking-pixel?project_id=or"></script>
 ```
 
 ## Eventos automáticos
