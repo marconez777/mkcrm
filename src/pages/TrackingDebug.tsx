@@ -100,6 +100,8 @@ export default function TrackingDebug() {
   } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [creatingJourney, setCreatingJourney] = useState(false);
+  const [linkedByVisitor, setLinkedByVisitor] = useState<Record<string, { lead_id: string; name: string | null }>>({});
 
   const since = useMemo(() => new Date(Date.now() - PERIODS[period].ms).toISOString(), [period]);
   const since24h = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), []);
