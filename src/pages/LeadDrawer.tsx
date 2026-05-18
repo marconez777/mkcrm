@@ -11,6 +11,7 @@ import { useAttendants } from "@/hooks/useAttendants";
 import { useConfirm } from "@/hooks/useDialogs";
 import ContextRail from "@/components/inbox/ContextRail";
 import ChatPane from "@/components/inbox/ChatPane";
+import LeadJourneyTab from "@/components/lead/LeadJourneyTab";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const open = !!lead;
@@ -84,9 +85,10 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
         </header>
 
         <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-2">
+          <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-3">
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="details">Detalhes</TabsTrigger>
+            <TabsTrigger value="journey">Jornada</TabsTrigger>
           </TabsList>
 
           <TabsContent value="chat" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
@@ -95,6 +97,10 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
 
           <TabsContent value="details" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
             <ContextRail lead={lead} stages={stages} attendants={attendants} />
+          </TabsContent>
+
+          <TabsContent value="journey" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+            <LeadJourneyTab leadId={lead.id} />
           </TabsContent>
         </Tabs>
       </SheetContent>

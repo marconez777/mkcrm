@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Eye } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { Link as RouterLink } from "react-router-dom";
+import { linkVisitorToLead } from "@/lib/tracking-identify";
 
 type EventRow = {
   id: string;
@@ -98,6 +100,8 @@ export default function TrackingDebug() {
   } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [creatingJourney, setCreatingJourney] = useState(false);
+  const [linkedByVisitor, setLinkedByVisitor] = useState<Record<string, { lead_id: string; name: string | null }>>({});
 
   const since = useMemo(() => new Date(Date.now() - PERIODS[period].ms).toISOString(), [period]);
   const since24h = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), []);
@@ -136,7 +140,25 @@ export default function TrackingDebug() {
       let vq = supabase.from("tracking_visitors").select("*").eq("clinic_id", OR_CLINIC_ID).gte("last_seen_at", since).order("last_seen_at", { ascending: false }).limit(100);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       const { data: vData } = await vq;
-      setVisitors((vData as VisitorRow[]) ?? []);
+      const visitorsList = (vData as VisitorRow[]) ?? [];
+      setVisitors(visitorsList);
+
+      // Identity links
+      const ids = visitorsList.map((v) => v.visitor_id);
+      if (ids.length) {
+        const { data: links } = await supabase
+          .from("tracking_identity_links")
+          .select("visitor_id, lead_id, leads(id, name)")
+          .eq("clinic_id", OR_CLINIC_ID)
+          .in("visitor_id", ids);
+        const map: Record<string, { lead_id: string; name: string | null }> = {};
+        (links || []).forEach((l: any) => {
+          if (!map[l.visitor_id]) map[l.visitor_id] = { lead_id: l.lead_id, name: l.leads?.name ?? null };
+        });
+        setLinkedByVisitor(map);
+      } else {
+        setLinkedByVisitor({});
+      }
     } finally {
       setLoading(false);
     }
@@ -206,6 +228,60 @@ export default function TrackingDebug() {
     }
   };
 
+  const createTestJourney = async () => {
+    setCreatingJourney(true);
+    try {
+      // pick most recent lead in this clinic to attach the journey
+      const { data: leadRow } = await supabase
+        .from("leads").select("id, name")
+        .eq("clinic_id", OR_CLINIC_ID)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!leadRow?.id) { toast.error("Nenhum lead disponível para vincular. Crie um lead primeiro."); return; }
+
+      const visitor = `debug_v_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const session = `debug_s_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      const base = { project_id: OR_PROJECT_ID, visitor_id: visitor, session_id: session };
+      const now = Date.now();
+      const events = [
+        { event_name: "page_view", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/", page_path: "/", ts: now - 60_000 * 5 },
+        { event_name: "page_view", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/sobre", page_path: "/sobre", ts: now - 60_000 * 4 },
+        { event_name: "whatsapp_click", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/sobre", page_path: "/sobre", ts: now - 60_000 * 3 },
+        { event_name: "form_start", event_type: "auto", page_url: "https://clinicaohrpsiquiatria.com/contato", page_path: "/contato", ts: now - 60_000 * 2 },
+      ].map((e) => ({
+        ...base,
+        event_id: `debug_e_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+        event_name: e.event_name,
+        event_type: e.event_type,
+        event_time: new Date(e.ts).toISOString(),
+        page_url: e.page_url,
+        page_path: e.page_path,
+        page_title: "[TEST]",
+        referrer: "https://google.com/",
+        properties: { test_mode: true, source: "tracking_debug" },
+      }));
+
+      const { error: evErr } = await supabase.functions.invoke("tracking-event", { body: events });
+      if (evErr) throw evErr;
+
+      await linkVisitorToLead({
+        clinic_id: OR_CLINIC_ID,
+        visitor_id: visitor,
+        lead_id: leadRow.id,
+        session_id: session,
+        source_event: "debug_test_journey",
+        project_id: OR_PROJECT_ID,
+        properties: { test_mode: true },
+      });
+
+      toast.success(`Jornada de teste criada e vinculada ao lead ${leadRow.name || leadRow.id.slice(0, 8)}.`);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao criar jornada de teste.");
+      console.error(err);
+    } finally {
+      setCreatingJourney(false);
+    }
+  };
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -215,10 +291,13 @@ export default function TrackingDebug() {
           <p className="mt-1 font-mono text-xs text-muted-foreground">clinic_id: {OR_CLINIC_ID} · project_id: {OR_PROJECT_ID}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={sendTestEvent} disabled={loading || sendingTest} size="sm" variant="outline">
+          <Button onClick={sendTestEvent} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
             {sendingTest ? "Enviando…" : "Enviar evento de teste"}
           </Button>
-          <Button onClick={load} disabled={loading || sendingTest} size="sm">
+          <Button onClick={createTestJourney} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
+            {creatingJourney ? "Criando…" : "Criar jornada de teste"}
+          </Button>
+          <Button onClick={load} disabled={loading || sendingTest || creatingJourney} size="sm">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
@@ -330,11 +409,11 @@ export default function TrackingDebug() {
             <TableHeader>
               <TableRow>
                 <TableHead>visitor_id</TableHead>
+                <TableHead>lead vinculado</TableHead>
                 <TableHead>first_seen_at</TableHead>
                 <TableHead>last_seen_at</TableHead>
                 <TableHead>first_landing_page</TableHead>
                 <TableHead>first_referrer</TableHead>
-                <TableHead>created_at</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -342,21 +421,34 @@ export default function TrackingDebug() {
               {visitors.length === 0 && (
                 <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
               )}
-              {visitors.map((v) => (
+              {visitors.map((v) => {
+                const link = linkedByVisitor[v.visitor_id];
+                return (
                 <TableRow key={v.visitor_id}>
                   <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 18)}</TableCell>
+                  <TableCell className="text-xs">
+                    {link ? (
+                      <span title={link.lead_id}>{link.name || link.lead_id.slice(0, 8)}</span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.first_seen_at)}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.last_seen_at)}</TableCell>
                   <TableCell className="text-xs"><span title={v.first_landing_page ?? ""}>{truncate(v.first_landing_page, 50)}</span></TableCell>
                   <TableCell className="text-xs"><span title={v.first_referrer ?? ""}>{truncate(v.first_referrer, 40)}</span></TableCell>
-                  <TableCell className="whitespace-nowrap text-xs">{fmtTime(v.created_at)}</TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
-                      <Eye className="h-3 w-3" /> Ver jornada
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {link && (
+                        <Button asChild size="sm" variant="ghost" title="Abrir lead">
+                          <RouterLink to={`/kanban?lead=${link.lead_id}`}><ExternalLink className="h-3 w-3" /></RouterLink>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
+                        <Eye className="h-3 w-3" /> Ver jornada
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         </CardContent>
