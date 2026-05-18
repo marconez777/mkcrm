@@ -272,8 +272,6 @@ Deno.serve(async (req) => {
       .upsert(eventRows, { onConflict: "clinic_id,event_id", ignoreDuplicates: true });
     if (eErr) {
       console.log("[tracking-event] events_insert_error", eErr);
-    } else {
-      console.log("[tracking-event] events_inserted", { clinic_id: clinic.id, count: eventRows.length, names: eventRows.map(e => e.event_name) });
     }
   }
 
