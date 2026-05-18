@@ -1,63 +1,93 @@
-# Bloco #4 — Timeline Unificada do Lead
+# Bloco extra — Captura de lead parcial no preenchimento do formulário do site
 
 ## Objetivo
-Uma única linha do tempo cronológica por lead que mescla **todas** as fontes de atividade hoje espalhadas, com filtros por tipo. Substitui a aba "Jornada" atual (que só mostra tracking) por uma visão completa pré-conversão + pós-conversão.
+Quando o visitante começa a preencher um formulário no site da Clínica Ór e **sai (blur) de um campo de telefone ou e-mail**, o CRM já recebe um lead identificado, com a maior quantidade possível de dados, ligado ao `visitor_id` que veio do tracking.
 
-## Fontes mescladas
+Se o usuário continuar preenchendo, cada blur atualiza/enriquece o mesmo lead. Se abandonar, o lead permanece com os dados parciais. Se enviar de fato, o `submit-test-lead` atual continua funcionando e o lead já existirá (será atualizado, não duplicado).
 
-| Fonte | Tabela | Categoria | Ícone |
-|---|---|---|---|
-| Visita ao site / clique WA / form / teste | `tracking_events` | site | globe |
-| Mensagens WhatsApp (in/out) | `messages` | whatsapp | message-circle |
-| Mudanças de etapa no pipeline | `lead_stage_history` | stage | git-branch |
-| Notas internas da equipe | `lead_internal_notes` | note | sticky-note |
-| Eventos de CRM (atribuição, tags, etc.) | `lead_events` | crm | activity |
-| Tarefas criadas/concluídas | `lead_tasks` (created_at / completed_at) | task | check-square |
+## Arquitetura
 
-Cada item é normalizado para:
-```ts
-{ id, at: ISO, category, title, subtitle?, meta?, raw }
+```
+SITE CLÍNICA (projeto: Clinica Ór OFICIAL)
+  └─ TestLeadForm.tsx (onBlur de cada campo)
+       │
+       ▼  fetch direto + shared secret + visitor_id
+CRM (este projeto)
+  └─ edge: external-lead-capture (NOVO, verify_jwt=false, público)
+       │
+       ▼ valida + upsert
+  ├─ leads          (idempotente por clinic_id + phone OR email)
+  ├─ tracking_identity_links  (linka visitor_id ↔ lead_id)
+  └─ lead_events    (snapshot 'partial_form_capture')
 ```
 
-## UI
+## Implementação — CRM (este projeto)
 
-Substituir `LeadJourneyTab.tsx` por um novo componente `LeadTimelineTab.tsx`:
+### 1. Secret novo
+`EXTERNAL_LEAD_CAPTURE_TOKEN` — token compartilhado que o site coloca no header `x-capture-token`. Será solicitado via `secrets--add_secret` antes de mexer no código.
 
-- **Cabeçalho de filtros** (chips multi-select): Tudo · Site · WhatsApp · Etapas · Notas · Tarefas · CRM
-- **Resumo enxuto no topo** (mantém parte da aba Jornada atual): primeiro source, primeira página, total de sessões/eventos, último visitor_id vinculado
-- **Lista cronológica** (DESC por padrão, toggle ASC) — cada item é uma linha compacta com:
-  - ícone da categoria + badge colorido
-  - timestamp relativo ("há 2h") com tooltip ISO completo
-  - título curto + subtítulo opcional (ex: "page_view — /agendar" ou "Etapa: Novo → Qualificado")
-  - expansão clicável mostrando `meta` em JSON ou conteúdo da mensagem/nota
-- **Paginação por janela**: carrega últimos 100; botão "Carregar mais" busca página anterior por `at < lastAt`
-- **Empty state** amigável quando não há atividade
+### 2. Edge function nova: `supabase/functions/external-lead-capture/index.ts`
+- `verify_jwt = false` (em config.toml)
+- CORS aberto (precisa aceitar o domínio do site)
+- Body Zod:
+  ```ts
+  z.object({
+    clinic_id: z.string().uuid(),
+    visitor_id: z.string().min(1).max(64).optional(),
+    session_id: z.string().min(1).max(64).optional(),
+    name: z.string().trim().max(120).optional(),
+    email: z.string().trim().email().max(255).optional(),
+    phone: z.string().trim().max(32).optional(),
+    source_page: z.string().max(255).optional(),
+    form_kind: z.string().max(64).optional(),   // ex: "phq-9", "contact"
+    extra: z.record(z.unknown()).optional(),
+  }).refine(d => d.email || d.phone, { message: "email OR phone required" })
+  ```
+- Header check: `x-capture-token` deve bater com `EXTERNAL_LEAD_CAPTURE_TOKEN`. Retorna 401 senão.
+- Normaliza phone (só dígitos, com DDI 55 quando faltar).
+- Usa cliente service-role (SUPABASE_SERVICE_ROLE_KEY) para escrever ignorando RLS, mas filtrando explicitamente pelo `clinic_id` recebido.
+- **Match do lead**:
+  1. Procura lead existente nesse `clinic_id` por phone (igualdade) → se achar, atualiza name/email se vierem e estiverem vazios.
+  2. Senão, por email (case-insensitive) → mesma regra.
+  3. Senão, cria novo lead.
+- Após resolver `lead_id`:
+  - Se veio `visitor_id`, faz upsert em `tracking_identity_links (clinic_id, visitor_id, lead_id, link_source='form_partial')`.
+  - Insere `lead_events` com `type='partial_form_capture'` e payload `{ form_kind, source_page, fields_present: ['name','email','phone'].filter(present), extra }`. (Evita duplicar se o último evento do mesmo lead/form_kind for igual nos últimos 60s.)
+- Retorna `{ lead_id }`.
 
-## Implementação (somente frontend)
+### 3. config.toml
+Adicionar bloco `[functions.external-lead-capture] verify_jwt = false`.
 
-1. **`src/components/lead/LeadTimelineTab.tsx`** (novo)
-   - Hook `useLeadTimeline(leadId, clinicId, { categories, limit })` que faz `Promise.all` em paralelo nas 6 fontes, depois `merge + sort + slice`
-   - Para `tracking_events`: mantém a lógica atual de buscar visitor_ids via `tracking_identity_links` e OR `lead_id.eq` + `visitor_id.in`
-   - Para `messages`: select id, timestamp, from_me, message_type, content
-   - Para `lead_stage_history`: join nomes de `pipeline_stages` (from/to) — uma query separada por ids
-   - Demais: select direto filtrado por `lead_id` + `clinic_id`
+### 4. CORS
+Aceitar `*` (público) ou restringir aos domínios `clinicaohrpsiquiatria.com` e `mindscape-revive.lovable.app` via lista.
 
-2. **`src/components/lead/timeline/TimelineItem.tsx`** — apresenta uma linha por categoria (renderers por tipo)
+## Implementação — Site Clínica (projeto Clinica Ór OFICIAL)
 
-3. **`src/components/lead/timeline/TimelineFilters.tsx`** — chips de filtro
+### 5. Novo helper `src/lib/crmCapture.ts`
+- Lê `visitor_id` do cookie/localStorage (já existe no site para tracking).
+- Função `captureLeadPartial(payload)` que faz `fetch` para
+  `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/external-lead-capture`
+  com `x-capture-token` (VITE env), `apikey` (anon key já existente) e body JSON.
+- Mantém em memória o último snapshot enviado; **só dispara se algum campo mudou e (email || phone) preenchidos**.
 
-4. **`src/pages/LeadDrawer.tsx`** — renomear aba `journey` para `timeline` (label "Linha do tempo") e trocar componente. Mantém grid `grid-cols-3`.
+### 6. `TestLeadForm.tsx` — onBlur
+- `onBlur` em cada `<Input />`: chama `captureLeadPartial({ name, email, phone, form_kind: testType, source_page: sourcePage, clinic_id: VITE_CRM_CLINIC_ID })`.
+- Continua chamando `submit-test-lead` normalmente no submit (que já cria o lead no banco *do site* + envia para o CRM).
 
-5. **Sem mudanças no banco** — todas as tabelas já existem e têm RLS por clinic.
+### 7. Variáveis novas no site
+- `VITE_CRM_CAPTURE_URL` (URL do edge)
+- `VITE_CRM_CAPTURE_TOKEN` (mesmo valor do secret no CRM)
+- `VITE_CRM_CLINIC_ID` (UUID da clínica no CRM)
 
 ## Detalhes técnicos
 
-- Ordenação final: pelo campo `at` desc; itens com mesmo timestamp ordenam por categoria (stage > note > message > event).
-- Performance: cada fonte limitada a 200 inicialmente; merge in-memory.
-- `lead_tasks` aparece como **dois** itens quando aplicável: criação (`created_at`) e conclusão (`completed_at` quando não-nulo).
-- `tracking_events.event_name` mapeado para títulos PT-BR (page_view → "Visitou página", whatsapp_click → "Clicou no WhatsApp", etc.).
-- Filtros persistem em `localStorage` por `lead_timeline_filters`.
+- **Sem duplicação**: a função é idempotente por `(clinic_id, phone)` e `(clinic_id, email)`. Cada blur é seguro.
+- **Privacidade**: rejeita payloads sem email nem phone; valida domínio do email; trim em tudo.
+- **Throttle**: cliente só envia se mudou; servidor deduplica `lead_events` em janela de 60s.
+- **Rastreio**: o lead aparece no Kanban com origem do `tracking_lead_sources` se o site já registrar via tracking-identify; e na nova **Linha do tempo** (bloco #4) já mostra o evento `partial_form_capture` automaticamente.
+- **Segurança**: token compartilhado evita spam externo; o body é validado e o `clinic_id` confere com o token caso queiramos amarrar (por enquanto basta token global).
 
-## Fora do escopo (próximos blocos)
-- Bloco #3 (trackable redirects /r/:token) e bloco #5 (deals/revenue) — não tocados aqui.
-- Sem write actions na timeline (adicionar nota etc.); usa as UIs existentes.
+## Fora do escopo
+- Não vamos guardar histórico de cada keystroke; só snapshot no blur.
+- Não vamos gravar nada na DB do site além do que já existe — a fonte de verdade do "lead parcial" é o CRM.
+- Bloco #3 (redirects /r/:token) e #5 (deals/revenue) continuam pendentes para depois.
