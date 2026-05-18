@@ -36,6 +36,17 @@ type VisitorRow = {
   last_seen_at: string;
   first_landing_page: string | null;
   first_referrer: string | null;
+  first_source: string | null;
+  first_medium: string | null;
+  first_campaign: string | null;
+  last_source: string | null;
+  last_medium: string | null;
+  last_campaign: string | null;
+  last_channel_group: string | null;
+  last_non_direct_source: string | null;
+  last_non_direct_medium: string | null;
+  last_non_direct_campaign: string | null;
+  last_non_direct_channel_group: string | null;
 };
 
 type SessionRow = {
@@ -81,6 +92,18 @@ function truncate(s: string | null | undefined, n = 60) {
 function pathOf(u?: string | null) {
   if (!u) return "—";
   try { return new URL(u).pathname || "/"; } catch { return u; }
+}
+
+function SourceCell({ source, medium, campaign, channelGroup }: { source: string | null; medium: string | null; campaign: string | null; channelGroup?: string | null }) {
+  if (!source && !medium && !campaign) return <span className="text-muted-foreground">—</span>;
+  const label = source || "(direct)";
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-medium">{label}{medium ? ` / ${medium}` : ""}</span>
+      {campaign && <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">{campaign}</span>}
+      {channelGroup && <Badge variant="outline" className="w-fit text-[10px]">{channelGroup}</Badge>}
+    </div>
+  );
 }
 
 export default function Tracking() {
@@ -156,7 +179,7 @@ export default function Tracking() {
       setAllEventNames(Array.from(new Set(allEv.map((e) => e.event_name))).sort());
 
       // visitors in window
-      let vq = supabase.from("tracking_visitors").select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer")
+      let vq = supabase.from("tracking_visitors").select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer, first_source, first_medium, first_campaign, last_source, last_medium, last_campaign, last_channel_group, last_non_direct_source, last_non_direct_medium, last_non_direct_campaign, last_non_direct_channel_group")
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO)
         .order("last_seen_at", { ascending: false }).limit(1000);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
@@ -454,6 +477,8 @@ export default function Tracking() {
                     <TableHead>Primeira página</TableHead>
                     <TableHead>Última página</TableHead>
                     <TableHead>Referrer</TableHead>
+                    <TableHead>Origem (primeira)</TableHead>
+                    <TableHead>Origem (última não-direta)</TableHead>
                     <TableHead className="text-center">Sess.</TableHead>
                     <TableHead className="text-center">Ev.</TableHead>
                     <TableHead className="text-center">WA</TableHead>
@@ -466,7 +491,7 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
                   {filteredVisitors.map((v) => {
                     const f = vFlags[v.visitor_id];
@@ -480,6 +505,8 @@ export default function Tracking() {
                         <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(pathOf(f?.lastPage), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
+                        <TableCell className="text-xs"><SourceCell source={v.first_source} medium={v.first_medium} campaign={v.first_campaign} /></TableCell>
+                        <TableCell className="text-xs"><SourceCell source={v.last_non_direct_source} medium={v.last_non_direct_medium} campaign={v.last_non_direct_campaign} channelGroup={v.last_non_direct_channel_group} /></TableCell>
                         <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
                         <TableCell className="text-center text-xs">{f?.events ?? 0}</TableCell>
                         <TableCell className="text-center">{f?.wa ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
