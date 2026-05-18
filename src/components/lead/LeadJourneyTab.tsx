@@ -77,17 +77,17 @@ export default function LeadJourneyTab({ leadId, clinicId }: { leadId: string; c
         visitorIds.length
           ? supabase.from("tracking_visitors")
               .select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer, first_source")
-              .eq("clinic_id", clinicId).in("visitor_id", visitorIds)
+              .eq("clinic_id", resolvedClinicId).in("visitor_id", visitorIds)
           : Promise.resolve({ data: [] as Visitor[] } as any),
         visitorIds.length
           ? supabase.from("tracking_sessions")
               .select("session_id, visitor_id, started_at, landing_page, referrer, source, device_type, browser")
-              .eq("clinic_id", clinicId).in("visitor_id", visitorIds)
+              .eq("clinic_id", resolvedClinicId).in("visitor_id", visitorIds)
               .order("started_at", { ascending: false }).limit(50)
           : Promise.resolve({ data: [] as Session[] } as any),
         supabase.from("tracking_events")
           .select("id, event_time, event_name, event_type, page_url, referrer, session_id, visitor_id, properties")
-          .eq("clinic_id", clinicId)
+          .eq("clinic_id", resolvedClinicId)
           .or(`lead_id.eq.${leadId}${visitorIds.length ? `,visitor_id.in.(${visitorIds.map((v) => `"${v}"`).join(",")})` : ""}`)
           .order("event_time", { ascending: false })
           .limit(200),
