@@ -1,5 +1,6 @@
 // Receives tracking events from the pixel and writes to tracking_visitors / sessions / events.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveTrafficSource } from "../_shared/attribution.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
