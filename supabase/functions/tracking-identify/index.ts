@@ -114,8 +114,14 @@ Deno.serve(async (req) => {
   let resolvedLeadId: string | null = lead_id || null;
   if (!resolvedLeadId && (email || phone)) {
     const q = supabase.from("leads").select("id").eq("clinic_id", clinic.id).limit(1);
-    if (email) q.ilike("email", email.trim());
-    else if (phone) q.eq("phone", String(phone).replace(/\D/g, ""));
+    if (email) {
+      q.ilike("email", String(email).trim().toLowerCase());
+    } else if (phone) {
+      const digits = String(phone).replace(/\D/g, "");
+      // Match with or without country code (last 10-11 digits is the BR national part)
+      const tail = digits.slice(-11);
+      q.or(`phone.eq.${digits},phone.like.%${tail}`);
+    }
     const { data: leadRow } = await q.maybeSingle();
     if (leadRow?.id) resolvedLeadId = leadRow.id;
   }
