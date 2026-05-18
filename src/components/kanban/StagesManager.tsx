@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, GripVertical } from "lucide-react";
+import { Loader2, Plus, Trash2, GripVertical, Flag } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -35,6 +35,7 @@ interface Stage {
   name: string;
   color: string;
   position: number;
+  is_terminal: boolean;
   lead_count: number;
 }
 
@@ -58,7 +59,7 @@ export default function StagesManager({ pipelineId }: Props) {
     setLoading(true);
     const { data: stageData } = await supabase
       .from("pipeline_stages")
-      .select("id,name,color,position")
+      .select("id,name,color,position,is_terminal")
       .eq("pipeline_id", pipelineId)
       .order("position");
     const ids = (stageData ?? []).map((s) => s.id);
@@ -99,7 +100,7 @@ export default function StagesManager({ pipelineId }: Props) {
     const { data, error } = await supabase
       .from("pipeline_stages")
       .insert({ pipeline_id: pipelineId, name: newName.trim(), position: nextPos, color: PALETTE[nextPos % PALETTE.length] })
-      .select("id,name,color,position")
+      .select("id,name,color,position,is_terminal")
       .single();
     setAdding(false);
     if (error) { toast.error(error.message); return; }
@@ -118,7 +119,7 @@ export default function StagesManager({ pipelineId }: Props) {
     setStages((s) => s.filter((x) => x.id !== stage.id));
   }
 
-  async function updateStage(id: string, patch: Partial<Pick<Stage, "name" | "color">>) {
+  async function updateStage(id: string, patch: Partial<Pick<Stage, "name" | "color" | "is_terminal">>) {
     setStages((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     const { error } = await supabase.from("pipeline_stages").update(patch).eq("id", id);
     if (error) toast.error(error.message);
@@ -131,7 +132,7 @@ export default function StagesManager({ pipelineId }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Arraste para reordenar. Clique no círculo de cor para alterar. Etapas com leads não podem ser excluídas.
+        Arraste para reordenar. Clique no círculo de cor para alterar. Use a bandeira para marcar etapas terminais (ganho/perdido) — leads nessas etapas são ignorados pelo classificador diário.
       </p>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -166,7 +167,7 @@ function SortableRow({
   onRemove,
 }: {
   stage: Stage;
-  onUpdate: (id: string, patch: Partial<Pick<Stage, "name" | "color">>) => void;
+  onUpdate: (id: string, patch: Partial<Pick<Stage, "name" | "color" | "is_terminal">>) => void;
   onRemove: (s: Stage) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id });
@@ -231,6 +232,17 @@ function SortableRow({
       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground tabular-nums">
         {stage.lead_count}
       </span>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={`h-7 w-7 ${stage.is_terminal ? "text-primary" : "text-muted-foreground"} hover:text-primary`}
+        onClick={() => onUpdate(stage.id, { is_terminal: !stage.is_terminal })}
+        title={stage.is_terminal ? "Etapa terminal (ganho/perdido) — clique para desmarcar" : "Marcar como etapa terminal (ignorada pelo classificador diário)"}
+      >
+        <Flag className={`h-3.5 w-3.5 ${stage.is_terminal ? "fill-current" : ""}`} />
+      </Button>
 
       <Button
         type="button"

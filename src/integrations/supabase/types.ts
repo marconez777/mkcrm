@@ -2143,6 +2143,7 @@ export type Database = {
           gclid: string | null
           id: string
           landing_page: string | null
+          last_classified_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
           marked_unread: boolean
@@ -2178,6 +2179,7 @@ export type Database = {
           gclid?: string | null
           id?: string
           landing_page?: string | null
+          last_classified_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           marked_unread?: boolean
@@ -2213,6 +2215,7 @@ export type Database = {
           gclid?: string | null
           id?: string
           landing_page?: string | null
+          last_classified_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           marked_unread?: boolean
@@ -2639,6 +2642,7 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          is_terminal: boolean
           name: string
           pipeline_id: string
           position: number
@@ -2648,6 +2652,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          is_terminal?: boolean
           name: string
           pipeline_id: string
           position: number
@@ -2657,6 +2662,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          is_terminal?: boolean
           name?: string
           pipeline_id?: string
           position?: number
