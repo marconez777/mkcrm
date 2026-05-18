@@ -150,9 +150,11 @@ export default function Tracking() {
   const { sinceISO, untilISO } = useMemo(() => {
     const now = Date.now();
     if (period === "custom") {
+      const startOfDay = (s: string) => { const d = new Date(s); d.setHours(0, 0, 0, 0); return d.toISOString(); };
+      const endOfDay = (s: string) => { const d = new Date(s); d.setHours(23, 59, 59, 999); return d.toISOString(); };
       return {
-        sinceISO: customFrom ? new Date(customFrom).toISOString() : new Date(now - 7 * 86400_000).toISOString(),
-        untilISO: customTo ? new Date(customTo).toISOString() : new Date().toISOString(),
+        sinceISO: customFrom ? startOfDay(customFrom) : new Date(now - 7 * 86400_000).toISOString(),
+        untilISO: customTo ? endOfDay(customTo) : new Date().toISOString(),
       };
     }
     if (period === "today") {

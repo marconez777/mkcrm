@@ -30,7 +30,7 @@ function toHost(entry: string): string | null {
 }
 function isOriginAllowed(allowed: string[], host: string | null): boolean {
   if (!host) return false;
-  if (!allowed || allowed.length === 0) return true;
+  if (!allowed || allowed.length === 0) return false; // strict: must whitelist domains
   const hosts = allowed.map(toHost).filter(Boolean) as string[];
   return hosts.some((d) => d === host || host.endsWith("." + d));
 }
@@ -114,8 +114,14 @@ Deno.serve(async (req) => {
   let resolvedLeadId: string | null = lead_id || null;
   if (!resolvedLeadId && (email || phone)) {
     const q = supabase.from("leads").select("id").eq("clinic_id", clinic.id).limit(1);
-    if (email) q.ilike("email", email.trim());
-    else if (phone) q.eq("phone", String(phone).replace(/\D/g, ""));
+    if (email) {
+      q.ilike("email", String(email).trim().toLowerCase());
+    } else if (phone) {
+      const digits = String(phone).replace(/\D/g, "");
+      // Match with or without country code (last 10-11 digits is the BR national part)
+      const tail = digits.slice(-11);
+      q.or(`phone.eq.${digits},phone.like.%${tail}`);
+    }
     const { data: leadRow } = await q.maybeSingle();
     if (leadRow?.id) resolvedLeadId = leadRow.id;
   }
@@ -221,7 +227,12 @@ Deno.serve(async (req) => {
       .eq("visitor_id", visitor_id)
       .maybeSingle();
 
-    if (visitor?.last_non_direct_source && conversionSession?.source !== visitor.last_non_direct_source) {
+    const sameAsConversion = !!conversionSession
+      && conversionSession.source === visitor?.last_non_direct_source
+      && conversionSession.medium === visitor?.last_non_direct_medium
+      && (conversionSession.campaign ?? null) === (visitor?.last_non_direct_campaign ?? null);
+
+    if (visitor?.last_non_direct_source && !sameAsConversion) {
       rows.push({
         clinic_id: clinic.id,
         lead_id: resolvedLeadId,

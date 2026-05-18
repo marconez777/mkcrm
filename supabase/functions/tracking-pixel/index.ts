@@ -21,7 +21,7 @@ function buildScript(projectId: string) {
   var STORAGE_SID_EXP="_mk_sid_exp";
   var STORAGE_SID_SIG="_mk_sid_sig";
   var DEFAULT_SESSION_MIN=30;
-  var ALLOWED_QS=["utm_source","utm_medium","utm_campaign","utm_content","utm_term","gclid","gbraid","wbraid","fbclid","msclkid"];
+  var ALLOWED_QS=["utm_source","utm_medium","utm_campaign","utm_content","utm_term","gclid","gbraid","wbraid","fbclid","ttclid","msclkid","li_fat_id"];
   var cfg=null;
 
   function uuid(){
