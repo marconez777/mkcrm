@@ -3422,6 +3422,96 @@ export type Database = {
           },
         ]
       }
+      tracking_lead_sources: {
+        Row: {
+          campaign: string | null
+          channel_group: string | null
+          clinic_id: string
+          confidence_score: number | null
+          content: string | null
+          conversion_page: string | null
+          created_at: string
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          gbraid: string | null
+          gclid: string | null
+          id: string
+          landing_page: string | null
+          lead_id: string
+          li_fat_id: string | null
+          medium: string | null
+          msclkid: string | null
+          raw_params: Json | null
+          referrer: string | null
+          session_id: string | null
+          source: string | null
+          source_type: string
+          term: string | null
+          ttclid: string | null
+          visitor_id: string
+          wbraid: string | null
+        }
+        Insert: {
+          campaign?: string | null
+          channel_group?: string | null
+          clinic_id: string
+          confidence_score?: number | null
+          content?: string | null
+          conversion_page?: string | null
+          created_at?: string
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_page?: string | null
+          lead_id: string
+          li_fat_id?: string | null
+          medium?: string | null
+          msclkid?: string | null
+          raw_params?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          source_type: string
+          term?: string | null
+          ttclid?: string | null
+          visitor_id: string
+          wbraid?: string | null
+        }
+        Update: {
+          campaign?: string | null
+          channel_group?: string | null
+          clinic_id?: string
+          confidence_score?: number | null
+          content?: string | null
+          conversion_page?: string | null
+          created_at?: string
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_page?: string | null
+          lead_id?: string
+          li_fat_id?: string | null
+          medium?: string | null
+          msclkid?: string | null
+          raw_params?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          source_type?: string
+          term?: string | null
+          ttclid?: string | null
+          visitor_id?: string
+          wbraid?: string | null
+        }
+        Relationships: []
+      }
       tracking_sessions: {
         Row: {
           browser: string | null
@@ -3430,19 +3520,26 @@ export type Database = {
           created_at: string
           device_type: string | null
           ended_at: string | null
+          fbc: string | null
           fbclid: string | null
+          fbp: string | null
           gbraid: string | null
           gclid: string | null
           id: string
           ip_hash: string | null
           landing_page: string | null
+          li_fat_id: string | null
           medium: string | null
           msclkid: string | null
           operating_system: string | null
+          raw_params: Json | null
+          raw_querystring: string | null
+          raw_referrer: string | null
           referrer: string | null
           session_id: string
           source: string | null
           started_at: string
+          ttclid: string | null
           updated_at: string
           user_agent: string | null
           utm_content: string | null
@@ -3457,19 +3554,26 @@ export type Database = {
           created_at?: string
           device_type?: string | null
           ended_at?: string | null
+          fbc?: string | null
           fbclid?: string | null
+          fbp?: string | null
           gbraid?: string | null
           gclid?: string | null
           id?: string
           ip_hash?: string | null
           landing_page?: string | null
+          li_fat_id?: string | null
           medium?: string | null
           msclkid?: string | null
           operating_system?: string | null
+          raw_params?: Json | null
+          raw_querystring?: string | null
+          raw_referrer?: string | null
           referrer?: string | null
           session_id: string
           source?: string | null
           started_at?: string
+          ttclid?: string | null
           updated_at?: string
           user_agent?: string | null
           utm_content?: string | null
@@ -3484,19 +3588,26 @@ export type Database = {
           created_at?: string
           device_type?: string | null
           ended_at?: string | null
+          fbc?: string | null
           fbclid?: string | null
+          fbp?: string | null
           gbraid?: string | null
           gclid?: string | null
           id?: string
           ip_hash?: string | null
           landing_page?: string | null
+          li_fat_id?: string | null
           medium?: string | null
           msclkid?: string | null
           operating_system?: string | null
+          raw_params?: Json | null
+          raw_querystring?: string | null
+          raw_referrer?: string | null
           referrer?: string | null
           session_id?: string
           source?: string | null
           started_at?: string
+          ttclid?: string | null
           updated_at?: string
           user_agent?: string | null
           utm_content?: string | null

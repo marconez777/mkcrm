@@ -1,74 +1,73 @@
-# Plano: ampliar análise de gargalos em `docs/AI.md`
+# Onda 1 — Fundação Imutável de Atribuição
 
-## Objetivo
+Mudança 100% aditiva ao módulo de tracking. Sem refatorar nada existente. Sem UI nova.
 
-Atualizar a seção **13.1 Gargalos e melhorias** do `docs/AI.md` para:
-1. Reescrever o item #1 deixando claro que o fix de `remember_fact.clinic_id` **já foi aplicado** no código.
-2. Adicionar **10 novos achados** que vieram da segunda passagem de análise (RAG, dispatcher, auto-reply, duplicação de código, perda de mensagem).
-3. Reorganizar o resumo executivo com a nova prioridade.
+## Entregáveis
 
-Sem alteração de código nesta etapa — só documentação.
+### 1. Migration — `add_tracking_attribution_foundation.sql`
 
----
+Nova migration idempotente, criada via `supabase--migration`:
 
-## Novos gargalos encontrados (a adicionar)
+- `ALTER TABLE tracking_sessions ADD COLUMN IF NOT EXISTS` para: `fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring`, `raw_referrer` (text) e `raw_params` (jsonb).
+- `CREATE TABLE IF NOT EXISTS tracking_lead_sources` (fotografia imutável da atribuição) com colunas: `clinic_id`, `lead_id`, `visitor_id`, `session_id`, `source_type` (check `first_touch|conversion_touch|last_non_direct`), `source`, `medium`, `campaign`, `content`, `term`, `channel_group`, `landing_page`, `conversion_page`, `referrer`, todos click IDs (`gclid`, `gbraid`, `wbraid`, `fbclid`, `fbp`, `fbc`, `ttclid`, `msclkid`, `li_fat_id`), `confidence_score`, `raw_params`, `created_at`.
+- `UNIQUE (clinic_id, lead_id, source_type)`.
+- Índices: `(clinic_id, lead_id)` e `(clinic_id, visitor_id)`.
+- RLS habilitado com policies select/insert/update no padrão `clinic_id = current_clinic_id()` (mesmo padrão das demais tabelas tracking).
 
-### 🔴 Crítico — mensagem perdida no dispatcher
-Em `scheduled-dispatcher/index.ts` o `pending_replies` é **deletado antes** de chamar `ai-chat`/`evolution-send` (claim atômico, linha 56-59). Se o `evolution-send` falhar (linha 140), o registro já foi removido → **a resposta é perdida sem retry**. O `ai_usage` registra erro, mas a mensagem nunca chega ao lead.
-**Fix sugerido:** marcar `pending_replies.status='processing'` com timestamp em vez de deletar; só remover após sucesso final; reenfileirar com backoff em falha.
+### 2. `supabase/functions/tracking-pixel/index.ts` (tracker.js gerado)
 
-### 🟡 Código morto: cache de embedding/retrieval importado mas nunca usado
-`_shared/rag.ts:4` importa `getCachedEmbedding`, `setCachedEmbedding`, `getCachedRetrieval`, `setCachedRetrieval`, `withTimeout` — **nenhum é usado** no arquivo. A infra de cache existe em `utils.ts` mas o caminho de query ignora. Provável trabalho começado e não concluído.
-**Fix:** plugar o cache em `retrieveContext` (etapa 3 embed) e na própria RPC (etapa 4) usando hash da query reescrita + agent_id como chave.
+Adições dentro da string `buildScript`, sem remover nada:
 
-### 🟡 `SILENT_TOOLS` duplicado em dois arquivos
-A lista de ferramentas que marcam um agente como silent aparece **idêntica** em `ai-auto-reply/index.ts:9-13` e `scheduled-dispatcher/index.ts:81-85`. Adicionar uma tool nova em só um lugar gera comportamento divergente entre enfileiramento e execução.
-**Fix:** mover para `_shared/agent-flags.ts` e importar dos dois lados.
+- Helper `readCookie(name)` com escape de regex.
+- Helper `collectAllParams(url)` que percorre `url.searchParams`, limita key>64 / value>512 e retorna objeto ou null.
+- No bloco onde UTMs/click IDs são lidos:
+  - Lê `fbclid` da URL, `_fbp` e `_fbc` dos cookies.
+  - Se `fbclid` presente e `_fbc` ausente, monta `fbc = 'fb.1.' + Date.now() + '.' + fbclid`.
+  - Lê `ttclid` e `li_fat_id` da URL.
+- No payload `baseEvent` adiciona: `fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring` (`window.location.search`), `raw_referrer` (`document.referrer` cru), `raw_params` (saída de `collectAllParams`).
+- `sanitizeUrl` permanece intocado — `page_url` continua sanitizado, os `raw_*` são paralelos para auditoria.
 
-### 🟡 Dispatcher trigger via `setTimeout` é frágil
-`ai-auto-reply/index.ts:23-35` faz `setTimeout(debounce+1s)` dentro de `EdgeRuntime.waitUntil`. Se a instância edge for reciclada nesse meio-tempo, o dispatcher só dispara no próximo tick do cron (até 1 min depois). UX percebe latência aleatória.
-**Fix:** disparar via `pg_notify` ou tabela `dispatcher_wakeup` consumida por trigger; ou simplesmente baixar o cron para 15s.
+### 3. `supabase/functions/tracking-event/index.ts`
 
-### 🟡 Histórico fixo de 20 mensagens sem janela inteligente
-`scheduled-dispatcher:67-70` e `ai-chat` puxam sempre últimas 20 messages. Em conversas longas o modelo perde contexto inicial (lead pediu X há 50 turnos). Sem sumarização incremental no `agent_memory.kind='summary'`.
-**Fix:** quando histórico > 30 turnos, gerar summary via cheap model, salvar em `agent_memory` kind=summary e usar summary + últimas 10 mensagens.
+No objeto `sessionRow` do upsert em `tracking_sessions`, adicionar os 7 novos campos (`fbp`, `fbc`, `ttclid`, `li_fat_id`, `raw_querystring`, `raw_referrer`, `raw_params`) com `event.<campo> ?? null`. Manter `ignoreDuplicates: true` para que sessões antigas não sejam sobrescritas (primeira atribuição imutável). `tracking_visitors` permanece inalterado.
 
-### 🟡 `processScheduled` é serial
-`scheduled-dispatcher:17-38` itera 50 mensagens com `for` + `await`. Se cada send leva 2s, 50 mensagens = 100s — estoura o limite de execução da edge.
-**Fix:** `pmap(items, 10, sender)` (já existe `pmap` em utils.ts).
+### 4. `supabase/functions/tracking-identify/index.ts`
 
-### 🟡 Risco de loop dispatcher → webhook → auto-reply
-Quando o dispatcher envia via `evolution-send`, a Evolution emite `MESSAGES_UPSERT` com `from_me=true`. O `evolution-webhook` repassa para `ai-auto-reply`, que **ainda enfileira agentes silenciosos** (`from_me && silent`). Cada resposta do bot pode disparar nova rodada do classificador — custo de tokens dobra. O `pending_replies` agrupa, mas ainda gera trace + embed.
-**Fix:** marcar mensagens enviadas pelo bot com `bot_id` (já há `client_message_id`) e o webhook ignorar para fins de auto-reply.
+Inserir novo passo 4.5 entre o upsert de `tracking_identity_links` e o backfill de `tracking_events`:
 
-### 🟢 `ai_usage` sem coluna `cost_usd` materializada
-Cálculo de custo é feito no frontend (`MetricsAiUsage` + `ai-pricing.ts`). Toda mudança de preço exige redeploy. E histórico fica volátil se preço muda.
-**Fix:** materializar `cost_usd` no insert (preço da época). Frontend só agrega.
+- Buscar `firstSession` (mais antiga por `started_at asc` para `clinic_id+visitor_id`).
+- Buscar `conversionSession`: se `session_id` veio no body, busca por ele; senão pega a mais recente do visitor.
+- Helper `buildSourceRow(sourceType, session)` mapeando campos da sessão para a linha de `tracking_lead_sources` (com `channel_group` e `confidence_score` em null — Onda 2; `conversion_page` só preenchido em `conversion_touch`).
+- `upsert` array com `first_touch` e `conversion_touch` (filtrando null), `onConflict: 'clinic_id,lead_id,source_type'`, `ignoreDuplicates: false`.
+- Erro nesse upsert apenas loga (`console.error`) e não interrompe — backfill e evento `lead_identified` continuam.
 
-### 🟢 `ai_documents.content` duplica conteúdo dos chunks
-Cada documento guarda `content` completo + N linhas em `ai_chunks.content`. Em base grande, dobra storage. `ai_documents.content` parece só ser usado em edição/UI.
-**Fix:** mover conteúdo bruto para storage bucket (`ai-docs`), guardar só URL + summary.
+## Regras inegociáveis aplicadas
 
-### 🟢 RLS de `embedding_cache` está aberta (sem policies)
-Tabela tem RLS habilitada mas **nenhuma policy** → acesso só via service role. Funcional, mas se um dia for consultada via cliente autenticado vai falhar silenciosamente. Documentar ou adicionar policy `SELECT for authenticated`.
+- Tudo aditivo: nenhuma coluna/função/upsert existente é alterada.
+- `tracking_identity_links` não é tocada.
+- `ignoreDuplicates: true` mantido em `tracking_sessions` e `tracking_events`.
+- RLS clinic-scoped igual ao padrão atual.
+- Sem novas dependências npm.
+- Sem mudanças em `Tracking.tsx` / `TrackingDebug.tsx`.
+- Sem `resolveTrafficSource`, sem `confidence_score`, sem `last_*` — tudo isso é Onda 2.
 
----
+## Ordem de execução
 
-## Estrutura da edição
+1. Aplicar migration (com aprovação do usuário).
+2. Editar `tracking-pixel/index.ts` (tracker).
+3. Editar `tracking-event/index.ts` (persistir novos campos da sessão).
+4. Editar `tracking-identify/index.ts` (congelar atribuição).
+5. Deploy das 3 edge functions modificadas.
 
-Substituir a subseção 13.1 atual por uma versão expandida com:
+## Validação pós-deploy (critérios de aceitação)
 
-- **🔴 Críticos (2 itens):** memórias (já aplicado, marcar ✅) + mensagem perdida no dispatcher (novo).
-- **🔴 Configuração (1 item):** `remember_fact` no agente silencioso ativo.
-- **🟡 Médios (8 itens):** cache morto, SILENT_TOOLS duplicado, setTimeout frágil, histórico fixo, scheduled serial, loop bot, retenção `ai_usage`/`agent_traces`, orçamento de tokens no RAG.
-- **🟢 Pequenos / UX (6 itens):** custo materializado, dedup `ai_documents.content`, RLS `embedding_cache`, erros tipados do provider, cron de evals, JSON denso no prompt, reranker default, agrupamento de tools na UI.
-
-Atualizar o **resumo executivo** (tabela) com priorização revisada — adicionar linha P0 do dispatcher e linhas P1 dos novos achados.
-
-Adicionar mini-bloco **"Como reproduzir o bug do dispatcher"** (3 linhas SQL + 1 curl) para o time conseguir testar antes do fix.
-
-## Não-objetivos desta etapa
-
-- Não alterar código de edge functions, RLS ou migrations.
-- Não criar tasks de implementação dos fixes — só documentar para discussão.
-- Não tocar `OVERVIEW.md`, `EMAIL.md`, `TRACKING.md`.
+Verificar via `tracking-debug` ou query direta:
+- Migration roda 2x sem erro.
+- `?fbclid=test123` → `tracking_sessions.fbclid='test123'` e `fbc='fb.1.<ts>.test123'`.
+- Cookie `_fbp` setado → `tracking_sessions.fbp` populado.
+- `?ttclid=abc` e `?li_fat_id=xyz` persistidos.
+- `raw_querystring`, `raw_referrer`, `raw_params` populados (raw_params inclui parâmetros desconhecidos como `?foo=bar`).
+- Após `tracking-identify` com 2+ sessões: 2 linhas em `tracking_lead_sources` (first_touch + conversion_touch).
+- Segunda chamada de identify para mesmo `(lead_id, visitor_id)` não duplica (upsert por unique key).
+- Eventos antigos seguem aparecendo em `/tracking` sem regressão.
+- Se `tracking_lead_sources` falhar, `tracking_events.lead_id` ainda é atualizado.
