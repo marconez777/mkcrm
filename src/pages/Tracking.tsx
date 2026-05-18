@@ -436,6 +436,7 @@ export default function Tracking() {
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
           <TabsTrigger value="pages">Páginas</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="attribution">Atribuição</TabsTrigger>
         </TabsList>
 
         {/* Visitantes */}
