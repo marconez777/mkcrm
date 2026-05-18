@@ -220,8 +220,8 @@ export default function Tracking() {
       allEv.forEach((e) => {
         const f = flags[e.visitor_id] ?? { wa: false, fs: false, fa: false, sessions: 0, events: 0, lastPage: null };
         f.events += 1;
-        if (e.event_name === "whatsapp_click") f.wa = true;
-        if (e.event_name === "form_start") f.fs = true;
+        if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") f.wa = true;
+        if (e.event_name === "form_start" || e.event_name === "partial_form_capture") f.fs = true;
         if (e.event_name === "form_submit_attempt" || e.event_name === "form_submit") f.fa = true;
         if (!f.lastPage && e.page_url) f.lastPage = e.page_url;
         flags[e.visitor_id] = f;
@@ -238,8 +238,8 @@ export default function Tracking() {
       // summary
       const totalLeads = Object.keys(linkMap).length;
       const pv = allEv.filter((e) => e.event_name === "page_view").length;
-      const wa = allEv.filter((e) => e.event_name === "whatsapp_click").length;
-      const fs = allEv.filter((e) => e.event_name === "form_start").length;
+      const wa = allEv.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect").length;
+      const fs = allEv.filter((e) => e.event_name === "form_start" || e.event_name === "partial_form_capture").length;
       const fa = allEv.filter((e) => e.event_name === "form_submit_attempt").length;
       setSummary({
         visitors: vList.length,
@@ -304,8 +304,8 @@ export default function Tracking() {
       if (!map[key]) map[key] = { pageviews: 0, visitors: new Set(), wa: 0, fs: 0, fa: 0, leads: new Set() };
       const r = map[key];
       if (e.event_name === "page_view") r.pageviews += 1;
-      if (e.event_name === "whatsapp_click") r.wa += 1;
-      if (e.event_name === "form_start") r.fs += 1;
+      if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") r.wa += 1;
+      if (e.event_name === "form_start" || e.event_name === "partial_form_capture") r.fs += 1;
       if (e.event_name === "form_submit_attempt") r.fa += 1;
       r.visitors.add(e.visitor_id);
       const ld = links[e.visitor_id];
@@ -319,7 +319,7 @@ export default function Tracking() {
 
   // whatsapp report
   const whatsappReport = useMemo(() => {
-    const waEvents = events.filter((e) => e.event_name === "whatsapp_click");
+    const waEvents = events.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect");
     const uniqueVisitors = new Set(waEvents.map((e) => e.visitor_id));
     const pageMap: Record<string, number> = {};
     waEvents.forEach((e) => { const k = pathOf(e.page_url); pageMap[k] = (pageMap[k] ?? 0) + 1; });
@@ -478,9 +478,9 @@ export default function Tracking() {
                     <TableHead>Primeira página</TableHead>
                     <TableHead>Referrer</TableHead>
                     <TableHead className="text-center">Sess.</TableHead>
-                    <TableHead className="text-center">WA</TableHead>
-                    <TableHead className="text-center">Form</TableHead>
-                    <TableHead className="text-center">Submit</TableHead>
+                    <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
+                    <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
+                    <TableHead className="text-center" title="form_submit_attempt / form_submit">Submit</TableHead>
                     <TableHead>Lead</TableHead>
                     <TableHead>Etapa</TableHead>
                     <TableHead></TableHead>
