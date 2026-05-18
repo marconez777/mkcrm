@@ -36,6 +36,17 @@ type VisitorRow = {
   last_seen_at: string;
   first_landing_page: string | null;
   first_referrer: string | null;
+  first_source: string | null;
+  first_medium: string | null;
+  first_campaign: string | null;
+  last_source: string | null;
+  last_medium: string | null;
+  last_campaign: string | null;
+  last_channel_group: string | null;
+  last_non_direct_source: string | null;
+  last_non_direct_medium: string | null;
+  last_non_direct_campaign: string | null;
+  last_non_direct_channel_group: string | null;
 };
 
 type SessionRow = {
