@@ -18,13 +18,14 @@ const supabase = createClient(
 );
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const corsHeaders = corsFor(req);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const projectId = url.searchParams.get("project_id");
   if (!projectId) {
     return new Response(JSON.stringify({ enabled: false, error: "missing_project_id" }), {
       status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const { data } = await supabase
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     }),
     {
       status: 200,
-      headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
     },
   );
 });
