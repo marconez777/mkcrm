@@ -132,7 +132,7 @@ export default function StagesManager({ pipelineId }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Arraste para reordenar. Clique no círculo de cor para alterar. Etapas com leads não podem ser excluídas.
+        Arraste para reordenar. Clique no círculo de cor para alterar. Use a bandeira para marcar etapas terminais (ganho/perdido) — leads nessas etapas são ignorados pelo classificador diário.
       </p>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
