@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2, GitBranch, UserCheck, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { deleteLead } from "@/lib/delete-lead";
 import CustomFieldsPanel from "./CustomFieldsPanel";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
@@ -137,8 +138,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
   async function remove() {
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de conversa será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
-    await supabase.from("leads").delete().eq("id", lead.id);
-    nav("/inbox");
+    try {
+      await deleteLead(lead.id);
+      toast.success("Conversa excluída");
+      nav("/inbox");
+    } catch (error) {
+      toast.error("Falha ao excluir conversa", { description: error instanceof Error ? error.message : "Tente novamente." });
+    }
   }
 
   const stage = stages.find((s) => s.id === lead.stage_id);

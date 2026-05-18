@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useStages } from "@/hooks/useCrm";
 import { useAttendants } from "@/hooks/useAttendants";
 import { useConfirm } from "@/hooks/useDialogs";
+import { deleteLead } from "@/lib/delete-lead";
 import ContextRail from "@/components/inbox/ContextRail";
 import ChatPane from "@/components/inbox/ChatPane";
 import LeadJourneyTab from "@/components/lead/LeadJourneyTab";
@@ -56,8 +57,13 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
 
   async function remove() {
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de mensagens será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
-    await supabase.from("leads").delete().eq("id", lead!.id);
-    onClose();
+    try {
+      await deleteLead(lead.id);
+      toast.success("Lead excluído");
+      onClose();
+    } catch (error) {
+      toast.error("Falha ao excluir lead", { description: error instanceof Error ? error.message : "Tente novamente." });
+    }
   }
 
   return (
