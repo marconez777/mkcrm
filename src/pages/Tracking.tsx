@@ -233,6 +233,14 @@ export default function Tracking() {
   const [journeyData, setJourneyData] = useState<{ visitor: VisitorRow | null; sessions: SessionRow[]; events: EventRow[] } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
 
+  // pagination per tab
+  const [pageSize, setPageSize] = useState(50);
+  const [visitorsPage, setVisitorsPage] = useState(1);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [pagesPage, setPagesPage] = useState(1);
+  const [waPagesPage, setWaPagesPage] = useState(1);
+
   const computeRange = useCallback(() => {
     const now = Date.now();
     if (period === "custom") {
