@@ -2,7 +2,7 @@
 
 > Referência completa do módulo de Email Marketing do CRM mkart.
 > Cobre: telas, edge functions, tabelas, fluxos, integrações (Resend), helpers e regras de negócio.
-> Última atualização: 2026-05-18.
+> Última atualização: 2026-05-19.
 
 ---
 
@@ -86,7 +86,7 @@ Drip automatizado (`email_automations`):
 - Presets: `welcome`, `warmup` (3 emails / 7 dias), `reactivation`.
 - Toggle `active`.
 
-> ⚠️ **Atenção:** hoje **não existe edge function que consuma `email_automations`**. Busca em `supabase/functions/` por `enqueue_email` só retorna `dispatch-campaign`. A UI permite cadastrar drips mas eles não disparam — falta implementar um runner (cron que lê `email_automations.active=true`, casa o trigger com eventos de lead e enfileira via RPC `enqueue_email` respeitando `delay_minutes` de cada step). Ver §10 roadmap.
+Processamento por `email-automations-tick` (cron a cada 5 min). Ver §3.10.
 
 ### 2.7 `EmailSegments.tsx` (`/email/segments`)
 Filtros salvos sobre `leads` (`email_segments`):
@@ -235,6 +235,20 @@ Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled
 ### 3.9 `scheduled-dispatcher` (referência cruzada)
 **Não pertence ao módulo de email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Listado aqui só para evitar confusão com o `process-scheduled-campaigns`.
 
+### 3.10 `email-automations-tick`
+Cron a cada 5 min. Motor de drip para `email_automations`:
+- Lê todas as automações com `active = true`.
+- Detecta leads candidatos desde `last_run_at` (cursor por automação):
+  - `lead_created` → `leads.created_at > since` (com `email IS NOT NULL`).
+  - `lead_stage_changed` → `lead_stage_history.moved_at > since`; respeita `trigger_config.to_stage_id` (ou `stage_id`).
+  - `lead_tag_added` → `lead_events` com `type='tag_added'` e filtro opcional `payload.tag`.
+- Para cada lead novo, tenta INSERT em `email_automation_enrollments` (`UNIQUE(automation_id, lead_id)`). Unique violation = já enrolado, ignorado silenciosamente.
+- Enfileira **todos os steps** da automação via RPC `enqueue_email` com `scheduled_at = now() + delay_minutes`.
+- `related_lead_table = "automation_<id>"` → idempotência/deduplicação delegada ao `send-email`.
+- Atualiza `steps_enqueued` no enrollment e avança `last_run_at` da automação.
+
+Suppression, idempotência, cota e verificação de domínio ficam por conta do `send-email` no momento do envio.
+
 ---
 
 ## 4. Tabelas (Postgres + RLS por `clinic_id`)
@@ -249,6 +263,7 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 | `email_segments` | Filtros JSON salvos sobre `leads`. |
 | `email_campaigns` | Campanhas (template + segment + agendamento + totais). |
 | `email_automations` | Drip por trigger (steps JSON). |
+| `email_automation_enrollments` | Leads enrolados numa automação (`UNIQUE(automation_id, lead_id)`). Conta `steps_enqueued`. |
 | `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `attempts`, `scheduled_at`, `error`, `force_send` (ignora suppression/idempotência), `variables`, `related_lead_id`, `related_lead_table`. |
 | `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint. **Read-only** para o app. |
 | `email_unsubscribes` | Lista de supressão por clinic+email. Admin pode deletar (reativar). |
@@ -377,7 +392,7 @@ Edge functions exigem:
 
 | Quero… | Vou em |
 |---|---|
-| Adicionar novo trigger de automação | `EmailAutomations.tsx` (TRIGGERS) + lógica de enfileiramento no trigger original |
+| Adicionar novo trigger de automação | `EmailAutomations.tsx` (TRIGGERS) + `email-automations-tick/index.ts` (query de candidatos) |
 | Adicionar novo bloco no editor | `lib/email/types.ts` (tipo + `newBlock`) + `blocksToHtml.ts` (render) + `Inspector.tsx` (UI) + `Palette.tsx` (lista) |
 | Aumentar cota de uma clínica | Função SQL `clinic_email_quota` (custom logic por clínica/plano) |
 | Mudar throttle/batch size | `process-email-queue/index.ts` — constantes `BATCH_SIZE`, `MAX_ATTEMPTS` |
@@ -392,6 +407,5 @@ Edge functions exigem:
 ## 10. Roadmap / pontos abertos
 
 - Domain creation está restrita a super admin via `/admin`; não há self-serve para clínicas (intencional para evitar custo de verificação).
-- `email_automations.steps` é processado por triggers/cron externos — a execução não está em uma função dedicada deste módulo; verificar a função que insere em `email_queue` quando um lead muda de estágio.
 - Não há A/B test nativo de subject (campo `subject` é único por template).
 - O contador `email_send_state` é por clínica; não há cota global de plataforma.
