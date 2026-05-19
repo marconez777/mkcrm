@@ -98,6 +98,14 @@ function applyRules(
   return null;
 }
 
+const BOT_UA_RE = /lovable|headlesschrome|prerender|phantomjs|puppeteer|playwright|\bbot\b|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs|mj12bot|dotbot|pingdom|uptimerobot|gtmetrix|lighthouse|chrome-lighthouse|petalbot|seznambot|sogou|exabot|ia_archiver|archive\.org/i;
+function isBotUA(ua: string): boolean {
+  if (!ua) return true;
+  return BOT_UA_RE.test(ua);
+}
+
+
+
 function parseUA(ua: string) {
   const u = ua.toLowerCase();
   let device_type = "desktop";
