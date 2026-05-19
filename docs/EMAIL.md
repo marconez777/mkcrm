@@ -392,7 +392,7 @@ Edge functions exigem:
 
 | Quero… | Vou em |
 |---|---|
-| Adicionar novo trigger de automação | `EmailAutomations.tsx` (TRIGGERS) + lógica de enfileiramento no trigger original |
+| Adicionar novo trigger de automação | `EmailAutomations.tsx` (TRIGGERS) + `email-automations-tick/index.ts` (query de candidatos) |
 | Adicionar novo bloco no editor | `lib/email/types.ts` (tipo + `newBlock`) + `blocksToHtml.ts` (render) + `Inspector.tsx` (UI) + `Palette.tsx` (lista) |
 | Aumentar cota de uma clínica | Função SQL `clinic_email_quota` (custom logic por clínica/plano) |
 | Mudar throttle/batch size | `process-email-queue/index.ts` — constantes `BATCH_SIZE`, `MAX_ATTEMPTS` |
