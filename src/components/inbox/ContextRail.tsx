@@ -277,6 +277,19 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Origem do formulário</Label>
+            <Input
+              value={(form as any).form_source ?? ""}
+              onChange={(e) => setForm({ ...form, ...({ form_source: e.target.value } as any) })}
+              onBlur={() => patch({ form_source: ((form as any).form_source || null) } as any)}
+              placeholder="teste-depressao, landing-cetamina…"
+              className="h-9"
+            />
+          </div>
+
+
+
+          <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</Label>
             <div className="flex flex-wrap gap-1">
               {(form.tags ?? []).map((t) => (
