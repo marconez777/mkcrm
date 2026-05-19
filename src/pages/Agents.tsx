@@ -415,6 +415,7 @@ export default function Agents() {
             >
               <Bot className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">{a.name}</span>
+              {a.is_system && <Badge variant="secondary" className="text-[10px]" title="Agente padrão do sistema">padrão</Badge>}
               {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
             </button>
           ))}
