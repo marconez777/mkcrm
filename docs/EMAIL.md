@@ -407,6 +407,5 @@ Edge functions exigem:
 ## 10. Roadmap / pontos abertos
 
 - Domain creation está restrita a super admin via `/admin`; não há self-serve para clínicas (intencional para evitar custo de verificação).
-- `email_automations.steps` é processado por triggers/cron externos — a execução não está em uma função dedicada deste módulo; verificar a função que insere em `email_queue` quando um lead muda de estágio.
 - Não há A/B test nativo de subject (campo `subject` é único por template).
 - O contador `email_send_state` é por clínica; não há cota global de plataforma.
