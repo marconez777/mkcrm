@@ -10,9 +10,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { AttributionTab } from "@/pages/tracking/AttributionTab";
+
+function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, total);
+  return (
+    <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span>Itens por página:</span>
+        <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v)); onPageChange(1); }}>
+          <SelectTrigger className="h-7 w-20"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {[25, 50, 100, 200, 500].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <span>{start}–{end} de {total}</span>
+        <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage <= 1} onClick={() => onPageChange(safePage - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span>Página {safePage}/{totalPages}</span>
+        <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage >= totalPages} onClick={() => onPageChange(safePage + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 type EventRow = {
   id: string;
@@ -203,6 +233,14 @@ export default function Tracking() {
   const [journeyData, setJourneyData] = useState<{ visitor: VisitorRow | null; sessions: SessionRow[]; events: EventRow[] } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
 
+  // pagination per tab
+  const [pageSize, setPageSize] = useState(50);
+  const [visitorsPage, setVisitorsPage] = useState(1);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [pagesPage, setPagesPage] = useState(1);
+  const [waPagesPage, setWaPagesPage] = useState(1);
+
   const computeRange = useCallback(() => {
     const now = Date.now();
     if (period === "custom") {
@@ -373,7 +411,7 @@ export default function Tracking() {
     return Object.entries(map).map(([page, r]) => ({
       page, pageviews: r.pageviews, visitors: r.visitors.size, wa: r.wa, fs: r.fs, fa: r.fa,
       leads: r.leads.size, conv: r.visitors.size ? (r.leads.size / r.visitors.size) * 100 : 0,
-    })).sort((a, b) => b.pageviews - a.pageviews).slice(0, 100);
+    })).sort((a, b) => b.pageviews - a.pageviews);
   }, [events, links]);
 
   // whatsapp report
@@ -386,7 +424,7 @@ export default function Tracking() {
     return {
       total: waEvents.length,
       uniqueVisitors: uniqueVisitors.size,
-      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]).slice(0, 20),
+      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]),
       turnedLead,
       conv: uniqueVisitors.size ? (turnedLead / uniqueVisitors.size) * 100 : 0,
     };
@@ -561,7 +599,7 @@ export default function Tracking() {
                   {filteredVisitors.length === 0 && (
                     <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
-                  {filteredVisitors.map((v) => {
+                  {filteredVisitors.slice((visitorsPage - 1) * pageSize, visitorsPage * pageSize).map((v) => {
                     const f = vFlags[v.visitor_id];
                     const link = links[v.visitor_id];
                     const stage = link?.leads?.stage_id ? stages[link.leads.stage_id] : null;
@@ -605,6 +643,7 @@ export default function Tracking() {
                   })}
                 </TableBody>
               </Table>
+              <Pagination page={visitorsPage} pageSize={pageSize} total={filteredVisitors.length} onPageChange={setVisitorsPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -631,7 +670,7 @@ export default function Tracking() {
                   {events.length === 0 && (
                     <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum evento encontrado.</TableCell></TableRow>
                   )}
-                  {events.slice(0, 500).map((e) => (
+                  {events.slice((eventsPage - 1) * pageSize, eventsPage * pageSize).map((e) => (
                     <TableRow key={e.id}>
                       <TableCell className="whitespace-nowrap text-xs">{fmtTime(e.event_time)}</TableCell>
                       <TableCell className="font-mono text-xs">{e.event_name}</TableCell>
@@ -647,6 +686,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={eventsPage} pageSize={pageSize} total={events.length} onPageChange={setEventsPage} onPageSizeChange={setPageSize} />
               {allEventNames.length > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">Eventos encontrados no período: {allEventNames.join(", ")}</p>
               )}
@@ -678,7 +718,7 @@ export default function Tracking() {
                   {leadsWithOrigin.length === 0 && (
                     <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Nenhum lead vinculado.</TableCell></TableRow>
                   )}
-                  {leadsWithOrigin.map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
+                  {leadsWithOrigin.slice((leadsPage - 1) * pageSize, leadsPage * pageSize).map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
                     <TableRow key={link.lead_id + link.visitor_id}>
                       <TableCell className="text-xs">
                         <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline">
@@ -707,6 +747,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={leadsPage} pageSize={pageSize} total={leadsWithOrigin.length} onPageChange={setLeadsPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -733,7 +774,7 @@ export default function Tracking() {
                   {pageReport.length === 0 && (
                     <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
                   )}
-                  {pageReport.map((p) => (
+                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((p) => (
                     <TableRow key={p.page}>
                       <TableCell className="text-xs">{p.page}</TableCell>
                       <TableCell className="text-right text-xs">{p.pageviews}</TableCell>
@@ -747,6 +788,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -768,11 +810,12 @@ export default function Tracking() {
                   {whatsappReport.topPages.length === 0 && (
                     <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
                   )}
-                  {whatsappReport.topPages.map(([page, n]) => (
+                  {whatsappReport.topPages.slice((waPagesPage - 1) * pageSize, waPagesPage * pageSize).map(([page, n]) => (
                     <TableRow key={page}><TableCell className="text-xs">{page}</TableCell><TableCell className="text-right text-xs">{n}</TableCell></TableRow>
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={waPagesPage} pageSize={pageSize} total={whatsappReport.topPages.length} onPageChange={setWaPagesPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
