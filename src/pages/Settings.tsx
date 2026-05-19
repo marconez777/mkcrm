@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [healingId, setHealingId] = useState<string | null>(null);
+  const [runningClassifier, setRunningClassifier] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
   const [agents, setAgents] = useState<AgentLite[]>([]);
