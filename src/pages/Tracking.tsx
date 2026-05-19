@@ -10,9 +10,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { AttributionTab } from "@/pages/tracking/AttributionTab";
+
+function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, total);
+  return (
+    <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span>Itens por página:</span>
+        <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v)); onPageChange(1); }}>
+          <SelectTrigger className="h-7 w-20"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {[25, 50, 100, 200, 500].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <span>{start}–{end} de {total}</span>
+        <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage <= 1} onClick={() => onPageChange(safePage - 1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span>Página {safePage}/{totalPages}</span>
+        <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage >= totalPages} onClick={() => onPageChange(safePage + 1)}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 type EventRow = {
   id: string;
