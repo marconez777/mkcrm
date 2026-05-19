@@ -411,7 +411,7 @@ export default function Tracking() {
     return Object.entries(map).map(([page, r]) => ({
       page, pageviews: r.pageviews, visitors: r.visitors.size, wa: r.wa, fs: r.fs, fa: r.fa,
       leads: r.leads.size, conv: r.visitors.size ? (r.leads.size / r.visitors.size) * 100 : 0,
-    })).sort((a, b) => b.pageviews - a.pageviews).slice(0, 100);
+    })).sort((a, b) => b.pageviews - a.pageviews);
   }, [events, links]);
 
   // whatsapp report
