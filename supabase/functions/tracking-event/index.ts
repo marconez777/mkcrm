@@ -98,6 +98,14 @@ function applyRules(
   return null;
 }
 
+const BOT_UA_RE = /lovable|headlesschrome|prerender|phantomjs|puppeteer|playwright|\bbot\b|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs|mj12bot|dotbot|pingdom|uptimerobot|gtmetrix|lighthouse|chrome-lighthouse|petalbot|seznambot|sogou|exabot|ia_archiver|archive\.org/i;
+function isBotUA(ua: string): boolean {
+  if (!ua) return true;
+  return BOT_UA_RE.test(ua);
+}
+
+
+
 function parseUA(ua: string) {
   const u = ua.toLowerCase();
   let device_type = "desktop";
@@ -242,8 +250,10 @@ Deno.serve(async (req) => {
   for (const ev of events) {
     if (!ev?.visitor_id || !ev?.event_id || !ev?.event_name) continue;
     const ua = String(ev.user_agent || req.headers.get("user-agent") || "");
+    if (isBotUA(ua) || ev.is_webdriver === true) continue;
     const dev = parseUA(ua);
     const now = ev.event_time ? new Date(ev.event_time).toISOString() : new Date().toISOString();
+
 
     const attr = resolveTrafficSource({
       utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
