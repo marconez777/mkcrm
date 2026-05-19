@@ -774,7 +774,7 @@ export default function Tracking() {
                   {pageReport.length === 0 && (
                     <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
                   )}
-                  {pageReport.map((p) => (
+                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((p) => (
                     <TableRow key={p.page}>
                       <TableCell className="text-xs">{p.page}</TableCell>
                       <TableCell className="text-right text-xs">{p.pageviews}</TableCell>
@@ -788,6 +788,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
