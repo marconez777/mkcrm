@@ -2,7 +2,7 @@
 
 > Referência completa do módulo de Email Marketing do CRM mkart.
 > Cobre: telas, edge functions, tabelas, fluxos, integrações (Resend), helpers e regras de negócio.
-> Última atualização: 2026-05-18.
+> Última atualização: 2026-05-19.
 
 ---
 
