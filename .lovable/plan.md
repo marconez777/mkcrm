@@ -1,62 +1,98 @@
-# Agentes padrão permanentes do CRM
+## Objetivo
 
-Objetivo: os 3 agentes da clínica ÓR (Classificador de Pipeline, Analista de Conversas, Resumo IA) viram **templates de sistema**. Eles passam a existir em toda clínica nova ou já existente, podem ser ligados/desligados e editados, mas **não podem ser excluídos**.
+Tornar a criação de segmentos prática (sem editar JSON), introduzir o conceito de "origem de formulário" no lead, permitir múltiplos gatilhos OR por segmento e suportar segmentos estáticos com contatos adicionados manualmente.
 
-## 1. Marcar agentes como "de sistema"
+## Mudanças de dados
 
-Adicionar 2 colunas em `ai_agents`:
+### 1. `leads.form_source` (novo)
+- Coluna `form_source text` nos `leads`, indexada.
+- Valor livre identificando o formulário de origem (ex.: `teste-depressao`, `teste-ansiedade`, `landing-cetamina`).
+- Preenchido por:
+  - Webhook/integração de formulário (passa a aceitar `form_source` no payload).
+  - Edição manual no detalhe do lead (campo simples).
+  - Migração inicial opcional: copiar de `custom_fields.interesse` quando existir.
 
-- `is_system boolean not null default false` — quando `true`, o agente é gerenciado pela plataforma.
-- `system_key text` — identifica o template (`classifier`, `analyst`, `summary`). Único por clínica.
+### 2. `email_segments` — novo modelo de filtros
+Sem alterar a tabela, evoluímos o JSON em `filters` para o formato:
+```json
+{
+  "match": "any",                  // sempre OR por enquanto
+  "rules": [
+    { "type": "form_source", "values": ["teste-depressao", "teste-ansiedade"] },
+    { "type": "tag", "values": ["lead-quente"] },
+    { "type": "stage", "stage_id": "..." },
+    { "type": "has_email" },
+    { "type": "utm_campaign", "values": ["black-friday"] }
+  ],
+  "kind": "dynamic"                // "dynamic" | "static"
+}
+```
+- Segmento **dynamic**: avaliado por filtros sobre `leads`.
+- Segmento **static**: ignora `rules`; público vem da nova tabela `email_segment_contacts`.
+- Migração leve converte segmentos antigos (`{tags:[...]}` etc.) para o novo formato sem perda.
 
-Índice único parcial: `(clinic_id, system_key) where system_key is not null`, pra garantir 1 instância de cada template por clínica.
+### 3. `email_segment_contacts` (nova tabela, para segmentos estáticos e contatos avulsos)
+Colunas-chave: `segment_id`, `clinic_id`, `email`, `name`, `lead_id` (opcional), `added_by`, `created_at`. UNIQUE `(segment_id, email)`. RLS por clínica + feature `email_marketing`.
 
-## 2. Bloquear exclusão no banco
+- Permite adicionar e-mails que **não** são leads (contatos avulsos importados/manuais).
+- Para segmentos `dynamic`, esta tabela funciona como "inclusões extras".
 
-Trigger `BEFORE DELETE ON ai_agents`:
-- se `OLD.is_system = true` → `RAISE EXCEPTION 'system_agent_cannot_be_deleted'`.
+### 4. Resolver destinatários
+Função RPC `resolve_email_segment(segment_id uuid)` que devolve `(email, name, lead_id)`:
+- `dynamic`: aplica `rules` sobre `leads` (OR) + união com `email_segment_contacts`.
+- `static`: somente `email_segment_contacts`.
 
-Assim, mesmo que alguém chame `delete` pelo Supabase JS ou direto no SQL, o registro é protegido. Edições normais (system_prompt, model, enabled, tools, etc.) continuam permitidas.
+Edge function `dispatch-campaign` e `email-automations-tick` passam a usar este RPC em vez da query atual sobre `leads`.
 
-## 3. Bloquear exclusão na UI
+## Mudanças de UI
 
-Em `src/pages/Agents.tsx`:
-- na função `remove()` (linha 330) e no botão `Trash2` (linha 437): só mostrar/permitir se `!selected.is_system`.
-- quando o agente for de sistema, mostrar um pequeno chip "Padrão do sistema" ao lado do nome, e um tooltip dizendo que pode ser desativado mas não excluído.
+### `EmailSegments.tsx` — builder visual
+- Substitui o `<Textarea>` JSON por um **rule builder**:
+  - Toggle no topo: **Dinâmico** (por regras) vs **Estático** (lista manual).
+  - Para Dinâmico: botão "Adicionar gatilho" abre menu com tipos: *Origem do formulário*, *Tag*, *Etapa do pipeline*, *Tem e-mail*, *Campanha UTM*.
+    - Cada regra é um chip/linha com seletor de valores (multi-select para form_source/tag/utm).
+    - Texto fixo "Lead entra se atender **qualquer** uma das regras" (OR).
+  - Para Estático: card com lista de contatos + botão "Adicionar contato" (form: nome, e-mail) e "Importar CSV" (etapa simples; podemos cortar CSV nesta primeira leva se preferir).
+- Botão "Pré-visualizar" passa a chamar `resolve_email_segment` e mostra contagem + amostra dos 5 primeiros e-mails.
+- Cards da lista exibem badge `Dinâmico`/`Estático` e a contagem de destinatários atual.
 
-O toggle `enabled` continua funcionando normalmente.
+### Detalhe do lead
+- Campo "Origem do formulário" (`form_source`) editável, com autocomplete dos valores já usados na clínica.
 
-## 4. Definir os 3 templates canônicos
+### Webhook de formulários
+- `dispatch-campaign` não muda. O endpoint público que recebe leads (a confirmar onde está — provavelmente `public-lead-intake` ou similar) passa a aceitar e gravar `form_source`. Se a função não existir hoje, documentamos a chave esperada no payload e gravamos via integração existente (Zapier/Webhook).
 
-Os templates ficam num bloco SQL que extrai a config exata dos agentes atuais da clínica ÓR (`cf038458-457d-4c1a-9ac4-c88c3c8353a1`):
+## Compatibilidade
 
-| system_key | Nome             | Modelo     | role       | Ferramentas atuais |
-|------------|------------------|------------|------------|-------------------|
-| classifier | Classificador de Pipeline | o4-mini | classifier | move_lead_stage, add_lead_note, update_custom_field, remember_fact, get_lead_history, search_knowledge_base, set_lead_field |
-| analyst    | Analista de Conversas     | gpt-5-mini | analyst | remember_fact, add_lead_note, generate_insight_report, get_lead_state, get_lead_history, search_knowledge_base |
-| summary    | Resumo IA                 | gpt-5-nano | summary | remember_fact, get_lead_history, search_knowledge_base |
-
-A migration promove os 3 agentes existentes da ÓR a `is_system=true` setando `system_key` correspondente (sem duplicar).
-
-## 5. Propagar para todas as clínicas existentes
-
-Na mesma migration, para **cada clínica em `clinics`** que ainda não tem o `system_key` correspondente, fazer `INSERT` clonando os campos do template, com `enabled = false` (sua escolha: admin liga quando quiser).
-
-Clínicas como MKart, que já têm um "Classificador de Pipeline" próprio (não-system), **não são tocadas** — o novo agente padrão é inserido ao lado, e o admin decide o que fazer com o antigo. Assim ninguém perde configuração customizada.
-
-## 6. Auto-criar nas clínicas novas
-
-Trigger `AFTER INSERT ON clinics` chamando uma função `seed_system_agents(clinic_id uuid)` que insere os 3 templates (com `enabled=false`). A função usa `ON CONFLICT (clinic_id, system_key) DO NOTHING` pra ser idempotente.
+- Segmentos antigos continuam funcionando: leitor entende tanto `{tags:[...]}` quanto `{rules:[...]}`.
+- `dispatch-campaign` migra para usar `resolve_email_segment` (uma única fonte de verdade).
 
 ## Detalhes técnicos
 
-- A função `seed_system_agents` é `SECURITY DEFINER` com `search_path=public` — necessária porque o trigger roda no momento da criação da clínica, antes do `current_clinic_id()` estar definido pro usuário.
-- O índice único parcial em `(clinic_id, system_key)` garante que rodar a seed várias vezes não duplica.
-- A coluna `is_system` aparece em `src/integrations/supabase/types.ts` automaticamente após a migration; o código TS lê com fallback `agent.is_system ?? false`.
-- Nenhuma mudança em RLS — as policies existentes (`ai_agents_admin_write`, `ai_agents_select`) continuam valendo. A proteção contra exclusão fica no trigger, não no RLS, pra que o erro seja explícito ("system_agent_cannot_be_deleted") em vez de um silencioso "0 rows affected".
+```text
+email_segments.filters (JSON novo)
+├── kind: "dynamic" | "static"
+├── match: "any"
+└── rules[]
+     ├── form_source  → leads.form_source IN values
+     ├── tag          → leads.tags && values
+     ├── stage        → leads.stage_id = stage_id
+     ├── has_email    → leads.email IS NOT NULL
+     └── utm_campaign → leads.utm_campaign IN values
 
-## O que NÃO está no escopo
+email_segment_contacts
+└── usados como união (dynamic) ou fonte única (static)
+```
 
-- Não vou sincronizar mudanças do template-mestre para as cópias. Cada clínica pode editar seu próprio Classificador, Analista e Resumo livremente — o que protegemos é só a existência deles.
-- Não vou migrar/excluir os agentes antigos da MKart automaticamente. Você decide depois se quer apagar manualmente os duplicados não-system.
-- Não vou criar templates separados por nicho ainda (ex: imobiliária, marketing). Quando quiser, a gente adiciona uma coluna `vertical` no template e seleciona qual nicho cada clínica usa.
+Arquivos previstos:
+- Migration: add `leads.form_source` + index; create `email_segment_contacts` + RLS; create `resolve_email_segment` RPC.
+- `src/pages/email/EmailSegments.tsx`: builder visual + modo estático + lista de contatos.
+- `src/components/email/SegmentRuleBuilder.tsx` (novo): UI dos chips de regras.
+- `src/components/email/SegmentContactsManager.tsx` (novo): lista + adicionar contato.
+- `src/pages/Conversations`/detalhe do lead: input `form_source` (mínimo).
+- `supabase/functions/dispatch-campaign/index.ts`: trocar query por RPC `resolve_email_segment`.
+
+## Fora de escopo (proponho deixar para depois)
+- Importação CSV em massa para segmentos estáticos (posso incluir se quiser).
+- Operador AND/NOT entre regras (hoje só OR, como você definiu).
+- Página dedicada de "Contatos" global desvinculada de segmentos.
