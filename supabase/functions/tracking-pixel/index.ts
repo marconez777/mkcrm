@@ -13,6 +13,12 @@ function buildScript(projectId: string) {
   const waRedirect = `${SUPABASE_URL}/functions/v1/wa-redirect`;
   return `
 (function(){
+  try{
+    var __UA=(navigator&&navigator.userAgent)||"";
+    if(!__UA)return;
+    if(/lovable|headlesschrome|prerender|phantomjs|puppeteer|playwright|\\bbot\\b|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs/i.test(__UA))return;
+    if(navigator.webdriver===true)return;
+  }catch(e){}
   var PROJECT_ID=${JSON.stringify(projectId)};
   var ENDPOINT=${JSON.stringify(endpoint)};
   var CONFIG_ENDPOINT=${JSON.stringify(configEndpoint)};
