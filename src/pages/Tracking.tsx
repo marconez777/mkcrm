@@ -550,7 +550,7 @@ export default function Tracking() {
                     <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
                     <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
                     <TableHead>Lead</TableHead>
-                    <TableHead>Etapa</TableHead>
+                    <TableHead>Etapa do Funil</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
