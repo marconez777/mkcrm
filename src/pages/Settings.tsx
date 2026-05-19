@@ -206,9 +206,15 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
                 </div>
                 {canManage && (
-                  <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={runClassifierNow} disabled={runningClassifier}>
+                      {runningClassifier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Rodar classificador agora
+                    </Button>
+                    <Button size="sm" onClick={() => setNewOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                    </Button>
+                  </div>
                 )}
               </div>
 
