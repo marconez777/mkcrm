@@ -1,67 +1,62 @@
-# Filtrar visitas do robô do Lovable (e demais bots) do tracking
+# Agentes padrão permanentes do CRM
 
-## Confirmado pelo usuário
-1. ✅ Limpeza retroativa dos dados já contaminados
-2. ✅ Filtrar **todos os bots conhecidos** (não só Lovable)
+Objetivo: os 3 agentes da clínica ÓR (Classificador de Pipeline, Analista de Conversas, Resumo IA) viram **templates de sistema**. Eles passam a existir em toda clínica nova ou já existente, podem ser ligados/desligados e editados, mas **não podem ser excluídos**.
 
-## Mudanças
+## 1. Marcar agentes como "de sistema"
 
-### 1. `supabase/functions/tracking-event/index.ts`
-Adicionar helper de detecção de bot e descartar o evento antes de qualquer escrita.
+Adicionar 2 colunas em `ai_agents`:
 
-```ts
-const BOT_UA_RE = /lovable|lovablebot|headlesschrome|prerender|phantomjs|puppeteer|playwright|bot\b|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs|mj12bot|dotbot|pingdom|uptimerobot|gtmetrix|lighthouse|chrome-lighthouse|petalbot|seznambot|sogou|exabot|ia_archiver|archive\.org/i;
+- `is_system boolean not null default false` — quando `true`, o agente é gerenciado pela plataforma.
+- `system_key text` — identifica o template (`classifier`, `analyst`, `summary`). Único por clínica.
 
-function isBotUA(ua: string): boolean {
-  if (!ua) return true;          // UA vazio = bot
-  return BOT_UA_RE.test(ua);
-}
-```
+Índice único parcial: `(clinic_id, system_key) where system_key is not null`, pra garantir 1 instância de cada template por clínica.
 
-No loop `for (const ev of events)`, logo após o cálculo de `ua` (linha ~244):
-```ts
-if (isBotUA(ua) || ev.is_webdriver === true) continue;
-```
+## 2. Bloquear exclusão no banco
 
-Resposta segue 200 normal (não gera erro nos logs do bot).
+Trigger `BEFORE DELETE ON ai_agents`:
+- se `OLD.is_system = true` → `RAISE EXCEPTION 'system_agent_cannot_be_deleted'`.
 
-### 2. `supabase/functions/tracking-pixel/index.ts` (tracker.js)
-Adicionar guarda no início do IIFE, antes do `start()`:
-```js
-var UA=navigator.userAgent||"";
-if(/lovable|lovablebot|headlesschrome|prerender|phantomjs|puppeteer|playwright|bot\b|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs/i.test(UA))return;
-if(navigator.webdriver===true)return;
-```
-Também enviar `is_webdriver: navigator.webdriver===true` no `baseEvent` como segunda linha de defesa.
+Assim, mesmo que alguém chame `delete` pelo Supabase JS ou direto no SQL, o registro é protegido. Edições normais (system_prompt, model, enabled, tools, etc.) continuam permitidas.
 
-### 3. Deploy
-Deploy de `tracking-event` e `tracking-pixel`.
+## 3. Bloquear exclusão na UI
 
-### 4. Limpeza retroativa (migration)
-Apaga dados já gravados de bots, em cascata correta (filhos antes de pais):
+Em `src/pages/Agents.tsx`:
+- na função `remove()` (linha 330) e no botão `Trash2` (linha 437): só mostrar/permitir se `!selected.is_system`.
+- quando o agente for de sistema, mostrar um pequeno chip "Padrão do sistema" ao lado do nome, e um tooltip dizendo que pode ser desativado mas não excluído.
 
-```sql
--- 1) Eventos com UA de bot OU sem UA
-DELETE FROM public.tracking_events
-WHERE user_agent IS NULL
-   OR user_agent ~* '(lovable|headlesschrome|prerender|phantomjs|puppeteer|playwright|bot|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs|mj12bot|dotbot|pingdom|uptimerobot|gtmetrix|lighthouse|petalbot|seznambot|sogou|exabot|ia_archiver|archive\.org)';
+O toggle `enabled` continua funcionando normalmente.
 
--- 2) Sessões idem
-DELETE FROM public.tracking_sessions
-WHERE user_agent IS NULL
-   OR user_agent ~* '(lovable|headlesschrome|prerender|phantomjs|puppeteer|playwright|bot|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|twitterbot|linkedinbot|googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|semrush|ahrefs|mj12bot|dotbot|pingdom|uptimerobot|gtmetrix|lighthouse|petalbot|seznambot|sogou|exabot|ia_archiver|archive\.org)';
+## 4. Definir os 3 templates canônicos
 
--- 3) Visitantes sem sessões nem eventos remanescentes
-DELETE FROM public.tracking_visitors v
-WHERE NOT EXISTS (SELECT 1 FROM public.tracking_sessions s WHERE s.visitor_id = v.visitor_id AND s.clinic_id = v.clinic_id)
-  AND NOT EXISTS (SELECT 1 FROM public.tracking_events  e WHERE e.visitor_id = v.visitor_id AND e.clinic_id = v.clinic_id);
-```
+Os templates ficam num bloco SQL que extrai a config exata dos agentes atuais da clínica ÓR (`cf038458-457d-4c1a-9ac4-c88c3c8353a1`):
 
-Obs: vou ajustar os nomes exatos de colunas (`user_agent`, `visitor_id`, `clinic_id`) conforme o schema real ao executar a migration.
+| system_key | Nome             | Modelo     | role       | Ferramentas atuais |
+|------------|------------------|------------|------------|-------------------|
+| classifier | Classificador de Pipeline | o4-mini | classifier | move_lead_stage, add_lead_note, update_custom_field, remember_fact, get_lead_history, search_knowledge_base, set_lead_field |
+| analyst    | Analista de Conversas     | gpt-5-mini | analyst | remember_fact, add_lead_note, generate_insight_report, get_lead_state, get_lead_history, search_knowledge_base |
+| summary    | Resumo IA                 | gpt-5-nano | summary | remember_fact, get_lead_history, search_knowledge_base |
 
-## Resultado esperado
-- Robôs (Lovable prerender, Googlebot, WhatsApp preview, etc.) deixam de aparecer em Visitantes / Eventos / Páginas.
-- Dados antigos contaminados são removidos.
-- Site humano continua rastreado normalmente.
+A migration promove os 3 agentes existentes da ÓR a `is_system=true` setando `system_key` correspondente (sem duplicar).
 
-**Aprove o plano para eu implementar (precisa do modo build).**
+## 5. Propagar para todas as clínicas existentes
+
+Na mesma migration, para **cada clínica em `clinics`** que ainda não tem o `system_key` correspondente, fazer `INSERT` clonando os campos do template, com `enabled = false` (sua escolha: admin liga quando quiser).
+
+Clínicas como MKart, que já têm um "Classificador de Pipeline" próprio (não-system), **não são tocadas** — o novo agente padrão é inserido ao lado, e o admin decide o que fazer com o antigo. Assim ninguém perde configuração customizada.
+
+## 6. Auto-criar nas clínicas novas
+
+Trigger `AFTER INSERT ON clinics` chamando uma função `seed_system_agents(clinic_id uuid)` que insere os 3 templates (com `enabled=false`). A função usa `ON CONFLICT (clinic_id, system_key) DO NOTHING` pra ser idempotente.
+
+## Detalhes técnicos
+
+- A função `seed_system_agents` é `SECURITY DEFINER` com `search_path=public` — necessária porque o trigger roda no momento da criação da clínica, antes do `current_clinic_id()` estar definido pro usuário.
+- O índice único parcial em `(clinic_id, system_key)` garante que rodar a seed várias vezes não duplica.
+- A coluna `is_system` aparece em `src/integrations/supabase/types.ts` automaticamente após a migration; o código TS lê com fallback `agent.is_system ?? false`.
+- Nenhuma mudança em RLS — as policies existentes (`ai_agents_admin_write`, `ai_agents_select`) continuam valendo. A proteção contra exclusão fica no trigger, não no RLS, pra que o erro seja explícito ("system_agent_cannot_be_deleted") em vez de um silencioso "0 rows affected".
+
+## O que NÃO está no escopo
+
+- Não vou sincronizar mudanças do template-mestre para as cópias. Cada clínica pode editar seu próprio Classificador, Analista e Resumo livremente — o que protegemos é só a existência deles.
+- Não vou migrar/excluir os agentes antigos da MKart automaticamente. Você decide depois se quer apagar manualmente os duplicados não-system.
+- Não vou criar templates separados por nicho ainda (ex: imobiliária, marketing). Quando quiser, a gente adiciona uma coluna `vertical` no template e seleciona qual nicho cada clínica usa.
