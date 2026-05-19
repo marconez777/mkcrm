@@ -203,7 +203,7 @@ export default function Tracking() {
   const [journeyData, setJourneyData] = useState<{ visitor: VisitorRow | null; sessions: SessionRow[]; events: EventRow[] } | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(false);
 
-  const { sinceISO, untilISO } = useMemo(() => {
+  const computeRange = useCallback(() => {
     const now = Date.now();
     if (period === "custom") {
       const startOfDay = (s: string) => { const d = new Date(s); d.setHours(0, 0, 0, 0); return d.toISOString(); };
@@ -220,8 +220,11 @@ export default function Tracking() {
     return { sinceISO: new Date(now - PERIODS[period].ms).toISOString(), untilISO: new Date().toISOString() };
   }, [period, customFrom, customTo]);
 
+  const { sinceISO, untilISO } = useMemo(() => computeRange(), [computeRange]);
+
   const load = useCallback(async () => {
     setLoading(true);
+    const { sinceISO, untilISO } = computeRange();
     try {
       // pull events in window — used for summary, tables, flags, pages report
       let evq = supabase.from("tracking_events").select("*")
@@ -312,7 +315,7 @@ export default function Tracking() {
     } finally {
       setLoading(false);
     }
-  }, [sinceISO, untilISO, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
+  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
 
   useEffect(() => { load(); }, [load]);
 
