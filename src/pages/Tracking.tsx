@@ -356,14 +356,28 @@ export default function Tracking() {
   }, [events, links]);
 
   const leadsWithOrigin = useMemo(() => {
+    const CONV_EVENTS = new Set([
+      "whatsapp_redirect", "whatsapp_click",
+      "partial_form_capture", "form_submit_attempt", "form_submit",
+    ]);
     return Object.values(links).map((l) => {
       const v = visitors.find((x) => x.visitor_id === l.visitor_id);
-      const conversion = events.find((e) => e.visitor_id === l.visitor_id && (e.event_name === "form_submit_attempt" || e.event_name === "whatsapp_click"));
+      // Prefer the authoritative link source (set by tracking-identify / webhook).
+      const sourceLabel = labelConversion(l.source_event);
+      // For the conversion page, find the closest matching event near link.created_at.
+      const linkedAt = l.created_at ? new Date(l.created_at).getTime() : 0;
+      const candidates = events.filter((e) => e.visitor_id === l.visitor_id && CONV_EVENTS.has(e.event_name));
+      const conversion = candidates.sort((a, b) => {
+        const da = Math.abs(new Date(a.event_time).getTime() - linkedAt);
+        const db = Math.abs(new Date(b.event_time).getTime() - linkedAt);
+        return da - db;
+      })[0];
       return {
         link: l,
         visitor: v,
-        conversionEvent: conversion?.event_name ?? "—",
+        conversionEvent: sourceLabel !== "—" ? sourceLabel : labelConversion(conversion?.event_name),
         conversionPage: conversion ? pathOf(conversion.page_url) : "—",
+        isWhatsapp: isWhatsappSource(l.source_event) || conversion?.event_name?.startsWith("whatsapp_"),
         stage: l.leads?.stage_id ? stages[l.leads.stage_id]?.name ?? "—" : "—",
       };
     }).sort((a, b) => (b.link.created_at || "").localeCompare(a.link.created_at || ""));
