@@ -486,7 +486,7 @@ export default function Tracking() {
             <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder="parcial..." />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Etapa do funil</label>
+            <label className="mb-1 block text-xs text-muted-foreground">Etapa do Funil</label>
             <Select value={stageFilter} onValueChange={setStageFilter}>
               <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
               <SelectContent>
@@ -550,7 +550,7 @@ export default function Tracking() {
                     <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
                     <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
                     <TableHead>Lead</TableHead>
-                    <TableHead>Etapa</TableHead>
+                    <TableHead>Etapa do Funil</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -667,7 +667,7 @@ export default function Tracking() {
                     <TableHead>Página conversão</TableHead>
                     <TableHead>Referrer</TableHead>
                     <TableHead>Evento conv.</TableHead>
-                    <TableHead>Etapa</TableHead>
+                    <TableHead>Etapa do Funil</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
