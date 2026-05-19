@@ -76,6 +76,17 @@ export default function EmailQueue() {
     else { toast.success("Cancelado"); load(); }
   }
 
+  async function reprocess(id: string) {
+    const { error } = await supabase
+      .from("email_queue")
+      .update({ status: "pending", scheduled_at: new Date().toISOString(), attempts: 0, error: null })
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Reagendado para agora");
+    supabase.functions.invoke("process-email-queue", { body: {} }).catch(() => {});
+    setTimeout(load, 800);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -128,9 +139,14 @@ export default function EmailQueue() {
                 </TableCell>
                 <TableCell className="text-xs text-red-500 max-w-[240px] truncate" title={r.error ?? ""}>{r.error ?? ""}</TableCell>
                 <TableCell>
-                  {(r.status === "pending" || r.status === "failed") && (
-                    <Button size="sm" variant="ghost" onClick={() => cancel(r.id)}>Cancelar</Button>
-                  )}
+                  <div className="flex gap-1">
+                    {(r.status === "failed" || r.status === "cancelled") && (
+                      <Button size="sm" variant="ghost" onClick={() => reprocess(r.id)}>Reprocessar</Button>
+                    )}
+                    {(r.status === "pending" || r.status === "failed") && (
+                      <Button size="sm" variant="ghost" onClick={() => cancel(r.id)}>Cancelar</Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
