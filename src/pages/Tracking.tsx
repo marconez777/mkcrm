@@ -810,11 +810,12 @@ export default function Tracking() {
                   {whatsappReport.topPages.length === 0 && (
                     <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
                   )}
-                  {whatsappReport.topPages.map(([page, n]) => (
+                  {whatsappReport.topPages.slice((waPagesPage - 1) * pageSize, waPagesPage * pageSize).map(([page, n]) => (
                     <TableRow key={page}><TableCell className="text-xs">{page}</TableCell><TableCell className="text-right text-xs">{n}</TableCell></TableRow>
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={waPagesPage} pageSize={pageSize} total={whatsappReport.topPages.length} onPageChange={setWaPagesPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
