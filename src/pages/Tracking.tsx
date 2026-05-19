@@ -602,9 +602,6 @@ export default function Tracking() {
                   })}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
                         <TableCell className="text-xs">
                           {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
