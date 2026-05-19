@@ -223,7 +223,7 @@ export default function Tracking() {
       if (ids.length) {
         const { data: linkData } = await supabase
           .from("tracking_identity_links")
-          .select("visitor_id, lead_id, created_at, source_event, leads(id, name, created_at, stage_id)")
+          .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
           .in("visitor_id", ids);
         (linkData as any[] | null)?.forEach((l) => {
           if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
@@ -364,9 +364,9 @@ export default function Tracking() {
     return Object.values(links).map((l) => {
       const v = visitors.find((x) => x.visitor_id === l.visitor_id);
       // Prefer the authoritative link source (set by tracking-identify / webhook).
-      const sourceLabel = labelConversion(l.source_event);
+      const sourceLabel = labelConversion(l.link_source);
       // For the conversion page, find the closest matching event near link.created_at.
-      const linkedAt = l.created_at ? new Date(l.created_at).getTime() : 0;
+      const linkedAt = l.linked_at ? new Date(l.linked_at).getTime() : (l.created_at ? new Date(l.created_at).getTime() : 0);
       const candidates = events.filter((e) => e.visitor_id === l.visitor_id && CONV_EVENTS.has(e.event_name));
       const conversion = candidates.sort((a, b) => {
         const da = Math.abs(new Date(a.event_time).getTime() - linkedAt);
@@ -378,7 +378,7 @@ export default function Tracking() {
         visitor: v,
         conversionEvent: sourceLabel !== "—" ? sourceLabel : labelConversion(conversion?.event_name),
         conversionPage: conversion ? pathOf(conversion.page_url) : "—",
-        isWhatsapp: isWhatsappSource(l.source_event) || conversion?.event_name?.startsWith("whatsapp_"),
+        isWhatsapp: isWhatsappSource(l.link_source) || conversion?.event_name?.startsWith("whatsapp_"),
         stage: l.leads?.stage_id ? stages[l.leads.stage_id]?.name ?? "—" : "—",
       };
     }).sort((a, b) => (b.link.created_at || "").localeCompare(a.link.created_at || ""));
@@ -547,7 +547,7 @@ export default function Tracking() {
                               <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline inline-flex items-center gap-1">
                                 {link.leads?.name || truncate(link.lead_id, 8)} <ExternalLink className="h-3 w-3" />
                               </RouterLink>
-                              {isWhatsappSource(link.source_event) && (
+                              {isWhatsappSource(link.link_source) && (
                                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
                               )}
                             </div>
