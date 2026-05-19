@@ -667,7 +667,7 @@ export default function Tracking() {
                     <TableHead>Página conversão</TableHead>
                     <TableHead>Referrer</TableHead>
                     <TableHead>Evento conv.</TableHead>
-                    <TableHead>Etapa</TableHead>
+                    <TableHead>Etapa do Funil</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
