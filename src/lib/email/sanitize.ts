@@ -15,7 +15,11 @@ export function sanitizeHtml(html: string): string {
 export function sanitizeInlineHtml(html: string): string {
   if (typeof window === "undefined") return html;
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["a","b","strong","i","em","u","span","br"],
-    ALLOWED_ATTR: ["href","target","rel","style","color"],
+    ALLOWED_TAGS: [
+      "a","b","strong","i","em","u","s","span","br","p","div",
+      "ul","ol","li","blockquote","h1","h2","h3","h4","h5","h6",
+      "small","sup","sub","code","mark",
+    ],
+    ALLOWED_ATTR: ["href","target","rel","style","color","class"],
   });
 }
