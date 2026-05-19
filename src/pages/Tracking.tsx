@@ -424,7 +424,7 @@ export default function Tracking() {
     return {
       total: waEvents.length,
       uniqueVisitors: uniqueVisitors.size,
-      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]).slice(0, 20),
+      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]),
       turnedLead,
       conv: uniqueVisitors.size ? (turnedLead / uniqueVisitors.size) * 100 : 0,
     };
