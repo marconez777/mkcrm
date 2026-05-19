@@ -224,6 +224,7 @@ export default function Tracking() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const { sinceISO, untilISO } = computeRange();
     try {
       // pull events in window — used for summary, tables, flags, pages report
       let evq = supabase.from("tracking_events").select("*")
