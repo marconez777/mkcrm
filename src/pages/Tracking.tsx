@@ -542,9 +542,14 @@ export default function Tracking() {
                         <TableCell className="text-center">{f?.fa ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
                           {link ? (
-                            <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline inline-flex items-center gap-1">
-                              {link.leads?.name || truncate(link.lead_id, 8)} <ExternalLink className="h-3 w-3" />
-                            </RouterLink>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline inline-flex items-center gap-1">
+                                {link.leads?.name || truncate(link.lead_id, 8)} <ExternalLink className="h-3 w-3" />
+                              </RouterLink>
+                              {isWhatsappSource(link.source_event) && (
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
+                              )}
+                            </div>
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-xs">
