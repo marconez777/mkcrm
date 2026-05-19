@@ -718,7 +718,7 @@ export default function Tracking() {
                   {leadsWithOrigin.length === 0 && (
                     <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Nenhum lead vinculado.</TableCell></TableRow>
                   )}
-                  {leadsWithOrigin.map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
+                  {leadsWithOrigin.slice((leadsPage - 1) * pageSize, leadsPage * pageSize).map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
                     <TableRow key={link.lead_id + link.visitor_id}>
                       <TableCell className="text-xs">
                         <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline">
@@ -747,6 +747,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={leadsPage} pageSize={pageSize} total={leadsWithOrigin.length} onPageChange={setLeadsPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
