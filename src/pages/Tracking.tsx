@@ -584,7 +584,6 @@ export default function Tracking() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>visitor_id</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Página</TableHead>
                     <TableHead>Referrer</TableHead>
@@ -597,7 +596,7 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
                   {filteredVisitors.slice((visitorsPage - 1) * pageSize, visitorsPage * pageSize).map((v) => {
                     const f = vFlags[v.visitor_id];
@@ -606,7 +605,7 @@ export default function Tracking() {
                     const pagePath = pathOf(v.first_landing_page);
                     return (
                       <TableRow key={v.visitor_id}>
-                        <TableCell className="font-mono text-[11px]">{truncate(v.visitor_id, 10)}</TableCell>
+                        
                         <TableCell className="text-[11px] whitespace-nowrap leading-tight">
                           <div>{fmtDate(v.first_seen_at)}</div>
                           <div className="text-muted-foreground">{fmtHour(v.first_seen_at)}</div>
