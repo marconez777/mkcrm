@@ -544,13 +544,51 @@ export default function Tracking() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>visitor_id</TableHead>
-                    <TableHead>Primeira</TableHead>
-                    <TableHead>Primeira página</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Página</TableHead>
                     <TableHead>Referrer</TableHead>
-                    <TableHead className="text-center">Sess.</TableHead>
                     <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
                     <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
-                    <TableHead className="text-center" title="form_submit_attempt / form_submit">Submit</TableHead>
+                    <TableHead>Lead</TableHead>
+                    <TableHead>Etapa</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredVisitors.length === 0 && (
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                  )}
+                  {filteredVisitors.map((v) => {
+                    const f = vFlags[v.visitor_id];
+                    const link = links[v.visitor_id];
+                    const stage = link?.leads?.stage_id ? stages[link.leads.stage_id] : null;
+                    const pagePath = pathOf(v.first_landing_page);
+                    return (
+                      <TableRow key={v.visitor_id}>
+                        <TableCell className="font-mono text-[11px]">{truncate(v.visitor_id, 10)}</TableCell>
+                        <TableCell className="text-[11px] whitespace-nowrap leading-tight">
+                          <div>{fmtDate(v.first_seen_at)}</div>
+                          <div className="text-muted-foreground">{fmtHour(v.first_seen_at)}</div>
+                        </TableCell>
+                        <TableCell className="text-[11px]">
+                          {v.first_landing_page ? (
+                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" className="text-primary hover:underline whitespace-nowrap">{pagePath}</a>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
+                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-xs">
+                          {link ? (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {isWhatsappSource(link.link_source) ? (
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
+                              ) : (
+                                <Badge variant="secondary">sim</Badge>
+                              )}
+                            </div>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
                     <TableHead>Lead</TableHead>
                     <TableHead>Etapa</TableHead>
                     <TableHead></TableHead>
