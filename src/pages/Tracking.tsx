@@ -646,8 +646,12 @@ export default function Tracking() {
                       <TableCell className="text-xs">{truncate(pathOf(visitor?.first_landing_page), 24)}</TableCell>
                       <TableCell className="text-xs">{conversionPage}</TableCell>
                       <TableCell className="text-xs">{truncate(visitor?.first_referrer, 24)}</TableCell>
-                      <TableCell className="font-mono text-xs">{conversionEvent}</TableCell>
-                      <TableCell className="text-xs">{stage}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="flex items-center gap-1">
+                          <span>{conversionEvent}</span>
+                          {isWhatsapp && <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Button size="sm" variant="ghost" onClick={() => openJourney(link.visitor_id)}>
                           <Eye className="h-4 w-4" />
