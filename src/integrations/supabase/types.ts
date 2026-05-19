@@ -242,6 +242,7 @@ export type Database = {
           embedding_model: string | null
           enabled: boolean
           id: string
+          is_system: boolean
           max_iterations: number
           max_tool_calls: number
           model: string
@@ -253,6 +254,7 @@ export type Database = {
           reranker_provider: string | null
           role: string | null
           silent: boolean
+          system_key: string | null
           system_prompt: string
           temperature: number
           tools: Json
@@ -272,6 +274,7 @@ export type Database = {
           embedding_model?: string | null
           enabled?: boolean
           id?: string
+          is_system?: boolean
           max_iterations?: number
           max_tool_calls?: number
           model?: string
@@ -283,6 +286,7 @@ export type Database = {
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
+          system_key?: string | null
           system_prompt: string
           temperature?: number
           tools?: Json
@@ -302,6 +306,7 @@ export type Database = {
           embedding_model?: string | null
           enabled?: boolean
           id?: string
+          is_system?: boolean
           max_iterations?: number
           max_tool_calls?: number
           model?: string
@@ -313,6 +318,7 @@ export type Database = {
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
+          system_key?: string | null
           system_prompt?: string
           temperature?: number
           tools?: Json
@@ -4222,6 +4228,7 @@ export type Database = {
         }[]
       }
       reset_email_send_state: { Args: never; Returns: undefined }
+      seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }
         Returns: boolean
