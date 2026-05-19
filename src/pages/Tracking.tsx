@@ -486,7 +486,7 @@ export default function Tracking() {
             <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder="parcial..." />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Etapa do funil</label>
+            <label className="mb-1 block text-xs text-muted-foreground">Etapa do Funil</label>
             <Select value={stageFilter} onValueChange={setStageFilter}>
               <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
               <SelectContent>
