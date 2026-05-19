@@ -37,6 +37,8 @@ type Agent = {
   planning_mode?: boolean;
   rag_top_k?: number;
   debounce_seconds?: number;
+  is_system?: boolean;
+  system_key?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
