@@ -86,7 +86,7 @@ Drip automatizado (`email_automations`):
 - Presets: `welcome`, `warmup` (3 emails / 7 dias), `reactivation`.
 - Toggle `active`.
 
-> A execução das automações roda por trigger/cron externo que enfileira em `email_queue` (não está em uma edge function dedicada deste módulo — depende do trigger original do lead que dispara o enfileiramento via `enqueue_email`).
+> ⚠️ **Atenção:** hoje **não existe edge function que consuma `email_automations`**. Busca em `supabase/functions/` por `enqueue_email` só retorna `dispatch-campaign`. A UI permite cadastrar drips mas eles não disparam — falta implementar um runner (cron que lê `email_automations.active=true`, casa o trigger com eventos de lead e enfileira via RPC `enqueue_email` respeitando `delay_minutes` de cada step). Ver §10 roadmap.
 
 ### 2.7 `EmailSegments.tsx` (`/email/segments`)
 Filtros salvos sobre `leads` (`email_segments`):
@@ -229,8 +229,11 @@ Sincroniza histórico:
 - Para cada, `GET /emails/{id}` no Resend e atualiza status/timestamps.
 - Bounces/complaints viram entries em `email_unsubscribes`.
 
-### 3.8 `scheduled-dispatcher`
-**Não é exclusivo do email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Está agrupado aqui apenas para referência cruzada, pois o cron de email pode rodar no mesmo schedule.
+### 3.8 `process-scheduled-campaigns`
+Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled_for <= now()` (limit 20) e dispara `dispatch-campaign` para cada uma. É o que faz "Agendar campanha" funcionar.
+
+### 3.9 `scheduled-dispatcher` (referência cruzada)
+**Não pertence ao módulo de email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Listado aqui só para evitar confusão com o `process-scheduled-campaigns`.
 
 ---
 
@@ -246,7 +249,7 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 | `email_segments` | Filtros JSON salvos sobre `leads`. |
 | `email_campaigns` | Campanhas (template + segment + agendamento + totais). |
 | `email_automations` | Drip por trigger (steps JSON). |
-| `email_queue` | Fila de envio (status, attempts, scheduled_at, error). |
+| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `attempts`, `scheduled_at`, `error`, `force_send` (ignora suppression/idempotência), `variables`, `related_lead_id`, `related_lead_table`. |
 | `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint. **Read-only** para o app. |
 | `email_unsubscribes` | Lista de supressão por clinic+email. Admin pode deletar (reativar). |
 | `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Read-only. |
