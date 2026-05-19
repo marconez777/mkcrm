@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  DndContext, PointerSensor, useSensor, useSensors,
-  type DragEndEvent, closestCenter,
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent, closestCenter,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { supabase } from "@/integrations/supabase/client";
