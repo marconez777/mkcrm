@@ -285,6 +285,9 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
               placeholder="teste-depressao, landing-cetamina…"
               className="h-9"
             />
+          </div>
+
+
 
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</Label>
