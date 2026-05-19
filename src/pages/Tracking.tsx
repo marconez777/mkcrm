@@ -538,7 +538,7 @@ export default function Tracking() {
                         <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
                         <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
                         <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
-                        <TableCell className="text-center">{f?.wa ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-center">{f?.fa ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
