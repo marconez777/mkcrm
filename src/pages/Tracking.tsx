@@ -670,7 +670,7 @@ export default function Tracking() {
                   {events.length === 0 && (
                     <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum evento encontrado.</TableCell></TableRow>
                   )}
-                  {events.slice(0, 500).map((e) => (
+                  {events.slice((eventsPage - 1) * pageSize, eventsPage * pageSize).map((e) => (
                     <TableRow key={e.id}>
                       <TableCell className="whitespace-nowrap text-xs">{fmtTime(e.event_time)}</TableCell>
                       <TableCell className="font-mono text-xs">{e.event_name}</TableCell>
@@ -686,6 +686,7 @@ export default function Tracking() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination page={eventsPage} pageSize={pageSize} total={events.length} onPageChange={setEventsPage} onPageSizeChange={setPageSize} />
               {allEventNames.length > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">Eventos encontrados no período: {allEventNames.join(", ")}</p>
               )}
