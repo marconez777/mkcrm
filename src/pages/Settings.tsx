@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [healingId, setHealingId] = useState<string | null>(null);
+  const [runningClassifier, setRunningClassifier] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
   const [agents, setAgents] = useState<AgentLite[]>([]);
@@ -79,6 +80,20 @@ export default function SettingsPage() {
     if (error) { toast.error(error.message); return; }
     toast.success(agentId ? "Vigia atualizado" : "Vigia removido");
     setInstances((prev) => prev.map((i) => i.id === instanceId ? { ...i, watcher_agent_id: agentId } : i));
+  }
+
+  async function runClassifierNow() {
+    setRunningClassifier(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("classifier-daily-batch", { body: {} });
+      if (error) throw error;
+      const queued = (data as any)?.totalQueued ?? (data as any)?.total_queued ?? 0;
+      toast.success(`Classificador disparado · ${queued} lead(s) enfileirado(s)`);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao rodar classificador");
+    } finally {
+      setRunningClassifier(false);
+    }
   }
 
   async function createInstance() {
@@ -191,9 +206,15 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
                 </div>
                 {canManage && (
-                  <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={runClassifierNow} disabled={runningClassifier}>
+                      {runningClassifier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Rodar classificador agora
+                    </Button>
+                    <Button size="sm" onClick={() => setNewOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                    </Button>
+                  </div>
                 )}
               </div>
 
