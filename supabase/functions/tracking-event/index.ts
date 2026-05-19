@@ -250,8 +250,10 @@ Deno.serve(async (req) => {
   for (const ev of events) {
     if (!ev?.visitor_id || !ev?.event_id || !ev?.event_name) continue;
     const ua = String(ev.user_agent || req.headers.get("user-agent") || "");
+    if (isBotUA(ua) || ev.is_webdriver === true) continue;
     const dev = parseUA(ua);
     const now = ev.event_time ? new Date(ev.event_time).toISOString() : new Date().toISOString();
+
 
     const attr = resolveTrafficSource({
       utm_source: ev.utm_source, utm_medium: ev.utm_medium, utm_campaign: ev.utm_campaign,
