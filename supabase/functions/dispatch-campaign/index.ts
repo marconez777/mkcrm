@@ -41,16 +41,12 @@ Deno.serve(async (req) => {
       const dest = (test_email_override || campaign.test_email || "").trim();
       if (!dest) return jsonResponse({ error: "test_email missing" }, { status: 400 });
 
-      // Variables sample (1º lead do segmento)
-      const filters = campaign.segment_id
-        ? (await supabase.from("email_segments").select("filters").eq("id", campaign.segment_id).maybeSingle()).data?.filters ?? {}
-        : {};
-      let sampleQ = supabase.from("leads").select("id, name, email")
-        .eq("clinic_id", campaign.clinic_id).not("email", "is", null).limit(1);
-      if (Array.isArray(filters?.stage_ids) && filters.stage_ids.length) sampleQ = sampleQ.in("stage_id", filters.stage_ids);
-      if (Array.isArray(filters?.tags) && filters.tags.length) sampleQ = sampleQ.overlaps("tags", filters.tags);
-      const { data: sample } = await sampleQ;
-      const s = sample?.[0];
+      // Variables sample (1º destinatário do segmento via RPC)
+      let s: { name: string | null } | undefined;
+      if (campaign.segment_id) {
+        const { data: resolved } = await supabase.rpc("resolve_email_segment", { _segment_id: campaign.segment_id });
+        s = (resolved as any[])?.[0];
+      }
 
       const { data: qid, error: qErr } = await supabase.rpc("enqueue_email", {
         _clinic_id: campaign.clinic_id,
