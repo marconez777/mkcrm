@@ -68,7 +68,8 @@ type LinkRow = {
   visitor_id: string;
   lead_id: string;
   created_at: string;
-  source_event: string | null;
+  linked_at: string | null;
+  link_source: string | null;
   leads?: { id: string; name: string | null; created_at: string; stage_id: string | null } | null;
 };
 

@@ -1,63 +1,73 @@
-## Diagnóstico real
+# Plano de correção do Tracking
 
-Investiguei o caso da Ana Paula (lead `31d99872-d3ab-426a-920a-e0cff074eb3b`, visitor `v_202bca19eab5…`) direto no banco:
+## O que está acontecendo
+A tela de `/tracking` está com pelo menos 2 problemas diferentes:
 
-- `tracking_identity_links`: ✅ existe, `link_source = whatsapp_tracking_code`
-- `whatsapp_intents`: ✅ `status = matched`, `lead_id` preenchido
-- `tracking_events`: ✅ todos os eventos do visitante (page_view, session_start, whatsapp_redirect) com `lead_id` preenchido pelo backfill
-- `tracking_lead_sources`: ✅ first/last/conversion touch congelados
-- Evento `lead_identified`: ✅ criado pelo `tracking-identify`
+1. **Bug crítico no vínculo visitante → lead na própria consulta da tela**
+   - A aba usa `tracking_identity_links.source_event` no select.
+   - No banco, a coluna real é **`link_source`**.
+   - A requisição atual está falhando com erro 400: `column tracking_identity_links.source_event does not exist`.
+   - Quando essa consulta falha, o mapa `links` fica vazio e por isso somem:
+     - coluna **Lead**
+     - coluna **Etapa**
+     - badge de **WhatsApp** no lead
+     - contagem de “Viraram lead”
+     - aba “Leads com origem”
 
-**O vínculo está funcionando.** O que está errado é só o relatório em `src/pages/Tracking.tsx`. A tela mostra "—" na coluna de evento de conversão e nenhum sinal claro de "virou lead via WhatsApp", então parece que nada converteu — mas os dados estão lá.
+2. **A flag de WhatsApp da aba Visitantes depende demais do filtro global de eventos**
+   - Hoje os flags `WA / Form / Submit` são calculados só com base em `events` já filtrados por período e filtros globais.
+   - Se houver filtro ativo em `event_name`, `page_url`, `lead_id` etc., a linha do visitante pode continuar aparecendo, mas o flag `WA` pode ficar falso mesmo existindo evento `whatsapp_redirect` na jornada completa.
+   - Isso explica a sensação de “sumiu tudo” ou “não mostra mais clique”, principalmente em testes e revisões rápidas.
 
-## Causa raiz da exibição enganosa
+## O que vou corrigir
 
-Em `src/pages/Tracking.tsx`, linha 339, a aba "Leads com origem" calcula o evento de conversão assim:
+### 1. Corrigir a leitura do vínculo visitante → lead
+Em `src/pages/Tracking.tsx`:
+- trocar o select de `tracking_identity_links` para usar os campos reais do banco:
+  - `link_source`
+  - `linked_at`
+  - manter `created_at` só se for útil para ordenação/auditoria
+- alinhar o tipo `LinkRow` com o schema real
+- atualizar todo uso de `source_event` para `link_source`
+- usar `linked_at` como referência temporal da conversão quando fizer sentido
 
-```ts
-const conversion = events.find((e) =>
-  e.visitor_id === l.visitor_id &&
-  (e.event_name === "form_submit_attempt" || e.event_name === "whatsapp_click")
-);
-```
+### 2. Restaurar os dados que dependem desse vínculo
+Com o item acima corrigido, a tela volta a popular corretamente:
+- **Lead** na aba Visitantes
+- **Etapa** do funil
+- badge **WhatsApp** quando `link_source` vier de origem WhatsApp
+- contagem **Viraram lead** na aba WhatsApp
+- listagem **Leads com origem**
 
-Problemas:
-1. Não considera `whatsapp_redirect`, que é o evento real disparado pelo site da Clínica Ór.
-2. Não considera `partial_form_capture` (lead parcial via `external-lead-capture`).
-3. Ignora a fonte autoritativa do vínculo: `tracking_identity_links.source_event` (= `link_source`), que já diz `whatsapp_tracking_code` para a Ana Paula.
+### 3. Tornar a flag de WhatsApp mais confiável na aba Visitantes
+Vou separar melhor o cálculo para que a coluna `WA` não desapareça por causa de um detalhe do filtro:
+- considerar `whatsapp_click` e `whatsapp_redirect`
+- se necessário, também inferir origem WhatsApp a partir do próprio vínculo (`link_source` começando com `whatsapp_` ou `ctwa_clid`) quando a consulta de eventos filtrada não trouxer tudo
+- revisar o comportamento para não depender apenas do subconjunto de eventos filtrado
 
-Resultado: leads vinculados via WhatsApp aparecem como se não tivessem conversão.
+### 4. Revisão profunda da lógica da página inteira
+Vou revisar os pontos que hoje podem gerar inconsistência visual:
+- resumo dos cards
+- aba Visitantes
+- aba Leads com origem
+- aba WhatsApp
+- modal Jornada
+- consistência entre nomes reais do banco e nomes usados na UI
 
-## Plano
+## Validação esperada depois da correção
+No seu caso de teste com o visitor `v_b8b6efe15bf84172ad2fd049`:
+- a aba **Visitantes** deve voltar a mostrar:
+  - **WA = sim**
+  - **Lead = Ana Paula MK ART** (ou o lead correspondente)
+  - **Etapa** do funil
+- a aba **Leads com origem** deve listar esse vínculo
+- a aba **WhatsApp** deve contar esse visitante em **Viraram lead**
+- o modal da jornada deve continuar mostrando `whatsapp_redirect` + `lead_identified`
 
-### 1. Corrigir a coluna "Evento de conversão" em `leadsWithOrigin`
-Trocar a heurística por:
-1. Se `link.source_event` existir, usar ele (ex.: `whatsapp_tracking_code`, `phone_hash_existing`, `ctwa_clid`, `partial_form_capture`, `manual`).
-2. Como complemento ou fallback, procurar entre os eventos do visitante por `whatsapp_redirect`, `whatsapp_click`, `partial_form_capture`, `form_submit_attempt`, `form_submit` — pegando o evento mais próximo do `link.created_at`.
-3. Renderizar um rótulo amigável em português: "WhatsApp (código)", "WhatsApp (clique)", "Anúncio WhatsApp (ctwa_clid)", "Formulário (parcial)", "Formulário (envio)", "Telefone conhecido", "Manual".
+## Detalhes técnicos
+- Arquivo principal: `src/pages/Tracking.tsx`
+- Sem mudança de schema do banco nesta etapa
+- O principal erro atual é de integração entre frontend e schema já existente, não da identificação em si
+- Evidência confirmada: a requisição atual da tela para `tracking_identity_links` está retornando 400 por causa de coluna inexistente (`source_event`)
 
-### 2. Mostrar `conversionPage` correta
-Mesma lógica do item 1: pegar `page_url` do evento que de fato originou a conversão, não do primeiro `whatsapp_click` que existir.
-
-### 3. Card "Viraram lead" no relatório de WhatsApp
-Hoje `turnedLead` em `whatsappReport` (linha 326) já considera `whatsapp_click | whatsapp_redirect` para o conjunto inicial — então a Ana Paula deve cair lá. Validar visualmente após o ajuste e, se necessário, ajustar o label para deixar claro que "Viraram lead" = visitantes com clique/redirect que possuem `tracking_identity_links`.
-
-### 4. Pequena melhoria: badge "Lead via WhatsApp" na lista de visitantes
-Na tabela de visitantes (já existente), quando o visitante tem link cujo `source_event` começa com `whatsapp_`, mostrar um badge "Lead via WhatsApp" ao lado do nome do lead. Visualmente resolve a queixa "nenhum lead está discriminado como convertido no WhatsApp, apenas clique".
-
-### 5. Validação
-Após as mudanças:
-- abrir `/tracking` no período "Últimos 7 dias",
-- aba "Leads com origem" → a linha da Ana Paula deve mostrar "WhatsApp (código)" como evento de conversão e a página de origem real,
-- aba "WhatsApp" → "Viraram lead" deve mostrar ≥ 1,
-- tabela de visitantes → visitor `v_202bca19eab5…` deve ter o badge "Lead via WhatsApp".
-
-## Arquivos afetados
-
-- `src/pages/Tracking.tsx` (apenas exibição; nada de schema, edge function ou RLS).
-
-## Fora do escopo
-
-- Mudar a lógica de match no `evolution-webhook` (não é o problema aqui — já casou corretamente para os leads que tinham rastro).
-- Backfill de leads antigos sem nenhum rastro do site (esses não têm como ser vinculados sem inferência ambígua).
-- Atribuição UTM no card de lead (já há `tracking_lead_sources`; podemos tratar em outra rodada se quiser ver UTM no perfil do lead).
+Se aprovar, eu implemento a correção direto na tela e valido no preview.
