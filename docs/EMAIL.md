@@ -86,7 +86,7 @@ Drip automatizado (`email_automations`):
 - Presets: `welcome`, `warmup` (3 emails / 7 dias), `reactivation`.
 - Toggle `active`.
 
-> A execução das automações roda por trigger/cron externo que enfileira em `email_queue` (não está em uma edge function dedicada deste módulo — depende do trigger original do lead que dispara o enfileiramento via `enqueue_email`).
+> ⚠️ **Atenção:** hoje **não existe edge function que consuma `email_automations`**. Busca em `supabase/functions/` por `enqueue_email` só retorna `dispatch-campaign`. A UI permite cadastrar drips mas eles não disparam — falta implementar um runner (cron que lê `email_automations.active=true`, casa o trigger com eventos de lead e enfileira via RPC `enqueue_email` respeitando `delay_minutes` de cada step). Ver §10 roadmap.
 
 ### 2.7 `EmailSegments.tsx` (`/email/segments`)
 Filtros salvos sobre `leads` (`email_segments`):
