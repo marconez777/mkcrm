@@ -1283,6 +1283,47 @@ export type Database = {
           },
         ]
       }
+      email_automation_enrollments: {
+        Row: {
+          automation_id: string
+          clinic_id: string
+          enrolled_at: string
+          id: string
+          lead_id: string
+          recipient_email: string
+          source_event: string | null
+          steps_enqueued: number
+        }
+        Insert: {
+          automation_id: string
+          clinic_id: string
+          enrolled_at?: string
+          id?: string
+          lead_id: string
+          recipient_email: string
+          source_event?: string | null
+          steps_enqueued?: number
+        }
+        Update: {
+          automation_id?: string
+          clinic_id?: string
+          enrolled_at?: string
+          id?: string
+          lead_id?: string
+          recipient_email?: string
+          source_event?: string | null
+          steps_enqueued?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_enrollments_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "email_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_automations: {
         Row: {
           active: boolean
@@ -1290,6 +1331,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          last_run_at: string | null
           name: string
           preset_key: string | null
           steps: Json
@@ -1303,6 +1345,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_run_at?: string | null
           name: string
           preset_key?: string | null
           steps?: Json
@@ -1316,6 +1359,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          last_run_at?: string | null
           name?: string
           preset_key?: string | null
           steps?: Json
