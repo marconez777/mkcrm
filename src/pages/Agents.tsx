@@ -37,6 +37,8 @@ type Agent = {
   planning_mode?: boolean;
   rag_top_k?: number;
   debounce_seconds?: number;
+  is_system?: boolean;
+  system_key?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -260,7 +262,7 @@ export default function Agents() {
     setDocs(docs ?? []);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds";
+  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key";
 
   const load = async () => {
     const { data } = await supabase.from("ai_agents").select(AGENT_COLS).order("created_at");
@@ -328,8 +330,19 @@ export default function Agents() {
   };
 
   const remove = async (id: string) => {
+    const target = agents.find((a) => a.id === id);
+    if (target?.is_system) {
+      toast.error("Agente padrão do sistema não pode ser excluído — apenas desativado.");
+      return;
+    }
     if (!(await confirm({ title: "Excluir agente?", description: "Documentos e memórias associadas serão removidos.", confirmLabel: "Excluir", destructive: true }))) return;
-    await supabase.from("ai_agents").delete().eq("id", id);
+    const { error } = await supabase.from("ai_agents").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message.includes("system_agent_cannot_be_deleted")
+        ? "Agente padrão do sistema não pode ser excluído."
+        : error.message);
+      return;
+    }
     if (selected?.id === id) setSelected(null);
     load();
   };
@@ -402,6 +415,7 @@ export default function Agents() {
             >
               <Bot className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">{a.name}</span>
+              {a.is_system && <Badge variant="secondary" className="text-[10px]" title="Agente padrão do sistema">padrão</Badge>}
               {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
             </button>
           ))}
@@ -434,7 +448,7 @@ export default function Agents() {
                       {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                       Rodar em todos
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => remove(selected.id)} disabled={!!selected.is_system} title={selected.is_system ? "Agente padrão do sistema não pode ser excluído" : "Excluir agente"}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     <Button size="sm" onClick={save}>Salvar</Button>
