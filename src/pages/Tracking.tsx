@@ -94,6 +94,28 @@ function pathOf(u?: string | null) {
   try { return new URL(u).pathname || "/"; } catch { return u; }
 }
 
+const CONVERSION_LABELS: Record<string, string> = {
+  whatsapp_tracking_code: "WhatsApp (código)",
+  whatsapp_redirect: "WhatsApp (redirect)",
+  whatsapp_click: "WhatsApp (clique)",
+  whatsapp_intent_recent_unique: "WhatsApp (intent)",
+  whatsapp_event_recent_unique: "WhatsApp (clique)",
+  ctwa_clid: "Anúncio WhatsApp (ctwa)",
+  phone_hash_existing: "Telefone conhecido",
+  partial_form_capture: "Formulário (parcial)",
+  form_submit_attempt: "Formulário (envio)",
+  form_submit: "Formulário (envio)",
+  manual: "Manual",
+};
+function labelConversion(src?: string | null) {
+  if (!src) return "—";
+  return CONVERSION_LABELS[src] ?? src;
+}
+function isWhatsappSource(src?: string | null) {
+  if (!src) return false;
+  return src.startsWith("whatsapp_") || src === "ctwa_clid";
+}
+
 function SourceCell({ source, medium, campaign, channelGroup }: { source: string | null; medium: string | null; campaign: string | null; channelGroup?: string | null }) {
   if (!source && !medium && !campaign) return <span className="text-muted-foreground">—</span>;
   const label = source || "(direct)";
