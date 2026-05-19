@@ -157,8 +157,21 @@ export default function EmailTemplateEditor() {
 
   // Sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const [activeDragType, setActiveDragType] = useState<BlockType | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  function handleDragStart(e: DragStartEvent) {
+    const data = e.active.data.current as { source?: string; blockType?: BlockType } | undefined;
+    if (data?.source === "palette" && data.blockType) {
+      setActiveDragType(data.blockType);
+    } else {
+      setActiveDragId(String(e.active.id));
+    }
+  }
 
   function handleDragEnd(e: DragEndEvent) {
+    setActiveDragType(null);
+    setActiveDragId(null);
     const { active, over } = e;
     if (!over) return;
     const data = active.data.current as { source?: string; blockType?: BlockType } | undefined;
