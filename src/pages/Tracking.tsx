@@ -633,7 +633,7 @@ export default function Tracking() {
                   {leadsWithOrigin.length === 0 && (
                     <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Nenhum lead vinculado.</TableCell></TableRow>
                   )}
-                  {leadsWithOrigin.map(({ link, visitor, conversionEvent, conversionPage, stage }) => (
+                  {leadsWithOrigin.map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
                     <TableRow key={link.lead_id + link.visitor_id}>
                       <TableCell className="text-xs">
                         <RouterLink to={`/?lead=${link.lead_id}`} className="text-primary hover:underline">
@@ -647,11 +647,12 @@ export default function Tracking() {
                       <TableCell className="text-xs">{conversionPage}</TableCell>
                       <TableCell className="text-xs">{truncate(visitor?.first_referrer, 24)}</TableCell>
                       <TableCell className="text-xs">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 whitespace-nowrap">
                           <span>{conversionEvent}</span>
                           {isWhatsapp && <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>}
                         </div>
                       </TableCell>
+                      <TableCell className="text-xs">{stage}</TableCell>
                       <TableCell>
                         <Button size="sm" variant="ghost" onClick={() => openJourney(link.visitor_id)}>
                           <Eye className="h-4 w-4" />
