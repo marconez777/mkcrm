@@ -448,7 +448,7 @@ export default function Agents() {
                       {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                       Rodar em todos
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => remove(selected.id)} disabled={!!selected.is_system} title={selected.is_system ? "Agente padrão do sistema não pode ser excluído" : "Excluir agente"}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     <Button size="sm" onClick={save}>Salvar</Button>
