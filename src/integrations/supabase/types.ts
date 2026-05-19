@@ -1136,6 +1136,44 @@ export type Database = {
           },
         ]
       }
+      clinic_email_integrations: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          provider: string
+          secret_name: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          provider?: string
+          secret_name: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          provider?: string
+          secret_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_email_integrations_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_invites: {
         Row: {
           accepted_at: string | null
