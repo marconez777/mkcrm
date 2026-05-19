@@ -82,6 +82,20 @@ export default function SettingsPage() {
     setInstances((prev) => prev.map((i) => i.id === instanceId ? { ...i, watcher_agent_id: agentId } : i));
   }
 
+  async function runClassifierNow() {
+    setRunningClassifier(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("classifier-daily-batch", { body: {} });
+      if (error) throw error;
+      const queued = (data as any)?.totalQueued ?? (data as any)?.total_queued ?? 0;
+      toast.success(`Classificador disparado · ${queued} lead(s) enfileirado(s)`);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao rodar classificador");
+    } finally {
+      setRunningClassifier(false);
+    }
+  }
+
   async function createInstance() {
     if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
     setCreating(true);
