@@ -1638,6 +1638,47 @@ export type Database = {
           },
         ]
       }
+      email_segment_contacts: {
+        Row: {
+          added_by: string | null
+          clinic_id: string
+          created_at: string
+          email: string
+          id: string
+          lead_id: string | null
+          name: string | null
+          segment_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          clinic_id: string
+          created_at?: string
+          email: string
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          segment_id: string
+        }
+        Update: {
+          added_by?: string | null
+          clinic_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          segment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_segment_contacts_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "email_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_segments: {
         Row: {
           active: boolean
@@ -2190,6 +2231,7 @@ export type Database = {
           deal_value: number | null
           email: string | null
           fbclid: string | null
+          form_source: string | null
           gclid: string | null
           id: string
           landing_page: string | null
@@ -2227,6 +2269,7 @@ export type Database = {
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
+          form_source?: string | null
           gclid?: string | null
           id?: string
           landing_page?: string | null
@@ -2264,6 +2307,7 @@ export type Database = {
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
+          form_source?: string | null
           gclid?: string | null
           id?: string
           landing_page?: string | null
@@ -4272,6 +4316,14 @@ export type Database = {
         }[]
       }
       reset_email_send_state: { Args: never; Returns: undefined }
+      resolve_email_segment: {
+        Args: { _segment_id: string }
+        Returns: {
+          email: string
+          lead_id: string
+          name: string
+        }[]
+      }
       seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }
