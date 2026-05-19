@@ -599,7 +599,7 @@ export default function Tracking() {
                   {filteredVisitors.length === 0 && (
                     <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
-                  {filteredVisitors.map((v) => {
+                  {filteredVisitors.slice((visitorsPage - 1) * pageSize, visitorsPage * pageSize).map((v) => {
                     const f = vFlags[v.visitor_id];
                     const link = links[v.visitor_id];
                     const stage = link?.leads?.stage_id ? stages[link.leads.stage_id] : null;
@@ -643,6 +643,7 @@ export default function Tracking() {
                   })}
                 </TableBody>
               </Table>
+              <Pagination page={visitorsPage} pageSize={pageSize} total={filteredVisitors.length} onPageChange={setVisitorsPage} onPageSizeChange={setPageSize} />
             </CardContent>
           </Card>
         </TabsContent>
