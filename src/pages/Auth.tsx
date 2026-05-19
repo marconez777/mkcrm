@@ -27,8 +27,27 @@ export default function AuthPage() {
     if (!email || !password) return;
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke("auth-login", {
+        body: { email: email.trim().toLowerCase(), password },
+      });
+      if (error) {
+        // FunctionsHttpError exposes status via context
+        const ctx: any = (error as any)?.context;
+        let msg = error.message || "Falha na autenticação";
+        try {
+          const parsed = ctx?.body ? JSON.parse(ctx.body) : (await ctx?.json?.());
+          if (parsed?.message) msg = parsed.message;
+        } catch {}
+        throw new Error(msg);
+      }
+      if (!data?.access_token || !data?.refresh_token) {
+        throw new Error("Resposta inválida do servidor");
+      }
+      const { error: sessErr } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+      if (sessErr) throw sessErr;
       nav(from, { replace: true });
     } catch (err: any) {
       toast.error(err?.message ?? "Falha na autenticação");
