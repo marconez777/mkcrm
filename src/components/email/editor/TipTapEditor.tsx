@@ -61,6 +61,7 @@ export default function TipTapEditor({ value, onChange }: Props) {
       TextStyle,
       Color,
       FontSize,
+      FontFamily.configure({ types: ["textStyle"] }),
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
