@@ -589,40 +589,22 @@ export default function Tracking() {
                             </div>
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Etapa</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
-                  )}
-                  {filteredVisitors.map((v) => {
-                    const f = vFlags[v.visitor_id];
-                    const link = links[v.visitor_id];
-                    const stage = link?.leads?.stage_id ? stages[link.leads.stage_id] : null;
-                    return (
-                      <TableRow key={v.visitor_id}>
-                        <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 14)}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{fmtTime(v.first_seen_at)}</TableCell>
-                        <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
-                        <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
-                        <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
-                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fa ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
-                          {link ? (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {isWhatsappSource(link.link_source) ? (
-                                <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
-                              ) : (
-                                <Badge variant="secondary">sim</Badge>
-                              )}
-                            </div>
-                          ) : <span className="text-muted-foreground">—</span>}
+                          {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
                         <TableCell className="text-xs">
                           {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
