@@ -19,7 +19,7 @@ import Palette from "@/components/email/editor/Palette";
 import Canvas from "@/components/email/editor/Canvas";
 import Inspector from "@/components/email/editor/Inspector";
 import { EMAIL_VARIABLES } from "@/lib/email/variables";
-import { newBlock, type EmailBlock, type BlockType } from "@/lib/email/types";
+import { newBlock, type EmailBlock, type BlockType, BLOCK_LABELS } from "@/lib/email/types";
 import { blocksToHtml, htmlContainsUnsubscribeVar } from "@/lib/email/blocksToHtml";
 import { htmlToBlocks } from "@/lib/email/htmlToBlocks";
 import { sanitizeHtml } from "@/lib/email/sanitize";
