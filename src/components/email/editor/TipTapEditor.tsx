@@ -91,6 +91,7 @@ export default function TipTapEditor({ value, onChange }: Props) {
   if (!editor) return null;
 
   const currentSize: string = (editor.getAttributes("textStyle") as any).fontSize || "";
+  const currentFont: string = (editor.getAttributes("textStyle") as any).fontFamily || "";
 
   return (
     <div className="border rounded">
