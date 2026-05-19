@@ -330,8 +330,19 @@ export default function Agents() {
   };
 
   const remove = async (id: string) => {
+    const target = agents.find((a) => a.id === id);
+    if (target?.is_system) {
+      toast.error("Agente padrão do sistema não pode ser excluído — apenas desativado.");
+      return;
+    }
     if (!(await confirm({ title: "Excluir agente?", description: "Documentos e memórias associadas serão removidos.", confirmLabel: "Excluir", destructive: true }))) return;
-    await supabase.from("ai_agents").delete().eq("id", id);
+    const { error } = await supabase.from("ai_agents").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message.includes("system_agent_cannot_be_deleted")
+        ? "Agente padrão do sistema não pode ser excluído."
+        : error.message);
+      return;
+    }
     if (selected?.id === id) setSelected(null);
     load();
   };
