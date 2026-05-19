@@ -249,7 +249,7 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 | `email_segments` | Filtros JSON salvos sobre `leads`. |
 | `email_campaigns` | Campanhas (template + segment + agendamento + totais). |
 | `email_automations` | Drip por trigger (steps JSON). |
-| `email_queue` | Fila de envio (status, attempts, scheduled_at, error). |
+| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `attempts`, `scheduled_at`, `error`, `force_send` (ignora suppression/idempotência), `variables`, `related_lead_id`, `related_lead_table`. |
 | `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint. **Read-only** para o app. |
 | `email_unsubscribes` | Lista de supressão por clinic+email. Admin pode deletar (reativar). |
 | `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Read-only. |
