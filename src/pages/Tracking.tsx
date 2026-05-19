@@ -86,6 +86,14 @@ function fmtTime(s?: string | null) {
   if (!s) return "—";
   try { return new Date(s).toLocaleString(); } catch { return s; }
 }
+function fmtDate(s?: string | null) {
+  if (!s) return "—";
+  try { return new Date(s).toLocaleDateString(); } catch { return s; }
+}
+function fmtHour(s?: string | null) {
+  if (!s) return "";
+  try { return new Date(s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; }
+}
 function truncate(s: string | null | undefined, n = 60) {
   if (!s) return "—";
   return s.length > n ? s.slice(0, n) + "…" : s;
@@ -93,6 +101,31 @@ function truncate(s: string | null | undefined, n = 60) {
 function pathOf(u?: string | null) {
   if (!u) return "—";
   try { return new URL(u).pathname || "/"; } catch { return u; }
+}
+const REFERRER_NAMES: { match: RegExp; name: string }[] = [
+  { match: /google\./i, name: "Google" },
+  { match: /bing\./i, name: "Bing" },
+  { match: /duckduckgo\./i, name: "DuckDuckGo" },
+  { match: /yahoo\./i, name: "Yahoo" },
+  { match: /facebook\.|fb\.com|fb\.me/i, name: "Facebook" },
+  { match: /instagram\./i, name: "Instagram" },
+  { match: /l\.instagram\./i, name: "Instagram" },
+  { match: /linkedin\./i, name: "LinkedIn" },
+  { match: /t\.co|twitter\.|x\.com/i, name: "Twitter/X" },
+  { match: /youtube\.|youtu\.be/i, name: "YouTube" },
+  { match: /tiktok\./i, name: "TikTok" },
+  { match: /whatsapp\.|wa\.me|api\.whatsapp/i, name: "WhatsApp" },
+  { match: /t\.me|telegram\./i, name: "Telegram" },
+  { match: /reddit\./i, name: "Reddit" },
+  { match: /pinterest\./i, name: "Pinterest" },
+];
+function referrerName(u?: string | null) {
+  if (!u) return "—";
+  try {
+    const host = new URL(u).hostname.replace(/^www\./, "");
+    const hit = REFERRER_NAMES.find((r) => r.match.test(host));
+    return hit ? hit.name : host;
+  } catch { return u; }
 }
 
 const CONVERSION_LABELS: Record<string, string> = {
