@@ -281,7 +281,18 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             <Input
               value={(form as any).form_source ?? ""}
               onChange={(e) => setForm({ ...form, ...({ form_source: e.target.value } as any) })}
-              onBlur={() => patch({ form_source: ((form as any).form_source || null) } as any)}
+              onBlur={() => {
+                const raw = ((form as any).form_source ?? "").toString();
+                const slug = raw
+                  .normalize("NFKD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-+|-+$/g, "")
+                  .slice(0, 64) || null;
+                setForm({ ...form, ...({ form_source: slug } as any) });
+                patch({ form_source: slug } as any);
+              }}
               placeholder="teste-depressao, landing-cetamina…"
               className="h-9"
             />

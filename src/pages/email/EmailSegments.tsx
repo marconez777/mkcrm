@@ -199,15 +199,25 @@ export default function EmailSegments() {
   async function preview() {
     setPreviewing(true);
     try {
-      // Para preview sem salvar, criamos um segmento temporário? Simplificação:
-      // se for edição, usamos o id atual; senão, simulamos via query manual mínima.
       if (editing) {
-        const { data, error } = await supabase.rpc("resolve_email_segment", { _segment_id: editing.id });
+        const [{ data, error }, { data: unsubs }] = await Promise.all([
+          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }),
+          supabase.from("email_unsubscribes").select("email").eq("clinic_id", (editing as any).clinic_id ?? ""),
+        ]);
         if (error) throw error;
-        const list = (data as any[] ?? []).map((r) => String(r.email).toLowerCase());
-        const set = new Set(list);
-        setPreviewCount(set.size);
-        setPreviewSample([...set].slice(0, 5));
+        const blocked = new Set((unsubs ?? []).map((u: any) => String(u.email).toLowerCase()));
+        const all = new Set<string>();
+        const eligible = new Set<string>();
+        (data as any[] ?? []).forEach((r) => {
+          if (!r?.email) return;
+          const e = String(r.email).toLowerCase();
+          all.add(e);
+          if (!blocked.has(e)) eligible.add(e);
+        });
+        setPreviewCount(eligible.size);
+        setPreviewSample([...eligible].slice(0, 5));
+        const suppressed = all.size - eligible.size;
+        if (suppressed > 0) toast.info(`${suppressed} contato(s) suprimido(s) foram descontados`);
       } else {
         toast.info("Salve o segmento para pré-visualizar o público completo");
       }

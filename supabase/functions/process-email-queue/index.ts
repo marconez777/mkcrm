@@ -1,12 +1,16 @@
 // Edge Function: process-email-queue
-// Pega até 50 jobs pending, marca como processing e chama send-email.
-// Backoff inteligente: quota → 9h BRT amanhã; rate-limit → respeita Retry-After.
+// 1) Reaper: jobs travados em "processing" > 10min voltam para pending.
+// 2) Pega até BATCH_SIZE jobs pending, marca como processing.
+// 3) Envia em paralelo (chunks) via send-email.
+// Backoff: quota → 9h BRT amanhã; rate-limit → respeita Retry-After.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 50;
+const CONCURRENCY = 5;
+const STALE_PROCESSING_MIN = 10;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -16,6 +20,14 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const nowIso = new Date().toISOString();
+
+    // 1) reaper — devolve jobs travados em "processing"
+    const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MIN * 60_000).toISOString();
+    await supabase
+      .from("email_queue")
+      .update({ status: "pending", updated_at: nowIso })
+      .eq("status", "processing")
+      .lt("updated_at", staleCutoff);
 
     const { data: jobs } = await supabase
       .from("email_queue")
@@ -38,7 +50,7 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let sent = 0, failed = 0, cancelled = 0;
 
-    for (const job of jobs as any[]) {
+    async function processJob(job: any) {
       try {
         const resp = await fetch(sendUrl, {
           method: "POST",
@@ -60,7 +72,6 @@ Deno.serve(async (req) => {
         if (resp.ok) {
           if ((result as any).skipped) {
             cancelled++;
-            // send-email já marca queue como cancelled/pending; aqui apenas confirmamos sent quando dedup
             if ((result as any).reason === "already_sent") {
               await supabase
                 .from("email_queue")
@@ -94,7 +105,7 @@ Deno.serve(async (req) => {
             .from("email_queue")
             .update({ status: "failed", attempts: attempts + 1, error: errMsg, updated_at: new Date().toISOString() })
             .eq("id", job.id);
-          continue;
+          return;
         }
         if (isQuota) {
           const tomorrow = new Date();
@@ -104,7 +115,7 @@ Deno.serve(async (req) => {
             .from("email_queue")
             .update({ status: "pending", scheduled_at: tomorrow.toISOString(), error: `quota: ${errMsg}`, updated_at: new Date().toISOString() })
             .eq("id", job.id);
-          continue;
+          return;
         }
         if (isRateLimit) {
           let waitMs = 60_000;
@@ -116,7 +127,7 @@ Deno.serve(async (req) => {
             .from("email_queue")
             .update({ status: "pending", scheduled_at: new Date(Date.now() + waitMs).toISOString(), error: errMsg, updated_at: new Date().toISOString() })
             .eq("id", job.id);
-          continue;
+          return;
         }
         const newAttempts = attempts + 1;
         if (newAttempts >= MAX_ATTEMPTS) {
@@ -132,6 +143,12 @@ Deno.serve(async (req) => {
             .eq("id", job.id);
         }
       }
+    }
+
+    // executa em chunks paralelos
+    for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+      const chunk = (jobs as any[]).slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(processJob));
     }
 
     return jsonResponse({ processed: jobs.length, sent, failed, cancelled });

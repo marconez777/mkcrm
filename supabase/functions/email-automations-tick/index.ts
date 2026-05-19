@@ -66,7 +66,9 @@ Deno.serve(async (req) => {
     }
 
     // cursor: desde o último tick (ou desde a criação efetiva da automação)
-    const since = auto.last_run_at ?? auto.updated_at;
+    // Para automações novas, começa a contar a partir de agora — assim não
+    // re-enrola leads antigos quando uma automação é editada/ativada.
+    const since = auto.last_run_at ?? nowIso;
 
     // 1) busca leads candidatos para este trigger
     let candidates: Array<{ lead: LeadRow; source_event: string }> = [];
