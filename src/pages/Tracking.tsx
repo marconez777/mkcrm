@@ -86,6 +86,14 @@ function fmtTime(s?: string | null) {
   if (!s) return "—";
   try { return new Date(s).toLocaleString(); } catch { return s; }
 }
+function fmtDate(s?: string | null) {
+  if (!s) return "—";
+  try { return new Date(s).toLocaleDateString(); } catch { return s; }
+}
+function fmtHour(s?: string | null) {
+  if (!s) return "";
+  try { return new Date(s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; }
+}
 function truncate(s: string | null | undefined, n = 60) {
   if (!s) return "—";
   return s.length > n ? s.slice(0, n) + "…" : s;
@@ -93,6 +101,31 @@ function truncate(s: string | null | undefined, n = 60) {
 function pathOf(u?: string | null) {
   if (!u) return "—";
   try { return new URL(u).pathname || "/"; } catch { return u; }
+}
+const REFERRER_NAMES: { match: RegExp; name: string }[] = [
+  { match: /google\./i, name: "Google" },
+  { match: /bing\./i, name: "Bing" },
+  { match: /duckduckgo\./i, name: "DuckDuckGo" },
+  { match: /yahoo\./i, name: "Yahoo" },
+  { match: /facebook\.|fb\.com|fb\.me/i, name: "Facebook" },
+  { match: /instagram\./i, name: "Instagram" },
+  { match: /l\.instagram\./i, name: "Instagram" },
+  { match: /linkedin\./i, name: "LinkedIn" },
+  { match: /t\.co|twitter\.|x\.com/i, name: "Twitter/X" },
+  { match: /youtube\.|youtu\.be/i, name: "YouTube" },
+  { match: /tiktok\./i, name: "TikTok" },
+  { match: /whatsapp\.|wa\.me|api\.whatsapp/i, name: "WhatsApp" },
+  { match: /t\.me|telegram\./i, name: "Telegram" },
+  { match: /reddit\./i, name: "Reddit" },
+  { match: /pinterest\./i, name: "Pinterest" },
+];
+function referrerName(u?: string | null) {
+  if (!u) return "—";
+  try {
+    const host = new URL(u).hostname.replace(/^www\./, "");
+    const hit = REFERRER_NAMES.find((r) => r.match.test(host));
+    return hit ? hit.name : host;
+  } catch { return u; }
 }
 
 const CONVERSION_LABELS: Record<string, string> = {
@@ -511,13 +544,11 @@ export default function Tracking() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>visitor_id</TableHead>
-                    <TableHead>Primeira</TableHead>
-                    <TableHead>Primeira página</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Página</TableHead>
                     <TableHead>Referrer</TableHead>
-                    <TableHead className="text-center">Sess.</TableHead>
                     <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
                     <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
-                    <TableHead className="text-center" title="form_submit_attempt / form_submit">Submit</TableHead>
                     <TableHead>Lead</TableHead>
                     <TableHead>Etapa</TableHead>
                     <TableHead></TableHead>
@@ -525,22 +556,28 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
                   )}
                   {filteredVisitors.map((v) => {
                     const f = vFlags[v.visitor_id];
                     const link = links[v.visitor_id];
                     const stage = link?.leads?.stage_id ? stages[link.leads.stage_id] : null;
+                    const pagePath = pathOf(v.first_landing_page);
                     return (
                       <TableRow key={v.visitor_id}>
-                        <TableCell className="font-mono text-xs">{truncate(v.visitor_id, 14)}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{fmtTime(v.first_seen_at)}</TableCell>
-                        <TableCell className="text-xs">{truncate(pathOf(v.first_landing_page), 24)}</TableCell>
-                        <TableCell className="text-xs">{truncate(v.first_referrer, 24)}</TableCell>
-                        <TableCell className="text-center text-xs">{f?.sessions ?? 0}</TableCell>
+                        <TableCell className="font-mono text-[11px]">{truncate(v.visitor_id, 10)}</TableCell>
+                        <TableCell className="text-[11px] whitespace-nowrap leading-tight">
+                          <div>{fmtDate(v.first_seen_at)}</div>
+                          <div className="text-muted-foreground">{fmtHour(v.first_seen_at)}</div>
+                        </TableCell>
+                        <TableCell className="text-[11px]">
+                          {v.first_landing_page ? (
+                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" className="text-primary hover:underline whitespace-nowrap">{pagePath}</a>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
                         <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fa ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
                           {link ? (
                             <div className="flex items-center gap-1 flex-wrap">
