@@ -229,8 +229,11 @@ Sincroniza histórico:
 - Para cada, `GET /emails/{id}` no Resend e atualiza status/timestamps.
 - Bounces/complaints viram entries em `email_unsubscribes`.
 
-### 3.8 `scheduled-dispatcher`
-**Não é exclusivo do email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Está agrupado aqui apenas para referência cruzada, pois o cron de email pode rodar no mesmo schedule.
+### 3.8 `process-scheduled-campaigns`
+Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled_for <= now()` (limit 20) e dispara `dispatch-campaign` para cada uma. É o que faz "Agendar campanha" funcionar.
+
+### 3.9 `scheduled-dispatcher` (referência cruzada)
+**Não pertence ao módulo de email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Listado aqui só para evitar confusão com o `process-scheduled-campaigns`.
 
 ---
 
