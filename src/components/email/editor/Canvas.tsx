@@ -4,7 +4,9 @@ import { CSS } from "@dnd-kit/utilities";
 import type { EmailBlock } from "@/lib/email/types";
 import { sanitizeInlineHtml } from "@/lib/email/sanitize";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ArrowUp, ArrowDown, Copy, Trash2, GripVertical } from "lucide-react";
+import TipTapEditor from "./TipTapEditor";
 
 interface CanvasProps {
   blocks: EmailBlock[];
@@ -13,16 +15,45 @@ interface CanvasProps {
   onMove: (id: string, dir: -1 | 1) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
+  onChange: (b: EmailBlock) => void;
+  isDraggingFromPalette?: boolean;
 }
 
-function BlockPreview({ b }: { b: EmailBlock }) {
+function BlockPreview({
+  b,
+  selected,
+  onChange,
+}: {
+  b: EmailBlock;
+  selected: boolean;
+  onChange: (b: EmailBlock) => void;
+}) {
   switch (b.type) {
     case "heading": {
       const Tag = (`h${b.level}`) as keyof JSX.IntrinsicElements;
       const size = b.level === 1 ? "text-2xl" : b.level === 2 ? "text-xl" : "text-lg";
+      if (selected) {
+        return (
+          <Input
+            value={b.text}
+            onChange={(e) => onChange({ ...b, text: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            className={`${size} font-bold border-dashed`}
+            style={{ color: b.color, textAlign: b.align, height: "auto", padding: "4px 8px" }}
+            autoFocus
+          />
+        );
+      }
       return <Tag className={`${size} font-bold m-0`} style={{ color: b.color, textAlign: b.align }}>{b.text}</Tag>;
     }
     case "paragraph":
+      if (selected) {
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <TipTapEditor value={b.html} onChange={(html) => onChange({ ...b, html })} />
+          </div>
+        );
+      }
       return (
         <div
           className="leading-relaxed [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_li]:my-0.5 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_a]:underline [&_a]:text-primary"
@@ -41,6 +72,18 @@ function BlockPreview({ b }: { b: EmailBlock }) {
         </div>
       );
     case "cta":
+      if (selected) {
+        return (
+          <div style={{ textAlign: b.align }} onClick={(e) => e.stopPropagation()}>
+            <Input
+              value={b.text}
+              onChange={(e) => onChange({ ...b, text: e.target.value })}
+              className="inline-block w-auto border-dashed text-center font-semibold"
+              style={{ background: b.bg, color: b.color, padding: `${b.paddingY}px ${b.paddingX}px`, borderRadius: b.radius, height: "auto" }}
+            />
+          </div>
+        );
+      }
       return (
         <div style={{ textAlign: b.align }}>
           <span
@@ -105,7 +148,7 @@ function BlockPreview({ b }: { b: EmailBlock }) {
 }
 
 function SortableBlock({
-  block, selected, onSelect, onMove, onDuplicate, onRemove,
+  block, selected, onSelect, onMove, onDuplicate, onRemove, onChange, isDraggingFromPalette,
 }: {
   block: EmailBlock;
   selected: boolean;
@@ -113,9 +156,12 @@ function SortableBlock({
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  onChange: (b: EmailBlock) => void;
+  isDraggingFromPalette?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver, over } = useSortable({ id: block.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  const showDropLine = isOver && isDraggingFromPalette && over?.id === block.id;
   return (
     <div
       ref={setNodeRef}
@@ -139,26 +185,38 @@ function SortableBlock({
         <Button size="icon" variant="ghost" className="h-6 w-6 hover:text-destructive" onClick={(e) => { e.stopPropagation(); onRemove(); }}><Trash2 className="h-3 w-3" /></Button>
       </div>
       <div className="p-2">
-        <BlockPreview b={block} />
+        <BlockPreview b={block} selected={selected} onChange={onChange} />
       </div>
+      {showDropLine && (
+        <div className="absolute -bottom-1 left-0 right-0 h-1 bg-primary rounded shadow-[0_0_8px_hsl(var(--primary))]" />
+      )}
     </div>
   );
 }
 
-export default function Canvas({ blocks, selectedId, onSelect, onMove, onDuplicate, onRemove }: CanvasProps) {
+export default function Canvas({ blocks, selectedId, onSelect, onMove, onDuplicate, onRemove, onChange, isDraggingFromPalette }: CanvasProps) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
+  const showEmptyHighlight = isDraggingFromPalette;
 
   return (
     <div className="h-full overflow-auto bg-muted/30 p-6" onClick={() => onSelect("")}>
       <div
         ref={setNodeRef}
-        className={`mx-auto bg-white rounded-lg shadow-sm border ${isOver ? "ring-2 ring-primary" : ""}`}
+        className={`mx-auto bg-white rounded-lg shadow-sm border transition ${
+          isOver && isDraggingFromPalette
+            ? "ring-2 ring-primary border-primary"
+            : showEmptyHighlight
+              ? "border-primary/40 border-dashed"
+              : ""
+        }`}
         style={{ width: 600, maxWidth: "100%", minHeight: 400, padding: 24 }}
       >
         <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
           {blocks.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-16 border-2 border-dashed rounded">
-              Arraste blocos da paleta para começar
+            <div className={`text-center text-sm py-16 border-2 border-dashed rounded transition ${
+              isOver && isDraggingFromPalette ? "border-primary text-primary bg-primary/5" : "text-muted-foreground"
+            }`}>
+              {isDraggingFromPalette ? "Solte aqui para adicionar o bloco" : "Arraste blocos da paleta para começar"}
             </div>
           ) : (
             blocks.map((b) => (
@@ -170,6 +228,8 @@ export default function Canvas({ blocks, selectedId, onSelect, onMove, onDuplica
                 onMove={(d) => onMove(b.id, d)}
                 onDuplicate={() => onDuplicate(b.id)}
                 onRemove={() => onRemove(b.id)}
+                onChange={onChange}
+                isDraggingFromPalette={isDraggingFromPalette}
               />
             ))
           )}
