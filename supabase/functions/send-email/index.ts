@@ -97,6 +97,26 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: `domain ${fromDomain} not verified` }, { status: 412 });
     }
 
+    // 1.2 Resolve a API key do Resend: por-clínica (clinic_email_integrations.secret_name) com fallback ao secret global
+    let RESEND_API_KEY = DEFAULT_RESEND_API_KEY;
+    const { data: integration } = await supabase
+      .from("clinic_email_integrations")
+      .select("provider, secret_name, enabled")
+      .eq("clinic_id", clinic_id)
+      .eq("enabled", true)
+      .maybeSingle();
+    if (integration?.secret_name) {
+      const k = Deno.env.get(integration.secret_name);
+      if (k) {
+        RESEND_API_KEY = k;
+      } else {
+        console.warn(`clinic ${clinic_id} integration secret ${integration.secret_name} not set, falling back to default`);
+      }
+    }
+    if (!RESEND_API_KEY) {
+      return jsonResponse({ error: "RESEND_API_KEY missing (no clinic integration and no default)" }, { status: 503 });
+    }
+
     // 2. Suppression
     if (!force) {
       const { data: unsub } = await supabase
