@@ -203,19 +203,29 @@ export default function EmailTemplates() {
             </Button>
           </div>
           {[{ id: "all", name: "Todos" }, { id: "none", name: "Sem pasta" }, ...folders].map((f) => (
-            <button
+            <div
               key={f.id}
-              onClick={() => setActiveFolder(f.id)}
-              className={`w-full flex items-center justify-between rounded px-2 py-1.5 text-xs hover:bg-accent ${activeFolder === f.id ? "bg-accent font-medium" : ""}`}
+              className={`group flex items-center justify-between rounded px-2 py-1.5 text-xs hover:bg-accent ${activeFolder === f.id ? "bg-accent font-medium" : ""}`}
             >
-              <span className="flex items-center gap-1.5"><Folder className="h-3 w-3" />{f.name}</span>
+              <button
+                type="button"
+                onClick={() => setActiveFolder(f.id)}
+                className="flex flex-1 items-center gap-1.5 text-left"
+              >
+                <Folder className="h-3 w-3" />
+                {f.name}
+              </button>
               {!["all", "none"].includes(f.id) && (
-                <Trash2
-                  className="h-3 w-3 opacity-0 group-hover:opacity-100 hover:text-destructive"
+                <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); deleteFolder(f.id); }}
-                />
+                  className="opacity-0 group-hover:opacity-100 transition hover:text-destructive"
+                  title="Excluir pasta"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
               )}
-            </button>
+            </div>
           ))}
         </Card>
 
