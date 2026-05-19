@@ -315,7 +315,7 @@ export default function Tracking() {
     } finally {
       setLoading(false);
     }
-  }, [sinceISO, untilISO, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
+  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
 
   useEffect(() => { load(); }, [load]);
 
