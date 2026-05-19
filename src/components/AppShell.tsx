@@ -13,7 +13,6 @@ const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: Fea
   { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
   { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
   { to: "/ai", label: "IA", icon: Sparkles },
-  { to: "/settings", label: "Configurações", icon: Settings },
 ];
 
 type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
@@ -27,14 +26,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const restricted = new Set(["/ai"]);
   let navItems: NavItem[] = isProfessional ? items.filter((i) => !restricted.has(i.to)) : [...items];
   navItems = navItems.filter((i) => !i.feature || hasFeature(i.feature));
-  if (isClinicAdmin) {
-    if (hasFeature("team")) navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
-  }
   if (hasFeature("email_marketing")) {
-    const emailItem: NavItem = { to: "/email", label: "Email", icon: Mail, feature: "email_marketing" };
-    const settingsIdx = navItems.findIndex((i) => i.to === "/settings");
-    if (settingsIdx >= 0) navItems = [...navItems.slice(0, settingsIdx), emailItem, ...navItems.slice(settingsIdx)];
-    else navItems = [...navItems, emailItem];
+    navItems = [...navItems, { to: "/email", label: "Email", icon: Mail, feature: "email_marketing" }];
   }
   if (isClinicAdmin || isSuperAdmin) {
     navItems = [...navItems, { to: "/tracking", label: "Tracking", icon: Radar }];
@@ -43,6 +36,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       navItems = [...navItems, { to: "/tracking-debug", label: "Tracking Debug", icon: Radar }];
     }
   }
+  if (isClinicAdmin && hasFeature("team")) {
+    navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
+  }
+  navItems = [...navItems, { to: "/settings", label: "Configurações", icon: Settings }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
   const dotColor =
