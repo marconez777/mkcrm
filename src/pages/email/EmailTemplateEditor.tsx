@@ -370,7 +370,13 @@ export default function EmailTemplateEditor() {
       </div>
 
       {/* Main 3 columns */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => { setActiveDragType(null); setActiveDragId(null); }}
+      >
         <div className="flex-1 grid grid-cols-[260px_1fr_340px] overflow-hidden">
           <div className="border-r overflow-auto"><Palette /></div>
           <Canvas
@@ -380,12 +386,26 @@ export default function EmailTemplateEditor() {
             onMove={moveBlock}
             onDuplicate={duplicateBlock}
             onRemove={removeBlock}
+            onChange={updateBlock}
+            isDraggingFromPalette={!!activeDragType}
           />
           <div className="border-l overflow-auto bg-background">
             <Inspector block={selected} onChange={updateBlock} />
           </div>
         </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDragType ? (
+            <div className="rounded-md border-2 border-primary bg-background shadow-lg px-3 py-2 text-xs font-medium text-primary">
+              + {BLOCK_LABELS[activeDragType]}
+            </div>
+          ) : activeDragId ? (
+            <div className="rounded-md border-2 border-primary bg-background/95 shadow-lg px-3 py-2 text-xs font-medium">
+              Movendo bloco…
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
+
 
       {/* Variables footer */}
       <div className="border-t px-4 py-2 flex items-center gap-2 flex-wrap text-[11px] bg-muted/30">
