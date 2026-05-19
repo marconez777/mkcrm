@@ -106,26 +106,36 @@ Deno.serve(async (req) => {
         .map((r: any) => ({ email: r.email, name: r.name ?? null, lead_id: r.lead_id ?? null }));
     }
 
+    // enqueue em paralelo (chunks) para não estourar tempo da edge function
+    const CHUNK = 20;
     let enqueued = 0;
-    for (const r of recipients) {
-      const { data: id } = await supabase.rpc("enqueue_email", {
-        _clinic_id: campaign.clinic_id,
-        _template_slug: campaign.template_slug,
-        _recipient_email: r.email,
-        _recipient_name: r.name,
-        _variables: { name: r.name ?? "", campaign_id },
-        _scheduled_at: new Date().toISOString(),
-        _related_lead_id: r.lead_id,
-        _related_lead_table: `campaign_${campaign_id}`,
-        _force_send: false,
-      });
-      if (id) enqueued++;
+    for (let i = 0; i < recipients.length; i += CHUNK) {
+      const chunk = recipients.slice(i, i + CHUNK);
+      const results = await Promise.all(chunk.map((r) =>
+        supabase.rpc("enqueue_email", {
+          _clinic_id: campaign.clinic_id,
+          _template_slug: campaign.template_slug,
+          _recipient_email: r.email,
+          _recipient_name: r.name,
+          _variables: { name: r.name ?? "", campaign_id },
+          _scheduled_at: new Date().toISOString(),
+          _related_lead_id: r.lead_id,
+          _related_lead_table: `campaign_${campaign_id}`,
+          _force_send: false,
+        })
+      ));
+      enqueued += results.filter((r) => r.data).length;
     }
+
+    // Campanha vazia ainda é "sent" — só "failed" se houver destinatários e nenhum enfileirou
+    const finalStatus = recipients.length === 0
+      ? "sent"
+      : (enqueued > 0 ? "sent" : "failed");
 
     await supabase
       .from("email_campaigns")
       .update({
-        status: enqueued > 0 ? "sent" : "failed",
+        status: finalStatus,
         total_recipients: recipients.length,
         enqueued_count: enqueued,
         sent_at: new Date().toISOString(),
@@ -133,7 +143,14 @@ Deno.serve(async (req) => {
       })
       .eq("id", campaign_id);
 
-    return jsonResponse({ ok: true, total: recipients.length, enqueued });
+    // dispara processamento imediato (sem aguardar cron)
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+      body: "{}",
+    }).catch(() => {});
+
+    return jsonResponse({ ok: true, total: recipients.length, enqueued, status: finalStatus });
   } catch (e) {
     console.error("dispatch-campaign error:", e);
     return jsonResponse({ error: String(e) }, { status: 500 });
