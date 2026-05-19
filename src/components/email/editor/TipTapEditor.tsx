@@ -3,6 +3,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
+import { FontFamily } from "@tiptap/extension-font-family";
 import { Extension } from "@tiptap/core";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,6 +52,18 @@ const FontSize = Extension.create({
 });
 
 const SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
+const FONTS: { label: string; value: string }[] = [
+  { label: "Sans (padrão)", value: "" },
+  { label: "Arial", value: "Arial, Helvetica, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Inter", value: "Inter, system-ui, sans-serif" },
+  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
+  { label: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
+  { label: "Trebuchet", value: "'Trebuchet MS', sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times", value: "'Times New Roman', Times, serif" },
+  { label: "Courier", value: "'Courier New', Courier, monospace" },
+];
 
 export default function TipTapEditor({ value, onChange }: Props) {
   const editor = useEditor({
@@ -60,6 +73,7 @@ export default function TipTapEditor({ value, onChange }: Props) {
       TextStyle,
       Color,
       FontSize,
+      FontFamily.configure({ types: ["textStyle"] }),
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -77,6 +91,7 @@ export default function TipTapEditor({ value, onChange }: Props) {
   if (!editor) return null;
 
   const currentSize: string = (editor.getAttributes("textStyle") as any).fontSize || "";
+  const currentFont: string = (editor.getAttributes("textStyle") as any).fontFamily || "";
 
   return (
     <div className="border rounded">
@@ -101,6 +116,23 @@ export default function TipTapEditor({ value, onChange }: Props) {
         </Button>
 
         <div className="mx-1 h-5 w-px bg-border" />
+
+        <Select
+          value={currentFont || "default"}
+          onValueChange={(v) => {
+            if (v === "default") editor.chain().focus().unsetFontFamily().run();
+            else editor.chain().focus().setFontFamily(v).run();
+          }}
+        >
+          <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Fonte" /></SelectTrigger>
+          <SelectContent>
+            {FONTS.map((f) => (
+              <SelectItem key={f.label} value={f.value || "default"}>
+                <span style={{ fontFamily: f.value || undefined }}>{f.label}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <Select
           value={currentSize || "default"}
