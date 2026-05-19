@@ -52,6 +52,18 @@ const FontSize = Extension.create({
 });
 
 const SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
+const FONTS: { label: string; value: string }[] = [
+  { label: "Sans (padrão)", value: "" },
+  { label: "Arial", value: "Arial, Helvetica, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Inter", value: "Inter, system-ui, sans-serif" },
+  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
+  { label: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
+  { label: "Trebuchet", value: "'Trebuchet MS', sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times", value: "'Times New Roman', Times, serif" },
+  { label: "Courier", value: "'Courier New', Courier, monospace" },
+];
 
 export default function TipTapEditor({ value, onChange }: Props) {
   const editor = useEditor({
