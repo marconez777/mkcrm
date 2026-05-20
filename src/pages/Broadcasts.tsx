@@ -20,7 +20,7 @@ type Broadcast = {
   id: string; name: string; status: string;
   whatsapp_instance_id: string | null; throttle_seconds: number;
   send_window: { start: string; end: string; tz: string; weekdays: number[] };
-  source: { pipeline_id?: string; stage_ids?: string[]; extra_contacts?: any[] };
+  source: { type?: "pipeline" | "list"; pipeline_id?: string; stage_ids?: string[]; extra_contacts?: any[] };
   totals: { queued?: number; sent?: number; failed?: number; replied?: number };
   audience_frozen_at: string | null;
   created_at: string;
@@ -349,19 +349,19 @@ function BroadcastEditor({ id }: { id: string }) {
             extraContacts={extraContacts} setExtraContacts={setExtraContacts}
             onSave={save}
             onFreeze={async () => {
-              const r = await control("freeze_audience", {
-                pipeline_id: bc.source?.pipeline_id ?? null,
-                stage_ids: bc.source?.stage_ids ?? [],
-                extra_contacts: extraContacts,
-              });
+              const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
+              const payload = sourceType === "list"
+                ? { pipeline_id: null, stage_ids: [], extra_contacts: extraContacts }
+                : { pipeline_id: bc.source?.pipeline_id ?? null, stage_ids: bc.source?.stage_ids ?? [], extra_contacts: [] };
+              const r = await control("freeze_audience", payload);
               if (r) { toast.success(`Audiência congelada: ${(r as any).inserted} contatos`); load(); }
             }}
             onFreezeAndStart={async () => {
-              const r = await control("freeze_audience", {
-                pipeline_id: bc.source?.pipeline_id ?? null,
-                stage_ids: bc.source?.stage_ids ?? [],
-                extra_contacts: extraContacts,
-              });
+              const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
+              const payload = sourceType === "list"
+                ? { pipeline_id: null, stage_ids: [], extra_contacts: extraContacts }
+                : { pipeline_id: bc.source?.pipeline_id ?? null, stage_ids: bc.source?.stage_ids ?? [], extra_contacts: [] };
+              const r = await control("freeze_audience", payload);
               if (!r) return;
               toast.success(`Audiência congelada: ${(r as any).inserted} contatos`);
               const s = await control("start");
@@ -480,18 +480,19 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
 function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
+  const sourceType: "pipeline" | "list" = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
   const pipelineStages = useMemo(() => stages.filter((s: any) => s.pipeline_id === pipelineId), [stages, pipelineId]);
   const [leadCount, setLeadCount] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
-      if (!pipelineId) { setLeadCount(null); return; }
+      if (sourceType !== "pipeline" || !pipelineId) { setLeadCount(null); return; }
       let q = supabase.from("leads").select("id", { count: "exact", head: true }).eq("pipeline_id", pipelineId).not("phone", "is", null);
       if (stageIds.length) q = q.in("stage_id", stageIds);
       const { count } = await q;
       setLeadCount(count ?? 0);
     })();
-  }, [pipelineId, JSON.stringify(stageIds)]);
+  }, [sourceType, pipelineId, JSON.stringify(stageIds)]);
 
   const onUpload = async (f: File) => {
     try {
@@ -501,69 +502,103 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
     } catch (e: any) { toast.error(e.message); }
   };
 
+  const setType = (t: "pipeline" | "list") => {
+    if (t === "list") {
+      onSave({ source: { type: "list", pipeline_id: undefined, stage_ids: [] } });
+    } else {
+      setExtraContacts([]);
+      onSave({ source: { ...bc.source, type: "pipeline" } });
+    }
+  };
+
   return (
     <div className="space-y-3">
       <Card>
-        <CardHeader><CardTitle className="text-base">Do pipeline</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label>Pipeline</Label>
-            <Select value={pipelineId} onValueChange={(v) => onSave({ source: { ...bc.source, pipeline_id: v, stage_ids: [] } })}>
-              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
-              <SelectContent>{pipelines.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-            </Select>
+        <CardHeader><CardTitle className="text-base">Origem dos destinatários</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <button type="button"
+              className={`flex-1 rounded-md border px-4 py-3 text-sm text-left ${sourceType === "pipeline" ? "border-primary bg-primary/5" : ""}`}
+              onClick={() => setType("pipeline")}>
+              <div className="font-medium">Pipeline</div>
+              <div className="text-xs text-muted-foreground">Enviar para leads de um pipeline/etapas</div>
+            </button>
+            <button type="button"
+              className={`flex-1 rounded-md border px-4 py-3 text-sm text-left ${sourceType === "list" ? "border-primary bg-primary/5" : ""}`}
+              onClick={() => setType("list")}>
+              <div className="font-medium">Lista (Excel/CSV)</div>
+              <div className="text-xs text-muted-foreground">Enviar para uma planilha importada</div>
+            </button>
           </div>
-          {pipelineId && (
-            <div>
-              <Label>Etapas (deixe vazio para todas)</Label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {pipelineStages.map((s: any) => {
-                  const on = stageIds.includes(s.id);
-                  return (
-                    <button key={s.id} type="button"
-                      className={`px-3 py-1 rounded-md border text-sm ${on ? "bg-primary text-primary-foreground" : ""}`}
-                      onClick={() => {
-                        const cur = new Set(stageIds);
-                        on ? cur.delete(s.id) : cur.add(s.id);
-                        onSave({ source: { ...bc.source, pipeline_id: pipelineId, stage_ids: Array.from(cur) } });
-                      }}>{s.name}</button>
-                  );
-                })}
-              </div>
-              {leadCount != null && <p className="text-xs text-muted-foreground mt-2">{leadCount} leads correspondem.</p>}
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground mt-2">Apenas uma fonte por campanha — escolha pipeline OU lista.</p>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Contatos avulsos (Excel/CSV)</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={downloadBroadcastTemplate}><Download className="size-4 mr-1" /> Baixar template</Button>
-            <label className="inline-flex">
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ""; }} />
-              <span className="inline-flex items-center gap-1 border rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-muted"><Upload className="size-4" /> Importar arquivo</span>
-            </label>
-            {extraContacts.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setExtraContacts([])}>Limpar ({extraContacts.length})</Button>
-            )}
-          </div>
-          {extraContacts.length > 0 && (
-            <div className="max-h-48 overflow-auto border rounded">
-              <Table>
-                <TableHeader><TableRow><TableHead>Telefone</TableHead><TableHead>Nome</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {extraContacts.slice(0, 50).map((c, i) => (
-                    <TableRow key={i}><TableCell className="font-mono text-xs">{c.phone}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {extraContacts.length > 50 && <div className="p-2 text-xs text-muted-foreground text-center">+{extraContacts.length - 50} contatos…</div>}
+      {sourceType === "pipeline" && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Do pipeline</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <Label>Pipeline</Label>
+              <Select value={pipelineId} onValueChange={(v) => onSave({ source: { ...bc.source, type: "pipeline", pipeline_id: v, stage_ids: [] } })}>
+                <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+                <SelectContent>{pipelines.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {pipelineId && (
+              <div>
+                <Label>Etapas (deixe vazio para todas)</Label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {pipelineStages.map((s: any) => {
+                    const on = stageIds.includes(s.id);
+                    return (
+                      <button key={s.id} type="button"
+                        className={`px-3 py-1 rounded-md border text-sm ${on ? "bg-primary text-primary-foreground" : ""}`}
+                        onClick={() => {
+                          const cur = new Set(stageIds);
+                          on ? cur.delete(s.id) : cur.add(s.id);
+                          onSave({ source: { ...bc.source, type: "pipeline", pipeline_id: pipelineId, stage_ids: Array.from(cur) } });
+                        }}>{s.name}</button>
+                    );
+                  })}
+                </div>
+                {leadCount != null && <p className="text-xs text-muted-foreground mt-2">{leadCount} leads correspondem.</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {sourceType === "list" && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Lista importada (Excel/CSV)</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={downloadBroadcastTemplate}><Download className="size-4 mr-1" /> Baixar template</Button>
+              <label className="inline-flex">
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ""; }} />
+                <span className="inline-flex items-center gap-1 border rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-muted"><Upload className="size-4" /> Importar arquivo</span>
+              </label>
+              {extraContacts.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setExtraContacts([])}>Limpar ({extraContacts.length})</Button>
+              )}
+            </div>
+            {extraContacts.length > 0 && (
+              <div className="max-h-48 overflow-auto border rounded">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Telefone</TableHead><TableHead>Nome</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {extraContacts.slice(0, 50).map((c, i) => (
+                      <TableRow key={i}><TableCell className="font-mono text-xs">{c.phone}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {extraContacts.length > 50 && <div className="p-2 text-xs text-muted-foreground text-center">+{extraContacts.length - 50} contatos…</div>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6 flex items-center justify-between">
