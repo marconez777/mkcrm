@@ -210,9 +210,25 @@ Deno.serve(async (req) => {
             await supabase.from("broadcasts")
               .update({ totals: { ...(bc.totals ?? {}), sent: sentCount ?? 0 } })
               .eq("id", bc.id);
+            // encadeia próximo destinatário sem esperar o cron (throttle ainda é respeitado via next_send_at)
+            triggerTick();
             break; // só 1 destinatário "completo" por tick por broadcast
+          } else {
+            // parte intermediária enviada: dispara novo tick em ~3s para mandar a próxima parte sem esperar o cron
+            triggerTick();
           }
         } else {
+          stats.failed++;
+          await supabase.from("broadcast_recipients").update({
+            status: "failed", last_error: errText,
+          }).eq("id", r.id);
+          await supabase.from("broadcast_events").insert({
+            broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
+            type: "failed", payload: { error: errText },
+          });
+        }
+      }
+    }
           stats.failed++;
           await supabase.from("broadcast_recipients").update({
             status: "failed", last_error: errText,
