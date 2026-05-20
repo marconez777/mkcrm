@@ -4,7 +4,48 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { Upload, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import TipTapEditor from "./TipTapEditor";
+
+const WHITE_INPUT = "bg-white dark:bg-white text-foreground";
+
+function AvatarUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const handle = async (file: File) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `signatures/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("email-assets").upload(path, file, { upsert: false, contentType: file.type });
+      if (error) throw error;
+      const { data } = supabase.storage.from("email-assets").getPublicUrl(path);
+      onChange(data.publicUrl);
+      toast.success("Imagem enviada");
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao enviar imagem");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Input className={WHITE_INPUT} value={value} placeholder="URL da imagem" onChange={(e) => onChange(e.target.value)} />
+        <Button type="button" variant="outline" size="sm" onClick={() => ref.current?.click()} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        </Button>
+      </div>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handle(f); e.target.value = ""; }} />
+      {value && <img src={value} alt="avatar" className="h-16 w-16 rounded-full object-cover border" />}
+    </div>
+  );
+}
 
 interface Props {
   block: EmailBlock | null;
