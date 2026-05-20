@@ -217,9 +217,21 @@ function BroadcastEditor({ id }: { id: string }) {
         </div>
         <div className="flex gap-2">
           {bc.status === "draft" || bc.status === "paused" ? (
-            <Button onClick={async () => { const r = await control("start"); if (r) toast.success("Iniciado"); }}>
-              <Play className="size-4 mr-1" /> Iniciar
-            </Button>
+            (() => {
+              const missing: string[] = [];
+              if (!bc.whatsapp_instance_id) missing.push("Selecione uma instância (aba Configuração)");
+              if (!bc.audience_frozen_at) missing.push("Congele a audiência (aba Audiência)");
+              const disabled = missing.length > 0;
+              return (
+                <Button
+                  disabled={disabled}
+                  title={disabled ? missing.join(" · ") : undefined}
+                  onClick={async () => { const r = await control("start"); if (r) toast.success("Iniciado"); }}
+                >
+                  <Play className="size-4 mr-1" /> Iniciar
+                </Button>
+              );
+            })()
           ) : bc.status === "running" ? (
             <Button variant="outline" onClick={async () => { const r = await control("pause"); if (r) toast.success("Pausado"); }}>
               <Pause className="size-4 mr-1" /> Pausar
@@ -232,6 +244,18 @@ function BroadcastEditor({ id }: { id: string }) {
           ) : null}
         </div>
       </div>
+
+      {bc.status === "draft" && (!bc.whatsapp_instance_id || !bc.audience_frozen_at) && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="pt-4 text-sm">
+            <div className="font-medium mb-1">Antes de iniciar, conclua:</div>
+            <ul className="list-disc pl-5 text-muted-foreground space-y-0.5">
+              {!bc.whatsapp_instance_id && <li>Selecione uma instância do WhatsApp na aba <strong>Configuração</strong>.</li>}
+              {!bc.audience_frozen_at && <li>Congele a audiência na aba <strong>Audiência</strong> (define quem vai receber).</li>}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="dashboard">
         <TabsList>
