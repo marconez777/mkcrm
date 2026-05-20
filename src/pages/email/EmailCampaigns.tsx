@@ -53,6 +53,7 @@ type Segment = { id: string; name: string };
 export default function EmailCampaigns() {
   const { membership, user } = useAuth();
   const clinicId = membership?.clinic_id;
+  const confirm = useConfirm();
   const [items, setItems] = useState<Campaign[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
