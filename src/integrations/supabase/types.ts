@@ -2001,6 +2001,188 @@ export type Database = {
         }
         Relationships: []
       }
+      form_definitions: {
+        Row: {
+          active: boolean
+          clinic_id: string
+          created_at: string
+          default_pipeline_stage_id: string | null
+          default_tags: string[]
+          field_map: Json
+          form_key: string
+          id: string
+          integration_id: string
+          last_submission_at: string | null
+          name: string
+          source_page: string | null
+          total_submissions: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          clinic_id: string
+          created_at?: string
+          default_pipeline_stage_id?: string | null
+          default_tags?: string[]
+          field_map?: Json
+          form_key: string
+          id?: string
+          integration_id: string
+          last_submission_at?: string | null
+          name: string
+          source_page?: string | null
+          total_submissions?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          clinic_id?: string
+          created_at?: string
+          default_pipeline_stage_id?: string | null
+          default_tags?: string[]
+          field_map?: Json
+          form_key?: string
+          id?: string
+          integration_id?: string
+          last_submission_at?: string | null
+          name?: string
+          source_page?: string | null
+          total_submissions?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_definitions_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "form_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_integrations: {
+        Row: {
+          allowed_domains: string[]
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          default_pipeline_stage_id: string | null
+          default_tags: string[]
+          id: string
+          last_submission_at: string | null
+          name: string
+          previous_token: string | null
+          previous_token_expires_at: string | null
+          slug: string
+          status: string
+          token: string
+          total_submissions: number
+          updated_at: string
+        }
+        Insert: {
+          allowed_domains?: string[]
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          default_pipeline_stage_id?: string | null
+          default_tags?: string[]
+          id?: string
+          last_submission_at?: string | null
+          name: string
+          previous_token?: string | null
+          previous_token_expires_at?: string | null
+          slug: string
+          status?: string
+          token?: string
+          total_submissions?: number
+          updated_at?: string
+        }
+        Update: {
+          allowed_domains?: string[]
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          default_pipeline_stage_id?: string | null
+          default_tags?: string[]
+          id?: string
+          last_submission_at?: string | null
+          name?: string
+          previous_token?: string | null
+          previous_token_expires_at?: string | null
+          slug?: string
+          status?: string
+          token?: string
+          total_submissions?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      form_submissions: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          error: string | null
+          form_definition_id: string | null
+          form_key: string | null
+          id: string
+          integration_id: string
+          ip: string | null
+          is_new_lead: boolean
+          lead_id: string | null
+          payload: Json
+          source_page: string | null
+          status: string
+          user_agent: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          error?: string | null
+          form_definition_id?: string | null
+          form_key?: string | null
+          id?: string
+          integration_id: string
+          ip?: string | null
+          is_new_lead?: boolean
+          lead_id?: string | null
+          payload?: Json
+          source_page?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          error?: string | null
+          form_definition_id?: string | null
+          form_key?: string | null
+          id?: string
+          integration_id?: string
+          ip?: string | null
+          is_new_lead?: boolean
+          lead_id?: string | null
+          payload?: Json
+          source_page?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_form_definition_id_fkey"
+            columns: ["form_definition_id"]
+            isOneToOne: false
+            referencedRelation: "form_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "form_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
