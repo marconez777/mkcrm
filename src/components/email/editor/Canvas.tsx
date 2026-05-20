@@ -111,18 +111,43 @@ function BlockPreview({
           )}
         </div>
       );
-    case "signature":
+    case "signature": {
+      const size = b.avatarSize || 80;
       return (
-        <div className="flex gap-3 items-start border-t pt-3 text-sm">
-          {b.avatarSrc && <img src={b.avatarSrc} className="w-12 h-12 rounded-full object-cover" alt="" />}
-          <div>
-            <div className="font-bold">{b.name}</div>
+        <div className="flex gap-4 items-start border-t pt-4 text-sm">
+          {b.avatarSrc ? (
+            <img
+              src={b.avatarSrc}
+              style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+              alt=""
+            />
+          ) : (
+            <div
+              style={{ width: size, height: size, lineHeight: `${size}px`, fontSize: size * 0.35 }}
+              className="rounded-full bg-muted text-center font-bold flex-shrink-0"
+            >
+              {(b.name || "?").slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="leading-snug pt-1">
+            <div className="font-bold text-foreground">{b.name}</div>
             {b.role && <div className="text-muted-foreground">{b.role}</div>}
-            {b.extra && <div className="mt-1">{b.extra}</div>}
-            {b.site && <div className="mt-1 text-primary">{b.site}</div>}
+            {b.extra && <div className="text-muted-foreground">{b.extra}</div>}
+            {b.site && (
+              <a
+                href={b.site.startsWith("http") ? b.site : `https://${b.site}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {b.site.replace(/^https?:\/\//, "")}
+              </a>
+            )}
           </div>
         </div>
       );
+    }
     case "youtube": {
       const m = b.url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
       const id = m?.[1];
