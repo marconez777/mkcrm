@@ -37,26 +37,44 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     if (!token) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
 
-    // Apenas super admin
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    // Bypass para chamadas com service role (uso interno via JWT role=service_role)
+    // Bypass para chamadas com service role (uso interno)
     let isServiceRole = false;
     try {
       const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
       isServiceRole = payload?.role === "service_role";
     } catch {}
+
+    const body = await req.json().catch(() => ({}));
+    const { action, clinic_id, domain, domain_id, region = "us-east-1" } = body ?? {};
+
     if (!isServiceRole) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
       const { data: u } = await userClient.auth.getUser();
       if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
-      const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
-      if (!isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
-    }
 
-    const body = await req.json().catch(() => ({}));
-    const { action, clinic_id, domain, domain_id, region = "us-east-1" } = body ?? {};
+      const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
+      if (!isSuper) {
+        // Permite admin/owner da clínica alvo
+        let targetClinic: string | null = clinic_id ?? null;
+        if (!targetClinic && domain_id) {
+          const { data: d } = await admin.from("email_domains").select("clinic_id").eq("id", domain_id).maybeSingle();
+          targetClinic = d?.clinic_id ?? null;
+        }
+        if (!targetClinic) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+        const { data: member } = await admin
+          .from("clinic_members")
+          .select("role")
+          .eq("user_id", u.user.id)
+          .eq("clinic_id", targetClinic)
+          .maybeSingle();
+        if (!member || !["owner", "admin"].includes(member.role)) {
+          return jsonResponse({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+    }
 
     if (action === "create") {
       if (!clinic_id || !domain) return jsonResponse({ error: "missing clinic_id or domain" }, { status: 400 });
