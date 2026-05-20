@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Loader2, Plus, Copy, RotateCcw, Trash2, Eye, EyeOff, Download, ArrowLeft, ExternalLink } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Integration = {
   id: string;
