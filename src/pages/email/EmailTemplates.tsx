@@ -160,7 +160,7 @@ export default function EmailTemplates() {
   async function sendTest(t: Tpl) {
     if (!clinicId) { toast.error("Clínica não identificada"); return; }
     if (!testEmail) { toast.error("Informe um email para teste"); return; }
-    setBusy(true);
+    setSendingTest(true);
     try {
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
@@ -177,7 +177,7 @@ export default function EmailTemplates() {
     } catch (e: any) {
       toast.error(e.message);
     } finally {
-      setBusy(false);
+      setSendingTest(false);
     }
   }
 
