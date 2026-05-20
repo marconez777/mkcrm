@@ -1715,7 +1715,7 @@ export type Database = {
           id: string
           lead_id: string | null
           name: string | null
-          segment_id: string
+          segment_id: string | null
         }
         Insert: {
           added_by?: string | null
@@ -1725,7 +1725,7 @@ export type Database = {
           id?: string
           lead_id?: string | null
           name?: string | null
-          segment_id: string
+          segment_id?: string | null
         }
         Update: {
           added_by?: string | null
@@ -1735,7 +1735,7 @@ export type Database = {
           id?: string
           lead_id?: string | null
           name?: string | null
-          segment_id?: string
+          segment_id?: string | null
         }
         Relationships: [
           {
