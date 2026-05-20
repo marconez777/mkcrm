@@ -100,24 +100,34 @@ Deno.serve(async (req) => {
 
     // Resolve recipients
     let recipients: Array<{ email: string; name: string | null; lead_id: string | null }> = [];
+    const seen = new Set<string>();
+    const pushRec = (email: string, name: string | null, lead_id: string | null) => {
+      const k = String(email).toLowerCase();
+      if (!k || !/@/.test(k) || seen.has(k)) return;
+      seen.add(k);
+      recipients.push({ email: k, name, lead_id });
+    };
 
     if (campaign.test_email) {
-      recipients = [{ email: campaign.test_email, name: null, lead_id: null }];
+      pushRec(campaign.test_email, null, null);
     } else if (campaign.segment_id) {
       const { data: resolved, error: rErr } = await supabase.rpc("resolve_email_segment", { _segment_id: campaign.segment_id });
-      if (rErr) {
-        console.error("resolve_email_segment error:", rErr);
-      }
-      const seen = new Set<string>();
-      recipients = ((resolved as any[]) ?? [])
-        .filter((r: any) => r?.email && /@/.test(r.email))
-        .filter((r: any) => {
-          const k = String(r.email).toLowerCase();
-          if (seen.has(k)) return false;
-          seen.add(k);
-          return true;
-        })
-        .map((r: any) => ({ email: r.email, name: r.name ?? null, lead_id: r.lead_id ?? null }));
+      if (rErr) console.error("resolve_email_segment error:", rErr);
+      for (const r of ((resolved as any[]) ?? [])) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
+    } else {
+      // "Todos os leads" — inclui leads da clínica + todos os contatos manuais (com ou sem segmento)
+      const { data: leads } = await supabase
+        .from("leads")
+        .select("id, email, name")
+        .eq("clinic_id", campaign.clinic_id)
+        .not("email", "is", null);
+      for (const l of (leads ?? [])) pushRec((l as any).email ?? "", (l as any).name ?? null, (l as any).id ?? null);
+
+      const { data: manual } = await supabase
+        .from("email_segment_contacts")
+        .select("email, name, lead_id")
+        .eq("clinic_id", campaign.clinic_id);
+      for (const c of (manual ?? [])) pushRec((c as any).email ?? "", (c as any).name ?? null, (c as any).lead_id ?? null);
     }
 
     // enqueue em paralelo (chunks) para não estourar tempo da edge function

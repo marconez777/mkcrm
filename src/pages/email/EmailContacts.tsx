@@ -139,12 +139,11 @@ export default function EmailContacts() {
   async function addManual() {
     const email = addEmail.trim().toLowerCase();
     if (!/.+@.+\..+/.test(email)) return toast.error("E-mail inválido");
-    if (!addSegment) return toast.error("Escolha um segmento");
     if (!clinicId) return;
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("email_segment_contacts").insert({
       clinic_id: clinicId,
-      segment_id: addSegment,
+      segment_id: addSegment && addSegment !== "__none" ? addSegment : null,
       email,
       name: addName.trim() || null,
       added_by: user?.id,
@@ -200,7 +199,6 @@ export default function EmailContacts() {
 
   async function doImport() {
     if (!clinicId) return;
-    if (!importSegment) return toast.error("Escolha um segmento");
     if (!mapEmail) return toast.error("Mapeie a coluna de e-mail");
     setImporting(true);
     try {
@@ -221,7 +219,7 @@ export default function EmailContacts() {
 
       const payload = rows.map((r) => ({
         clinic_id: clinicId,
-        segment_id: importSegment,
+        segment_id: importSegment && importSegment !== "__none" ? importSegment : null,
         email: r.email,
         name: r.name,
         added_by: user?.id,
@@ -310,15 +308,16 @@ export default function EmailContacts() {
                       </div>
                     </div>
                     <div>
-                      <Label>Segmento de destino *</Label>
-                      <Select value={importSegment} onValueChange={setImportSegment}>
-                        <SelectTrigger><SelectValue placeholder="Escolha um segmento" /></SelectTrigger>
+                      <Label>Segmento de destino</Label>
+                      <Select value={importSegment || "__none"} onValueChange={setImportSegment}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none">Sem segmento (contatos gerais)</SelectItem>
                           {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Contatos serão adicionados como manuais no segmento escolhido.
+                        "Sem segmento" inclui esses contatos em campanhas "Todos os leads".
                       </p>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -353,10 +352,11 @@ export default function EmailContacts() {
                   <Input value={addName} onChange={(e) => setAddName(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Segmento *</Label>
-                  <Select value={addSegment} onValueChange={setAddSegment}>
-                    <SelectTrigger><SelectValue placeholder="Escolha um segmento" /></SelectTrigger>
+                  <Label>Segmento</Label>
+                  <Select value={addSegment || "__none"} onValueChange={setAddSegment}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none">Sem segmento (contatos gerais)</SelectItem>
                       {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
