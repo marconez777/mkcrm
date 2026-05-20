@@ -1,98 +1,88 @@
-## Objetivo
 
-Tornar a criação de segmentos prática (sem editar JSON), introduzir o conceito de "origem de formulário" no lead, permitir múltiplos gatilhos OR por segmento e suportar segmentos estáticos com contatos adicionados manualmente.
+# Integração de formulários → CRM
 
-## Mudanças de dados
+Hoje já existe a edge function `external-lead-capture` (token global `EXTERNAL_LEAD_CAPTURE_TOKEN`). Vamos evoluir para uma integração de formulários **por clínica**, com plugin WordPress oficial, snippet para sites Lovable/HTML e uma tela completa no CRM.
 
-### 1. `leads.form_source` (novo)
-- Coluna `form_source text` nos `leads`, indexada.
-- Valor livre identificando o formulário de origem (ex.: `teste-depressao`, `teste-ansiedade`, `landing-cetamina`).
-- Preenchido por:
-  - Webhook/integração de formulário (passa a aceitar `form_source` no payload).
-  - Edição manual no detalhe do lead (campo simples).
-  - Migração inicial opcional: copiar de `custom_fields.interesse` quando existir.
+## 1. Backend
 
-### 2. `email_segments` — novo modelo de filtros
-Sem alterar a tabela, evoluímos o JSON em `filters` para o formato:
-```json
-{
-  "match": "any",                  // sempre OR por enquanto
-  "rules": [
-    { "type": "form_source", "values": ["teste-depressao", "teste-ansiedade"] },
-    { "type": "tag", "values": ["lead-quente"] },
-    { "type": "stage", "stage_id": "..." },
-    { "type": "has_email" },
-    { "type": "utm_campaign", "values": ["black-friday"] }
-  ],
-  "kind": "dynamic"                // "dynamic" | "static"
-}
-```
-- Segmento **dynamic**: avaliado por filtros sobre `leads`.
-- Segmento **static**: ignora `rules`; público vem da nova tabela `email_segment_contacts`.
-- Migração leve converte segmentos antigos (`{tags:[...]}` etc.) para o novo formato sem perda.
+### Tabelas novas (migration)
 
-### 3. `email_segment_contacts` (nova tabela, para segmentos estáticos e contatos avulsos)
-Colunas-chave: `segment_id`, `clinic_id`, `email`, `name`, `lead_id` (opcional), `added_by`, `created_at`. UNIQUE `(segment_id, email)`. RLS por clínica + feature `email_marketing`.
+- **`form_integrations`** — uma fonte de formulários por clínica
+  - clínica, nome, slug, `token` (gerado, único, rotacionável), domínio permitido, status (ativo/pausado), `default_pipeline_stage_id`, `default_tags`, `created_at`.
+- **`form_definitions`** — cada formulário detectado/configurado
+  - integration, `form_key` (ex.: `cf7-id-42`, `elementor-widget-x`, `lovable-contato`), nome amigável, página/URL, `field_map` (jsonb: `{ name: "your-name", email: "your-email", phone: "tel-123", custom: {...} }`), última submissão, total recebido, ativo.
+- **`form_submissions`** — log bruto de cada envio
+  - integration, form_definition, payload original, ip/UA, lead criado/atualizado, status (ok/erro/dedupe), erro, created_at.
 
-- Permite adicionar e-mails que **não** são leads (contatos avulsos importados/manuais).
-- Para segmentos `dynamic`, esta tabela funciona como "inclusões extras".
+RLS: tudo escopado por `clinic_id` via `has_clinic_access`. Token validado server-side (não exposto ao cliente).
 
-### 4. Resolver destinatários
-Função RPC `resolve_email_segment(segment_id uuid)` que devolve `(email, name, lead_id)`:
-- `dynamic`: aplica `rules` sobre `leads` (OR) + união com `email_segment_contacts`.
-- `static`: somente `email_segment_contacts`.
+### Edge functions
 
-Edge function `dispatch-campaign` e `email-automations-tick` passam a usar este RPC em vez da query atual sobre `leads`.
+- **`forms-ingest`** (nova, pública, CORS aberto): substitui o uso direto de `external-lead-capture` para formulários. Valida `x-form-token`, identifica `form_integration`, faz upsert de `form_definitions` (auto-descoberta quando `form_key` novo aparece), aplica `field_map`, chama a mesma lógica de upsert de lead + `lead_events` (`form_submission`), grava `form_submissions`, retorna `{ ok, lead_id, deduped }`.
+- **`forms-admin`** (autenticada): CRUD de integrações/forms (criar integração, rotacionar token, pausar, editar field_map, deletar form_definition).
+- `external-lead-capture` continua funcionando para compatibilidade.
 
-## Mudanças de UI
+Segurança: rate-limit por token (ex.: 60 req/min por IP), validação Zod, normalização de telefone BR já existente, dedupe (clinic_id + phone/email) 60s já existente.
 
-### `EmailSegments.tsx` — builder visual
-- Substitui o `<Textarea>` JSON por um **rule builder**:
-  - Toggle no topo: **Dinâmico** (por regras) vs **Estático** (lista manual).
-  - Para Dinâmico: botão "Adicionar gatilho" abre menu com tipos: *Origem do formulário*, *Tag*, *Etapa do pipeline*, *Tem e-mail*, *Campanha UTM*.
-    - Cada regra é um chip/linha com seletor de valores (multi-select para form_source/tag/utm).
-    - Texto fixo "Lead entra se atender **qualquer** uma das regras" (OR).
-  - Para Estático: card com lista de contatos + botão "Adicionar contato" (form: nome, e-mail) e "Importar CSV" (etapa simples; podemos cortar CSV nesta primeira leva se preferir).
-- Botão "Pré-visualizar" passa a chamar `resolve_email_segment` e mostra contagem + amostra dos 5 primeiros e-mails.
-- Cards da lista exibem badge `Dinâmico`/`Estático` e a contagem de destinatários atual.
+## 2. Plugin WordPress
 
-### Detalhe do lead
-- Campo "Origem do formulário" (`form_source`) editável, com autocomplete dos valores já usados na clínica.
+Pasta `wp-plugin/mk-crm-forms/` (entregue como zip para download na tela do CRM).
 
-### Webhook de formulários
-- `dispatch-campaign` não muda. O endpoint público que recebe leads (a confirmar onde está — provavelmente `public-lead-intake` ou similar) passa a aceitar e gravar `form_source`. Se a função não existir hoje, documentamos a chave esperada no payload e gravamos via integração existente (Zapier/Webhook).
+- Tela de configurações em `Settings → MK CRM`: campos `API URL` (fixo do projeto), `Form Token` (cola da integração criada no CRM).
+- Hooks automáticos para os principais form builders:
+  - **Contact Form 7**: `wpcf7_mail_sent`
+  - **Elementor Forms**: `elementor_pro/forms/new_record`
+  - **WPForms**: `wpforms_process_complete`
+  - **Gravity Forms**: `gform_after_submission`
+  - **Fluent Forms**: `fluentform/submission_inserted`
+- Envia `{ form_key, form_name, source_page, fields }` para `forms-ingest` com header `x-form-token`.
+- Mapeamento padrão de campos comuns (name/email/phone/tel/telefone/whatsapp/mensagem); campos extras vão em `extra`.
+- Log local opcional + reenvio automático em caso de falha (3 tentativas).
 
-## Compatibilidade
+## 3. Snippet para sites Lovable / HTML puro
 
-- Segmentos antigos continuam funcionando: leitor entende tanto `{tags:[...]}` quanto `{rules:[...]}`.
-- `dispatch-campaign` migra para usar `resolve_email_segment` (uma única fonte de verdade).
+Snippet `<script>` curto (servido inline na UI), variante do tracking-pixel atual:
+- Anexa `submit` listener em `document` para qualquer `<form>`.
+- Detecta inputs por `name`/`type` (email, tel, name) ou `data-mk-field="phone"`.
+- Não bloqueia o submit original — envia em paralelo via `navigator.sendBeacon` ou `fetch keepalive`.
+- Lê `visitor_id`/`session_id` do cookie do tracking-pixel para atribuição.
+- Atributos opcionais no `<form>`: `data-mk-form="contato-home"`, `data-mk-ignore` para pular.
 
-## Detalhes técnicos
+## 4. UI no CRM — tela completa
 
-```text
-email_segments.filters (JSON novo)
-├── kind: "dynamic" | "static"
-├── match: "any"
-└── rules[]
-     ├── form_source  → leads.form_source IN values
-     ├── tag          → leads.tags && values
-     ├── stage        → leads.stage_id = stage_id
-     ├── has_email    → leads.email IS NOT NULL
-     └── utm_campaign → leads.utm_campaign IN values
+Nova aba **"Formulários"** dentro de **Settings → Integrações** (ou rota dedicada `/settings/forms`).
 
-email_segment_contacts
-└── usados como união (dynamic) ou fonte única (static)
-```
+**Lista de integrações:**
+- Cards por integração: nome, domínio, status, total recebido nos últimos 7d, último envio.
+- Botões: **Criar integração**, **Editar**, **Rotacionar token**, **Pausar**, **Excluir**.
 
-Arquivos previstos:
-- Migration: add `leads.form_source` + index; create `email_segment_contacts` + RLS; create `resolve_email_segment` RPC.
-- `src/pages/email/EmailSegments.tsx`: builder visual + modo estático + lista de contatos.
-- `src/components/email/SegmentRuleBuilder.tsx` (novo): UI dos chips de regras.
-- `src/components/email/SegmentContactsManager.tsx` (novo): lista + adicionar contato.
-- `src/pages/Conversations`/detalhe do lead: input `form_source` (mínimo).
-- `supabase/functions/dispatch-campaign/index.ts`: trocar query por RPC `resolve_email_segment`.
+**Detalhe da integração** (drawer/página):
+- Aba **Visão geral**: token (com copy + olho/esconder), URL do endpoint, contadores.
+- Aba **Como instalar**:
+  - Tab "WordPress": botão de download do `.zip` + passo a passo (instalar plugin → colar token).
+  - Tab "Lovable/HTML": bloco copiável com `<script src="…/forms.js" data-token="…">` + exemplo de `<form>`.
+  - Tab "API direta": exemplo `curl` para devs.
+- Aba **Formulários detectados**: tabela das `form_definitions` (auto-descobertas na primeira submissão). Editar nome, field_map (mapear campo bruto → name/email/phone/custom_field), stage padrão de Kanban, tags padrão, pausar.
+- Aba **Submissões**: log das últimas 200 com payload bruto, status, link para o lead gerado, reprocessar.
 
-## Fora de escopo (proponho deixar para depois)
-- Importação CSV em massa para segmentos estáticos (posso incluir se quiser).
-- Operador AND/NOT entre regras (hoje só OR, como você definiu).
-- Página dedicada de "Contatos" global desvinculada de segmentos.
+**Lead drawer**: nova entrada na timeline `form_submission` com nome do formulário e payload (já cabe na timeline existente via `lead_events`).
+
+## 5. Detalhes técnicos
+
+- Token: `mkf_` + 32 chars random hex, único, rotacionável (mantém o antigo válido por 24h pós-rotação).
+- CORS no `forms-ingest`: `Access-Control-Allow-Origin` valida contra `allowed_domains` da integração (ou `*` se vazio).
+- Validação Zod no payload; limite 64KB.
+- `form_submissions.payload` truncado a 32KB para não estourar.
+- Atribuição: se `visitor_id` vier, reaproveita lógica existente (`tracking_identity_links` + UTMs da última sessão).
+- Tipos Supabase regerados após a migration.
+
+## 6. Ordem de entrega
+
+1. Migration (3 tabelas + RLS + índices).
+2. Edge function `forms-ingest` + `forms-admin`.
+3. Tela "Formulários" no CRM (lista, criação, detalhe, log).
+4. Snippet JS hospedado + bloco copy-paste na UI.
+5. Plugin WordPress (`.zip` baixável pela UI).
+6. Atualizar `docs/TRACKING.md` com a nova seção "Formulários".
+
+Aprovando, eu começo pela migration e depois sigo a ordem acima.

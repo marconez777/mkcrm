@@ -193,6 +193,7 @@ export default function SettingsPage() {
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
+            <TabsTrigger value="forms">Formulários</TabsTrigger>
             {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
             {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
@@ -337,6 +338,20 @@ export default function SettingsPage() {
 
           <TabsContent value="quick-replies" className="space-y-6">
             <QuickRepliesCard />
+          </TabsContent>
+
+          <TabsContent value="forms" className="space-y-4">
+            <Card className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Formulários de sites</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Conecte formulários de sites WordPress, Lovable ou HTML puro. Cada envio vira lead automaticamente.
+                  </p>
+                </div>
+                <Link to="/settings/forms"><Button variant="outline">Abrir</Button></Link>
+              </div>
+            </Card>
           </TabsContent>
 
           {showEmail && (
