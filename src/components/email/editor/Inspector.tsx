@@ -189,6 +189,44 @@ export default function Inspector({ block, onChange }: Props) {
 
       {block.type === "signature" && (
         <>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                const { id, type, ...data } = block as any;
+                try {
+                  localStorage.setItem("email:default-signature", JSON.stringify(data));
+                  toast.success("Assinatura salva como padrão");
+                } catch {
+                  toast.error("Não foi possível salvar");
+                }
+              }}
+            >
+              Salvar como padrão
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                try {
+                  const raw = localStorage.getItem("email:default-signature");
+                  if (!raw) { toast.error("Nenhuma assinatura padrão salva"); return; }
+                  const data = JSON.parse(raw);
+                  onChange({ ...block, ...data } as EmailBlock);
+                  toast.success("Assinatura padrão carregada");
+                } catch {
+                  toast.error("Falha ao carregar");
+                }
+              }}
+            >
+              Carregar padrão
+            </Button>
+          </div>
           <Field label="Avatar">
             <AvatarUpload value={block.avatarSrc} onChange={(v) => upd({ avatarSrc: v })} />
           </Field>
