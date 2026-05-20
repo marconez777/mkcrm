@@ -294,7 +294,7 @@ export default function EmailTemplates() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Assunto</Label>
-                  <Input value={editing.subject} onChange={(e) => setEditing({ ...editing, subject: e.target.value })} />
+                  <Input value={editing.subject} onChange={(e) => setEditing({ ...editing, subject: e.target.value, name: editing.name || e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Preheader (texto curto que aparece após o assunto)</Label>
