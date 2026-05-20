@@ -154,7 +154,7 @@ export default function EmailTemplates() {
   }
 
   async function remove(t: Tpl) {
-    if (!confirm(`Excluir template "${t.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir template "${t.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_templates").delete().eq("id", t.id);
     if (error) toast.error(error.message); else { toast.success("Excluído"); load(); }
   }
