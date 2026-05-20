@@ -13,16 +13,16 @@ Deno.serve(async (req) => {
     );
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-    if (token !== SERVICE_ROLE_KEY) {
-      // permite chamada autenticada por admin via JWT
+    const isServiceRole = token === SERVICE_ROLE_KEY;
+
+    let userId: string | null = null;
+    if (!isServiceRole) {
       const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
       const { data: u } = await userClient.auth.getUser();
       if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
-      const { data: isAdmin } = await supabase.rpc("is_clinic_admin", { _user_id: u.user.id });
-      const { data: isSuper } = await supabase.rpc("is_super_admin", { _user_id: u.user.id });
-      if (!isAdmin && !isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+      userId = u.user.id;
     }
 
     const body = await req.json().catch(() => ({}));
@@ -35,6 +35,20 @@ Deno.serve(async (req) => {
       .eq("id", campaign_id)
       .maybeSingle();
     if (cErr || !campaign) return jsonResponse({ error: cErr?.message || "campaign not found" }, { status: 404 });
+
+    if (!isServiceRole && userId) {
+      const { data: isSuper } = await supabase.rpc("is_super_admin", { _user_id: userId });
+      if (!isSuper) {
+        const { data: mem } = await supabase
+          .from("clinic_members")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("clinic_id", campaign.clinic_id)
+          .in("role", ["owner", "admin"])
+          .maybeSingle();
+        if (!mem) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     // === TEST MODE — não muda status, envia 1 email força ===
     if (test_only) {
