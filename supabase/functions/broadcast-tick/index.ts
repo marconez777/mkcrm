@@ -161,15 +161,25 @@ Deno.serve(async (req) => {
 
         let ok = false;
         let errText: string | null = null;
+        let evoResp: any = null;
+        let evoStatus = 0;
         try {
           const resp = await evoFetch(
             instance,
             `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
             { method: "POST", body: JSON.stringify({ number: r.phone, text: content }) },
           );
-          const data = await resp.json().catch(() => ({}));
-          if (resp.ok) { ok = true; }
-          else { errText = `HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 200)}`; }
+          evoStatus = resp.status;
+          evoResp = await resp.json().catch(() => ({}));
+          if (resp.ok) {
+            // Heurística: Evolution pode retornar 200 mesmo quando o número não existe.
+            // Considera entregue só se vier um id de mensagem (messageId ou key.id).
+            const messageId = evoResp?.key?.id ?? evoResp?.messageId ?? evoResp?.message?.id ?? null;
+            if (messageId) { ok = true; }
+            else { errText = `Evolution 200 sem messageId (numero pode nao existir no WhatsApp): ${JSON.stringify(evoResp).slice(0, 300)}`; }
+          } else {
+            errText = `HTTP ${resp.status}: ${JSON.stringify(evoResp).slice(0, 300)}`;
+          }
         } catch (e) { errText = String(e); }
 
         if (ok) {
@@ -189,7 +199,14 @@ Deno.serve(async (req) => {
 
           await supabase.from("broadcast_events").insert({
             broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
-            type: "sent", payload: { part: newPartsSent, total: parts.length, group: group.position },
+            type: "sent",
+            payload: {
+              part: newPartsSent,
+              total: parts.length,
+              group: group.position,
+              evolution_status: evoStatus,
+              evolution_response: evoResp,
+            },
           });
 
           if (allDone) {
@@ -224,7 +241,8 @@ Deno.serve(async (req) => {
           }).eq("id", r.id);
           await supabase.from("broadcast_events").insert({
             broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
-            type: "failed", payload: { error: errText },
+            type: "failed",
+            payload: { error: errText, evolution_status: evoStatus, evolution_response: evoResp },
           });
         }
       }
