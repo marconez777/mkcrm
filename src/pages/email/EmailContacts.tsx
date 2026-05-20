@@ -10,10 +10,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, Plus, Trash2, Download, Search, Loader2, Users } from "lucide-react";
+import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
 
 type Segment = { id: string; name: string };
 type Contact = {
@@ -51,6 +55,10 @@ export default function EmailContacts() {
   const [importSegment, setImportSegment] = useState<string>("");
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // delete confirm
+  const [toDelete, setToDelete] = useState<Contact | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -147,17 +155,23 @@ export default function EmailContacts() {
     load();
   }
 
-  async function removeContact(contact: Contact) {
-    if (!confirm("Excluir contato permanentemente?")) return;
-    if (contact.source === "manual") {
-      const { error } = await supabase.from("email_segment_contacts").delete().eq("id", contact.id);
-      if (error) return toast.error(error.message);
-    } else {
-      const { error } = await supabase.from("leads").delete().eq("id", contact.id);
-      if (error) return toast.error(error.message);
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      if (toDelete.source === "manual") {
+        const { error } = await supabase.from("email_segment_contacts").delete().eq("id", toDelete.id);
+        if (error) return toast.error(error.message);
+      } else {
+        const { error } = await supabase.from("leads").delete().eq("id", toDelete.id);
+        if (error) return toast.error(error.message);
+      }
+      setContacts((c) => c.filter((x) => !(x.source === toDelete.source && x.id === toDelete.id)));
+      toast.success("Contato excluído");
+      setToDelete(null);
+    } finally {
+      setDeleting(false);
     }
-    setContacts((c) => c.filter((x) => !(x.source === contact.source && x.id === contact.id)));
-    toast.success("Contato excluído");
   }
 
   function handleFile(file: File) {
@@ -417,7 +431,7 @@ export default function EmailContacts() {
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{c.segment_name ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => removeContact(c)}>
+                      <Button size="sm" variant="ghost" onClick={() => setToDelete(c)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </td>
@@ -433,6 +447,37 @@ export default function EmailContacts() {
           )}
         </Card>
       )}
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+            </div>
+            <AlertDialogTitle className="text-center">Excluir contato?</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              {toDelete?.email}
+              <br />
+              <span className="text-xs">
+                {toDelete?.source === "lead"
+                  ? "Esta ação removerá o lead permanentemente do CRM."
+                  : "Esta ação removerá o contato do segmento permanentemente."}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
