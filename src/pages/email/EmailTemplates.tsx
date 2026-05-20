@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Trash2, Copy, Send, Loader2, FolderPlus, Folder } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Folder = { id: string; name: string; sort_order: number };
 type Tpl = {
