@@ -493,7 +493,7 @@ export function AutomationLeadsSheet({
 }
 
 async function fetchLeads(args: {
-  automationId: string;
+  automationId: string | null;
   relatedTable: string;
   bucket: Bucket;
   stepSlug?: string;
@@ -501,6 +501,7 @@ async function fetchLeads(args: {
   const { automationId, relatedTable, bucket, stepSlug } = args;
 
   if (bucket === "enrolled") {
+    if (!automationId) return [];
     const { data } = await supabase
       .from("email_automation_enrollments")
       .select("lead_id, recipient_email, enrolled_at")
@@ -517,6 +518,53 @@ async function fetchLeads(args: {
       ts_label: "Inscrito em",
     }));
   }
+
+  if (bucket === "all") {
+    // Union queue (pending/failed) + logs — usado por campanhas pra mostrar todos os destinatários
+    const qReq = supabase
+      .from("email_queue")
+      .select("related_lead_id, recipient_email, scheduled_at, status, error")
+      .eq("related_lead_table", relatedTable)
+      .limit(5000);
+    const lReq = supabase
+      .from("email_logs")
+      .select("related_lead_id, recipient_email, sent_at, status")
+      .eq("related_lead_table", relatedTable)
+      .limit(5000);
+    const [{ data: qRows }, { data: lRows }] = await Promise.all([qReq, lReq]);
+    const byEmail = new Map<string, any>();
+    for (const r of (qRows ?? []) as any[]) {
+      const key = (r.recipient_email ?? "").toLowerCase();
+      byEmail.set(key, {
+        lead_id: r.related_lead_id,
+        email: r.recipient_email,
+        ts: r.scheduled_at,
+        ts_label: r.status === "failed" ? "Falhou em" : "Na fila desde",
+        extra: r.status === "failed" ? r.error ?? undefined : undefined,
+      });
+    }
+    for (const r of (lRows ?? []) as any[]) {
+      const key = (r.recipient_email ?? "").toLowerCase();
+      byEmail.set(key, {
+        lead_id: r.related_lead_id,
+        email: r.recipient_email,
+        ts: r.sent_at,
+        ts_label: "Enviado em",
+      });
+    }
+    const merged = Array.from(byEmail.values());
+    const leadIds = merged.map((r) => r.lead_id).filter(Boolean);
+    const names = await fetchLeadNames(leadIds);
+    return merged.map((r) => ({
+      id: r.lead_id ?? "_no_lead",
+      name: names.get(r.lead_id) ?? null,
+      email: r.email,
+      ts: r.ts,
+      ts_label: r.ts_label,
+      extra: r.extra,
+    }));
+  }
+
 
   if (bucket === "queued" || bucket === "failed") {
     // failed inclui email_queue.failed e email_logs failed/bounced/complained
