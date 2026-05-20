@@ -1,53 +1,29 @@
-## Objetivo
+## Problema
 
-Eliminar os pop-ups nativos do navegador (como o da imagem) e usar os modais bonitos já existentes no projeto (`ConfirmDialog` / `PromptDialog` via `useConfirm()` / `usePrompt()`).
-
-## O que vai mudar
-
-Todos os botões abaixo hoje abrem o pop-up cinza do navegador. Vou trocar por modal próprio (mesmo padrão usado em Agentes, Automações, Sequências, etc.).
-
-### Campanhas de e-mail (`/email/campaigns`)
-- "Enviar campanha agora?" (botão Enviar)
-- "Excluir campanha?" (lixeira)
-
-### Outras áreas de e-mail
-- **Segmentos**: excluir segmento
-- **Templates**: excluir pasta, excluir template
-- **Automações**: excluir automação
-- **Descadastros**: remover e-mail da lista
-- **Editor TipTap** (usado em templates): prompt de URL ao inserir link
-
-### Broadcasts WhatsApp (`/ai/broadcasts`)
-- Excluir campanha (lista)
-- Cancelar campanha (detalhe)
-- Apagar campanha permanentemente (detalhe)
-- Enviar teste agora (detalhe)
-- Excluir grupo
-
-### Tarefas (`/tasks`)
-- Excluir coluna do kanban
-
-### Configurações
-- **Formulários**: rotacionar token, excluir integração
-- **Conexões WhatsApp**: excluir conexão
-- **Admin → Domínios**: excluir domínio
-
-## Padrão aplicado
+Encontrei o bug em `supabase/functions/dispatch-campaign/index.ts` (linhas 111–112):
 
 ```ts
-const confirm = useConfirm();
-// ...
-if (!(await confirm({
-  title: `Enviar campanha "${c.name}" agora?`,
-  description: "Os e-mails serão enfileirados imediatamente.",
-  confirmLabel: "Enviar",
-}))) return;
+if (campaign.test_email) {
+  pushRec(campaign.test_email, null, null);   // ← envia SÓ pro test_email
+} else if (campaign.segment_id) {
+  // resolve segmento
+}
 ```
 
-E para ações destrutivas: `destructive: true`, label "Excluir". O TipTap recebe `usePrompt()` no lugar do `prompt()` nativo.
+Como você salvou um e-mail de teste no formulário da campanha, esse `if` casa primeiro e o segmento `Leads da Lista` (com 2 contatos) é totalmente ignorado no envio real. O `test_email` deveria valer **apenas** no modo "Enviar teste" (`test_only: true`), nunca no disparo real.
 
-## Arquivos editados
+## Correção
 
-`EmailCampaigns.tsx`, `EmailSegments.tsx`, `EmailTemplates.tsx`, `EmailAutomations.tsx`, `EmailUnsubscribes.tsx`, `TipTapEditor.tsx`, `Broadcasts.tsx`, `Tasks.tsx`, `SettingsForms.tsx`, `Settings.tsx`, `IntegrationsDomainsTable.tsx`.
+Remover o ramo `if (campaign.test_email)` da resolução de destinatários do envio real. A lógica fica:
 
-Nenhuma mudança de regra de negócio — só troca do mecanismo de confirmação.
+1. Se `segment_id` existir → usa `resolve_email_segment` (segmentos dinâmicos + contatos manuais do segmento).
+2. Senão → "Todos os leads" (leads da clínica + contatos manuais sem segmento, como já está).
+
+O `test_email` continua sendo usado normalmente no bloco `if (test_only)` acima (linhas 54–90) para o botão "Enviar teste".
+
+## Arquivo afetado
+
+- `supabase/functions/dispatch-campaign/index.ts` — remover linhas 111–112 e ajustar o `else if` para `if`.
+- Redeploy da função.
+
+Sem mudanças de schema ou frontend.
