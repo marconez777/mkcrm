@@ -378,8 +378,8 @@ export default function EmailTemplates() {
                 <p className="text-xs text-muted-foreground">Envia o template para um email de teste, ignorando cota e supressões.</p>
                 <div className="flex gap-2">
                   <Input placeholder="seu@email.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
-                  <Button onClick={() => editing && sendTest(editing)} disabled={busy || !editing?.id}>
-                    {busy ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Send className="mr-2 h-3 w-3" />}Enviar teste
+                  <Button onClick={() => editing && sendTest(editing)} disabled={sendingTest || !editing?.id}>
+                    {sendingTest ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Send className="mr-2 h-3 w-3" />}Enviar teste
                   </Button>
                 </div>
                 {!editing.id && <p className="text-xs text-muted-foreground">Salve o template primeiro para poder enviar teste.</p>}
