@@ -60,6 +60,7 @@ const EMPTY: Tpl = {
 export default function EmailTemplates() {
   const { membership } = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const clinicId = membership?.clinic_id;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
