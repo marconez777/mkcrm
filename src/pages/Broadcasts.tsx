@@ -477,7 +477,7 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
   );
 }
 
-function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze }: any) {
+function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
   const pipelineStages = useMemo(() => stages.filter((s: any) => s.pipeline_id === pipelineId), [stages, pipelineId]);
