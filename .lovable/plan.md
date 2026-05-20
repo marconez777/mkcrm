@@ -1,73 +1,40 @@
-## Objetivo
+## Contexto
 
-Adicionar um botão **Relatório** em cada automação de e-mail (tanto receitas prontas quanto personalizadas) que abre um modal com as métricas por passo, no mesmo estilo do print enviado. Cada métrica é clicável e abre uma lista lateral com os leads correspondentes.
+Entendi mal antes — `seguranca` na verdade é só o subdomínio CNAME que o Resend usa para tracking de cliques (links1.resend-dns.com). O domínio de envio real configurado e **já verificado** no Resend da ÓR é a raiz `clinicaohrpsiquiatria.com` (prints 2-4).
 
-## Onde
+Hoje no banco temos registrado o domínio errado:
+- `email_domains` → `seguranca.clinicaohrpsiquiatria.com` (status `pending`, resend_id `5b837948-...`)
 
-- `src/pages/email/EmailAutomations.tsx` — adicionar botão "Relatório" nos cards (presets + custom) e os 2 novos componentes abaixo.
-- Novo componente: `AutomationReportDialog` (no mesmo arquivo ou em `src/components/email/AutomationReportDialog.tsx`).
-- Novo componente: `AutomationLeadsSheet` (drawer lateral com lista de leads).
+Esse registro foi criado por engano e aponta para um domínio do Resend que não vai verificar (pois os DNS foram configurados na raiz, não no subdomínio).
 
-## Conteúdo do modal de relatório
+## Plano
 
-Cabeçalho:
-- Título: `Relatório · {nome da automação}`
-- Subtítulo: tipo de gatilho + `trigger_config` (filtros) em JSON compacto.
+1. **Buscar o Resend domain ID real** de `clinicaohrpsiquiatria.com`
+   - Chamar `GET https://api.resend.com/domains` usando a `RESEND_API_KEY_OR` da clínica ÓR
+   - Localizar a entrada `clinicaohrpsiquiatria.com` (status `verified`) e capturar o `id`
 
-Card destacado no topo:
-- **LEADS NA AUTOMAÇÃO** — total de `email_automation_enrollments` da automação. Clicável → abre sheet com a lista completa de leads inscritos.
+2. **Limpar o registro errado**
+   - Deletar do Resend o domínio fantasma `seguranca.clinicaohrpsiquiatria.com` (id `5b837948-77a2-4db8-8c6f-553aa8092df4`) via `DELETE /domains/{id}` com a key da ÓR
+   - Deletar a linha `c963c63a-dde2-4fe3-9269-49c71bc66e4c` de `email_domains`
 
-Tabela de passos:
-```
-#  Dia    Template                Na fila  Enviados  Abertos     Clicados    Falharam
-1  +0d    welcome                    25       14      2 (14%)     1 (7%)        0
-2  +3d    warmup-2                   34        5      1 (20%)     0 (0%)        0
-3  +7d    warmup-3                   38        1      1 (100%)    1 (100%)      0
-```
+3. **Inserir o domínio correto**
+   - Inserir nova linha em `email_domains`:
+     - `clinic_id` = `cf038458-457d-4c1a-9ac4-c88c3c8353a1` (ÓR)
+     - `domain` = `clinicaohrpsiquiatria.com`
+     - `resend_domain_id` = (id obtido no passo 1)
+     - `status` = `verified`
+     - `region` = `sa-east-1` (São Paulo, conforme print)
+     - `dns_records` = registros retornados pela API
+     - `last_checked_at` = now()
 
-Cada célula numérica é um botão que abre o sheet lateral filtrado para aquele bucket.
+4. **Validar**
+   - Reler `email_domains` e confirmar que a ÓR aparece com a raiz verificada
+   - Confirmar com você que `/settings/email` mostra o domínio correto
 
-Rodapé:
-- "Percentuais de Abertos e Clicados são calculados sobre o total de Enviados de cada passo."
-- Botões: **Atualizar** (refetch) e **Fechar**.
+## Nenhuma mudança de código
 
-## Fontes de dados
+A edge function `email-domain-manage` e o resto da integração já estão corretos — só foi cadastrado o subdomínio errado. Não é preciso alterar código, apenas dados.
 
-Tudo filtrado por `clinic_id` + `related_lead_table = 'automation_${automation.id}'` + `template_slug = step.template_slug`.
+## Pergunta antes de executar
 
-| Métrica | Tabela | Filtro |
-|---|---|---|
-| Leads na automação | `email_automation_enrollments` | `automation_id = X` |
-| Na fila | `email_queue` | `status = 'pending'` |
-| Enviados | `email_logs` | qualquer status (linha existe = foi enviado) |
-| Abertos | `email_logs` | `opened_at IS NOT NULL` |
-| Clicados | `email_logs` | `clicked_at IS NOT NULL` |
-| Falharam | `email_queue` `status='failed'` + `email_logs` `status IN ('bounced','complained','failed')` |
-
-Estratégia: 1 query por passo (ou 1 query agrupando por `template_slug`) — `select status, opened_at, clicked_at, bounced_at, related_lead_id, recipient_email` em `email_logs` filtrado por automação, e `select status, template_slug` em `email_queue`. Agregar no cliente.
-
-## Sheet lateral "AutomationLeadsSheet"
-
-Props: `automationId`, `bucket` (`enrolled` | `queued` | `sent` | `opened` | `clicked` | `failed`), `stepSlug` (quando aplicável), `title`.
-
-Conteúdo:
-- Total: "N leads"
-- Campo de busca por nome ou e-mail
-- Lista com: nome do lead, e-mail, timestamp do evento (ex.: "Aberto em 19/05/2026, 22:00") e link **Ver lead →** que abre `/leads/:id` (mesmo padrão usado nos drawers existentes).
-
-Fonte por bucket:
-- `enrolled` → `email_automation_enrollments` join `leads` por `lead_id`
-- `queued` → `email_queue` (pending) join `leads` por `related_lead_id`
-- `sent`/`opened`/`clicked`/`failed` → `email_logs` join `leads` por `related_lead_id` com filtro de coluna correspondente
-
-## Detalhes de UI
-
-- Botão "Relatório" pequeno (`variant="outline" size="sm"`) ao lado de "Editar"/"Trash".
-- Badges coloridos como no print: verde (enviados), azul (abertos), roxo (clicados), cinza (na fila), vermelho se falharam>0.
-- Coluna "Dia" mostra `+Nd` calculado de `step.delay_minutes` (já temos `toDays`).
-- Modal `max-w-3xl`, tabela rolável em telas estreitas.
-- Sheet usa `@/components/ui/sheet` (`side="right"`).
-
-## Sem alterações de backend/DB
-
-Todos os dados já existem nas tabelas atuais (`email_logs`, `email_queue`, `email_automation_enrollments`). Apenas frontend.
+O domínio raiz `clinicaohrpsiquiatria.com` muito provavelmente já é usado para receber e-mails normais da clínica (caixas de entrada em `@clinicaohrpsiquiatria.com`). Usar a raiz como sender significa que e-mails transacionais sairão como `algo@clinicaohrpsiquiatria.com`. Confirma que é isso que você quer? Caso prefira separar (boa prática para preservar a reputação do domínio principal), o ideal seria cadastrar um subdomínio dedicado tipo `notify.clinicaohrpsiquiatria.com` ou `mail.clinicaohrpsiquiatria.com` no Resend. Mas se você já decidiu pela raiz, sigo direto com o plano acima.
