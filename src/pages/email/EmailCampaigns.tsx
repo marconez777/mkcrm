@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
   id: string;
@@ -52,6 +53,7 @@ type Segment = { id: string; name: string };
 export default function EmailCampaigns() {
   const { membership, user } = useAuth();
   const clinicId = membership?.clinic_id;
+  const confirm = useConfirm();
   const [items, setItems] = useState<Campaign[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -134,7 +136,7 @@ export default function EmailCampaigns() {
   }
 
   async function dispatch(c: Campaign) {
-    if (!confirm(`Enviar campanha "${c.name}" agora?`)) return;
+    if (!(await confirm({ title: `Enviar campanha "${c.name}" agora?`, description: "Os e-mails serão enfileirados imediatamente.", confirmLabel: "Enviar" }))) return;
     setBusy(true);
     try {
       const { error } = await supabase.functions.invoke("dispatch-campaign", {
@@ -151,7 +153,7 @@ export default function EmailCampaigns() {
   }
 
   async function remove(c: Campaign) {
-    if (!confirm(`Excluir campanha "${c.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir campanha "${c.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_campaigns").delete().eq("id", c.id);
     if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
   }

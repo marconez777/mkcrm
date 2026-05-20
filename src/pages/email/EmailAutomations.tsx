@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
 import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Step = { template_slug: string; delay_minutes: number };
 type Automation = {
@@ -80,6 +81,7 @@ const TRIGGERS = [
 
 export default function EmailAutomations() {
   const { membership } = useAuth();
+  const confirm = useConfirm();
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Automation[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
@@ -180,7 +182,7 @@ export default function EmailAutomations() {
   }
 
   async function remove(a: Automation) {
-    if (!confirm(`Excluir automação "${a.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir automação "${a.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_automations").delete().eq("id", a.id);
     if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
   }

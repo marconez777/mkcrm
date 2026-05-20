@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Instance = {
   id: string;
@@ -38,6 +39,7 @@ type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin, hasFeature } = useAuth();
+  const confirm = useConfirm();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const showTracking = false;
@@ -117,7 +119,7 @@ export default function SettingsPage() {
   }
 
   async function deleteInstance(id: string) {
-    if (!confirm("Excluir esta conexão? A instância será removida da Evolution.")) return;
+    if (!(await confirm({ title: "Excluir esta conexão?", description: "A instância será removida da Evolution.", confirmLabel: "Excluir", destructive: true }))) return;
     const { error, data } = await supabase.functions.invoke("evolution-delete-instance", { body: { instance_id: id } });
     if (error || (data as any)?.error) { toast.error("Erro: " + (error?.message ?? (data as any)?.error)); return; }
     toast.success("Conexão removida");

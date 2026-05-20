@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { RefreshCw, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Row = {
   email: string;
@@ -17,6 +18,7 @@ type Row = {
 };
 
 export default function EmailUnsubscribes() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -35,7 +37,7 @@ export default function EmailUnsubscribes() {
   useEffect(() => { load(); }, []);
 
   async function remove(email: string) {
-    if (!confirm(`Remover ${email} da lista de descadastros?`)) return;
+    if (!(await confirm({ title: "Remover descadastro?", description: `${email} voltará a poder receber e-mails.`, confirmLabel: "Remover", destructive: true }))) return;
     const { error } = await supabase.from("email_unsubscribes").delete().eq("email", email);
     if (error) toast.error(error.message);
     else { toast.success("Removido"); load(); }

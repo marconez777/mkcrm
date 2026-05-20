@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign";
 type Rule =
@@ -70,6 +71,7 @@ function normalizeFilters(raw: any): SegmentFilters {
 }
 
 export default function EmailSegments() {
+  const confirm = useConfirm();
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
@@ -253,7 +255,7 @@ export default function EmailSegments() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Excluir segmento?")) return;
+    if (!(await confirm({ title: "Excluir segmento?", confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_segments").delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success("Excluído"); load(); }

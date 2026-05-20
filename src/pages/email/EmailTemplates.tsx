@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Trash2, Copy, Send, Loader2, FolderPlus, Folder } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Folder = { id: string; name: string; sort_order: number };
 type Tpl = {
@@ -59,6 +60,7 @@ const EMPTY: Tpl = {
 export default function EmailTemplates() {
   const { membership } = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const clinicId = membership?.clinic_id;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
@@ -96,7 +98,7 @@ export default function EmailTemplates() {
   }
 
   async function deleteFolder(id: string) {
-    if (!confirm("Excluir pasta? Os templates dentro dela ficam sem pasta.")) return;
+    if (!(await confirm({ title: "Excluir pasta?", description: "Os templates dentro dela ficam sem pasta.", confirmLabel: "Excluir", destructive: true }))) return;
     await supabase.from("email_templates").update({ folder_id: null }).eq("folder_id", id);
     const { error } = await supabase.from("email_template_folders").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Pasta excluída"); load(); }
@@ -152,7 +154,7 @@ export default function EmailTemplates() {
   }
 
   async function remove(t: Tpl) {
-    if (!confirm(`Excluir template "${t.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir template "${t.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_templates").delete().eq("id", t.id);
     if (error) toast.error(error.message); else { toast.success("Excluído"); load(); }
   }

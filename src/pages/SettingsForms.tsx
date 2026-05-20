@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Loader2, Plus, Copy, RotateCcw, Trash2, Eye, EyeOff, Download, ArrowLeft, ExternalLink } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Integration = {
   id: string;
@@ -163,6 +164,7 @@ export default function SettingsForms() {
 }
 
 function DetailView({ integration, onBack, canManage }: { integration: Integration; onBack: () => void; canManage: boolean }) {
+  const confirm = useConfirm();
   const [data, setData] = useState<Integration>(integration);
   const [defs, setDefs] = useState<Definition[]>([]);
   const [subs, setSubs] = useState<Submission[]>([]);
@@ -188,7 +190,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function rotate() {
-    if (!confirm("Rotacionar token? O atual continua válido por 24h.")) return;
+    if (!(await confirm({ title: "Rotacionar token?", description: "O token atual continua válido por 24h.", confirmLabel: "Rotacionar" }))) return;
     setBusy(true);
     try {
       const { data: res, error } = await supabase.functions.invoke("forms-admin", { body: { action: "rotate_token", id: integration.id } });
@@ -210,7 +212,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function removeIntegration() {
-    if (!confirm("Excluir integração? Envios futuros com este token serão rejeitados.")) return;
+    if (!(await confirm({ title: "Excluir integração?", description: "Envios futuros com este token serão rejeitados.", confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.functions.invoke("forms-admin", { body: { action: "delete_integration", id: integration.id } });
     if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
   }
