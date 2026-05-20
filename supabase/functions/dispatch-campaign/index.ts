@@ -108,9 +108,7 @@ Deno.serve(async (req) => {
       recipients.push({ email: k, name, lead_id });
     };
 
-    if (campaign.test_email) {
-      pushRec(campaign.test_email, null, null);
-    } else if (campaign.segment_id) {
+    if (campaign.segment_id) {
       const { data: resolved, error: rErr } = await supabase.rpc("resolve_email_segment", { _segment_id: campaign.segment_id });
       if (rErr) console.error("resolve_email_segment error:", rErr);
       for (const r of ((resolved as any[]) ?? [])) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
@@ -129,6 +127,7 @@ Deno.serve(async (req) => {
         .eq("clinic_id", campaign.clinic_id);
       for (const c of (manual ?? [])) pushRec((c as any).email ?? "", (c as any).name ?? null, (c as any).lead_id ?? null);
     }
+
 
     // enqueue em paralelo (chunks) para não estourar tempo da edge function
     const CHUNK = 20;
