@@ -59,6 +59,7 @@ export type AvatarBlock = BlockBase & {
 export type SignatureBlock = BlockBase & {
   type: "signature";
   avatarSrc: string;
+  avatarSize: number;
   name: string;
   role: string;
   extra: string;
