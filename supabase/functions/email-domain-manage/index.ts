@@ -39,8 +39,13 @@ Deno.serve(async (req) => {
 
     // Apenas super admin
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    // Permite chamadas com service role (uso interno) sem checagem de usuário
-    if (token !== SERVICE_ROLE_KEY) {
+    // Bypass para chamadas com service role (uso interno via JWT role=service_role)
+    let isServiceRole = false;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
+      isServiceRole = payload?.role === "service_role";
+    } catch {}
+    if (!isServiceRole) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
