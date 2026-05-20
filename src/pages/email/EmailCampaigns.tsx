@@ -267,6 +267,12 @@ export default function EmailCampaigns() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CampaignReportDialog
+        campaign={reporting}
+        open={!!reporting}
+        onOpenChange={(o) => !o && setReporting(null)}
+      />
     </div>
   );
 }
