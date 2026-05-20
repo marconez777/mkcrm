@@ -241,7 +241,8 @@ Deno.serve(async (req) => {
           }).eq("id", r.id);
           await supabase.from("broadcast_events").insert({
             broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
-            type: "failed", payload: { error: errText },
+            type: "failed",
+            payload: { error: errText, evolution_status: evoStatus, evolution_response: evoResp },
           });
         }
       }
