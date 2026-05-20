@@ -164,6 +164,7 @@ export default function SettingsForms() {
 }
 
 function DetailView({ integration, onBack, canManage }: { integration: Integration; onBack: () => void; canManage: boolean }) {
+  const confirm = useConfirm();
   const [data, setData] = useState<Integration>(integration);
   const [defs, setDefs] = useState<Definition[]>([]);
   const [subs, setSubs] = useState<Submission[]>([]);
