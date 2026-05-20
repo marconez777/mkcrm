@@ -56,6 +56,10 @@ export default function EmailContacts() {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // delete confirm
+  const [toDelete, setToDelete] = useState<Contact | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   async function load() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
