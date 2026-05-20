@@ -199,7 +199,6 @@ export default function EmailContacts() {
 
   async function doImport() {
     if (!clinicId) return;
-    if (!importSegment) return toast.error("Escolha um segmento");
     if (!mapEmail) return toast.error("Mapeie a coluna de e-mail");
     setImporting(true);
     try {
@@ -220,7 +219,7 @@ export default function EmailContacts() {
 
       const payload = rows.map((r) => ({
         clinic_id: clinicId,
-        segment_id: importSegment,
+        segment_id: importSegment && importSegment !== "__none" ? importSegment : null,
         email: r.email,
         name: r.name,
         added_by: user?.id,
