@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
         .in("status", ["pending", "sending"])
         .lte("next_send_at", new Date().toISOString())
         .order("next_send_at", { ascending: true })
-        .limit(3); // processa até 3 por tick
+        .limit(1); // 1 destinatário por tick para respeitar throttle entre contatos
 
       if (!recipients || recipients.length === 0) {
         // checa se acabou
