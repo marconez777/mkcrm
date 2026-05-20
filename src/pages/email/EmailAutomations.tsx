@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Workflow } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
+import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
 
 type Step = { template_slug: string; delay_minutes: number };
 type Automation = {
