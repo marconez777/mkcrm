@@ -255,6 +255,9 @@ export default function EmailAutomations() {
                     <p className="text-xs text-muted-foreground">{a.steps?.length ?? 0} passo(s)</p>
                   </div>
                   <Switch checked={a.active} onCheckedChange={() => toggleActive(a)} />
+                  <Button size="sm" variant="outline" onClick={() => setReporting(a)}>
+                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setEditing({ ...a })}>Editar</Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(a)}><Trash2 className="h-3 w-3" /></Button>
                 </Card>
