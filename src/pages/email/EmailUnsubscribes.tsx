@@ -37,7 +37,7 @@ export default function EmailUnsubscribes() {
   useEffect(() => { load(); }, []);
 
   async function remove(email: string) {
-    if (!confirm(`Remover ${email} da lista de descadastros?`)) return;
+    if (!(await confirm({ title: "Remover descadastro?", description: `${email} voltará a poder receber e-mails.`, confirmLabel: "Remover", destructive: true }))) return;
     const { error } = await supabase.from("email_unsubscribes").delete().eq("email", email);
     if (error) toast.error(error.message);
     else { toast.success("Removido"); load(); }
