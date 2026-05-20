@@ -229,17 +229,6 @@ Deno.serve(async (req) => {
         }
       }
     }
-          stats.failed++;
-          await supabase.from("broadcast_recipients").update({
-            status: "failed", last_error: errText,
-          }).eq("id", r.id);
-          await supabase.from("broadcast_events").insert({
-            broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
-            type: "failed", payload: { error: errText },
-          });
-        }
-      }
-    }
 
     return json({ ok: true, elapsed_ms: Date.now() - startedAt, ...stats });
   } catch (err) {
