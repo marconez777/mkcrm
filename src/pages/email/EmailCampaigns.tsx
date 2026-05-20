@@ -199,6 +199,9 @@ export default function EmailCampaigns() {
                 <TableCell className="text-right text-xs tabular-nums">{c.sent_count} / {c.total_recipients}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{c.scheduled_for ? new Date(c.scheduled_for).toLocaleString("pt-BR") : "—"}</TableCell>
                 <TableCell className="text-right space-x-1">
+                  <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
+                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                  </Button>
                   {["draft", "scheduled"].includes(c.status) && (
                     <Button size="sm" variant="outline" onClick={() => dispatch(c)} disabled={busy}>
                       <Send className="mr-1 h-3 w-3" />Enviar
