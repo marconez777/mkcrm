@@ -147,11 +147,17 @@ export default function EmailContacts() {
     load();
   }
 
-  async function removeManual(id: string) {
-    if (!confirm("Remover contato?")) return;
-    const { error } = await supabase.from("email_segment_contacts").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    setContacts((c) => c.filter((x) => !(x.source === "manual" && x.id === id)));
+  async function removeContact(contact: Contact) {
+    if (!confirm("Excluir contato permanentemente?")) return;
+    if (contact.source === "manual") {
+      const { error } = await supabase.from("email_segment_contacts").delete().eq("id", contact.id);
+      if (error) return toast.error(error.message);
+    } else {
+      const { error } = await supabase.from("leads").delete().eq("id", contact.id);
+      if (error) return toast.error(error.message);
+    }
+    setContacts((c) => c.filter((x) => !(x.source === contact.source && x.id === contact.id)));
+    toast.success("Contato excluído");
   }
 
   function handleFile(file: File) {
@@ -411,11 +417,9 @@ export default function EmailContacts() {
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{c.segment_name ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      {c.source === "manual" && (
-                        <Button size="sm" variant="ghost" onClick={() => removeManual(c.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button size="sm" variant="ghost" onClick={() => removeContact(c)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
