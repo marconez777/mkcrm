@@ -178,7 +178,20 @@ function BroadcastEditor({ id }: { id: string }) {
 
   const control = async (action: string, extra: Record<string, unknown> = {}) => {
     const { data, error } = await supabase.functions.invoke("broadcast-control", { body: { action, broadcast_id: id, ...extra } });
-    if (error || (data as any)?.error) { toast.error((data as any)?.error ?? error?.message); return null; }
+    // supabase-js descarta o body em respostas não-2xx; tentamos ler manualmente
+    let errPayload: any = (data as any)?.error ? data : null;
+    if (error && (error as any).context?.json) {
+      try { errPayload = await (error as any).context.json(); } catch { /* ignore */ }
+    }
+    if (errPayload?.error || error) {
+      const code = errPayload?.error;
+      const msg = errPayload?.message
+        ?? (code === "audience_not_frozen" ? "Congele a audiência na aba Audiência antes de iniciar."
+        :   code === "no_whatsapp_instance" ? "Selecione uma instância do WhatsApp na aba Configuração."
+        :   code ?? error?.message ?? "Erro ao executar ação");
+      toast.error(msg);
+      return null;
+    }
     return data;
   };
 
@@ -204,9 +217,21 @@ function BroadcastEditor({ id }: { id: string }) {
         </div>
         <div className="flex gap-2">
           {bc.status === "draft" || bc.status === "paused" ? (
-            <Button onClick={async () => { const r = await control("start"); if (r) toast.success("Iniciado"); }}>
-              <Play className="size-4 mr-1" /> Iniciar
-            </Button>
+            (() => {
+              const missing: string[] = [];
+              if (!bc.whatsapp_instance_id) missing.push("Selecione uma instância (aba Configuração)");
+              if (!bc.audience_frozen_at) missing.push("Congele a audiência (aba Audiência)");
+              const disabled = missing.length > 0;
+              return (
+                <Button
+                  disabled={disabled}
+                  title={disabled ? missing.join(" · ") : undefined}
+                  onClick={async () => { const r = await control("start"); if (r) toast.success("Iniciado"); }}
+                >
+                  <Play className="size-4 mr-1" /> Iniciar
+                </Button>
+              );
+            })()
           ) : bc.status === "running" ? (
             <Button variant="outline" onClick={async () => { const r = await control("pause"); if (r) toast.success("Pausado"); }}>
               <Pause className="size-4 mr-1" /> Pausar
@@ -219,6 +244,18 @@ function BroadcastEditor({ id }: { id: string }) {
           ) : null}
         </div>
       </div>
+
+      {bc.status === "draft" && (!bc.whatsapp_instance_id || !bc.audience_frozen_at) && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="pt-4 text-sm">
+            <div className="font-medium mb-1">Antes de iniciar, conclua:</div>
+            <ul className="list-disc pl-5 text-muted-foreground space-y-0.5">
+              {!bc.whatsapp_instance_id && <li>Selecione uma instância do WhatsApp na aba <strong>Configuração</strong>.</li>}
+              {!bc.audience_frozen_at && <li>Congele a audiência na aba <strong>Audiência</strong> (define quem vai receber).</li>}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="dashboard">
         <TabsList>
@@ -318,6 +355,18 @@ function BroadcastEditor({ id }: { id: string }) {
                 extra_contacts: extraContacts,
               });
               if (r) { toast.success(`Audiência congelada: ${(r as any).inserted} contatos`); load(); }
+            }}
+            onFreezeAndStart={async () => {
+              const r = await control("freeze_audience", {
+                pipeline_id: bc.source?.pipeline_id ?? null,
+                stage_ids: bc.source?.stage_ids ?? [],
+                extra_contacts: extraContacts,
+              });
+              if (!r) return;
+              toast.success(`Audiência congelada: ${(r as any).inserted} contatos`);
+              const s = await control("start");
+              if (s) toast.success("Campanha iniciada");
+              load();
             }}
           />
         </TabsContent>
@@ -428,7 +477,7 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
   );
 }
 
-function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze }: any) {
+function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
   const pipelineStages = useMemo(() => stages.filter((s: any) => s.pipeline_id === pipelineId), [stages, pipelineId]);
@@ -522,7 +571,12 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
             <div className="font-semibold">Congelar audiência</div>
             <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")}` : "Ainda não congelada."}</p>
           </div>
-          <Button onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>
+            {bc.status === "draft" && bc.whatsapp_instance_id && (
+              <Button onClick={onFreezeAndStart}><Play className="size-4 mr-1" /> Congelar e iniciar</Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

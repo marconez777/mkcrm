@@ -28,7 +28,12 @@ Deno.serve(async (req) => {
     };
 
     if (action === "start") {
-      if (!bc.audience_frozen_at) return json({ error: "audience_not_frozen" }, 400);
+      if (!bc.whatsapp_instance_id) {
+        return json({ error: "no_whatsapp_instance", message: "Selecione uma instância do WhatsApp na aba Configuração antes de iniciar." }, 400);
+      }
+      if (!bc.audience_frozen_at) {
+        return json({ error: "audience_not_frozen", message: "Congele a audiência na aba Audiência antes de iniciar a campanha." }, 400);
+      }
       await setStatus("running");
       return json({ ok: true });
     }
