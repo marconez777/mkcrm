@@ -85,6 +85,7 @@ export default function EmailAutomations() {
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [editing, setEditing] = useState<Automation | null>(null);
+  const [reporting, setReporting] = useState<Automation | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
