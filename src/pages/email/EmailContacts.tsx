@@ -352,10 +352,11 @@ export default function EmailContacts() {
                   <Input value={addName} onChange={(e) => setAddName(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Segmento *</Label>
-                  <Select value={addSegment} onValueChange={setAddSegment}>
-                    <SelectTrigger><SelectValue placeholder="Escolha um segmento" /></SelectTrigger>
+                  <Label>Segmento</Label>
+                  <Select value={addSegment || "__none"} onValueChange={setAddSegment}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none">Sem segmento (contatos gerais)</SelectItem>
                       {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
