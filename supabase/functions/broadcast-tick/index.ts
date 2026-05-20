@@ -59,6 +59,18 @@ function withinWindow(w: SendWindow): { ok: boolean; nextOpenIso: string } {
   return { ok: false, nextOpenIso: new Date(Date.now() + 60 * 60 * 1000).toISOString() };
 }
 
+function triggerTick() {
+  try {
+    const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/broadcast-tick`;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: "{}",
+    }).catch(() => {});
+  } catch { /* fire-and-forget */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const supabase = sb();
@@ -198,7 +210,12 @@ Deno.serve(async (req) => {
             await supabase.from("broadcasts")
               .update({ totals: { ...(bc.totals ?? {}), sent: sentCount ?? 0 } })
               .eq("id", bc.id);
+            // encadeia próximo destinatário sem esperar o cron (throttle ainda é respeitado via next_send_at)
+            triggerTick();
             break; // só 1 destinatário "completo" por tick por broadcast
+          } else {
+            // parte intermediária enviada: dispara novo tick em ~3s para mandar a próxima parte sem esperar o cron
+            triggerTick();
           }
         } else {
           stats.failed++;
