@@ -203,6 +203,11 @@ export default function EmailCampaigns() {
                     <BarChart3 className="mr-1 h-3 w-3" />Relatório
                   </Button>
                   {["draft", "scheduled"].includes(c.status) && (
+                    <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
+                      <Pencil className="mr-1 h-3 w-3" />Editar
+                    </Button>
+                  )}
+                  {["draft", "scheduled"].includes(c.status) && (
                     <Button size="sm" variant="outline" onClick={() => dispatch(c)} disabled={busy}>
                       <Send className="mr-1 h-3 w-3" />Enviar
                     </Button>
