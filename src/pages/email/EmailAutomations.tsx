@@ -81,6 +81,7 @@ const TRIGGERS = [
 
 export default function EmailAutomations() {
   const { membership } = useAuth();
+  const confirm = useConfirm();
   const clinicId = membership?.clinic_id;
   const [items, setItems] = useState<Automation[]>([]);
   const [templates, setTemplates] = useState<Tpl[]>([]);
