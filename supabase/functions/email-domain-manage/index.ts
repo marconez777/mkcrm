@@ -38,14 +38,17 @@ Deno.serve(async (req) => {
     if (!token) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
 
     // Apenas super admin
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
-    if (!isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+    // Permite chamadas com service role (uso interno) sem checagem de usuário
+    if (token !== SERVICE_ROLE_KEY) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: u } = await userClient.auth.getUser();
+      if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
+      const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
+      if (!isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}));
     const { action, clinic_id, domain, domain_id, region = "us-east-1" } = body ?? {};
