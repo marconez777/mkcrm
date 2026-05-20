@@ -123,15 +123,41 @@ function BlockPreview({
           </div>
         </div>
       );
-    case "youtube":
+    case "youtube": {
+      const m = b.url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/);
+      const id = m?.[1];
       return (
-        <div className="text-center">
-          <div className="bg-muted rounded p-8 text-xs text-muted-foreground">
-            ▶ YouTube: {b.url || "(URL não definida)"}
-          </div>
+        <div style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+          {id ? (
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                maxWidth: b.width,
+                margin: "0 auto",
+                aspectRatio: "16 / 9",
+                borderRadius: 8,
+                overflow: "hidden",
+                background: "#000",
+              }}
+            >
+              <iframe
+                src={`https://www.youtube.com/embed/${id}`}
+                title={b.caption || "YouTube video"}
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+              />
+            </div>
+          ) : (
+            <div className="bg-muted rounded p-8 text-xs text-muted-foreground">
+              ▶ Cole a URL do YouTube no painel de propriedades
+            </div>
+          )}
           {b.caption && <div className="text-xs text-muted-foreground mt-1">{b.caption}</div>}
         </div>
       );
+    }
     case "columns":
       return (
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${b.cols}, 1fr)` }}>
