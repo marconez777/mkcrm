@@ -1,11 +1,18 @@
 // Controla campanhas de disparo em massa: start, pause, resume, cancel, freeze_audience, add_contacts.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const auth = await requireUser(req);
   if (auth instanceof Response) return auth;
-  const supabase = sb();
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = token === serviceRole
+    ? sb()
+    : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
 
   try {
     const body = await req.json();
@@ -49,7 +56,14 @@ Deno.serve(async (req) => {
         _stage_ids: stage_ids,
         _extra_contacts: extra_contacts,
       });
-      if (error) return json({ error: error.message }, 400);
+      if (error) {
+        const message = error.message === "forbidden"
+          ? "Você não tem permissão para congelar a audiência desta campanha."
+          : error.message === "no_message_groups"
+          ? "Adicione pelo menos um grupo de mensagens antes de congelar a audiência."
+          : error.message;
+        return json({ error: error.message, message }, 400);
+      }
       return json({ ok: true, inserted: data });
     }
 
