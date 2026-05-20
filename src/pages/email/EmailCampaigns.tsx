@@ -153,7 +153,7 @@ export default function EmailCampaigns() {
   }
 
   async function remove(c: Campaign) {
-    if (!confirm(`Excluir campanha "${c.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir campanha "${c.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_campaigns").delete().eq("id", c.id);
     if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
   }
