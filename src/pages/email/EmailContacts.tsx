@@ -308,15 +308,16 @@ export default function EmailContacts() {
                       </div>
                     </div>
                     <div>
-                      <Label>Segmento de destino *</Label>
-                      <Select value={importSegment} onValueChange={setImportSegment}>
-                        <SelectTrigger><SelectValue placeholder="Escolha um segmento" /></SelectTrigger>
+                      <Label>Segmento de destino</Label>
+                      <Select value={importSegment || "__none"} onValueChange={setImportSegment}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none">Sem segmento (contatos gerais)</SelectItem>
                           {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Contatos serão adicionados como manuais no segmento escolhido.
+                        "Sem segmento" inclui esses contatos em campanhas "Todos os leads".
                       </p>
                     </div>
                     <div className="text-xs text-muted-foreground">
