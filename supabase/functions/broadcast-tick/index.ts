@@ -203,14 +203,16 @@ Deno.serve(async (req) => {
           const allDone = newPartsSent >= parts.length;
           const jitter = 1 + (Math.random() - 0.5) * 0.2; // ±10%
           const throttleMs = bc.throttle_seconds * 1000 * jitter;
+          // Partes do mesmo grupo: intervalo fixo de 1s.
+          // Throttle (intervalo entre contatos) só se aplica quando o contato termina TODAS as partes.
           const nextSendAt = allDone
-            ? new Date(Date.now() + throttleMs).toISOString()
-            : new Date(Date.now() + 3000).toISOString(); // partes do mesmo grupo seguem em ~3s
+            ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+            : new Date(Date.now() + 1000).toISOString();
           await supabase.from("broadcast_recipients").update({
             status: allDone ? "sent" : "sending",
             parts_sent: newPartsSent,
             sent_at: allDone ? new Date().toISOString() : null,
-            next_send_at: allDone ? new Date(Date.now() + 24 * 3600 * 1000).toISOString() : nextSendAt,
+            next_send_at: nextSendAt,
             last_error: null,
           }).eq("id", r.id);
 
@@ -226,20 +228,17 @@ Deno.serve(async (req) => {
             },
           });
 
-          // Throttle entre contatos: assim que iniciamos um destinatário (primeira parte enviada)
-          // OU concluímos todas as partes, empurra TODOS os outros pendentes para +throttle.
-          // Isso garante o intervalo configurado entre contatos mesmo quando há múltiplas partes.
-          const pushUntil = new Date(Date.now() + throttleMs).toISOString();
-          await supabase
-            .from("broadcast_recipients")
-            .update({ next_send_at: pushUntil })
-            .eq("broadcast_id", bc.id)
-            .eq("status", "pending")
-            .lt("next_send_at", pushUntil);
-
           if (allDone) {
+            // Contato finalizado: empurra os demais pendentes pelo intervalo configurado entre contatos.
+            const pushUntil = new Date(Date.now() + throttleMs).toISOString();
+            await supabase
+              .from("broadcast_recipients")
+              .update({ next_send_at: pushUntil })
+              .eq("broadcast_id", bc.id)
+              .eq("status", "pending")
+              .lt("next_send_at", pushUntil);
+
             stats.sent++;
-            // atualiza totals.sent
             const { count: sentCount } = await supabase
               .from("broadcast_recipients")
               .select("id", { count: "exact", head: true })
@@ -248,11 +247,10 @@ Deno.serve(async (req) => {
             await supabase.from("broadcasts")
               .update({ totals: { ...(bc.totals ?? {}), sent: sentCount ?? 0 } })
               .eq("id", bc.id);
-            // encadeia próximo destinatário sem esperar o cron (throttle ainda é respeitado via next_send_at)
             triggerTick();
-            break; // só 1 destinatário "completo" por tick por broadcast
+            break;
           } else {
-            // parte intermediária enviada: dispara novo tick em ~3s para mandar a próxima parte sem esperar o cron
+            // parte intermediária enviada: dispara novo tick para mandar a próxima parte sem esperar o cron
             triggerTick();
           }
         } else {
