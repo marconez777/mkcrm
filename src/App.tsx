@@ -96,6 +96,7 @@ const App = () => (
                       <Route path="/email/queue" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/logs" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/segments" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
+                      <Route path="/email/contacts" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/unsubscribes" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/reports" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/sites" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />

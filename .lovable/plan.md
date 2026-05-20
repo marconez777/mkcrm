@@ -1,40 +1,87 @@
-## Contexto
+# Segmentação por formulário + Tela de Contatos
 
-Entendi mal antes — `seguranca` na verdade é só o subdomínio CNAME que o Resend usa para tracking de cliques (links1.resend-dns.com). O domínio de envio real configurado e **já verificado** no Resend da ÓR é a raiz `clinicaohrpsiquiatria.com` (prints 2-4).
+## Objetivo
+1. Garantir que cada lead vindo do site da clínica (PHQ-9, GAD-7, Contato, Webinar) caia automaticamente em um segmento correspondente no painel de e-mail.
+2. Criar uma tela **Contatos** onde é possível adicionar manualmente ou importar via planilha (CSV/XLSX) contatos que entram em uma audiência/segmento.
 
-Hoje no banco temos registrado o domínio errado:
-- `email_domains` → `seguranca.clinicaohrpsiquiatria.com` (status `pending`, resend_id `5b837948-...`)
+---
 
-Esse registro foi criado por engano e aponta para um domínio do Resend que não vai verificar (pois os DNS foram configurados na raiz, não no subdomínio).
+## Parte 1 — Segmentos automáticos por formulário
 
-## Plano
+A base já existe:
+- A regra `form_source` no `EmailSegments` já filtra leads por origem (ex.: `phq9`, `gad7`, `contato`, `webinar`).
+- A função `lead_matches_segment` já avalia essa regra.
+- O `forms-ingest` grava `form_source` no lead com o slug do formulário.
 
-1. **Buscar o Resend domain ID real** de `clinicaohrpsiquiatria.com`
-   - Chamar `GET https://api.resend.com/domains` usando a `RESEND_API_KEY_OR` da clínica ÓR
-   - Localizar a entrada `clinicaohrpsiquiatria.com` (status `verified`) e capturar o `id`
+O que falta:
+- **Seed automático** de 4 segmentos dinâmicos por clínica que tem MK Forms ativo:
+  - "Leads — PHQ-9" → `form_source = phq9`
+  - "Leads — GAD-7" → `form_source = gad7`
+  - "Leads — Contato" → `form_source = contato`
+  - "Leads — Webinar" → `form_source = webinar`
+- Botão na tela **Segmentos**: "Criar segmentos dos meus formulários" — lista os `form_source` distintos já presentes em `leads` da clínica e cria um segmento para cada um que ainda não exista.
 
-2. **Limpar o registro errado**
-   - Deletar do Resend o domínio fantasma `seguranca.clinicaohrpsiquiatria.com` (id `5b837948-77a2-4db8-8c6f-553aa8092df4`) via `DELETE /domains/{id}` com a key da ÓR
-   - Deletar a linha `c963c63a-dde2-4fe3-9269-49c71bc66e4c` de `email_domains`
+Sem migração nova — apenas inserts em `email_segments` via UI.
 
-3. **Inserir o domínio correto**
-   - Inserir nova linha em `email_domains`:
-     - `clinic_id` = `cf038458-457d-4c1a-9ac4-c88c3c8353a1` (ÓR)
-     - `domain` = `clinicaohrpsiquiatria.com`
-     - `resend_domain_id` = (id obtido no passo 1)
-     - `status` = `verified`
-     - `region` = `sa-east-1` (São Paulo, conforme print)
-     - `dns_records` = registros retornados pela API
-     - `last_checked_at` = now()
+---
 
-4. **Validar**
-   - Reler `email_domains` e confirmar que a ÓR aparece com a raiz verificada
-   - Confirmar com você que `/settings/email` mostra o domínio correto
+## Parte 2 — Tela "Contatos"
 
-## Nenhuma mudança de código
+Nova rota: `/email/contacts` (item no `EmailHub`).
 
-A edge function `email-domain-manage` e o resto da integração já estão corretos — só foi cadastrado o subdomínio errado. Não é preciso alterar código, apenas dados.
+### Funcionalidades
+- Listar todos os contatos da clínica de duas fontes unificadas:
+  - `leads` (com e-mail preenchido) — origem "Lead"
+  - `email_segment_contacts` — origem "Manual"
+- Busca por nome/e-mail, filtro por segmento, filtro por origem.
+- Adicionar contato manual (nome + e-mail) e atribuir a 1+ segmentos estáticos.
+- **Importação por planilha (CSV/XLSX)**:
+  - Upload com `papaparse` (CSV) e `xlsx` (Excel) — bibliotecas leves no client.
+  - Wizard: upload → mapear colunas (`email`, `name`, `tags`) → escolher segmento(s) de destino → preview → importar.
+  - Validação: e-mail formato, dedup por e-mail dentro da clínica.
+  - Importação grava em `email_segment_contacts` (segmento estático). Opcionalmente também cria `leads` com `form_source = 'import'` (checkbox no wizard).
+- Exportar contatos do segmento como CSV.
+- Remover contato (manual) ou desinscrever (cria registro em `email_unsubscribes`).
 
-## Pergunta antes de executar
+### Nova tabela (opcional, recomendada)
+Em vez de reaproveitar só `email_segment_contacts`, criar um **catálogo central** de contatos manuais:
 
-O domínio raiz `clinicaohrpsiquiatria.com` muito provavelmente já é usado para receber e-mails normais da clínica (caixas de entrada em `@clinicaohrpsiquiatria.com`). Usar a raiz como sender significa que e-mails transacionais sairão como `algo@clinicaohrpsiquiatria.com`. Confirma que é isso que você quer? Caso prefira separar (boa prática para preservar a reputação do domínio principal), o ideal seria cadastrar um subdomínio dedicado tipo `notify.clinicaohrpsiquiatria.com` ou `mail.clinicaohrpsiquiatria.com` no Resend. Mas se você já decidiu pela raiz, sigo direto com o plano acima.
+```
+email_contacts (clinic_id, email, name, tags[], source, created_by, created_at)
+unique(clinic_id, lower(email))
+```
+
+E uma tabela de relacionamento N:N com segmentos:
+```
+email_contact_segments (contact_id, segment_id)
+```
+
+Vantagens: importar uma planilha cria contatos uma vez e pode atribuir a vários segmentos sem duplicar e-mails.
+
+A função `resolve_email_segment` precisará incluir esses contatos na resolução do segmento.
+
+### RLS
+- Acesso restrito por `clinic_id` usando `has_clinic_access`.
+- Insert/Update/Delete restritos a membros da clínica.
+
+---
+
+## Detalhes técnicos
+
+**Arquivos a criar/editar (próximo chat):**
+- `supabase/migrations/...` — `email_contacts`, `email_contact_segments`, RLS, update `resolve_email_segment`.
+- `src/pages/email/EmailContacts.tsx` — nova tela.
+- `src/components/email/ContactImportDialog.tsx` — wizard de importação.
+- `src/pages/email/EmailHub.tsx` — adicionar aba/link "Contatos".
+- `src/pages/email/EmailSegments.tsx` — botão "Criar segmentos dos meus formulários".
+- `src/App.tsx` — rota `/email/contacts`.
+- `package.json` — adicionar `papaparse` e `xlsx`.
+
+**Sem mudança de backend:**
+- `forms-ingest` já grava `form_source` corretamente; nada a alterar.
+
+---
+
+## Fora do escopo deste plano
+- Não toca em `forms.js`, snippet do site, ou edge `forms-ingest`.
+- Não altera fluxo de envio de e-mail (campanhas/automações continuam usando os segmentos existentes).

@@ -266,6 +266,35 @@ export default function EmailSegments() {
           <h2 className="text-lg font-semibold">Segmentos</h2>
           <p className="text-sm text-muted-foreground">Listas dinâmicas (por filtros) ou estáticas (contatos manuais)</p>
         </div>
+        <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
+          if (!cm?.clinic_id) return toast.error("Clínica não encontrada");
+          const { data: leads } = await supabase.from("leads").select("form_source").eq("clinic_id", cm.clinic_id).not("form_source", "is", null).limit(5000);
+          const sources = [...new Set((leads ?? []).map((l: any) => l.form_source).filter(Boolean))];
+          if (!sources.length) return toast.info("Nenhum lead com origem de formulário encontrado ainda");
+          const existing = new Set(segments.map((s) => s.name));
+          let created = 0;
+          for (const src of sources) {
+            const name = `Leads — ${src}`;
+            if (existing.has(name)) continue;
+            const { error } = await supabase.from("email_segments").insert({
+              clinic_id: cm.clinic_id,
+              created_by: user!.id,
+              source_table: "leads",
+              name,
+              description: `Auto-gerado para o formulário "${src}"`,
+              active: true,
+              filters: { kind: "dynamic", match: "any", rules: [{ type: "form_source", values: [src] }] },
+            });
+            if (!error) created++;
+          }
+          toast.success(created ? `${created} segmento(s) criado(s)` : "Todos os segmentos já existiam");
+          load();
+        }}>
+          <Filter className="h-4 w-4 mr-2" /> Criar segmentos dos formulários
+        </Button>
         <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
@@ -402,6 +431,7 @@ export default function EmailSegments() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (
