@@ -20,7 +20,7 @@ type Broadcast = {
   id: string; name: string; status: string;
   whatsapp_instance_id: string | null; throttle_seconds: number;
   send_window: { start: string; end: string; tz: string; weekdays: number[] };
-  source: { pipeline_id?: string; stage_ids?: string[]; extra_contacts?: any[] };
+  source: { type?: "pipeline" | "list"; pipeline_id?: string; stage_ids?: string[]; extra_contacts?: any[] };
   totals: { queued?: number; sent?: number; failed?: number; replied?: number };
   audience_frozen_at: string | null;
   created_at: string;
