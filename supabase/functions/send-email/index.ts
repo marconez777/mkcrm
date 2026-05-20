@@ -20,6 +20,8 @@ Deno.serve(async (req) => {
     if (!token) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
     let authorized = token === SERVICE_ROLE_KEY;
     let callerUserId: string | null = null;
+    let adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    let preBody: any = null;
     if (!authorized) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${token}` } },
@@ -27,10 +29,23 @@ Deno.serve(async (req) => {
       const { data: u } = await userClient.auth.getUser();
       if (u?.user) {
         callerUserId = u.user.id;
-        const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
         const { data: isSuper } = await adminClient.rpc("is_super_admin", { _user_id: u.user.id });
-        const { data: isAdmin } = await adminClient.rpc("is_clinic_admin", { _user_id: u.user.id });
-        if (isSuper || isAdmin) authorized = true;
+        if (isSuper) authorized = true;
+        if (!authorized) {
+          // Permite se o usuário é owner/admin da clínica alvo
+          try { preBody = await req.clone().json(); } catch {}
+          const targetClinic = preBody?.clinic_id;
+          if (targetClinic) {
+            const { data: mem } = await adminClient
+              .from("clinic_members")
+              .select("role")
+              .eq("user_id", u.user.id)
+              .eq("clinic_id", targetClinic)
+              .in("role", ["owner", "admin"])
+              .maybeSingle();
+            if (mem) authorized = true;
+          }
+        }
       }
     }
     if (!authorized) return jsonResponse({ error: "Forbidden" }, { status: 403 });
