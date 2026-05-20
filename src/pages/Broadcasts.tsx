@@ -571,7 +571,12 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
             <div className="font-semibold">Congelar audiência</div>
             <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")}` : "Ainda não congelada."}</p>
           </div>
-          <Button onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>
+            {bc.status === "draft" && bc.whatsapp_instance_id && (
+              <Button onClick={onFreezeAndStart}><Play className="size-4 mr-1" /> Congelar e iniciar</Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
