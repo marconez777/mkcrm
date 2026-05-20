@@ -325,7 +325,7 @@ export default function EmailTemplateEditor() {
       </div>
 
       {/* Metadata strip */}
-      <div className="border-b px-4 py-2 grid grid-cols-4 gap-3 bg-muted/30 text-xs">
+      <div className="border-b px-4 py-2 grid grid-cols-5 gap-3 bg-muted/30 text-xs">
         <div>
           <Label className="text-[10px] uppercase">Assunto</Label>
           <Input className="h-7 mt-1" value={tpl.subject} onChange={(e) => setTpl({ ...tpl, subject: e.target.value })} />
@@ -333,6 +333,15 @@ export default function EmailTemplateEditor() {
         <div>
           <Label className="text-[10px] uppercase">Preheader</Label>
           <Input className="h-7 mt-1" value={tpl.preheader ?? ""} onChange={(e) => setTpl({ ...tpl, preheader: e.target.value })} />
+        </div>
+        <div>
+          <Label className="text-[10px] uppercase">Nome de exibição</Label>
+          <Input
+            className="h-7 mt-1"
+            value={tpl.from_name}
+            onChange={(e) => setTpl({ ...tpl, from_name: e.target.value })}
+            placeholder="Ex: Clínica Ór"
+          />
         </div>
         <div>
           <Label className="text-[10px] uppercase">Remetente</Label>
