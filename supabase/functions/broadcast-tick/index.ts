@@ -159,6 +159,22 @@ Deno.serve(async (req) => {
         // simples interpolação {{nome}}
         const content = (part.content as string).replace(/\{\{\s*nome\s*\}\}/gi, r.name ?? "");
 
+        // CLAIM atômico: tenta reservar o destinatário para esse tick.
+        // Se outro tick (cron + triggerTick rodando em paralelo) já reservou, pula.
+        const claimUntil = new Date(Date.now() + 60_000).toISOString();
+        const { data: claimed } = await supabase
+          .from("broadcast_recipients")
+          .update({ next_send_at: claimUntil })
+          .eq("id", r.id)
+          .eq("parts_sent", partIndex)
+          .lte("next_send_at", new Date().toISOString())
+          .select("id");
+        if (!claimed || claimed.length === 0) {
+          // outro worker pegou esse destinatário — pula
+          continue;
+        }
+
+
         let ok = false;
         let errText: string | null = null;
         let evoResp: any = null;
