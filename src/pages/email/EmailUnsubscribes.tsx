@@ -18,6 +18,7 @@ type Row = {
 };
 
 export default function EmailUnsubscribes() {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
