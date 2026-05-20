@@ -220,8 +220,12 @@ Deno.serve(async (req) => {
     // 7. Carrega slug da clínica para tag
     const { data: clinicRow } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
 
+    const fromEmail = String(template.from_email ?? "").trim();
+    const fromName = String(template.from_name ?? "").trim();
+    const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
     const resendBody: Record<string, unknown> = {
-      from: `${template.from_name} <${template.from_email}>`,
+      from: fromHeader,
       to: [recipient_name ? `${recipient_name} <${email}>` : email],
       subject,
       html,
@@ -236,7 +240,9 @@ Deno.serve(async (req) => {
       ],
     };
     if (text) (resendBody as any).text = text;
-    if (template.reply_to) (resendBody as any).reply_to = template.reply_to;
+    if (template.reply_to && String(template.reply_to).trim()) {
+      (resendBody as any).reply_to = String(template.reply_to).trim();
+    }
 
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
