@@ -136,7 +136,7 @@ export default function EmailCampaigns() {
   }
 
   async function dispatch(c: Campaign) {
-    if (!confirm(`Enviar campanha "${c.name}" agora?`)) return;
+    if (!(await confirm({ title: `Enviar campanha "${c.name}" agora?`, description: "Os e-mails serão enfileirados imediatamente.", confirmLabel: "Enviar" }))) return;
     setBusy(true);
     try {
       const { error } = await supabase.functions.invoke("dispatch-campaign", {
