@@ -98,7 +98,7 @@ export default function EmailTemplates() {
   }
 
   async function deleteFolder(id: string) {
-    if (!confirm("Excluir pasta? Os templates dentro dela ficam sem pasta.")) return;
+    if (!(await confirm({ title: "Excluir pasta?", description: "Os templates dentro dela ficam sem pasta.", confirmLabel: "Excluir", destructive: true }))) return;
     await supabase.from("email_templates").update({ folder_id: null }).eq("folder_id", id);
     const { error } = await supabase.from("email_template_folders").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Pasta excluída"); load(); }
