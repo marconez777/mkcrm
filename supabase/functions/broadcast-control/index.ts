@@ -134,6 +134,19 @@ Deno.serve(async (req) => {
     if (action === "resume") { await setStatus("running"); return json({ ok: true }); }
     if (action === "cancel") { await setStatus("cancelled"); return json({ ok: true }); }
 
+    if (action === "delete") {
+      const svc = sb();
+      await svc.from("broadcast_events").delete().eq("broadcast_id", broadcast_id);
+      await svc.from("broadcast_recipients").delete().eq("broadcast_id", broadcast_id);
+      await svc.from("broadcast_message_parts").delete().in(
+        "group_id",
+        (await svc.from("broadcast_message_groups").select("id").eq("broadcast_id", broadcast_id)).data?.map((g: any) => g.id) ?? []
+      );
+      await svc.from("broadcast_message_groups").delete().eq("broadcast_id", broadcast_id);
+      await svc.from("broadcasts").delete().eq("id", broadcast_id);
+      return json({ ok: true });
+    }
+
     if (action === "freeze_audience") {
       const { pipeline_id = null, stage_ids = [], extra_contacts = [] } = body;
       const { data, error } = await supabase.rpc("broadcast_freeze_audience", {
