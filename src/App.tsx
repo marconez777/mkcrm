@@ -12,6 +12,7 @@ import Inbox from "./pages/Inbox";
 import AiHub from "./pages/ai/AiHub";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
+import SettingsForms from "./pages/SettingsForms";
 
 import Tasks from "./pages/Tasks";
 import Admin from "./pages/Admin";
