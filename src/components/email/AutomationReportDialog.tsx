@@ -29,7 +29,7 @@ type Automation = {
   steps: Step[];
 };
 
-type Bucket = "enrolled" | "queued" | "sent" | "opened" | "clicked" | "failed";
+export type Bucket = "enrolled" | "queued" | "sent" | "opened" | "clicked" | "failed" | "all";
 
 type StepStats = {
   slug: string;
