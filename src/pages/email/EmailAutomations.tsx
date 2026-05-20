@@ -202,7 +202,8 @@ export default function EmailAutomations() {
 
         <TabsContent value="presets" className="space-y-3">
           {PRESETS.map((p) => {
-            const active = !!presetActive(p.key);
+            const existing = items.find((i) => i.preset_key === p.key);
+            const active = !!(existing && existing.active);
             return (
               <Card key={p.key} className="p-4 flex items-start gap-4">
                 <div className="flex-1">
@@ -214,6 +215,11 @@ export default function EmailAutomations() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {existing && (
+                    <Button size="sm" variant="outline" onClick={() => setReporting(existing)}>
+                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                    </Button>
+                  )}
                   <Switch checked={active} onCheckedChange={(v) => togglePreset(p, v)} disabled={busy} />
                   <span className="text-xs text-muted-foreground">{active ? "Ativa" : "Inativa"}</span>
                 </div>
