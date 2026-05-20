@@ -38,14 +38,22 @@ Deno.serve(async (req) => {
     if (!token) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
 
     // Apenas super admin
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
-    if (!isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+    // Bypass para chamadas com service role (uso interno via JWT role=service_role)
+    let isServiceRole = false;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
+      isServiceRole = payload?.role === "service_role";
+    } catch {}
+    if (!isServiceRole) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      });
+      const { data: u } = await userClient.auth.getUser();
+      if (!u?.user) return jsonResponse({ error: "Unauthorized" }, { status: 401 });
+      const { data: isSuper } = await admin.rpc("is_super_admin", { _user_id: u.user.id });
+      if (!isSuper) return jsonResponse({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}));
     const { action, clinic_id, domain, domain_id, region = "us-east-1" } = body ?? {};
@@ -55,7 +63,6 @@ Deno.serve(async (req) => {
       const cleanDomain = String(domain).toLowerCase().trim();
       const RESEND_API_KEY = await resolveResendKey(admin, clinic_id, null);
       if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
-      const cleanDomain = String(domain).toLowerCase().trim();
 
       const resp = await fetch(`${RESEND_BASE}/domains`, {
         method: "POST",
