@@ -1,0 +1,478 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { Loader2, Plus, Copy, RotateCcw, Trash2, Eye, EyeOff, Download, ArrowLeft, ExternalLink } from "lucide-react";
+
+type Integration = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  slug: string;
+  token: string;
+  allowed_domains: string[];
+  status: string;
+  default_tags: string[];
+  total_submissions: number;
+  last_submission_at: string | null;
+  created_at: string;
+};
+type Definition = {
+  id: string;
+  integration_id: string;
+  form_key: string;
+  name: string;
+  source_page: string | null;
+  field_map: Record<string, string>;
+  active: boolean;
+  total_submissions: number;
+  last_submission_at: string | null;
+};
+type Submission = {
+  id: string;
+  form_key: string | null;
+  source_page: string | null;
+  payload: Record<string, unknown>;
+  lead_id: string | null;
+  is_new_lead: boolean;
+  status: string;
+  error: string | null;
+  created_at: string;
+};
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const INGEST_URL = `${SUPABASE_URL}/functions/v1/forms-ingest`;
+const SNIPPET_URL = `${SUPABASE_URL}/functions/v1/forms-snippet`;
+const PLUGIN_URL = `${SUPABASE_URL}/functions/v1/forms-plugin-zip`;
+
+export default function SettingsForms() {
+  const { isSuperAdmin, membership } = useAuth();
+  const canManage = isSuperAdmin || ["owner", "admin"].includes(membership?.role || "");
+  const [list, setList] = useState<Integration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Integration | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDomains, setNewDomains] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { document.title = "Formulários — MK CRM"; load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("form_integrations").select("*").order("created_at", { ascending: false });
+    if (error) toast.error(error.message); else setList((data ?? []) as any);
+    setLoading(false);
+  }
+
+  async function createIntegration(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const allowed_domains = newDomains.split(",").map((s) => s.trim()).filter(Boolean);
+      const { data, error } = await supabase.functions.invoke("forms-admin", {
+        body: { action: "create_integration", name: newName, allowed_domains, default_tags: [] },
+      });
+      if (error) throw error;
+      toast.success("Integração criada");
+      setCreateOpen(false); setNewName(""); setNewDomains("");
+      await load();
+      setSelected((data as any).integration);
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  if (selected) return <DetailView integration={selected} onBack={() => { setSelected(null); load(); }} canManage={canManage} />;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="mx-auto max-w-5xl p-8 space-y-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Formulários</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Conecte formulários de sites WordPress, Lovable ou HTML puro ao CRM.
+            </p>
+          </div>
+          {canManage && (
+            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Nova integração</Button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+        ) : list.length === 0 ? (
+          <Card className="p-10 text-center text-sm text-muted-foreground">
+            Nenhuma integração criada ainda. Clique em "Nova integração" para começar.
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {list.map((i) => (
+              <Card key={i.id} className="p-4 hover:bg-accent/30 cursor-pointer" onClick={() => setSelected(i)}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold truncate">{i.name}</h3>
+                      <Badge variant={i.status === "active" ? "default" : "secondary"}>{i.status}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 truncate">
+                      {(i.allowed_domains || []).length ? i.allowed_domains.join(", ") : "Qualquer domínio"}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground shrink-0">
+                    <div>{i.total_submissions} envios</div>
+                    <div>{i.last_submission_at ? new Date(i.last_submission_at).toLocaleString("pt-BR") : "Sem envios"}</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Nova integração de formulários</DialogTitle></DialogHeader>
+            <form onSubmit={createIntegration} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Nome</Label>
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Site MKart" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Domínios permitidos (opcional)</Label>
+                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" />
+                <p className="text-xs text-muted-foreground">Separe por vírgula. Deixe em branco para aceitar qualquer origem.</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+}
+
+function DetailView({ integration, onBack, canManage }: { integration: Integration; onBack: () => void; canManage: boolean }) {
+  const [data, setData] = useState<Integration>(integration);
+  const [defs, setDefs] = useState<Definition[]>([]);
+  const [subs, setSubs] = useState<Submission[]>([]);
+  const [showToken, setShowToken] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editDef, setEditDef] = useState<Definition | null>(null);
+
+  useEffect(() => { loadAll(); }, [integration.id]);
+
+  async function loadAll() {
+    const [d, s, fresh] = await Promise.all([
+      supabase.from("form_definitions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }),
+      supabase.from("form_submissions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }).limit(200),
+      supabase.from("form_integrations").select("*").eq("id", integration.id).single(),
+    ]);
+    if (d.data) setDefs(d.data as any);
+    if (s.data) setSubs(s.data as any);
+    if (fresh.data) setData(fresh.data as any);
+  }
+
+  function copy(s: string, label = "Copiado") {
+    navigator.clipboard.writeText(s).then(() => toast.success(label));
+  }
+
+  async function rotate() {
+    if (!confirm("Rotacionar token? O atual continua válido por 24h.")) return;
+    setBusy(true);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("forms-admin", { body: { action: "rotate_token", id: integration.id } });
+      if (error) throw error;
+      setData((res as any).integration);
+      toast.success("Token rotacionado");
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function toggleStatus() {
+    setBusy(true);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("forms-admin", {
+        body: { action: "update_integration", id: integration.id, status: data.status === "active" ? "paused" : "active" },
+      });
+      if (error) throw error;
+      setData((res as any).integration);
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function removeIntegration() {
+    if (!confirm("Excluir integração? Envios futuros com este token serão rejeitados.")) return;
+    const { error } = await supabase.functions.invoke("forms-admin", { body: { action: "delete_integration", id: integration.id } });
+    if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
+  }
+
+  const tokenMasked = showToken ? data.token : data.token.slice(0, 8) + "•••••••••••••••";
+  const snippetCode = `<script async src="${SNIPPET_URL}?token=${data.token}"></script>`;
+  const curlCode = `curl -X POST "${INGEST_URL}" \\\n  -H "Content-Type: application/json" \\\n  -H "x-form-token: ${data.token}" \\\n  -d '{"form_key":"contato-home","fields":{"name":"João","email":"joao@x.com","phone":"11999999999"}}'`;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="mx-auto max-w-5xl p-8 space-y-6">
+        <div>
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
+          <div className="flex items-center justify-between mt-2">
+            <div>
+              <h1 className="text-2xl font-semibold">{data.name}</h1>
+              <p className="text-xs text-muted-foreground">{data.total_submissions} envios totais · {(data.allowed_domains || []).join(", ") || "qualquer domínio"}</p>
+            </div>
+            {canManage && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={toggleStatus} disabled={busy}>{data.status === "active" ? "Pausar" : "Reativar"}</Button>
+                <Button variant="outline" size="sm" onClick={removeIntegration}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Tabs defaultValue="install">
+          <TabsList>
+            <TabsTrigger value="install">Como instalar</TabsTrigger>
+            <TabsTrigger value="forms">Formulários ({defs.length})</TabsTrigger>
+            <TabsTrigger value="submissions">Envios ({subs.length})</TabsTrigger>
+            <TabsTrigger value="settings">Configurações</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="install" className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <div>
+                <Label>Token da integração</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Input readOnly value={tokenMasked} className="font-mono text-xs" />
+                  <Button variant="outline" size="icon" onClick={() => setShowToken((s) => !s)}>{showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+                  <Button variant="outline" size="icon" onClick={() => copy(data.token, "Token copiado")}><Copy className="h-4 w-4" /></Button>
+                  {canManage && <Button variant="outline" size="icon" onClick={rotate} disabled={busy}><RotateCcw className="h-4 w-4" /></Button>}
+                </div>
+              </div>
+            </Card>
+
+            <Tabs defaultValue="wp">
+              <TabsList>
+                <TabsTrigger value="wp">WordPress</TabsTrigger>
+                <TabsTrigger value="lovable">Lovable / HTML</TabsTrigger>
+                <TabsTrigger value="api">API direta</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="wp" className="space-y-3">
+                <Card className="p-4 space-y-3">
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">1. Baixe o plugin</p>
+                    <a href={PLUGIN_URL} download>
+                      <Button variant="outline"><Download className="mr-2 h-4 w-4" />Baixar mk-crm-forms.zip</Button>
+                    </a>
+                    <p className="font-medium pt-2">2. No WordPress</p>
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                      <li>Plugins → Adicionar novo → Enviar plugin → faça upload do .zip e ative.</li>
+                      <li>Configurações → MK CRM Forms → cole o token acima e salve.</li>
+                    </ul>
+                    <p className="text-muted-foreground pt-2">
+                      Suporta: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.
+                    </p>
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="lovable" className="space-y-3">
+                <Card className="p-4 space-y-3">
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">Cole este script antes do <code>{"</body>"}</code>:</p>
+                    <div className="relative">
+                      <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono">{snippetCode}</pre>
+                      <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7" onClick={() => copy(snippetCode)}><Copy className="h-3 w-3" /></Button>
+                    </div>
+                    <p className="text-muted-foreground pt-2">
+                      O script captura automaticamente qualquer <code>&lt;form&gt;</code> da página. Use <code>data-mk-form="contato"</code> no form para nomeá-lo, ou <code>data-mk-ignore</code> para ignorar.
+                    </p>
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="api" className="space-y-3">
+                <Card className="p-4 space-y-3">
+                  <p className="text-sm font-medium">Envio direto via HTTP POST:</p>
+                  <div className="relative">
+                    <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono whitespace-pre">{curlCode}</pre>
+                    <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7" onClick={() => copy(curlCode)}><Copy className="h-3 w-3" /></Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Endpoint: <code>{INGEST_URL}</code>
+                  </p>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="forms">
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Form key</TableHead>
+                    <TableHead>Envios</TableHead>
+                    <TableHead>Último</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {defs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">Nenhum formulário detectado ainda. Submeta um envio para auto-descoberta.</TableCell></TableRow>}
+                  {defs.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium">{d.name} {!d.active && <Badge variant="secondary" className="ml-2">pausado</Badge>}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">{d.form_key}</TableCell>
+                      <TableCell>{d.total_submissions}</TableCell>
+                      <TableCell className="text-xs">{d.last_submission_at ? new Date(d.last_submission_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                      <TableCell className="text-right">
+                        {canManage && <Button size="sm" variant="outline" onClick={() => setEditDef(d)}>Editar</Button>}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="submissions">
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quando</TableHead>
+                    <TableHead>Formulário</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Lead</TableHead>
+                    <TableHead>Payload</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {subs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">Nenhum envio ainda</TableCell></TableRow>}
+                  {subs.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-xs">{new Date(s.created_at).toLocaleString("pt-BR")}</TableCell>
+                      <TableCell className="text-xs font-mono">{s.form_key}</TableCell>
+                      <TableCell>
+                        <Badge variant={s.status === "ok" ? "default" : s.status === "error" ? "destructive" : "secondary"}>
+                          {s.status}{s.is_new_lead ? " · novo" : ""}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {s.lead_id ? <a className="text-xs underline" href={`/leads/${s.lead_id}`} target="_blank" rel="noopener"><ExternalLink className="inline h-3 w-3 mr-1" />abrir</a> : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <code className="text-[10px] text-muted-foreground line-clamp-2 break-all">{JSON.stringify(s.payload)}</code>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <IntegrationSettings integration={data} onSaved={(updated) => setData(updated)} canManage={canManage} />
+          </TabsContent>
+        </Tabs>
+
+        {editDef && (
+          <DefinitionEditor def={editDef} onClose={() => { setEditDef(null); loadAll(); }} canManage={canManage} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IntegrationSettings({ integration, onSaved, canManage }: { integration: Integration; onSaved: (i: Integration) => void; canManage: boolean }) {
+  const [name, setName] = useState(integration.name);
+  const [domains, setDomains] = useState((integration.allowed_domains || []).join(", "));
+  const [tags, setTags] = useState((integration.default_tags || []).join(", "));
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("forms-admin", {
+        body: {
+          action: "update_integration",
+          id: integration.id,
+          name,
+          allowed_domains: domains.split(",").map((s) => s.trim()).filter(Boolean),
+          default_tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
+        },
+      });
+      if (error) throw error;
+      toast.success("Salvo");
+      onSaved((data as any).integration);
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Card className="p-4 space-y-3">
+      <div className="space-y-1.5"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>Domínios permitidos</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>Tags padrão para novos leads</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="site, formulario" disabled={!canManage} /></div>
+      {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+    </Card>
+  );
+}
+
+function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClose: () => void; canManage: boolean }) {
+  const [name, setName] = useState(def.name);
+  const [map, setMap] = useState(JSON.stringify(def.field_map || {}, null, 2));
+  const [active, setActive] = useState(def.active);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      let parsed: Record<string, string> = {};
+      try { parsed = JSON.parse(map); } catch { throw new Error("field_map inválido (JSON)"); }
+      const { error } = await supabase.functions.invoke("forms-admin", {
+        body: { action: "update_definition", id: def.id, name, field_map: parsed, active },
+      });
+      if (error) throw error;
+      toast.success("Salvo");
+      onClose();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Editar formulário</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5"><Label>Nome amigável</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+          <div className="space-y-1.5">
+            <Label>Mapeamento de campos (JSON)</Label>
+            <textarea
+              className="w-full h-40 rounded border bg-background p-2 font-mono text-xs"
+              value={map}
+              onChange={(e) => setMap(e.target.value)}
+              disabled={!canManage}
+            />
+            <p className="text-xs text-muted-foreground">
+              Ex.: <code>{`{"name":"your-name","email":"your-email","phone":"tel-123"}`}</code>. Deixe vazio para auto-detecção.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={!canManage} /> Ativo</label>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Fechar</Button>
+          {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
