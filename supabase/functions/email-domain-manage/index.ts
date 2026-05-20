@@ -93,6 +93,8 @@ Deno.serve(async (req) => {
       if (!domain_id) return jsonResponse({ error: "missing domain_id" }, { status: 400 });
       const { data: row } = await admin.from("email_domains").select("*").eq("id", domain_id).maybeSingle();
       if (!row?.resend_domain_id) return jsonResponse({ error: "domain not synced with Resend yet" }, { status: 400 });
+      const RESEND_API_KEY = await resolveResendKey(admin, row.clinic_id, domain_id);
+      if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
 
       // Aciona verificação
       await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}/verify`, {
