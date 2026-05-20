@@ -53,6 +53,9 @@ Deno.serve(async (req) => {
     if (action === "create") {
       if (!clinic_id || !domain) return jsonResponse({ error: "missing clinic_id or domain" }, { status: 400 });
       const cleanDomain = String(domain).toLowerCase().trim();
+      const RESEND_API_KEY = await resolveResendKey(admin, clinic_id, null);
+      if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
+      const cleanDomain = String(domain).toLowerCase().trim();
 
       const resp = await fetch(`${RESEND_BASE}/domains`, {
         method: "POST",
