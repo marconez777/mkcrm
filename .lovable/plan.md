@@ -1,41 +1,29 @@
+# Corrigir avanço entre partes em disparo em massa
+
 ## Diagnóstico
 
-O botão **Iniciar** chamou `broadcast-control` com `action: "start"` e recebeu **HTTP 400** porque a campanha ainda não teve a audiência congelada. A função exige isso:
+Pelos eventos e pelo banco:
+- Cron `broadcast-tick` roda a cada 1 minuto.
+- Quando um grupo tem várias partes, o tick envia a parte 1, agenda `next_send_at = +3s` e termina. A parte 2 só é enviada no **próximo tick do cron** (até ~60s depois), deixando o destinatário travado em `sending` no painel.
+- Quando uma recipiente "completa" (`allDone`), o tick faz `break` e também depende do cron para começar o próximo destinatário.
 
-```ts
-if (action === "start") {
-  if (!bc.audience_frozen_at) return json({ error: "audience_not_frozen" }, 400);
-  ...
-}
-```
+Resultado: campanhas com múltiplas partes ou múltiplos contatos parecem "paradas".
 
-O toast só mostrou "Edge Function returned a non-2xx status code" (genérico do `supabase.functions.invoke`) porque, em respostas não-2xx, o SDK descarta o corpo JSON e o código atual lê `data?.error`, que é `undefined`. Por isso o usuário não vê a causa real ("audience_not_frozen").
+> Observação separada: só uma mensagem chegou no WhatsApp porque o número da Keila não existe no WhatsApp — a Evolution API retorna 200 mesmo quando o número não está cadastrado. Isso não é bug do nosso código; é uma limitação da resposta do `sendText`. Não trato nesse plano.
 
-Além disso, hoje o fluxo de UX não deixa claro que é preciso ir até a aba **Audiência** e clicar em **Congelar audiência** antes de iniciar.
+## Mudanças
 
-## O que vou alterar
+### `supabase/functions/broadcast-tick/index.ts`
 
-### 1. Mostrar a mensagem de erro real (frontend)
-Em `src/pages/Broadcasts.tsx`, no helper `control()`:
-- Quando `invoke` retornar erro, ler o corpo da resposta via `error.context.json()` (ou `.text()`) para extrair `{ error: "..." }` da edge function e exibir no toast.
-- Traduzir códigos conhecidos para português: `audience_not_frozen` → "Congele a audiência antes de iniciar (aba Audiência → Congelar audiência)".
+1. Adicionar helper `triggerTick()` (fire-and-forget POST para o próprio endpoint, igual ao já existente em `broadcast-control`).
+2. **Após enviar uma parte intermediária com sucesso** (não-última do grupo): chamar `triggerTick()` antes de continuar/retornar. Como `next_send_at = now()+3s`, o próximo tick processa essa mesma recipiente em ~3s, sem esperar o cron.
+3. **Após completar um destinatário (`allDone`)**: também chamar `triggerTick()`. Como o próximo `next_send_at` respeita `throttle_seconds`, o tick chegará "cedo" mas o filtro `lte("next_send_at", now)` ainda respeita o throttle (nada é enviado antes da hora). Isso só serve para encadear destinatários sem esperar o cron.
+4. Manter `limit(3)` por tick para não saturar a Evolution.
 
-### 2. Bloquear o botão Iniciar quando faltar pré-requisito (frontend)
-No header da campanha:
-- Desabilitar o botão **Iniciar** quando `bc.audience_frozen_at` for `null` **ou** `bc.whatsapp_instance_id` for `null`.
-- Tooltip explicando o motivo ("Selecione uma instância do WhatsApp" / "Congele a audiência primeiro").
-- Adicionar um banner discreto no topo da campanha em status `draft` listando os passos pendentes (instância, mensagens, audiência congelada) com link para a aba correta.
+### Sem alterações em UI ou banco.
 
-### 3. Atalho "Congelar e iniciar" (frontend)
-Na aba **Audiência**, quando já houver pipeline/estágios ou contatos selecionados, adicionar botão único **Congelar audiência e iniciar** que executa `freeze_audience` + `start` em sequência, evitando o erro recorrente.
+## Resultado esperado
 
-### 4. Mensagens de erro mais claras na edge function (backend mínimo)
-Em `supabase/functions/broadcast-control/index.ts`:
-- Trocar `audience_not_frozen` por payload `{ error: "audience_not_frozen", message: "Congele a audiência antes de iniciar a campanha." }`.
-- Validar também `whatsapp_instance_id` e retornar `{ error: "no_whatsapp_instance", message: "..." }` em vez de deixar falhar depois no `broadcast-tick`.
-
-### Arquivos
-- `src/pages/Broadcasts.tsx` (helper `control`, header de ações, aba Audiência, banner de checklist)
-- `supabase/functions/broadcast-control/index.ts` (mensagens estruturadas)
-
-Sem mudanças em schema, RLS ou outras funções.
+- Em um grupo de 2 partes, parte 2 sai ~3s depois da parte 1 (e o destinatário vira `sent` no painel).
+- Próximo destinatário começa imediatamente após o throttle, sem esperar o minuto do cron.
+- Cron continua existindo como rede de segurança caso um `triggerTick` falhe.

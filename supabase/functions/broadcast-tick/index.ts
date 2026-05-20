@@ -59,6 +59,18 @@ function withinWindow(w: SendWindow): { ok: boolean; nextOpenIso: string } {
   return { ok: false, nextOpenIso: new Date(Date.now() + 60 * 60 * 1000).toISOString() };
 }
 
+function triggerTick() {
+  try {
+    const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/broadcast-tick`;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: "{}",
+    }).catch(() => {});
+  } catch { /* fire-and-forget */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const supabase = sb();
