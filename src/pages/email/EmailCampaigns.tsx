@@ -57,6 +57,7 @@ export default function EmailCampaigns() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
+  const [reporting, setReporting] = useState<Campaign | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
