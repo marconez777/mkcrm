@@ -1,6 +1,19 @@
-// Controla campanhas de disparo em massa: start, pause, resume, cancel, freeze_audience, add_contacts.
+// Controla campanhas de disparo em massa: start, pause, resume, cancel, freeze_audience, add_contacts, test_send_first.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, requireUser, loadInstance, evoFetch } from "../_shared/evolution.ts";
+
+async function triggerTick() {
+  try {
+    const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/broadcast-tick`;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // fire-and-forget; don't await response body parsing to keep this fast
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, apikey: key },
+      body: "{}",
+    }).then((r) => r.text()).catch(() => {});
+  } catch (_) { /* ignore */ }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
