@@ -7,13 +7,29 @@ import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const RESEND_BASE = "https://api.resend.com";
 
+async function resolveResendKey(admin: any, clinicId?: string | null, domainId?: string | null): Promise<string | null> {
+  let cid = clinicId ?? null;
+  if (!cid && domainId) {
+    const { data: d } = await admin.from("email_domains").select("clinic_id").eq("id", domainId).maybeSingle();
+    cid = d?.clinic_id ?? null;
+  }
+  if (cid) {
+    const { data: integ } = await admin
+      .from("clinic_email_integrations")
+      .select("secret_name, enabled")
+      .eq("clinic_id", cid)
+      .maybeSingle();
+    if (integ?.enabled && integ?.secret_name) {
+      const key = Deno.env.get(integ.secret_name);
+      if (key) return key;
+    }
+  }
+  return Deno.env.get("RESEND_API_KEY") ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    if (!RESEND_API_KEY) {
-      return jsonResponse({ error: "RESEND_API_KEY missing" }, { status: 503 });
-    }
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -36,6 +52,9 @@ Deno.serve(async (req) => {
 
     if (action === "create") {
       if (!clinic_id || !domain) return jsonResponse({ error: "missing clinic_id or domain" }, { status: 400 });
+      const cleanDomain = String(domain).toLowerCase().trim();
+      const RESEND_API_KEY = await resolveResendKey(admin, clinic_id, null);
+      if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
       const cleanDomain = String(domain).toLowerCase().trim();
 
       const resp = await fetch(`${RESEND_BASE}/domains`, {
@@ -74,6 +93,8 @@ Deno.serve(async (req) => {
       if (!domain_id) return jsonResponse({ error: "missing domain_id" }, { status: 400 });
       const { data: row } = await admin.from("email_domains").select("*").eq("id", domain_id).maybeSingle();
       if (!row?.resend_domain_id) return jsonResponse({ error: "domain not synced with Resend yet" }, { status: 400 });
+      const RESEND_API_KEY = await resolveResendKey(admin, row.clinic_id, domain_id);
+      if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
 
       // Aciona verificação
       await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}/verify`, {
@@ -104,10 +125,13 @@ Deno.serve(async (req) => {
       if (!domain_id) return jsonResponse({ error: "missing domain_id" }, { status: 400 });
       const { data: row } = await admin.from("email_domains").select("*").eq("id", domain_id).maybeSingle();
       if (row?.resend_domain_id) {
-        await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
-        }).catch(() => {});
+        const RESEND_API_KEY = await resolveResendKey(admin, row.clinic_id, domain_id);
+        if (RESEND_API_KEY) {
+          await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+          }).catch(() => {});
+        }
       }
       await admin.from("email_domains").delete().eq("id", domain_id);
       return jsonResponse({ ok: true });
