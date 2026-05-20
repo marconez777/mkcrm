@@ -228,16 +228,22 @@ Deno.serve(async (req) => {
             },
           });
 
-          if (allDone) {
-            // Contato finalizado: empurra os demais pendentes pelo intervalo configurado entre contatos.
+          const isFirstPart = partIndex === 0;
+          if (isFirstPart || allDone) {
+            // Reserva o intervalo entre contatos: assim que um contato COMEÇA (parte 1)
+            // ou TERMINA, empurra os demais pendentes pelo throttle configurado.
+            // Isso impede que outro contato seja intercalado enquanto este envia suas partes.
             const pushUntil = new Date(Date.now() + throttleMs).toISOString();
             await supabase
               .from("broadcast_recipients")
               .update({ next_send_at: pushUntil })
               .eq("broadcast_id", bc.id)
               .eq("status", "pending")
+              .neq("id", r.id)
               .lt("next_send_at", pushUntil);
+          }
 
+          if (allDone) {
             stats.sent++;
             const { count: sentCount } = await supabase
               .from("broadcast_recipients")
