@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign";
 type Rule =
