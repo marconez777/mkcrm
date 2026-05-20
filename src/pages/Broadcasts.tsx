@@ -242,6 +242,19 @@ function BroadcastEditor({ id }: { id: string }) {
               <X className="size-4 mr-1" /> Cancelar
             </Button>
           ) : null}
+          {(bc.status === "draft" || bc.status === "paused") && bc.whatsapp_instance_id && bc.audience_frozen_at ? (
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!confirm("Enviar mensagem de teste AGORA para o primeiro contato da lista?")) return;
+                const r: any = await control("test_send_first");
+                if (r?.ok) toast.success(`Teste enviado para ${r.recipient?.name || r.recipient?.phone} (${r.parts_sent} parte(s))`);
+                else if (r) toast.error(`Falha no teste: ${JSON.stringify(r.results?.[0] ?? r)}`);
+              }}
+            >
+              <Play className="size-4 mr-1" /> Testar agora
+            </Button>
+          ) : null}
         </div>
       </div>
 
