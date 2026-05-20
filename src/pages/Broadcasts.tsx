@@ -242,6 +242,11 @@ function BroadcastEditor({ id }: { id: string }) {
               <X className="size-4 mr-1" /> Cancelar
             </Button>
           ) : null}
+          {(bc.status === "draft" || bc.status === "cancelled" || bc.status === "failed" || bc.status === "done") ? (
+            <Button variant="outline" onClick={async () => { if (confirm("Apagar campanha permanentemente?\n\nEssa ação não pode ser desfeita.")) { const r = await control("delete"); if (r) { toast.success("Campanha apagada"); navigate("/ai/broadcasts"); } } }}>
+              <Trash2 className="size-4 mr-1" /> Apagar
+            </Button>
+          ) : null}
           {(bc.status === "draft" || bc.status === "paused") && bc.whatsapp_instance_id && bc.audience_frozen_at ? (
             <Button
               variant="outline"
