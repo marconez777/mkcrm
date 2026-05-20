@@ -417,11 +417,9 @@ export default function EmailContacts() {
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{c.segment_name ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      {c.source === "manual" && (
-                        <Button size="sm" variant="ghost" onClick={() => removeManual(c.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button size="sm" variant="ghost" onClick={() => removeContact(c)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
