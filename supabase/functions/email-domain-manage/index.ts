@@ -125,10 +125,13 @@ Deno.serve(async (req) => {
       if (!domain_id) return jsonResponse({ error: "missing domain_id" }, { status: 400 });
       const { data: row } = await admin.from("email_domains").select("*").eq("id", domain_id).maybeSingle();
       if (row?.resend_domain_id) {
-        await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
-        }).catch(() => {});
+        const RESEND_API_KEY = await resolveResendKey(admin, row.clinic_id, domain_id);
+        if (RESEND_API_KEY) {
+          await fetch(`${RESEND_BASE}/domains/${row.resend_domain_id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+          }).catch(() => {});
+        }
       }
       await admin.from("email_domains").delete().eq("id", domain_id);
       return jsonResponse({ ok: true });
