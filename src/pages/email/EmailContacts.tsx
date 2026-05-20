@@ -155,17 +155,23 @@ export default function EmailContacts() {
     load();
   }
 
-  async function removeContact(contact: Contact) {
-    if (!confirm("Excluir contato permanentemente?")) return;
-    if (contact.source === "manual") {
-      const { error } = await supabase.from("email_segment_contacts").delete().eq("id", contact.id);
-      if (error) return toast.error(error.message);
-    } else {
-      const { error } = await supabase.from("leads").delete().eq("id", contact.id);
-      if (error) return toast.error(error.message);
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      if (toDelete.source === "manual") {
+        const { error } = await supabase.from("email_segment_contacts").delete().eq("id", toDelete.id);
+        if (error) return toast.error(error.message);
+      } else {
+        const { error } = await supabase.from("leads").delete().eq("id", toDelete.id);
+        if (error) return toast.error(error.message);
+      }
+      setContacts((c) => c.filter((x) => !(x.source === toDelete.source && x.id === toDelete.id)));
+      toast.success("Contato excluído");
+      setToDelete(null);
+    } finally {
+      setDeleting(false);
     }
-    setContacts((c) => c.filter((x) => !(x.source === contact.source && x.id === contact.id)));
-    toast.success("Contato excluído");
   }
 
   function handleFile(file: File) {
