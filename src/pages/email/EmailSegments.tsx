@@ -431,6 +431,7 @@ export default function EmailSegments() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (
