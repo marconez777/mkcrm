@@ -45,17 +45,21 @@ function renderBlock(b: EmailBlock): string {
       return `<tr><td align="${b.align}" style="padding:8px 0;">${img}</td></tr>`;
     }
     case "signature": {
+      const size = (b as any).avatarSize || 80;
+      const initials = (b.name || "?").slice(0, 1).toUpperCase();
       const avatar = b.avatarSrc
-        ? `<img src="${escapeAttr(b.avatarSrc)}" width="48" height="48" alt="" style="border-radius:50%;display:block;" />`
-        : "";
+        ? `<img src="${escapeAttr(b.avatarSrc)}" width="${size}" height="${size}" alt="" style="border-radius:50%;display:block;width:${size}px;height:${size}px;object-fit:cover;" />`
+        : `<div style="width:${size}px;height:${size}px;line-height:${size}px;border-radius:50%;background:#e5e7eb;color:#374151;text-align:center;font-weight:700;font-family:Arial;font-size:${Math.round(size * 0.35)}px;">${escapeAttr(initials)}</div>`;
+      const siteHref = b.site ? (b.site.startsWith("http") ? b.site : `https://${b.site}`) : "";
+      const siteLabel = b.site.replace(/^https?:\/\//, "");
       return `<tr><td style="padding:16px 0;border-top:1px solid #e5e7eb;font-family:Arial;font-size:13px;color:#374151;">
         <table cellpadding="0" cellspacing="0" border="0"><tr>
-        ${avatar ? `<td style="padding-right:12px;vertical-align:top;">${avatar}</td>` : ""}
-        <td style="vertical-align:top;">
-          <div style="font-weight:700;color:#111;">${escapeAttr(b.name)}</div>
+        <td style="padding-right:16px;vertical-align:top;">${avatar}</td>
+        <td style="vertical-align:top;padding-top:4px;line-height:1.4;">
+          <div style="font-weight:700;color:#111;font-size:15px;">${escapeAttr(b.name)}</div>
           ${b.role ? `<div style="color:#6b7280;">${escapeAttr(b.role)}</div>` : ""}
-          ${b.extra ? `<div style="margin-top:4px;">${escapeAttr(b.extra)}</div>` : ""}
-          ${b.site ? `<div style="margin-top:4px;"><a href="${escapeAttr(b.site)}" style="color:#2563eb;text-decoration:none;">${escapeAttr(b.site)}</a></div>` : ""}
+          ${b.extra ? `<div style="color:#6b7280;">${escapeAttr(b.extra)}</div>` : ""}
+          ${b.site ? `<div style="margin-top:2px;"><a href="${escapeAttr(siteHref)}" style="color:#2563eb;text-decoration:underline;">${escapeAttr(siteLabel)}</a></div>` : ""}
         </td></tr></table>
       </td></tr>`;
     }
