@@ -382,7 +382,7 @@ type LeadRow = {
   extra?: string;
 };
 
-function AutomationLeadsSheet({
+export function AutomationLeadsSheet({
   automationId,
   relatedTable,
   sheet,
@@ -398,7 +398,7 @@ function AutomationLeadsSheet({
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (!sheet || !automationId || !relatedTable) {
+    if (!sheet || !relatedTable) {
       setRows([]);
       return;
     }
