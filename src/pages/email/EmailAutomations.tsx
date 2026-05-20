@@ -381,6 +381,12 @@ export default function EmailAutomations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AutomationReportDialog
+        automation={reporting}
+        open={!!reporting}
+        onOpenChange={(o) => !o && setReporting(null)}
+      />
     </div>
   );
 }
