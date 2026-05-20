@@ -130,8 +130,25 @@ export function newBlock(type: BlockType): EmailBlock {
       return { id, type, height: 24 };
     case "avatar":
       return { id, type, src: "", initials: "AB", size: 64, align: "center" };
-    case "signature":
-      return { id, type, avatarSrc: "", avatarSize: 80, name: "Nome", role: "Cargo", extra: "", site: "" };
+    case "signature": {
+      let preset: Partial<SignatureBlock> = {};
+      try {
+        if (typeof window !== "undefined") {
+          const raw = window.localStorage.getItem("email:default-signature");
+          if (raw) preset = JSON.parse(raw);
+        }
+      } catch {}
+      return {
+        id,
+        type,
+        avatarSrc: preset.avatarSrc ?? "",
+        avatarSize: preset.avatarSize ?? 80,
+        name: preset.name ?? "Nome",
+        role: preset.role ?? "Cargo",
+        extra: preset.extra ?? "",
+        site: preset.site ?? "",
+      };
+    }
     case "youtube":
       return { id, type, url: "https://www.youtube.com/watch?v=", caption: "", width: 560 };
     case "columns":
