@@ -149,6 +149,9 @@ export default function Inspector({ block, onChange }: Props) {
       {block.type === "signature" && (
         <>
           <Field label="Avatar (URL)"><Input value={block.avatarSrc} onChange={(e) => upd({ avatarSrc: e.target.value })} /></Field>
+          <Field label={`Tamanho do avatar (${block.avatarSize || 80}px)`}>
+            <Slider value={[block.avatarSize || 80]} min={48} max={140} step={4} onValueChange={(v) => upd({ avatarSize: v[0] })} />
+          </Field>
           <Field label="Nome"><Input value={block.name} onChange={(e) => upd({ name: e.target.value })} /></Field>
           <Field label="Cargo"><Input value={block.role} onChange={(e) => upd({ role: e.target.value })} /></Field>
           <Field label="Linha extra"><Input value={block.extra} onChange={(e) => upd({ extra: e.target.value })} /></Field>

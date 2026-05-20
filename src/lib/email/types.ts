@@ -59,6 +59,7 @@ export type AvatarBlock = BlockBase & {
 export type SignatureBlock = BlockBase & {
   type: "signature";
   avatarSrc: string;
+  avatarSize: number;
   name: string;
   role: string;
   extra: string;
@@ -130,7 +131,7 @@ export function newBlock(type: BlockType): EmailBlock {
     case "avatar":
       return { id, type, src: "", initials: "AB", size: 64, align: "center" };
     case "signature":
-      return { id, type, avatarSrc: "", name: "Nome", role: "Cargo", extra: "", site: "" };
+      return { id, type, avatarSrc: "", avatarSize: 80, name: "Nome", role: "Cargo", extra: "", site: "" };
     case "youtube":
       return { id, type, url: "https://www.youtube.com/watch?v=", caption: "", width: 560 };
     case "columns":
