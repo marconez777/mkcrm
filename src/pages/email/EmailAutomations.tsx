@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Workflow } from "lucide-react";
+import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
+import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
 
 type Step = { template_slug: string; delay_minutes: number };
 type Automation = {
@@ -84,6 +85,7 @@ export default function EmailAutomations() {
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [editing, setEditing] = useState<Automation | null>(null);
+  const [reporting, setReporting] = useState<Automation | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -200,7 +202,8 @@ export default function EmailAutomations() {
 
         <TabsContent value="presets" className="space-y-3">
           {PRESETS.map((p) => {
-            const active = !!presetActive(p.key);
+            const existing = items.find((i) => i.preset_key === p.key);
+            const active = !!(existing && existing.active);
             return (
               <Card key={p.key} className="p-4 flex items-start gap-4">
                 <div className="flex-1">
@@ -212,6 +215,11 @@ export default function EmailAutomations() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {existing && (
+                    <Button size="sm" variant="outline" onClick={() => setReporting(existing)}>
+                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                    </Button>
+                  )}
                   <Switch checked={active} onCheckedChange={(v) => togglePreset(p, v)} disabled={busy} />
                   <span className="text-xs text-muted-foreground">{active ? "Ativa" : "Inativa"}</span>
                 </div>
@@ -247,6 +255,9 @@ export default function EmailAutomations() {
                     <p className="text-xs text-muted-foreground">{a.steps?.length ?? 0} passo(s)</p>
                   </div>
                   <Switch checked={a.active} onCheckedChange={() => toggleActive(a)} />
+                  <Button size="sm" variant="outline" onClick={() => setReporting(a)}>
+                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setEditing({ ...a })}>Editar</Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(a)}><Trash2 className="h-3 w-3" /></Button>
                 </Card>
@@ -370,6 +381,12 @@ export default function EmailAutomations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AutomationReportDialog
+        automation={reporting}
+        open={!!reporting}
+        onOpenChange={(o) => !o && setReporting(null)}
+      />
     </div>
   );
 }
