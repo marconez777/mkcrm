@@ -255,7 +255,7 @@ export default function EmailSegments() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Excluir segmento?")) return;
+    if (!(await confirm({ title: "Excluir segmento?", confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_segments").delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success("Excluído"); load(); }
