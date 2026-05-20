@@ -29,7 +29,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2, Beaker } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3 } from "lucide-react";
+import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 
 type Campaign = {
   id: string;
