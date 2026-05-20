@@ -182,7 +182,7 @@ export default function EmailAutomations() {
   }
 
   async function remove(a: Automation) {
-    if (!confirm(`Excluir automação "${a.name}"?`)) return;
+    if (!(await confirm({ title: `Excluir automação "${a.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.from("email_automations").delete().eq("id", a.id);
     if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
   }
