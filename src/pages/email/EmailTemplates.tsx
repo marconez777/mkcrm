@@ -67,6 +67,7 @@ export default function EmailTemplates() {
   const [editing, setEditing] = useState<Tpl | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [folderOpen, setFolderOpen] = useState(false);
 
