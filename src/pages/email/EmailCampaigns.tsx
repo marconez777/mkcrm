@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3 } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 
 type Campaign = {
@@ -202,6 +202,11 @@ export default function EmailCampaigns() {
                   <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
                     <BarChart3 className="mr-1 h-3 w-3" />Relatório
                   </Button>
+                  {["draft", "scheduled"].includes(c.status) && (
+                    <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
+                      <Pencil className="mr-1 h-3 w-3" />Editar
+                    </Button>
+                  )}
                   {["draft", "scheduled"].includes(c.status) && (
                     <Button size="sm" variant="outline" onClick={() => dispatch(c)} disabled={busy}>
                       <Send className="mr-1 h-3 w-3" />Enviar
