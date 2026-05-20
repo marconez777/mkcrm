@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { RefreshCw, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Row = {
   email: string;
