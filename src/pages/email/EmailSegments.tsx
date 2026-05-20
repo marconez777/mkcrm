@@ -71,6 +71,7 @@ function normalizeFilters(raw: any): SegmentFilters {
 }
 
 export default function EmailSegments() {
+  const confirm = useConfirm();
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
