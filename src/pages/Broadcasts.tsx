@@ -86,7 +86,9 @@ function BroadcastList() {
 
   const remove = async (b: Broadcast) => {
     if (!confirm(`Excluir campanha "${b.name}" permanentemente?\n\nEssa ação não pode ser desfeita.`)) return;
-    const { error } = await supabase.from("broadcasts").delete().eq("id", b.id);
+    const { error } = await supabase.functions.invoke("broadcast-control", {
+      body: { action: "delete", broadcast_id: b.id },
+    });
     if (error) toast.error(error.message);
     else { toast.success("Campanha excluída"); load(); }
   };
