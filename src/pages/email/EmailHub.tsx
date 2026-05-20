@@ -9,6 +9,7 @@ import EmailLogs from "./EmailLogs";
 import EmailSegments from "./EmailSegments";
 import EmailUnsubscribes from "./EmailUnsubscribes";
 import EmailReports from "./EmailReports";
+import EmailContacts from "./EmailContacts";
 
 
 const TABS = [
@@ -18,7 +19,8 @@ const TABS = [
   { value: "campaigns", path: "/email/campaigns", label: "Campanhas" },
   { value: "reports", path: "/email/reports", label: "Relatórios" },
   { value: "segments", path: "/email/segments", label: "Segmentos" },
-  
+  { value: "contacts", path: "/email/contacts", label: "Contatos" },
+
   { value: "queue", path: "/email/queue", label: "Fila" },
   { value: "logs", path: "/email/logs", label: "Logs" },
   { value: "unsubscribes", path: "/email/unsubscribes", label: "Descadastros" },
