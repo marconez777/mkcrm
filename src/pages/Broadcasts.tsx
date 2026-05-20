@@ -178,7 +178,20 @@ function BroadcastEditor({ id }: { id: string }) {
 
   const control = async (action: string, extra: Record<string, unknown> = {}) => {
     const { data, error } = await supabase.functions.invoke("broadcast-control", { body: { action, broadcast_id: id, ...extra } });
-    if (error || (data as any)?.error) { toast.error((data as any)?.error ?? error?.message); return null; }
+    // supabase-js descarta o body em respostas não-2xx; tentamos ler manualmente
+    let errPayload: any = (data as any)?.error ? data : null;
+    if (error && (error as any).context?.json) {
+      try { errPayload = await (error as any).context.json(); } catch { /* ignore */ }
+    }
+    if (errPayload?.error || error) {
+      const code = errPayload?.error;
+      const msg = errPayload?.message
+        ?? (code === "audience_not_frozen" ? "Congele a audiência na aba Audiência antes de iniciar."
+        :   code === "no_whatsapp_instance" ? "Selecione uma instância do WhatsApp na aba Configuração."
+        :   code ?? error?.message ?? "Erro ao executar ação");
+      toast.error(msg);
+      return null;
+    }
     return data;
   };
 
