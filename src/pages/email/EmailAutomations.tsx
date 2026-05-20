@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
 import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Step = { template_slug: string; delay_minutes: number };
 type Automation = {
