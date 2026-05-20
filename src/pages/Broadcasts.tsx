@@ -349,19 +349,19 @@ function BroadcastEditor({ id }: { id: string }) {
             extraContacts={extraContacts} setExtraContacts={setExtraContacts}
             onSave={save}
             onFreeze={async () => {
-              const r = await control("freeze_audience", {
-                pipeline_id: bc.source?.pipeline_id ?? null,
-                stage_ids: bc.source?.stage_ids ?? [],
-                extra_contacts: extraContacts,
-              });
+              const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
+              const payload = sourceType === "list"
+                ? { pipeline_id: null, stage_ids: [], extra_contacts: extraContacts }
+                : { pipeline_id: bc.source?.pipeline_id ?? null, stage_ids: bc.source?.stage_ids ?? [], extra_contacts: [] };
+              const r = await control("freeze_audience", payload);
               if (r) { toast.success(`Audiência congelada: ${(r as any).inserted} contatos`); load(); }
             }}
             onFreezeAndStart={async () => {
-              const r = await control("freeze_audience", {
-                pipeline_id: bc.source?.pipeline_id ?? null,
-                stage_ids: bc.source?.stage_ids ?? [],
-                extra_contacts: extraContacts,
-              });
+              const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
+              const payload = sourceType === "list"
+                ? { pipeline_id: null, stage_ids: [], extra_contacts: extraContacts }
+                : { pipeline_id: bc.source?.pipeline_id ?? null, stage_ids: bc.source?.stage_ids ?? [], extra_contacts: [] };
+              const r = await control("freeze_audience", payload);
               if (!r) return;
               toast.success(`Audiência congelada: ${(r as any).inserted} contatos`);
               const s = await control("start");
