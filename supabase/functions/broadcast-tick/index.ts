@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
         .in("status", ["pending", "sending"])
         .lte("next_send_at", new Date().toISOString())
         .order("next_send_at", { ascending: true })
-        .limit(3); // processa até 3 por tick
+        .limit(1); // 1 destinatário por tick para respeitar throttle entre contatos
 
       if (!recipients || recipients.length === 0) {
         // checa se acabou
@@ -202,8 +202,9 @@ Deno.serve(async (req) => {
           const newPartsSent = partIndex + 1;
           const allDone = newPartsSent >= parts.length;
           const jitter = 1 + (Math.random() - 0.5) * 0.2; // ±10%
+          const throttleMs = bc.throttle_seconds * 1000 * jitter;
           const nextSendAt = allDone
-            ? new Date(Date.now() + bc.throttle_seconds * 1000 * jitter).toISOString()
+            ? new Date(Date.now() + throttleMs).toISOString()
             : new Date(Date.now() + 3000).toISOString(); // partes do mesmo grupo seguem em ~3s
           await supabase.from("broadcast_recipients").update({
             status: allDone ? "sent" : "sending",
@@ -225,14 +226,18 @@ Deno.serve(async (req) => {
             },
           });
 
+          // Throttle entre contatos: assim que iniciamos um destinatário (primeira parte enviada)
+          // OU concluímos todas as partes, empurra TODOS os outros pendentes para +throttle.
+          // Isso garante o intervalo configurado entre contatos mesmo quando há múltiplas partes.
+          const pushUntil = new Date(Date.now() + throttleMs).toISOString();
+          await supabase
+            .from("broadcast_recipients")
+            .update({ next_send_at: pushUntil })
+            .eq("broadcast_id", bc.id)
+            .eq("status", "pending")
+            .lt("next_send_at", pushUntil);
+
           if (allDone) {
-            // throttle por instância: empurra TODOS os outros pendentes desse broadcast pra +throttle
-            await supabase
-              .from("broadcast_recipients")
-              .update({ next_send_at: nextSendAt })
-              .eq("broadcast_id", bc.id)
-              .eq("status", "pending")
-              .lt("next_send_at", nextSendAt);
             stats.sent++;
             // atualiza totals.sent
             const { count: sentCount } = await supabase
