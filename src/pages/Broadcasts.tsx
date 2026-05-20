@@ -84,6 +84,15 @@ function BroadcastList() {
     } catch (e: any) { toast.error(e.message); } finally { setCreating(false); }
   };
 
+  const remove = async (b: Broadcast) => {
+    if (!confirm(`Excluir campanha "${b.name}" permanentemente?\n\nEssa ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.functions.invoke("broadcast-control", {
+      body: { action: "delete", broadcast_id: b.id },
+    });
+    if (error) toast.error(error.message);
+    else { toast.success("Campanha excluída"); load(); }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -104,13 +113,14 @@ function BroadcastList() {
                 <TableHead>Enviados</TableHead>
                 <TableHead>Respostas</TableHead>
                 <TableHead>Criado em</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhuma campanha. Crie a primeira.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhuma campanha. Crie a primeira.</TableCell></TableRow>
               ) : items.map((b) => (
                 <TableRow key={b.id} className="cursor-pointer" onClick={() => navigate(`/ai/broadcasts/${b.id}`)}>
                   <TableCell className="font-medium">{b.name}</TableCell>
@@ -119,6 +129,15 @@ function BroadcastList() {
                   <TableCell>{b.totals?.sent ?? 0}</TableCell>
                   <TableCell>{b.totals?.replied ?? 0}</TableCell>
                   <TableCell>{new Date(b.created_at).toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => { e.stopPropagation(); remove(b); }}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
