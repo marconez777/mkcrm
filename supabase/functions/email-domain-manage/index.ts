@@ -7,13 +7,29 @@ import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const RESEND_BASE = "https://api.resend.com";
 
+async function resolveResendKey(admin: any, clinicId?: string | null, domainId?: string | null): Promise<string | null> {
+  let cid = clinicId ?? null;
+  if (!cid && domainId) {
+    const { data: d } = await admin.from("email_domains").select("clinic_id").eq("id", domainId).maybeSingle();
+    cid = d?.clinic_id ?? null;
+  }
+  if (cid) {
+    const { data: integ } = await admin
+      .from("clinic_email_integrations")
+      .select("secret_name, enabled")
+      .eq("clinic_id", cid)
+      .maybeSingle();
+    if (integ?.enabled && integ?.secret_name) {
+      const key = Deno.env.get(integ.secret_name);
+      if (key) return key;
+    }
+  }
+  return Deno.env.get("RESEND_API_KEY") ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    if (!RESEND_API_KEY) {
-      return jsonResponse({ error: "RESEND_API_KEY missing" }, { status: 503 });
-    }
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
