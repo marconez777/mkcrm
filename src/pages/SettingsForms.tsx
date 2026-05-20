@@ -212,7 +212,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function removeIntegration() {
-    if (!confirm("Excluir integração? Envios futuros com este token serão rejeitados.")) return;
+    if (!(await confirm({ title: "Excluir integração?", description: "Envios futuros com este token serão rejeitados.", confirmLabel: "Excluir", destructive: true }))) return;
     const { error } = await supabase.functions.invoke("forms-admin", { body: { action: "delete_integration", id: integration.id } });
     if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
   }
