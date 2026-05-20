@@ -119,7 +119,7 @@ export default function SettingsPage() {
   }
 
   async function deleteInstance(id: string) {
-    if (!confirm("Excluir esta conexão? A instância será removida da Evolution.")) return;
+    if (!(await confirm({ title: "Excluir esta conexão?", description: "A instância será removida da Evolution.", confirmLabel: "Excluir", destructive: true }))) return;
     const { error, data } = await supabase.functions.invoke("evolution-delete-instance", { body: { instance_id: id } });
     if (error || (data as any)?.error) { toast.error("Erro: " + (error?.message ?? (data as any)?.error)); return; }
     toast.success("Conexão removida");
