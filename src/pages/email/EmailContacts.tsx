@@ -139,12 +139,11 @@ export default function EmailContacts() {
   async function addManual() {
     const email = addEmail.trim().toLowerCase();
     if (!/.+@.+\..+/.test(email)) return toast.error("E-mail inválido");
-    if (!addSegment) return toast.error("Escolha um segmento");
     if (!clinicId) return;
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("email_segment_contacts").insert({
       clinic_id: clinicId,
-      segment_id: addSegment,
+      segment_id: addSegment && addSegment !== "__none" ? addSegment : null,
       email,
       name: addName.trim() || null,
       added_by: user?.id,
