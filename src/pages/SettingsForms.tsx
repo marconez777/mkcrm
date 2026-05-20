@@ -190,7 +190,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function rotate() {
-    if (!confirm("Rotacionar token? O atual continua válido por 24h.")) return;
+    if (!(await confirm({ title: "Rotacionar token?", description: "O token atual continua válido por 24h.", confirmLabel: "Rotacionar" }))) return;
     setBusy(true);
     try {
       const { data: res, error } = await supabase.functions.invoke("forms-admin", { body: { action: "rotate_token", id: integration.id } });
