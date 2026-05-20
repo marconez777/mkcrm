@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
+import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
   id: string;
