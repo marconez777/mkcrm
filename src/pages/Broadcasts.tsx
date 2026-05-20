@@ -356,6 +356,18 @@ function BroadcastEditor({ id }: { id: string }) {
               });
               if (r) { toast.success(`Audiência congelada: ${(r as any).inserted} contatos`); load(); }
             }}
+            onFreezeAndStart={async () => {
+              const r = await control("freeze_audience", {
+                pipeline_id: bc.source?.pipeline_id ?? null,
+                stage_ids: bc.source?.stage_ids ?? [],
+                extra_contacts: extraContacts,
+              });
+              if (!r) return;
+              toast.success(`Audiência congelada: ${(r as any).inserted} contatos`);
+              const s = await control("start");
+              if (s) toast.success("Campanha iniciada");
+              load();
+            }}
           />
         </TabsContent>
 
