@@ -431,7 +431,7 @@ export default function EmailContacts() {
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{c.segment_name ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => removeContact(c)}>
+                      <Button size="sm" variant="ghost" onClick={() => setToDelete(c)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </td>
