@@ -39,6 +39,7 @@ type AgentLite = { id: string; name: string };
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin, hasFeature } = useAuth();
+  const confirm = useConfirm();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const showTracking = false;
