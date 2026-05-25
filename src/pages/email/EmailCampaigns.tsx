@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil, Pause, Play, Copy } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
 import { useConfirm } from "@/hooks/useDialogs";
