@@ -281,6 +281,19 @@ export default function EmailCampaigns() {
                       <Send className="mr-1 h-3 w-3" />Enviar
                     </Button>
                   )}
+                  {["sending", "scheduled"].includes(c.status) && (
+                    <Button size="sm" variant="outline" onClick={() => pause(c)} disabled={busy}>
+                      <Pause className="mr-1 h-3 w-3" />Pausar
+                    </Button>
+                  )}
+                  {c.status === "paused" && (
+                    <Button size="sm" variant="outline" onClick={() => resume(c)} disabled={busy}>
+                      <Play className="mr-1 h-3 w-3" />Retomar
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => duplicate(c)} disabled={busy}>
+                    <Copy className="mr-1 h-3 w-3" />Duplicar
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(c)}><Trash2 className="h-3 w-3" /></Button>
                 </TableCell>
               </TableRow>
