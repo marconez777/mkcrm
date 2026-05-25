@@ -4573,6 +4573,11 @@ export type Database = {
       }
     }
     Functions: {
+      _email_segment_filters_to_where: {
+        Args: { _filters: Json }
+        Returns: string
+      }
+      _email_segment_rule_to_sql: { Args: { _rule: Json }; Returns: string }
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
       broadcast_freeze_audience: {
         Args: {
@@ -4741,6 +4746,14 @@ export type Database = {
       reset_email_send_state: { Args: never; Returns: undefined }
       resolve_email_segment: {
         Args: { _segment_id: string }
+        Returns: {
+          email: string
+          lead_id: string
+          name: string
+        }[]
+      }
+      resolve_email_segment_preview: {
+        Args: { _clinic_id: string; _filters: Json }
         Returns: {
           email: string
           lead_id: string

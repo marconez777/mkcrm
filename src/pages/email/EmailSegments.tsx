@@ -19,17 +19,19 @@ import { toast } from "sonner";
 import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 
-type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign";
+type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign" | "created_at_range";
+type BaseRule = { negate?: boolean };
 type Rule =
-  | { type: "form_source"; values: string[] }
-  | { type: "tag"; values: string[] }
-  | { type: "utm_campaign"; values: string[] }
-  | { type: "stage"; stage_id: string }
-  | { type: "has_email" };
+  | (BaseRule & { type: "form_source"; values: string[] })
+  | (BaseRule & { type: "tag"; values: string[] })
+  | (BaseRule & { type: "utm_campaign"; values: string[] })
+  | (BaseRule & { type: "stage"; stage_id: string })
+  | (BaseRule & { type: "has_email" })
+  | (BaseRule & { type: "created_at_range"; from?: string; to?: string });
 
 type SegmentFilters = {
   kind: "dynamic" | "static";
-  match: "any";
+  match: "any" | "all";
   rules: Rule[];
 };
 
@@ -52,12 +54,14 @@ const RULE_LABELS: Record<RuleType, string> = {
   stage: "Etapa do pipeline",
   has_email: "Tem e-mail",
   utm_campaign: "Campanha UTM",
+  created_at_range: "Criado entre datas",
 };
 
 function normalizeFilters(raw: any): SegmentFilters {
   const out: SegmentFilters = { kind: "dynamic", match: "any", rules: [] };
   if (!raw || typeof raw !== "object") return out;
   out.kind = raw.kind === "static" ? "static" : "dynamic";
+  out.match = raw.match === "all" ? "all" : "any";
   if (Array.isArray(raw.rules)) {
     out.rules = raw.rules.filter((r: any) => r && typeof r === "object" && r.type);
     return out;
@@ -86,8 +90,10 @@ export default function EmailSegments() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<"dynamic" | "static">("dynamic");
+  const [match, setMatch] = useState<"any" | "all">("any");
   const [rules, setRules] = useState<Rule[]>([]);
   const [active, setActive] = useState(true);
+  const [clinicId, setClinicId] = useState<string | null>(null);
 
   // Contatos manuais (estático ou inclusões extras)
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -102,6 +108,11 @@ export default function EmailSegments() {
 
   async function load() {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user.id).limit(1).maybeSingle();
+      if (cm?.clinic_id) setClinicId(cm.clinic_id);
+    }
     const [{ data: segs, error }, { data: st }, { data: leads }] = await Promise.all([
       supabase.from("email_segments").select("*").order("created_at", { ascending: false }),
       supabase.from("pipeline_stages").select("id, name, pipeline_id"),
@@ -134,7 +145,7 @@ export default function EmailSegments() {
   useEffect(() => { load(); }, []);
 
   function resetForm() {
-    setName(""); setDescription(""); setKind("dynamic"); setRules([]); setActive(true);
+    setName(""); setDescription(""); setKind("dynamic"); setMatch("any"); setRules([]); setActive(true);
     setContacts([]); setNewContactEmail(""); setNewContactName("");
     setPreviewCount(null); setPreviewSample([]); setEditing(null);
   }
@@ -144,7 +155,7 @@ export default function EmailSegments() {
     setName(s.name);
     setDescription(s.description ?? "");
     const f = normalizeFilters(s.filters);
-    setKind(f.kind); setRules(f.rules);
+    setKind(f.kind); setMatch(f.match); setRules(f.rules);
     setActive(s.active);
     const { data: cs } = await supabase
       .from("email_segment_contacts")
@@ -158,7 +169,8 @@ export default function EmailSegments() {
   function addRule(type: RuleType) {
     if (type === "has_email") setRules((r) => [...r, { type: "has_email" }]);
     else if (type === "stage") setRules((r) => [...r, { type: "stage", stage_id: "" }]);
-    else setRules((r) => [...r, { type, values: [] }]);
+    else if (type === "created_at_range") setRules((r) => [...r, { type: "created_at_range" }]);
+    else setRules((r) => [...r, { type, values: [] } as Rule]);
   }
   function updateRule(idx: number, patch: Partial<Rule>) {
     setRules((r) => r.map((x, i) => (i === idx ? ({ ...x, ...patch } as Rule) : x)));
@@ -168,9 +180,30 @@ export default function EmailSegments() {
   }
 
   const filtersPayload: SegmentFilters = useMemo(
-    () => ({ kind, match: "any", rules: kind === "static" ? [] : rules }),
-    [kind, rules],
+    () => ({ kind, match, rules: kind === "static" ? [] : rules }),
+    [kind, match, rules],
   );
+
+  // Live preview (dry-run) — debounced
+  useEffect(() => {
+    if (!openNew || kind !== "dynamic" || !clinicId || rules.length === 0) {
+      setPreviewCount(null); setPreviewSample([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("resolve_email_segment_preview" as any, {
+        _clinic_id: clinicId,
+        _filters: filtersPayload as any,
+      });
+      if (error) return;
+      const set = new Set<string>();
+      (data as any[] ?? []).forEach((r: any) => r?.email && set.add(String(r.email).toLowerCase()));
+      setPreviewCount(set.size);
+      setPreviewSample([...set].slice(0, 5));
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [openNew, kind, match, rules, clinicId, filtersPayload]);
+
 
   async function save() {
     if (!name.trim()) { toast.error("Nome obrigatório"); return; }
@@ -337,9 +370,22 @@ export default function EmailSegments() {
 
                 {kind === "dynamic" ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Lead entra se atender <strong>qualquer</strong> uma das regras abaixo (OR).
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-muted-foreground">Lead entra se atender</span>
+                      <div className="inline-flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`px-2 py-0.5 text-xs ${match === "any" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                          onClick={() => setMatch("any")}
+                        >qualquer (OR)</button>
+                        <button
+                          type="button"
+                          className={`px-2 py-0.5 text-xs ${match === "all" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                          onClick={() => setMatch("all")}
+                        >todas (AND)</button>
+                      </div>
+                      <span className="text-xs text-muted-foreground">das regras abaixo.</span>
+                    </div>
                     <div className="space-y-2">
                       {rules.length === 0 && (
                         <div className="text-xs text-muted-foreground italic">Nenhuma regra. Adicione um gatilho.</div>
@@ -370,6 +416,7 @@ export default function EmailSegments() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Os destinatários serão somente os contatos adicionados manualmente abaixo.
@@ -489,9 +536,20 @@ function RuleRow({
   onChange: (patch: Partial<Rule>) => void;
   onRemove: () => void;
 }) {
+  const negate = !!(rule as any).negate;
   return (
     <div className="flex items-start gap-2 border rounded-md p-2 bg-muted/30">
-      <Badge variant="secondary" className="shrink-0 mt-1">{RULE_LABELS[rule.type]}</Badge>
+      <div className="flex flex-col items-start gap-1 shrink-0 mt-0.5">
+        <Badge variant="secondary">{RULE_LABELS[rule.type]}</Badge>
+        <button
+          type="button"
+          onClick={() => onChange({ negate: !negate } as any)}
+          className={`text-[10px] px-1.5 py-0.5 rounded border ${negate ? "bg-destructive/10 text-destructive border-destructive/40" : "text-muted-foreground hover:bg-accent"}`}
+          title={negate ? "Excluindo quem bate nesta regra" : "Clique para inverter (NÃO)"}
+        >
+          {negate ? "NÃO bate" : "bate"}
+        </button>
+      </div>
       <div className="flex-1 min-w-0">
         {rule.type === "form_source" && (
           <MultiValueInput
@@ -528,9 +586,30 @@ function RuleRow({
         {rule.type === "has_email" && (
           <div className="text-xs text-muted-foreground py-1">Lead precisa ter e-mail cadastrado</div>
         )}
+        {rule.type === "created_at_range" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                value={(rule as any).from?.slice(0, 10) ?? ""}
+                onChange={(e) => onChange({ from: e.target.value ? `${e.target.value}T00:00:00Z` : undefined } as any)}
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                value={(rule as any).to?.slice(0, 10) ?? ""}
+                onChange={(e) => onChange({ to: e.target.value ? `${e.target.value}T23:59:59Z` : undefined } as any)}
+              />
+            </div>
+          </div>
+        )}
       </div>
       <Button type="button" size="sm" variant="ghost" onClick={onRemove}><X className="h-4 w-4" /></Button>
     </div>
+
   );
 }
 
