@@ -2,6 +2,7 @@
 // Uses Lovable AI Gateway (LOVABLE_API_KEY) — no per-agent setup needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { requireUser } from "../_shared/evolution.ts";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
