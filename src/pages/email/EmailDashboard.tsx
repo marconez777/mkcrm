@@ -160,7 +160,26 @@ export default function EmailDashboard() {
     return () => { supabase.removeChannel(ch); };
   }, [clinicId, range.id]);
 
+  // Métricas agregadas (precisas para janelas longas, sem teto de 1000 linhas)
+  const metricsDays = Math.max(1, Math.ceil(range.hours / 24));
+  const { rows: metricRows } = useEmailMetrics(clinicId, metricsDays);
+  const useAggregated = range.hours > 24;
+
   const stats = useMemo(() => {
+    if (useAggregated) {
+      const a = aggregateMetrics(metricRows);
+      return {
+        total: a.sent,
+        delivered: a.delivered,
+        opened: a.opened,
+        clicked: a.clicked,
+        failed: a.failed + a.bounced + a.complained,
+        deliveredPct: a.deliveredPct,
+        openPct: a.openPct,
+        clickPct: a.clickPct,
+        failedPct: a.failedPct,
+      };
+    }
     const total = logs.length;
     const delivered = logs.filter((l) => l.status === "delivered" || l.opened_at || l.clicked_at).length;
     const opened = logs.filter((l) => l.opened_at).length;
@@ -177,7 +196,7 @@ export default function EmailDashboard() {
       clickPct: total ? Math.round((clicked / total) * 100) : 0,
       failedPct: total ? Math.round((failed / total) * 100) : 0,
     };
-  }, [logs]);
+  }, [logs, useAggregated, metricRows]);
 
   const queueStats = useMemo(() => {
     const m: Record<string, number> = { pending: 0, processing: 0, failed: 0, sent: 0, cancelled: 0 };
