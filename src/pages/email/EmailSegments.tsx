@@ -536,9 +536,20 @@ function RuleRow({
   onChange: (patch: Partial<Rule>) => void;
   onRemove: () => void;
 }) {
+  const negate = !!(rule as any).negate;
   return (
     <div className="flex items-start gap-2 border rounded-md p-2 bg-muted/30">
-      <Badge variant="secondary" className="shrink-0 mt-1">{RULE_LABELS[rule.type]}</Badge>
+      <div className="flex flex-col items-start gap-1 shrink-0 mt-0.5">
+        <Badge variant="secondary">{RULE_LABELS[rule.type]}</Badge>
+        <button
+          type="button"
+          onClick={() => onChange({ negate: !negate } as any)}
+          className={`text-[10px] px-1.5 py-0.5 rounded border ${negate ? "bg-destructive/10 text-destructive border-destructive/40" : "text-muted-foreground hover:bg-accent"}`}
+          title={negate ? "Excluindo quem bate nesta regra" : "Clique para inverter (NÃO)"}
+        >
+          {negate ? "NÃO bate" : "bate"}
+        </button>
+      </div>
       <div className="flex-1 min-w-0">
         {rule.type === "form_source" && (
           <MultiValueInput
@@ -575,9 +586,30 @@ function RuleRow({
         {rule.type === "has_email" && (
           <div className="text-xs text-muted-foreground py-1">Lead precisa ter e-mail cadastrado</div>
         )}
+        {rule.type === "created_at_range" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                value={(rule as any).from?.slice(0, 10) ?? ""}
+                onChange={(e) => onChange({ from: e.target.value ? `${e.target.value}T00:00:00Z` : undefined } as any)}
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                value={(rule as any).to?.slice(0, 10) ?? ""}
+                onChange={(e) => onChange({ to: e.target.value ? `${e.target.value}T23:59:59Z` : undefined } as any)}
+              />
+            </div>
+          </div>
+        )}
       </div>
       <Button type="button" size="sm" variant="ghost" onClick={onRemove}><X className="h-4 w-4" /></Button>
     </div>
+
   );
 }
 
