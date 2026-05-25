@@ -1,6 +1,8 @@
 # Visão Geral da Plataforma — CRM mkart
 
-> Documento de referência para desenvolvedores. Cobre stack, arquitetura, telas, recursos, banco de dados e edge functions. Última atualização: 2026-05-18.
+> **Quando ler:** primeiro contato com o projeto. Para detalhes profundos, siga os links no [`README.md`](./README.md) → `architecture/`, `database/`, `edge-functions/`, `frontend/`, `flows/`, `integrations/`, `operations/`.
+>
+> **Última atualização:** 2026-05-25.
 
 ---
 

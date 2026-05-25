@@ -1,117 +1,181 @@
-## Limite de gasto de IA por clínica
+# Plano: Documentação Completa do Sistema CRM mkart
 
-Adicionar controle de teto diário de gasto (USD) por clínica na área **Custos** do painel admin, com bloqueio automático de todas as chamadas de IA ao atingir 100%, reativação manual por admin e e-mails de aviso aos thresholds escolhidos.
+## Objetivo
 
-## O que muda na interface (página Custos)
+Criar uma documentação **viva, profunda e estruturada** dentro de `docs/`, escrita para consumo do próprio chat Lovable em sessões futuras. Ela serve como "memória externa" para evitar releitura de dezenas de arquivos a cada modificação. Cobre: arquitetura, banco, edge functions, frontend, fluxos, integrações, erros conhecidos, melhorias sugeridas e convenções.
 
-Nova seção no topo de **AI Hub → Custos** (`src/pages/MetricsAiUsage.tsx`), visível só para `is_clinic_admin`:
+Hoje já existem 4 arquivos em `docs/`: `OVERVIEW.md`, `AI.md`, `EMAIL.md`, `TRACKING.md`. O plano **reaproveita e expande** o que existe, sem duplicar.
 
-- **Card "Limite diário"** mostrando:
-  - Barra de progresso `gasto hoje / limite` (verde < 50%, amarelo 50–90%, vermelho ≥ 90%, cinza-bloqueado em 100%)
-  - Valor atual em USD + % consumido + horário em que reseta (00:00 America/Sao_Paulo)
-  - Status: **Ativo** / **Bloqueado por limite** (badge)
-  - Botão **Reativar agora** (aparece só quando bloqueado) — confirma e libera até o próximo reset ou até bater o limite de novo
-- **Botão "Configurar limite"** abre dialog com:
-  - Limite diário em USD (input numérico, ex.: `5.00`)
-  - Toggle "Bloquear chamadas ao atingir 100%" (default ON)
-  - Lista editável de **e-mails de aviso** (chips: adicionar/remover) — já pré-preenchidos: `contato@mkart.com.br` na ÓR; admin da MKart configura os dela
-  - Switches dos thresholds que disparam e-mail: 50%, 90%, 100% (defaults marcados conforme escolha)
-- **Histórico** (lista simples abaixo): últimas 10 ocorrências de bloqueio/reativação/aviso enviado, com data e quem reativou.
+---
 
-## O que muda no backend
+## Princípios da documentação
 
-### Tabelas novas
+1. **Otimizada para LLM**: cabeçalhos previsíveis, tabelas, listas, blocos de código. Cada arquivo começa com um índice e um "quando ler este doc".
+2. **Referências cruzadas**: links relativos entre docs (`[veja](./AI.md#rag)`).
+3. **Fonte da verdade citada**: para cada afirmação técnica, citar arquivo + função (`supabase/functions/ai-auto-reply/index.ts`).
+4. **Seção "Pegadinhas / erros conhecidos"** em cada doc — onde a IA costuma errar.
+5. **Seção "Melhorias sugeridas"** separada do que existe hoje, para não confundir realidade vs. desejo.
+6. **Datado**: cada arquivo tem `Última atualização: YYYY-MM-DD` no topo.
+7. **Sem segredos**: nunca incluir chaves, apenas nomes de variáveis.
 
-- `ai_spend_limits` (1 linha por clínica)
-  - `clinic_id` (PK, FK→clinics)
-  - `daily_limit_usd` numeric(10,4)
-  - `block_on_limit` bool (default true)
-  - `notify_emails` text[] (lista configurável)
-  - `notify_thresholds` int[] (ex.: `{50,90,100}`)
-  - `blocked` bool (default false)
-  - `blocked_at` timestamptz
-  - `blocked_reason` text
-  - `manual_override_until` timestamptz (quando admin reativa antes do reset, ignora bloqueio até essa hora ou até atingir novo limite)
-  - timestamps
-- `ai_spend_events` (auditoria leve)
-  - `clinic_id`, `kind` (`threshold_50`/`threshold_90`/`blocked`/`reactivated`/`auto_reset`), `spent_usd`, `limit_usd`, `actor_user_id`, `notes`, `created_at`
-- `ai_spend_notifications_sent` (idempotência diária)
-  - `clinic_id`, `date` (date), `threshold` (int) — PK composta — garante 1 e-mail por threshold por dia
+---
 
-RLS: `clinic_scoped` (admin lê/escreve), super admin tudo. Sem políticas para `authenticated` comum em escrita.
+## Estrutura final de `docs/`
 
-### Função SQL (security definer, schema public)
-
-`public.check_ai_spend_status(p_clinic_id uuid)` retorna:
+```text
+docs/
+├── README.md                    # Índice mestre + como navegar a doc
+├── OVERVIEW.md                  # (já existe — será revisado/atualizado)
+├── architecture/
+│   ├── STACK.md                 # Stack, build, deploy, env vars
+│   ├── MULTI_TENANCY.md         # clinic_id, RLS, papéis, funções SQL
+│   ├── AUTH.md                  # Login, lockouts, convites, Google OAuth
+│   ├── FEATURE_FLAGS.md         # Sistema de features por clínica
+│   └── REALTIME.md              # Tabelas em realtime, padrões de subscribe
+├── database/
+│   ├── SCHEMA.md                # Todas as ~75 tabelas agrupadas + colunas chave
+│   ├── RLS_POLICIES.md          # Padrões de RLS + tabelas administrativas
+│   ├── FUNCTIONS_TRIGGERS.md    # Funções SQL e triggers (current_clinic_id, etc)
+│   └── MIGRATIONS.md            # Convenção de migrações + histórico relevante
+├── edge-functions/
+│   ├── INDEX.md                 # Tabela: função → propósito → cron? → JWT?
+│   ├── WHATSAPP.md              # evolution-* + webhook + dedup
+│   ├── AI.md                    # (mover/expandir AI.md atual para cá)
+│   ├── EMAIL.md                 # (mover/expandir EMAIL.md atual)
+│   ├── TRACKING.md              # (mover/expandir TRACKING.md atual)
+│   ├── BROADCASTS.md            # broadcast-control, broadcast-tick, janelas
+│   ├── SEQUENCES_AUTOMATIONS.md # sequence-*, automations-tick, gatilhos
+│   ├── FORMS.md                 # forms-* + plugin WordPress
+│   └── SHARED_HELPERS.md        # _shared/* (ai, evolution, rag, mcp, metrics, spend-guard)
+├── frontend/
+│   ├── ROUTING.md               # App.tsx, ProtectedRoute, FeatureRoute, AppShell
+│   ├── PAGES.md                 # Cada page do src/pages com o que faz
+│   ├── COMPONENTS.md            # Inbox, Kanban, Tasks, Email editor, Admin
+│   ├── HOOKS_LIB.md             # hooks/ e lib/ (helpers puros)
+│   ├── DESIGN_SYSTEM.md         # tokens HSL, index.css, tailwind.config
+│   └── STATE_DATA.md            # React Query keys, padrões de cache, drafts
+├── flows/
+│   ├── INBOUND_WHATSAPP.md      # webhook → ingest → realtime → auto-reply
+│   ├── OUTBOUND_WHATSAPP.md     # composer → evolution-send → ack/retry
+│   ├── AI_AGENT_LOOP.md         # prompt + RAG + memória + tools + traces
+│   ├── EMAIL_CAMPAIGN.md        # template → segment → queue → resend → webhook
+│   ├── LEAD_LIFECYCLE.md        # criação, stage history, deleção/tombstones
+│   ├── BROADCAST.md             # criação, congelamento, janela, rotação
+│   └── TRACKING_TO_LEAD.md      # pixel → session → identify → atribuição
+├── integrations/
+│   ├── EVOLUTION_API.md         # endpoints usados, payloads, auth
+│   ├── RESEND.md                # domínios, eventos, quota
+│   ├── LOVABLE_AI.md            # modelos suportados, custo, gateway
+│   ├── PG_NET_CRON.md           # uso de pg_net e cron jobs ativos
+│   └── EXTERNAL_FORMS.md        # external-lead-capture + plugin WP
+├── operations/
+│   ├── COSTS_LIMITS.md          # ai_usage, ai_spend_limits, daily reset
+│   ├── OBSERVABILITY.md         # audit_log, agent_traces, edge logs
+│   ├── ERROR_HANDLING.md        # padrões de erro em edge + frontend (402, lockout, etc)
+│   ├── BACKUPS_RECOVERY.md      # tombstones, soft delete, restore
+│   └── PERFORMANCE.md           # índices críticos, paginação, query limits 1000
+├── known-issues/
+│   ├── PITFALLS.md              # erros recorrentes que a IA comete neste repo
+│   └── DEBT.md                  # dívidas técnicas conhecidas
+├── roadmap/
+│   └── IMPROVEMENTS.md          # melhorias sugeridas (separado do que existe)
+└── conventions/
+    ├── CODE_STYLE.md            # nomes, RHF+zod, tanstack, error patterns
+    ├── SUPABASE_RULES.md        # nunca editar client.ts/types.ts/.env/config.toml
+    ├── SECURITY.md              # RLS-first, role checks, secrets
+    └── COMMIT_PR.md             # padrão de migrações, naming
 ```
-{ allowed: bool, blocked: bool, spent_today_usd, limit_usd, percent }
-```
-Calcula `SUM(cost_usd)` em `ai_usage` do dia (TZ America/Sao_Paulo) e compara com o limite. Permite chamada via RPC.
 
-### Hook nos edge functions de IA (guard)
+---
 
-Em `supabase/functions/_shared/metrics.ts` adicionar `assertSpendAllowed(clinic_id)`:
-- Chama `check_ai_spend_status`
-- Se `allowed === false`, lança erro `SpendLimitExceeded` que cada função converte em HTTP 402 com mensagem `{"error":"daily_spend_limit_reached","limit_usd":X,"spent_usd":Y}`
+## Execução em etapas (cada etapa = 1 mensagem do usuário em modo build)
 
-Adicionar a chamada no início de:
-- `ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-analyst-run`, `ai-eval-run`
-- `ai-embed`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`, `ai-ingest-document`
+Cada etapa tem escopo fechado e produz um conjunto de arquivos completos. Após cada etapa, atualizamos `docs/README.md` com o status.
 
-(Resolve clinic_id da mesma forma que `logUsage` já faz.)
+**Etapa 1 — Fundação** *(meta-doc + revisão do OVERVIEW)*
+- `docs/README.md` (índice mestre, convenções da doc, mapa de "quando ler o quê")
+- Atualizar `docs/OVERVIEW.md` para ficar consistente com as novas seções e apontar para elas
+- `docs/conventions/*` (4 arquivos curtos)
 
-### Trigger pós-insert em `ai_usage`
+**Etapa 2 — Arquitetura & multi-tenancy**
+- `docs/architecture/STACK.md`
+- `docs/architecture/MULTI_TENANCY.md`
+- `docs/architecture/AUTH.md` (incluindo `auth-login`, lockouts, fluxo Google)
+- `docs/architecture/FEATURE_FLAGS.md`
+- `docs/architecture/REALTIME.md`
 
-`AFTER INSERT ON ai_usage` chama função que:
-1. Recalcula `spent_today` da clínica
-2. Para cada threshold em `notify_thresholds` ainda não enviado hoje (consulta `ai_spend_notifications_sent`), enfileira chamada para edge function `ai-spend-notify` via `pg_net` e marca como enviado
-3. Se atingiu 100% e `block_on_limit=true`, seta `blocked=true`, `blocked_at=now()`, insere event `blocked`
+**Etapa 3 — Banco de dados**
+- `docs/database/SCHEMA.md` (varredura completa via `supabase--read_query` em `information_schema` para garantir precisão)
+- `docs/database/RLS_POLICIES.md` (via `pg_policies`)
+- `docs/database/FUNCTIONS_TRIGGERS.md` (via `pg_proc`/`pg_trigger`)
+- `docs/database/MIGRATIONS.md`
 
-### Edge function nova: `ai-spend-notify`
+**Etapa 4 — Edge functions (parte 1: WhatsApp + Shared)**
+- `docs/edge-functions/INDEX.md` (tabela mestre de todas as ~60 funções)
+- `docs/edge-functions/WHATSAPP.md`
+- `docs/edge-functions/SHARED_HELPERS.md`
 
-- Recebe `{ clinic_id, threshold, spent_usd, limit_usd }`
-- Busca `notify_emails` da clínica
-- Reutiliza infra de e-mail existente do projeto (Resend via `supabase/functions/send-email`) para mandar um e-mail simples por destinatário com assunto:
-  - `[CRM] Alerta de gasto IA — 50% atingido (Clínica X)` / `90%` / `Bloqueio ativado`
-- Body curto em HTML mostrando gasto/limite/horário, link para a página Custos.
+**Etapa 5 — Edge functions (parte 2: IA, Email, Tracking)**
+- `docs/edge-functions/AI.md` (consolidando/expandindo o atual)
+- `docs/edge-functions/EMAIL.md`
+- `docs/edge-functions/TRACKING.md`
 
-### Cron de reset diário
+**Etapa 6 — Edge functions (parte 3: Broadcasts, Sequences, Forms)**
+- `docs/edge-functions/BROADCASTS.md`
+- `docs/edge-functions/SEQUENCES_AUTOMATIONS.md`
+- `docs/edge-functions/FORMS.md`
 
-`pg_cron` job `ai-spend-daily-reset` às 00:05 America/Sao_Paulo:
-- `UPDATE ai_spend_limits SET blocked=false, blocked_at=null, blocked_reason=null, manual_override_until=null`
-- Insere event `auto_reset` por clínica que estava bloqueada
+**Etapa 7 — Frontend**
+- `docs/frontend/ROUTING.md`
+- `docs/frontend/PAGES.md`
+- `docs/frontend/COMPONENTS.md`
+- `docs/frontend/HOOKS_LIB.md`
+- `docs/frontend/DESIGN_SYSTEM.md`
+- `docs/frontend/STATE_DATA.md`
 
-### Reativação manual
+**Etapa 8 — Fluxos end-to-end**
+Diagramas ASCII + passo a passo para cada um dos 7 arquivos em `docs/flows/`.
 
-RPC `reactivate_ai_spend(p_clinic_id)`:
-- Só `is_clinic_admin` ou `is_super_admin`
-- Seta `blocked=false`, `manual_override_until = now() + interval '15 min'` (janela curta antes do próximo `check_ai_spend_status` reavaliar — se gasto continua acima do limite, bloqueia de novo na próxima chamada e dispara novo evento `blocked` mas sem reenvio de e-mail no mesmo dia)
-- Registra event `reactivated` com `actor_user_id`
+**Etapa 9 — Integrações externas**
+Os 5 arquivos em `docs/integrations/`.
 
-## Comportamento UX quando bloqueado
+**Etapa 10 — Operações & confiabilidade**
+Os 5 arquivos em `docs/operations/` — destaque para `COSTS_LIMITS.md` (sistema de spend limit recém-criado) e `ERROR_HANDLING.md`.
 
-- Toda chamada IA do app (composer com sugestão, ai-chat etc.) que receber HTTP 402 mostra toast: **"Limite diário de IA atingido. Reative em AI Hub → Custos."** com link.
+**Etapa 11 — Pegadinhas, dívidas e roadmap**
+- `docs/known-issues/PITFALLS.md` — coletar erros que a IA cometeu nas últimas sessões (auto-restart de edge, edição de arquivos proibidos, RLS recursiva, etc.)
+- `docs/known-issues/DEBT.md`
+- `docs/roadmap/IMPROVEMENTS.md`
 
-## Configuração inicial
+**Etapa 12 — Validação e polish**
+- Reler todos os arquivos, checar links cruzados
+- Verificar que `docs/README.md` lista 100% dos docs
+- Verificar `OVERVIEW.md` aponta para a nova estrutura
+- Atualizar memória do projeto (`mem://index.md`) apontando que `docs/README.md` é o índice canônico
 
-Migração popula `ai_spend_limits` para as 3 clínicas existentes:
-- ÓR: `daily_limit_usd=2.00`, `notify_emails=['contato@mkart.com.br']`
-- MKart: `daily_limit_usd=2.00`, `notify_emails=['contato@mkart.com.br']` (você ajusta depois pela UI)
-- Sanapta: igual, sem e-mails (admin da Sanapta configura quando quiser)
+---
 
-Thresholds default: `{50, 90, 100}` conforme escolhido.
+## Detalhes técnicos / como cada etapa é gerada
 
-## Resumo dos arquivos
+- **Banco**: usar `supabase--read_query` contra `information_schema.tables`, `information_schema.columns`, `pg_policies`, `pg_proc`, `pg_trigger`, `pg_cron.job` — garante precisão sem alucinar colunas.
+- **Edge functions**: para cada função, ler `index.ts`, extrair: entrypoint, secrets usados, tabelas tocadas, chamadas externas, schedule (se houver em `pg_cron`), códigos de erro HTTP.
+- **Frontend**: varrer `src/pages`, `src/components`, `src/hooks`, `src/lib` listando exports principais e dependências (React Query keys, RPCs chamadas).
+- **Fluxos**: cada diagrama mostra atores (User, UI, Edge, DB, Externo) com setas numeradas + tabela de "pontos de falha".
 
-**Migration**: cria 3 tabelas + RPCs + trigger + cron + RLS + seed.
-**Backend**:
-- `supabase/functions/_shared/spend-guard.ts` (novo)
-- `supabase/functions/ai-spend-notify/index.ts` (novo)
-- guard adicionado nas 10 edge functions de IA
-**Frontend**:
-- `src/pages/MetricsAiUsage.tsx` (seção topo + dialog)
-- `src/components/admin/AiSpendLimitCard.tsx` (novo)
-- `src/components/admin/AiSpendLimitDialog.tsx` (novo)
-- Toast global em chamadas que retornam 402 (helper em `src/lib/ai-spend.ts`)
+## O que NÃO está no escopo
 
-Pronto pra eu implementar?
+- Documentação para usuário final (manuais de uso do produto)
+- Tradução para inglês — toda a doc fica em **português técnico** (consistente com o código e comentários atuais)
+- Reescrita de código — esta tarefa é **somente documentação**
+
+## Critério de "pronto"
+
+- Todos os arquivos da árvore acima existem
+- `docs/README.md` é navegável e dá um caminho claro de leitura
+- Uma sessão nova do Lovable consegue, lendo apenas `docs/README.md` + 1–3 arquivos relevantes, fazer modificações em qualquer área do sistema sem precisar varrer o código.
+
+---
+
+## Próximo passo
+
+Aprove o plano e eu executo a **Etapa 1** (fundação) imediatamente. Cada etapa subsequente será disparada por uma nova mensagem sua (`"próxima etapa"` basta), para mantermos qualidade alta e revisarmos incrementalmente.
