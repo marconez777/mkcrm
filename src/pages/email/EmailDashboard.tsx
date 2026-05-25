@@ -218,49 +218,66 @@ export default function EmailDashboard() {
     });
   }, [logs, statusFilter, templateFilter, search]);
 
-  // Time series (envios/dia ou /hora)
+  // Time series (envios/dia ou /hora). Usa agregação quando disponível.
   const timeSeries = useMemo(() => {
     const isHourly = range.hours <= 24;
     const buckets = new Map<string, { key: string; sent: number; opened: number; clicked: number; failed: number }>();
     const fmt = (d: Date) =>
       isHourly
         ? `${String(d.getHours()).padStart(2, "0")}:00`
-        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        : `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
-    // Pré-popular para garantir continuidade
     const now = new Date();
-    const steps = isHourly ? 24 : Math.min(30, Math.ceil(range.hours / 24));
+    const steps = isHourly ? 24 : Math.min(90, Math.ceil(range.hours / 24));
     for (let i = steps - 1; i >= 0; i--) {
       const d = new Date(now.getTime() - i * (isHourly ? 3600_000 : 86400_000));
       const k = fmt(d);
       buckets.set(k, { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 });
     }
 
-    for (const l of logs) {
-      const d = new Date(l.sent_at);
-      const k = fmt(d);
-      const b = buckets.get(k) ?? { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 };
-      b.sent++;
-      if (l.opened_at) b.opened++;
-      if (l.clicked_at) b.clicked++;
-      if (["failed", "bounced", "complained"].includes(l.status)) b.failed++;
-      buckets.set(k, b);
+    if (useAggregated) {
+      for (const r of metricRows) {
+        const b = buckets.get(r.day);
+        if (!b) continue;
+        b.sent += r.sent;
+        b.opened += r.opened;
+        b.clicked += r.clicked;
+        b.failed += r.failed + r.bounced + r.complained;
+      }
+    } else {
+      for (const l of logs) {
+        const d = new Date(l.sent_at);
+        const k = fmt(d);
+        const b = buckets.get(k);
+        if (!b) continue;
+        b.sent++;
+        if (l.opened_at) b.opened++;
+        if (l.clicked_at) b.clicked++;
+        if (["failed", "bounced", "complained"].includes(l.status)) b.failed++;
+      }
     }
     return Array.from(buckets.values());
-  }, [logs, range.hours]);
+  }, [logs, range.hours, useAggregated, metricRows]);
 
   // Top templates
   const byTemplate = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of logs) {
-      const k = l.template_slug ?? "(sem template)";
-      m.set(k, (m.get(k) ?? 0) + 1);
+    if (useAggregated) {
+      for (const r of metricRows) {
+        const k = r.template_slug || "(sem template)";
+        m.set(k, (m.get(k) ?? 0) + r.sent);
+      }
+    } else {
+      for (const l of logs) {
+        const k = l.template_slug ?? "(sem template)";
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
     }
     return Array.from(m.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
-  }, [logs]);
+  }, [logs, useAggregated, metricRows]);
 
   // Status pie
   const byStatus = useMemo(() => {
