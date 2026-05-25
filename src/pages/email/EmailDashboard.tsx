@@ -47,6 +47,8 @@ import {
   Clock,
   Activity,
 } from "lucide-react";
+import { useEmailMetrics, aggregateMetrics } from "@/hooks/useEmailMetrics";
+import { DomainHealthCard } from "@/components/email/DomainHealthCard";
 
 type Log = {
   id: string;
@@ -67,6 +69,7 @@ const RANGES = [
   { id: "24h", label: "24h", hours: 24 },
   { id: "7d", label: "7 dias", hours: 24 * 7 },
   { id: "30d", label: "30 dias", hours: 24 * 30 },
+  { id: "90d", label: "90 dias", hours: 24 * 90 },
 ];
 
 function statusBadge(s: string) {
@@ -157,7 +160,26 @@ export default function EmailDashboard() {
     return () => { supabase.removeChannel(ch); };
   }, [clinicId, range.id]);
 
+  // Métricas agregadas (precisas para janelas longas, sem teto de 1000 linhas)
+  const metricsDays = Math.max(1, Math.ceil(range.hours / 24));
+  const { rows: metricRows } = useEmailMetrics(clinicId, metricsDays);
+  const useAggregated = range.hours > 24;
+
   const stats = useMemo(() => {
+    if (useAggregated) {
+      const a = aggregateMetrics(metricRows);
+      return {
+        total: a.sent,
+        delivered: a.delivered,
+        opened: a.opened,
+        clicked: a.clicked,
+        failed: a.failed + a.bounced + a.complained,
+        deliveredPct: a.deliveredPct,
+        openPct: a.openPct,
+        clickPct: a.clickPct,
+        failedPct: a.failedPct,
+      };
+    }
     const total = logs.length;
     const delivered = logs.filter((l) => l.status === "delivered" || l.opened_at || l.clicked_at).length;
     const opened = logs.filter((l) => l.opened_at).length;
@@ -174,7 +196,7 @@ export default function EmailDashboard() {
       clickPct: total ? Math.round((clicked / total) * 100) : 0,
       failedPct: total ? Math.round((failed / total) * 100) : 0,
     };
-  }, [logs]);
+  }, [logs, useAggregated, metricRows]);
 
   const queueStats = useMemo(() => {
     const m: Record<string, number> = { pending: 0, processing: 0, failed: 0, sent: 0, cancelled: 0 };
@@ -196,49 +218,66 @@ export default function EmailDashboard() {
     });
   }, [logs, statusFilter, templateFilter, search]);
 
-  // Time series (envios/dia ou /hora)
+  // Time series (envios/dia ou /hora). Usa agregação quando disponível.
   const timeSeries = useMemo(() => {
     const isHourly = range.hours <= 24;
     const buckets = new Map<string, { key: string; sent: number; opened: number; clicked: number; failed: number }>();
     const fmt = (d: Date) =>
       isHourly
         ? `${String(d.getHours()).padStart(2, "0")}:00`
-        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        : `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
-    // Pré-popular para garantir continuidade
     const now = new Date();
-    const steps = isHourly ? 24 : Math.min(30, Math.ceil(range.hours / 24));
+    const steps = isHourly ? 24 : Math.min(90, Math.ceil(range.hours / 24));
     for (let i = steps - 1; i >= 0; i--) {
       const d = new Date(now.getTime() - i * (isHourly ? 3600_000 : 86400_000));
       const k = fmt(d);
       buckets.set(k, { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 });
     }
 
-    for (const l of logs) {
-      const d = new Date(l.sent_at);
-      const k = fmt(d);
-      const b = buckets.get(k) ?? { key: k, sent: 0, opened: 0, clicked: 0, failed: 0 };
-      b.sent++;
-      if (l.opened_at) b.opened++;
-      if (l.clicked_at) b.clicked++;
-      if (["failed", "bounced", "complained"].includes(l.status)) b.failed++;
-      buckets.set(k, b);
+    if (useAggregated) {
+      for (const r of metricRows) {
+        const b = buckets.get(r.day);
+        if (!b) continue;
+        b.sent += r.sent;
+        b.opened += r.opened;
+        b.clicked += r.clicked;
+        b.failed += r.failed + r.bounced + r.complained;
+      }
+    } else {
+      for (const l of logs) {
+        const d = new Date(l.sent_at);
+        const k = fmt(d);
+        const b = buckets.get(k);
+        if (!b) continue;
+        b.sent++;
+        if (l.opened_at) b.opened++;
+        if (l.clicked_at) b.clicked++;
+        if (["failed", "bounced", "complained"].includes(l.status)) b.failed++;
+      }
     }
     return Array.from(buckets.values());
-  }, [logs, range.hours]);
+  }, [logs, range.hours, useAggregated, metricRows]);
 
   // Top templates
   const byTemplate = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of logs) {
-      const k = l.template_slug ?? "(sem template)";
-      m.set(k, (m.get(k) ?? 0) + 1);
+    if (useAggregated) {
+      for (const r of metricRows) {
+        const k = r.template_slug || "(sem template)";
+        m.set(k, (m.get(k) ?? 0) + r.sent);
+      }
+    } else {
+      for (const l of logs) {
+        const k = l.template_slug ?? "(sem template)";
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
     }
     return Array.from(m.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
-  }, [logs]);
+  }, [logs, useAggregated, metricRows]);
 
   // Status pie
   const byStatus = useMemo(() => {
@@ -347,10 +386,14 @@ export default function EmailDashboard() {
         </ChartContainer>
       </Card>
 
+      {/* E-2: Saúde de envio + domínios */}
       <div className="grid gap-3 md:grid-cols-3">
-        {/* Funnel */}
-        <Card className="p-4 md:col-span-1">
-          <div className="text-sm font-semibold mb-3">Funil</div>
+        <div className="md:col-span-2">
+          <DomainHealthCard clinicId={clinicId} />
+        </div>
+        {/* Funil isolado pra dar destaque */}
+        <Card className="p-4">
+          <div className="text-sm font-semibold mb-3">Funil ({range.label})</div>
           <div className="space-y-2">
             {[
               { label: "Enviados", n: stats.total, pct: 100, color: "bg-primary" },
@@ -370,6 +413,10 @@ export default function EmailDashboard() {
             ))}
           </div>
         </Card>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+
 
         {/* Status pie */}
         <Card className="p-4 md:col-span-1">
