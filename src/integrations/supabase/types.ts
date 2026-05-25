@@ -1761,6 +1761,56 @@ export type Database = {
           },
         ]
       }
+      email_metrics_daily: {
+        Row: {
+          bounced: number
+          clicked: number
+          clinic_id: string
+          complained: number
+          day: string
+          delivered: number
+          failed: number
+          opened: number
+          sent: number
+          template_slug: string
+          updated_at: string
+        }
+        Insert: {
+          bounced?: number
+          clicked?: number
+          clinic_id: string
+          complained?: number
+          day: string
+          delivered?: number
+          failed?: number
+          opened?: number
+          sent?: number
+          template_slug?: string
+          updated_at?: string
+        }
+        Update: {
+          bounced?: number
+          clicked?: number
+          clinic_id?: string
+          complained?: number
+          day?: string
+          delivered?: number
+          failed?: number
+          opened?: number
+          sent?: number
+          template_slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_metrics_daily_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_queue: {
         Row: {
           attempts: number
@@ -4648,6 +4698,7 @@ export type Database = {
         }[]
       }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
+      refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
       report_campaign_stats: {
         Args: { _campaign_id: string; _clinic_id: string }
         Returns: {
