@@ -3,6 +3,7 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
