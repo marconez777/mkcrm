@@ -133,7 +133,7 @@ A documentação está sendo construída em **12 etapas**. Ver plano completo em
 | 8 | Fluxos end-to-end | ✅ feito |
 | 9 | Integrações externas | ✅ feito |
 | 10 | Operações & confiabilidade | ✅ feito |
-| 11 | Pegadinhas, dívidas, roadmap | ⏳ pendente |
+| 11 | Pegadinhas, dívidas, roadmap | ✅ feito |
 | 12 | Validação e polish | ⏳ pendente |
 
 Para avançar, basta dizer **"próxima etapa"**.
