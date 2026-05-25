@@ -196,7 +196,7 @@ on conflict (lead_id, agent_id) do update set run_at = excluded.run_at
 
 ### 4.3 `scheduled-dispatcher` (cron — 1 min)
 
-Compartilhada com o agendamento de mensagens (documentada em `docs/EMAIL.md`). Para IA:
+Compartilhada com o agendamento de mensagens (documentada em `./EMAIL.md`). Para IA:
 
 1. `delete from pending_replies where lead_id=? and agent_id=? and run_at <= now() returning *` — **claim atômico** evita corrida com `EdgeRuntime.waitUntil`.
 2. Carrega últimas 20 mensagens do lead → monta `conv` (alternando `user`/`assistant`).
@@ -647,6 +647,6 @@ select polname from pg_policy where polrelid = 'public.embedding_cache'::regclas
 
 ## 14. Referências cruzadas
 
-- **Inbox / WhatsApp**: ver `docs/OVERVIEW.md`. O `evolution-webhook` é quem dispara `ai-auto-reply`.
-- **E-mail**: ver `docs/EMAIL.md`. Compartilha o `scheduled-dispatcher` (cron 1 min).
-- **Tracking**: ver `docs/TRACKING.md`. Independente — não há feature de RAG sobre eventos de tracking ainda.
+- **Inbox / WhatsApp**: ver `../OVERVIEW.md`. O `evolution-webhook` é quem dispara `ai-auto-reply`.
+- **E-mail**: ver `./EMAIL.md`. Compartilha o `scheduled-dispatcher` (cron 1 min).
+- **Tracking**: ver `./TRACKING.md`. Independente — não há feature de RAG sobre eventos de tracking ainda.
