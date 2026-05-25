@@ -226,6 +226,31 @@ export function AutomationReportDialog({
             <BarChart3 className="h-8 w-8 text-muted-foreground" />
           </button>
 
+          {/* KPIs gerais */}
+          {(() => {
+            const totalSent = stepsStats.reduce((a, s) => a + s.sent, 0);
+            const totalOpened = stepsStats.reduce((a, s) => a + s.opened, 0);
+            const totalClicked = stepsStats.reduce((a, s) => a + s.clicked, 0);
+            const totalFailed = stepsStats.reduce((a, s) => a + s.failed, 0);
+            const lastStep = stepsStats[stepsStats.length - 1];
+            const overallDropoff = enrolledCount > 0 && lastStep
+              ? Math.max(0, 1 - lastStep.sent / enrolledCount)
+              : 0;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <KpiCard label="Enviados" value={totalSent} />
+                <KpiCard label="Open rate" value={totalSent ? pct(totalOpened, totalSent) : "—"} />
+                <KpiCard label="Click rate" value={totalSent ? pct(totalClicked, totalSent) : "—"} />
+                <KpiCard label="Falhas" value={totalFailed} tone={totalFailed > 0 ? "destructive" : undefined} />
+                <KpiCard
+                  label="Drop-off total"
+                  value={enrolledCount && lastStep ? `${Math.round(overallDropoff * 100)}%` : "—"}
+                  hint={enrolledCount && lastStep ? `${lastStep.sent} de ${enrolledCount} chegaram ao último passo` : undefined}
+                />
+              </div>
+            );
+          })()}
+
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
@@ -235,6 +260,7 @@ export function AutomationReportDialog({
                   <th className="text-left p-3 font-medium">Template</th>
                   <th className="text-center p-3 font-medium">Na fila</th>
                   <th className="text-center p-3 font-medium">Enviados</th>
+                  <th className="text-center p-3 font-medium">Drop-off</th>
                   <th className="text-center p-3 font-medium">Abertos</th>
                   <th className="text-center p-3 font-medium">Clicados</th>
                   <th className="text-center p-3 font-medium">Falharam</th>
@@ -245,6 +271,9 @@ export function AutomationReportDialog({
                   const s = stepsStats[i];
                   if (!s) return null;
                   const day = toDays(step.delay_minutes);
+                  const prevBase = i === 0 ? enrolledCount : (stepsStats[i - 1]?.sent ?? 0);
+                  const dropoff = prevBase > 0 ? Math.max(0, 1 - s.sent / prevBase) : 0;
+                  const dropoffLabel = prevBase > 0 ? `${Math.round(dropoff * 100)}%` : "—";
                   return (
                     <tr key={i} className="border-t">
                       <td className="p-3 text-muted-foreground">{i + 1}</td>
@@ -268,6 +297,20 @@ export function AutomationReportDialog({
                         }
                         variant="success"
                       />
+                      <td className="p-3 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            dropoff >= 0.5
+                              ? "bg-destructive/10 text-destructive"
+                              : dropoff >= 0.2
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                          title={prevBase > 0 ? `${s.sent} de ${prevBase} (base: ${i === 0 ? "matriculados" : "passo anterior"})` : ""}
+                        >
+                          {dropoffLabel}
+                        </span>
+                      </td>
                       <CellBtn
                         value={`${s.opened}${s.sent ? ` (${pct(s.opened, s.sent)})` : ""}`}
                         rawValue={s.opened}
@@ -296,7 +339,7 @@ export function AutomationReportDialog({
                 })}
                 {automation.steps.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="p-6 text-center text-sm text-muted-foreground">
                       Esta automação não tem passos.
                     </td>
                   </tr>
@@ -330,6 +373,16 @@ export function AutomationReportDialog({
         onClose={() => setSheet(null)}
       />
     </>
+  );
+}
+
+function KpiCard({ label, value, hint, tone }: { label: string; value: string | number; hint?: string; tone?: "destructive" }) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`text-xl font-semibold mt-0.5 ${tone === "destructive" ? "text-destructive" : ""}`}>{value}</div>
+      {hint && <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{hint}</div>}
+    </div>
   );
 }
 
