@@ -69,6 +69,10 @@ Deno.serve(async (req) => {
       .select("name, phone, email, company, deal_value, notes, tags, clinic_id")
       .eq("id", lead_id)
       .single();
+    try { await assertSpendAllowed((lead as any)?.clinic_id ?? null); } catch (e) {
+      if (e instanceof SpendLimitExceeded) return json(e.body, 402);
+      throw e;
+    }
     const { data: msgs } = await sb
       .from("messages")
       .select("from_me, content, message_type, timestamp")
