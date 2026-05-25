@@ -8,11 +8,14 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, MessageSquare } from "lucide-react";
 
+type Mode = "login" | "forgot";
+
 export default function AuthPage() {
   const { session, loading: bootLoading } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname ?? "/";
+  const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,6 +66,29 @@ export default function AuthPage() {
     }
   }
 
+  async function submitForgot(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim().toLowerCase(),
+        { redirectTo: `${window.location.origin}/reset-password` },
+      );
+      // Sempre mostra mensagem neutra para não vazar quais emails existem.
+      if (error && !/rate/i.test(error.message)) {
+        // só loga; usuário vê msg neutra mesmo assim
+        console.warn("resetPasswordForEmail:", error.message);
+      }
+      toast.success("Se o email existir, enviamos um link para redefinir a senha.");
+      setMode("login");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Não foi possível enviar o email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
@@ -70,27 +96,62 @@ export default function AuthPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
             <MessageSquare className="h-5 w-5" />
           </div>
-          <h1 className="text-lg font-semibold">Entrar</h1>
-          <p className="text-xs text-muted-foreground">Acesso à equipe de atendimento</p>
+          <h1 className="text-lg font-semibold">
+            {mode === "login" ? "Entrar" : "Esqueci minha senha"}
+          </h1>
+          <p className="text-xs text-muted-foreground text-center">
+            {mode === "login"
+              ? "Acesso à equipe de atendimento"
+              : "Enviaremos um link para você redefinir sua senha"}
+          </p>
         </div>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email</Label>
-            <Input id="email" type="email" autoComplete="email" required
-              value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs">Senha</Label>
-            <Input id="password" type="password"
-              autoComplete="current-password"
-              required minLength={6}
-              value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          <Button type="submit" className="w-full" disabled={busy}>
-            {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-            Entrar
-          </Button>
-        </form>
+
+        {mode === "login" ? (
+          <form onSubmit={submit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Input id="email" type="email" autoComplete="email" required
+                value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs">Senha</Label>
+              <Input id="password" type="password"
+                autoComplete="current-password"
+                required minLength={6}
+                value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Entrar
+            </Button>
+            <button
+              type="button"
+              onClick={() => setMode("forgot")}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Esqueci minha senha
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={submitForgot} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Input id="email" type="email" autoComplete="email" required
+                value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Enviar link de redefinição
+            </Button>
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Voltar para o login
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
