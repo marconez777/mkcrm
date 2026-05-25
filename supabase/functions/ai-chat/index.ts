@@ -404,6 +404,8 @@ Deno.serve(async (req) => {
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
 
+    await assertSpendAllowed(agent.clinic_id ?? null);
+
     // Manual review path: lead_id sem mensagens => carrega últimas 30 mensagens reais como turno único do user
     let incoming = incomingRaw;
     if (lead_id && (!incoming || incoming.length === 0)) {
