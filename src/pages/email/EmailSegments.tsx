@@ -140,7 +140,7 @@ export default function EmailSegments() {
   useEffect(() => { load(); }, []);
 
   function resetForm() {
-    setName(""); setDescription(""); setKind("dynamic"); setRules([]); setActive(true);
+    setName(""); setDescription(""); setKind("dynamic"); setMatch("any"); setRules([]); setActive(true);
     setContacts([]); setNewContactEmail(""); setNewContactName("");
     setPreviewCount(null); setPreviewSample([]); setEditing(null);
   }
@@ -150,7 +150,7 @@ export default function EmailSegments() {
     setName(s.name);
     setDescription(s.description ?? "");
     const f = normalizeFilters(s.filters);
-    setKind(f.kind); setRules(f.rules);
+    setKind(f.kind); setMatch(f.match); setRules(f.rules);
     setActive(s.active);
     const { data: cs } = await supabase
       .from("email_segment_contacts")
@@ -164,7 +164,8 @@ export default function EmailSegments() {
   function addRule(type: RuleType) {
     if (type === "has_email") setRules((r) => [...r, { type: "has_email" }]);
     else if (type === "stage") setRules((r) => [...r, { type: "stage", stage_id: "" }]);
-    else setRules((r) => [...r, { type, values: [] }]);
+    else if (type === "created_at_range") setRules((r) => [...r, { type: "created_at_range" }]);
+    else setRules((r) => [...r, { type, values: [] } as Rule]);
   }
   function updateRule(idx: number, patch: Partial<Rule>) {
     setRules((r) => r.map((x, i) => (i === idx ? ({ ...x, ...patch } as Rule) : x)));
@@ -174,9 +175,30 @@ export default function EmailSegments() {
   }
 
   const filtersPayload: SegmentFilters = useMemo(
-    () => ({ kind, match: "any", rules: kind === "static" ? [] : rules }),
-    [kind, rules],
+    () => ({ kind, match, rules: kind === "static" ? [] : rules }),
+    [kind, match, rules],
   );
+
+  // Live preview (dry-run) — debounced
+  useEffect(() => {
+    if (!openNew || kind !== "dynamic" || !clinicId || rules.length === 0) {
+      setPreviewCount(null); setPreviewSample([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("resolve_email_segment_preview" as any, {
+        _clinic_id: clinicId,
+        _filters: filtersPayload as any,
+      });
+      if (error) return;
+      const set = new Set<string>();
+      (data as any[] ?? []).forEach((r: any) => r?.email && set.add(String(r.email).toLowerCase()));
+      setPreviewCount(set.size);
+      setPreviewSample([...set].slice(0, 5));
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [openNew, kind, match, rules, clinicId, filtersPayload]);
+
 
   async function save() {
     if (!name.trim()) { toast.error("Nome obrigatório"); return; }
