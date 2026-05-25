@@ -159,11 +159,77 @@ export default function EmailCampaigns() {
     if (error) toast.error(error.message); else { toast.success("Excluída"); load(); }
   }
 
+  async function pause(c: Campaign) {
+    if (!(await confirm({
+      title: `Pausar campanha "${c.name}"?`,
+      description: "Emails ainda não enviados ficarão em espera até você retomar.",
+      confirmLabel: "Pausar",
+    }))) return;
+    setBusy(true);
+    try {
+      const { error: qErr } = await supabase
+        .from("email_queue")
+        .update({ status: "paused" })
+        .eq("status", "pending")
+        .eq("related_lead_table", `campaign_${c.id}`);
+      if (qErr) throw qErr;
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ status: "paused" })
+        .eq("id", c.id);
+      if (error) throw error;
+      toast.success("Campanha pausada");
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function resume(c: Campaign) {
+    setBusy(true);
+    try {
+      const { error: qErr } = await supabase
+        .from("email_queue")
+        .update({ status: "pending", scheduled_at: new Date().toISOString() })
+        .eq("status", "paused")
+        .eq("related_lead_table", `campaign_${c.id}`);
+      if (qErr) throw qErr;
+      const futureSchedule = c.scheduled_for && new Date(c.scheduled_for) > new Date();
+      const nextStatus = futureSchedule ? "scheduled" : (c.sent_count > 0 || c.total_recipients > 0 ? "sending" : "draft");
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ status: nextStatus })
+        .eq("id", c.id);
+      if (error) throw error;
+      // dispara processamento imediato
+      supabase.functions.invoke("process-email-queue", { body: {} }).catch(() => {});
+      toast.success("Campanha retomada");
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function duplicate(c: Campaign) {
+    if (!clinicId) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("email_campaigns").insert({
+        clinic_id: clinicId,
+        name: `${c.name} (cópia)`,
+        template_slug: c.template_slug,
+        segment_id: c.segment_id,
+        test_email: c.test_email,
+        status: "draft",
+      });
+      if (error) throw error;
+      toast.success("Campanha duplicada");
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
   function statusBadge(s: string) {
-    const map: Record<string, "default" | "secondary" | "destructive"> = {
-      sent: "default", sending: "default", scheduled: "secondary", draft: "secondary", failed: "destructive",
+    const map: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      sent: "default", sending: "default", scheduled: "secondary", draft: "secondary", failed: "destructive", paused: "outline",
     };
-    return <Badge variant={map[s] ?? "secondary"}>{s}</Badge>;
+    const labels: Record<string, string> = { paused: "pausada", sending: "enviando", sent: "enviada", scheduled: "agendada", draft: "rascunho", failed: "falhou" };
+    return <Badge variant={map[s] ?? "secondary"}>{labels[s] ?? s}</Badge>;
   }
 
   return (
