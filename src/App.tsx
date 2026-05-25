@@ -7,6 +7,7 @@ import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import AiHub from "./pages/ai/AiHub";
