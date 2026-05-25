@@ -57,10 +57,12 @@ docs/
 │   ├── AI.md
 │   ├── EMAIL.md
 │   ├── TRACKING.md
+│   └── SHARED_HELPERS.md
+├── features/                    Domínios completos (DB + edge + frontend)
 │   ├── BROADCASTS.md
 │   ├── SEQUENCES_AUTOMATIONS.md
-│   ├── FORMS.md
-│   └── SHARED_HELPERS.md
+│   └── FORMS.md
+
 ├── frontend/                    React / Vite
 │   ├── ROUTING.md
 │   ├── PAGES.md
