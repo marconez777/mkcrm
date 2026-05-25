@@ -1,0 +1,163 @@
+# Frontend — Hooks e Lib
+
+> Hooks customizados (`src/hooks/**`) e utilitários (`src/lib/**`).
+>
+> Última atualização: 2026-05-25
+
+---
+
+## 1. Hooks
+
+### Sessão e contexto
+
+**`useAuth()`** (`hooks/useAuth.tsx`) — context provider montado em
+`App.tsx`. Expõe:
+- `session`, `user`, `loading`
+- `membership` (clinic_id + role + clinic.settings)
+- `isSuperAdmin` (lookup em `user_roles`)
+- `hasFeature(key)` (combina `features.ts` + settings da clínica)
+- `refreshMembership()`
+
+Detalhe importante: assina `onAuthStateChange`, e também renova a
+sessão em `visibilitychange` / `focus` / a cada 4min. Isso evita
+"token expired" depois do computador dormir. **Não substituir** por um
+hook simples.
+
+**`useDialogs()`** (`hooks/useDialogs.tsx`) — store global de diálogos
+(`LeadDrawer`, confirm, prompt) acessível de qualquer página via
+`useDialogs().openLead(id)`, `confirm({...})`, `prompt({...})`.
+
+### Realtime / dados
+
+**`useStages()` / `useLeads()`** (`hooks/useCrm.ts`) — wrappers sobre
+`useRealtimeList<T>(table, orderBy, renderKeys)`. Carrega uma vez
+(`limit: 2000` para leads, 500 para stages), assina `postgres_changes`,
+patcha estado in-place. `renderKeys` filtra updates ruidosos (ex.:
+`updated_at`) para evitar re-render storms. Avisa no console se atingir
+o limit.
+
+**`usePipelines()`** — lista de pipelines da clínica + helper de
+seleção/persistência da escolha em localStorage.
+
+**`useLeadsPaginated()`** — alternativa paginada para listagens grandes
+(usada na Inbox e em algumas tabs do drawer).
+
+**`useAttendants()`** — `clinic_members` com filtro por role.
+
+**`useQuickReplies()`** — atalhos de mensagem do attendant.
+
+**`useHealth()`** — agrega `evolution-health` (WhatsApp) + integrations
+status; expõe `overall: "ok"|"warn"|"down"` para a sidebar.
+
+**`useWaAvatar()`** — busca/cacheia avatar do WhatsApp para um phone via
+`fetch-wa-avatar`. Memoiza por número.
+
+### UI
+
+**`useUnreadTitle()`** — soma `leads.unread_count`, atualiza
+`document.title` com `(N) MK-CRM`. Roda em `<TitleSync/>` no App.
+
+**`useHorizontalScroll()`** — sincroniza dois containers de scroll
+horizontal (usado pelo `TopScrollbar` do Kanban).
+
+**`use-mobile.tsx`** — breakpoint `md` via matchMedia.
+
+**`use-toast.ts`** — toast legado (shadcn). Para código novo, importar
+`toast` direto de `sonner`.
+
+---
+
+## 2. Lib (utilitários puros)
+
+### Geral
+- **`utils.ts`** — `cn()` (clsx + tailwind-merge). Único util realmente
+  usado em todo lugar.
+- **`supabase-env.ts`** — leitura tipada de `import.meta.env.VITE_*`.
+- **`phone.ts`** — `normalizePhoneBR(raw)` → string só dígitos com `55`
+  prefix quando aplicável. Usar SEMPRE antes de salvar/comparar phones.
+
+### Leads / pipeline
+- **`delete-lead.ts`** — soft delete (`archived_at`) e hard delete
+  com cascata (mensagens, eventos). Mostra confirm via `useDialogs`.
+- **`drafts.ts`** — drafts de mensagem por lead em localStorage (chave
+  `mk:draft:<leadId>`).
+- **`internal-notes.ts`** — CRUD de notas internas do lead.
+- **`lead-tasks.ts`** — tarefas vinculadas a lead, com lembrete.
+- **`saved-views.ts`** — filtros salvos do kanban/inbox.
+- **`tasks-board.ts`** — agrupamento de tasks por status para o
+  board de `/tasks`.
+
+### Mensagens
+- **`scheduled-messages.ts`** — CRUD em `scheduled_messages` (consumido
+  por `scheduled-dispatcher` cron).
+- **`media-url.ts`** — resolve URL pública/signed para mídia
+  WhatsApp/email.
+
+### Email
+- **`email/types.ts`** — shape dos blocks.
+- **`email/blocksToHtml.ts`** — render para HTML inline (CSS embebido).
+- **`email/htmlToBlocks.ts`** — parser reverso (importar template HTML).
+- **`email/sanitize.ts`** — DOMPurify wrapper.
+- **`email/variables.ts`** — catálogo `{{nome}}`, `{{empresa}}` etc.
+  com renderização preview.
+
+### Tracking
+- **`tracking-identify.ts`** — helper para chamar `tracking-identify`
+  ligando o visitor atual ao usuário logado.
+
+### Broadcasts
+- **`broadcast-template.ts`** — download/parse de XLSX para audiência
+  (`downloadBroadcastTemplate`, `parseContactsFile`). Usa `xlsx` e
+  `normalizePhoneBR`.
+
+### IA
+- **`ai-pricing.ts`** — tabela de preços por modelo + helper
+  `computeCost(model, tokens)` espelhando `_shared/ai-pricing.ts` da
+  edge. Mantenha os dois em sincronia.
+
+### Features
+- **`features.ts`** — `FeatureKey`, catálogo `FEATURES[]`,
+  `isFeatureEnabled(features, key)`. Default-on quando a key não está
+  presente. Usado pelo `useAuth.hasFeature`.
+
+---
+
+## 3. Convenções
+
+- **Tipagem completa** — `any` só em `payload as any` de realtime ou
+  joins do Supabase. Evite em código novo.
+- **Hooks devem ser puros React** — sem efeitos colaterais fora do
+  `useEffect`. Side effects de longo prazo (intervals, channels) sempre
+  com cleanup.
+- **Lib é stateless** — funções utilitárias sem React, fácil de testar.
+- **Cuidado com closures stale** em realtime: `setItems(prev => ...)`
+  sempre via callback.
+- **localStorage**: prefixar chaves com `mk:` para evitar colisão.
+
+---
+
+## 4. Pegadinhas
+
+- `useRealtimeList` (`useCrm.ts`) **não** re-fetcha em
+  `visibilitychange`. Se ficar offline e voltar, mudanças perdidas no
+  websocket não são reconciliadas — usuário precisa F5. Ver `DEBT.md`.
+- `useAuth.loadCtx` roda em `setTimeout(_, 0)` dentro do
+  `onAuthStateChange` para evitar deadlock recomendado pelo Supabase.
+  **Não inline.**
+- `normalizePhoneBR` retorna `null` para strings inválidas; sempre testar
+  antes de gravar.
+- `ai-pricing.ts` no frontend não tem acesso a `gateway_pricing` da
+  Lovable AI atualizada em runtime — pode mostrar custo levemente
+  diferente da edge se a tabela mudar. Atualizar manualmente.
+
+---
+
+## 5. Melhorias sugeridas
+
+- Wrapper `useSupabaseQuery<T>(table, filter)` padronizando loading/error
+  e revalidação on focus.
+- Reconciliação no `useRealtimeList` ao voltar de offline (refetch
+  diff por `updated_at > last_seen`).
+- Mover `ai-pricing` para uma view materializada e consultar via single
+  source of truth.
+- Testes unitários em `lib/*` puros (vitest já está configurado).
