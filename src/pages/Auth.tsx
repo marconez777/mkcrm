@@ -31,12 +31,19 @@ export default function AuthPage() {
         body: { email: email.trim().toLowerCase(), password },
       });
       if (error) {
-        // FunctionsHttpError exposes status via context
         const ctx: any = (error as any)?.context;
         let msg = error.message || "Falha na autenticação";
         try {
-          const parsed = ctx?.body ? JSON.parse(ctx.body) : (await ctx?.json?.());
-          if (parsed?.message) msg = parsed.message;
+          if (ctx instanceof Response) {
+            const parsed = await ctx.clone().json();
+            msg = parsed?.message || parsed?.error || msg;
+          } else if (typeof ctx?.body === "string") {
+            const parsed = JSON.parse(ctx.body);
+            msg = parsed?.message || parsed?.error || msg;
+          } else if (typeof ctx?.json === "function") {
+            const parsed = await ctx.json();
+            msg = parsed?.message || parsed?.error || msg;
+          }
         } catch {}
         throw new Error(msg);
       }
