@@ -376,6 +376,16 @@ export function AutomationReportDialog({
   );
 }
 
+function KpiCard({ label, value, hint, tone }: { label: string; value: string | number; hint?: string; tone?: "destructive" }) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`text-xl font-semibold mt-0.5 ${tone === "destructive" ? "text-destructive" : ""}`}>{value}</div>
+      {hint && <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{hint}</div>}
+    </div>
+  );
+}
+
 function CellBtn({
   value,
   rawValue,
