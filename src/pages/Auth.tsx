@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, MessageSquare } from "lucide-react";
+import { APP_BASE_URL } from "@/lib/app-url";
 
 type Mode = "login" | "forgot";
 
@@ -73,7 +74,7 @@ export default function AuthPage() {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo: `${window.location.origin}/reset-password` },
+        { redirectTo: `${APP_BASE_URL}/reset-password` },
       );
       // Sempre mostra mensagem neutra para não vazar quais emails existem.
       if (error && !/rate/i.test(error.message)) {

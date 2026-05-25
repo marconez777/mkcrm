@@ -1,61 +1,57 @@
 
-## Contexto
+## Problema
 
-Investigação para `gestao.sanapta@gmail.com`:
-- Conta existe, confirmada, sem ban (`auth.users`).
-- **Sem lockout** em `auth_lockouts` (já checado).
-- Logs do GoTrue mostram que as tentativas falhadas dela retornam genuinamente `invalid_credentials` (a senha enviada estava errada do ponto de vista do servidor). Não é bug do nosso edge `auth-login`.
-
-Como você não consegue resolver remoto (o problema é só no navegador dela), a melhor saída é deixar **ela mesma resetar a senha**. Hoje o app não tem esse fluxo — está listado como melhoria pendente em `docs/architecture/AUTH.md`.
+1. O link no email vai para o domínio errado (provavelmente `mkcrm.lovable.app`) porque hoje uso `window.location.origin` como `redirectTo` — depende de onde ela abriu o formulário.
+2. O template está em inglês e vem de `no-reply@auth.lovable.cloud`, sem identidade visual.
 
 ---
 
 ## Escopo
 
-Criar o fluxo completo de "Esqueci minha senha" usando o Supabase Auth padrão (`resetPasswordForEmail` + `updateUser`), **sem** depender de edge function nova nem de domínio de email customizado — vai usar o email default do Supabase (que já funciona). Depois, se quiser branding, dá pra plugar nos templates de auth do Lovable Cloud em uma etapa separada.
+### 1. Forçar o link para `crm.mkart.com.br` (UI — imediato)
 
-### Mudanças (UI apenas + 1 rota nova)
+- Em `src/pages/Auth.tsx`, trocar `redirectTo: ${window.location.origin}/reset-password` por uma constante fixa `https://crm.mkart.com.br/reset-password`.
+- Centralizar em `src/lib/app-url.ts` (novo): `export const APP_BASE_URL = "https://crm.mkart.com.br"` — pra reutilizar em qualquer outro lugar futuramente.
 
-1. **`src/pages/Auth.tsx`**
-   - Adicionar link `Esqueci minha senha` abaixo do botão Entrar.
-   - Modo "forgot": mostra só campo de email + botão "Enviar link de redefinição".
-   - Chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${window.location.origin}/reset-password })`.
-   - Mensagem neutra ("Se o email existir, enviamos o link") para não vazar enumeração.
+> Ambos os domínios (`crm.mkart.com.br` e `mkcrm.lovable.app`) já estão no allowlist do Supabase Auth, então forçar o domínio próprio só funciona — não precisa mexer em config do Supabase.
 
-2. **`src/pages/ResetPassword.tsx` (novo)**
-   - Rota pública `/reset-password`.
-   - Detecta a sessão de recovery (Supabase já dispara `PASSWORD_RECOVERY` via `onAuthStateChange` quando o usuário chega pelo link).
-   - Form com nova senha + confirmação (mínimo 6 chars, igualdade).
-   - Chama `supabase.auth.updateUser({ password })`.
-   - Sucesso → toast + redireciona pra `/`.
-   - Se acessar sem sessão de recovery válida → mensagem "link expirado ou inválido" + botão voltar para `/auth`.
+### 2. Customizar o email (template em pt-BR com marca MK CRM)
 
-3. **`src/App.tsx`**
-   - Registrar `/reset-password` como rota pública (fora do `ProtectedRoute`).
+Hoje a workspace **não tem domínio de email configurado**. Pra mandar de `noreply@mkart.com.br` (ou subdomínio) precisamos:
 
-4. **`docs/architecture/AUTH.md`**
-   - Adicionar seção "Esqueci minha senha" documentando o fluxo.
-   - Remover esse item da lista de "Melhorias sugeridas".
+**2a. Configurar o domínio de email** — vou abrir o dialog do Lovable Cloud pra você escolher/validar o subdomínio (sugerido: `notify.mkart.com.br`). Você só precisa adicionar 2 NS records no seu provedor de DNS — o Lovable cuida do resto (SPF/DKIM/MX). DNS pode levar até 72h, mas não trava o resto.
 
-### Ação imediata para a Andreia
+**2b. Scaffold dos templates de auth** (após configurar o domínio):
 
-Assim que o fluxo subir, instruir você a pedir pra ela:
-1. Abrir https://crm.mkart.com.br/auth
-2. Clicar em "Esqueci minha senha"
-3. Digitar `gestao.sanapta@gmail.com`
-4. Abrir o email do Supabase ("Reset your password") e seguir o link
-5. Definir senha nova
+- Cria edge function `auth-email-hook` + 6 templates React Email em `_shared/email-templates/`.
+- Vou customizar TODOS em **português brasileiro** com a identidade do MK CRM:
+  - Cores: do `src/index.css` (primary, foreground, muted-foreground, --radius).
+  - Fonte: stack do app.
+  - Logo: o ícone `MessageSquare` já usado no `/auth` (ou se existir um arquivo de logo em `public/`, eu uso).
+  - Tom: direto, semelhante ao app ("Redefinir sua senha", "Confirmar email", etc.).
+- Templates afetados:
+  - `recovery.tsx` → "Redefinir sua senha" — botão "Redefinir senha"
+  - `signup.tsx` → "Confirme seu email no MK CRM"
+  - `magic-link.tsx` → "Seu link de acesso ao MK CRM"
+  - `invite.tsx` → "Você foi convidado para o MK CRM"
+  - `email-change.tsx` → "Confirme seu novo email"
+  - `reauthentication.tsx` → "Código de verificação"
 
-Isso garante que ela troca a senha do navegador dela e elimina qualquer hipótese de autofill/typo/encoding.
+**2c. Deploy** do `auth-email-hook`.
 
-### Fora de escopo (pra não inchar)
+### 3. Atualizar docs
 
-- Branding dos emails de auth (templates Lovable Cloud) — separado, posso planejar depois se quiser.
-- 2FA, captcha, desbloqueio self-service de lockout — já estão no roadmap.
-- Mudar a edge `auth-login` — não precisa mexer.
+- `docs/architecture/AUTH.md`: documentar URL fixa de redirect e templates customizados.
+
+### Fora de escopo
+
+- Mudar Site URL/Allowlist no Supabase (já está OK).
+- Mudar a edge `auth-login`.
+- Email marketing — só auth.
 
 ### Notas técnicas
 
-- `auth.users` desse projeto **não tem** tabela `profiles` espelhada — auth é gerenciada via `clinic_members` + `user_roles`. Reset de senha não toca em nenhuma dessas tabelas, então nada de migração.
-- O Supabase envia email de recovery automaticamente; não exige `RESEND_API_KEY` nem domínio verificado pra funcionar (usa remetente padrão `noreply@mail.app.supabase.io`).
-- Como `/reset-password` precisa ser pública, ela vai antes de qualquer guard em `App.tsx`.
+- Sem migração de DB.
+- Sem novas secrets — Lovable Cloud provisiona `LOVABLE_API_KEY` automaticamente.
+- O hardcode do redirect já resolve o problema mesmo antes do DNS validar (o link só vai parar de ser `@auth.lovable.cloud` quando o DNS estiver verde, mas pelo menos cairá em `crm.mkart.com.br` desde já).
+- Se o DNS demorar, ela já pode resetar a senha agora pelo template default em inglês — só o link vai pro domínio certo.
