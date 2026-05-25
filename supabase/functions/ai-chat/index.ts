@@ -637,6 +637,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });
   } catch (e) {
+    if (e instanceof SpendLimitExceeded) return json(e.body, 402);
     console.error("ai-chat", e);
     return json({ error: String(e) }, 500);
   }
