@@ -3,7 +3,7 @@
 > **Quem deve ler:** o próprio chat Lovable (em sessões futuras), antes de modificar qualquer parte do sistema. Esta documentação é a **memória externa** do projeto: ler primeiro evita varrer 50+ arquivos.
 >
 > **Última atualização:** 2026-05-25
-> **Status da doc:** em construção — ver "Status" abaixo.
+> **Status da doc:** ✅ v1.0 completa (52 arquivos) — ver `CHANGELOG.md`.
 
 ---
 
@@ -11,7 +11,9 @@
 
 1. Leia este `README.md` inteiro (mapa de leitura abaixo).
 2. Leia [`OVERVIEW.md`](./OVERVIEW.md) para entender o produto em 10 min.
-3. Vá direto ao(s) arquivo(s) específico(s) da área que você vai mexer.
+3. Em dúvida sobre um termo? `GLOSSARY.md`.
+4. Vá direto ao(s) arquivo(s) específico(s) da área que você vai mexer.
+5. **Antes de qualquer mudança**, leia `known-issues/PITFALLS.md` (40 armadilhas recorrentes).
 
 **Regra de ouro:** se você só precisa mudar uma tela → leia `frontend/*` + o `flows/*` correspondente. Se vai mexer no banco → `database/*` + `architecture/MULTI_TENANCY.md`. Se vai mexer numa edge function → `edge-functions/INDEX.md` + o arquivo do domínio.
 
@@ -40,6 +42,8 @@
 docs/
 ├── README.md                    ← você está aqui
 ├── OVERVIEW.md                  Visão geral do produto
+├── GLOSSARY.md                  Termos do projeto
+├── CHANGELOG.md                 Mudanças na própria doc
 ├── architecture/                Decisões transversais
 │   ├── STACK.md
 │   ├── MULTI_TENANCY.md
@@ -119,21 +123,21 @@ docs/
 
 ## Status da construção da doc
 
-A documentação está sendo construída em **12 etapas**. Ver plano completo em `.lovable/plan.md`.
+✅ **v1.0 completa em 2026-05-25.** As 12 etapas foram concluídas. Próximas evoluções entram via `CHANGELOG.md`.
 
 | # | Etapa | Status |
 |---|---|---|
-| 1 | Fundação (README, OVERVIEW, conventions) | ✅ feito |
-| 2 | Architecture & multi-tenancy | ✅ feito |
-| 3 | Banco de dados | ✅ feito |
-| 4 | Edge functions — WhatsApp + Shared | ✅ feito |
-| 5 | Edge functions — IA, Email, Tracking | ✅ feito |
-| 6 | Features — Broadcasts, Sequences/Automations, Forms | ✅ feito |
-| 7 | Frontend | ✅ feito |
-| 8 | Fluxos end-to-end | ✅ feito |
-| 9 | Integrações externas | ✅ feito |
-| 10 | Operações & confiabilidade | ✅ feito |
-| 11 | Pegadinhas, dívidas, roadmap | ✅ feito |
-| 12 | Validação e polish | ⏳ pendente |
+| 1 | Fundação (README, OVERVIEW, conventions) | ✅ |
+| 2 | Architecture & multi-tenancy | ✅ |
+| 3 | Banco de dados | ✅ |
+| 4 | Edge functions — WhatsApp + Shared | ✅ |
+| 5 | Edge functions — IA, Email, Tracking | ✅ |
+| 6 | Features — Broadcasts, Sequences/Automations, Forms | ✅ |
+| 7 | Frontend | ✅ |
+| 8 | Fluxos end-to-end | ✅ |
+| 9 | Integrações externas | ✅ |
+| 10 | Operações & confiabilidade | ✅ |
+| 11 | Pegadinhas, dívidas, roadmap | ✅ |
+| 12 | Validação e polish (glossário, changelog) | ✅ |
 
-Para avançar, basta dizer **"próxima etapa"**.
+**Manutenção contínua:** ao mudar código, atualizar a doc no mesmo PR + renovar `Última atualização:` do topo do arquivo + registrar em `CHANGELOG.md`.
