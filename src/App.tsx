@@ -52,6 +52,7 @@ const App = () => (
           <CommandPalette />
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
