@@ -415,32 +415,8 @@ export default function EmailDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        {/* (Funil movido pra cima) */}
-        <Card className="p-4 md:col-span-1 hidden">
+      <div className="grid gap-3 md:grid-cols-2">
 
-        {/* Funnel */}
-        <Card className="p-4 md:col-span-1">
-          <div className="text-sm font-semibold mb-3">Funil</div>
-          <div className="space-y-2">
-            {[
-              { label: "Enviados", n: stats.total, pct: 100, color: "bg-primary" },
-              { label: "Entregues", n: stats.delivered, pct: stats.deliveredPct, color: "bg-primary/80" },
-              { label: "Abertos", n: stats.opened, pct: stats.openPct, color: "bg-emerald-500" },
-              { label: "Clicaram", n: stats.clicked, pct: stats.clickPct, color: "bg-violet-500" },
-            ].map((s) => (
-              <div key={s.label}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">{s.label}</span>
-                  <span className="tabular-nums">{s.n} · {s.pct}%</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                  <div className={`h-full ${s.color}`} style={{ width: `${Math.min(100, s.pct)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         {/* Status pie */}
         <Card className="p-4 md:col-span-1">
