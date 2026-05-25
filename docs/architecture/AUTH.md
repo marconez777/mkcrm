@@ -116,9 +116,26 @@ Limpa sessão local + invalida refresh token no servidor.
 
 ---
 
+## Esqueci minha senha
+
+Fluxo padrão Supabase, **sem** edge function própria:
+
+1. Em `/auth`, usuário clica em "Esqueci minha senha" → modo `forgot` na mesma página (`src/pages/Auth.tsx`).
+2. Submit chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${origin}/reset-password })`.
+3. UI mostra sempre msg neutra ("Se o email existir, enviamos um link") para não vazar enumeração de emails.
+4. Supabase envia email de recovery (template default ou Lovable Cloud se configurado).
+5. Link leva para `/reset-password` (rota pública em `App.tsx`, fora do `ProtectedRoute`).
+6. `src/pages/ResetPassword.tsx` escuta `onAuthStateChange` por `PASSWORD_RECOVERY` (ou sessão ativa) → mostra form de nova senha → chama `supabase.auth.updateUser({ password })` → redireciona para `/`.
+7. Se a página é acessada sem sessão de recovery, mostra "link inválido ou expirado" + botão de volta para `/auth`.
+
+Não toca em `auth_lockouts` — o lockout é só para login com senha. Reset bem-sucedido **não** limpa lockout automaticamente; se a conta estiver travada, ela continuará travada até `locked_until` expirar (ou deleção manual).
+
+---
+
 ## Melhorias sugeridas (não implementadas)
 
 - 2FA / TOTP
-- "Esqueci minha senha" próprio (hoje depende de reset Supabase padrão)
 - Desbloqueio self-service via email após lockout
 - Captcha após 3 tentativas
+- Limpar `auth_lockouts` automaticamente quando o usuário troca a senha via recovery
+
