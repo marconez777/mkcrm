@@ -427,9 +427,26 @@ export default function Tracking() {
 
   // page report
   const pageReport = useMemo(() => {
+    const INTERNAL_HOSTS = ["crm.mkart.com.br", "mkcrm.lovable.app", "lovable.app", "lovable.dev", "localhost"];
+    const INTERNAL_PREFIXES = [
+      "/auth", "/onboarding", "/inbox", "/kanban", "/tasks", "/metrics", "/tracking",
+      "/settings", "/admin", "/agents", "/templates", "/sequences", "/automations",
+      "/broadcasts", "/team", "/invite", "/ai", "/email", "/unsubscribe", "/lead",
+      "/tracking-debug",
+    ];
+    const isInternal = (url: string | null | undefined, path: string) => {
+      if (url) {
+        try {
+          const h = new URL(url).hostname;
+          if (INTERNAL_HOSTS.some((d) => h === d || h.endsWith("." + d))) return true;
+        } catch { /* ignore */ }
+      }
+      return INTERNAL_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+    };
     const map: Record<string, { pageviews: number; visitors: Set<string>; wa: number; fs: number; fa: number; leads: Set<string> }> = {};
     events.forEach((e) => {
       const key = pathOf(e.page_url);
+      if (isInternal(e.page_url, key)) return;
       if (!map[key]) map[key] = { pageviews: 0, visitors: new Set(), wa: 0, fs: 0, fa: 0, leads: new Set() };
       const r = map[key];
       if (e.event_name === "page_view") r.pageviews += 1;
