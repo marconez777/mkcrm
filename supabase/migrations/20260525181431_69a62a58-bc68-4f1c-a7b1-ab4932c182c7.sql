@@ -1,0 +1,1 @@
+DELETE FROM auth_lockouts WHERE email='gestao.rsanapta@gmail.com';
