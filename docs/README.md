@@ -132,7 +132,7 @@ A documentação está sendo construída em **12 etapas**. Ver plano completo em
 | 7 | Frontend | ✅ feito |
 | 8 | Fluxos end-to-end | ✅ feito |
 | 9 | Integrações externas | ✅ feito |
-| 10 | Operações & confiabilidade | ⏳ pendente |
+| 10 | Operações & confiabilidade | ✅ feito |
 | 11 | Pegadinhas, dívidas, roadmap | ⏳ pendente |
 | 12 | Validação e polish | ⏳ pendente |
 
