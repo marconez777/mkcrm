@@ -124,7 +124,7 @@ A documentação está sendo construída em **12 etapas**. Ver plano completo em
 | 1 | Fundação (README, OVERVIEW, conventions) | ✅ feito |
 | 2 | Architecture & multi-tenancy | ✅ feito |
 | 3 | Banco de dados | ✅ feito |
-| 4 | Edge functions — WhatsApp + Shared | ⏳ pendente |
+| 4 | Edge functions — WhatsApp + Shared | ✅ feito |
 | 5 | Edge functions — IA, Email, Tracking | ⏳ pendente |
 | 6 | Edge functions — Broadcasts, Sequences, Forms | ⏳ pendente |
 | 7 | Frontend | ⏳ pendente |
