@@ -90,8 +90,10 @@ export default function EmailSegments() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<"dynamic" | "static">("dynamic");
+  const [match, setMatch] = useState<"any" | "all">("any");
   const [rules, setRules] = useState<Rule[]>([]);
   const [active, setActive] = useState(true);
+  const [clinicId, setClinicId] = useState<string | null>(null);
 
   // Contatos manuais (estático ou inclusões extras)
   const [contacts, setContacts] = useState<Contact[]>([]);
