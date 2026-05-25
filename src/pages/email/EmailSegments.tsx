@@ -108,6 +108,11 @@ export default function EmailSegments() {
 
   async function load() {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user.id).limit(1).maybeSingle();
+      if (cm?.clinic_id) setClinicId(cm.clinic_id);
+    }
     const [{ data: segs, error }, { data: st }, { data: leads }] = await Promise.all([
       supabase.from("email_segments").select("*").order("created_at", { ascending: false }),
       supabase.from("pipeline_stages").select("id, name, pipeline_id"),
