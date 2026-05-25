@@ -259,6 +259,7 @@ export default function MetricsAiUsage() {
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto max-w-6xl space-y-5">
+        {membership?.clinic_id && <AiSpendLimitCard clinicId={membership.clinic_id} />}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">Custos de IA</h1>
