@@ -78,6 +78,11 @@ Deno.serve(async (req) => {
     if (!lead) return json({ error: "lead not found" }, 404);
     if (!lead.clinic_id) return json({ error: "lead missing clinic_id" }, 500);
 
+    try { await assertSpendAllowed(lead.clinic_id); } catch (e) {
+      if (e instanceof SpendLimitExceeded) return json(e.body, 402);
+      throw e;
+    }
+
     // Bot-loop guard: if the most recent message is from_me and came from a bot,
     // skip enqueue entirely. Watchers are silent but still consume tokens.
     if (from_me) {
