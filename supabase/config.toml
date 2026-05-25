@@ -68,3 +68,7 @@ verify_jwt = false
 
 [functions.external-lead-capture]
 verify_jwt = false
+
+[functions.auth-email-hook]
+verify_jwt = false
+
