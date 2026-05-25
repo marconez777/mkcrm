@@ -370,21 +370,17 @@ export default function Tracking() {
 
       // summary
       const totalLeads = Object.keys(linkMap).length;
-      const pv = allEv.filter((e) => e.event_name === "page_view").length;
-      const wa = allEv.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect").length;
-      const fs = allEv.filter((e) => e.event_name === "form_start" || e.event_name === "partial_form_capture").length;
-      const fa = allEv.filter((e) => e.event_name === "form_submit_attempt").length;
       setSummary({
-        visitors: vList.length,
+        visitors: visitorsTotalCount ?? vList.length,
         sessions: sessCount ?? 0,
-        events: allEv.length,
-        page_view: pv,
-        whatsapp_click: wa,
-        form_start: fs,
-        form_submit_attempt: fa,
+        events: evTotalCount ?? allEv.length,
+        page_view: pvCount ?? 0,
+        whatsapp_click: waCount ?? 0,
+        form_start: fsCount ?? 0,
+        form_submit_attempt: faCount ?? 0,
         leads_identified: totalLeads,
         visitors_with_lead: totalLeads,
-        conv_rate: vList.length ? (totalLeads / vList.length) * 100 : 0,
+        conv_rate: (visitorsTotalCount ?? vList.length) ? (totalLeads / (visitorsTotalCount ?? vList.length)) * 100 : 0,
       });
     } finally {
       setLoading(false);
