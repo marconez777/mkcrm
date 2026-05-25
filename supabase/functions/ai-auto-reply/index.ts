@@ -10,6 +10,7 @@
 // entirely — otherwise every bot reply triggers another watcher run.
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { isSilentByTools } from "../_shared/agent-flags.ts";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 
 const FUNCTIONS_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
