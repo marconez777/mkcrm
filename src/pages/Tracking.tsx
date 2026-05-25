@@ -291,6 +291,42 @@ export default function Tracking() {
         .select("session_id", { count: "exact", head: true })
         .gte("started_at", sinceISO).lte("started_at", untilISO);
 
+      // exact totals (PostgREST caps row payloads at 1000 — use head+count for stats)
+      const applyEvFilters = (q: any) => {
+        if (eventNameFilter.trim()) q = q.ilike("event_name", `%${eventNameFilter.trim()}%`);
+        if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+        if (leadFilter.trim()) q = q.ilike("lead_id", `%${leadFilter.trim()}%`);
+        if (pageUrlFilter.trim()) q = q.ilike("page_url", `%${pageUrlFilter.trim()}%`);
+        return q;
+      };
+      const mkEvCount = (extra?: (q: any) => any) => {
+        let q: any = supabase.from("tracking_events").select("event_id", { count: "exact", head: true })
+          .gte("event_time", sinceISO).lte("event_time", untilISO);
+        q = applyEvFilters(q);
+        if (extra) q = extra(q);
+        return q;
+      };
+      const [
+        { count: evTotalCount },
+        { count: pvCount },
+        { count: waCount },
+        { count: fsCount },
+        { count: faCount },
+        { count: visitorsTotalCount },
+      ] = await Promise.all([
+        mkEvCount(),
+        mkEvCount((q) => q.eq("event_name", "page_view")),
+        mkEvCount((q) => q.in("event_name", ["whatsapp_click", "whatsapp_redirect"])),
+        mkEvCount((q) => q.in("event_name", ["form_start", "partial_form_capture"])),
+        mkEvCount((q) => q.eq("event_name", "form_submit_attempt")),
+        (() => {
+          let q: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
+            .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
+          if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+          return q;
+        })(),
+      ]);
+
       // identity links for these visitors
       const ids = vList.map((v) => v.visitor_id);
       const linkMap: Record<string, LinkRow> = {};
@@ -334,21 +370,17 @@ export default function Tracking() {
 
       // summary
       const totalLeads = Object.keys(linkMap).length;
-      const pv = allEv.filter((e) => e.event_name === "page_view").length;
-      const wa = allEv.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect").length;
-      const fs = allEv.filter((e) => e.event_name === "form_start" || e.event_name === "partial_form_capture").length;
-      const fa = allEv.filter((e) => e.event_name === "form_submit_attempt").length;
       setSummary({
-        visitors: vList.length,
+        visitors: visitorsTotalCount ?? vList.length,
         sessions: sessCount ?? 0,
-        events: allEv.length,
-        page_view: pv,
-        whatsapp_click: wa,
-        form_start: fs,
-        form_submit_attempt: fa,
+        events: evTotalCount ?? allEv.length,
+        page_view: pvCount ?? 0,
+        whatsapp_click: waCount ?? 0,
+        form_start: fsCount ?? 0,
+        form_submit_attempt: faCount ?? 0,
         leads_identified: totalLeads,
         visitors_with_lead: totalLeads,
-        conv_rate: vList.length ? (totalLeads / vList.length) * 100 : 0,
+        conv_rate: (visitorsTotalCount ?? vList.length) ? (totalLeads / (visitorsTotalCount ?? vList.length)) * 100 : 0,
       });
     } finally {
       setLoading(false);
