@@ -1,57 +1,152 @@
 
-## Problema
+# Roadmap — Módulo de Email Marketing
 
-1. O link no email vai para o domínio errado (provavelmente `mkcrm.lovable.app`) porque hoje uso `window.location.origin` como `redirectTo` — depende de onde ela abriu o formulário.
-2. O template está em inglês e vem de `no-reply@auth.lovable.cloud`, sem identidade visual.
+Baseado em `docs/edge-functions/EMAIL.md`, `docs/integrations/RESEND.md`, `docs/flows/EMAIL_CAMPAIGN.md` e `docs/roadmap/IMPROVEMENTS.md`.
+
+## Diagnóstico atual
+
+**Pontos fortes**
+- Pipeline robusto: queue persistente, retry/backoff, idempotência por contexto, suppression em cascata, cota diária, validação de domínio.
+- Editor visual de blocos com Tiptap, autosave, import HTML, validação de `{{unsubscribe_url}}`.
+- Tracking próprio (pixel + click rewrite) + webhook Resend para delivered/opened/clicked/bounced/complained.
+
+**Gaps de métricas**
+- Dashboard agrega client-side (até 500 logs) — sem visão de coortes ou janelas longas.
+- `opened_count` subestimado (proxy Gmail cacheia pixel) — não há deduplicação nem heurística para corrigir.
+- Não há atribuição de **conversão** (lead que abriu → respondeu → virou venda).
+- Não há "saúde de domínio" (bounce rate / spam rate por dia, alerta quando passa de threshold do Resend).
+- Reports usa heurística simples de "melhor horário"; sem segmentação por template/segmento/dia da semana.
+- Sem métricas por automação (CTR por step, drop-off no funil de drip).
+
+**Gaps de usabilidade**
+- Segmentos editados em **textarea JSON** — barreira alta para não-técnicos.
+- Campanhas: não há preview de quem vai receber antes de "Enviar".
+- Sem A/B test de subject; sem reenvio "para quem não abriu".
+- Editor: sem biblioteca de blocos salvos, sem versionamento, sem preview mobile/desktop lado a lado, sem teste de spam score.
+- Fila: sem visão consolidada de jobs por campanha; difícil debugar uma campanha específica.
+- Sem botão de "pausar campanha em andamento".
+- Domínio: criação só por super admin; clínica não tem self-serve nem feedback claro de propagação DNS.
 
 ---
 
-## Escopo
+## Roadmap proposto
 
-### 1. Forçar o link para `crm.mkart.com.br` (UI — imediato)
+### Tier 1 — Próximas 4–6 semanas (alto impacto, baixo/médio esforço)
 
-- Em `src/pages/Auth.tsx`, trocar `redirectTo: ${window.location.origin}/reset-password` por uma constante fixa `https://crm.mkart.com.br/reset-password`.
-- Centralizar em `src/lib/app-url.ts` (novo): `export const APP_BASE_URL = "https://crm.mkart.com.br"` — pra reutilizar em qualquer outro lugar futuramente.
+**E-1. Métricas confiáveis (camada de agregação)**
+- Materialized view `email_metrics_daily` (clinic, template, date, sent, delivered, opened_unique, clicked_unique, bounced, complained).
+- Refresh por cron a cada 15 min.
+- Dashboard passa a ler da view em vez de agregar client-side → suporta janelas de 90d+ sem travar.
+- Deduplicação de opens por `(log_id, day)` para mitigar pixel cache.
 
-> Ambos os domínios (`crm.mkart.com.br` e `mkcrm.lovable.app`) já estão no allowlist do Supabase Auth, então forçar o domínio próprio só funciona — não precisa mexer em config do Supabase.
+**E-2. Dashboard de saúde de domínio**
+- Card por domínio com bounce rate 7d / 30d, complaint rate, status DNS.
+- Alerta visual quando bounce > 5% ou complaint > 0.1% (limites Resend).
+- Sparkline de envio diário.
 
-### 2. Customizar o email (template em pt-BR com marca MK CRM)
+**E-3. Construtor visual de segmentos**
+- Substitui textarea JSON por UI de filtros (tags multiselect, stage multiselect, custom field operators).
+- Preview ao vivo da contagem.
+- JSON exposto em modo avançado (mantém retrocompat).
 
-Hoje a workspace **não tem domínio de email configurado**. Pra mandar de `noreply@mkart.com.br` (ou subdomínio) precisamos:
+**E-4. Preview de destinatários da campanha**
+- Antes de "Enviar", modal lista 20 leads de amostra + total estimado.
+- Avisa quantos serão pulados (suppression / sem email / já enviado).
 
-**2a. Configurar o domínio de email** — vou abrir o dialog do Lovable Cloud pra você escolher/validar o subdomínio (sugerido: `notify.mkart.com.br`). Você só precisa adicionar 2 NS records no seu provedor de DNS — o Lovable cuida do resto (SPF/DKIM/MX). DNS pode levar até 72h, mas não trava o resto.
+**E-5. Pausar / retomar campanha**
+- Botão "Pausar" em campanha `sending` → marca jobs `pending` da campanha como `paused`.
+- "Retomar" reativa. Útil quando subject saiu errado.
 
-**2b. Scaffold dos templates de auth** (após configurar o domínio):
+**E-6. Métricas por automação**
+- Página de detalhe da automação: matriculados, enviados por step, open/click por step, taxa de drop-off.
+- Identifica step "morto" rapidamente.
 
-- Cria edge function `auth-email-hook` + 6 templates React Email em `_shared/email-templates/`.
-- Vou customizar TODOS em **português brasileiro** com a identidade do MK CRM:
-  - Cores: do `src/index.css` (primary, foreground, muted-foreground, --radius).
-  - Fonte: stack do app.
-  - Logo: o ícone `MessageSquare` já usado no `/auth` (ou se existir um arquivo de logo em `public/`, eu uso).
-  - Tom: direto, semelhante ao app ("Redefinir sua senha", "Confirmar email", etc.).
-- Templates afetados:
-  - `recovery.tsx` → "Redefinir sua senha" — botão "Redefinir senha"
-  - `signup.tsx` → "Confirme seu email no MK CRM"
-  - `magic-link.tsx` → "Seu link de acesso ao MK CRM"
-  - `invite.tsx` → "Você foi convidado para o MK CRM"
-  - `email-change.tsx` → "Confirme seu novo email"
-  - `reauthentication.tsx` → "Código de verificação"
+---
 
-**2c. Deploy** do `auth-email-hook`.
+### Tier 2 — Próximos 3 meses (impacto médio/alto)
 
-### 3. Atualizar docs
+**E-7. A/B test de subject**
+- Tabela `email_campaign_variants` (subject A/B/C, % do split).
+- `dispatch-campaign` distribui aleatoriamente; após X horas escolhe winner por open rate e envia para o resto.
 
-- `docs/architecture/AUTH.md`: documentar URL fixa de redirect e templates customizados.
+**E-8. Reenvio para "não abertos"**
+- Ação em campanha concluída: "Criar reenvio para quem não abriu".
+- Gera nova campanha pré-preenchida com filtro `not_opened` e cooldown mínimo (24h).
 
-### Fora de escopo
+**E-9. Tracking de conversão**
+- Coluna `converted_lead_id` em `email_logs` (ou view derivada).
+- Heurística: lead respondeu no WhatsApp ou mudou de stage X→Y em até N dias após click.
+- KPI "Conversões" no dashboard + por campanha.
 
-- Mudar Site URL/Allowlist no Supabase (já está OK).
-- Mudar a edge `auth-login`.
-- Email marketing — só auth.
+**E-10. Editor: preview mobile/desktop + spam score**
+- Split-view com renderização responsiva.
+- Botão "Testar spam score" chama serviço (mail-tester equivalente) e mostra notas DKIM/SPF/conteúdo.
+- Avisos inline: "imagem sem alt", "ratio texto/imagem ruim", "HTML > 100KB (Gmail clipa)".
 
-### Notas técnicas
+**E-11. Self-serve de domínio para admins de clínica**
+- Mover `email-domain-manage create` para admin da clínica (não só super).
+- Wizard guiado com checklist e auto-refresh do status a cada 30s.
+- Validação pré-DNS (formato de subdomínio, conflito SPF).
 
-- Sem migração de DB.
-- Sem novas secrets — Lovable Cloud provisiona `LOVABLE_API_KEY` automaticamente.
-- O hardcode do redirect já resolve o problema mesmo antes do DNS validar (o link só vai parar de ser `@auth.lovable.cloud` quando o DNS estiver verde, mas pelo menos cairá em `crm.mkart.com.br` desde já).
-- Se o DNS demorar, ela já pode resetar a senha agora pelo template default em inglês — só o link vai pro domínio certo.
+**E-12. Biblioteca de blocos / templates salvos**
+- "Salvar bloco como reutilizável" no editor.
+- Tabela `email_block_library` por clínica.
+
+**E-13. Visão por campanha na Fila**
+- Em `EmailQueue`, filtro por `campaign_id`.
+- Card de progresso (X/Y enviados, ETA estimado).
+
+---
+
+### Tier 3 — Visão / explorar
+
+**E-14. Warmup automático de domínio novo** (já listado no roadmap geral)
+- Envio gradual nas primeiras 2 semanas (10 → 50 → 200 → 1k/dia).
+- Estado em `email_domains.warmup_state`.
+
+**E-15. Branches condicionais em automações**
+- "Se abriu → envia step 2A; se não → step 2B" em até 7 dias.
+- Requer redesenhar `email_automations.steps` como grafo.
+
+**E-16. Editor de templates colaborativo / versionado**
+- Histórico de versões com diff e rollback.
+- Comentários por bloco.
+
+**E-17. Métricas de engajamento por lead**
+- Score de engajamento email (last_opened_at, open_rate_30d).
+- Aparece no LeadDrawer + filtro de segmento.
+
+**E-18. Materialized view de "best time to send" por segmento**
+- Aprendizado real (não heurístico) do horário com maior open rate por segmento/template.
+
+**E-19. Webhook outbound de eventos de email**
+- Permite clínica integrar em ferramentas externas (Zapier, n8n).
+
+**E-20. Migrar webhook validation para svix SDK oficial**
+- Mais robusto que a validação custom atual (já listado em RESEND.md).
+
+---
+
+## Capacidades técnicas habilitadoras
+
+- **Materialized views + refresh por cron** (destrava E-1, E-6, E-9, E-18).
+- **Job queue partition por clínica** (destrava throughput em E-7, E-14).
+- **Sentry / observabilidade real** (debug de E-5, E-10, E-11).
+- **Cache (Upstash)** para agregações pesadas do dashboard.
+
+---
+
+## Detalhes técnicos
+
+- Métricas: índices adicionais em `email_logs(clinic_id, sent_at, status)` e `(clinic_id, template_slug, sent_at)` antes de criar a MV.
+- A/B test: novo campo `variant_id` em `email_queue` e `email_logs`; `dispatch-campaign` aplica split via `random()`.
+- Pausar campanha: novo status `paused` em `email_queue.status` enum + filtro no `process-email-queue`.
+- Self-serve domínio: revisar RLS de `email_domains` para `write` por owner/admin da clínica; mantém Resend API key no service-role.
+- Conversão: trigger em `messages`/`lead_stage_history` que faz lookup em `email_logs` recente (janela configurável por clínica).
+- Construtor de segmentos: novo schema JSON tipado em `src/lib/email/segments.ts`; `dispatch-campaign` ganha resolver extensível.
+
+---
+
+## Próximo passo sugerido
+
+Validar prioridades. Sugestão: começar por **E-1 + E-2 + E-3** como bloco coeso (métricas confiáveis + saúde + segmentos usáveis) — destrava a maioria dos próximos itens e é o que mais impacta no dia-a-dia.
