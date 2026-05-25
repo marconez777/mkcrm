@@ -370,9 +370,22 @@ export default function EmailSegments() {
 
                 {kind === "dynamic" ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Lead entra se atender <strong>qualquer</strong> uma das regras abaixo (OR).
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-muted-foreground">Lead entra se atender</span>
+                      <div className="inline-flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          className={`px-2 py-0.5 text-xs ${match === "any" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                          onClick={() => setMatch("any")}
+                        >qualquer (OR)</button>
+                        <button
+                          type="button"
+                          className={`px-2 py-0.5 text-xs ${match === "all" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                          onClick={() => setMatch("all")}
+                        >todas (AND)</button>
+                      </div>
+                      <span className="text-xs text-muted-foreground">das regras abaixo.</span>
+                    </div>
                     <div className="space-y-2">
                       {rules.length === 0 && (
                         <div className="text-xs text-muted-foreground italic">Nenhuma regra. Adicione um gatilho.</div>
@@ -403,6 +416,7 @@ export default function EmailSegments() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Os destinatários serão somente os contatos adicionados manualmente abaixo.
