@@ -47,6 +47,8 @@ import {
   Clock,
   Activity,
 } from "lucide-react";
+import { useEmailMetrics, aggregateMetrics } from "@/hooks/useEmailMetrics";
+import { DomainHealthCard } from "@/components/email/DomainHealthCard";
 
 type Log = {
   id: string;
@@ -67,6 +69,7 @@ const RANGES = [
   { id: "24h", label: "24h", hours: 24 },
   { id: "7d", label: "7 dias", hours: 24 * 7 },
   { id: "30d", label: "30 dias", hours: 24 * 30 },
+  { id: "90d", label: "90 dias", hours: 24 * 90 },
 ];
 
 function statusBadge(s: string) {
