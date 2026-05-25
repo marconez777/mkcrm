@@ -569,6 +569,126 @@ export type Database = {
           },
         ]
       }
+      ai_spend_events: {
+        Row: {
+          actor_user_id: string | null
+          clinic_id: string
+          created_at: string
+          id: string
+          kind: string
+          limit_usd: number | null
+          notes: string | null
+          spent_usd: number | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          clinic_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          limit_usd?: number | null
+          notes?: string | null
+          spent_usd?: number | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          limit_usd?: number | null
+          notes?: string | null
+          spent_usd?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_spend_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_spend_limits: {
+        Row: {
+          block_on_limit: boolean
+          blocked: boolean
+          blocked_at: string | null
+          blocked_reason: string | null
+          clinic_id: string
+          created_at: string
+          daily_limit_usd: number
+          manual_override_until: string | null
+          notify_emails: string[]
+          notify_thresholds: number[]
+          updated_at: string
+        }
+        Insert: {
+          block_on_limit?: boolean
+          blocked?: boolean
+          blocked_at?: string | null
+          blocked_reason?: string | null
+          clinic_id: string
+          created_at?: string
+          daily_limit_usd?: number
+          manual_override_until?: string | null
+          notify_emails?: string[]
+          notify_thresholds?: number[]
+          updated_at?: string
+        }
+        Update: {
+          block_on_limit?: boolean
+          blocked?: boolean
+          blocked_at?: string | null
+          blocked_reason?: string | null
+          clinic_id?: string
+          created_at?: string
+          daily_limit_usd?: number
+          manual_override_until?: string | null
+          notify_emails?: string[]
+          notify_thresholds?: number[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_spend_limits_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_spend_notifications_sent: {
+        Row: {
+          clinic_id: string
+          notify_date: string
+          sent_at: string
+          threshold: number
+        }
+        Insert: {
+          clinic_id: string
+          notify_date: string
+          sent_at?: string
+          threshold: number
+        }
+        Update: {
+          clinic_id?: string
+          notify_date?: string
+          sent_at?: string
+          threshold?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_spend_notifications_sent_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_threads: {
         Row: {
           agent_id: string | null
@@ -4421,6 +4541,7 @@ export type Database = {
         Args: { _clinic_id: string; _email: string }
         Returns: number
       }
+      check_ai_spend_status: { Args: { p_clinic_id: string }; Returns: Json }
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
@@ -4526,6 +4647,7 @@ export type Database = {
           similarity: number
         }[]
       }
+      reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       report_campaign_stats: {
         Args: { _campaign_id: string; _clinic_id: string }
         Returns: {

@@ -1,6 +1,7 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chunkText, embed, type Agent } from "../_shared/ai.ts";
 import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -15,6 +16,10 @@ Deno.serve(async (req) => {
     const { data: agent } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agent) return json({ error: "agent not found" }, 404);
     if (!agent.api_key && !agent.embedding_api_key) return json({ error: "Agente sem API key para embeddings" }, 400);
+    try { await assertSpendAllowed(agent.clinic_id ?? null); } catch (e) {
+      if (e instanceof SpendLimitExceeded) return json(e.body, 402);
+      throw e;
+    }
 
     const b64 = (file_base64 as string).replace(/^data:application\/pdf;base64,/, "");
     const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));

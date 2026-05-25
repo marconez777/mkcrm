@@ -10,6 +10,7 @@
 // entirely — otherwise every bot reply triggers another watcher run.
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { isSilentByTools } from "../_shared/agent-flags.ts";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 
 const FUNCTIONS_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -76,6 +77,11 @@ Deno.serve(async (req) => {
       .from("leads").select("id, clinic_id, stage_id, pipeline_id, whatsapp_instance_id").eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
     if (!lead.clinic_id) return json({ error: "lead missing clinic_id" }, 500);
+
+    try { await assertSpendAllowed(lead.clinic_id); } catch (e) {
+      if (e instanceof SpendLimitExceeded) return json(e.body, 402);
+      throw e;
+    }
 
     // Bot-loop guard: if the most recent message is from_me and came from a bot,
     // skip enqueue entirely. Watchers are silent but still consume tokens.

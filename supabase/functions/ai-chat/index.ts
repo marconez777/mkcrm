@@ -3,6 +3,7 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
+import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
@@ -403,6 +404,8 @@ Deno.serve(async (req) => {
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
 
+    await assertSpendAllowed(agent.clinic_id ?? null);
+
     // Manual review path: lead_id sem mensagens => carrega últimas 30 mensagens reais como turno único do user
     let incoming = incomingRaw;
     if (lead_id && (!incoming || incoming.length === 0)) {
@@ -634,6 +637,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });
   } catch (e) {
+    if (e instanceof SpendLimitExceeded) return json(e.body, 402);
     console.error("ai-chat", e);
     return json({ error: String(e) }, 500);
   }
