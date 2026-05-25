@@ -19,17 +19,19 @@ import { toast } from "sonner";
 import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 
-type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign";
+type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign" | "created_at_range";
+type BaseRule = { negate?: boolean };
 type Rule =
-  | { type: "form_source"; values: string[] }
-  | { type: "tag"; values: string[] }
-  | { type: "utm_campaign"; values: string[] }
-  | { type: "stage"; stage_id: string }
-  | { type: "has_email" };
+  | (BaseRule & { type: "form_source"; values: string[] })
+  | (BaseRule & { type: "tag"; values: string[] })
+  | (BaseRule & { type: "utm_campaign"; values: string[] })
+  | (BaseRule & { type: "stage"; stage_id: string })
+  | (BaseRule & { type: "has_email" })
+  | (BaseRule & { type: "created_at_range"; from?: string; to?: string });
 
 type SegmentFilters = {
   kind: "dynamic" | "static";
-  match: "any";
+  match: "any" | "all";
   rules: Rule[];
 };
 
@@ -52,12 +54,14 @@ const RULE_LABELS: Record<RuleType, string> = {
   stage: "Etapa do pipeline",
   has_email: "Tem e-mail",
   utm_campaign: "Campanha UTM",
+  created_at_range: "Criado entre datas",
 };
 
 function normalizeFilters(raw: any): SegmentFilters {
   const out: SegmentFilters = { kind: "dynamic", match: "any", rules: [] };
   if (!raw || typeof raw !== "object") return out;
   out.kind = raw.kind === "static" ? "static" : "dynamic";
+  out.match = raw.match === "all" ? "all" : "any";
   if (Array.isArray(raw.rules)) {
     out.rules = raw.rules.filter((r: any) => r && typeof r === "object" && r.type);
     return out;
