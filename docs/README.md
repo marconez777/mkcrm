@@ -130,7 +130,7 @@ A documentação está sendo construída em **12 etapas**. Ver plano completo em
 | 5 | Edge functions — IA, Email, Tracking | ✅ feito |
 | 6 | Features — Broadcasts, Sequences/Automations, Forms | ✅ feito |
 | 7 | Frontend | ✅ feito |
-| 8 | Fluxos end-to-end | ⏳ pendente |
+| 8 | Fluxos end-to-end | ✅ feito |
 | 9 | Integrações externas | ⏳ pendente |
 | 10 | Operações & confiabilidade | ⏳ pendente |
 | 11 | Pegadinhas, dívidas, roadmap | ⏳ pendente |
