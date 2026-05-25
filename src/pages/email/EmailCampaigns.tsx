@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
+import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
@@ -256,6 +257,9 @@ export default function EmailCampaigns() {
                 <Label className="flex items-center gap-2"><Calendar className="h-3 w-3" />Agendar para (opcional)</Label>
                 <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
               </div>
+              {clinicId && (
+                <CampaignRecipientsPreview clinicId={clinicId} segmentId={editing.segment_id} />
+              )}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2"><Beaker className="h-3 w-3" />Email de teste</Label>
                 <Input type="email" placeholder="voce@exemplo.com" value={editing.test_email ?? ""} onChange={(e) => setEditing({ ...editing, test_email: e.target.value })} />
