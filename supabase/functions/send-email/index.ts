@@ -26,6 +26,38 @@ function setCached<T>(map: Map<string, CacheEntry<T>>, key: string, value: T) {
   map.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
+// --- UTM tagging em todos os links do template ---
+// Adiciona utm_source/medium/campaign/content em cada <a href="..."> do HTML,
+// pulando: unsubscribe_url, mailto:/tel:/anchors e links que já tenham utm_source.
+function addUtmsToHtml(
+  html: string,
+  utms: { source: string; medium: string; campaign: string; content: string; term?: string },
+  skipUrl: string,
+): string {
+  if (!html) return html;
+  return html.replace(/href\s*=\s*"([^"]+)"/gi, (match, rawUrl) => {
+    const url = String(rawUrl);
+    if (!url || url === skipUrl) return match;
+    const lower = url.toLowerCase();
+    if (lower.startsWith("mailto:") || lower.startsWith("tel:") || lower.startsWith("#")) return match;
+    if (lower.startsWith("{{") || lower.includes("{{unsubscribe")) return match;
+    // Só http(s)
+    if (!/^https?:\/\//i.test(url)) return match;
+    try {
+      const u = new URL(url);
+      if (u.searchParams.has("utm_source")) return match;
+      u.searchParams.set("utm_source", utms.source);
+      u.searchParams.set("utm_medium", utms.medium);
+      if (utms.campaign) u.searchParams.set("utm_campaign", utms.campaign);
+      if (utms.content) u.searchParams.set("utm_content", utms.content);
+      if (utms.term) u.searchParams.set("utm_term", utms.term);
+      return `href="${u.toString().replace(/"/g, "&quot;")}"`;
+    } catch {
+      return match;
+    }
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -309,7 +341,7 @@ Deno.serve(async (req) => {
       || (typeof (variables as any)?.subject_override === "string" && (variables as any).subject_override.trim())
       || template.subject;
     const subject = renderTemplate(subjectSrc, renderVars);
-    const html = renderTemplate(template.html_body, renderVars);
+    const renderedHtml = renderTemplate(template.html_body, renderVars);
     const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
     // 7. Slug da clínica para tag (cache 60s)
@@ -330,6 +362,25 @@ Deno.serve(async (req) => {
     const fromName = overrideName || String(template.from_name ?? "").trim();
     const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 
+
+    // 7.1 UTM tagging — rastreia origem dos cliques no tracking do site
+    const campaignTag =
+      sanitizeTagValue(String((variables as any)?.campaign_id ?? "") || template_slug);
+    const variantTag = (variables as any)?.variant_id
+      ? sanitizeTagValue(String((variables as any).variant_id))
+      : undefined;
+    let html = renderedHtml;
+    html = addUtmsToHtml(
+      html,
+      {
+        source: "email",
+        medium: "email",
+        campaign: campaignTag,
+        content: sanitizeTagValue(template_slug),
+        term: variantTag,
+      },
+      unsubscribeUrl,
+    );
 
     const resendBody: Record<string, unknown> = {
       from: fromHeader,
