@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
         _related_lead_id: null,
         _related_lead_table: `campaign_test_${campaign_id}`,
         _force_send: true,
+        _from_name_override: campaign.from_name_override ?? null,
       });
       if (qErr) return jsonResponse({ error: qErr.message }, { status: 500 });
 
