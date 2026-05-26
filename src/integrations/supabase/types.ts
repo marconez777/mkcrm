@@ -1823,6 +1823,7 @@ export type Database = {
           force_send: boolean
           from_name_override: string | null
           id: string
+          priority: number
           recipient_email: string
           recipient_name: string | null
           related_lead_id: string | null
@@ -1842,6 +1843,7 @@ export type Database = {
           force_send?: boolean
           from_name_override?: string | null
           id?: string
+          priority?: number
           recipient_email: string
           recipient_name?: string | null
           related_lead_id?: string | null
@@ -1861,6 +1863,7 @@ export type Database = {
           force_send?: boolean
           from_name_override?: string | null
           id?: string
+          priority?: number
           recipient_email?: string
           recipient_name?: string | null
           related_lead_id?: string | null
@@ -1969,6 +1972,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_send_dedup: {
+        Row: {
+          clinic_id: string
+          context: string
+          created_at: string
+          email: string
+          id: string
+          resend_id: string | null
+          template_slug: string
+        }
+        Insert: {
+          clinic_id: string
+          context: string
+          created_at?: string
+          email: string
+          id?: string
+          resend_id?: string | null
+          template_slug: string
+        }
+        Update: {
+          clinic_id?: string
+          context?: string
+          created_at?: string
+          email?: string
+          id?: string
+          resend_id?: string | null
+          template_slug?: string
+        }
+        Relationships: []
       }
       email_send_state: {
         Row: {
@@ -4624,6 +4657,14 @@ export type Database = {
         Returns: number
       }
       check_ai_spend_status: { Args: { p_clinic_id: string }; Returns: Json }
+      claim_email_quota: {
+        Args: { _clinic_id: string }
+        Returns: {
+          allowed: boolean
+          quota: number
+          sent_today: number
+        }[]
+      }
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
@@ -4658,6 +4699,22 @@ export type Database = {
               _clinic_id: string
               _force_send?: boolean
               _from_name_override?: string
+              _recipient_email: string
+              _recipient_name?: string
+              _related_lead_id?: string
+              _related_lead_table?: string
+              _scheduled_at?: string
+              _template_slug: string
+              _variables?: Json
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _clinic_id: string
+              _force_send?: boolean
+              _from_name_override?: string
+              _priority?: number
               _recipient_email: string
               _recipient_name?: string
               _related_lead_id?: string
