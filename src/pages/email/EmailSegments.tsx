@@ -613,9 +613,12 @@ export default function EmailSegments() {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>Editar</Button>
-                    <Button size="sm" variant="ghost" onClick={() => remove(s.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!s.is_system && (
+                      <Button size="sm" variant="ghost" onClick={() => remove(s)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {s.is_system && <Badge variant="secondary" className="self-center text-[10px]">sistema</Badge>}
                   </div>
                 </div>
               </Card>
