@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         const [{ data: seq }, { data: steps }, { data: lead }] = await Promise.all([
           supabase.from("message_sequences").select("id, enabled, whatsapp_instance_id, stop_on_reply").eq("id", e.sequence_id).single(),
           supabase.from("message_sequence_steps").select("*").eq("sequence_id", e.sequence_id).order("position"),
-          supabase.from("leads").select("id, phone, name, email, company").eq("id", e.lead_id).single(),
+          supabase.from("leads").select("id, phone, name, email, company, custom_fields").eq("id", e.lead_id).single(),
         ]);
 
         if (!seq?.enabled) {
