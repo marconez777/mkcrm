@@ -53,28 +53,14 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 - **R-5. Dedup de webhook Resend** *(resolve G9)*
   - Unique `(resend_id, event_type)` em nova tabela `email_log_events` OU normalizar para ignorar evento repetido em JSON antes do `push`.
 
-### Tier 1 — Performance estrutural (1 sprint)
+### Tier 1 — Performance estrutural ✅ implementado 2026-05-26
 
-- **R-6. Cache em `send-email`** *(resolve G2)*
-  - Cache em memória do isolate: `email_templates`, `email_domains`, `clinic_email_integrations`, `clinics.slug`.
-  - TTL 60s + invalidação por `updated_at` no select inicial.
-  - Cota: ler `email_send_state` 1x por batch dispatcher, não por envio.
-- **R-7. Filas com prioridade** *(resolve G7)*
-  - Coluna `email_queue.priority smallint default 5` (`auth=1, transactional=2, campaign=3, drip=4, batch=5`).
-  - Dispatcher ordena `ORDER BY priority ASC, scheduled_at ASC`.
-  - Garante que transacional/auth não fica atrás de campanha de 50k.
-- **R-8. `dispatch-campaign` em modo streaming** *(resolve G10)*
-  - Paginar leads (`range(offset, offset+500)`).
-  - Para campanha >5k: marcar `status='enqueuing'`, enfileirar chunks via recursão, retornar 202 imediatamente.
-  - Estado de progresso em `email_campaigns.enqueued_count`.
-- **R-9. Paralelizar `email-automations-tick`** *(resolve G5)*
-  - `Promise.all` com semáforo (concorrência 10) por automação.
-- **R-10. Idempotência via UNIQUE constraint** *(resolve G3)*
-  - Nova tabela `email_send_dedup(clinic_id, template_slug, email, context)` com unique.
-  - Trocar SELECT + INSERT por `INSERT ... ON CONFLICT DO NOTHING RETURNING` — atomico, sem race condition.
-- **R-11. Contador de cota atômico** *(resolve G6)*
-  - `UPDATE email_send_state SET sent_today = sent_today + 1 WHERE ... RETURNING sent_today`.
-  - Cheque a cota com o valor retornado (sem leitura prévia).
+- **R-6. Cache em `send-email`** ✅ *(G2)* — Cache em memória do isolate para `email_templates`, `email_domains`, `clinic_email_integrations`, `clinics.slug` (TTL 60s). Reduz ~6 queries para ~3 por envio.
+- **R-7. Filas com prioridade** ✅ *(G7)* — Coluna `email_queue.priority smallint default 5` (`auth=1, transacional=2, campaign=3, drip=4, batch=5`). Dispatcher ordena `ORDER BY priority ASC, scheduled_at ASC`.
+- **R-8. `dispatch-campaign` paginado** ✅ *(G10)* — Paginação por `range(offset, offset+1000)` para leads e contatos manuais. Suporta >1000 destinatários sem hit no cap do PostgREST. **Pendente Tier 2:** modo 202 assíncrono para campanhas muito grandes (>50k).
+- **R-9. Paralelizar `email-automations-tick`** ✅ *(G5)* — `Promise.all` com concorrência 10 por automação.
+- **R-10. Idempotência atômica** ✅ *(G3)* — Nova tabela `email_send_dedup(clinic_id, template_slug, email, context)` com UNIQUE. Troca SELECT+INSERT por INSERT ON CONFLICT. Em falha de envio, dedup é revertido.
+- **R-11. Contador de cota atômico** ✅ *(G6)* — Novo RPC `claim_email_quota(_clinic_id)` faz UPSERT atômico com reset diário automático e decremento em falha. Sem contenção sob paralelismo alto.
 
 ### Tier 2 — Escala e deliverability (próximo mês)
 
