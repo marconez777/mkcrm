@@ -147,7 +147,8 @@ Deno.serve(async (req) => {
     const groups = new Map<string, any[]>();
     const singles: any[] = [];
     for (const job of jobs as any[]) {
-      const key = `${job.clinic_id}::${job.template_slug}`;
+      // Inclui from_domain_override no key — From precisa ser idêntico no batch Resend
+      const key = `${job.clinic_id}::${job.template_slug}::${job.from_domain_override ?? ""}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(job);
     }
@@ -169,6 +170,7 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 clinic_id: chunk[0].clinic_id,
                 template_slug: chunk[0].template_slug,
+                from_domain_override: chunk[0].from_domain_override ?? null,
                 jobs: chunk.map((j) => ({
                   queue_id: j.id,
                   recipient_email: j.recipient_email,
@@ -178,9 +180,12 @@ Deno.serve(async (req) => {
                   related_lead_table: j.related_lead_table,
                   force: j.force_send,
                   from_name_override: j.from_name_override ?? null,
+                  variant_id: j.variant_id ?? null,
+                  subject_override: (j.variables as any)?.subject_override ?? null,
                 })),
               }),
             });
+
             const result = await resp.json().catch(() => ({}));
             if (resp.ok) {
               sent += (result as any)?.sent ?? 0;
