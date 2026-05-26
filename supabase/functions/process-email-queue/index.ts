@@ -221,6 +221,13 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     }
 
+    // R-17: registrar health check operacional ao final de cada execução
+    try {
+      await supabase.rpc("check_email_operational_health");
+    } catch (healthErr) {
+      console.warn("health check error (non-critical):", healthErr);
+    }
+
     return jsonResponse({ processed: jobs.length, sent, failed, cancelled });
   } catch (e) {
     console.error("process-email-queue error:", e);
