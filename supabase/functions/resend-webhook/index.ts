@@ -36,6 +36,21 @@ Deno.serve(async (req) => {
     if (!resendId) return jsonResponse({ ok: true, ignored: "no email_id" });
     const eventTs = event.created_at || new Date().toISOString();
 
+    // R-5: dedup por svix-id (Resend pode reentregar o mesmo evento)
+    const svixId = req.headers.get("svix-id");
+    if (svixId) {
+      const { error: dedupErr } = await supabase
+        .from("resend_webhook_events")
+        .insert({ svix_id: svixId, event_type: event.type, resend_id: resendId });
+      if (dedupErr) {
+        // PK violation → já processado
+        if ((dedupErr as any).code === "23505") {
+          return jsonResponse({ ok: true, deduped: true });
+        }
+        console.warn("resend-webhook dedup insert error:", dedupErr);
+      }
+    }
+
     const { data: log } = await supabase
       .from("email_logs")
       .select("id, clinic_id, events, recipient_email")
