@@ -574,6 +574,8 @@ export default function KanbanPage() {
                         })}
                         onOpenLead={setOpenLead}
                         onMoveLead={setMovingLead}
+                        onMoveLeadToStage={moveLeadToStage}
+                        allStages={stages}
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
