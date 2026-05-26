@@ -1,7 +1,7 @@
 # Integração: Resend (Email)
 
 > **Quando ler:** antes de mexer em envio de email, verificação de domínio, webhook de eventos, ou tracking de open/click.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-26
 
 ---
 
@@ -15,11 +15,10 @@ Resend é o provedor SMTP/API que entrega os emails. Cada clínica pode usar um 
 
 | Nome | Uso |
 |---|---|
-| `RESEND_API_KEY` | autenticação na API Resend (gateway Lovable) |
-| `LOVABLE_API_KEY` | autenticação no connector gateway |
-| `RESEND_WEBHOOK_SECRET` | valida assinatura dos webhooks |
+| `RESEND_API_KEY` | autenticação direta na API Resend (`Authorization: Bearer ...`) |
+| `RESEND_WEBHOOK_SECRET` | valida assinatura Svix dos webhooks |
 
-A integração usa o **connector gateway Lovable** (`https://connector-gateway.lovable.dev/resend`), não a API Resend direta. Ver `standard_connectors` no prompt do sistema.
+A integração chama **a API pública do Resend direto** (`https://api.resend.com`). Não usa o connector gateway Lovable — não há `LOVABLE_API_KEY` envolvido no fluxo de email.
 
 ---
 
@@ -27,10 +26,10 @@ A integração usa o **connector gateway Lovable** (`https://connector-gateway.l
 
 | Edge function | Endpoint | Método |
 |---|---|---|
-| `send-email` | `/emails` | POST |
-| `email-domain-manage` | `/domains`, `/domains/{id}/verify` | POST/GET |
-| `resend-webhook` | (recebe) | POST |
-| `backfill-resend-events` | `/emails/{id}` | GET (reconciliação) |
+| `send-email` | `https://api.resend.com/emails` | POST |
+| `email-domain-manage` | `https://api.resend.com/domains`, `/domains/{id}/verify`, `/domains/{id}` | POST/GET/DELETE |
+| `resend-webhook` | (recebe webhook do Resend) | POST |
+| `backfill-resend-events` | `https://api.resend.com/emails/{id}` | GET (reconciliação) |
 
 ---
 

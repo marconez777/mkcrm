@@ -2,7 +2,7 @@
 
 > Referência completa do módulo de Email Marketing do CRM mkart.
 > Cobre: telas, edge functions, tabelas, fluxos, integrações (Resend), helpers e regras de negócio.
-> Última atualização: 2026-05-19.
+> Última atualização: 2026-05-26.
 
 ---
 
@@ -32,7 +32,7 @@ O módulo de Email é um sistema completo de envio transacional + campanhas com:
 Todas em `src/pages/email/`. O hub (`/email`) é um `Tabs` que troca o conteúdo entre as sub-páginas.
 
 ### 2.1 `EmailHub.tsx` (`/email`)
-Container com 9 abas: Dashboard, Templates, Automações, Campanhas, Relatórios, Segmentos, Fila, Logs, Descadastros. Sincroniza a tab ativa com `location.pathname` via React Router (cada aba é uma rota dedicada).
+Container com 10 abas: Dashboard, Templates, Automações, Campanhas, Relatórios, Segmentos, **Contatos**, Fila, Logs, Descadastros. Sincroniza a tab ativa com `location.pathname` via React Router (cada aba é uma rota dedicada).
 
 ### 2.2 `EmailDashboard.tsx` (`/email`)
 Visão geral em tempo real:
@@ -94,20 +94,36 @@ Filtros salvos sobre `leads` (`email_segments`):
 - Pré-visualização: conta quantos leads casam.
 - Filtros suportados pelo `dispatch-campaign`: `tags` (overlaps), `stage_ids` (in).
 
-### 2.8 `EmailQueue.tsx` (`/email/queue`)
+### 2.8 `EmailContacts.tsx` (`/email/contacts`)
+Gestão da base de contatos para campanhas. Unifica duas fontes:
+- **Leads** da clínica (`leads` com `email NOT NULL`, limit 2000).
+- **Contatos manuais** (`email_segment_contacts`) — inseridos um a um ou via import de CSV/XLSX (usando `xlsx`).
+
+Funcionalidades:
+- Filtros: busca por email/nome, origem (`lead | manual`), segmento.
+- Adicionar contato manual com seleção opcional de segmento.
+- **Importar planilha** com mapeamento de colunas (`email`, `nome`) e segmento de destino; dedup local + insert em lotes de 500.
+- **Exportar CSV** com os contatos filtrados.
+- Excluir contato (manual → `email_segment_contacts`; lead → `leads`).
+- Stats no topo: total único, leads, manuais.
+
+> Contatos sem segmento contam como "contatos gerais" e entram em campanhas que miram "todos os leads".
+
+### 2.9 `EmailQueue.tsx` (`/email/queue`)
 Inspetor da fila:
 - Tabela de `email_queue` (limit 200, ordem por `created_at desc`).
 - Filtro por status: `pending | sending | sent | failed | cancelled`.
 - Botão **"Processar agora"**: invoca `process-email-queue` manualmente.
 - Mostra `attempts`, `scheduled_at`, `error`.
 
-### 2.9 `EmailLogs.tsx` (`/email/logs`)
+
+### 2.10 `EmailLogs.tsx` (`/email/logs`)
 Histórico de envios (`email_logs`, até 500 linhas):
 - Busca por `recipient_email` (ilike).
 - Filtro por status: `sent | delivered | opened | clicked | bounced | complained | failed`.
 - Colunas: destinatário, template, assunto, status, `sent_at`, `delivered_at`, `opened_at`, `clicked_at`, erro.
 
-### 2.10 `EmailReports.tsx` (`/email/reports`)
+### 2.11 `EmailReports.tsx` (`/email/reports`)
 Relatórios agregados (7d / 30d / 90d):
 - KPIs: enviados, entregues, abertos, clicados, bounces, complaints, falhas.
 - Taxas: `open_rate`, `click_rate`, `bounce_rate`.
@@ -115,19 +131,19 @@ Relatórios agregados (7d / 30d / 90d):
 - Gráfico de barras por hora do dia.
 - Botão de export CSV.
 
-### 2.11 `EmailUnsubscribes.tsx` (`/email/unsubscribes`)
+### 2.12 `EmailUnsubscribes.tsx` (`/email/unsubscribes`)
 Lista de descadastros da clínica (`email_unsubscribes`).
 - Origem: `user-link` (clicou no email), `resend-webhook` (bounce/complaint), `backfill`, etc.
 - Reativação: apenas admin pode deletar entry (RLS).
 
-### 2.12 `SettingsEmailDomain.tsx` (`/settings/email`)
+### 2.13 `SettingsEmailDomain.tsx` (`/settings/email`)
 Configuração do domínio remetente da clínica:
 - Lista `email_domains` da clínica (read-only para clínica; CRUD é super admin).
 - Renderiza `DnsWizard` para cada domínio.
 - Padrões de envio salvos em `clinics.settings.email = { from_name, reply_to }`.
 - Sem domínio: exibe instrução para pedir ao suporte abrir o domínio.
 
-### 2.13 `src/pages/Unsubscribe.tsx` (`/unsubscribe`) — pública
+### 2.14 `src/pages/Unsubscribe.tsx` (`/unsubscribe`) — pública
 Página de descadastro sem auth.
 - Lê `clinic`, `email`, `token` da query string.
 - 1) `action: "validate"` na função `email-unsubscribe`.
@@ -135,7 +151,7 @@ Página de descadastro sem auth.
 - 3) Em sucesso: `action: "unsubscribe"`; permite "Reativar" depois.
 - Estados: `validating | ready | done | reactivated | error`.
 
-### 2.14 `components/email/DnsWizard.tsx`
+### 2.15 `components/email/DnsWizard.tsx`
 Assistente DNS para o domínio:
 - Agrupa registros em **SPF**, **DKIM**, **DMARC** (classifica por `name`/`type`/`value`).
 - Mostra status por grupo: `verified | pending | failed | missing`.
@@ -175,7 +191,7 @@ Pipeline:
 6. **Cota diária**: `clinic_email_quota(clinic_id)` (RPC, default 1000). Lê/atualiza `email_send_state.sent_today`. Se excedida → reagenda job para 12:00 UTC do dia seguinte (~9h BRT).
 7. **Unsubscribe URL**: `generate_unsubscribe_token(clinic_id, email)` (HMAC) → monta `${SITE_URL}/unsubscribe?clinic=...&email=...&token=...`.
 8. **Render**: `renderTemplate` substitui `{{ var }}` em `subject`, `html_body`, `text_body`. Vars auto-injetadas: `recipient_email`, `recipient_name`, `unsubscribe_url`, `site_url`, `year`.
-9. **Envio Resend** (`POST /emails`) com headers `List-Unsubscribe` + `List-Unsubscribe-Post: One-Click` e tags `template`, `category`, `clinic` (sanitizadas).
+9. **Envio Resend** — `POST https://api.resend.com/emails` **direto** (não usa o connector gateway Lovable), autenticando com `Bearer ${RESEND_API_KEY}`. Inclui headers `List-Unsubscribe` + `List-Unsubscribe-Post: One-Click` e tags `template`, `category`, `clinic` (sanitizadas).
 10. **Loga** em `email_logs` (`status: sent`, `resend_id`) e incrementa `email_send_state`.
 11. Em erro → loga com `status: failed` + retorna `502`.
 
@@ -364,10 +380,11 @@ Clínica → /settings/email (DnsWizard)
 ## 7. Variáveis e secrets
 
 Edge functions exigem:
-- `RESEND_API_KEY` — chave do Resend (sem ela, `send-email` e admins de domínio retornam 503).
+- `RESEND_API_KEY` — chave do Resend usada diretamente contra `api.resend.com` (sem ela, `send-email` e admins de domínio retornam 503). **Não há `LOVABLE_API_KEY` no fluxo de email** — a integração não usa o connector gateway.
 - `RESEND_WEBHOOK_SECRET` — para validar assinatura Svix no `resend-webhook` (opcional, mas recomendado em prod).
 - `PUBLIC_SITE_URL` — base do app (default `https://mkcrm.lovable.app`) usada no `unsubscribe_url`.
 - Padrão Supabase: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
+
 
 ---
 
