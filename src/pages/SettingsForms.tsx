@@ -253,11 +253,14 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 
         <Tabs defaultValue="install">
           <TabsList>
-            <TabsTrigger value="install">Como instalar</TabsTrigger>
+            <TabsTrigger value="install">Instalação</TabsTrigger>
             <TabsTrigger value="forms">Formulários ({defs.length})</TabsTrigger>
             <TabsTrigger value="submissions">Envios ({subs.length})</TabsTrigger>
+            <TabsTrigger value="traffic">Tráfego</TabsTrigger>
             <TabsTrigger value="settings">Configurações</TabsTrigger>
           </TabsList>
+
+
 
           <TabsContent value="install" className="space-y-4">
             <Card className="p-4 space-y-3">
