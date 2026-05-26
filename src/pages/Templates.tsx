@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { FileText, Plus, Trash2, Save } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useCustomFieldDefsFull } from "@/hooks/useCustomFieldDefs";
 
 type Template = {
   id: string;
