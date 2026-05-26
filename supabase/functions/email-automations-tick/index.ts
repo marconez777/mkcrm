@@ -53,7 +53,9 @@ Deno.serve(async (req) => {
   let enqueuedTotal = 0;
   const perAutomation: Array<{ id: string; enrolled: number; enqueued: number; skipped: number }> = [];
 
-  for (const auto of automations as Automation[]) {
+  // R-9: processa automações em paralelo (semáforo simples por concurrency)
+  const CONCURRENCY = 10;
+  const processAutomation = async (auto: Automation) => {
     const result = { id: auto.id, enrolled: 0, enqueued: 0, skipped: 0 };
 
     const steps: Step[] = Array.isArray(auto.steps)
@@ -61,8 +63,7 @@ Deno.serve(async (req) => {
       : [];
     if (steps.length === 0) {
       await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
-      perAutomation.push(result);
-      continue;
+      return result;
     }
 
     // cursor: desde o último tick (ou desde a criação efetiva da automação)
@@ -151,8 +152,7 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.error(`[automation ${auto.id}] candidate query failed:`, e);
-      perAutomation.push(result);
-      continue;
+      return result;
     }
 
     // 2) deduplica candidatos por lead — basta o primeiro evento
@@ -222,9 +222,22 @@ Deno.serve(async (req) => {
     // 5) avança o cursor da automação
     await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
 
-    perAutomation.push(result);
-    enrolledTotal += result.enrolled;
-    enqueuedTotal += result.enqueued;
+    return result;
+  };
+
+  // executa em chunks paralelos
+  const list = automations as Automation[];
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    const slice = list.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(slice.map((a) => processAutomation(a).catch((e) => {
+      console.error(`[automation ${a.id}] crashed:`, e);
+      return { id: a.id, enrolled: 0, enqueued: 0, skipped: 0 };
+    })));
+    for (const r of results) {
+      perAutomation.push(r);
+      enrolledTotal += r.enrolled;
+      enqueuedTotal += r.enqueued;
+    }
   }
 
   return jsonResponse({

@@ -99,11 +99,11 @@ Deno.serve(async (req) => {
       .update({ status: "sending", updated_at: new Date().toISOString() })
       .eq("id", campaign_id);
 
-    // Resolve recipients
+    // Resolve recipients (com paginação para escalar >1000)
     let recipients: Array<{ email: string; name: string | null; lead_id: string | null }> = [];
     const seen = new Set<string>();
     const pushRec = (email: string, name: string | null, lead_id: string | null) => {
-      const k = String(email).toLowerCase();
+      const k = String(email ?? "").toLowerCase();
       if (!k || !/@/.test(k) || seen.has(k)) return;
       seen.add(k);
       recipients.push({ email: k, name, lead_id });
@@ -114,19 +114,32 @@ Deno.serve(async (req) => {
       if (rErr) console.error("resolve_email_segment error:", rErr);
       for (const r of ((resolved as any[]) ?? [])) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
     } else {
-      // "Todos os leads" — inclui leads da clínica + todos os contatos manuais (com ou sem segmento)
-      const { data: leads } = await supabase
-        .from("leads")
-        .select("id, email, name")
-        .eq("clinic_id", campaign.clinic_id)
-        .not("email", "is", null);
-      for (const l of (leads ?? [])) pushRec((l as any).email ?? "", (l as any).name ?? null, (l as any).id ?? null);
-
-      const { data: manual } = await supabase
-        .from("email_segment_contacts")
-        .select("email, name, lead_id")
-        .eq("clinic_id", campaign.clinic_id);
-      for (const c of (manual ?? [])) pushRec((c as any).email ?? "", (c as any).name ?? null, (c as any).lead_id ?? null);
+      // "Todos os leads" — paginar para suportar >1000 (limite default do PostgREST)
+      const PAGE = 1000;
+      for (let offset = 0; ; offset += PAGE) {
+        const { data: leads, error } = await supabase
+          .from("leads")
+          .select("id, email, name")
+          .eq("clinic_id", campaign.clinic_id)
+          .not("email", "is", null)
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (error) { console.error("leads page error:", error); break; }
+        for (const l of (leads ?? [])) pushRec((l as any).email ?? "", (l as any).name ?? null, (l as any).id ?? null);
+        if (!leads || leads.length < PAGE) break;
+      }
+      // contatos manuais (geralmente bem menor — uma página)
+      for (let offset = 0; ; offset += PAGE) {
+        const { data: manual, error } = await supabase
+          .from("email_segment_contacts")
+          .select("email, name, lead_id")
+          .eq("clinic_id", campaign.clinic_id)
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (error) { console.error("manual page error:", error); break; }
+        for (const c of (manual ?? [])) pushRec((c as any).email ?? "", (c as any).name ?? null, (c as any).lead_id ?? null);
+        if (!manual || manual.length < PAGE) break;
+      }
     }
 
 
@@ -175,6 +188,7 @@ Deno.serve(async (req) => {
         related_lead_table: relatedTable,
         force_send: false,
         from_name_override: fromOverride,
+        priority: 5, // R-7: campanha = padrão; auth/transacional fica à frente
         status: "pending",
       }));
       const { data: inserted, error: insErr } = await supabase

@@ -30,11 +30,13 @@ Deno.serve(async (req) => {
       .eq("status", "processing")
       .lt("updated_at", staleCutoff);
 
+    // R-7: prioridade primeiro (1=auth/urgente, 5=padrão, 9=baixa), depois horário
     const { data: jobs } = await supabase
       .from("email_queue")
       .select("*")
       .eq("status", "pending")
       .lte("scheduled_at", nowIso)
+      .order("priority", { ascending: true })
       .order("scheduled_at", { ascending: true })
       .limit(BATCH_SIZE);
 
