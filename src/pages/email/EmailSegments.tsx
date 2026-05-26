@@ -237,16 +237,21 @@ export default function EmailSegments() {
 
   async function save() {
     if (!name.trim()) { toast.error("Nome obrigatório"); return; }
-    if (kind === "dynamic" && rules.length === 0 && contacts.length === 0) {
-      toast.error("Adicione pelo menos um gatilho ou contato manual"); return;
+    if (kind === "dynamic" && rules.length === 0) {
+      toast.error("Adicione pelo menos uma regra"); return;
+    }
+    if (kind === "static" && selectedContactIds.size === 0) {
+      toast.error("Selecione ao menos um contato"); return;
     }
 
     let segmentId = editing?.id;
+    let segClinicId: string | null = null;
     if (editing) {
       const { error } = await supabase.from("email_segments").update({
         name, description: description || null, filters: filtersPayload, active,
       }).eq("id", editing.id);
       if (error) return toast.error(error.message);
+      segClinicId = (editing as any).clinic_id ?? clinicId;
     } else {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
@@ -256,7 +261,32 @@ export default function EmailSegments() {
       }).select("id").single();
       if (error) return toast.error(error.message);
       segmentId = ins!.id;
+      segClinicId = cm?.clinic_id ?? null;
     }
+
+    // Sincroniza vínculos para segmentos estáticos
+    if (kind === "static" && segmentId && segClinicId) {
+      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+      const { data: { user } } = await supabase.auth.getUser();
+      const rows = availableContacts
+        .filter((c) => selectedContactIds.has(c.id))
+        .map((c) => ({
+          segment_id: segmentId,
+          clinic_id: segClinicId,
+          email: c.email,
+          name: c.name,
+          lead_id: c.lead_id,
+          added_by: user!.id,
+        }));
+      if (rows.length > 0) {
+        const { error: insErr } = await supabase.from("email_segment_contacts").insert(rows);
+        if (insErr) return toast.error(insErr.message);
+      }
+    } else if (kind === "dynamic" && segmentId) {
+      // Limpa qualquer vínculo antigo se trocou de estático para dinâmico
+      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+    }
+
     toast.success(editing ? "Segmento atualizado" : "Segmento criado");
     setOpenNew(false); resetForm(); load();
   }
@@ -293,28 +323,13 @@ export default function EmailSegments() {
     }
   }
 
-  async function addContact() {
-    const email = newContactEmail.trim().toLowerCase();
-    if (!/.+@.+\..+/.test(email)) { toast.error("E-mail inválido"); return; }
-    if (!editing) { toast.error("Salve o segmento antes de adicionar contatos"); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
-    const { data, error } = await supabase.from("email_segment_contacts").insert({
-      segment_id: editing.id,
-      clinic_id: cm?.clinic_id,
-      email,
-      name: newContactName.trim() || null,
-      added_by: user!.id,
-    }).select("id, email, name, created_at").single();
-    if (error) return toast.error(error.message);
-    setContacts((c) => [data as Contact, ...c]);
-    setNewContactEmail(""); setNewContactName("");
-  }
-
-  async function removeContact(id: string) {
-    const { error } = await supabase.from("email_segment_contacts").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    setContacts((c) => c.filter((x) => x.id !== id));
+  function toggleContact(id: string) {
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function remove(id: string) {
