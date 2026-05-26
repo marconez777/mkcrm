@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
             related_lead_table: job.related_lead_table,
             force: job.force_send,
             queue_id: job.id,
+            from_name_override: job.from_name_override ?? null,
           }),
         });
         const result = await resp.json().catch(() => ({}));

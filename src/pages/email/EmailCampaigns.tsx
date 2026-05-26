@@ -47,6 +47,7 @@ type Campaign = {
   test_email: string | null;
   test_sent_at: string | null;
   created_at: string;
+  from_name_override: string | null;
 };
 type Tpl = { id: string; slug: string; name: string };
 type Segment = { id: string; name: string };
@@ -83,6 +84,7 @@ export default function EmailCampaigns() {
       id: "", name: "", template_slug: "", segment_id: null, status: "draft",
       scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0,
       test_email: user?.email ?? null, test_sent_at: null, created_at: "",
+      from_name_override: null,
     });
     setScheduleDate("");
   }
@@ -98,6 +100,7 @@ export default function EmailCampaigns() {
         template_slug: editing.template_slug,
         segment_id: editing.segment_id,
         test_email: editing.test_email,
+        from_name_override: editing.from_name_override?.trim() || null,
         scheduled_for: scheduleDate ? new Date(scheduleDate).toISOString() : null,
         status: scheduleDate ? "scheduled" : "draft",
       };
@@ -321,6 +324,17 @@ export default function EmailCampaigns() {
                     {templates.map((t) => <SelectItem key={t.id} value={t.slug}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nome de exibição (De)</Label>
+                <Input
+                  placeholder="Ex.: Clínica Ór"
+                  value={editing.from_name_override ?? ""}
+                  onChange={(e) => setEditing({ ...editing, from_name_override: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Sobrescreve o nome do remetente do template só nesta campanha. Deixe vazio para usar o do template.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Segmento (opcional — vazio = todos os leads)</Label>

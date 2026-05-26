@@ -1573,6 +1573,7 @@ export type Database = {
           enqueued_count: number
           error: string | null
           failed_count: number
+          from_name_override: string | null
           id: string
           name: string
           scheduled_for: string | null
@@ -1593,6 +1594,7 @@ export type Database = {
           enqueued_count?: number
           error?: string | null
           failed_count?: number
+          from_name_override?: string | null
           id?: string
           name: string
           scheduled_for?: string | null
@@ -1613,6 +1615,7 @@ export type Database = {
           enqueued_count?: number
           error?: string | null
           failed_count?: number
+          from_name_override?: string | null
           id?: string
           name?: string
           scheduled_for?: string | null
@@ -1818,6 +1821,7 @@ export type Database = {
           created_at: string
           error: string | null
           force_send: boolean
+          from_name_override: string | null
           id: string
           recipient_email: string
           recipient_name: string | null
@@ -1836,6 +1840,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           force_send?: boolean
+          from_name_override?: string | null
           id?: string
           recipient_email: string
           recipient_name?: string | null
@@ -1854,6 +1859,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           force_send?: boolean
+          from_name_override?: string | null
           id?: string
           recipient_email?: string
           recipient_name?: string | null
@@ -4611,20 +4617,36 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
       }
-      enqueue_email: {
-        Args: {
-          _clinic_id: string
-          _force_send?: boolean
-          _recipient_email: string
-          _recipient_name?: string
-          _related_lead_id?: string
-          _related_lead_table?: string
-          _scheduled_at?: string
-          _template_slug: string
-          _variables?: Json
-        }
-        Returns: string
-      }
+      enqueue_email:
+        | {
+            Args: {
+              _clinic_id: string
+              _force_send?: boolean
+              _recipient_email: string
+              _recipient_name?: string
+              _related_lead_id?: string
+              _related_lead_table?: string
+              _scheduled_at?: string
+              _template_slug: string
+              _variables?: Json
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _clinic_id: string
+              _force_send?: boolean
+              _from_name_override?: string
+              _recipient_email: string
+              _recipient_name?: string
+              _related_lead_id?: string
+              _related_lead_table?: string
+              _scheduled_at?: string
+              _template_slug: string
+              _variables?: Json
+            }
+            Returns: string
+          }
       generate_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string }
         Returns: string

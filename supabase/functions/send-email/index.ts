@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
       related_lead_table,
       force = false,
       queue_id,
+      from_name_override,
     } = body ?? {};
 
     if (!clinic_id || !template_slug || !recipient_email) {
@@ -221,7 +222,8 @@ Deno.serve(async (req) => {
     const { data: clinicRow } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
 
     const fromEmail = String(template.from_email ?? "").trim();
-    const fromName = String(template.from_name ?? "").trim();
+    const overrideName = typeof from_name_override === "string" ? from_name_override.trim() : "";
+    const fromName = overrideName || String(template.from_name ?? "").trim();
     const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 
     const resendBody: Record<string, unknown> = {
