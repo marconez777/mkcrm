@@ -215,19 +215,13 @@ Deno.serve(async (req) => {
     const { data: claim, error: claimErr } = await supabase
       .rpc("claim_email_quota", { _clinic_id: clinic_id })
       .single();
-    if (claimErr) {
-      console.warn("claim_email_quota error:", claimErr.message);
-    }
+    if (claimErr) console.warn("claim_email_quota error:", claimErr.message);
     const allowed = (claim as any)?.allowed ?? true;
     if (!allowed) {
-      // libera o dedup (não foi enviado)
       if (useDedup) {
-        await supabase.from("email_send_dedup")
-          .delete()
-          .eq("clinic_id", clinic_id)
-          .eq("template_slug", template_slug)
-          .eq("email", email)
-          .eq("context", dedupContext);
+        await supabase.from("email_send_dedup").delete()
+          .eq("clinic_id", clinic_id).eq("template_slug", template_slug)
+          .eq("email", email).eq("context", dedupContext);
       }
       const tomorrow = new Date();
       tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -238,6 +232,53 @@ Deno.serve(async (req) => {
           .eq("id", queue_id);
       }
       return jsonResponse({ skipped: true, reason: "quota_reached" });
+    }
+
+    // 4.1 R-12: warm-up do domínio remetente (sem registro = sem cap)
+    const { data: warmupClaim } = await supabase
+      .rpc("claim_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain })
+      .single();
+    if ((warmupClaim as any) && (warmupClaim as any).allowed === false) {
+      if (useDedup) {
+        await supabase.from("email_send_dedup").delete()
+          .eq("clinic_id", clinic_id).eq("template_slug", template_slug)
+          .eq("email", email).eq("context", dedupContext);
+      }
+      await supabase.from("email_send_state")
+        .update({ sent_today: Math.max(((claim as any)?.sent_today ?? 1) - 1, 0), updated_at: new Date().toISOString() })
+        .eq("clinic_id", clinic_id);
+      const next = new Date(Date.now() + 30 * 60_000).toISOString();
+      if (queue_id) {
+        await supabase.from("email_queue")
+          .update({ status: "pending", scheduled_at: next, error: `warmup cap reached (${(warmupClaim as any).daily_cap})`, updated_at: new Date().toISOString() })
+          .eq("id", queue_id);
+      }
+      return jsonResponse({ skipped: true, reason: "warmup_cap_reached", cap: (warmupClaim as any).daily_cap });
+    }
+
+    // 4.2 R-13: rate-limit por domínio destinatário (1000/h)
+    const destDomain = email.split("@")[1]?.toLowerCase() ?? "unknown";
+    const { data: throttleClaim } = await supabase
+      .rpc("claim_recipient_throttle", { _clinic_id: clinic_id, _dest_domain: destDomain, _limit_per_hour: 1000 })
+      .single();
+    if ((throttleClaim as any) && (throttleClaim as any).allowed === false) {
+      if (useDedup) {
+        await supabase.from("email_send_dedup").delete()
+          .eq("clinic_id", clinic_id).eq("template_slug", template_slug)
+          .eq("email", email).eq("context", dedupContext);
+      }
+      await supabase.from("email_send_state")
+        .update({ sent_today: Math.max(((claim as any)?.sent_today ?? 1) - 1, 0), updated_at: new Date().toISOString() })
+        .eq("clinic_id", clinic_id);
+      await supabase.rpc("release_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain });
+      const win = new Date((throttleClaim as any).window_start ?? Date.now());
+      const next = new Date(win.getTime() + 60 * 60_000 + 5_000).toISOString();
+      if (queue_id) {
+        await supabase.from("email_queue")
+          .update({ status: "pending", scheduled_at: next, error: `recipient throttle (${destDomain})`, updated_at: new Date().toISOString() })
+          .eq("id", queue_id);
+      }
+      return jsonResponse({ skipped: true, reason: "recipient_throttle", dest_domain: destDomain });
     }
 
     // 5. Unsubscribe URL
@@ -313,6 +354,8 @@ Deno.serve(async (req) => {
       await supabase.from("email_send_state")
         .update({ sent_today: Math.max(((claim as any)?.sent_today ?? 1) - 1, 0), updated_at: new Date().toISOString() })
         .eq("clinic_id", clinic_id);
+      // libera warmup do dia (envio não saiu)
+      await supabase.rpc("release_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain });
       await supabase.from("email_logs").insert({
         clinic_id,
         template_slug,

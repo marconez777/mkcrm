@@ -1646,6 +1646,50 @@ export type Database = {
           },
         ]
       }
+      email_domain_warmup: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          current_day_window: string
+          domain: string
+          enabled: boolean
+          id: string
+          sent_today: number
+          started_at: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          current_day_window?: string
+          domain: string
+          enabled?: boolean
+          id?: string
+          sent_today?: number
+          started_at?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          current_day_window?: string
+          domain?: string
+          enabled?: boolean
+          id?: string
+          sent_today?: number
+          started_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_domain_warmup_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_domains: {
         Row: {
           clinic_id: string
@@ -1692,6 +1736,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_health_alerts: {
+        Row: {
+          action_taken: string | null
+          alert_type: string
+          clinic_id: string
+          created_at: string
+          id: string
+          metric_value: number
+          resolved_at: string | null
+          sample_size: number
+          threshold: number
+        }
+        Insert: {
+          action_taken?: string | null
+          alert_type: string
+          clinic_id: string
+          created_at?: string
+          id?: string
+          metric_value: number
+          resolved_at?: string | null
+          sample_size: number
+          threshold: number
+        }
+        Update: {
+          action_taken?: string | null
+          alert_type?: string
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          metric_value?: number
+          resolved_at?: string | null
+          sample_size?: number
+          threshold?: number
+        }
+        Relationships: []
       }
       email_logs: {
         Row: {
@@ -1884,6 +1964,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_recipient_throttle: {
+        Row: {
+          clinic_id: string
+          dest_domain: string
+          sent: number
+          window_start: string
+        }
+        Insert: {
+          clinic_id: string
+          dest_domain: string
+          sent?: number
+          window_start: string
+        }
+        Update: {
+          clinic_id?: string
+          dest_domain?: string
+          sent?: number
+          window_start?: string
+        }
+        Relationships: []
       }
       email_segment_contacts: {
         Row: {
@@ -4657,12 +4758,32 @@ export type Database = {
         Returns: number
       }
       check_ai_spend_status: { Args: { p_clinic_id: string }; Returns: Json }
+      claim_domain_warmup: {
+        Args: { _clinic_id: string; _domain: string }
+        Returns: {
+          allowed: boolean
+          daily_cap: number
+          sent_today: number
+        }[]
+      }
       claim_email_quota: {
         Args: { _clinic_id: string }
         Returns: {
           allowed: boolean
           quota: number
           sent_today: number
+        }[]
+      }
+      claim_recipient_throttle: {
+        Args: {
+          _clinic_id: string
+          _dest_domain: string
+          _limit_per_hour?: number
+        }
+        Returns: {
+          allowed: boolean
+          sent: number
+          window_start: string
         }[]
       }
       cleanup_agent_caches: { Args: never; Returns: undefined }
@@ -4804,6 +4925,10 @@ export type Database = {
       }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
+      release_domain_warmup: {
+        Args: { _clinic_id: string; _domain: string }
+        Returns: undefined
+      }
       report_campaign_stats: {
         Args: { _campaign_id: string; _clinic_id: string }
         Returns: {

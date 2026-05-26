@@ -50,8 +50,57 @@ Deno.serve(async (req) => {
       .eq("status", "pending");
 
     const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`;
+    const batchUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email-batch`;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let sent = 0, failed = 0, cancelled = 0;
+
+    async function markFailure(job: any, errMsg: string) {
+      failed++;
+      const lower = errMsg.toLowerCase();
+      const attempts = job.attempts || 0;
+      const isPermanentTemplate = lower.includes("not found or inactive");
+      const isPermanentEmail = lower.includes("invalid `to` field") || lower.includes("invalid to field");
+      const isPermanentDomain = lower.includes("not verified");
+      const isQuota = lower.includes("daily email sending quota") || lower.includes("quota exceeded") || lower.includes("quota_reached");
+      const isRateLimit = lower.includes("rate limit") || /retry after\s+\d+/i.test(errMsg);
+      if (isPermanentTemplate || isPermanentEmail || isPermanentDomain) {
+        await supabase.from("email_queue")
+          .update({ status: "failed", attempts: attempts + 1, error: errMsg, updated_at: new Date().toISOString() })
+          .eq("id", job.id);
+        return;
+      }
+      if (isQuota) {
+        const tomorrow = new Date();
+        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+        tomorrow.setUTCHours(12, 0, 0, 0);
+        await supabase.from("email_queue")
+          .update({ status: "pending", scheduled_at: tomorrow.toISOString(), error: `quota: ${errMsg}`, updated_at: new Date().toISOString() })
+          .eq("id", job.id);
+        return;
+      }
+      if (isRateLimit) {
+        let waitMs = 60_000;
+        const msMatch = errMsg.match(/retry after\s+(\d+)\s*ms/i);
+        const sMatch = errMsg.match(/retry after\s+(\d+)\s*s/i);
+        if (msMatch) waitMs = parseInt(msMatch[1], 10) + 1000;
+        else if (sMatch) waitMs = parseInt(sMatch[1], 10) * 1000 + 1000;
+        await supabase.from("email_queue")
+          .update({ status: "pending", scheduled_at: new Date(Date.now() + waitMs).toISOString(), error: errMsg, updated_at: new Date().toISOString() })
+          .eq("id", job.id);
+        return;
+      }
+      const newAttempts = attempts + 1;
+      if (newAttempts >= MAX_ATTEMPTS) {
+        await supabase.from("email_queue")
+          .update({ status: "failed", attempts: newAttempts, error: errMsg, updated_at: new Date().toISOString() })
+          .eq("id", job.id);
+      } else {
+        const backoffMs = newAttempts === 1 ? 60_000 : newAttempts === 2 ? 5 * 60_000 : 30 * 60_000;
+        await supabase.from("email_queue")
+          .update({ status: "pending", attempts: newAttempts, scheduled_at: new Date(Date.now() + backoffMs).toISOString(), error: errMsg, updated_at: new Date().toISOString() })
+          .eq("id", job.id);
+      }
+    }
 
     async function processJob(job: any) {
       try {
@@ -59,33 +108,25 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
           body: JSON.stringify({
-            clinic_id: job.clinic_id,
-            template_slug: job.template_slug,
-            recipient_email: job.recipient_email,
-            recipient_name: job.recipient_name,
-            variables: job.variables,
-            related_lead_id: job.related_lead_id,
-            related_lead_table: job.related_lead_table,
-            force: job.force_send,
-            queue_id: job.id,
-            from_name_override: job.from_name_override ?? null,
+            clinic_id: job.clinic_id, template_slug: job.template_slug,
+            recipient_email: job.recipient_email, recipient_name: job.recipient_name,
+            variables: job.variables, related_lead_id: job.related_lead_id,
+            related_lead_table: job.related_lead_table, force: job.force_send,
+            queue_id: job.id, from_name_override: job.from_name_override ?? null,
           }),
         });
         const result = await resp.json().catch(() => ({}));
-
         if (resp.ok) {
           if ((result as any).skipped) {
             cancelled++;
             if ((result as any).reason === "already_sent") {
-              await supabase
-                .from("email_queue")
+              await supabase.from("email_queue")
                 .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                 .eq("id", job.id);
             }
           } else {
             sent++;
-            await supabase
-              .from("email_queue")
+            await supabase.from("email_queue")
               .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
               .eq("id", job.id);
           }
@@ -93,67 +134,74 @@ Deno.serve(async (req) => {
           throw new Error((result as any)?.error || `HTTP ${resp.status}`);
         }
       } catch (e) {
-        failed++;
-        const errMsg = e instanceof Error ? e.message : String(e);
-        const lower = errMsg.toLowerCase();
-        const attempts = job.attempts || 0;
-
-        const isPermanentTemplate = lower.includes("not found or inactive");
-        const isPermanentEmail = lower.includes("invalid `to` field") || lower.includes("invalid to field");
-        const isPermanentDomain = lower.includes("not verified");
-        const isQuota = lower.includes("daily email sending quota") || lower.includes("quota exceeded") || lower.includes("quota_reached");
-        const isRateLimit = lower.includes("rate limit") || /retry after\s+\d+/i.test(errMsg);
-
-        if (isPermanentTemplate || isPermanentEmail || isPermanentDomain) {
-          await supabase
-            .from("email_queue")
-            .update({ status: "failed", attempts: attempts + 1, error: errMsg, updated_at: new Date().toISOString() })
-            .eq("id", job.id);
-          return;
-        }
-        if (isQuota) {
-          const tomorrow = new Date();
-          tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-          tomorrow.setUTCHours(12, 0, 0, 0);
-          await supabase
-            .from("email_queue")
-            .update({ status: "pending", scheduled_at: tomorrow.toISOString(), error: `quota: ${errMsg}`, updated_at: new Date().toISOString() })
-            .eq("id", job.id);
-          return;
-        }
-        if (isRateLimit) {
-          let waitMs = 60_000;
-          const msMatch = errMsg.match(/retry after\s+(\d+)\s*ms/i);
-          const sMatch = errMsg.match(/retry after\s+(\d+)\s*s/i);
-          if (msMatch) waitMs = parseInt(msMatch[1], 10) + 1000;
-          else if (sMatch) waitMs = parseInt(sMatch[1], 10) * 1000 + 1000;
-          await supabase
-            .from("email_queue")
-            .update({ status: "pending", scheduled_at: new Date(Date.now() + waitMs).toISOString(), error: errMsg, updated_at: new Date().toISOString() })
-            .eq("id", job.id);
-          return;
-        }
-        const newAttempts = attempts + 1;
-        if (newAttempts >= MAX_ATTEMPTS) {
-          await supabase
-            .from("email_queue")
-            .update({ status: "failed", attempts: newAttempts, error: errMsg, updated_at: new Date().toISOString() })
-            .eq("id", job.id);
-        } else {
-          const backoffMs = newAttempts === 1 ? 60_000 : newAttempts === 2 ? 5 * 60_000 : 30 * 60_000;
-          await supabase
-            .from("email_queue")
-            .update({ status: "pending", attempts: newAttempts, scheduled_at: new Date(Date.now() + backoffMs).toISOString(), error: errMsg, updated_at: new Date().toISOString() })
-            .eq("id", job.id);
-        }
+        await markFailure(job, e instanceof Error ? e.message : String(e));
       }
     }
 
-    // executa em chunks paralelos
-    for (let i = 0; i < jobs.length; i += CONCURRENCY) {
-      const chunk = (jobs as any[]).slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map(processJob));
+    // R-15: agrupa jobs por (clinic_id, template_slug); grupos >=3 usam Resend Batch API.
+    // Jobs com variables muito grandes ou force_send seguem singular (mais seguro).
+    const groups = new Map<string, any[]>();
+    const singles: any[] = [];
+    for (const job of jobs as any[]) {
+      const key = `${job.clinic_id}::${job.template_slug}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(job);
     }
+
+    const batchPromises: Promise<void>[] = [];
+    for (const [key, group] of groups) {
+      if (group.length < 3) {
+        singles.push(...group);
+        continue;
+      }
+      // chunk de até 100 (limite Resend)
+      for (let i = 0; i < group.length; i += 100) {
+        const chunk = group.slice(i, i + 100);
+        batchPromises.push((async () => {
+          try {
+            const resp = await fetch(batchUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+              body: JSON.stringify({
+                clinic_id: chunk[0].clinic_id,
+                template_slug: chunk[0].template_slug,
+                jobs: chunk.map((j) => ({
+                  queue_id: j.id,
+                  recipient_email: j.recipient_email,
+                  recipient_name: j.recipient_name,
+                  variables: j.variables,
+                  related_lead_id: j.related_lead_id,
+                  related_lead_table: j.related_lead_table,
+                  force: j.force_send,
+                  from_name_override: j.from_name_override ?? null,
+                })),
+              }),
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (resp.ok) {
+              sent += (result as any)?.sent ?? 0;
+              cancelled += (result as any)?.skipped ?? 0;
+            } else {
+              // batch falhou inteiro — cai pra singular nos jobs do chunk
+              const msg = (result as any)?.error || `batch HTTP ${resp.status}`;
+              console.warn(`batch failed (${key}):`, msg, "— fallback singular");
+              for (const j of chunk) await processJob(j);
+            }
+          } catch (e) {
+            console.warn(`batch threw (${key}), fallback singular:`, e);
+            for (const j of chunk) await processJob(j);
+          }
+        })());
+      }
+    }
+
+    // executa singulares em chunks paralelos
+    for (let i = 0; i < singles.length; i += CONCURRENCY) {
+      const chunk = singles.slice(i, i + CONCURRENCY);
+      batchPromises.push(Promise.all(chunk.map(processJob)).then(() => {}));
+    }
+
+    await Promise.all(batchPromises);
 
     // R-3: self-trigger se a fila estiver cheia (drena sem esperar próximo cron)
     if (jobs.length >= SELF_TRIGGER_THRESHOLD) {

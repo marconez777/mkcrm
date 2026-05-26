@@ -62,25 +62,15 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 - **R-10. Idempotência atômica** ✅ *(G3)* — Nova tabela `email_send_dedup(clinic_id, template_slug, email, context)` com UNIQUE. Troca SELECT+INSERT por INSERT ON CONFLICT. Em falha de envio, dedup é revertido.
 - **R-11. Contador de cota atômico** ✅ *(G6)* — Novo RPC `claim_email_quota(_clinic_id)` faz UPSERT atômico com reset diário automático e decremento em falha. Sem contenção sob paralelismo alto.
 
-### Tier 2 — Escala e deliverability (próximo mês)
+### Tier 2 — Escala e deliverability ✅ implementado 2026-05-26 (parcial)
 
-- **R-12. Warm-up automático de domínio novo**
-  - Tabela `email_domain_warmup_schedule(domain, day_offset, max_sends)`.
-  - Curva 50 → 100 → 500 → 1k → 5k → 10k... ao longo de 2 semanas.
-  - Dispatcher respeita o teto diário do domínio.
-- **R-13. Rate-limit per-domain destinatário**
-  - Limite "X emails/h para `@gmail.com`" para evitar burst (anti-spam).
-  - Janela em nova tabela `email_recipient_throttle(clinic_id, dest_domain, window_start, sent)`.
-- **R-14. Separar fila por tipo (opcional)**
-  - Alternativa a R-7: `email_queue_auth`, `email_queue_marketing` com workers dedicados.
-- **R-15. Resend Batch API**
-  - `POST /emails/batch` (até 100 por chamada) — corta HTTP por envio.
-  - `send-email` recebe lote opcional.
-- **R-16. Feedback loop bounce/complaint em tempo real**
-  - Trigger SQL: se `bounce_rate > 5%` nas últimas 1000 msgs da clínica, **pausa campanhas** automaticamente (`UPDATE email_campaigns SET status='paused'`).
-- **R-17. Métricas em tempo real**
-  - View materializada `mv_email_throughput_5min` (refresh a cada 1min).
-  - Alertas: fila pendente >1000, tempo médio em fila >5min, bounce_rate >5%.
+- **R-12. Warm-up automático de domínio** ✅ — Nova tabela `email_domain_warmup` (per-clinic_id+domain). RPC `claim_domain_warmup` aloca atomicamente respeitando a curva `50 → 100 → 500 → 1k → 5k → 10k → 25k → ilimitado` por dia desde `started_at`. Reset diário automático. `send-email` e `send-email-batch` chamam o claim antes de enviar; se estourar, re-agendam o job para +30min. Failures liberam a vaga via `release_domain_warmup`. **Opt-in:** sem registro na tabela = sem cap.
+- **R-13. Rate-limit per-domain destinatário** ✅ — Nova tabela `email_recipient_throttle(clinic_id, dest_domain, window_start, sent)` PK composta. RPC `claim_recipient_throttle` faz UPSERT atômico por janela de 1h (limite padrão 1000/h). Se estourar, re-agenda para a próxima janela horária.
+- **R-14. Separar fila por tipo** ❌ não necessário — R-7 (prioridade na fila única) já cobre o caso.
+- **R-15. Resend Batch API** ✅ — Nova edge function `send-email-batch` (até 100 por chamada). `process-email-queue` agrupa jobs por `(clinic_id, template_slug)` e envia em lote quando o grupo tem ≥3 jobs; menos que isso vai singular. Fallback automático para singular se a chamada batch falhar. Reduz ~95% das chamadas HTTP em campanhas.
+- **R-16. Feedback loop bounce/complaint** ✅ — Trigger `email_logs_bounce_health_trigger` (AFTER UPDATE OF status). Função `check_clinic_bounce_health` calcula bounce_rate/complaint_rate nas últimas 1000 mensagens; se `bounce_rate > 5%` ou `complaint_rate > 0.3%`, **pausa automaticamente** campanhas em `running/sending/scheduled` da clínica e grava em `email_health_alerts(clinic_id, alert_type, metric_value, threshold, sample_size, action_taken)`. Throttle de 10min entre alertas para não pausar repetidamente.
+- **R-17. Métricas em tempo real** ⏳ pendente — view materializada de throughput + alertas operacionais (não-bloqueante para go-live).
+
 
 ### Tier 3 — Recursos para o cliente grande
 
