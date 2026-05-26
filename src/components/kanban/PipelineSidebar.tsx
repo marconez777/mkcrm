@@ -119,9 +119,11 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                       <Star className="mr-2 h-3.5 w-3.5" />Definir como padrão
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => remove(p)} className="text-destructive">
-                    <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
-                  </DropdownMenuItem>
+                  {!p.is_system && (
+                    <DropdownMenuItem onClick={() => remove(p)} className="text-destructive">
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
