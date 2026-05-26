@@ -421,6 +421,10 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
             </Card>
           </TabsContent>
 
+          <TabsContent value="traffic">
+            <TrafficSummary clinicId={data.clinic_id} />
+          </TabsContent>
+
           <TabsContent value="settings">
             <IntegrationSettings integration={data} onSaved={(updated) => setData(updated)} canManage={canManage} />
           </TabsContent>
