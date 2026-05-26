@@ -86,11 +86,11 @@ function originAllowed(origin: string | null, allowed: string[]): boolean {
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "method not allowed" });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: buildCors(req) });
+  if (req.method !== "POST") return json(req, 405, { error: "method not allowed" });
 
   const token = req.headers.get("x-form-token") || new URL(req.url).searchParams.get("token");
-  if (!token) return json(401, { error: "missing token" });
+  if (!token) return json(req, 401, { error: "missing token" });
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -105,19 +105,19 @@ Deno.serve(async (req) => {
     .or(`token.eq.${token},previous_token.eq.${token}`)
     .maybeSingle();
 
-  if (!integration) return json(401, { error: "invalid token" });
-  if (integration.status !== "active") return json(403, { error: "integration paused" });
+  if (!integration) return json(req, 401, { error: "invalid token" });
+  if (integration.status !== "active") return json(req, 403, { error: "integration paused" });
   if (integration.previous_token === token && integration.previous_token_expires_at && new Date(integration.previous_token_expires_at) < new Date()) {
-    return json(401, { error: "token expired" });
+    return json(req, 401, { error: "token expired" });
   }
   if (!originAllowed(origin, integration.allowed_domains || [])) {
-    return json(403, { error: "origin not allowed" });
+    return json(req, 403, { error: "origin not allowed" });
   }
 
   let raw: unknown;
-  try { raw = await req.json(); } catch { return json(400, { error: "invalid json" }); }
+  try { raw = await req.json(); } catch { return json(req, 400, { error: "invalid json" }); }
   const parsed = BodySchema.safeParse(raw);
-  if (!parsed.success) return json(400, { error: parsed.error.flatten() });
+  if (!parsed.success) return json(req, 400, { error: parsed.error.flatten() });
   const data = parsed.data;
 
   // Get or auto-create form_definition
@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json(200, {
+  return json(req, 200, {
     ok: submissionStatus === "ok",
     status: submissionStatus,
     lead_id: leadId,
