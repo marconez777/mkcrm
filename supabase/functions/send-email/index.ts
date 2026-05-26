@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       .eq("clinic_id", clinic_id)
       .eq("domain", fromDomain)
       .maybeSingle();
-    if (!dom || dom.status !== "verified") {
+    if (!dom || (dom.status !== "verified" && dom.status !== "partially_verified")) {
       if (queue_id) {
         await supabase.from("email_queue")
           .update({ status: "failed", error: `domain ${fromDomain} not verified`, updated_at: new Date().toISOString() })
@@ -112,6 +112,7 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({ error: `domain ${fromDomain} not verified` }, { status: 412 });
     }
+
 
     // 1.2 Resolve a API key do Resend: por-clínica (clinic_email_integrations.secret_name) com fallback ao secret global
     let RESEND_API_KEY = DEFAULT_RESEND_API_KEY;
