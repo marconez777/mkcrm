@@ -1977,6 +1977,48 @@ export type Database = {
           },
         ]
       }
+      email_operational_alerts: {
+        Row: {
+          alert_type: string
+          clinic_id: string | null
+          context: Json | null
+          created_at: string
+          id: string
+          message: string
+          metric_value: number | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          threshold: number | null
+        }
+        Insert: {
+          alert_type: string
+          clinic_id?: string | null
+          context?: Json | null
+          created_at?: string
+          id?: string
+          message: string
+          metric_value?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          threshold?: number | null
+        }
+        Update: {
+          alert_type?: string
+          clinic_id?: string | null
+          context?: Json | null
+          created_at?: string
+          id?: string
+          message?: string
+          metric_value?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          threshold?: number | null
+        }
+        Relationships: []
+      }
       email_queue: {
         Row: {
           attempts: number
@@ -4821,6 +4863,39 @@ export type Database = {
           },
         ]
       }
+      email_system_health: {
+        Row: {
+          active_alerts: number | null
+          computed_at: string | null
+          global_failed_today: number | null
+          global_pending: number | null
+          global_processing: number | null
+          global_sent_today: number | null
+          global_stuck: number | null
+          health_alerts_24h: number | null
+        }
+        Relationships: []
+      }
+      email_throughput_stats: {
+        Row: {
+          bounce_rate_pct: number | null
+          bounced_today: number | null
+          cancelled_today: number | null
+          clicked_today: number | null
+          clinic_id: string | null
+          complained_today: number | null
+          complaint_rate_pct: number | null
+          computed_at: string | null
+          failed_today: number | null
+          newest_pending_at: string | null
+          oldest_pending_at: string | null
+          opened_today: number | null
+          pending_count: number | null
+          processing_count: number | null
+          sent_today: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _email_segment_filters_to_where: {
@@ -4847,6 +4922,7 @@ export type Database = {
         Returns: number
       }
       check_ai_spend_status: { Args: { p_clinic_id: string }; Returns: Json }
+      check_email_operational_health: { Args: never; Returns: undefined }
       claim_domain_warmup: {
         Args: { _clinic_id: string; _domain: string }
         Returns: {
