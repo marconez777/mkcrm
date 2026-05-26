@@ -507,3 +507,152 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
     </Dialog>
   );
 }
+
+function buildAiPrompt(args: {
+  pixelCode: string;
+  snippetCode: string;
+  clinicId: string;
+  token: string;
+  domain: string;
+  supabaseUrl: string;
+}) {
+  const { pixelCode, snippetCode, clinicId, token, domain, supabaseUrl } = args;
+  return `# Integração com MK CRM — leia tudo e adapte o site
+
+Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o MK CRM. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
+
+---
+
+## 1. Instalar os 2 scripts no <head> do index.html
+
+Cole **exatamente nesta ordem** (o pixel TEM que vir antes do snippet de formulários, porque ele cria os cookies _mk_vid/_mk_sid que o snippet lê):
+
+\`\`\`html
+<!-- MK CRM — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
+${pixelCode}
+<!-- MK CRM — Forms Snippet -->
+${snippetCode}
+\`\`\`
+
+- **NÃO** mude a ordem.
+- **NÃO** adicione \`defer\` — use \`async\` exatamente como está.
+- **NÃO** tente "otimizar" envolvendo em React/useEffect. Os scripts são vanilla JS e precisam rodar o mais cedo possível no HTML.
+- Se o projeto usa pré-renderização (Encited, Prerender.io, etc.), force re-render depois de adicionar.
+
+---
+
+## 2. Regras OBRIGATÓRIAS dos formulários
+
+O \`forms-snippet\` adiciona um listener global em \`document.addEventListener("submit", ..., true)\`. Para ele capturar um formulário, **TODAS** as regras abaixo precisam ser respeitadas:
+
+### 2.1 Use submit nativo (NÃO fetch custom)
+\`\`\`tsx
+// ✅ CORRETO
+<form onSubmit={handleSubmit}>
+  <button type="submit">Enviar</button>
+</form>
+
+// ❌ ERRADO — snippet NÃO captura
+<form>
+  <button type="button" onClick={() => fetch(...)}>Enviar</button>
+</form>
+\`\`\`
+
+Se você TEM que usar fetch custom (ex: precisa fazer algo antes de redirecionar), chame manualmente DEPOIS do seu fetch:
+\`\`\`tsx
+const formRef = useRef<HTMLFormElement>(null);
+await fetch(...);
+(window as any).MKForms?.send(formRef.current);
+\`\`\`
+
+### 2.2 Todos os inputs precisam ter \`name=\`
+\`\`\`tsx
+// ✅
+<input name="name" />
+<input name="email" type="email" />
+<input name="phone" type="tel" />
+
+// ❌ Sem name não vai ser capturado
+<input />
+\`\`\`
+
+Nomes reconhecidos automaticamente (case-insensitive):
+- **name**: name, nome, fullname, full_name, first_name, firstname
+- **email**: email, e-mail, mail
+- **phone**: phone, telefone, tel, celular, whatsapp, wpp, mobile
+- **message**: message, mensagem, msg, comments, comentario
+
+Se o input tem nome esquisito, force com \`data-mk-field\`:
+\`\`\`tsx
+<input name="cf_7_abc" data-mk-field="email" type="email" />
+\`\`\`
+
+### 2.3 Identifique o formulário com \`data-mk-form\`
+\`\`\`tsx
+<form data-mk-form="phq9" data-mk-name="Teste PHQ-9" onSubmit={...}>
+\`\`\`
+- \`data-mk-form\` vira o \`form_key\` no CRM (use kebab-case, sem espaços)
+- \`data-mk-name\` é o nome humano que aparece no painel
+- Para ignorar um form (ex.: busca), use \`data-mk-ignore\`
+
+### 2.4 Pelo menos email OU phone precisa estar presente
+Sem nenhum dos dois, a submission é registrada como \`status=no_contact\` e **nenhum lead é criado**.
+
+---
+
+## 3. Botão de WhatsApp — deixar o pixel cuidar
+
+NÃO chame o WhatsApp direto sem rastreio. O pixel reescreve qualquer link \`wa.me/\` / \`api.whatsapp.com\` automaticamente para passar pelo redirecionador do CRM (assim a gente rastreia o clique e linka com o visitante).
+
+\`\`\`tsx
+// ✅ Mantenha assim — o pixel intercepta no clique
+<a href="https://wa.me/5511999999999?text=Olá">WhatsApp</a>
+\`\`\`
+
+Não precisa fazer nada — só ter o pixel instalado.
+
+---
+
+## 4. Peculiaridades conhecidas
+
+| Sintoma | Causa | Solução |
+|---|---|---|
+| Submit não chega no CRM | Form usa \`<button type="button">\` + fetch custom | Trocar para \`type="submit"\` OU chamar \`window.MKForms.send(formRef)\` |
+| Submit não chega no CRM | Inputs sem \`name=\` | Adicionar \`name\` em todos os campos |
+| Submit chega mas sem email/phone | Nome do input não está nos aliases | Adicionar \`data-mk-field="email"\` (ou phone/name) |
+| Tracking não conta visitas | Pixel instalado depois do snippet, ou cache de pré-renderização | Verificar ordem e forçar re-render |
+| WhatsApp abre tela "unknown_project" | Project ID errado no script | Confirmar que o pixel tem exatamente: \`?project_id=${clinicId}\` |
+| CORS error no console | Domínio não está na allowlist do CRM | Pedir ao admin do CRM pra adicionar \`${domain}\` em domínios permitidos |
+
+---
+
+## 5. Dados pré-configurados para ESTE site
+
+| Campo | Valor |
+|---|---|
+| Endpoint base | \`${supabaseUrl}\` |
+| Project ID (clinic) | \`${clinicId}\` |
+| Form token | \`${token}\` |
+| Domínio principal | \`${domain}\` |
+
+Esses valores **já estão dentro dos scripts** do passo 1. Você não precisa repetir em lugar nenhum — só copie e cole os \`<script>\` exatamente como estão.
+
+---
+
+## 6. Checklist de validação (faça depois de instalar)
+
+1. Abra o site em aba anônima e abra o DevTools → Network
+2. Recarregue. Você deve ver 2 requests com status 200:
+   - \`tracking-pixel?project_id=${clinicId}\`
+   - \`forms-snippet?token=${token.slice(0, 8)}...\`
+3. No DevTools → Application → Cookies → seu domínio, confirme que existem:
+   - \`_mk_vid\` (1 ano de validade)
+   - \`_mk_sid\` (sessão)
+4. Navegue por 2 páginas. Em Network, filtre por \`tracking-event\` — deve aparecer 2 POSTs com status 200
+5. Preencha e envie um formulário. Em Network, filtre por \`forms-ingest\` — deve aparecer 1 POST com response \`{"ok":true,"status":"ok","lead_id":"..."}\`
+6. Clique no botão de WhatsApp — deve abrir o WhatsApp normalmente (passando pelo redirecionador do CRM, com um código de rastreio na mensagem)
+
+Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do CRM com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
+`;
+}
+
