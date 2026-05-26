@@ -326,6 +326,17 @@ export default function EmailCampaigns() {
                 </Select>
               </div>
               <div className="space-y-1.5">
+                <Label>Nome de exibição (De)</Label>
+                <Input
+                  placeholder="Ex.: Clínica Ór"
+                  value={editing.from_name_override ?? ""}
+                  onChange={(e) => setEditing({ ...editing, from_name_override: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Sobrescreve o nome do remetente do template só nesta campanha. Deixe vazio para usar o do template.
+                </p>
+              </div>
+              <div className="space-y-1.5">
                 <Label>Segmento (opcional — vazio = todos os leads)</Label>
                 <Select value={editing.segment_id ?? "none"} onValueChange={(v) => setEditing({ ...editing, segment_id: v === "none" ? null : v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
