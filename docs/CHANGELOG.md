@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-05-26 — email R-17 implementado (métricas em tempo real)
+
+### Adicionado
+- Views `email_throughput_stats` (estatísticas por clínica: pendentes, enviados, falhos, abertos, cliques, taxas de bounce/complaint) e `email_system_health` (resumo global: fila total, jobs presos, alertas ativos).
+- Tabela `email_operational_alerts` com tipos (`queue_backlog`, `stuck_processing`, `high_failure_rate`, `domain_warmup_limit`, `recipient_throttle_limit`).
+- Função `check_email_operational_health`: detecta backlog (>500 jobs), jobs presos em processing (>10min) e taxa de falha alta por clínica (>10%).
+- Trigger `email_queue_health_trigger`: dispara health check a cada 100 novos inserts na fila.
+
+---
+
 ## 2026-05-26 — email Tier 3 implementado (recursos enterprise)
 
 ### Adicionado
