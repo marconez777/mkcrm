@@ -16,8 +16,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
+import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail, Check, Search } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { Link } from "react-router-dom";
 
 type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign" | "created_at_range";
 type BaseRule = { negate?: boolean };
@@ -46,7 +47,7 @@ type Segment = {
 };
 
 type Stage = { id: string; name: string; pipeline_id: string };
-type Contact = { id: string; email: string; name: string | null; created_at: string };
+type Contact = { id: string; email: string; name: string | null; lead_id: string | null };
 
 const RULE_LABELS: Record<RuleType, string> = {
   form_source: "Origem do formulário",
@@ -95,10 +96,10 @@ export default function EmailSegments() {
   const [active, setActive] = useState(true);
   const [clinicId, setClinicId] = useState<string | null>(null);
 
-  // Contatos manuais (estático ou inclusões extras)
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [newContactName, setNewContactName] = useState("");
-  const [newContactEmail, setNewContactEmail] = useState("");
+  // Contatos da clínica (multi-select para segmentos estáticos)
+  const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [contactSearch, setContactSearch] = useState("");
 
   // Preview
   const [previewCount, setPreviewCount] = useState<number | null>(null);
@@ -146,8 +147,19 @@ export default function EmailSegments() {
 
   function resetForm() {
     setName(""); setDescription(""); setKind("dynamic"); setMatch("any"); setRules([]); setActive(true);
-    setContacts([]); setNewContactEmail(""); setNewContactName("");
+    setSelectedContactIds(new Set()); setContactSearch("");
     setPreviewCount(null); setPreviewSample([]); setEditing(null);
+  }
+
+  async function loadAvailableContacts(targetClinicId: string) {
+    const { data } = await supabase
+      .from("email_segment_contacts")
+      .select("id, email, name, lead_id")
+      .eq("clinic_id", targetClinicId)
+      .is("segment_id", null)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    setAvailableContacts((data as Contact[]) ?? []);
   }
 
   async function openEdit(s: Segment) {
@@ -157,12 +169,30 @@ export default function EmailSegments() {
     const f = normalizeFilters(s.filters);
     setKind(f.kind); setMatch(f.match); setRules(f.rules);
     setActive(s.active);
-    const { data: cs } = await supabase
+    const segClinicId = (s as any).clinic_id as string;
+    // Carrega contatos disponíveis da clínica
+    await loadAvailableContacts(segClinicId);
+    // Carrega vínculos atuais e marca os correspondentes pelo e-mail
+    const { data: links } = await supabase
       .from("email_segment_contacts")
-      .select("id, email, name, created_at")
-      .eq("segment_id", s.id)
-      .order("created_at", { ascending: false });
-    setContacts((cs as Contact[]) ?? []);
+      .select("email")
+      .eq("segment_id", s.id);
+    const linkedEmails = new Set((links ?? []).map((l: any) => String(l.email).toLowerCase()));
+    const { data: pool } = await supabase
+      .from("email_segment_contacts")
+      .select("id, email")
+      .eq("clinic_id", segClinicId)
+      .is("segment_id", null);
+    const idsToSelect = new Set<string>();
+    (pool ?? []).forEach((c: any) => {
+      if (linkedEmails.has(String(c.email).toLowerCase())) idsToSelect.add(c.id);
+    });
+    setSelectedContactIds(idsToSelect);
+    setOpenNew(true);
+  }
+
+  async function openCreate() {
+    if (clinicId) await loadAvailableContacts(clinicId);
     setOpenNew(true);
   }
 
@@ -207,16 +237,21 @@ export default function EmailSegments() {
 
   async function save() {
     if (!name.trim()) { toast.error("Nome obrigatório"); return; }
-    if (kind === "dynamic" && rules.length === 0 && contacts.length === 0) {
-      toast.error("Adicione pelo menos um gatilho ou contato manual"); return;
+    if (kind === "dynamic" && rules.length === 0) {
+      toast.error("Adicione pelo menos uma regra"); return;
+    }
+    if (kind === "static" && selectedContactIds.size === 0) {
+      toast.error("Selecione ao menos um contato"); return;
     }
 
     let segmentId = editing?.id;
+    let segClinicId: string | null = null;
     if (editing) {
       const { error } = await supabase.from("email_segments").update({
         name, description: description || null, filters: filtersPayload, active,
       }).eq("id", editing.id);
       if (error) return toast.error(error.message);
+      segClinicId = (editing as any).clinic_id ?? clinicId;
     } else {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
@@ -226,7 +261,32 @@ export default function EmailSegments() {
       }).select("id").single();
       if (error) return toast.error(error.message);
       segmentId = ins!.id;
+      segClinicId = cm?.clinic_id ?? null;
     }
+
+    // Sincroniza vínculos para segmentos estáticos
+    if (kind === "static" && segmentId && segClinicId) {
+      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+      const { data: { user } } = await supabase.auth.getUser();
+      const rows = availableContacts
+        .filter((c) => selectedContactIds.has(c.id))
+        .map((c) => ({
+          segment_id: segmentId,
+          clinic_id: segClinicId,
+          email: c.email,
+          name: c.name,
+          lead_id: c.lead_id,
+          added_by: user!.id,
+        }));
+      if (rows.length > 0) {
+        const { error: insErr } = await supabase.from("email_segment_contacts").insert(rows);
+        if (insErr) return toast.error(insErr.message);
+      }
+    } else if (kind === "dynamic" && segmentId) {
+      // Limpa qualquer vínculo antigo se trocou de estático para dinâmico
+      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+    }
+
     toast.success(editing ? "Segmento atualizado" : "Segmento criado");
     setOpenNew(false); resetForm(); load();
   }
@@ -263,28 +323,13 @@ export default function EmailSegments() {
     }
   }
 
-  async function addContact() {
-    const email = newContactEmail.trim().toLowerCase();
-    if (!/.+@.+\..+/.test(email)) { toast.error("E-mail inválido"); return; }
-    if (!editing) { toast.error("Salve o segmento antes de adicionar contatos"); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
-    const { data, error } = await supabase.from("email_segment_contacts").insert({
-      segment_id: editing.id,
-      clinic_id: cm?.clinic_id,
-      email,
-      name: newContactName.trim() || null,
-      added_by: user!.id,
-    }).select("id, email, name, created_at").single();
-    if (error) return toast.error(error.message);
-    setContacts((c) => [data as Contact, ...c]);
-    setNewContactEmail(""); setNewContactName("");
-  }
-
-  async function removeContact(id: string) {
-    const { error } = await supabase.from("email_segment_contacts").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    setContacts((c) => c.filter((x) => x.id !== id));
+  function toggleContact(id: string) {
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function remove(id: string) {
@@ -330,7 +375,7 @@ export default function EmailSegments() {
         }}>
           <Filter className="h-4 w-4 mr-2" /> Criar segmentos dos formulários
         </Button>
-        <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) resetForm(); }}>
+        <Dialog open={openNew} onOpenChange={(o) => { if (o) openCreate(); else { setOpenNew(false); resetForm(); } }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
@@ -419,43 +464,97 @@ export default function EmailSegments() {
 
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Os destinatários serão somente os contatos adicionados manualmente abaixo.
+                    Selecione contatos já cadastrados na aba Contatos para incluir neste segmento.
                   </p>
                 )}
               </div>
 
-              {/* Contatos manuais */}
-              <div className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2"><Mail className="h-4 w-4" /> Contatos manuais</Label>
-                  <span className="text-xs text-muted-foreground">{contacts.length} contato(s)</span>
+              {/* Seletor de contatos (apenas para segmento estático) */}
+              {kind === "static" && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2"><Mail className="h-4 w-4" /> Selecionar contatos</Label>
+                    <span className="text-xs text-muted-foreground">{selectedContactIds.size} selecionado(s)</span>
+                  </div>
+                  {availableContacts.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-2">
+                      Nenhum contato cadastrado.{" "}
+                      <Link to="/email/contacts" className="text-primary underline">
+                        Cadastre na aba Contatos
+                      </Link>
+                      .
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          className="pl-8"
+                          placeholder="Buscar por nome ou e-mail"
+                          value={contactSearch}
+                          onChange={(e) => setContactSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline"
+                          onClick={() => {
+                            const visible = availableContacts.filter((c) => {
+                              const q = contactSearch.trim().toLowerCase();
+                              if (!q) return true;
+                              return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                            });
+                            const allSelected = visible.every((c) => selectedContactIds.has(c.id));
+                            setSelectedContactIds((prev) => {
+                              const next = new Set(prev);
+                              if (allSelected) visible.forEach((c) => next.delete(c.id));
+                              else visible.forEach((c) => next.add(c.id));
+                              return next;
+                            });
+                          }}
+                        >
+                          Selecionar/desmarcar todos (visíveis)
+                        </button>
+                        <Link to="/email/contacts" className="text-muted-foreground hover:underline">
+                          Gerenciar contatos →
+                        </Link>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto space-y-1">
+                        {availableContacts
+                          .filter((c) => {
+                            const q = contactSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                          })
+                          .map((c) => {
+                            const checked = selectedContactIds.has(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => toggleContact(c.id)}
+                                className={`w-full flex items-center gap-2 text-left text-sm border rounded px-2 py-1.5 transition-colors ${
+                                  checked ? "bg-primary/10 border-primary/40" : "hover:bg-accent"
+                                }`}
+                              >
+                                <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                                  checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"
+                                }`}>
+                                  {checked && <Check className="h-3 w-3" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate">{c.email}</div>
+                                  {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
                 </div>
-                {!editing && (
-                  <p className="text-xs text-muted-foreground">Salve o segmento primeiro para adicionar contatos.</p>
-                )}
-                {editing && (
-                  <>
-                    <div className="flex gap-2">
-                      <Input placeholder="Nome (opcional)" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} />
-                      <Input placeholder="email@exemplo.com" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} />
-                      <Button type="button" size="sm" onClick={addContact}>Adicionar</Button>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto space-y-1">
-                      {contacts.map((c) => (
-                        <div key={c.id} className="flex items-center justify-between text-sm border rounded px-2 py-1">
-                          <div className="min-w-0">
-                            <div className="truncate">{c.email}</div>
-                            {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
-                          </div>
-                          <Button size="sm" variant="ghost" onClick={() => removeContact(c.id)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <Switch checked={active} onCheckedChange={setActive} id="active" />
