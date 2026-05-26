@@ -37,86 +37,75 @@ function localParts(date: Date, tz: string) {
 /** Compute the UTC instant for local midnight (today) in the given tz. */
 function startOfLocalDayUtc(now: Date, tz: string): Date {
   const lp = localParts(now, tz);
-  // Build a UTC date for that local midnight by iterating offset
-  // Trick: ask Intl for the offset by formatting the candidate
   const [y, m, d] = lp.ymd.split("-").map(Number);
-  // Candidate 1: assume tz = UTC
   const guess = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
-  // Find what local time that guess maps to and correct.
   const back = localParts(guess, tz);
   const [bh, bm] = back.hhmm.split(":").map(Number);
-  const driftMin = bh * 60 + bm; // minutes the local clock shows for our UTC guess
+  const driftMin = bh * 60 + bm;
   return new Date(guess.getTime() - driftMin * 60_000);
 }
 
-async function computeMetrics(supabase: any, clinicId: string, sinceIso: string, want: Record<string, boolean>) {
+/** End of local day = start of next local day. */
+function endOfLocalDayUtc(now: Date, tz: string): Date {
+  const start = startOfLocalDayUtc(now, tz);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+}
+
+async function computeMetrics(
+  supabase: any,
+  clinicId: string,
+  sinceIso: string,
+  untilIso: string,
+  want: Record<string, boolean>,
+) {
   const out: Record<string, number> = {};
 
+  // 1) Visitantes únicos — mesma fonte do card em /tracking
   if (want.unique_visitors !== false) {
-    const { data, error } = await supabase.rpc("count_distinct_visitors", {
-      p_clinic: clinicId, p_since: sinceIso,
-    }).maybeSingle();
-    if (!error && data?.count != null) {
-      out.unique_visitors = Number(data.count);
-    } else {
-      // Fallback: select and dedupe in memory (best-effort, limited)
-      const { data: rows } = await supabase
-        .from("tracking_events")
-        .select("visitor_id")
-        .eq("clinic_id", clinicId)
-        .gte("event_time", sinceIso)
-        .limit(10000);
-      const set = new Set<string>();
-      for (const r of rows ?? []) set.add((r as any).visitor_id);
-      out.unique_visitors = set.size;
-    }
+    const { count } = await supabase
+      .from("tracking_visitors")
+      .select("visitor_id", { count: "exact", head: true })
+      .eq("clinic_id", clinicId)
+      .gte("last_seen_at", sinceIso)
+      .lt("last_seen_at", untilIso);
+    out.unique_visitors = count ?? 0;
   }
 
+  // 2) Cliques no WhatsApp — conta eventos (whatsapp_click + whatsapp_redirect)
   if (want.whatsapp_clicks !== false) {
-    const { data: rows } = await supabase
+    const { count } = await supabase
       .from("tracking_events")
-      .select("visitor_id, event_name, page_url, properties")
+      .select("event_id", { count: "exact", head: true })
       .eq("clinic_id", clinicId)
       .gte("event_time", sinceIso)
-      .limit(10000);
-    const set = new Set<string>();
-    for (const r of rows ?? []) {
-      const ev = String((r as any).event_name || "").toLowerCase();
-      const url = String((r as any).page_url || "").toLowerCase();
-      const kind = String(((r as any).properties || {}).kind || "").toLowerCase();
-      const isWa =
-        ev.includes("whatsapp") || ev === "wa_click" || ev === "wa-redirect" ||
-        kind === "whatsapp" || kind === "wa" ||
-        url.includes("wa.me") || url.includes("/wa-redirect") || url.includes("api.whatsapp.com");
-      if (isWa) set.add((r as any).visitor_id);
+      .lt("event_time", untilIso)
+      .in("event_name", ["whatsapp_click", "whatsapp_redirect"]);
+    out.whatsapp_clicks = count ?? 0;
+  }
+
+  // 3/4) Leads identificados via tracking — separa formulário x WhatsApp pelo link_source.
+  if (want.form_leads !== false || want.whatsapp_leads !== false) {
+    const { data: links } = await supabase
+      .from("tracking_identity_links")
+      .select("lead_id, link_source, leads!inner(clinic_id)")
+      .eq("leads.clinic_id", clinicId)
+      .gte("linked_at", sinceIso)
+      .lt("linked_at", untilIso)
+      .limit(5000);
+
+    const formLeads = new Set<string>();
+    const waLeads = new Set<string>();
+    for (const l of (links ?? []) as Array<{ lead_id: string; link_source: string | null }>) {
+      const src = String(l.link_source || "").toLowerCase();
+      const isWa = src.startsWith("whatsapp_") || src === "ctwa_clid" || src === "phone_hash_existing";
+      if (isWa) waLeads.add(l.lead_id);
+      else if (src === "form_submission") formLeads.add(l.lead_id);
     }
-    out.whatsapp_clicks = set.size;
+    if (want.form_leads !== false) out.form_leads = formLeads.size;
+    if (want.whatsapp_leads !== false) out.whatsapp_leads = waLeads.size;
   }
 
-  if (want.form_leads !== false) {
-    const { count } = await supabase
-      .from("leads")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId)
-      .gte("created_at", sinceIso)
-      .like("form_source", "form:%");
-    out.form_leads = count ?? 0;
-  }
-
-  if (want.whatsapp_leads !== false) {
-    // Considera "lead de WhatsApp" qualquer lead com instância WhatsApp vinculada
-    // que NÃO veio de um formulário (form_source não começa com "form:").
-    const { count } = await supabase
-      .from("leads")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId)
-      .gte("created_at", sinceIso)
-      .not("whatsapp_instance_id", "is", null)
-      .or("form_source.is.null,form_source.eq.whatsapp");
-    out.whatsapp_leads = count ?? 0;
-  }
-
-
+  console.log("[scheduled-report-tick] metrics", { clinicId, sinceIso, untilIso, ...out });
   return out;
 }
 
@@ -154,6 +143,7 @@ async function processReport(supabase: any, r: Report, opts: { force?: boolean }
   }
 
   const sinceIso = startOfLocalDayUtc(now, r.tz).toISOString();
+  const untilIso = endOfLocalDayUtc(now, r.tz).toISOString();
   const instance = await loadInstance(r.instance_id);
   if (!instance) {
     await supabase.from("scheduled_report_runs").insert({
@@ -163,7 +153,7 @@ async function processReport(supabase: any, r: Report, opts: { force?: boolean }
   }
 
   try {
-    const metrics = await computeMetrics(supabase, r.clinic_id, sinceIso, r.metrics || {});
+    const metrics = await computeMetrics(supabase, r.clinic_id, sinceIso, untilIso, r.metrics || {});
     const text = buildMessage(r.name || "Relatório do dia", lp.dmy, metrics, r.metrics || {});
     await sendToGroup(instance, r.group_jid, text);
 
