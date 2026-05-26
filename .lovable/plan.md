@@ -1,148 +1,71 @@
+## Objetivo
 
-# Roadmap — Performance e escalabilidade do módulo de Email
+Criar uma documentação completa, em português, na pasta `docs/integracao/`, cobrindo todo o pipeline de integração entre o CRM e sites externos: snippets, tracking, formulários, eventos, atribuição, leads, segurança e troubleshooting.
 
-Contexto: vamos colocar um cliente com **alto volume de contatos e disparos**. A doc atual (`docs/edge-functions/EMAIL.md`, `flows/EMAIL_CAMPAIGN.md`) está atualizada com o código, mas o pipeline foi desenhado para volumes médios. Abaixo, gargalos reais identificados no código e o roadmap priorizado para destravar throughput, latência de entrega e robustez de múltiplas automações em paralelo.
+## Estrutura proposta
 
----
+```
+docs/integracao/
+├── README.md                       — índice + visão geral em 1 página
+├── 01-visao-geral.md               — arquitetura ponta-a-ponta com diagramas
+├── 02-instalacao-snippets.md       — passo-a-passo de instalação (HTML, WP, Wix, GTM, React/Next)
+├── 03-tracking-eventos.md          — pixel, visitor_id, sessions, page_view, custom events, UTMs
+├── 04-formularios.md               — captura de forms, field mapping, plugins WP, snippet auto-discovery
+├── 05-atribuicao-leads.md          — UTMs, referrer, ctwa_clid, first/last touch, identity stitching
+├── 06-eventos-customizados.md      — API JS (window.MK), data attributes, exemplos por caso de uso
+├── 07-webhooks-api-direta.md       — external-lead-capture, tokens, payloads, exemplos cURL
+├── 08-seguranca.md                 — tokens, allowed_domains, rotação, rate-limit, LGPD
+├── 09-troubleshooting.md           — checklist DevTools, prompt de diagnóstico, erros comuns
+├── 10-referencia-tecnica.md        — schemas Zod, contratos de payload, tabelas envolvidas, edge functions
+└── exemplos/
+    ├── html-puro.html
+    ├── wordpress-cf7.php
+    ├── wordpress-elementor.txt
+    ├── react-nextjs.tsx
+    ├── google-tag-manager.json
+    └── api-direta-curl.sh
+```
 
-## Gargalos identificados no código atual
+## Conteúdo de cada documento (alto nível)
 
-1. **Throughput limitado do dispatcher** — `process-email-queue` roda **a cada 1 min**, pega no máx. **50 jobs**, com **concorrência 5** dentro do batch. Teto prático: ~50 emails/min por clínica = **3.000/h**. Para um cliente grande isso é pouco.
-2. **`send-email` é pesado por envio** — cada chamada faz 6–8 queries (template, domínio, integração, suppression, idempotência, cota, token, slug da clínica) + 1 HTTP Resend + 2 writes. Sem cache de template/domínio/quota → muita pressão no Postgres.
-3. **Idempotência via `email_logs`** — `SELECT ... maybeSingle()` em `email_logs` por envio. Sem índice composto explícito documentado em `(clinic_id, template_slug, recipient_email, related_lead_table)` pode degradar com milhões de linhas.
-4. **`dispatch-campaign` enfileira em chunks de 20 sequenciais** — para 50k destinatários = 2.500 RPCs sequenciais → estoura 150s da edge function. Hoje só funciona "no susto".
-5. **`email-automations-tick` é serial por automação** — `for...of` em todas as automações ativas, sem paralelismo. Com 50+ automações ativas vai ficar lento.
-6. **Cota diária global por clínica** com `UPDATE email_send_state` linha-a-linha → contenção (lock) quando há paralelismo alto.
-7. **Sem priorização** — auth/transacional, drip e campanha competem na mesma fila. Campanha massiva atrasa email transacional.
-8. **Sem warm-up de IP/domínio nem rate-limit per-domain** — risco de ban/spam quando subir volume.
-9. **Webhook Resend** insere events sem dedup → eventos duplicados inflam `email_logs.events[]`.
-10. **`dispatch-campaign` carrega leads em 1 query (limit 10k)** e segura tudo em memória — não escala para >10k destinatários.
+**README.md** — índice, decision tree "qual integração eu preciso?", links para os outros docs, glossário rápido (visitor_id, session_id, anonymous_id, token, integration vs definition).
 
----
+**01-visao-geral.md** — diagrama ASCII do fluxo completo (Visita → tracking-pixel → tracking-event → form submit → forms-ingest → lead → automação → CRM), explicação de cada componente, tabela "o que cada peça resolve".
 
-## Roadmap
+**02-instalacao-snippets.md** — onde colar (`<head>` vs antes `</body>`), ordem (tracker antes do forms), código mínimo copy-paste para: HTML puro, WordPress (via header.php, plugin Insert Headers, ou plugin oficial), Wix, Webflow, Shopify, GTM, Next.js (`<Script strategy="afterInteractive">`), React SPA. Atributos `data-mk-*` documentados.
 
-### Tier 0 — Quick wins (1–2 dias, sem mudança de arquitetura)
+**03-tracking-eventos.md** — como funciona `_mk_vid` cookie, `_mk_sid` sessionStorage, eventos automáticos (page_view, page_exit, scroll, time_on_page), eventos custom via `window.MK.track('event_name', {props})`, captura de UTMs (`utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `gclid`, `fbclid`, `ctwa_clid`).
 
-- **R-1. Subir throughput do dispatcher**
-  - cron: `1min → 15s` (via `pg_cron` ou self-trigger no fim da execução).
-  - `BATCH_SIZE: 50 → 200`, `CONCURRENCY: 5 → 20`.
-  - Resultado esperado: **~12.000 emails/h** por instância sem mudar código.
+**04-formularios.md** — auto-discovery do snippet, field mapping (`data-mk-field="email"`), aliases automáticos (`name|nome`, `email|e-mail`, `phone|telefone|whatsapp`), regras de normalização (telefone BR, lowercase email), pre-fill via `data-mk-prefill`, redirect via `data-mk-redirect`, plugin WordPress (download via painel, shortcode, integração com CF7/WPForms), atributos especiais (`data-mk-ignore`, `data-mk-form="phq9"`, `data-mk-name`).
 
-- **R-2. Índices críticos**
-  - `email_queue(status, scheduled_at)` parcial `WHERE status='pending'`.
-  - `email_logs(clinic_id, template_slug, recipient_email, related_lead_table)` para idempotência.
-  - `email_logs(resend_id)` para webhook.
+**05-atribuicao-leads.md** — modelo de identidade (visitor → lead via tracking-identify), backfill de eventos passados, first-touch vs last-touch, como o CRM agrupa por phone vs email vs visitor_id, tabela `tracking_identity_links`, deduplicação (mesmo phone = mesmo lead), atribuição de origem do WhatsApp via `ctwa_clid`.
 
-- **R-3. Self-trigger pós-batch**
-  - `process-email-queue`: se sobrou fila, dispara a si mesma no fim (já faz pattern parecido em `dispatch-campaign`). Elimina espera do cron.
+**06-eventos-customizados.md** — API completa: `window.MK.track(name, props)`, `window.MK.identify(traits)`, `window.MK.page(properties)`, `window.MKForms.send(formEl)`. Casos de uso: tracking de cliques em CTA, tempo assistido em vídeo, scroll milestones, abandono de carrinho, leitura de artigo. Exemplos prontos.
 
-- **R-4. Paralelizar enqueue do `dispatch-campaign`**
-  - Substituir RPC `enqueue_email` por **INSERT em lote** (`email_queue` em chunks de 500) — 1 round-trip por 500 destinatários em vez de 500.
+**07-webhooks-api-direta.md** — quando usar `external-lead-capture` em vez do snippet (CRM próprio, integração server-to-server, n8n, Zapier, Make). Endpoint, autenticação (`x-external-token`), schema do payload, exemplos cURL/Node/Python, retry e idempotência.
 
-- **R-5. Dedup de webhook Resend**
-  - Chave única em `email_logs.events` por `(type, at)` ou tabela `email_log_events` normalizada.
+**08-seguranca.md** — diferença entre token público (snippet) e token privado (webhook), rotação de tokens (com grace period), `allowed_domains` (regras de match incluindo subdomínio), rate-limit por integração, headers CORS, considerações LGPD (consentimento, opt-out, retenção), o que **não** logamos (passwords, números de cartão).
 
-### Tier 1 — Performance estrutural (1 sprint)
+**09-troubleshooting.md** — fluxograma "meu lead não chegou": (1) snippet carregou? (2) form disparou submit? (3) chegou no forms-ingest? (4) lead foi criado? (5) automação rodou? Cada nó com como verificar (DevTools, painel, SQL). Inclui o **prompt de DevTools** que já criamos no diagnóstico anterior. Tabela de erros comuns: 401 invalid token, 403 origin not allowed, 400 invalid payload, lead duplicado, etc.
 
-- **R-6. Cache em `send-email`**
-  - Templates, `email_domains`, `clinic_email_integrations` em cache (memória do isolate + invalidação por `updated_at` ou TTL de 60s).
-  - Cota: ler `email_send_state` 1x por batch, não por envio.
+**10-referencia-tecnica.md** — schemas Zod dos endpoints (forms-ingest, tracking-event, tracking-identify, external-lead-capture), tabelas envolvidas (`form_integrations`, `form_definitions`, `form_submissions`, `tracking_visitors`, `tracking_sessions`, `tracking_events`, `tracking_identity_links`, `leads`, `lead_events`), lista de edge functions com responsabilidade de cada uma, limites (tamanho de payload, rate-limit), versionamento.
 
-- **R-7. Filas com prioridade**
-  - Coluna `priority` em `email_queue` (`auth=1, transactional=2, campaign=3, drip=4`).
-  - Dispatcher pega ordenado por `priority ASC, scheduled_at ASC`.
-  - Garante que email transacional/auth não fica atrás de campanha de 50k.
+**exemplos/** — snippets prontos copy-paste para casos reais.
 
-- **R-8. `dispatch-campaign` em modo streaming**
-  - Paginar leads (`range(offset, offset+500)`) e enfileirar em background.
-  - Para campanha >5k: marcar `status='enqueuing'`, criar job recursivo de chunk, terminar a request rapidamente.
+## Decisões
 
-- **R-9. Paralelizar `email-automations-tick`**
-  - `Promise.all` por automação (com limite de concorrência ~10).
-  - Cursor por automação já existe; só falta paralelismo.
+- **Idioma:** português (consistente com o produto e com o usuário).
+- **Pasta:** `docs/integracao/` (sem acento no nome para evitar problema de URL/arquivo). O nome bonito "Integração" aparece nos títulos dos `.md`.
+- **Não duplicar conteúdo:** onde já existe doc (`docs/integrations/EXTERNAL_FORMS.md`, `docs/TRACKING.md`, `docs/flows/TRACKING_TO_LEAD.md`), eu **referencio** em vez de copiar — mas a nova pasta é o ponto único de entrada para integradores externos.
+- **Sem código novo no produto.** Só documentação. Nenhum `.ts/.tsx` é tocado.
+- **Atualizar `docs/README.md`** apontando para a nova pasta.
 
-- **R-10. Idempotência via UNIQUE constraint**
-  - Trocar o `SELECT ... maybeSingle()` por `INSERT ON CONFLICT DO NOTHING` em uma tabela `email_send_dedup(clinic_id, template_slug, email, context)` com unique. Elimina race condition + 1 query.
+## Não está escopo
 
-- **R-11. Contador de cota atômico**
-  - Trocar UPSERT por `UPDATE email_send_state SET sent_today = sent_today + 1 WHERE ... RETURNING sent_today`.
-  - Cheque a cota com o valor retornado (sem lock de leitura prévio).
+- Refatoração do código de forms/tracking (proposta separada).
+- Criação de novas edge functions ou endpoints.
+- Tradução para inglês (pode vir depois).
 
-### Tier 2 — Escala e deliverability (próximo mês)
+## Tempo estimado
 
-- **R-12. Warm-up automático de domínio novo**
-  - Tabela `email_domain_warmup_schedule(domain, day, max_sends)` — dispatcher respeita o teto do dia.
-  - Curva 50 → 100 → 500 → 1k → 5k → 10k... ao longo de 2 semanas.
-
-- **R-13. Rate-limit per-domain destinatário**
-  - Limite "X emails / hora para `@gmail.com`" para evitar burst no mesmo provedor (anti-spam).
-  - Implementar via janela em `email_send_state` por domínio dest.
-
-- **R-14. Separar fila por tipo (queue tables)**
-  - Opcional: `email_queue_auth`, `email_queue_campaign`. Workers dedicados. Alternativa a R-7 se prioridade não bastar.
-
-- **R-15. Resend Batch API**
-  - `POST /emails/batch` (até 100 por chamada) — corta 1 HTTP por envio.
-  - Reescrever `send-email` para receber lote opcional.
-
-- **R-16. Bounce/complaint feedback loop em tempo real**
-  - Hoje rate de bounce só aparece em `EmailReports`. Adicionar trigger: se bounce_rate >5% nas últimas N msgs, **pausar campanhas** da clínica automaticamente.
-
-- **R-17. Métricas em tempo real**
-  - View materializada `mv_email_throughput_5min` para dashboard mostrar emails/min.
-  - Alerta se fila pendente >1.000 jobs ou tempo médio em fila >5min.
-
-### Tier 3 — Recursos novos para o cliente grande
-
-- **R-18. Throttling por campanha**
-  - Campo `email_campaigns.send_rate_per_minute` — disparo gradual em vez de tudo de uma vez.
-  - Útil para clínica que quer "100 emails/h" em vez de 10k em 30min.
-
-- **R-19. Segmentação avançada server-side**
-  - Hoje `email_segments.filters` suporta só `tags` + `stage_ids`. Adicionar: `created_at` ranges, `last_message_at`, `score`, custom fields.
-  - RPC `resolve_email_segment` virou single source of truth (bom!), expandir lá.
-
-- **R-20. A/B test de assunto/template**
-  - Tabela `email_campaign_variants` (split 50/50, vencedor pelo open rate em 24h).
-
-- **R-21. Multi-domínio rotativo**
-  - Clínica com vários domínios verificados (`notify1`, `notify2`...) — dispatcher rotaciona para distribuir reputação.
-
----
-
-## Revisão da documentação (entregar junto)
-
-- **`docs/edge-functions/EMAIL.md`** — adicionar seção "Performance & Throughput" com: limites atuais, alvos por tier, índices, configuração de cota.
-- **`docs/flows/EMAIL_CAMPAIGN.md`** — documentar fluxo streaming (R-8) e prioridade (R-7).
-- **`docs/operations/PERFORMANCE.md`** — adicionar SLOs específicos do email:
-  - Auth/transacional p95 <30s da invocação até Resend.
-  - Campanha 10k destinatários: 100% enfileirado em <60s; 100% enviado em <2h.
-  - Drip: latência do trigger até enfileirar <6min (cron de 5min).
-- **`docs/operations/OBSERVABILITY.md`** — métricas a expor: fila pendente, throughput por minuto, bounce rate, complaint rate, jobs em DLQ.
-- **`docs/roadmap/EMAIL.md`** — renomear seção atual para `# Auth Emails` e adicionar nova seção `# Email Marketing — Roadmap de Escala` referenciando este plano.
-- **`docs/CHANGELOG.md`** — entry `2026-05-26: Roadmap de performance de email criado`.
-
----
-
-## Sugestão de priorização para o cliente novo
-
-**Antes de subir o cliente (semana 1):** R-1, R-2, R-3, R-4, R-5, R-7, R-10, R-11.
-→ Salto de **~3k/h → ~50k/h** sem mudar arquitetura, com prioridade garantida pra email transacional.
-
-**Primeiras 4 semanas em produção:** R-6, R-8, R-9, R-15, R-17.
-→ Reduz custo Postgres + suporta múltiplas automações + observabilidade real.
-
-**Conforme volume crescer:** R-12, R-13, R-16, R-18, R-21.
-→ Protege reputação e dá controle fino ao cliente.
-
----
-
-## Próximos passos
-
-Depois que você aprovar este roadmap, posso:
-1. Implementar Tier 0 (R-1 a R-5) imediatamente — é mecânico e seguro.
-2. Atualizar a documentação descrita acima refletindo o estado atual + roadmap.
-3. Abrir as migrações de índices (R-2) e priority (R-7) para revisão.
-
-Diga se quer que eu comece pela **implementação do Tier 0** ou pela **atualização da documentação** primeiro.
+~11 arquivos de documentação. Vou escrever todos em paralelo no momento da execução.
