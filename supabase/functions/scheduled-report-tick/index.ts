@@ -66,6 +66,11 @@ function endOfLocalDayUtc(now: Date, tz: string): Date {
   return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Calcula as métricas do dia usando EXATAMENTE as mesmas consultas dos cards
+ * em /tracking (src/pages/Tracking.tsx). Janela: [sinceIso, untilIso] inclusivo,
+ * casando com o `gte/lte` usado no dashboard.
+ */
 async function computeMetrics(
   supabase: any,
   clinicId: string,
@@ -75,47 +80,61 @@ async function computeMetrics(
 ) {
   const out: Record<string, number> = {};
 
-  // 1) Visitantes únicos — mesma fonte do card em /tracking
-  if (want.unique_visitors !== false) {
-    const { count } = await supabase
+  // 1) Visitantes únicos — tracking_visitors por last_seen_at (mesmo do card).
+  //    Também usamos a lista de visitor_ids para calcular Leads identificados,
+  //    seguindo o linkMap do dashboard (links indexados por visitor_id na janela).
+  let visitorIds: string[] = [];
+  {
+    const { data: vData, count } = await supabase
       .from("tracking_visitors")
-      .select("visitor_id", { count: "exact", head: true })
+      .select("visitor_id", { count: "exact" })
       .eq("clinic_id", clinicId)
       .gte("last_seen_at", sinceIso)
-      .lt("last_seen_at", untilIso);
-    out.unique_visitors = count ?? 0;
+      .lte("last_seen_at", untilIso)
+      .limit(2000);
+    visitorIds = ((vData ?? []) as Array<{ visitor_id: string }>).map((v) => v.visitor_id);
+    if (want.unique_visitors !== false) out.unique_visitors = count ?? visitorIds.length;
   }
 
-  // 2) Cliques no WhatsApp — conta eventos (whatsapp_click + whatsapp_redirect)
+  // 2) Cliques no WhatsApp — eventos whatsapp_click + whatsapp_redirect na janela.
   if (want.whatsapp_clicks !== false) {
     const { count } = await supabase
       .from("tracking_events")
       .select("event_id", { count: "exact", head: true })
       .eq("clinic_id", clinicId)
       .gte("event_time", sinceIso)
-      .lt("event_time", untilIso)
+      .lte("event_time", untilIso)
       .in("event_name", ["whatsapp_click", "whatsapp_redirect"]);
     out.whatsapp_clicks = count ?? 0;
   }
 
-  // 3/4) Leads identificados via tracking — separa formulário x WhatsApp pelo link_source.
+  // 3/4) Leads identificados — mesma lógica do dashboard: pega os links
+  // dos visitantes que aparecem na janela e separa por link_source.
   if (want.form_leads !== false || want.whatsapp_leads !== false) {
-    const { data: links } = await supabase
-      .from("tracking_identity_links")
-      .select("lead_id, link_source, leads!inner(clinic_id)")
-      .eq("leads.clinic_id", clinicId)
-      .gte("linked_at", sinceIso)
-      .lt("linked_at", untilIso)
-      .limit(5000);
-
     const formLeads = new Set<string>();
     const waLeads = new Set<string>();
-    for (const l of (links ?? []) as Array<{ lead_id: string; link_source: string | null }>) {
-      const src = String(l.link_source || "").toLowerCase();
-      const isWa = src.startsWith("whatsapp_") || src === "ctwa_clid" || src === "phone_hash_existing";
-      if (isWa) waLeads.add(l.lead_id);
-      else if (src === "form_submission") formLeads.add(l.lead_id);
+
+    if (visitorIds.length) {
+      const { data: links } = await supabase
+        .from("tracking_identity_links")
+        .select("visitor_id, lead_id, link_source")
+        .in("visitor_id", visitorIds);
+
+      // dedupe por visitor — primeiro link vence (igual ao linkMap do dashboard)
+      const perVisitor: Record<string, { lead_id: string; link_source: string | null }> = {};
+      for (const l of (links ?? []) as Array<{ visitor_id: string; lead_id: string; link_source: string | null }>) {
+        if (!perVisitor[l.visitor_id]) perVisitor[l.visitor_id] = { lead_id: l.lead_id, link_source: l.link_source };
+      }
+
+      for (const { lead_id, link_source } of Object.values(perVisitor)) {
+        const src = String(link_source || "").toLowerCase();
+        // isWhatsappSource() do dashboard + phone_hash_existing (origem WA por telefone).
+        const isWa = src.startsWith("whatsapp_") || src === "ctwa_clid" || src === "phone_hash_existing";
+        if (isWa) waLeads.add(lead_id);
+        else formLeads.add(lead_id);
+      }
     }
+
     if (want.form_leads !== false) out.form_leads = formLeads.size;
     if (want.whatsapp_leads !== false) out.whatsapp_leads = waLeads.size;
   }
