@@ -272,12 +272,30 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               </div>
             </Card>
 
-            <Tabs defaultValue="wp">
+            <Tabs defaultValue="ai">
               <TabsList>
+                <TabsTrigger value="ai">🤖 Prompt para IA (Lovable)</TabsTrigger>
                 <TabsTrigger value="wp">WordPress</TabsTrigger>
                 <TabsTrigger value="lovable">Lovable / HTML</TabsTrigger>
                 <TabsTrigger value="api">API direta</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="ai" className="space-y-3">
+                <Card className="p-4 space-y-3">
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">Prompt completo pra colar no chat do Lovable do site</p>
+                    <p className="text-muted-foreground text-xs">
+                      Copie o texto abaixo e cole no chat do projeto Lovable do site da clínica. Ele já vem com o token, o project_id e todas as instruções de instalação, peculiaridades dos formulários e checklist de validação.
+                    </p>
+                    <div className="relative">
+                      <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono max-h-[480px] whitespace-pre-wrap">{aiPrompt}</pre>
+                      <Button size="sm" className="absolute top-2 right-2" onClick={() => copy(aiPrompt, "Prompt copiado — cole no chat do Lovable do site")}>
+                        <Copy className="h-3 w-3 mr-1" />Copiar tudo
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </TabsContent>
 
               <TabsContent value="wp" className="space-y-3">
                 <Card className="p-4 space-y-3">
