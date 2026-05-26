@@ -1,49 +1,53 @@
-# Diagnóstico — por que apareceu "tudo zero"
+# Fix — WhatsApp redirect `unknown_project` + tracking não grava
 
-Rodei consultas no banco. Os dados **existem**, então tem dois problemas separados:
+## Causa raiz
 
-## Problema 1 — Dashboard mostra 0, mas os eventos chegaram
+O site instalou o pixel passando `?project_id=cf038458-457d-4c1a-9ac4-c88c3c8353a1` (o **UUID** da clínica). As edge functions, porém, fazem o lookup por **slug** (`or`):
 
-A clínica ÓR (`clinicaohrpsiquiatria`) tem eventos sim:
-- Último `page_view` / `session_start`: **25/05 às 19:53 UTC** (ontem)
-- Origem correta: `https://clinicaohrpsiquiatria.com/teste-de-depressao-quiz/`
-
-O dashboard zerado é provavelmente um destes:
-- **Filtro de data** está em "hoje" (26/05) e os testes foram ontem
-- **Clínica selecionada** está errada no seletor (a outra clínica `mkart` não tem nada da ÓR)
-- **Cache** da página
-
-→ Ação: verificar o filtro de período e o seletor de clínica na página `/tracking`. Provavelmente nada para corrigir no código.
-
-## Problema 2 — Formulário PHQ-9 está FALHANDO ao submeter (grave)
-
-As duas submissions mais recentes (12:36 e 12:37 UTC de hoje) entraram com `status=error` e este erro:
-
-```
-function public.enqueue_email(uuid, text, text, text, jsonb,
-  timestamp with time zone, uuid, text, boolean) is not unique
+```ts
+.from("clinics").select(...).eq("slug", projectId)
 ```
 
-Tradução: existem **duas versões sobrepostas** da função `enqueue_email` no banco (mesma assinatura, ou assinaturas que o PostgreSQL não consegue desambiguar). Quando o `forms-ingest` cria o lead, um trigger dispara `enqueue_email` e o Postgres não sabe qual chamar → **a submission morre, o lead não é criado, e nada aparece em "Leads identificados" nem em "Form. tent. envio"**.
+Quando o site clica no WhatsApp, o pixel chama `wa-redirect?p=<UUID>`, a query não acha clínica nenhuma e a função devolve **`unknown_project`** (a tela preta do print).
 
-Por isso o card "Leads identificados" está em 0 mesmo você tendo preenchido o form.
+Mesmo problema afeta:
+- `tracking-event` (POST do pixel a cada page_view/click) → eventos descartados silenciosamente, por isso o banco está zerado mesmo com pixel instalado
+- `tracking-identify`
+- `tracking-config` (não trava porque devolve defaults, mas sem achar clínica)
 
-## O que pretendo fazer (após você aprovar)
+`forms-ingest` funciona porque ele usa **token** (mkf_…), não project_id.
 
-1. **Listar as versões duplicadas** de `public.enqueue_email` (`SELECT … FROM pg_proc`).
-2. **Dropar a versão antiga/errada** via migration, deixando só a assinatura usada pelos triggers atuais.
-3. **Reprocessar** ou pelo menos confirmar que novas submissions passam: subo uma nova submission de teste via `curl` na edge `forms-ingest` e confirmo `status=ok` + `lead_id` preenchido.
-4. **Verificar a Tracking page**: confirmar que filtro de período padrão é "últimos 7 dias" (não "hoje"). Se estiver em "hoje", ajustar default para 7 dias para você não pensar de novo que está zerado.
+## Fix — aceitar UUID OU slug nas 5 functions
 
-## Detalhes técnicos
+Trocar:
+```ts
+.eq("slug", projectId)
+```
+por:
+```ts
+const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+.or(isUuid ? `id.eq.${projectId},slug.eq.${projectId}` : `slug.eq.${projectId}`)
+```
 
-- Tabela afetada: `form_submissions` (linhas com `status='error'`)
-- Função afetada: `public.enqueue_email(...)` — duplicada
-- Causa provável: uma migration antiga adicionou um overload e a nova não removeu o anterior
-- Risco do fix: baixo. Vou inspecionar os dois corpos antes de dropar — se forem idênticos, drop direto; se diferentes, mantenho o que os triggers atuais usam
-- Não toco em código do site (`mindscape-revive`) — o problema é 100% no backend do CRM
+Arquivos:
+- `supabase/functions/wa-redirect/index.ts` (linha 57) — destrava o WhatsApp
+- `supabase/functions/tracking-event/index.ts` (linha 210) — destrava ingest de eventos
+- `supabase/functions/tracking-identify/index.ts` (linha 101)
+- `supabase/functions/tracking-config/index.ts` (linha 34)
+- `supabase/functions/tracking-pixel/index.ts` — atualizar comentário/doc só (não muda lookup)
 
-## O que NÃO vou fazer agora
+Sem migration. Sem mudança de schema. Só edge functions.
 
-- Não vou mexer no roadmap de telefone E.164 (continua pausado conforme você decidiu)
-- Não vou adicionar `tel:`/`mailto:` tracking ainda — fica pra depois desse fix
+## Validação pós-deploy
+
+1. `curl -I ".../wa-redirect?p=cf038458-...&to=5511999999999"` → deve retornar 302 com `Location: https://wa.me/...?text=...mk_src=...` (não mais `unknown_project`)
+2. Usuário clica no botão WhatsApp do site → abre o WhatsApp normalmente
+3. `SELECT * FROM tracking_events WHERE clinic_id='cf038458-...' AND created_at > now() - interval '5 min'` → deve aparecer `session_start` + `page_view` no próximo refresh do site
+4. `SELECT * FROM whatsapp_intents WHERE clinic_id='cf038458-...' ORDER BY created_at DESC LIMIT 3` → deve registrar o clique
+
+## Alternativa que NÃO vou seguir
+
+Pedir pro site trocar `project_id=<UUID>` por `project_id=or` (slug). Funcionaria, mas:
+- O site já está em produção com UUID e o `tracking-config` deu OK pra eles
+- Outras clínicas no futuro podem cair no mesmo problema
+- Aceitar os dois formatos é mais robusto e backward-compatible
