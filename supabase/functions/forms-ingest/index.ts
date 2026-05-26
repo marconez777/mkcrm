@@ -173,7 +173,27 @@ Deno.serve(async (req) => {
         if (phone && (!existing.phone || existing.phone.startsWith("email:"))) patch.phone = phone;
         if (Object.keys(patch).length) await supabase.from("leads").update(patch).eq("id", leadId!);
       } else {
-        const stageId = def?.default_pipeline_stage_id || integration.default_pipeline_stage_id || null;
+        let stageId: string | null =
+          def?.default_pipeline_stage_id || integration.default_pipeline_stage_id || null;
+        // Fallback: stage inicial do pipeline de sistema "Formulário Site"
+        if (!stageId) {
+          const { data: sysPipe } = await supabase
+            .from("pipelines")
+            .select("id")
+            .eq("clinic_id", integration.clinic_id)
+            .eq("system_key", "forms_site")
+            .maybeSingle();
+          if (sysPipe?.id) {
+            const { data: firstStage } = await supabase
+              .from("pipeline_stages")
+              .select("id")
+              .eq("pipeline_id", sysPipe.id)
+              .order("position", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            stageId = firstStage?.id ?? null;
+          }
+        }
         const tags = [...new Set([...(integration.default_tags || []), ...((def?.default_tags as string[]) || [])])];
         const { data: created, error: insErr } = await supabase.from("leads").insert({
           clinic_id: integration.clinic_id,
@@ -189,6 +209,28 @@ Deno.serve(async (req) => {
         if (insErr) throw insErr;
         leadId = created!.id;
         isNew = true;
+      }
+
+      // Inscrever em listas de e-mail (sistema "Leads Site" + override por formulário)
+      if (email && leadId) {
+        const segmentIds: string[] = [];
+        const { data: sysSeg } = await supabase
+          .from("email_segments")
+          .select("id")
+          .eq("clinic_id", integration.clinic_id)
+          .eq("system_key", "leads_site")
+          .maybeSingle();
+        if (sysSeg?.id) segmentIds.push(sysSeg.id);
+        if (def?.default_email_segment_id) segmentIds.push(def.default_email_segment_id);
+        for (const segId of [...new Set(segmentIds)]) {
+          await supabase.from("email_segment_contacts").upsert({
+            clinic_id: integration.clinic_id,
+            segment_id: segId,
+            email,
+            name,
+            lead_id: leadId,
+          }, { onConflict: "segment_id,email", ignoreDuplicates: true });
+        }
       }
 
       // Link visitor → lead
