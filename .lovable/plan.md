@@ -1,82 +1,50 @@
-# Unificar Tracking + Formulários em "Integração do Site"
+# Adicionar Seção 0 (Inventário) ao prompt para IA
 
-Hoje temos duas portas de entrada para o mesmo SDK (pixel + forms-snippet), e isso é o que vem causando confusão na instalação. Vamos consolidar tudo num único ponto de configuração, com **um prompt único** pra colar no chat do Lovable do site da clínica.
+Pequena adição cirúrgica ao `buildAiPrompt` em `src/pages/SettingsForms.tsx`. Nenhum outro arquivo é tocado.
 
-## Resultado final pro usuário
+## O que muda
 
-- **Um item de menu**: `Configurações → Integração do Site` (substitui "Formulários").
-- **Uma tela** por integração, com 4 abas:
-  1. **Instalação** (default) — credenciais + snippets + **Prompt único para IA**.
-  2. **Formulários** — lista de `form_definitions` detectadas.
-  3. **Envios** — `form_submissions` recebidos.
-  4. **Tráfego** — atalho/resumo apontando pra página `/tracking` (visitantes, eventos, whatsapp_intents) com o filtro já aplicado a esta integração.
-- **Um prompt** que instala pixel **e** snippet juntos, na ordem correta, com bridge manual, checklist de validação e tabela de troubleshooting cobrindo as duas frentes.
+Inserir uma nova **Seção 0 — Inventário obrigatório** logo após o cabeçalho do prompt e **antes** da Seção 1 (Instalar os scripts). Renumerar as seções existentes (1→ continua 1, mas com nota explícita de "só execute depois do inventário").
 
-## Mudanças
+## Conteúdo da Seção 0
 
-### 1. Renomear e re-rotular
+Texto que instrui a IA do site a, **antes de tocar em qualquer coisa**:
 
-- `src/pages/SettingsForms.tsx` → `src/pages/SettingsIntegration.tsx` (arquivo renomeado, conteúdo reaproveitado).
-- Rota: manter `/settings/forms` como redirect → `/settings/integration` (não quebrar links antigos). Adicionar `/settings/integration` em `src/App.tsx`.
-- `src/pages/Settings.tsx` (linha 198, 345-357): trocar label "Formulários" por "Integração do Site", subtítulo "Pixel de rastreamento + captura de formulários em um único SDK", botão "Abrir" → `/settings/integration`.
-- Sidebar/qualquer link "Formulários" → "Integração do Site".
+1. **Listar todos os `<script>` no `<head>`** que mencionem: `tracking-pixel`, `forms-snippet`, `MKForms`, `mkcrm`, `supabase.co/functions/v1`.
+2. **Listar todos os `<form>`** do projeto e classificar cada um:
+   - `onSubmit` nativo + `<button type="submit">` → snippet captura sozinho.
+   - `fetch` custom / `<button type="button">` → precisa de `window.MKForms.send(formRef)` manual.
+   - Já tem chamada manual a `MKForms.send` → marcar para revisão (risco de duplicação).
+3. **Listar qualquer código de tracking caseiro** que dispare requests para URLs de CRM/analytics antigas (concorre com o pixel oficial).
+4. **Apresentar o inventário ao usuário e aguardar OK** antes de aplicar mudanças.
 
-### 2. Reforçar o `buildAiPrompt` (única mudança de conteúdo relevante)
+## Regras de decisão (incluídas na seção)
 
-Atualizar o gerador pra deixar explícito que pixel e snippet são **uma coisa só**:
+Tabela curta orientando a IA sobre cada caso:
 
-- Bloco único `<!-- MK CRM: Integração do Site (pixel + forms) -->` com os dois `<script>` na ordem **pixel primeiro, snippet depois** (snippet depende dos cookies `_mk_vid`/`_mk_sid` do pixel — documentar isso como nota de causalidade).
-- Seção "Por que a ordem importa" curtinha explicando a dependência de cookie.
-- Tabela de troubleshooting unificada:
-  - Sem eventos chegando → pixel ausente / project_id errado.
-  - Eventos chegando mas submit não → snippet ausente OU formulário sem `name` nos inputs OU custom fetch sem bridge `window.MKForms.send()`.
-  - Submit chega mas sem visitor_id → pixel carregando depois do snippet (ordem invertida).
-- Checklist de validação dividido em 2 colunas: "Tracking OK?" e "Forms OK?".
+| Achado | Ação |
+|---|---|
+| Pixel já existe com `project_id` correto | Manter, não duplicar |
+| Pixel existe com `project_id` diferente | Substituir pelo correto |
+| Snippet já existe com token correto | Manter |
+| Snippet existe com token diferente / antigo | Substituir |
+| Pixel **depois** do snippet no HTML | Reordenar (pixel primeiro) |
+| Form com `onSubmit` nativo + `MKForms.send` manual | Remover a chamada manual (duplicaria) |
+| Form com `fetch` custom **sem** `MKForms.send` | Adicionar a chamada manual |
+| Tracking caseiro / dataLayer antigo apontando pra outro CRM | Remover |
 
-### 3. Aba "Tráfego" (nova, leve)
+## Aviso sobre cookies
 
-Card simples na 4ª aba com:
-- Total de visitantes nas últimas 24h / 7d (query em `tracking_visitors` filtrando pelo `clinic_id` da integração).
-- Total de `whatsapp_intents` no período.
-- Botão "Abrir painel completo" → `/tracking`.
+Curta nota explicando: **não limpar `_mk_vid` / `_mk_sid`** dos visitantes. Esses cookies preservam o histórico de jornada — apagá-los faz o site tratar visitantes recorrentes como novos.
 
-Sem duplicar a tabela inteira do `/tracking` — só resumo + atalho.
+## Detalhe técnico
 
-### 4. Esconder/aposentar a entrada antiga de "Rastreamento"
-
-`src/pages/Settings.tsx` linha 45 (`showTracking = false`) — manter desligado e remover o `TabsTrigger`/`TabsContent` ligados a ele (código morto) já que a função foi absorvida pela nova tela.
-
-### 5. Documentação inline
-
-Adicionar no topo da aba "Instalação" um callout curto:
-> "Pixel + Formulários são instalados juntos. Cole o prompt abaixo no chat do Lovable do site da clínica — ele cuida da ordem, do bridge para forms customizados e do checklist de validação."
-
-## Não-mudanças (importante)
-
-- **Nenhuma alteração em edge functions** (`tracking-*`, `forms-ingest`, `forms-snippet`, `forms-admin`).
-- **Nenhuma migration** — usamos as tabelas e colunas já existentes.
-- **Token e clinic_id continuam os mesmos** — é o mesmo SDK, mesma credencial.
-
-## Detalhes técnicos
-
-**Arquivos tocados:**
-- `src/pages/SettingsIntegration.tsx` (renomeado de `SettingsForms.tsx`, ~10 linhas de copy alteradas + nova aba "Tráfego" ~60 linhas)
-- `src/pages/Settings.tsx` (labels + remover bloco `showTracking` morto, ~15 linhas)
-- `src/App.tsx` (1 rota nova + 1 redirect, ~3 linhas)
-- `src/components/AppSidebar.tsx` se houver link "Formulários" (label)
-
-**Função `buildAiPrompt` reescrita** dentro do mesmo arquivo, mantendo a mesma assinatura — só muda o markdown gerado.
-
-**Queries da aba Tráfego:**
-```ts
-supabase.from("tracking_visitors").select("id", { count: "exact", head: true })
-  .eq("clinic_id", data.clinic_id).gte("first_seen_at", since)
-supabase.from("whatsapp_intents").select("id", { count: "exact", head: true })
-  .eq("clinic_id", data.clinic_id).gte("created_at", since)
-```
+- Arquivo: `src/pages/SettingsForms.tsx`
+- Função: `buildAiPrompt` (linhas ~511-669)
+- Inserir bloco Markdown novo entre o parágrafo introdutório e a "## 1. Instalar os 2 scripts"
+- Renumeração: nenhum identificador externo depende dos números das seções, então não há side-effects.
 
 ## Fora de escopo
 
-- Reescrever a página `/tracking` em si (continua acessível como painel completo).
-- Mudar o fluxo de criação de integração (continua igual: nome + domínios).
-- Qualquer mudança no contrato dos snippets/edge functions.
+- Não muda nada além do texto do prompt.
+- Não toca edge functions, schema, rotas ou UI.
