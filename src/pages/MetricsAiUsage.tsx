@@ -44,7 +44,8 @@ export default function MetricsAiUsage() {
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const allowed = isSuperAdmin || isClinicAdmin;
 
-  const [range, setRange] = useState(RANGES[2]);
+  const [fromDate, setFromDate] = useState(() => toDateInput(new Date(Date.now() - 29 * 86400_000)));
+  const [toDate, setToDate] = useState(() => toDateInput(new Date()));
   const [rows, setRows] = useState<Row[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [agents, setAgents] = useState<Record<string, string>>({});
