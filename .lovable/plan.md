@@ -1,26 +1,45 @@
-## Contexto
+# Unificar gestão de contatos na aba "Contatos"
 
-O domínio `clinicaohrpsiquiatria.com` já está configurado na conta Resend da Clínica OR (domínio verificado + webhook criado). Só precisamos atualizar as credenciais no projeto.
+## Objetivo
 
-A boa notícia: o `from_email` dos emails é configurado **por template** no banco (campo `from_email` em cada template), não está hardcoded. Então não precisa mexer em código nenhum — só nas secrets e nos templates existentes.
+Eliminar a redundância entre "adicionar contato dentro do modal de segmento" e "aba Contatos". Toda criação/edição de contato passa a ser feita **só na aba Contatos**. O segmento estático vira uma **lista que aponta para contatos já existentes** (multi-select).
 
-## Passos
+## Mudanças
 
-### 1. Atualizar as 2 secrets
-- `RESEND_API_KEY` → nova API key da conta Clínica OR
-- `RESEND_WEBHOOK_SECRET` → signing secret do novo webhook
+### 1. Modal de Segmento (`EmailSegments.tsx`)
 
-### 2. Redeploy dos edge functions que usam essas secrets
-- `send-email` (usa RESEND_API_KEY)
-- `resend-webhook` (usa RESEND_WEBHOOK_SECRET)
-- `dispatch-campaign` (chama send-email)
+- **Remover** o bloco "Contatos manuais" (input de e-mail/nome + botão Adicionar + lista com remover).
+- **Substituir** por um seletor multi-select de contatos da clínica (carregado de `email_segment_contacts` onde `segment_id IS NULL`), com busca por nome/e-mail.
+- O salvar do segmento estático passa a:
+  - Apagar todos os vínculos antigos (`DELETE … WHERE segment_id = X`)
+  - Inserir um vínculo novo para cada contato selecionado, copiando `email`, `name` e `lead_id` do contato original, com `segment_id` preenchido.
+- Manter o toggle Dinâmico/Estático e o preview ao vivo.
+- Adicionar link "Gerenciar contatos" que leva para `/email/contacts`, caso a lista esteja vazia.
 
-### 3. Atualizar templates existentes
-Você precisa editar cada template em `/email/templates` e mudar o campo **From Email** de `...@mkart.com.br` para `...@clinicaohrpsiquiatria.com` (ex: `noreply@clinicaohrpsiquiatria.com`). Senão o envio falha porque o domínio não existe na conta Resend nova.
+### 2. Aba Contatos (`EmailContacts.tsx`)
 
-### 4. Limpar referência antiga (opcional)
-Em `supabase/functions/clinic-invite/index.ts` linha 59 ainda existe `https://crm.mkart.com.br/invite/...`. Isso é só o link de convite (não envio de email) — posso trocar para o domínio do app novo se quiser, ou deixar.
+- Continua sendo a única tela onde se **cria, edita e remove** contatos.
+- Sem mudanças funcionais necessárias além de garantir que novos contatos sejam salvos com `segment_id = NULL` (já é o comportamento).
 
-## O que preciso de você
+### 3. Limpeza de dados
 
-Confirme o plano e me peça para pedir as secrets. Aí abro o formulário seguro para você colar a `RESEND_API_KEY` e a `RESEND_WEBHOOK_SECRET` novas.
+Como você escolheu "apagar tudo e começar do zero":
+- Apagar todos os registros de `email_segment_contacts` onde `segment_id IS NOT NULL` (vínculos a segmentos estáticos antigos).
+- Manter intactos os contatos gerais (`segment_id IS NULL`).
+- Segmentos estáticos existentes ficam vazios até o usuário re-popular via novo seletor.
+
+### 4. Sem mudança de schema
+
+A tabela `email_segment_contacts` já suporta os dois modos (com e sem `segment_id`). O dispatcher (`dispatch-campaign`) e o `resolve_email_segment` já lidam corretamente — nenhuma migration estrutural necessária.
+
+## Detalhes técnicos
+
+- Arquivo principal: `src/pages/email/EmailSegments.tsx` (linhas 140-290 da função de modal/save/addContact/removeContact)
+- Componente novo: seletor multi-select com busca (pode usar `Command` + `Popover` do shadcn já em uso no projeto)
+- Operação de dados: 1 `DELETE` + 1 `INSERT` por save de segmento estático
+
+## Fora de escopo
+
+- Tags em contatos (descartado na resposta anterior)
+- Mudanças no dispatcher de campanhas
+- Mudanças na aba Contatos além de garantir o padrão atual
