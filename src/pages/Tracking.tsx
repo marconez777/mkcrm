@@ -422,6 +422,11 @@ export default function Tracking() {
         if (!link?.leads?.stage_id || link.leads.stage_id !== stageFilter) return false;
       }
       return true;
+    }).sort((a, b) => {
+      // Sempre mais recente → mais antigo (pela coluna "Data" exibida = first_seen_at)
+      const ta = new Date(a.first_seen_at).getTime() || 0;
+      const tb = new Date(b.first_seen_at).getTime() || 0;
+      return tb - ta;
     });
   }, [visitors, vFlags, links, onlyAnon, onlyLeads, onlyWhatsapp, onlyForm, stageFilter]);
 
