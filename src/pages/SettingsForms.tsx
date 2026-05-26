@@ -263,6 +263,12 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 
 
           <TabsContent value="install" className="space-y-4">
+            <Card className="p-4 bg-primary/5 border-primary/20">
+              <p className="text-sm">
+                <strong>Pixel + Formulários são instalados juntos.</strong> Cole o <strong>Prompt para IA</strong> abaixo no chat do Lovable do site da clínica — ele cuida da ordem dos scripts, do bridge para formulários customizados e do checklist de validação. Se o site não usa Lovable, os blocos WordPress / HTML / API direta continuam disponíveis nas outras abas.
+              </p>
+            </Card>
+
             <Card className="p-4 space-y-3">
               <div>
                 <Label>Token da integração</Label>
