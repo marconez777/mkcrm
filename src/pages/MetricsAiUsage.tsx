@@ -269,16 +269,23 @@ export default function MetricsAiUsage() {
             <p className="text-xs text-muted-foreground">Histórico detalhado de chamadas para a API de IA. Visível somente para administradores.</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex gap-1 rounded-md border p-1 text-xs">
-              {RANGES.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => setRange(r)}
-                  className={`rounded px-3 py-1 ${range.id === r.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                >
-                  {r.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-1 text-xs">
+              <Input
+                type="date"
+                className="h-8 w-[140px]"
+                value={fromDate}
+                max={toDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+              <span className="text-muted-foreground">até</span>
+              <Input
+                type="date"
+                className="h-8 w-[140px]"
+                value={toDate}
+                min={fromDate}
+                max={toDateInput(new Date())}
+                onChange={(e) => setToDate(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="sm" onClick={load} disabled={loadingRows}>
               <RefreshCw className={`h-3.5 w-3.5 ${loadingRows ? "animate-spin" : ""}`} />
