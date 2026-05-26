@@ -16,8 +16,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail } from "lucide-react";
+import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail, Check, Search } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { Link } from "react-router-dom";
 
 type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign" | "created_at_range";
 type BaseRule = { negate?: boolean };
