@@ -1,16 +1,10 @@
 // Cron tick: processes due message_sequence_enrollments.
 // Runs every minute via pg_cron.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { renderTemplate } from "../_shared/template-vars.ts";
 
-function renderVars(text: string, lead: any): string {
-  const name = lead?.name || lead?.phone || "";
-  const first = String(name).split(" ")[0] || "";
-  return text
-    .split("{{nome}}").join(name)
-    .split("{{primeiro_nome}}").join(first)
-    .split("{{telefone}}").join(lead?.phone ?? "")
-    .split("{{email}}").join(lead?.email ?? "")
-    .split("{{empresa}}").join(lead?.company ?? "");
+function renderVars(text: string, lead: any, defs: any[]): string {
+  return renderTemplate(text, lead ?? {}, defs ?? []);
 }
 
 function inSendWindow(window: any): boolean {
