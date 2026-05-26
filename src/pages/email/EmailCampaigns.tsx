@@ -47,6 +47,7 @@ type Campaign = {
   test_email: string | null;
   test_sent_at: string | null;
   created_at: string;
+  from_name_override: string | null;
 };
 type Tpl = { id: string; slug: string; name: string };
 type Segment = { id: string; name: string };
