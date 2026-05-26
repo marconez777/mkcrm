@@ -463,7 +463,7 @@ function QuickRepliesCard() {
     <Card className="space-y-4 p-6">
       <div>
         <h2 className="flex items-center gap-2 text-base font-semibold"><Zap className="h-4 w-4" />Respostas rápidas</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Use no chat digitando <code className="rounded bg-muted px-1">/atalho</code>. Variáveis: <code className="rounded bg-muted px-1">{`{{nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{telefone}}`}</code>.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Use no chat digitando <code className="rounded bg-muted px-1">/atalho</code>. Variáveis: <code className="rounded bg-muted px-1">{`{{nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{telefone}}`}</code>, <code className="rounded bg-muted px-1">{`{{campo.<chave>}}`}</code> (ex.: <code className="rounded bg-muted px-1">{`{{campo.data_horario:data}}`}</code>).</p>
       </div>
 
       <div className="grid grid-cols-[1fr_2fr_auto] gap-2">
