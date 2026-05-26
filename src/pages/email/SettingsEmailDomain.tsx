@@ -143,6 +143,7 @@ export default function SettingsEmailDomain() {
           </Card>
         </div>
       )}
+      </div>
     </div>
   );
 }
