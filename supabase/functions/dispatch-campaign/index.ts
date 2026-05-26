@@ -188,6 +188,7 @@ Deno.serve(async (req) => {
         related_lead_table: relatedTable,
         force_send: false,
         from_name_override: fromOverride,
+        priority: 5, // R-7: campanha = padrão; auth/transacional fica à frente
         status: "pending",
       }));
       const { data: inserted, error: insErr } = await supabase
