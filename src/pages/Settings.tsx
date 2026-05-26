@@ -195,8 +195,7 @@ export default function SettingsPage() {
             <TabsTrigger value="connection">WhatsApp</TabsTrigger>
             {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
             <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
-            <TabsTrigger value="forms">Formulários</TabsTrigger>
-            {showTracking && <TabsTrigger value="tracking">Rastreamento</TabsTrigger>}
+            <TabsTrigger value="forms">Integração do Site</TabsTrigger>
             {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
           </TabsList>
