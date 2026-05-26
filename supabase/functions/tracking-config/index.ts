@@ -28,11 +28,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const { data } = await supabase
-    .from("clinics")
-    .select("settings")
-    .eq("slug", projectId)
-    .maybeSingle();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+  const clinicQuery = supabase.from("clinics").select("settings");
+  const { data } = await (isUuid
+    ? clinicQuery.or(`id.eq.${projectId},slug.eq.${projectId}`)
+    : clinicQuery.eq("slug", projectId)
+  ).maybeSingle();
 
   const t = (data?.settings as any)?.tracking || {};
   return new Response(

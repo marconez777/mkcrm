@@ -97,8 +97,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: clinic } = await supabase
-    .from("clinics").select("id, settings").eq("slug", project_id).maybeSingle();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(project_id);
+  const clinicQuery = supabase.from("clinics").select("id, settings");
+  const { data: clinic } = await (isUuid
+    ? clinicQuery.or(`id.eq.${project_id},slug.eq.${project_id}`)
+    : clinicQuery.eq("slug", project_id)
+  ).maybeSingle();
   if (!clinic) {
     return new Response(JSON.stringify({ error: "unknown_project" }), {
       status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
