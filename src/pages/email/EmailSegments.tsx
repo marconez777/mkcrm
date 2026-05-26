@@ -96,10 +96,10 @@ export default function EmailSegments() {
   const [active, setActive] = useState(true);
   const [clinicId, setClinicId] = useState<string | null>(null);
 
-  // Contatos manuais (estático ou inclusões extras)
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [newContactName, setNewContactName] = useState("");
-  const [newContactEmail, setNewContactEmail] = useState("");
+  // Contatos da clínica (multi-select para segmentos estáticos)
+  const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [contactSearch, setContactSearch] = useState("");
 
   // Preview
   const [previewCount, setPreviewCount] = useState<number | null>(null);
