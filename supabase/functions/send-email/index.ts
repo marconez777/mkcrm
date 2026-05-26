@@ -124,10 +124,15 @@ Deno.serve(async (req) => {
     }
 
     // 1.1 Domínio remetente precisa estar verificado (cache 60s)
-    const fromDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    // R-21: se from_domain_override veio do dispatcher (multi-domain rotation),
+    // valida e usa o override para warmup/throttle.
+    const tplDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    const overrideDomain = typeof from_domain_override === "string" ? from_domain_override.trim().toLowerCase() : "";
+    const fromDomain = overrideDomain || tplDomain;
     if (!fromDomain) {
       return jsonResponse({ error: "invalid from_email in template" }, { status: 400 });
     }
+
     const domKey = `${clinic_id}:${fromDomain}`;
     let dom: any = getCached(domCache, domKey);
     if (!dom) {
