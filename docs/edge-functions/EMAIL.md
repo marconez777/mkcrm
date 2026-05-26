@@ -426,3 +426,29 @@ Edge functions exigem:
 - Domain creation está restrita a super admin via `/admin`; não há self-serve para clínicas (intencional para evitar custo de verificação).
 - Não há A/B test nativo de subject (campo `subject` é único por template).
 - O contador `email_send_state` é por clínica; não há cota global de plataforma.
+
+> **Roadmap de escala/performance:** ver `docs/roadmap/EMAIL_SCALE.md` para o plano detalhado (R-1 a R-21 em 4 tiers) antes de subir clientes de alto volume.
+
+---
+
+## 11. Performance & throughput (estado atual)
+
+> Estes são os **limites observados hoje**. Plano para superá-los em `docs/roadmap/EMAIL_SCALE.md`.
+
+| Item | Valor atual | Onde mexer |
+|---|---|---|
+| Cron `process-email-queue` | 1 min | `pg_cron` job |
+| Batch size por execução | 50 | `BATCH_SIZE` em `process-email-queue/index.ts` |
+| Concorrência por batch | 5 | `CONCURRENCY` em `process-email-queue/index.ts` |
+| Reaper de jobs travados | 10 min | `STALE_PROCESSING_MIN` |
+| Max attempts antes de `failed` | 3 | `MAX_ATTEMPTS` |
+| Backoff de retry | 1min → 5min → 30min | `process-email-queue/index.ts` |
+| Reagendamento por cota | 12:00 UTC dia+1 (~9h BRT) | `send-email/index.ts` §4 |
+| Chunk de enqueue em `dispatch-campaign` | 20 RPCs paralelos | `dispatch-campaign/index.ts` |
+| Limit de leads carregados por campanha | 10.000 | `dispatch-campaign/index.ts` |
+| Cron `email-automations-tick` | 5 min | `pg_cron` job |
+| Cota diária default por clínica | 1.000 | RPC `clinic_email_quota` |
+
+**Teto prático hoje:** ~50 emails/min ≈ **3.000/h** por instância. Suficiente para clínicas pequenas/médias; **insuficiente** para cliente de alto volume — ver roadmap de escala.
+
+**Sem priorização:** campanha massiva, drip e transacional competem na mesma fila ordenada apenas por `scheduled_at`. Email transacional pode esperar atrás de uma campanha de 50k. Endereçado por R-7.

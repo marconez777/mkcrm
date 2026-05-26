@@ -1,4 +1,4 @@
-> ⚠️ **Escopo:** este arquivo trata apenas dos **emails de autenticação** (reset de senha, confirmação de cadastro, magic link). Para o módulo de **email marketing** (campanhas, automações, templates) ver `docs/edge-functions/EMAIL.md` e `docs/flows/EMAIL_CAMPAIGN.md`.
+> ⚠️ **Escopo:** este arquivo trata apenas dos **emails de autenticação** (reset de senha, confirmação de cadastro, magic link). Para o módulo de **email marketing** (campanhas, automações, templates) ver `docs/edge-functions/EMAIL.md` e `docs/flows/EMAIL_CAMPAIGN.md`. Para o **roadmap de performance/escala** do módulo de marketing ver `docs/roadmap/EMAIL_SCALE.md`.
 >
 > Última atualização: 2026-05-26.
 
