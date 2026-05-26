@@ -100,6 +100,7 @@ export default function EmailCampaigns() {
         template_slug: editing.template_slug,
         segment_id: editing.segment_id,
         test_email: editing.test_email,
+        from_name_override: editing.from_name_override?.trim() || null,
         scheduled_for: scheduleDate ? new Date(scheduleDate).toISOString() : null,
         status: scheduleDate ? "scheduled" : "draft",
       };
