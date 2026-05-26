@@ -372,7 +372,7 @@ export default function Sequences() {
                         onChange={(e) => updateStep(s.id, { content: e.target.value })}
                         placeholder="Olá {{primeiro_nome}}, tudo bem?" />
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}.
+                        Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}, {"{{campo.<chave>}}"} (ex.: {"{{campo.data_horario:data}}"}, {"{{campo.data_horario:hora}}"}).
                       </p>
                     </div>
                   </Card>

@@ -1,33 +1,56 @@
-## Diagnóstico
+## Objetivo
 
-O erro `NotFoundError: Failed to execute 'removeChild' on 'Node'` que derruba a tela é um sintoma clássico do **Google Tradutor do Chrome** traduzindo a página em tempo real. Quando ele substitui nós de texto, o React perde a referência ao DOM original e qualquer próxima atualização (clique, abrir drawer, mudar de aba) quebra com esse erro e renderiza tela branca.
+Permitir usar campos personalizados do lead (incluindo o campo "Data e horário" — `data_horario`) como variáveis nos templates e mensagens automáticas, para que o lembrete de consulta possa dizer, por exemplo, "sua consulta no dia 19/05/2024 às 10:30".
 
-Por que afeta a clínica Sanapta e não outras: o `index.html` está com `<html lang="en">`, mas o conteúdo é todo em português. O Chrome desses usuários está configurado para traduzir automaticamente páginas em "outro idioma" — então traduz tudo e quebra. Em contas cujos usuários têm o tradutor desligado, não acontece.
+## Como vai funcionar
 
-Os 403 nas URLs `pps.whatsapp.net/...n.jpg` são separados (avatares do WhatsApp expirados / bloqueio de cookies de terceiros) e **não** causam a tela branca — apenas mostram um avatar quebrado. Trato à parte.
+Hoje os templates aceitam apenas `{{nome}}`, `{{primeiro_nome}}`, `{{telefone}}`, `{{email}}` e `{{empresa}}`. Vou adicionar suporte universal a **qualquer campo personalizado** usando o `field_key` configurado em Configurações → Campos personalizados:
 
-## Correção (UI / HTML apenas)
+- `{{campo.data_horario}}` → 19/05/2024 10:30
+- `{{campo.data_horario:data}}` → 19/05/2024
+- `{{campo.data_horario:hora}}` → 10:30
+- `{{campo.data_horario:dia_semana}}` → segunda-feira
+- `{{campo.data_horario:extenso}}` → 19 de maio de 2024 às 10:30
+- `{{campo.<qualquer_outro_field_key>}}` → valor cru do campo (texto, número, select, etc.)
 
-### 1. `index.html` — bloquear tradução automática
-- Trocar `<html lang="en">` por `<html lang="pt-BR" translate="no">`.
-- Adicionar no `<head>`:
-  - `<meta name="google" content="notranslate" />`
-  - `<meta http-equiv="Content-Language" content="pt-BR" />`
-- Adicionar `class="notranslate"` no `<body>` como reforço.
+Funciona em qualquer campo personalizado, não só nos de data, então também resolve `{{campo.interesse}}`, `{{campo.procedimentos}}`, etc.
 
-Isso instrui o Chrome (e outros navegadores) a **não** traduzir a página, eliminando a causa raiz do `removeChild` em todas as contas.
+Formatação:
+- `date` → `dd/MM/yyyy`
+- `datetime` → `dd/MM/yyyy HH:mm` (timezone America/Sao_Paulo)
+- demais tipos → string
+- Quando o campo está vazio, a variável é substituída por string vazia (sem deixar `{{...}}` no texto enviado).
 
-### 2. Avatares do WhatsApp 403 (pequeno polimento, opcional dentro do mesmo fix)
-- Em `src/components/inbox/ConversationList.tsx` / `ChatPane.tsx` / onde o avatar é renderizado, adicionar `onError` no `<img>` que faz fallback para as iniciais já existentes, evitando o ícone quebrado no console quando a URL do WhatsApp expira.
-- Não mexer no `useWaAvatar` nem na edge `fetch-wa-avatar`.
+## Onde aplicar
 
-## Como validar
+Mesmo motor de substituição em quatro lugares:
 
-1. Abrir a conta da Sanapta no Chrome com tradutor ativo.
-2. Confirmar que o ícone de "traduzir" não aparece mais e nenhuma ação derruba a tela.
-3. Conferir o console — sem `NotFoundError: removeChild`.
+1. **Frontend — atalhos do chat** (`src/hooks/useQuickReplies.ts` → função `applyVariables`): expandir para resolver `{{campo.*}}` lendo `leads.custom_fields` do lead atual.
+2. **Edge function `automations-tick`** (`send_template`, linhas ~206-218): trocar o `.split().join()` por uma função `renderTemplate(content, lead, customFieldDefs)` que carrega `custom_fields` + `lead_custom_fields` (para saber o `field_type`) e formata.
+3. **Edge function `sequence-tick`** (`renderVars` no topo do arquivo): mesma extensão.
+4. **`ai-chat`** (já lê `lead_custom_fields`) — sem alteração funcional, segue como está.
+
+Para evitar duplicação, criar `supabase/functions/_shared/template-vars.ts` com a função `renderTemplate(text, { lead, customFieldDefs })` e usar em ambas as edge functions. No frontend, criar `src/lib/template-vars.ts` com a mesma lógica (carrega definições via hook quando necessário).
+
+## UI — chips de variáveis
+
+Adicionar nos chips abaixo do conteúdo:
+
+- **`src/pages/Templates.tsx`** — buscar `lead_custom_fields` (todos) e renderizar um chip para cada um, agrupados depois dos chips fixos. Para campos `date`/`datetime`, gerar três chips: `{{campo.<key>}}`, `{{campo.<key>:data}}`, `{{campo.<key>:hora}}`.
+- **`src/pages/Sequences.tsx`** — mesma lista de chips/hint atualizada.
+- **`src/pages/Settings.tsx`** (editor de quick reply) — atualizar o hint de variáveis para mencionar `{{campo.<chave>}}`.
+- **`src/pages/Automations.tsx`** (linha 396, ação `send_template`) — atualizar o texto de ajuda mencionando `{{campo.<chave>}}` com exemplo `{{campo.data_horario:data}}`.
 
 ## Fora de escopo
-- Sistema de bloqueio de login (já removido na mensagem anterior).
-- Mudanças de lógica/back-end.
-- Refazer fluxo de avatar do WhatsApp.
+
+- Não mexer no sistema de bloqueio de conta (já removido).
+- Não mexer no white screen / Google Translate (já tratado em `index.html`).
+- Não criar novo tipo de campo personalizado nem novo gatilho.
+- Sem mudança de schema do banco — as variáveis usam as definições existentes em `lead_custom_fields` e os valores em `leads.custom_fields`.
+
+## Validação
+
+1. No template "Lembrete consulta — 1 dia antes", trocar o texto para algo como:
+   `Oi {{primeiro_nome}}! Lembrando da sua consulta em {{campo.data_horario:data}} às {{campo.data_horario:hora}}. Posso confirmar?`
+2. Rodar manualmente o tick (botão ▶ em Automações) para um lead com `data_horario` preenchido e verificar no Inbox que a mensagem chegou com a data formatada.
+3. Testar `/atalho` no chat com a mesma variável e verificar que expande no Composer.

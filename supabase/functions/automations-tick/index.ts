@@ -1,6 +1,7 @@
 // Periodic tick: evaluates enabled automations and fires actions per matching lead.
 // Triggered by pg_cron every 5 minutes.
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { renderTemplate } from "../_shared/template-vars.ts";
 
 type Automation = {
   id: string;
@@ -203,19 +204,15 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
       .maybeSingle();
     if (!tpl) return { ok: false, detail: "template not found" };
 
-    const { data: lead } = await supabase
-      .from("leads")
-      .select("name, phone, email, company")
-      .eq("id", leadId)
-      .single();
-    const name = lead?.name || lead?.phone || "";
-    const first = name.split(" ")[0] || "";
-    const text = (tpl.content as string)
-      .split("{{nome}}").join(name)
-      .split("{{primeiro_nome}}").join(first)
-      .split("{{telefone}}").join(lead?.phone ?? "")
-      .split("{{email}}").join(lead?.email ?? "")
-      .split("{{empresa}}").join(lead?.company ?? "");
+    const [{ data: lead }, { data: defs }] = await Promise.all([
+      supabase
+        .from("leads")
+        .select("name, phone, email, company, custom_fields")
+        .eq("id", leadId)
+        .single(),
+      supabase.from("lead_custom_fields").select("field_key, field_type"),
+    ]);
+    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any);
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",

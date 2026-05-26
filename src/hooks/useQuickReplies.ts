@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { QuickReply } from "@/types/crm";
+import { renderTemplate, type CustomFieldDefLite, type LeadLike } from "@/lib/template-vars";
 
 export function useQuickReplies() {
   const [items, setItems] = useState<QuickReply[]>([]);
@@ -20,11 +21,10 @@ export function useQuickReplies() {
   return { items };
 }
 
-export function applyVariables(template: string, ctx: { name?: string | null; phone?: string }) {
-  const name = ctx.name || ctx.phone || "";
-  const first = name.split(" ")[0] || "";
-  return template
-    .split("{{nome}}").join(name)
-    .split("{{primeiro_nome}}").join(first)
-    .split("{{telefone}}").join(ctx.phone || "");
+export function applyVariables(
+  template: string,
+  ctx: { name?: string | null; phone?: string; email?: string | null; company?: string | null; custom_fields?: Record<string, any> | null } | LeadLike,
+  customFieldDefs: CustomFieldDefLite[] = [],
+) {
+  return renderTemplate(template, ctx as LeadLike, customFieldDefs);
 }

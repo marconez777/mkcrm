@@ -1,16 +1,10 @@
 // Cron tick: processes due message_sequence_enrollments.
 // Runs every minute via pg_cron.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { renderTemplate } from "../_shared/template-vars.ts";
 
-function renderVars(text: string, lead: any): string {
-  const name = lead?.name || lead?.phone || "";
-  const first = String(name).split(" ")[0] || "";
-  return text
-    .split("{{nome}}").join(name)
-    .split("{{primeiro_nome}}").join(first)
-    .split("{{telefone}}").join(lead?.phone ?? "")
-    .split("{{email}}").join(lead?.email ?? "")
-    .split("{{empresa}}").join(lead?.company ?? "");
+function renderVars(text: string, lead: any, defs: any[]): string {
+  return renderTemplate(text, lead ?? {}, defs ?? []);
 }
 
 function inSendWindow(window: any): boolean {
@@ -43,6 +37,9 @@ Deno.serve(async (req) => {
       .eq("status", "active")
       .lte("next_run_at", nowIso)
       .limit(50);
+    const { data: fieldDefs } = await supabase
+      .from("lead_custom_fields")
+      .select("field_key, field_type");
 
     let processed = 0, sent = 0, failed = 0, skipped = 0;
     for (const e of due ?? []) {
@@ -52,7 +49,7 @@ Deno.serve(async (req) => {
         const [{ data: seq }, { data: steps }, { data: lead }] = await Promise.all([
           supabase.from("message_sequences").select("id, enabled, whatsapp_instance_id, stop_on_reply").eq("id", e.sequence_id).single(),
           supabase.from("message_sequence_steps").select("*").eq("sequence_id", e.sequence_id).order("position"),
-          supabase.from("leads").select("id, phone, name, email, company").eq("id", e.lead_id).single(),
+          supabase.from("leads").select("id, phone, name, email, company, custom_fields").eq("id", e.lead_id).single(),
         ]);
 
         if (!seq?.enabled) {
@@ -101,7 +98,7 @@ Deno.serve(async (req) => {
           skipped++; continue;
         }
 
-        const rendered = renderVars(text, lead);
+        const rendered = renderVars(text, lead, fieldDefs ?? []);
 
         // Override lead's instance for this sequence if configured
         if (seq.whatsapp_instance_id && lead.phone) {

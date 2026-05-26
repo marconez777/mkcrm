@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Send, Smile, Paperclip, Zap, Clock, X, FileText, Loader2, Mic, Square, Trash2 } from "lucide-react";
 import type { Lead } from "@/types/crm";
 import { useQuickReplies, applyVariables } from "@/hooks/useQuickReplies";
+import { useCustomFieldDefs } from "@/hooks/useCustomFieldDefs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
+  const customFieldDefs = useCustomFieldDefs();
 
   // recording
   const [recording, setRecording] = useState(false);
@@ -99,7 +101,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   function pickQuick(i: number) {
     const q = filteredQuick[i];
     if (!q) return;
-    const filled = applyVariables(q.content, { name: lead.name, phone: lead.phone });
+    const filled = applyVariables(q.content, lead as any, customFieldDefs);
     setText(filled);
     setShowQuick(false);
     requestAnimationFrame(() => taRef.current?.focus());

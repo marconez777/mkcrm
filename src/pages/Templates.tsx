@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { FileText, Plus, Trash2, Save } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useCustomFieldDefsFull } from "@/hooks/useCustomFieldDefs";
 
 type Template = {
   id: string;
@@ -23,6 +24,7 @@ const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}",
 export default function Templates() {
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
+  const customDefs = useCustomFieldDefsFull();
   const confirm = useConfirm();
 
   const load = async () => {
@@ -150,7 +152,33 @@ export default function Templates() {
                       {v}
                     </Button>
                   ))}
+                  {customDefs.map((f) => {
+                    const isDate = f.field_type === "date" || f.field_type === "datetime";
+                    const base = `{{campo.${f.field_key}}}`;
+                    return (
+                      <span key={f.field_key} className="contents">
+                        <Button size="sm" variant="outline" type="button" onClick={() => insertVar(base)} title={f.label}>
+                          {base}
+                        </Button>
+                        {isDate && (
+                          <>
+                            <Button size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:data}}`)} title={`${f.label} — apenas data`}>
+                              {`{{campo.${f.field_key}:data}}`}
+                            </Button>
+                            <Button size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:hora}}`)} title={`${f.label} — apenas hora`}>
+                              {`{{campo.${f.field_key}:hora}}`}
+                            </Button>
+                          </>
+                        )}
+                      </span>
+                    );
+                  })}
                 </div>
+                {customDefs.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Para campos de data, use também <code className="rounded bg-muted px-1">:data</code>, <code className="rounded bg-muted px-1">:hora</code>, <code className="rounded bg-muted px-1">:dia_semana</code> ou <code className="rounded bg-muted px-1">:extenso</code>.
+                  </p>
+                )}
               </div>
             </Card>
           </div>
