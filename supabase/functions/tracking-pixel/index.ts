@@ -338,6 +338,26 @@ function buildScript(projectId: string) {
     }catch(err){}
   },true);
 
+  // ---- Bridge: CustomEvents emitidos pelo próprio site (window.dispatchEvent(new CustomEvent('mk:test:completed', {detail:{score:12}}))) ----
+  var MK_EVENTS=["mk:lead:created","mk:lead:updated","mk:test:started","mk:test:completed","mk:wa:click","mk:webinar:registered","mk:webinar:joined"];
+  MK_EVENTS.forEach(function(name){
+    try{
+      window.addEventListener(name,function(ev){
+        try{
+          var detail=(ev&&ev.detail)||{};
+          var eventName=name.replace(/^mk:/,"").replace(/:/g,"_");
+          track(eventName,detail);
+        }catch(err){}
+      },false);
+    }catch(err){}
+  });
+  // Drena fila pré-boot: window.mkQueue=window.mkQueue||[]; mkQueue.push(['event','test_completed',{score:12}]);
+  try{
+    var q=window.mkQueue||[];
+    if(q&&q.length){q.forEach(function(it){try{if(it&&it[0]==="event")track(String(it[1]||"custom"),it[2]||{});}catch(e){}});}
+    window.mkQueue={push:function(it){try{if(it&&it[0]==="event")track(String(it[1]||"custom"),it[2]||{});}catch(e){}return 1;}};
+  }catch(e){}
+
   // ---- Bootstrap ----
   function start(){track("session_start");track("page_view");}
   try{
