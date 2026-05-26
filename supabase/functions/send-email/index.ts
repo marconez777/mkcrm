@@ -189,18 +189,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 3. Idempotência por (clinic, slug, email, contexto)
-    if (!isInternalContext(related_lead_table) && related_lead_table) {
-      const { data: existing } = await supabase
-        .from("email_logs")
-        .select("id")
-        .eq("clinic_id", clinic_id)
-        .eq("template_slug", template_slug)
-        .eq("recipient_email", email)
-        .eq("related_lead_table", related_lead_table)
-        .in("status", ["sent", "delivered", "opened", "clicked"])
-        .maybeSingle();
-      if (existing) {
+    // 3. Idempotência atômica via email_send_dedup (R-10)
+    // Insere antes do envio; se já existir (UNIQUE), é replay.
+    const dedupContext = related_lead_table ?? "";
+    const useDedup = !isInternalContext(related_lead_table) && !!related_lead_table;
+    if (useDedup) {
+      const { error: dedupErr } = await supabase
+        .from("email_send_dedup")
+        .insert({ clinic_id, template_slug, email, context: dedupContext });
+      if (dedupErr && (dedupErr as any).code === "23505") {
         if (queue_id) {
           await supabase.from("email_queue")
             .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -208,24 +205,30 @@ Deno.serve(async (req) => {
         }
         return jsonResponse({ skipped: true, reason: "already_sent" });
       }
+      if (dedupErr) {
+        // erro inesperado — apenas loga, segue (não bloquear envio por isso)
+        console.warn("dedup insert error:", dedupErr.message);
+      }
     }
 
-    // 4. Cota diária por clínica
-    const { data: quotaVal } = await supabase.rpc("clinic_email_quota", { _clinic_id: clinic_id });
-    const quota = Number(quotaVal ?? 1000);
-    const { data: state } = await supabase
-      .from("email_send_state")
-      .select("sent_today, quota_resets_at")
-      .eq("clinic_id", clinic_id)
-      .maybeSingle();
-    const nowD = new Date();
-    let sentToday = 0;
-    if (state) {
-      const resets = new Date(state.quota_resets_at);
-      sentToday = resets <= nowD ? 0 : (state.sent_today ?? 0);
+    // 4. Cota diária por clínica — claim atômico (R-11)
+    const { data: claim, error: claimErr } = await supabase
+      .rpc("claim_email_quota", { _clinic_id: clinic_id })
+      .single();
+    if (claimErr) {
+      console.warn("claim_email_quota error:", claimErr.message);
     }
-    if (sentToday >= quota) {
-      // Reagenda para 9h BRT do dia seguinte (12h UTC)
+    const allowed = (claim as any)?.allowed ?? true;
+    if (!allowed) {
+      // libera o dedup (não foi enviado)
+      if (useDedup) {
+        await supabase.from("email_send_dedup")
+          .delete()
+          .eq("clinic_id", clinic_id)
+          .eq("template_slug", template_slug)
+          .eq("email", email)
+          .eq("context", dedupContext);
+      }
       const tomorrow = new Date();
       tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
       tomorrow.setUTCHours(12, 0, 0, 0);
