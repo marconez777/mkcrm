@@ -101,29 +101,41 @@ Deno.serve(async (req) => {
       return jsonResponse({ skipped: true, reason: "feature_disabled" });
     }
 
-    // 1. Template
-    const { data: template } = await supabase
-      .from("email_templates")
-      .select("*")
-      .eq("clinic_id", clinic_id)
-      .eq("slug", template_slug)
-      .eq("active", true)
-      .maybeSingle();
+    // 1. Template (cache 60s)
+    const tplKey = `${clinic_id}:${template_slug}`;
+    let template: any = getCached(tplCache, tplKey);
+    if (!template) {
+      const { data } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("clinic_id", clinic_id)
+        .eq("slug", template_slug)
+        .eq("active", true)
+        .maybeSingle();
+      template = data;
+      if (template) setCached(tplCache, tplKey, template);
+    }
     if (!template) {
       return jsonResponse({ error: `Template ${template_slug} not found or inactive` }, { status: 404 });
     }
 
-    // 1.1 Domínio remetente precisa estar verificado
+    // 1.1 Domínio remetente precisa estar verificado (cache 60s)
     const fromDomain = String(template.from_email).split("@")[1]?.toLowerCase();
     if (!fromDomain) {
       return jsonResponse({ error: "invalid from_email in template" }, { status: 400 });
     }
-    const { data: dom } = await supabase
-      .from("email_domains")
-      .select("status")
-      .eq("clinic_id", clinic_id)
-      .eq("domain", fromDomain)
-      .maybeSingle();
+    const domKey = `${clinic_id}:${fromDomain}`;
+    let dom: any = getCached(domCache, domKey);
+    if (!dom) {
+      const { data } = await supabase
+        .from("email_domains")
+        .select("status")
+        .eq("clinic_id", clinic_id)
+        .eq("domain", fromDomain)
+        .maybeSingle();
+      dom = data;
+      if (dom) setCached(domCache, domKey, dom);
+    }
     if (!dom || (dom.status !== "verified" && dom.status !== "partially_verified")) {
       if (queue_id) {
         await supabase.from("email_queue")
@@ -134,14 +146,19 @@ Deno.serve(async (req) => {
     }
 
 
-    // 1.2 Resolve a API key do Resend: por-clínica (clinic_email_integrations.secret_name) com fallback ao secret global
+    // 1.2 Resolve a API key do Resend (cache 60s da integração)
     let RESEND_API_KEY = DEFAULT_RESEND_API_KEY;
-    const { data: integration } = await supabase
-      .from("clinic_email_integrations")
-      .select("provider, secret_name, enabled")
-      .eq("clinic_id", clinic_id)
-      .eq("enabled", true)
-      .maybeSingle();
+    let integration: any = getCached(intCache, clinic_id);
+    if (integration === undefined) {
+      const { data } = await supabase
+        .from("clinic_email_integrations")
+        .select("provider, secret_name, enabled")
+        .eq("clinic_id", clinic_id)
+        .eq("enabled", true)
+        .maybeSingle();
+      integration = data ?? null;
+      setCached(intCache, clinic_id, integration);
+    }
     if (integration?.secret_name) {
       const k = Deno.env.get(integration.secret_name);
       if (k) {
