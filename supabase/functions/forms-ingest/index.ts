@@ -3,17 +3,30 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-form-token",
-  "Access-Control-Max-Age": "86400",
-};
+// CORS: echo Origin instead of "*" because the snippet uses sendBeacon /
+// fetch with credentials, and the spec forbids wildcard ACAO with credentials.
+// See docs/known-issues/PITFALLS.md ("Forms ingest CORS").
+function buildCors(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin");
+  const base: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-form-token",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+  if (origin) {
+    base["Access-Control-Allow-Origin"] = origin;
+    base["Access-Control-Allow-Credentials"] = "true";
+  } else {
+    base["Access-Control-Allow-Origin"] = "*";
+  }
+  return base;
+}
 
-const json = (status: number, body: unknown, extra: Record<string, string> = {}) =>
+const json = (req: Request, status: number, body: unknown, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, ...extra, "Content-Type": "application/json" },
+    headers: { ...buildCors(req), ...extra, "Content-Type": "application/json" },
   });
 
 const BodySchema = z.object({
@@ -73,11 +86,11 @@ function originAllowed(origin: string | null, allowed: string[]): boolean {
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "method not allowed" });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: buildCors(req) });
+  if (req.method !== "POST") return json(req, 405, { error: "method not allowed" });
 
   const token = req.headers.get("x-form-token") || new URL(req.url).searchParams.get("token");
-  if (!token) return json(401, { error: "missing token" });
+  if (!token) return json(req, 401, { error: "missing token" });
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -92,19 +105,19 @@ Deno.serve(async (req) => {
     .or(`token.eq.${token},previous_token.eq.${token}`)
     .maybeSingle();
 
-  if (!integration) return json(401, { error: "invalid token" });
-  if (integration.status !== "active") return json(403, { error: "integration paused" });
+  if (!integration) return json(req, 401, { error: "invalid token" });
+  if (integration.status !== "active") return json(req, 403, { error: "integration paused" });
   if (integration.previous_token === token && integration.previous_token_expires_at && new Date(integration.previous_token_expires_at) < new Date()) {
-    return json(401, { error: "token expired" });
+    return json(req, 401, { error: "token expired" });
   }
   if (!originAllowed(origin, integration.allowed_domains || [])) {
-    return json(403, { error: "origin not allowed" });
+    return json(req, 403, { error: "origin not allowed" });
   }
 
   let raw: unknown;
-  try { raw = await req.json(); } catch { return json(400, { error: "invalid json" }); }
+  try { raw = await req.json(); } catch { return json(req, 400, { error: "invalid json" }); }
   const parsed = BodySchema.safeParse(raw);
-  if (!parsed.success) return json(400, { error: parsed.error.flatten() });
+  if (!parsed.success) return json(req, 400, { error: parsed.error.flatten() });
   const data = parsed.data;
 
   // Get or auto-create form_definition
@@ -292,7 +305,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json(200, {
+  return json(req, 200, {
     ok: submissionStatus === "ok",
     status: submissionStatus,
     lead_id: leadId,
