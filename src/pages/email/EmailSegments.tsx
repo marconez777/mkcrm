@@ -47,7 +47,7 @@ type Segment = {
 };
 
 type Stage = { id: string; name: string; pipeline_id: string };
-type Contact = { id: string; email: string; name: string | null; created_at: string };
+type Contact = { id: string; email: string; name: string | null; lead_id: string | null };
 
 const RULE_LABELS: Record<RuleType, string> = {
   form_source: "Origem do formulário",
