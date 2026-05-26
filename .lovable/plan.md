@@ -1,53 +1,82 @@
-# Fix — WhatsApp redirect `unknown_project` + tracking não grava
+# Unificar Tracking + Formulários em "Integração do Site"
 
-## Causa raiz
+Hoje temos duas portas de entrada para o mesmo SDK (pixel + forms-snippet), e isso é o que vem causando confusão na instalação. Vamos consolidar tudo num único ponto de configuração, com **um prompt único** pra colar no chat do Lovable do site da clínica.
 
-O site instalou o pixel passando `?project_id=cf038458-457d-4c1a-9ac4-c88c3c8353a1` (o **UUID** da clínica). As edge functions, porém, fazem o lookup por **slug** (`or`):
+## Resultado final pro usuário
 
+- **Um item de menu**: `Configurações → Integração do Site` (substitui "Formulários").
+- **Uma tela** por integração, com 4 abas:
+  1. **Instalação** (default) — credenciais + snippets + **Prompt único para IA**.
+  2. **Formulários** — lista de `form_definitions` detectadas.
+  3. **Envios** — `form_submissions` recebidos.
+  4. **Tráfego** — atalho/resumo apontando pra página `/tracking` (visitantes, eventos, whatsapp_intents) com o filtro já aplicado a esta integração.
+- **Um prompt** que instala pixel **e** snippet juntos, na ordem correta, com bridge manual, checklist de validação e tabela de troubleshooting cobrindo as duas frentes.
+
+## Mudanças
+
+### 1. Renomear e re-rotular
+
+- `src/pages/SettingsForms.tsx` → `src/pages/SettingsIntegration.tsx` (arquivo renomeado, conteúdo reaproveitado).
+- Rota: manter `/settings/forms` como redirect → `/settings/integration` (não quebrar links antigos). Adicionar `/settings/integration` em `src/App.tsx`.
+- `src/pages/Settings.tsx` (linha 198, 345-357): trocar label "Formulários" por "Integração do Site", subtítulo "Pixel de rastreamento + captura de formulários em um único SDK", botão "Abrir" → `/settings/integration`.
+- Sidebar/qualquer link "Formulários" → "Integração do Site".
+
+### 2. Reforçar o `buildAiPrompt` (única mudança de conteúdo relevante)
+
+Atualizar o gerador pra deixar explícito que pixel e snippet são **uma coisa só**:
+
+- Bloco único `<!-- MK CRM: Integração do Site (pixel + forms) -->` com os dois `<script>` na ordem **pixel primeiro, snippet depois** (snippet depende dos cookies `_mk_vid`/`_mk_sid` do pixel — documentar isso como nota de causalidade).
+- Seção "Por que a ordem importa" curtinha explicando a dependência de cookie.
+- Tabela de troubleshooting unificada:
+  - Sem eventos chegando → pixel ausente / project_id errado.
+  - Eventos chegando mas submit não → snippet ausente OU formulário sem `name` nos inputs OU custom fetch sem bridge `window.MKForms.send()`.
+  - Submit chega mas sem visitor_id → pixel carregando depois do snippet (ordem invertida).
+- Checklist de validação dividido em 2 colunas: "Tracking OK?" e "Forms OK?".
+
+### 3. Aba "Tráfego" (nova, leve)
+
+Card simples na 4ª aba com:
+- Total de visitantes nas últimas 24h / 7d (query em `tracking_visitors` filtrando pelo `clinic_id` da integração).
+- Total de `whatsapp_intents` no período.
+- Botão "Abrir painel completo" → `/tracking`.
+
+Sem duplicar a tabela inteira do `/tracking` — só resumo + atalho.
+
+### 4. Esconder/aposentar a entrada antiga de "Rastreamento"
+
+`src/pages/Settings.tsx` linha 45 (`showTracking = false`) — manter desligado e remover o `TabsTrigger`/`TabsContent` ligados a ele (código morto) já que a função foi absorvida pela nova tela.
+
+### 5. Documentação inline
+
+Adicionar no topo da aba "Instalação" um callout curto:
+> "Pixel + Formulários são instalados juntos. Cole o prompt abaixo no chat do Lovable do site da clínica — ele cuida da ordem, do bridge para forms customizados e do checklist de validação."
+
+## Não-mudanças (importante)
+
+- **Nenhuma alteração em edge functions** (`tracking-*`, `forms-ingest`, `forms-snippet`, `forms-admin`).
+- **Nenhuma migration** — usamos as tabelas e colunas já existentes.
+- **Token e clinic_id continuam os mesmos** — é o mesmo SDK, mesma credencial.
+
+## Detalhes técnicos
+
+**Arquivos tocados:**
+- `src/pages/SettingsIntegration.tsx` (renomeado de `SettingsForms.tsx`, ~10 linhas de copy alteradas + nova aba "Tráfego" ~60 linhas)
+- `src/pages/Settings.tsx` (labels + remover bloco `showTracking` morto, ~15 linhas)
+- `src/App.tsx` (1 rota nova + 1 redirect, ~3 linhas)
+- `src/components/AppSidebar.tsx` se houver link "Formulários" (label)
+
+**Função `buildAiPrompt` reescrita** dentro do mesmo arquivo, mantendo a mesma assinatura — só muda o markdown gerado.
+
+**Queries da aba Tráfego:**
 ```ts
-.from("clinics").select(...).eq("slug", projectId)
+supabase.from("tracking_visitors").select("id", { count: "exact", head: true })
+  .eq("clinic_id", data.clinic_id).gte("first_seen_at", since)
+supabase.from("whatsapp_intents").select("id", { count: "exact", head: true })
+  .eq("clinic_id", data.clinic_id).gte("created_at", since)
 ```
 
-Quando o site clica no WhatsApp, o pixel chama `wa-redirect?p=<UUID>`, a query não acha clínica nenhuma e a função devolve **`unknown_project`** (a tela preta do print).
+## Fora de escopo
 
-Mesmo problema afeta:
-- `tracking-event` (POST do pixel a cada page_view/click) → eventos descartados silenciosamente, por isso o banco está zerado mesmo com pixel instalado
-- `tracking-identify`
-- `tracking-config` (não trava porque devolve defaults, mas sem achar clínica)
-
-`forms-ingest` funciona porque ele usa **token** (mkf_…), não project_id.
-
-## Fix — aceitar UUID OU slug nas 5 functions
-
-Trocar:
-```ts
-.eq("slug", projectId)
-```
-por:
-```ts
-const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
-.or(isUuid ? `id.eq.${projectId},slug.eq.${projectId}` : `slug.eq.${projectId}`)
-```
-
-Arquivos:
-- `supabase/functions/wa-redirect/index.ts` (linha 57) — destrava o WhatsApp
-- `supabase/functions/tracking-event/index.ts` (linha 210) — destrava ingest de eventos
-- `supabase/functions/tracking-identify/index.ts` (linha 101)
-- `supabase/functions/tracking-config/index.ts` (linha 34)
-- `supabase/functions/tracking-pixel/index.ts` — atualizar comentário/doc só (não muda lookup)
-
-Sem migration. Sem mudança de schema. Só edge functions.
-
-## Validação pós-deploy
-
-1. `curl -I ".../wa-redirect?p=cf038458-...&to=5511999999999"` → deve retornar 302 com `Location: https://wa.me/...?text=...mk_src=...` (não mais `unknown_project`)
-2. Usuário clica no botão WhatsApp do site → abre o WhatsApp normalmente
-3. `SELECT * FROM tracking_events WHERE clinic_id='cf038458-...' AND created_at > now() - interval '5 min'` → deve aparecer `session_start` + `page_view` no próximo refresh do site
-4. `SELECT * FROM whatsapp_intents WHERE clinic_id='cf038458-...' ORDER BY created_at DESC LIMIT 3` → deve registrar o clique
-
-## Alternativa que NÃO vou seguir
-
-Pedir pro site trocar `project_id=<UUID>` por `project_id=or` (slug). Funcionaria, mas:
-- O site já está em produção com UUID e o `tracking-config` deu OK pra eles
-- Outras clínicas no futuro podem cair no mesmo problema
-- Aceitar os dois formatos é mais robusto e backward-compatible
+- Reescrever a página `/tracking` em si (continua acessível como painel completo).
+- Mudar o fluxo de criação de integração (continua igual: nome + domínios).
+- Qualquer mudança no contrato dos snippets/edge functions.
