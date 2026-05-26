@@ -83,7 +83,11 @@ Deno.serve(async (req) => {
       force = false,
       queue_id,
       from_name_override,
+      from_domain_override,
+      variant_id,
+      subject_override,
     } = body ?? {};
+
 
     if (!clinic_id || !template_slug || !recipient_email) {
       return jsonResponse({ error: "missing fields: clinic_id, template_slug, recipient_email" }, { status: 400 });
