@@ -44,6 +44,8 @@ type Segment = {
   filters: any;
   active: boolean;
   created_at: string;
+  is_system?: boolean;
+  system_key?: string | null;
 };
 
 type Stage = { id: string; name: string; pipeline_id: string };
