@@ -354,6 +354,8 @@ Deno.serve(async (req) => {
       await supabase.from("email_send_state")
         .update({ sent_today: Math.max(((claim as any)?.sent_today ?? 1) - 1, 0), updated_at: new Date().toISOString() })
         .eq("clinic_id", clinic_id);
+      // libera warmup do dia (envio não saiu)
+      await supabase.rpc("release_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain });
       await supabase.from("email_logs").insert({
         clinic_id,
         template_slug,
