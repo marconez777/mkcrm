@@ -88,6 +88,20 @@ docs/
 │   ├── LOVABLE_AI.md
 │   ├── PG_NET_CRON.md
 │   └── EXTERNAL_FORMS.md
+├── integracao/                  ⭐ Guia completo p/ integradores externos (PT)
+│   ├── README.md                  índice + decision tree
+│   ├── 01-visao-geral.md
+│   ├── 02-instalacao-snippets.md
+│   ├── 03-tracking-eventos.md
+│   ├── 04-formularios.md
+│   ├── 05-atribuicao-leads.md
+│   ├── 06-eventos-customizados.md
+│   ├── 07-webhooks-api-direta.md
+│   ├── 08-seguranca.md
+│   ├── 09-troubleshooting.md
+│   ├── 10-referencia-tecnica.md
+│   └── exemplos/                  snippets copy-paste por stack
+
 ├── operations/                  Confiabilidade, custos, observabilidade
 │   ├── COSTS_LIMITS.md
 │   ├── OBSERVABILITY.md
