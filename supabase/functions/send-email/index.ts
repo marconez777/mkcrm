@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
       related_lead_table,
       force = false,
       queue_id,
+      from_name_override,
     } = body ?? {};
 
     if (!clinic_id || !template_slug || !recipient_email) {
