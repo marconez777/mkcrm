@@ -134,6 +134,16 @@ export default function ChatPane({ lead }: { lead: Lead }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeMatch, setActiveMatch] = useState(0);
   const [pulseId, setPulseId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(lead.name ?? "");
+  useEffect(() => { setNameDraft(lead.name ?? ""); setEditingName(false); }, [lead.id, lead.name]);
+  async function commitName() {
+    const v = nameDraft.trim();
+    setEditingName(false);
+    if ((v || null) === (lead.name ?? null)) return;
+    const { error } = await supabase.from("leads").update({ name: v || null }).eq("id", lead.id);
+    if (error) { toast.error(error.message); setNameDraft(lead.name ?? ""); }
+  }
 
   // Internal notes (local-only por ora)
   const [notes, setNotes] = useState<InternalNote[]>([]);
