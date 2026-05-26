@@ -94,13 +94,14 @@ function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
   return EMPTY_DATE_FILTER;
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
-  { lead, onOpen, onMove, compact },
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; onMoveToStage?: (l: Lead, stageId: string) => void; stages?: Stage[]; compact?: boolean }>(function LeadCard(
+  { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
+  const otherStages = (stages ?? []).filter((s) => s.id !== lead.stage_id);
   return (
     <div
       ref={setNodeRef}
@@ -124,6 +125,26 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {onMoveToStage && otherStages.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Columns3 className="mr-2 h-3.5 w-3.5" />Mover para coluna
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                    {otherStages.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveToStage(lead, s.id), 0); }}
+                      >
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color || "hsl(var(--muted-foreground))" }} />
+                        <span className="truncate">{s.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
               <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
             </DropdownMenuItem>
