@@ -63,8 +63,7 @@ Deno.serve(async (req) => {
       : [];
     if (steps.length === 0) {
       await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
-      perAutomation.push(result);
-      continue;
+      return result;
     }
 
     // cursor: desde o último tick (ou desde a criação efetiva da automação)
