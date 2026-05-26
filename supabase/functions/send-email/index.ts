@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
       || (typeof (variables as any)?.subject_override === "string" && (variables as any).subject_override.trim())
       || template.subject;
     const subject = renderTemplate(subjectSrc, renderVars);
-    const html = renderTemplate(template.html_body, renderVars);
+    const renderedHtml = renderTemplate(template.html_body, renderVars);
     const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
     // 7. Slug da clínica para tag (cache 60s)
