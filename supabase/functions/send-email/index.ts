@@ -1,10 +1,30 @@
 // Edge Function: send-email
 // Renderiza template, checa suppression + dedup + cota + domínio, envia via Resend e loga.
+// Tier 1: cache em memória (templates/domínios/integrações/clínica), dedup atômico via
+// email_send_dedup, cota atômica via claim_email_quota.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse, renderTemplate, sanitizeTagValue, isInternalContext } from "../_shared/email.ts";
 
 const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://mkcrm.lovable.app";
+
+// --- Cache em memória do isolate (TTL curto, invalidação por updated_at) ---
+const CACHE_TTL_MS = 60_000;
+type CacheEntry<T> = { value: T; expiresAt: number };
+const tplCache = new Map<string, CacheEntry<any>>();
+const domCache = new Map<string, CacheEntry<any>>();
+const intCache = new Map<string, CacheEntry<any>>();
+const clinicCache = new Map<string, CacheEntry<any>>();
+
+function getCached<T>(map: Map<string, CacheEntry<T>>, key: string): T | undefined {
+  const e = map.get(key);
+  if (!e) return undefined;
+  if (e.expiresAt < Date.now()) { map.delete(key); return undefined; }
+  return e.value;
+}
+function setCached<T>(map: Map<string, CacheEntry<T>>, key: string, value: T) {
+  map.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
