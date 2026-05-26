@@ -30,21 +30,22 @@ type Row = {
   created_at: string;
 };
 
-const RANGES = [
-  { id: "24h", label: "24h", hours: 24 },
-  { id: "3d", label: "3 dias", hours: 24 * 3 },
-  { id: "7d", label: "7 dias", hours: 24 * 7 },
-  { id: "30d", label: "30 dias", hours: 24 * 30 },
-];
-
 const PAGE_SIZE = 50;
+
+function toDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function MetricsAiUsage() {
   const { isSuperAdmin, membership, loading } = useAuth();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const allowed = isSuperAdmin || isClinicAdmin;
 
-  const [range, setRange] = useState(RANGES[2]);
+  const [fromDate, setFromDate] = useState(() => toDateInput(new Date(Date.now() - 29 * 86400_000)));
+  const [toDate, setToDate] = useState(() => toDateInput(new Date()));
   const [rows, setRows] = useState<Row[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [agents, setAgents] = useState<Record<string, string>>({});
@@ -59,11 +60,13 @@ export default function MetricsAiUsage() {
 
   const load = async () => {
     setLoadingRows(true);
-    const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
+    const since = new Date(`${fromDate}T00:00:00`).toISOString();
+    const until = new Date(`${toDate}T23:59:59.999`).toISOString();
     const { data } = await supabase
       .from("ai_usage")
       .select("*")
       .gte("created_at", since)
+      .lte("created_at", until)
       .order("created_at", { ascending: false })
       .limit(5000);
     const list = (data ?? []) as Row[];
@@ -85,7 +88,7 @@ export default function MetricsAiUsage() {
     setLoadingRows(false);
   };
 
-  useEffect(() => { if (allowed) load(); /* eslint-disable-next-line */ }, [range.id, allowed]);
+  useEffect(() => { if (allowed) load(); /* eslint-disable-next-line */ }, [fromDate, toDate, allowed]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -188,14 +191,15 @@ export default function MetricsAiUsage() {
 
   // gráfico custo/dia × modelo
   const dailyByModel = useMemo(() => {
-    const days = Math.min(Math.ceil(range.hours / 24), 30);
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    const startDate = new Date(`${fromDate}T00:00:00`);
+    const endDate = new Date(`${toDate}T00:00:00`);
+    const totalDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400_000) + 1);
+    const days = Math.min(totalDays, 60);
     const dayKeys: string[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(start);
-      d.setDate(d.getDate() - i);
-      dayKeys.push(d.toISOString().slice(0, 10));
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      dayKeys.push(toDateInput(d));
     }
     const models = byModel.slice(0, 6).map((m) => m.model);
     const colors = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
@@ -208,12 +212,11 @@ export default function MetricsAiUsage() {
       const d = r.created_at.slice(0, 10);
       const b = buckets.find((x) => x.day === d);
       if (!b) continue;
-      const c = calcCost(r.model, r.input_tokens, r.output_tokens);
-      if (models.includes(r.model)) (b as any)[r.model] += c;
+      if (models.includes(r.model)) (b as any)[r.model] += calcCost(r.model, r.input_tokens, r.output_tokens);
     }
     const max = Math.max(0.0001, ...buckets.map((b) => models.reduce((s, m) => s + ((b as any)[m] || 0), 0)));
     return { buckets, models, colors, max };
-  }, [filtered, byModel, range.hours]);
+  }, [filtered, byModel, fromDate, toDate]);
 
   const uniqueModels = useMemo(() => Array.from(new Set(rows.map((r) => r.model))).sort(), [rows]);
   const uniqueAgents = useMemo(() => Array.from(new Set(rows.map((r) => r.agent_id).filter(Boolean))) as string[], [rows]);
@@ -248,7 +251,7 @@ export default function MetricsAiUsage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ai-usage-${range.id}-${Date.now()}.csv`;
+    a.download = `ai-usage-${fromDate}_${toDate}-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -266,16 +269,23 @@ export default function MetricsAiUsage() {
             <p className="text-xs text-muted-foreground">Histórico detalhado de chamadas para a API de IA. Visível somente para administradores.</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex gap-1 rounded-md border p-1 text-xs">
-              {RANGES.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => setRange(r)}
-                  className={`rounded px-3 py-1 ${range.id === r.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                >
-                  {r.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-1 text-xs">
+              <Input
+                type="date"
+                className="h-8 w-[140px]"
+                value={fromDate}
+                max={toDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+              <span className="text-muted-foreground">até</span>
+              <Input
+                type="date"
+                className="h-8 w-[140px]"
+                value={toDate}
+                min={fromDate}
+                max={toDateInput(new Date())}
+                onChange={(e) => setToDate(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="sm" onClick={load} disabled={loadingRows}>
               <RefreshCw className={`h-3.5 w-3.5 ${loadingRows ? "animate-spin" : ""}`} />
