@@ -88,7 +88,7 @@ export default function MetricsAiUsage() {
     setLoadingRows(false);
   };
 
-  useEffect(() => { if (allowed) load(); /* eslint-disable-next-line */ }, [range.id, allowed]);
+  useEffect(() => { if (allowed) load(); /* eslint-disable-next-line */ }, [fromDate, toDate, allowed]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
