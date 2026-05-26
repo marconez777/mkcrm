@@ -464,7 +464,7 @@ export default function EmailSegments() {
 
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Os destinatários serão somente os contatos adicionados manualmente abaixo.
+                    Selecione contatos já cadastrados na aba Contatos para incluir neste segmento.
                   </p>
                 )}
               </div>
