@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-05-26 — email Tier 2 implementado (escala e deliverability)
+
+### Adicionado
+- `supabase/functions/send-email-batch`: nova edge function que envia até 100 e-mails por chamada via Resend `/emails/batch`. Aplica dedup, cota, warm-up e throttle por destino ANTES de mandar; o que não passa é re-agendado.
+- Tabela `email_domain_warmup` (warm-up automático: 50→100→500→1k→5k→10k→25k→ilimitado por dia).
+- Tabela `email_recipient_throttle` (limite por domínio destinatário, default 1000/h).
+- Tabela `email_health_alerts` (registro de alertas de bounce/complaint e ação tomada).
+- RPCs `claim_domain_warmup`, `release_domain_warmup`, `claim_recipient_throttle`.
+- Trigger `email_logs_bounce_health_trigger` → função `check_clinic_bounce_health`: pausa automaticamente campanhas em execução quando bounce_rate >5% ou complaint_rate >0,3% nas últimas 1000 mensagens.
+
+### Mudado
+- `supabase/functions/send-email`: aplica warm-up de domínio remetente e throttle por domínio destinatário antes do envio; libera vagas em caso de falha.
+- `supabase/functions/process-email-queue`: agrupa jobs por `(clinic_id, template_slug)` e usa `send-email-batch` quando grupo ≥3; fallback automático para singular se o batch falhar. Reduz drasticamente HTTPs para Resend em campanhas.
+
+---
+
+
 ## 2026-05-26 — email Tier 1 implementado (performance estrutural)
 
 ### Mudado
