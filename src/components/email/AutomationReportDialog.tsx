@@ -576,7 +576,7 @@ async function fetchLeads(args: {
     // Union queue (pending/failed) + logs — usado por campanhas pra mostrar todos os destinatários
     const qReq = supabase
       .from("email_queue")
-      .select("related_lead_id, recipient_email, scheduled_at, status, error")
+      .select("related_lead_id, recipient_email, recipient_name, scheduled_at, status, error")
       .eq("related_lead_table", relatedTable)
       .limit(5000);
     const lReq = supabase
@@ -585,9 +585,11 @@ async function fetchLeads(args: {
       .eq("related_lead_table", relatedTable)
       .limit(5000);
     const [{ data: qRows }, { data: lRows }] = await Promise.all([qReq, lReq]);
+    const nameByEmail = new Map<string, string>();
     const byEmail = new Map<string, any>();
     for (const r of (qRows ?? []) as any[]) {
       const key = (r.recipient_email ?? "").toLowerCase();
+      if (r.recipient_name) nameByEmail.set(key, r.recipient_name);
       byEmail.set(key, {
         lead_id: r.related_lead_id,
         email: r.recipient_email,
@@ -607,16 +609,31 @@ async function fetchLeads(args: {
     }
     const merged = Array.from(byEmail.values());
     const leadIds = merged.map((r) => r.lead_id).filter(Boolean);
-    const names = await fetchLeadNames(leadIds);
-    return merged.map((r) => ({
-      id: r.lead_id ?? "_no_lead",
-      name: names.get(r.lead_id) ?? null,
-      email: r.email,
-      ts: r.ts,
-      ts_label: r.ts_label,
-      extra: r.extra,
-    }));
+    const emailsWithoutLead = merged
+      .filter((r) => !r.lead_id && r.email)
+      .map((r) => String(r.email).toLowerCase());
+    const [names, contactNames] = await Promise.all([
+      fetchLeadNames(leadIds),
+      fetchContactNames(emailsWithoutLead),
+    ]);
+    return merged.map((r) => {
+      const key = String(r.email ?? "").toLowerCase();
+      const name =
+        names.get(r.lead_id) ??
+        contactNames.get(key) ??
+        nameByEmail.get(key) ??
+        null;
+      return {
+        id: r.lead_id ?? "_no_lead",
+        name,
+        email: r.email,
+        ts: r.ts,
+        ts_label: r.ts_label,
+        extra: r.extra,
+      };
+    });
   }
+
 
 
   if (bucket === "queued" || bucket === "failed") {
