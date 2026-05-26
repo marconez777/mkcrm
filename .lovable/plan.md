@@ -1,40 +1,26 @@
-## Situação
+## Contexto
 
-Você adicionou `mkart.com.br` na conta Resend errada (Clínia OR). Não há domínio Lovable Emails configurado neste projeto — toda a config de email está direto no Resend via `RESEND_API_KEY`. Então o "revert" é todo no lado do Resend + DNS, não na Lovable.
+O domínio `clinicaohrpsiquiatria.com` já está configurado na conta Resend da Clínica OR (domínio verificado + webhook criado). Só precisamos atualizar as credenciais no projeto.
 
-## Passos para reverter
+A boa notícia: o `from_email` dos emails é configurado **por template** no banco (campo `from_email` em cada template), não está hardcoded. Então não precisa mexer em código nenhum — só nas secrets e nos templates existentes.
 
-### 1. Na conta Resend ERRADA (Clínia OR)
-- Entrar em **Domains** → selecionar `mkart.com.br` → **Delete domain**
-- Em **Webhooks** → deletar o webhook que aponta para `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/resend-webhook` (se foi criado nessa conta)
-- Em **API Keys** → revogar a key que está sendo usada hoje (a que está no secret `RESEND_API_KEY` deste projeto)
+## Passos
 
-### 2. No DNS do mkart.com.br (registrar)
-Remover todos os registros que o Resend mandou adicionar para verificar o domínio:
-- Registros **TXT** (SPF / `_resend` / DMARC se criou)
-- Registros **DKIM** (CNAME tipo `resend._domainkey...`)
-- **MX** de bounce (`send.mkart.com.br` ou similar) se foi adicionado
+### 1. Atualizar as 2 secrets
+- `RESEND_API_KEY` → nova API key da conta Clínica OR
+- `RESEND_WEBHOOK_SECRET` → signing secret do novo webhook
 
-Manter os registros MX/SPF originais que você já usava para email normal.
+### 2. Redeploy dos edge functions que usam essas secrets
+- `send-email` (usa RESEND_API_KEY)
+- `resend-webhook` (usa RESEND_WEBHOOK_SECRET)
+- `dispatch-campaign` (chama send-email)
 
-### 3. Na conta Resend CERTA
-- Adicionar `mkart.com.br` (ou subdomínio, ex.: `mail.mkart.com.br`) em **Domains**
-- Copiar os novos registros DNS que o Resend mostrar e adicionar no registrar
-- Aguardar verificação (alguns minutos a algumas horas)
-- Criar **API Key** com escopo no domínio novo
-- Criar **Webhook** apontando para `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/resend-webhook` com os eventos: `email.sent`, `email.delivered`, `email.bounced`, `email.complained`, `email.opened`, `email.clicked` — copiar o **Signing Secret**
+### 3. Atualizar templates existentes
+Você precisa editar cada template em `/email/templates` e mudar o campo **From Email** de `...@mkart.com.br` para `...@clinicaohrpsiquiatria.com` (ex: `noreply@clinicaohrpsiquiatria.com`). Senão o envio falha porque o domínio não existe na conta Resend nova.
 
-### 4. Você me manda
-- Nova **RESEND_API_KEY** (da conta certa) → vou atualizar o secret
-- Novo **RESEND_WEBHOOK_SECRET** → vou atualizar o secret
-- (Opcional) domínio/subdomínio final usado, se mudar o `from:` default
+### 4. Limpar referência antiga (opcional)
+Em `supabase/functions/clinic-invite/index.ts` linha 59 ainda existe `https://crm.mkart.com.br/invite/...`. Isso é só o link de convite (não envio de email) — posso trocar para o domínio do app novo se quiser, ou deixar.
 
-### 5. Eu faço aqui
-- Atualizar os 2 secrets (`RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`)
-- Redeploy de `send-email`, `resend-webhook`, `dispatch-campaign` se necessário
-- Teste de envio + verificação dos eventos open/click chegando em `email_logs`
+## O que preciso de você
 
-## Importante
-Não preciso mexer em nenhum código nem em DNS pela Lovable agora — a única coisa "Lovable side" são os dois secrets, que eu troco quando você me passar os novos valores.
-
-Me confirma quando tiver feito os passos 1-3 e me mande os valores do passo 4.
+Confirme o plano e me peça para pedir as secrets. Aí abro o formulário seguro para você colar a `RESEND_API_KEY` e a `RESEND_WEBHOOK_SECRET` novas.
