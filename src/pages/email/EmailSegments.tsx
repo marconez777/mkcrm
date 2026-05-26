@@ -334,9 +334,10 @@ export default function EmailSegments() {
     });
   }
 
-  async function remove(id: string) {
+  async function remove(seg: Segment) {
+    if (seg.is_system) { toast.error("Lista do sistema não pode ser excluída."); return; }
     if (!(await confirm({ title: "Excluir segmento?", confirmLabel: "Excluir", destructive: true }))) return;
-    const { error } = await supabase.from("email_segments").delete().eq("id", id);
+    const { error } = await supabase.from("email_segments").delete().eq("id", seg.id);
     if (error) toast.error(error.message);
     else { toast.success("Excluído"); load(); }
   }
