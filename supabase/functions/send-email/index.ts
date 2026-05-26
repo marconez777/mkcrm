@@ -300,6 +300,19 @@ Deno.serve(async (req) => {
     const json = await resp.json().catch(() => ({}));
 
     if (!resp.ok) {
+      // libera dedup (envio falhou)
+      if (useDedup) {
+        await supabase.from("email_send_dedup")
+          .delete()
+          .eq("clinic_id", clinic_id)
+          .eq("template_slug", template_slug)
+          .eq("email", email)
+          .eq("context", dedupContext);
+      }
+      // decrementa cota (já foi consumida pelo claim)
+      await supabase.from("email_send_state")
+        .update({ sent_today: Math.max(((claim as any)?.sent_today ?? 1) - 1, 0), updated_at: new Date().toISOString() })
+        .eq("clinic_id", clinic_id);
       await supabase.from("email_logs").insert({
         clinic_id,
         template_slug,
