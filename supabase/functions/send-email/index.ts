@@ -299,8 +299,11 @@ Deno.serve(async (req) => {
       year: new Date().getFullYear(),
     };
 
-    // 6. Render
-    const subject = renderTemplate(template.subject, renderVars);
+    // 6. Render (subject_override permite A/B test)
+    const subjectSrc = (typeof subject_override === "string" && subject_override.trim())
+      || (typeof (variables as any)?.subject_override === "string" && (variables as any).subject_override.trim())
+      || template.subject;
+    const subject = renderTemplate(subjectSrc, renderVars);
     const html = renderTemplate(template.html_body, renderVars);
     const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
@@ -312,10 +315,16 @@ Deno.serve(async (req) => {
       if (clinicRow) setCached(clinicCache, clinic_id, clinicRow);
     }
 
-    const fromEmail = String(template.from_email ?? "").trim();
+    // R-21: aplica domain override (rotação) preservando o local-part
+    let fromEmail = String(template.from_email ?? "").trim();
+    const domOverride = typeof from_domain_override === "string" ? from_domain_override.trim().toLowerCase() : "";
+    if (domOverride && fromEmail.includes("@")) {
+      fromEmail = `${fromEmail.split("@")[0]}@${domOverride}`;
+    }
     const overrideName = typeof from_name_override === "string" ? from_name_override.trim() : "";
     const fromName = overrideName || String(template.from_name ?? "").trim();
     const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
 
     const resendBody: Record<string, unknown> = {
       from: fromHeader,
