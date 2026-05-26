@@ -1,77 +1,96 @@
-# Correção do domínio da Clínica Or + revisão da Fase 0
+# Fase 1 revisada — destravar integração ÓR com mudanças mínimas
 
-## Contexto
+## Contexto novo (do diagnóstico do site)
 
-A documentação 11/12/13 assumiu o domínio `clinicaor.com.br`, que **não existe**. O site real roda em `https://mindscape-revive.lovable.app`. Ao re-consultar o banco com o domínio correto, descobrimos um problema mais grave que o esperado:
+O site Or **já é cooperativo**:
+- Forms têm `data-mk-form`, `data-mk-name`, `name=` (snippet captura ok)
+- Site emite `CustomEvent` no `window`: `mk:lead:created`, `mk:test:started`, `mk:test:completed`
+- Score final do PHQ-9/GAD-7 sai por `supabase.functions.invoke('submit-test-result')` (não é form submit), mas o site dispara `mk:test:completed` no mesmo momento — basta o CRM escutar
+- Botões WhatsApp são `<a href="wa.me/...">` normais
 
-- Integração **"Site Or"** (`cf9ec890-83fe-4751-9bc5-aacc69f7e9bd`)
-- `total_submissions = 0` — nunca recebeu nada
-- `allowed_domains = ["https://clinicaohrpsiquiatria.com/"]` — domínio errado **e** em formato inválido (deve ser hostname puro, sem `https://` nem `/`)
-- Nenhum `form_submission` nem `lead` no banco com referência a `mindscape-revive`
+O CRM **já tem** quase tudo construído:
+- `tracking-pixel` (374 linhas): seta `_mk_vid` cookie + `_mk_sid` session, captura page_view incluindo SPA (`pushState`/`replaceState`/`popstate`), captura `whatsapp_click` automaticamente via click listener (linhas 200-291), faz `session_start`, captura UTM
+- `tracking-event`: recebe e persiste
+- `tracking-identify`: liga `visitor_id` a `lead_id`
 
-**Conclusão**: o snippet do site provavelmente nem está instalado, ou está instalado mas todas as tentativas são rejeitadas pelo check de origem do `forms-ingest`. Os 172 leads do baseline anterior vêm de outras integrações (WhatsApp, manual, etc.), não do site da Or.
+**O único gap real**: o `tracking-pixel` não escuta os CustomEvents `mk:*` que o site já emite. Sem isso, `mk:test:completed` (que contém o score do PHQ-9) cai no vazio.
 
-## Objetivo
+## Mudanças (3 itens pequenos)
 
-1. Reconfigurar `allowed_domains` corretamente.
-2. Re-rodar o baseline filtrando pelo domínio real.
-3. Atualizar docs 11, 12 e 13 substituindo todas as menções a `clinicaor.com.br`.
-4. Definir critério claro de "site está enviando" para validar a próxima etapa.
+### 1. CRM — adicionar listener de CustomEvents `mk:*` no `tracking-pixel`
 
-## Mudanças
+Em `supabase/functions/tracking-pixel/index.ts`, perto do `start()` final, adicionar ~12 linhas:
 
-### 1. Reconfigurar a integração Or (manual, via UI)
+```js
+// Bridge: site-emitted CustomEvents → tracking-event
+var MK_EVENTS = ["mk:lead:created","mk:test:started","mk:test:completed","mk:wa:click"];
+MK_EVENTS.forEach(function(name){
+  window.addEventListener(name, function(ev){
+    var detail = (ev && ev.detail) || {};
+    // mk:test:completed → "test_completed", mk:lead:created → "lead_created", etc.
+    var eventName = name.replace(/^mk:/,"").replace(/:/g,"_");
+    track(eventName, detail);
+  }, false);
+});
+```
 
-Em `/settings/forms` → "Site Or" → Configurações:
+Isso reaproveita a função `track()` existente, que já injeta `visitor_id`, `session_id`, `url`, etc. O backend `tracking-event` já aceita `event_type:'custom'` (já é o default para nomes desconhecidos — ver `index.ts:151`).
 
-- **Allowed domains**: `mindscape-revive.lovable.app` (apenas hostname, sem `https://`, sem `/`, sem espaço)
-- Remover o valor antigo `https://clinicaohrpsiquiatria.com/`
+**Deploy:** automático ao salvar (o pixel é gerado dinamicamente, próxima request do site já pega).
 
-> Por que manual: editar `form_integrations` direto no banco pula auditoria; a UI já existe e faz a validação correta.
+### 2. Site — instalar `tracking-pixel` no `<head>`
 
-### 2. Re-rodar queries da Fase 0 com filtro correto
+Ação no **projeto do site (mindscape-revive)**, não no CRM. Documentar no `12-roadmap-correcao.md` o snippet exato que o time do site precisa colar antes do `forms-snippet`:
 
-Queries read-only (`supabase--read_query`), todas filtrando por `integration_id = 'cf9ec890-83fe-4751-9bc5-aacc69f7e9bd'` ou `payload ILIKE '%mindscape-revive%'`:
+```html
+<script async src="https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/tracking-pixel?project_id=cf038458-457d-4c1a-9ac4-c88c3c8353a1"></script>
+```
 
-1. `form_submissions` da integração Or (count, status breakdown, últimas 20) — esperado **0** até instalar snippet
-2. `leads` cujo `custom_fields->>'landing_page'` ou `form_source` contém `mindscape-revive` — esperado **0**
-3. `lead_events` com `event_data->>'url'` contendo `mindscape-revive` — esperado **0** (confirma falta de tracking)
-4. `tracking_identity_links` para a clínica Or, filtrando por URL — esperado **0**
-5. Reconfirmar a query de telefone (1.479 leads digits-only não muda — é clinic-wide)
+> `project_id` aqui = `clinic_id` da ÓR. Confirmar via `tracking-config?project_id=...` que retorna config válida antes de pedir o deploy.
 
-### 3. Atualizar documentação
+Resultado esperado:
+- Todo visitante ganha `_mk_vid` persistente (cookie 365d)
+- Page_views (incl. SPA) chegam em `tracking_events`
+- UTMs chegam em `tracking_visitors`
+- Clicks em `wa.me` viram `whatsapp_click` automaticamente
+- Próximo form submit traz `visitor_id` populado → `forms-ingest` faz `link_source='form_submission'` em `tracking_identity_links` → resolve P0.1
 
-- **`docs/integracao/13-baseline-fase0.md`**: substituir todas as ocorrências de `clinicaor.com.br` por `mindscape-revive.lovable.app`; reescrever a seção "Allowed domains" com o achado real (`["https://clinicaohrpsiquiatria.com/"]` → formato inválido); adicionar uma seção nova **"Estado real do site Or"** explicando que 0 submissions chegaram; mover o tópico do `enqueue_email` para "Não relacionado ao site Or" (afeta outros leads).
-- **`docs/integracao/12-roadmap-correcao.md`**: atualizar a Ação 0.1 (configurar domínios) com o valor correto; manter Fase 1 como planejada.
-- **`docs/integracao/11-analise-conflitos-site-or.md`**: corrigir menções ao domínio.
-- **`docs/integracao/README.md`**: nota curta sobre a correção.
+### 3. CRM — migration de telefone para E.164
 
-### 4. Critério de validação para destravar Fase 1
+Inalterado do plano anterior:
+- `forms-ingest/index.ts:54-60`: prefixar `+` ao normalizar
+- Migration retroativa: `UPDATE leads SET phone = '+' || phone WHERE phone ~ '^[0-9]+$' AND length(phone) >= 12` (afeta ~1479 leads da ÓR + outras clínicas)
 
-Antes de implementar `track-event`, listener WhatsApp e migration de telefone, **precisamos provar que o pipeline básico funciona**:
+## Não fazer agora
 
-- [ ] Snippet `<script async src=".../forms-snippet?token=mkf_3a2f5dd0…"></script>` instalado no `index.html` do projeto mindscape-revive
-- [ ] Allowed domain ajustado para `mindscape-revive.lovable.app`
-- [ ] 1 submissão de teste real no site → aparece em `form_submissions` com `status='ok'` e `lead_id` preenchido
+- ❌ Criar endpoint `track-event` novo (o existente `tracking-event` cobre)
+- ❌ Interceptar `fetch` no `forms-snippet` para pegar `submit-test-result` (o site já dispara `mk:test:completed` no mesmo instante — listener é mais limpo)
+- ❌ Mexer em `forms-snippet` (continua igual; só forms HTML nativos)
+- ❌ Field map UI / retry queue / external_lead_id (Fase 3/4)
 
-Sem esses 3 itens, Fase 1 não tem como ser validada end-to-end.
+## Pré-requisitos manuais (você)
 
-## Fora de escopo (continua adiado)
-
-- Endpoint `track-event` (Fase 1.1)
-- Listener `wa.me` no snippet (Fase 1.2)
-- Migration de telefone para `+E.164` (Fase 1.3)
-- Tudo de Fase 2/3/4
+Ordem obrigatória:
+1. Em `/settings/forms` → "Site Or" → trocar `allowed_domains` para `clinicaohrpsiquiatria.com, mindscape-revive.lovable.app` (sem `https://`, sem `/`)
+2. Após o deploy da mudança #1 acima, **avisar o time do site para colar o `<script>` da mudança #2**
+3. Validar com 1 submit de teste no PHQ-9 → conferir em `form_submissions` (`status=ok`, `lead_id` preenchido) e em `lead_events` (deve aparecer `test_completed` com o score)
 
 ## Entregáveis
 
-- Doc 13 atualizado com baseline real do site Or (essencialmente "zero atividade")
-- Docs 11 e 12 com domínio corrigido
-- Checklist de validação para o desenvolvedor do site (3 itens acima)
-- README com nota da correção
+- `supabase/functions/tracking-pixel/index.ts`: +12 linhas (listener `mk:*`)
+- `supabase/functions/forms-ingest/index.ts`: normalizador de telefone com `+`
+- Migration retroativa de telefone
+- `docs/integracao/12-roadmap-correcao.md`: substituir Fase 1.1/1.2 (fetch intercept + WA listener) pela nova abordagem "listener de CustomEvents `mk:*`"; adicionar seção "Snippet do tracking-pixel para o site" com o `<script>` exato
+- `docs/integracao/13-baseline-fase0.md`: nota no final sobre a mudança de estratégia
+
+## Riscos / atenção
+
+- **Migration de telefone**: rodar em janela de baixo tráfego. Triggers de WhatsApp inbound (`evolution-webhook` etc.) precisam aceitar tanto `+5511…` quanto `5511…` no lookup durante a transição — verificar antes.
+- **CustomEvent timing**: se o site disparar `mk:test:completed` antes do `tracking-pixel` carregar (async), evento é perdido. Mitigação: site usa pattern `(window.mkQueue=window.mkQueue||[]).push(['event','test_completed',data])` que o pixel drena no boot. **Opcional** nesta fase — se ficarem perdendo eventos, adicionar fila depois.
+- **CORS**: `tracking-event` já tem `Access-Control-Allow-Origin: <origin>` dinâmico, então funciona de qualquer domínio.
 
 ## Detalhes técnicos
 
-- Token da integração Or: `mkf_3a2f5dd0…` (preservar)
-- Validação de origem do `forms-ingest`: compara `request.headers.get('origin')` com `allowed_domains` via hostname match — por isso o valor com `https://` e `/` falha silenciosamente
-- Nenhuma migration de banco nessa etapa; só leitura + edição de markdown
+- Mapeamento de nomes: `mk:test:completed` → `test_completed` (replace `:` por `_`, strip `mk:`)
+- `tracking-event` salva em `tracking_events` com `event_type='custom'` e `event_name='test_completed'`; o payload (`detail`) vai pra coluna `properties` JSONB
+- Para fazer aparecer em `lead_events` (timeline do lead), precisa ter `visitor_id` resolvido — daí a importância do pixel estar no site **antes** do submit
