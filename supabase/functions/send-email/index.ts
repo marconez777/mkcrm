@@ -363,6 +363,25 @@ Deno.serve(async (req) => {
     const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 
 
+    // 7.1 UTM tagging — rastreia origem dos cliques no tracking do site
+    const campaignTag =
+      sanitizeTagValue(String((variables as any)?.campaign_id ?? "") || template_slug);
+    const variantTag = (variables as any)?.variant_id
+      ? sanitizeTagValue(String((variables as any).variant_id))
+      : undefined;
+    let html = renderedHtml;
+    html = addUtmsToHtml(
+      html,
+      {
+        source: "email",
+        medium: "email",
+        campaign: campaignTag,
+        content: sanitizeTagValue(template_slug),
+        term: variantTag,
+      },
+      unsubscribeUrl,
+    );
+
     const resendBody: Record<string, unknown> = {
       from: fromHeader,
       to: [recipient_name ? `${recipient_name} <${email}>` : email],
