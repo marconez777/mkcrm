@@ -104,14 +104,18 @@ async function computeMetrics(supabase: any, clinicId: string, sinceIso: string,
   }
 
   if (want.whatsapp_leads !== false) {
+    // Considera "lead de WhatsApp" qualquer lead com instância WhatsApp vinculada
+    // que NÃO veio de um formulário (form_source não começa com "form:").
     const { count } = await supabase
       .from("leads")
       .select("id", { count: "exact", head: true })
       .eq("clinic_id", clinicId)
       .gte("created_at", sinceIso)
-      .eq("form_source", "whatsapp");
+      .not("whatsapp_instance_id", "is", null)
+      .or("form_source.is.null,form_source.eq.whatsapp");
     out.whatsapp_leads = count ?? 0;
   }
+
 
   return out;
 }
