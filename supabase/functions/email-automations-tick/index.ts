@@ -152,8 +152,7 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.error(`[automation ${auto.id}] candidate query failed:`, e);
-      perAutomation.push(result);
-      continue;
+      return result;
     }
 
     // 2) deduplica candidatos por lead — basta o primeiro evento
