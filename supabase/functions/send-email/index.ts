@@ -343,16 +343,17 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
 
-    // Atualiza cota
-    await supabase.from("email_send_state").upsert(
-      {
-        clinic_id,
-        sent_today: sentToday + 1,
-        quota_resets_at: state?.quota_resets_at ?? new Date(new Date().setUTCHours(24, 0, 0, 0)).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "clinic_id" },
-    );
+    // (cota já consumida atomicamente em claim_email_quota acima)
+
+    // atualiza dedup com resend_id para auditoria
+    if (useDedup) {
+      await supabase.from("email_send_dedup")
+        .update({ resend_id: json.id })
+        .eq("clinic_id", clinic_id)
+        .eq("template_slug", template_slug)
+        .eq("email", email)
+        .eq("context", dedupContext);
+    }
 
     return jsonResponse({ ok: true, resend_id: json.id, log_id: logRow?.id });
   } catch (e) {
