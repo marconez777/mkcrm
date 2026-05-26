@@ -182,13 +182,18 @@ Deno.serve(async (req) => {
         site_url: SITE_URL,
         year: new Date().getFullYear(),
       };
-      const subject = renderTemplate(template.subject, renderVars);
+      // R-20: subject override por variante
+      const subjectSrc = (typeof job.subject_override === "string" && job.subject_override.trim())
+        || (typeof (job.variables ?? {}).subject_override === "string" && (job.variables ?? {}).subject_override.trim())
+        || template.subject;
+      const subject = renderTemplate(subjectSrc, renderVars);
       const html = renderTemplate(template.html_body, renderVars);
       const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
       const overrideName = typeof job.from_name_override === "string" ? job.from_name_override.trim() : "";
       const fromName = overrideName || String(template.from_name ?? "").trim();
-      const fromHeader = fromName ? `${fromName} <${template.from_email}>` : String(template.from_email);
+      const fromHeader = fromName ? `${fromName} <${effectiveFromEmail}>` : effectiveFromEmail;
+
 
       const payload: Record<string, unknown> = {
         from: fromHeader,
