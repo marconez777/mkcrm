@@ -53,7 +53,9 @@ Deno.serve(async (req) => {
   let enqueuedTotal = 0;
   const perAutomation: Array<{ id: string; enrolled: number; enqueued: number; skipped: number }> = [];
 
-  for (const auto of automations as Automation[]) {
+  // R-9: processa automações em paralelo (semáforo simples por concurrency)
+  const CONCURRENCY = 10;
+  const processAutomation = async (auto: Automation) => {
     const result = { id: auto.id, enrolled: 0, enqueued: 0, skipped: 0 };
 
     const steps: Step[] = Array.isArray(auto.steps)
