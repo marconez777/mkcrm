@@ -143,6 +143,7 @@ async function processReport(supabase: any, r: Report, opts: { force?: boolean }
   }
 
   const sinceIso = startOfLocalDayUtc(now, r.tz).toISOString();
+  const untilIso = endOfLocalDayUtc(now, r.tz).toISOString();
   const instance = await loadInstance(r.instance_id);
   if (!instance) {
     await supabase.from("scheduled_report_runs").insert({
@@ -152,7 +153,7 @@ async function processReport(supabase: any, r: Report, opts: { force?: boolean }
   }
 
   try {
-    const metrics = await computeMetrics(supabase, r.clinic_id, sinceIso, r.metrics || {});
+    const metrics = await computeMetrics(supabase, r.clinic_id, sinceIso, untilIso, r.metrics || {});
     const text = buildMessage(r.name || "Relatório do dia", lp.dmy, metrics, r.metrics || {});
     await sendToGroup(instance, r.group_jid, text);
 
