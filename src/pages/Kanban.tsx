@@ -29,14 +29,14 @@ import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Toggle } from "@/components/ui/toggle";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import MoveLeadDialog from "@/components/kanban/MoveLeadDialog";
@@ -94,13 +94,14 @@ function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
   return EMPTY_DATE_FILTER;
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; compact?: boolean }>(function LeadCard(
-  { lead, onOpen, onMove, compact },
+const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; onMoveToStage?: (l: Lead, stageId: string) => void; stages?: Stage[]; compact?: boolean }>(function LeadCard(
+  { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
+  const otherStages = (stages ?? []).filter((s) => s.id !== lead.stage_id);
   return (
     <div
       ref={setNodeRef}
@@ -124,6 +125,26 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {onMoveToStage && otherStages.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Columns3 className="mr-2 h-3.5 w-3.5" />Mover para coluna
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                    {otherStages.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveToStage(lead, s.id), 0); }}
+                      >
+                        <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color || "hsl(var(--muted-foreground))" }} />
+                        <span className="truncate">{s.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
               <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
             </DropdownMenuItem>
@@ -166,9 +187,10 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
 });
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, collapsed, onToggleCollapse, compact, onEdit, onDelete,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
+  onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
   onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
 }) {
@@ -263,7 +285,7 @@ function Column({
         className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
       >
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} compact={compact} />)}
+          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} onMoveToStage={onMoveLeadToStage} stages={allStages} compact={compact} />)}
         </SortableContext>
         {leads.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
@@ -392,6 +414,33 @@ export default function KanbanPage() {
       duration: 6000,
     });
   }
+
+  async function moveLeadToStage(lead: Lead, targetStageId: string) {
+    if (!targetStageId || targetStageId === lead.stage_id) return;
+    const previousStageId = lead.stage_id;
+    const previousPosition = lead.position ?? 0;
+    const targetLeads = leads.filter((l) => l.stage_id === targetStageId);
+    const newPosition = targetLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
+    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition } : l));
+    const { error } = await supabase.from("leads").update({ stage_id: targetStageId, position: newPosition }).eq("id", lead.id);
+    if (error) {
+      setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition } : l));
+      toast.error(error.message);
+      return;
+    }
+    const target = allStages.find((s) => s.id === targetStageId);
+    toast.success(`Movido para "${target?.name ?? "etapa"}"`, {
+      action: previousStageId ? {
+        label: "Desfazer",
+        onClick: async () => {
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition } : l));
+          await supabase.from("leads").update({ stage_id: previousStageId, position: previousPosition }).eq("id", lead.id);
+        },
+      } : undefined,
+      duration: 6000,
+    });
+  }
+
 
   async function addColumn() {
     if (!newColName.trim() || !currentId) return;
@@ -525,6 +574,8 @@ export default function KanbanPage() {
                         })}
                         onOpenLead={setOpenLead}
                         onMoveLead={setMovingLead}
+                        onMoveLeadToStage={moveLeadToStage}
+                        allStages={stages}
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
