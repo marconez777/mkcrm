@@ -3,17 +3,30 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-form-token",
-  "Access-Control-Max-Age": "86400",
-};
+// CORS: echo Origin instead of "*" because the snippet uses sendBeacon /
+// fetch with credentials, and the spec forbids wildcard ACAO with credentials.
+// See docs/known-issues/PITFALLS.md ("Forms ingest CORS").
+function buildCors(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin");
+  const base: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-form-token",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+  if (origin) {
+    base["Access-Control-Allow-Origin"] = origin;
+    base["Access-Control-Allow-Credentials"] = "true";
+  } else {
+    base["Access-Control-Allow-Origin"] = "*";
+  }
+  return base;
+}
 
-const json = (status: number, body: unknown, extra: Record<string, string> = {}) =>
+const json = (req: Request, status: number, body: unknown, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, ...extra, "Content-Type": "application/json" },
+    headers: { ...buildCors(req), ...extra, "Content-Type": "application/json" },
   });
 
 const BodySchema = z.object({
