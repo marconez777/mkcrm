@@ -71,10 +71,38 @@ export default function EmailCampaigns() {
       supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
       supabase.from("email_segments").select("id,name").order("name"),
     ]);
-    setItems((cs ?? []) as any);
+    const campaigns = (cs ?? []) as Campaign[];
+    // Conta sent/failed reais a partir de email_logs e email_queue por campanha
+    const ids = campaigns.map((c) => `campaign_${c.id}`);
+    if (ids.length > 0) {
+      const [{ data: logs }, { data: queue }] = await Promise.all([
+        supabase.from("email_logs").select("related_lead_table,status").in("related_lead_table", ids).limit(20000),
+        supabase.from("email_queue").select("related_lead_table,status").in("related_lead_table", ids).limit(20000),
+      ]);
+      const sentBy = new Map<string, number>();
+      const failedBy = new Map<string, number>();
+      for (const r of (logs ?? []) as any[]) {
+        sentBy.set(r.related_lead_table, (sentBy.get(r.related_lead_table) ?? 0) + 1);
+        if (["bounced", "complained", "failed"].includes(r.status)) {
+          failedBy.set(r.related_lead_table, (failedBy.get(r.related_lead_table) ?? 0) + 1);
+        }
+      }
+      for (const r of (queue ?? []) as any[]) {
+        if (r.status === "failed") {
+          failedBy.set(r.related_lead_table, (failedBy.get(r.related_lead_table) ?? 0) + 1);
+        }
+      }
+      for (const c of campaigns) {
+        const key = `campaign_${c.id}`;
+        c.sent_count = sentBy.get(key) ?? c.sent_count ?? 0;
+        c.failed_count = failedBy.get(key) ?? c.failed_count ?? 0;
+      }
+    }
+    setItems(campaigns);
     setTemplates((ts ?? []) as any);
     setSegments((ss ?? []) as any);
   }
+
 
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
   useEffect(() => { document.title = "Email — Campanhas"; }, []);
