@@ -251,7 +251,7 @@ export default function MetricsAiUsage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ai-usage-${range.id}-${Date.now()}.csv`;
+    a.download = `ai-usage-${fromDate}_${toDate}-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
