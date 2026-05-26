@@ -521,7 +521,30 @@ export default function ChatPane({ lead }: { lead: Lead }) {
             </div>
           )}
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{lead.name || lead.phone}</div>
+            {editingName ? (
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitName(); }
+                  if (e.key === "Escape") { setNameDraft(lead.name ?? ""); setEditingName(false); }
+                }}
+                placeholder="Nome do lead"
+                className="w-48 rounded border bg-background px-1.5 py-0.5 text-sm font-semibold outline-none focus:ring-1 focus:ring-primary"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setNameDraft(lead.name ?? ""); setEditingName(true); }}
+                title="Editar nome"
+                className="group flex max-w-full items-center gap-1 truncate text-sm font-semibold hover:text-primary"
+              >
+                <span className="truncate">{lead.name || lead.phone}</span>
+                <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
             <div className="text-[11px] text-muted-foreground">{lead.phone}</div>
           </div>
         </div>
