@@ -259,8 +259,13 @@ Deno.serve(async (req) => {
     const html = renderTemplate(template.html_body, renderVars);
     const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
-    // 7. Carrega slug da clínica para tag
-    const { data: clinicRow } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
+    // 7. Slug da clínica para tag (cache 60s)
+    let clinicRow: any = getCached(clinicCache, clinic_id);
+    if (!clinicRow) {
+      const { data } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
+      clinicRow = data;
+      if (clinicRow) setCached(clinicCache, clinic_id, clinicRow);
+    }
 
     const fromEmail = String(template.from_email ?? "").trim();
     const overrideName = typeof from_name_override === "string" ? from_name_override.trim() : "";
