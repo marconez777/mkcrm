@@ -191,14 +191,15 @@ export default function MetricsAiUsage() {
 
   // gráfico custo/dia × modelo
   const dailyByModel = useMemo(() => {
-    const days = Math.min(Math.ceil(range.hours / 24), 30);
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    const startDate = new Date(`${fromDate}T00:00:00`);
+    const endDate = new Date(`${toDate}T00:00:00`);
+    const totalDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400_000) + 1);
+    const days = Math.min(totalDays, 60);
     const dayKeys: string[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(start);
-      d.setDate(d.getDate() - i);
-      dayKeys.push(d.toISOString().slice(0, 10));
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      dayKeys.push(toDateInput(d));
     }
     const models = byModel.slice(0, 6).map((m) => m.model);
     const colors = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
@@ -211,12 +212,11 @@ export default function MetricsAiUsage() {
       const d = r.created_at.slice(0, 10);
       const b = buckets.find((x) => x.day === d);
       if (!b) continue;
-      const c = calcCost(r.model, r.input_tokens, r.output_tokens);
-      if (models.includes(r.model)) (b as any)[r.model] += c;
+      if (models.includes(r.model)) (b as any)[r.model] += calcCost(r.model, r.input_tokens, r.output_tokens);
     }
     const max = Math.max(0.0001, ...buckets.map((b) => models.reduce((s, m) => s + ((b as any)[m] || 0), 0)));
     return { buckets, models, colors, max };
-  }, [filtered, byModel, range.hours]);
+  }, [filtered, byModel, fromDate, toDate]);
 
   const uniqueModels = useMemo(() => Array.from(new Set(rows.map((r) => r.model))).sort(), [rows]);
   const uniqueAgents = useMemo(() => Array.from(new Set(rows.map((r) => r.agent_id).filter(Boolean))) as string[], [rows]);
