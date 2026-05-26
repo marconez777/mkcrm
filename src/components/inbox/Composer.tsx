@@ -43,6 +43,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
+  const customFieldDefs = useCustomFieldDefs();
 
   // recording
   const [recording, setRecording] = useState(false);
