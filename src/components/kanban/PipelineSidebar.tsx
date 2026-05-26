@@ -42,6 +42,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
   }
 
   async function remove(p: Pipeline) {
+    if (p.is_system) { toast.error("Funil do sistema não pode ser excluído."); return; }
     const used = counts.get(p.id) ?? 0;
     if (used > 0) { toast.error(`Não dá: ${used} leads neste funil. Mova-os antes.`); return; }
     if (!(await confirm({ title: `Excluir funil "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
