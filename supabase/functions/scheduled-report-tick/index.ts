@@ -34,15 +34,30 @@ function localParts(date: Date, tz: string) {
   };
 }
 
+/** Returns how many ms `tz` is offset from UTC at the given instant. */
+function tzOffsetMs(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts: Record<string, string> = Object.fromEntries(
+    dtf.formatToParts(date).map((p) => [p.type, p.value]),
+  );
+  const asUTC = Date.UTC(
+    +parts.year, +parts.month - 1, +parts.day,
+    +parts.hour === 24 ? 0 : +parts.hour, +parts.minute, +parts.second,
+  );
+  return asUTC - date.getTime();
+}
+
 /** Compute the UTC instant for local midnight (today) in the given tz. */
 function startOfLocalDayUtc(now: Date, tz: string): Date {
   const lp = localParts(now, tz);
   const [y, m, d] = lp.ymd.split("-").map(Number);
-  const guess = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
-  const back = localParts(guess, tz);
-  const [bh, bm] = back.hhmm.split(":").map(Number);
-  const driftMin = bh * 60 + bm;
-  return new Date(guess.getTime() - driftMin * 60_000);
+  const guess = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const offset = tzOffsetMs(new Date(guess), tz);
+  return new Date(guess - offset);
 }
 
 /** End of local day = start of next local day. */
