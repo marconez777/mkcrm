@@ -474,11 +474,39 @@ function IntegrationSettings({ integration, onSaved, canManage }: { integration:
   );
 }
 
+type StageOpt = { id: string; name: string; pipeline_id: string; pipeline_name: string; is_system: boolean };
+type SegmentOpt = { id: string; name: string; is_system: boolean };
+
 function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClose: () => void; canManage: boolean }) {
   const [name, setName] = useState(def.name);
   const [map, setMap] = useState(JSON.stringify(def.field_map || {}, null, 2));
   const [active, setActive] = useState(def.active);
+  const [stageId, setStageId] = useState<string>(def.default_pipeline_stage_id ?? "");
+  const [segmentId, setSegmentId] = useState<string>(def.default_email_segment_id ?? "");
+  const [stages, setStages] = useState<StageOpt[]>([]);
+  const [segments, setSegments] = useState<SegmentOpt[]>([]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [pipes, stgs, segs] = await Promise.all([
+        supabase.from("pipelines").select("id,name,is_system,system_key").order("position"),
+        supabase.from("pipeline_stages").select("id,name,pipeline_id,position").order("position"),
+        supabase.from("email_segments").select("id,name,is_system,system_key").eq("active", true).order("name"),
+      ]);
+      const pipeMap = new Map<string, { name: string; is_system: boolean }>();
+      (pipes.data ?? []).forEach((p: any) => pipeMap.set(p.id, { name: p.name, is_system: !!p.is_system }));
+      const stageOpts: StageOpt[] = (stgs.data ?? []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        pipeline_id: s.pipeline_id,
+        pipeline_name: pipeMap.get(s.pipeline_id)?.name ?? "—",
+        is_system: pipeMap.get(s.pipeline_id)?.is_system ?? false,
+      })).filter((s) => pipeMap.has(s.pipeline_id));
+      setStages(stageOpts);
+      setSegments((segs.data ?? []).map((s: any) => ({ id: s.id, name: s.name, is_system: !!s.is_system })));
+    })();
+  }, []);
 
   async function save() {
     setBusy(true);
@@ -486,7 +514,15 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
       let parsed: Record<string, string> = {};
       try { parsed = JSON.parse(map); } catch { throw new Error("field_map inválido (JSON)"); }
       const { error } = await supabase.functions.invoke("forms-admin", {
-        body: { action: "update_definition", id: def.id, name, field_map: parsed, active },
+        body: {
+          action: "update_definition",
+          id: def.id,
+          name,
+          field_map: parsed,
+          active,
+          default_pipeline_stage_id: stageId || null,
+          default_email_segment_id: segmentId || null,
+        },
       });
       if (error) throw error;
       toast.success("Salvo");
@@ -498,12 +534,47 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>Editar formulário</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[70vh] overflow-auto">
           <div className="space-y-1.5"><Label>Nome amigável</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+
+          <div className="space-y-1.5">
+            <Label>Pipeline / etapa de destino</Label>
+            <select
+              className="w-full rounded border bg-background p-2 text-sm"
+              value={stageId}
+              onChange={(e) => setStageId(e.target.value)}
+              disabled={!canManage}
+            >
+              <option value="">Padrão do sistema (Formulário Site → Novo)</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.pipeline_name}{s.is_system ? " (sistema)" : ""} → {s.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Onde o lead aparecerá no kanban quando este formulário for enviado.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Lista de e-mail</Label>
+            <select
+              className="w-full rounded border bg-background p-2 text-sm"
+              value={segmentId}
+              onChange={(e) => setSegmentId(e.target.value)}
+              disabled={!canManage}
+            >
+              <option value="">Apenas "Leads Site" (padrão do sistema)</option>
+              {segments.filter((s) => !s.is_system).map((s) => (
+                <option key={s.id} value={s.id}>+ {s.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">O lead é sempre adicionado à lista "Leads Site". Aqui você escolhe uma lista extra opcional.</p>
+          </div>
+
           <div className="space-y-1.5">
             <Label>Mapeamento de campos (JSON)</Label>
             <textarea
-              className="w-full h-40 rounded border bg-background p-2 font-mono text-xs"
+              className="w-full h-32 rounded border bg-background p-2 font-mono text-xs"
               value={map}
               onChange={(e) => setMap(e.target.value)}
               disabled={!canManage}
