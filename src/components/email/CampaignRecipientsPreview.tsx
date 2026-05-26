@@ -32,18 +32,9 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
         let recipients: Recipient[] = [];
 
         if (segmentId) {
-          // Carrega filtros do segmento e chama o preview RPC (dry-run)
-          const { data: seg, error: segErr } = await supabase
-            .from("email_segments")
-            .select("filters")
-            .eq("id", segmentId)
-            .maybeSingle();
-          if (segErr) throw segErr;
-          const filters = (seg?.filters ?? {}) as any;
-
-          const { data, error } = await supabase.rpc("resolve_email_segment_preview", {
-            _clinic_id: clinicId,
-            _filters: filters,
+          // Usa o mesmo resolver do dispatcher — lida com dinâmico e estático
+          const { data, error } = await supabase.rpc("resolve_email_segment", {
+            _segment_id: segmentId,
           });
           if (error) throw error;
           recipients = (data ?? []).map((r: any) => ({ email: r.email, name: r.name }));
