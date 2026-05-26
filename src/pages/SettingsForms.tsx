@@ -98,9 +98,9 @@ export default function SettingsForms() {
       <div className="mx-auto max-w-5xl p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Formulários</h1>
+            <h1 className="text-2xl font-semibold">Integração do Site</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Conecte formulários de sites WordPress, Lovable ou HTML puro ao CRM.
+              Pixel de rastreamento + captura de formulários num único SDK. Cada integração gera um prompt pronto para colar no chat do Lovable do site da clínica.
             </p>
           </div>
           {canManage && (
