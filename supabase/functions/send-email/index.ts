@@ -383,6 +383,8 @@ Deno.serve(async (req) => {
         error: json?.message || JSON.stringify(json),
         related_lead_id: related_lead_id ?? null,
         related_lead_table: related_lead_table ?? null,
+        variant_id: variant_id ?? null,
+        from_domain_override: overrideDomain || null,
         events: [{ type: "send_failed", at: new Date().toISOString(), data: json }],
       });
       return jsonResponse({ error: json?.message || "send failed", resend: json }, { status: 502 });
@@ -399,10 +401,13 @@ Deno.serve(async (req) => {
         status: "sent",
         related_lead_id: related_lead_id ?? null,
         related_lead_table: related_lead_table ?? null,
+        variant_id: variant_id ?? null,
+        from_domain_override: overrideDomain || null,
         events: [{ type: "sent", at: new Date().toISOString() }],
       })
       .select("id")
       .single();
+
 
     // (cota já consumida atomicamente em claim_email_quota acima)
 
