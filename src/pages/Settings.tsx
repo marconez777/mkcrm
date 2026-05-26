@@ -345,12 +345,12 @@ export default function SettingsPage() {
             <Card className="p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Formulários de sites</h2>
+                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração do Site (Pixel + Formulários)</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Conecte formulários de sites WordPress, Lovable ou HTML puro. Cada envio vira lead automaticamente.
+                    Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da clínica.
                   </p>
                 </div>
-                <Link to="/settings/forms"><Button variant="outline">Abrir</Button></Link>
+                <Link to="/settings/integration"><Button variant="outline">Abrir</Button></Link>
               </div>
             </Card>
           </TabsContent>
