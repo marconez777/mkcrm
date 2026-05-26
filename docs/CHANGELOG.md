@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-05-26 — roadmap de escala do módulo de email
+
+### Adicionado
+- `docs/roadmap/EMAIL_SCALE.md`: roadmap completo de performance e escala do módulo de email marketing — 10 gargalos identificados na auditoria do código + 21 melhorias em 4 tiers (R-1 a R-21), SLOs propostos e sugestão de priorização para subir cliente de alto volume.
+- `docs/edge-functions/EMAIL.md` §11 "Performance & throughput": tabela com limites atuais (cron, batch, cota, etc.) e referência ao roadmap.
+
+### Mudado
+- `docs/roadmap/EMAIL.md`: aviso de escopo agora aponta também para `EMAIL_SCALE.md`.
+
+---
+
 ## 2026-05-26 — atualização do módulo de email
 
 ### Mudado
