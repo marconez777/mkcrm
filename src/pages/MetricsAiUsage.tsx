@@ -30,14 +30,14 @@ type Row = {
   created_at: string;
 };
 
-const RANGES = [
-  { id: "24h", label: "24h", hours: 24 },
-  { id: "3d", label: "3 dias", hours: 24 * 3 },
-  { id: "7d", label: "7 dias", hours: 24 * 7 },
-  { id: "30d", label: "30 dias", hours: 24 * 30 },
-];
-
 const PAGE_SIZE = 50;
+
+function toDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function MetricsAiUsage() {
   const { isSuperAdmin, membership, loading } = useAuth();
