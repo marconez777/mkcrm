@@ -669,3 +669,76 @@ Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do CRM com
 `;
 }
 
+function TrafficSummary({ clinicId }: { clinicId: string }) {
+  const [stats, setStats] = useState<{
+    visitors24: number; visitors7d: number;
+    events24: number; events7d: number;
+    waIntents24: number; waIntents7d: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const now = Date.now();
+      const d1 = new Date(now - 24 * 3600 * 1000).toISOString();
+      const d7 = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
+      const head = { count: "exact" as const, head: true };
+      const [v1, v7, e1, e7, w1, w7] = await Promise.all([
+        supabase.from("tracking_visitors").select("id", head).eq("clinic_id", clinicId).gte("first_seen_at", d1),
+        supabase.from("tracking_visitors").select("id", head).eq("clinic_id", clinicId).gte("first_seen_at", d7),
+        supabase.from("tracking_events").select("event_id", head).eq("clinic_id", clinicId).gte("event_time", d1),
+        supabase.from("tracking_events").select("event_id", head).eq("clinic_id", clinicId).gte("event_time", d7),
+        supabase.from("whatsapp_intents").select("id", head).eq("clinic_id", clinicId).gte("created_at", d1),
+        supabase.from("whatsapp_intents").select("id", head).eq("clinic_id", clinicId).gte("created_at", d7),
+      ]);
+      setStats({
+        visitors24: v1.count ?? 0, visitors7d: v7.count ?? 0,
+        events24: e1.count ?? 0, events7d: e7.count ?? 0,
+        waIntents24: w1.count ?? 0, waIntents7d: w7.count ?? 0,
+      });
+      setLoading(false);
+    })();
+  }, [clinicId]);
+
+  if (loading) {
+    return <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  }
+  if (!stats) return null;
+
+  const Metric = ({ label, v24, v7d }: { label: string; v24: number; v7d: number }) => (
+    <Card className="p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="mt-2 flex items-baseline gap-3">
+        <div>
+          <div className="text-2xl font-semibold">{v24.toLocaleString("pt-BR")}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimas 24h</div>
+        </div>
+        <div className="text-muted-foreground">/</div>
+        <div>
+          <div className="text-lg font-medium">{v7d.toLocaleString("pt-BR")}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimos 7 dias</div>
+        </div>
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Metric label="Visitantes únicos" v24={stats.visitors24} v7d={stats.visitors7d} />
+        <Metric label="Eventos de tracking" v24={stats.events24} v7d={stats.events7d} />
+        <Metric label="Cliques em WhatsApp" v24={stats.waIntents24} v7d={stats.waIntents7d} />
+      </div>
+      <Card className="p-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">Painel completo de rastreamento</p>
+          <p className="text-xs text-muted-foreground">Veja jornada de cada visitante, eventos detalhados, atribuição UTM e funis.</p>
+        </div>
+        <a href="/tracking"><Button variant="outline"><ExternalLink className="h-4 w-4 mr-2" />Abrir painel</Button></a>
+      </Card>
+    </div>
+  );
+}
+
+
