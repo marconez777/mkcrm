@@ -59,18 +59,22 @@ SELECT id, name, slug FROM clinics WHERE name ILIKE '%or%' OR slug ILIKE '%or%';
 | `id` | `cf9ec890-83fe-4751-9bc5-aacc69f7e9bd` |
 | `name` | Site Or |
 | `status` | active |
-| `allowed_domains` | `["https://clinicaohrpsiquiatria.com/"]` |
-| `total_submissions` | **0** |
+| `allowed_domains` | `["https://clinicaohrpsiquiatria.com/"]` ⚠️ formato sujo (URL completa em vez de hostname) |
+| `total_submissions` | **0** (contador só incrementa em `status='ok'`) |
 | `last_submission_at` | `null` |
 
-> O campo conta apenas submissões `status='ok'`. As 2 falhas em §3 não incrementaram.
+> Apesar do formato torto, o normalizador do `forms-ingest` aceitou — prova: as 2 submissões falhas em §3 vieram com `Origin: https://clinicaohrpsiquiatria.com` e passaram pelo check de origem (falharam só depois, no trigger).
 
-**Ação imediata (UI, antes da Fase 1):** adicionar em `/settings/forms` → editar integração "Site Or" → allowed_domains:
-- `clinicaohrpsiquiatria.com`
-- `clinicaor.com.br`
-- `mindscape-revive.lovable.app` (ou o domínio de preview atual)
+**Domínios reais da Clínica Or:**
+- **Produção:** `clinicaohrpsiquiatria.com` ← snippet instalado, único enviando dados hoje
+- **Preview Lovable:** `mindscape-revive.lovable.app` ← onde o time edita; ainda não está em `allowed_domains`
+- `clinicaor.com.br` **NÃO existe** (suposição errada da análise inicial)
 
-Pode manter sem `https://` e sem barra final — o normalizador de `forms-ingest` faz strip do scheme e trailing slash.
+**Ação imediata (UI, antes da Fase 1):** em `/settings/forms` → editar "Site Or" → allowed_domains:
+- `clinicaohrpsiquiatria.com` (substituir o valor torto atual)
+- `mindscape-revive.lovable.app`
+
+Sem `https://`, sem barra final, sem espaço.
 
 ---
 
