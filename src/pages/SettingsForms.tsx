@@ -36,6 +36,8 @@ type Definition = {
   active: boolean;
   total_submissions: number;
   last_submission_at: string | null;
+  default_pipeline_stage_id: string | null;
+  default_email_segment_id: string | null;
 };
 type Submission = {
   id: string;
