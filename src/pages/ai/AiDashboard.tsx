@@ -18,8 +18,7 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  ComposedChart,
-  Bar,
+  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -27,6 +26,7 @@ import {
   CartesianGrid,
   Legend,
   BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
