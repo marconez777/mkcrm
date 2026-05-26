@@ -65,7 +65,7 @@ export default function SettingsForms() {
   const [newDomains, setNewDomains] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Formulários — MK CRM"; load(); }, []);
+  useEffect(() => { document.title = "Integração do Site — MK CRM"; load(); }, []);
 
   async function load() {
     setLoading(true);
