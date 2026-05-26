@@ -305,13 +305,13 @@ export default function MetricsAiUsage() {
 
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-semibold">Custo por dia (top 6 modelos)</h2>
-          <div className="flex h-44 items-end gap-1">
+          <div className="flex h-44 items-stretch gap-1">
             {dailyByModel.buckets.map((b: any) => {
               const total = dailyByModel.models.reduce((s, m) => s + (b[m] || 0), 0);
               const pctTotal = (total / dailyByModel.max) * 100;
               return (
-                <div key={b.day} className="flex flex-1 flex-col items-center gap-1" title={`${b.day}: ${fmtUSD(total)}`}>
-                  <div className="flex w-full flex-1 flex-col-reverse">
+                <div key={b.day} className="flex h-full flex-1 flex-col items-center gap-1" title={`${b.day}: ${fmtUSD(total)}`}>
+                  <div className="flex w-full flex-1 flex-col-reverse overflow-hidden rounded-sm" style={{ minHeight: 0 }}>
                     {dailyByModel.models.map((m, i) => {
                       const v = b[m] || 0;
                       const h = total ? (v / total) * pctTotal : 0;
