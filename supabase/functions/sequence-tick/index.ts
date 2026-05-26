@@ -37,6 +37,9 @@ Deno.serve(async (req) => {
       .eq("status", "active")
       .lte("next_run_at", nowIso)
       .limit(50);
+    const { data: fieldDefs } = await supabase
+      .from("lead_custom_fields")
+      .select("field_key, field_type");
 
     let processed = 0, sent = 0, failed = 0, skipped = 0;
     for (const e of due ?? []) {
