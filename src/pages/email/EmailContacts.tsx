@@ -20,21 +20,43 @@ import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
 
 type Segment = { id: string; name: string };
-type Contact = {
-  source: "lead" | "manual";
+
+type LeadRow = {
   id: string;
   email: string;
   name: string | null;
   created_at: string;
-  segment_id?: string | null;
-  segment_name?: string | null;
-  form_source?: string | null;
+  form_source: string | null;
+};
+type SegContactRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  created_at: string;
+  segment_id: string | null;
+  lead_id: string | null;
+};
+
+// Uma linha por e-mail (agrupado)
+type GroupedContact = {
+  email: string;
+  name: string | null;
+  created_at: string;
+  leadId: string | null;
+  formSource: string | null;
+  segmentEntries: Array<{
+    id: string;
+    segment_id: string | null;
+    segment_name: string | null;
+    fromLead: boolean; // true = auto-inscrito pelo formulário (lead_id != null)
+  }>;
 };
 
 export default function EmailContacts() {
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [segContacts, setSegContacts] = useState<SegContactRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterSegment, setFilterSegment] = useState<string>("__all");
@@ -57,7 +79,7 @@ export default function EmailContacts() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // delete confirm
-  const [toDelete, setToDelete] = useState<Contact | null>(null);
+  const [toDelete, setToDelete] = useState<GroupedContact | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   async function load() {
@@ -71,7 +93,7 @@ export default function EmailContacts() {
     setClinicId(cid);
     if (!cid) { setLoading(false); return; }
 
-    const [{ data: segs }, { data: leads }, { data: manual }] = await Promise.all([
+    const [{ data: segs }, { data: leadsData }, { data: manual }] = await Promise.all([
       supabase.from("email_segments").select("id, name").eq("clinic_id", cid).order("name"),
       supabase.from("leads")
         .select("id, email, name, created_at, form_source")
@@ -87,54 +109,84 @@ export default function EmailContacts() {
         .limit(2000),
     ]);
 
-    const segList = (segs as Segment[]) ?? [];
-    setSegments(segList);
-    const segMap = new Map(segList.map((s) => [s.id, s.name]));
-
-    const merged: Contact[] = [
-      ...((leads as any[]) ?? []).map((l) => ({
-        source: "lead" as const,
-        id: l.id,
-        email: String(l.email).toLowerCase(),
-        name: l.name,
-        created_at: l.created_at,
-        form_source: l.form_source,
-      })),
-      ...((manual as any[]) ?? []).map((c) => ({
-        source: "manual" as const,
-        id: c.id,
-        email: String(c.email).toLowerCase(),
-        name: c.name,
-        created_at: c.created_at,
-        segment_id: c.segment_id,
-        segment_name: segMap.get(c.segment_id) ?? null,
-      })),
-    ];
-    setContacts(merged);
+    setSegments((segs as Segment[]) ?? []);
+    setLeads(((leadsData as LeadRow[]) ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
+    setSegContacts(((manual as SegContactRow[]) ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
     setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
+  // Agrupa por e-mail
+  const grouped = useMemo<GroupedContact[]>(() => {
+    const segMap = new Map(segments.map((s) => [s.id, s.name]));
+    const byEmail = new Map<string, GroupedContact>();
+
+    for (const l of leads) {
+      const g = byEmail.get(l.email) ?? {
+        email: l.email,
+        name: l.name,
+        created_at: l.created_at,
+        leadId: null,
+        formSource: null,
+        segmentEntries: [],
+      };
+      g.leadId = l.id;
+      g.formSource = l.form_source;
+      g.name = g.name ?? l.name;
+      if (new Date(l.created_at) > new Date(g.created_at)) g.created_at = l.created_at;
+      byEmail.set(l.email, g);
+    }
+
+    for (const c of segContacts) {
+      const g = byEmail.get(c.email) ?? {
+        email: c.email,
+        name: c.name,
+        created_at: c.created_at,
+        leadId: null,
+        formSource: null,
+        segmentEntries: [],
+      };
+      g.name = g.name ?? c.name;
+      g.segmentEntries.push({
+        id: c.id,
+        segment_id: c.segment_id,
+        segment_name: c.segment_id ? (segMap.get(c.segment_id) ?? null) : null,
+        fromLead: !!c.lead_id,
+      });
+      byEmail.set(c.email, g);
+    }
+
+    return Array.from(byEmail.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [leads, segContacts, segments]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return contacts.filter((c) => {
-      if (q && !c.email.includes(q) && !(c.name ?? "").toLowerCase().includes(q)) return false;
-      if (filterSource !== "__all" && c.source !== filterSource) return false;
+    return grouped.filter((g) => {
+      if (q && !g.email.includes(q) && !(g.name ?? "").toLowerCase().includes(q)) return false;
+
+      if (filterSource !== "__all") {
+        const hasLead = !!g.leadId;
+        const hasManual = g.segmentEntries.some((e) => !e.fromLead);
+        const hasAuto = g.segmentEntries.some((e) => e.fromLead);
+        if (filterSource === "lead" && !hasLead) return false;
+        if (filterSource === "manual" && !hasManual) return false;
+        if (filterSource === "auto" && !hasAuto) return false;
+      }
+
       if (filterSegment !== "__all") {
-        if (c.source !== "manual" || c.segment_id !== filterSegment) return false;
+        if (!g.segmentEntries.some((e) => e.segment_id === filterSegment)) return false;
       }
       return true;
     });
-  }, [contacts, search, filterSource, filterSegment]);
+  }, [grouped, search, filterSource, filterSegment]);
 
   const totals = useMemo(() => {
-    const uniq = new Set(contacts.map((c) => c.email));
-    return {
-      total: uniq.size,
-      leads: contacts.filter((c) => c.source === "lead").length,
-      manual: contacts.filter((c) => c.source === "manual").length,
-    };
-  }, [contacts]);
+    const leadCount = grouped.filter((g) => g.leadId).length;
+    const manualCount = grouped.filter((g) => g.segmentEntries.some((e) => !e.fromLead)).length;
+    return { total: grouped.length, leads: leadCount, manual: manualCount };
+  }, [grouped]);
 
   async function addManual() {
     const email = addEmail.trim().toLowerCase();
@@ -158,16 +210,18 @@ export default function EmailContacts() {
     if (!toDelete) return;
     setDeleting(true);
     try {
-      if (toDelete.source === "manual") {
-        const { error } = await supabase.from("email_segment_contacts").delete().eq("id", toDelete.id);
-        if (error) return toast.error(error.message);
-      } else {
-        const { error } = await supabase.from("leads").delete().eq("id", toDelete.id);
-        if (error) return toast.error(error.message);
+      const segIds = toDelete.segmentEntries.map((e) => e.id);
+      if (segIds.length) {
+        const { error } = await supabase.from("email_segment_contacts").delete().in("id", segIds);
+        if (error) { toast.error(error.message); return; }
       }
-      setContacts((c) => c.filter((x) => !(x.source === toDelete.source && x.id === toDelete.id)));
+      if (toDelete.leadId) {
+        const { error } = await supabase.from("leads").delete().eq("id", toDelete.leadId);
+        if (error) { toast.error(error.message); return; }
+      }
       toast.success("Contato excluído");
       setToDelete(null);
+      load();
     } finally {
       setDeleting(false);
     }
@@ -185,7 +239,6 @@ export default function EmailContacts() {
         const headers = Object.keys(json[0]).map(String);
         setImportHeaders(headers);
         setImportRows(json.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))));
-        // auto-detect
         const guessEmail = headers.find((h) => /e[\-_ ]?mail|email/i.test(h)) ?? headers[0];
         const guessName = headers.find((h) => /nome|name/i.test(h)) ?? "";
         setMapEmail(guessEmail);
@@ -224,7 +277,6 @@ export default function EmailContacts() {
         name: r.name,
         added_by: user?.id,
       }));
-      // chunked insert (upsert by ignoring conflict)
       const chunkSize = 500;
       let ok = 0, fail = 0;
       for (let i = 0; i < payload.length; i += chunkSize) {
@@ -242,10 +294,15 @@ export default function EmailContacts() {
   }
 
   function exportCsv() {
-    const rows = [["email", "nome", "origem", "segmento", "form_source"]];
-    filtered.forEach((c) => rows.push([
-      c.email, c.name ?? "", c.source, c.segment_name ?? "", c.form_source ?? "",
-    ]));
+    const rows = [["email", "nome", "origens", "segmentos", "form_source"]];
+    filtered.forEach((g) => {
+      const origens: string[] = [];
+      if (g.leadId) origens.push("lead");
+      if (g.segmentEntries.some((e) => e.fromLead)) origens.push("auto");
+      if (g.segmentEntries.some((e) => !e.fromLead)) origens.push("manual");
+      const segs = [...new Set(g.segmentEntries.map((e) => e.segment_name).filter(Boolean) as string[])].join(" | ");
+      rows.push([g.email, g.name ?? "", origens.join(" + "), segs, g.formSource ?? ""]);
+    });
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -262,7 +319,7 @@ export default function EmailContacts() {
         <div>
           <h2 className="text-lg font-semibold">Contatos</h2>
           <p className="text-sm text-muted-foreground">
-            {totals.total} únicos · {totals.leads} leads · {totals.manual} manuais
+            {totals.total} únicos · {totals.leads} de leads · {totals.manual} inscrições manuais
           </p>
         </div>
         <div className="flex gap-2">
@@ -378,10 +435,11 @@ export default function EmailContacts() {
             <Input className="pl-8" placeholder="Buscar por e-mail ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={filterSource} onValueChange={setFilterSource}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todas as origens</SelectItem>
               <SelectItem value="lead">Leads</SelectItem>
+              <SelectItem value="auto">Auto · formulário</SelectItem>
               <SelectItem value="manual">Manuais</SelectItem>
             </SelectContent>
           </Select>
@@ -410,33 +468,48 @@ export default function EmailContacts() {
                 <tr>
                   <th className="text-left px-3 py-2">E-mail</th>
                   <th className="text-left px-3 py-2">Nome</th>
-                  <th className="text-left px-3 py-2">Origem</th>
-                  <th className="text-left px-3 py-2">Segmento</th>
+                  <th className="text-left px-3 py-2">Origens</th>
+                  <th className="text-left px-3 py-2">Segmentos</th>
                   <th className="text-right px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 500).map((c) => (
-                  <tr key={`${c.source}-${c.id}`} className="border-t">
-                    <td className="px-3 py-2 truncate max-w-[260px]">{c.email}</td>
-                    <td className="px-3 py-2 truncate max-w-[180px]">{c.name ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {c.source === "lead" ? (
-                        <Badge variant="outline" className="text-[10px]">
-                          Lead{c.form_source ? ` · ${c.form_source}` : ""}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px]">Manual</Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{c.segment_name ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setToDelete(c)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.slice(0, 500).map((g) => {
+                  const hasManual = g.segmentEntries.some((e) => !e.fromLead);
+                  const hasAuto = g.segmentEntries.some((e) => e.fromLead);
+                  const segNames = [...new Set(
+                    g.segmentEntries.map((e) => e.segment_name).filter(Boolean) as string[]
+                  )];
+                  return (
+                    <tr key={g.email} className="border-t">
+                      <td className="px-3 py-2 truncate max-w-[260px]">{g.email}</td>
+                      <td className="px-3 py-2 truncate max-w-[180px]">{g.name ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {g.leadId && (
+                            <Badge variant="outline" className="text-[10px]">
+                              Lead{g.formSource ? ` · ${g.formSource}` : ""}
+                            </Badge>
+                          )}
+                          {hasAuto && (
+                            <Badge variant="outline" className="text-[10px]">Auto · formulário</Badge>
+                          )}
+                          {hasManual && (
+                            <Badge variant="secondary" className="text-[10px]">Manual</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {segNames.length ? segNames.join(", ") : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setToDelete(g)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -459,9 +532,11 @@ export default function EmailContacts() {
               {toDelete?.email}
               <br />
               <span className="text-xs">
-                {toDelete?.source === "lead"
+                {toDelete?.leadId && (toDelete?.segmentEntries.length ?? 0) > 0
+                  ? "O lead será removido do CRM e todas as inscrições em segmentos serão apagadas."
+                  : toDelete?.leadId
                   ? "Esta ação removerá o lead permanentemente do CRM."
-                  : "Esta ação removerá o contato do segmento permanentemente."}
+                  : "Esta ação removerá todas as inscrições em segmentos para este e-mail."}
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
