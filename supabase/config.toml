@@ -73,3 +73,6 @@ verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
 
+
+[functions.scheduled-report-tick]
+verify_jwt = false
