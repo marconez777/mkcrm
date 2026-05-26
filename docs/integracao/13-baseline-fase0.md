@@ -206,6 +206,8 @@ FROM leads WHERE clinic_id='cf038458-457d-4c1a-9ac4-c88c3c8353a1';
 1. ⚠️ **Validar que `enqueue_email` agora aceita a chamada de 9 args.** Pedir 1 submit real no site e conferir `form_submissions.status='ok'`. Se falhar, Fase 1 não roda — o trigger continua quebrando todo lead criado por forms-ingest.
 2. ⚠️ **Atualizar `allowed_domains`** da integração `Site Or` via UI para `clinicaohrpsiquiatria.com` + `mindscape-revive.lovable.app` (hostname puro, sem `https://` nem `/`). Sem isso, qualquer teste a partir do preview Lovable retorna 403.
 
-Depois disso, a Fase 1 pode rodar sem dependências externas:
-- Novo endpoint `track-event` (capturar `test_completed` via fetch interceptor + `whatsapp_click` via click listener).
-- Migration `UPDATE leads SET phone = '+' || phone` (escopo global, ~1479 da ÓR + demais clínicas — confirmar antes).
+Depois disso, a Fase 1 (revisada) tem só 2 entregas:
+- ✅ **CRM**: bridge de CustomEvents `mk:*` no `tracking-pixel` (feito — captura `test_completed`, `lead_created`, `wa_click` etc.).
+- ⏳ **Site**: instalar `<script async src=".../tracking-pixel?project_id=cf038458-457d-4c1a-9ac4-c88c3c8353a1"></script>` no `<head>` (resolve `visitor_id`, `_mk_sid`, page_view SPA, UTM, whatsapp_click automático).
+- ❌ **Migration de telefone E.164 — ADIADA.** Auditoria mostrou 8 arquivos com `.eq("phone", ...)` em digits-only (evolution-webhook etc.). Migrar quebra inbound WhatsApp. Precisa plano dedicado.
+
