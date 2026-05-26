@@ -8,9 +8,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const MAX_ATTEMPTS = 3;
-const BATCH_SIZE = 50;
-const CONCURRENCY = 5;
+const BATCH_SIZE = 200;
+const CONCURRENCY = 20;
 const STALE_PROCESSING_MIN = 10;
+const SELF_TRIGGER_THRESHOLD = 150; // se batch quase cheio, re-invoca pra drenar
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -150,6 +151,15 @@ Deno.serve(async (req) => {
     for (let i = 0; i < jobs.length; i += CONCURRENCY) {
       const chunk = (jobs as any[]).slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map(processJob));
+    }
+
+    // R-3: self-trigger se a fila estiver cheia (drena sem esperar próximo cron)
+    if (jobs.length >= SELF_TRIGGER_THRESHOLD) {
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/process-email-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({ source: "self-trigger" }),
+      }).catch(() => {});
     }
 
     return jsonResponse({ processed: jobs.length, sent, failed, cancelled });

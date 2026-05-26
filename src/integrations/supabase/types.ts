@@ -3349,6 +3349,27 @@ export type Database = {
         }
         Relationships: []
       }
+      resend_webhook_events: {
+        Row: {
+          event_type: string | null
+          received_at: string
+          resend_id: string | null
+          svix_id: string
+        }
+        Insert: {
+          event_type?: string | null
+          received_at?: string
+          resend_id?: string | null
+          svix_id: string
+        }
+        Update: {
+          event_type?: string | null
+          received_at?: string
+          resend_id?: string | null
+          svix_id?: string
+        }
+        Relationships: []
+      }
       scheduled_messages: {
         Row: {
           clinic_id: string

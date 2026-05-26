@@ -130,26 +130,79 @@ Deno.serve(async (req) => {
     }
 
 
-    // enqueue em paralelo (chunks) para não estourar tempo da edge function
-    const CHUNK = 20;
+    // R-4: Pre-checks (uma vez, não por destinatário)
+    // 1) Feature gate
+    const { data: hasFeat } = await supabase.rpc("clinic_has_feature", {
+      _clinic_id: campaign.clinic_id, _key: "email_marketing",
+    });
+    if (!hasFeat) {
+      await supabase.from("email_campaigns").update({
+        status: "failed", error: "feature email_marketing disabled", updated_at: new Date().toISOString(),
+      }).eq("id", campaign_id);
+      return jsonResponse({ error: "feature_disabled" }, { status: 412 });
+    }
+    // 2) Template ativo
+    const { data: tpl } = await supabase
+      .from("email_templates")
+      .select("id")
+      .eq("clinic_id", campaign.clinic_id)
+      .eq("slug", campaign.template_slug)
+      .eq("active", true)
+      .maybeSingle();
+    if (!tpl) {
+      await supabase.from("email_campaigns").update({
+        status: "failed", error: "template not found or inactive", updated_at: new Date().toISOString(),
+      }).eq("id", campaign_id);
+      return jsonResponse({ error: "template_inactive" }, { status: 412 });
+    }
+
+    // R-4: batch INSERT em chunks grandes (ON CONFLICT DO NOTHING via index dedup parcial)
+    const nowIso = new Date().toISOString();
+    const fromOverride = campaign.from_name_override ?? null;
+    const relatedTable = `campaign_${campaign_id}`;
+    const CHUNK = 1000;
     let enqueued = 0;
     for (let i = 0; i < recipients.length; i += CHUNK) {
       const chunk = recipients.slice(i, i + CHUNK);
-      const results = await Promise.all(chunk.map((r) =>
-        supabase.rpc("enqueue_email", {
-          _clinic_id: campaign.clinic_id,
-          _template_slug: campaign.template_slug,
-          _recipient_email: r.email,
-          _recipient_name: r.name,
-          _variables: { name: r.name ?? "", campaign_id },
-          _scheduled_at: new Date().toISOString(),
-          _related_lead_id: r.lead_id,
-          _related_lead_table: `campaign_${campaign_id}`,
-          _force_send: false,
-          _from_name_override: campaign.from_name_override ?? null,
-        })
-      ));
-      enqueued += results.filter((r) => r.data).length;
+      const rows = chunk.map((r) => ({
+        clinic_id: campaign.clinic_id,
+        template_slug: campaign.template_slug,
+        recipient_email: r.email,
+        recipient_name: r.name,
+        variables: { name: r.name ?? "", campaign_id },
+        scheduled_at: nowIso,
+        related_lead_id: r.lead_id,
+        related_lead_table: relatedTable,
+        force_send: false,
+        from_name_override: fromOverride,
+        status: "pending",
+      }));
+      const { data: inserted, error: insErr } = await supabase
+        .from("email_queue")
+        .insert(rows)
+        .select("id");
+      if (insErr) {
+        // Conflitos do índice parcial não viram erro (ON CONFLICT implícito nem sempre aplica)
+        // Em caso de erro, fallback por linha
+        console.warn("batch insert error, falling back:", insErr.message);
+        for (const row of rows) {
+          const { data } = await supabase.rpc("enqueue_email", {
+            _clinic_id: row.clinic_id,
+            _template_slug: row.template_slug,
+            _recipient_email: row.recipient_email,
+            _recipient_name: row.recipient_name,
+            _variables: row.variables,
+            _scheduled_at: row.scheduled_at,
+            _related_lead_id: row.related_lead_id,
+            _related_lead_table: row.related_lead_table,
+            _force_send: false,
+            _from_name_override: fromOverride,
+          });
+          if (data) enqueued++;
+        }
+      } else {
+        enqueued += inserted?.length ?? 0;
+      }
     }
 
     // Campanha vazia ainda é "sent" — só "failed" se houver destinatários e nenhum enfileirou
