@@ -42,6 +42,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
   }
 
   async function remove(p: Pipeline) {
+    if (p.is_system) { toast.error("Funil do sistema não pode ser excluído."); return; }
     const used = counts.get(p.id) ?? 0;
     if (used > 0) { toast.error(`Não dá: ${used} leads neste funil. Mova-os antes.`); return; }
     if (!(await confirm({ title: `Excluir funil "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
@@ -92,6 +93,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
                 <span className={`truncate text-sm ${active ? "font-semibold text-foreground" : "text-foreground/80"}`}>{p.name}</span>
                 {p.is_default && <Star className="h-3 w-3 shrink-0 fill-warning text-warning" />}
+                {p.is_system && <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-bold uppercase text-muted-foreground" title="Funil do sistema, não pode ser excluído">sis</span>}
                 {p.kind === "sales" && p.whatsapp_instance_id && (
                   <MessageCircleMore className="h-3 w-3 shrink-0 text-success" />
                 )}
@@ -117,9 +119,11 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                       <Star className="mr-2 h-3.5 w-3.5" />Definir como padrão
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => remove(p)} className="text-destructive">
-                    <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
-                  </DropdownMenuItem>
+                  {!p.is_system && (
+                    <DropdownMenuItem onClick={() => remove(p)} className="text-destructive">
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

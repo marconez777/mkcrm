@@ -2167,8 +2167,10 @@ export type Database = {
           description: string | null
           filters: Json
           id: string
+          is_system: boolean
           name: string
           source_table: string
+          system_key: string | null
           updated_at: string
         }
         Insert: {
@@ -2179,8 +2181,10 @@ export type Database = {
           description?: string | null
           filters?: Json
           id?: string
+          is_system?: boolean
           name: string
           source_table?: string
+          system_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -2191,8 +2195,10 @@ export type Database = {
           description?: string | null
           filters?: Json
           id?: string
+          is_system?: boolean
           name?: string
           source_table?: string
+          system_key?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2447,6 +2453,7 @@ export type Database = {
           active: boolean
           clinic_id: string
           created_at: string
+          default_email_segment_id: string | null
           default_pipeline_stage_id: string | null
           default_tags: string[]
           field_map: Json
@@ -2463,6 +2470,7 @@ export type Database = {
           active?: boolean
           clinic_id: string
           created_at?: string
+          default_email_segment_id?: string | null
           default_pipeline_stage_id?: string | null
           default_tags?: string[]
           field_map?: Json
@@ -2479,6 +2487,7 @@ export type Database = {
           active?: boolean
           clinic_id?: string
           created_at?: string
+          default_email_segment_id?: string | null
           default_pipeline_stage_id?: string | null
           default_tags?: string[]
           field_map?: Json
@@ -2492,6 +2501,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "form_definitions_default_email_segment_id_fkey"
+            columns: ["default_email_segment_id"]
+            isOneToOne: false
+            referencedRelation: "email_segments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "form_definitions_integration_id_fkey"
             columns: ["integration_id"]
@@ -3479,9 +3495,11 @@ export type Database = {
           created_at: string
           id: string
           is_default: boolean
+          is_system: boolean
           kind: string
           name: string
           position: number
+          system_key: string | null
           updated_at: string
           whatsapp_instance_id: string | null
         }
@@ -3491,9 +3509,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_default?: boolean
+          is_system?: boolean
           kind?: string
           name: string
           position?: number
+          system_key?: string | null
           updated_at?: string
           whatsapp_instance_id?: string | null
         }
@@ -3503,9 +3523,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_default?: boolean
+          is_system?: boolean
           kind?: string
           name?: string
           position?: number
+          system_key?: string | null
           updated_at?: string
           whatsapp_instance_id?: string | null
         }
@@ -4980,6 +5002,10 @@ export type Database = {
           _variables?: Json
         }
         Returns: string
+      }
+      ensure_system_form_assets: {
+        Args: { _clinic_id: string }
+        Returns: undefined
       }
       generate_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string }

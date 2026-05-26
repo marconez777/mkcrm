@@ -126,13 +126,14 @@ Deno.serve(async (req) => {
           name: z.string().min(1).max(200).optional(),
           field_map: z.record(z.string()).optional(),
           default_pipeline_stage_id: z.string().uuid().nullable().optional(),
+          default_email_segment_id: z.string().uuid().nullable().optional(),
           default_tags: z.array(z.string()).optional(),
           active: z.boolean().optional(),
         }).parse(body);
         const { data: existing } = await admin.from("form_definitions").select("clinic_id").eq("id", p.id).single();
         if (!existing || !(await assertClinicAdmin(existing.clinic_id))) return json(403, { error: "forbidden" });
         const patch: any = {};
-        for (const k of ["name", "field_map", "default_pipeline_stage_id", "default_tags", "active"] as const) {
+        for (const k of ["name", "field_map", "default_pipeline_stage_id", "default_email_segment_id", "default_tags", "active"] as const) {
           if (p[k] !== undefined) patch[k] = p[k];
         }
         const { data, error } = await admin.from("form_definitions").update(patch).eq("id", p.id).select("*").single();

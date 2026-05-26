@@ -44,6 +44,8 @@ type Segment = {
   filters: any;
   active: boolean;
   created_at: string;
+  is_system?: boolean;
+  system_key?: string | null;
 };
 
 type Stage = { id: string; name: string; pipeline_id: string };
@@ -332,9 +334,10 @@ export default function EmailSegments() {
     });
   }
 
-  async function remove(id: string) {
+  async function remove(seg: Segment) {
+    if (seg.is_system) { toast.error("Lista do sistema não pode ser excluída."); return; }
     if (!(await confirm({ title: "Excluir segmento?", confirmLabel: "Excluir", destructive: true }))) return;
-    const { error } = await supabase.from("email_segments").delete().eq("id", id);
+    const { error } = await supabase.from("email_segments").delete().eq("id", seg.id);
     if (error) toast.error(error.message);
     else { toast.success("Excluído"); load(); }
   }
@@ -610,9 +613,12 @@ export default function EmailSegments() {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>Editar</Button>
-                    <Button size="sm" variant="ghost" onClick={() => remove(s.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!s.is_system && (
+                      <Button size="sm" variant="ghost" onClick={() => remove(s)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {s.is_system && <Badge variant="secondary" className="self-center text-[10px]">sistema</Badge>}
                   </div>
                 </div>
               </Card>
