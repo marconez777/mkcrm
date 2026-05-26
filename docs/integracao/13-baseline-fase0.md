@@ -204,7 +204,7 @@ FROM leads WHERE clinic_id='cf038458-457d-4c1a-9ac4-c88c3c8353a1';
 **Sim, com 2 pré-requisitos não previstos:**
 
 1. ⚠️ **Validar que `enqueue_email` agora aceita a chamada de 9 args.** Pedir 1 submit real no site e conferir `form_submissions.status='ok'`. Se falhar, Fase 1 não roda — o trigger continua quebrando todo lead criado por forms-ingest.
-2. ⚠️ **Atualizar `allowed_domains`** da integração `Site Or` via UI para incluir `clinicaor.com.br` e o domínio Lovable de preview do site. Sem isso o teste do item 1 retorna 403.
+2. ⚠️ **Atualizar `allowed_domains`** da integração `Site Or` via UI para `clinicaohrpsiquiatria.com` + `mindscape-revive.lovable.app` (hostname puro, sem `https://` nem `/`). Sem isso, qualquer teste a partir do preview Lovable retorna 403.
 
 Depois disso, a Fase 1 pode rodar sem dependências externas:
 - Novo endpoint `track-event` (capturar `test_completed` via fetch interceptor + `whatsapp_click` via click listener).
