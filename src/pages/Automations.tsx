@@ -393,7 +393,7 @@ export default function Automations() {
                     {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}.
+                    Variáveis: {"{{nome}}"}, {"{{primeiro_nome}}"}, {"{{telefone}}"}, {"{{email}}"}, {"{{empresa}}"}, {"{{campo.<chave>}}"} — para campos de data use {"{{campo.data_horario:data}}"} ou {"{{campo.data_horario:hora}}"}.
                   </p>
                 </div>
               )}
