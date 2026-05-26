@@ -214,23 +214,22 @@ export default function AiDashboard() {
         <CardContent>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <LineChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => fmtCompact(v)} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(value: any, name: string) => {
                     if (name === "Tokens") return [fmtCompact(Number(value)), name];
-                    if (name === "Custo (USD)") return [fmtUSD(Number(value)), name];
                     return [value, name];
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar yAxisId="left" dataKey="messages" name="Mensagens" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="tokens" name="Tokens" stroke="#10b981" strokeWidth={2} dot={false} />
-              </ComposedChart>
+                <Line yAxisId="left" type="monotone" dataKey="messages" name="Mensagens" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="right" type="monotone" dataKey="tokens" name="Tokens" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
