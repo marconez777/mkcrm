@@ -741,3 +741,17 @@ async function fetchLeadNames(ids: string[]): Promise<Map<string, string>> {
     .in("id", unique);
   return new Map((data ?? []).map((r: any) => [r.id, r.name]));
 }
+
+async function fetchContactNames(emails: string[]): Promise<Map<string, string>> {
+  const unique = Array.from(new Set(emails.map((e) => e.toLowerCase()).filter(Boolean)));
+  if (unique.length === 0) return new Map();
+  const { data } = await supabase
+    .from("email_segment_contacts")
+    .select("email, name")
+    .in("email", unique);
+  const m = new Map<string, string>();
+  for (const r of (data ?? []) as any[]) {
+    if (r.name) m.set(String(r.email).toLowerCase(), r.name);
+  }
+  return m;
+}
