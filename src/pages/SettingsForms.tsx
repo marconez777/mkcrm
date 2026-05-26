@@ -285,7 +285,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               <TabsList>
                 <TabsTrigger value="ai">🤖 Prompt para IA (Lovable)</TabsTrigger>
                 <TabsTrigger value="wp">WordPress</TabsTrigger>
-                <TabsTrigger value="lovable">Lovable / HTML</TabsTrigger>
+                <TabsTrigger value="lovable">HTML</TabsTrigger>
                 <TabsTrigger value="api">API direta</TabsTrigger>
               </TabsList>
 
