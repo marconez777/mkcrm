@@ -67,18 +67,22 @@ export default function SettingsEmailDomain() {
 
   if (!enabled) {
     return (
-      <div className="mx-auto max-w-3xl p-6 space-y-4">
-        <Link to="/settings" className="text-xs text-muted-foreground inline-flex items-center gap-1"><ArrowLeft className="h-3 w-3" />Voltar</Link>
-        <Card className="p-6 text-center text-muted-foreground">
-          <Mail className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          O recurso de Email Marketing não está ativo para esta clínica. Peça ao suporte para liberar.
-        </Card>
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-6 space-y-4">
+          <Link to="/settings" className="text-xs text-muted-foreground inline-flex items-center gap-1"><ArrowLeft className="h-3 w-3" />Voltar</Link>
+          <Card className="p-6 text-center text-muted-foreground">
+            <Mail className="mx-auto mb-2 h-8 w-8 opacity-50" />
+            O recurso de Email Marketing não está ativo para esta clínica. Peça ao suporte para liberar.
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl p-6 space-y-6">
+
       <div>
         <Link to="/settings" className="text-xs text-muted-foreground inline-flex items-center gap-1"><ArrowLeft className="h-3 w-3" />Voltar</Link>
         <h1 className="mt-2 text-2xl font-semibold">Domínio de Email</h1>
