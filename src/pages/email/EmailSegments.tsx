@@ -375,7 +375,7 @@ export default function EmailSegments() {
         }}>
           <Filter className="h-4 w-4 mr-2" /> Criar segmentos dos formulários
         </Button>
-        <Dialog open={openNew} onOpenChange={(o) => { setOpenNew(o); if (!o) resetForm(); }}>
+        <Dialog open={openNew} onOpenChange={(o) => { if (o) openCreate(); else { setOpenNew(false); resetForm(); } }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
