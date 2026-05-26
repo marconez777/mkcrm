@@ -285,7 +285,7 @@ function Column({
         className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
       >
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} compact={compact} />)}
+          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} onMoveToStage={onMoveLeadToStage} stages={allStages} compact={compact} />)}
         </SortableContext>
         {leads.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
