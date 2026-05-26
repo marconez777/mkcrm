@@ -113,7 +113,11 @@ Deno.serve(async (req) => {
             variables: job.variables, related_lead_id: job.related_lead_id,
             related_lead_table: job.related_lead_table, force: job.force_send,
             queue_id: job.id, from_name_override: job.from_name_override ?? null,
+            from_domain_override: job.from_domain_override ?? null,
+            variant_id: job.variant_id ?? null,
+            subject_override: (job.variables as any)?.subject_override ?? null,
           }),
+
         });
         const result = await resp.json().catch(() => ({}));
         if (resp.ok) {
