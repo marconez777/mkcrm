@@ -1,22 +1,18 @@
 ## Objetivo
 
-No menu de 3 pontos do card do Kanban, adicionar a opção **"Mover para coluna"** com submenu listando as outras colunas do pipeline atual, ao lado da já existente "Mover para outro funil".
+Permitir editar o nome do lead direto pelo cabeçalho do chat (onde hoje aparece "Eliza", "Priscila Dezena Vergal" etc.), além do campo já existente em Detalhes.
 
-## Mudanças
+## Mudança
 
-Tudo isolado em `src/pages/Kanban.tsx`:
+Tudo isolado em `src/components/inbox/ChatPane.tsx`, no header (linhas ~504-516):
 
-1. **`LeadCard`** — passar duas novas props: `stages: Stage[]` (do pipeline atual) e `onMoveToStage: (lead, stageId) => void`.
-2. **Menu do card** — adicionar `DropdownMenuSub` com trigger "Mover para coluna" (ícone `Columns3` do lucide). O submenu lista `stages.filter(s => s.id !== lead.stage_id)`, cada item mostra o nome (com a bolinha de cor da coluna). Manter "Mover para outro funil" como segundo item.
-3. **Handler `moveLeadToStage`** — definido no componente `Kanban`, mesma lógica do drag-and-drop existente (linhas ~373-389): atualização otimista do estado, `update` em `leads` com novo `stage_id` e `position` (final da coluna alvo), toast de sucesso com nome da coluna. Reaproveita o mesmo padrão para que triggers de banco (stage_changed_at, eventos) disparem normalmente.
-4. **Onde o `LeadCard` é renderizado** (dentro de `Column` em ~266 e overlay em ~540) — repassar as novas props.
+- Substituir o `<div>` estático do nome por um botão (ícone de lápis aparece no hover) que, ao clicar, troca para um `<input>` inline pré-preenchido com o nome atual.
+- Commit no Enter ou blur → `supabase.from("leads").update({ name: trimmed || null }).eq("id", lead.id)` + toast de erro em caso de falha. O realtime do `useLeads` já reflete a mudança na lista, no Kanban e em todos os outros lugares.
+- Esc cancela e restaura.
+- Mantém o telefone abaixo intacto.
 
-## Fora de escopo
-
-- Não mexer no diálogo `MoveLeadDialog` (entre funis).
-- Não alterar lógica de automações, posições nem realtime.
-- Não adicionar atalhos de teclado.
+Sem alterações de schema, edge function ou rota.
 
 ## Validação
 
-Abrir o Kanban, clicar nos 3 pontos de um card → "Mover para coluna" → escolher outra etapa → card aparece na coluna escolhida imediatamente e persiste após reload.
+Abrir uma conversa, clicar no nome no cabeçalho, digitar, Enter → o nome muda imediatamente no header, na lista de conversas e nos cards do Kanban.
