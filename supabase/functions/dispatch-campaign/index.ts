@@ -146,6 +146,7 @@ Deno.serve(async (req) => {
           _related_lead_id: r.lead_id,
           _related_lead_table: `campaign_${campaign_id}`,
           _force_send: false,
+          _from_name_override: campaign.from_name_override ?? null,
         })
       ));
       enqueued += results.filter((r) => r.data).length;
