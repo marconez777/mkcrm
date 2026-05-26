@@ -1,0 +1,2 @@
+UPDATE public.email_domains SET resend_domain_id='08d4ee64-f53a-4c24-90fe-f37855213bca', last_checked_at=now() WHERE id='e584d379-d424-4545-8ec8-d6e9c96067a0';
+UPDATE public.email_queue SET status='pending', error=NULL, scheduled_at=now(), updated_at=now() WHERE id='bda7320c-8077-4a4e-9cd7-aa9520318986';
