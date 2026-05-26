@@ -21,7 +21,7 @@
 | 10 | [Referência técnica](./10-referencia-tecnica.md) | Schemas, tabelas, edge functions, limites |
 | 11 | [Análise de conflitos — Clínica ÓR](./11-analise-conflitos-site-or.md) | Caso real: o que está quebrado entre site e CRM, com diagnóstico |
 | 12 | [Roadmap de correção](./12-roadmap-correcao.md) | Plano faseado para destravar a integração ÓR |
-| 13 | [Baseline Fase 0 — ÓR](./13-baseline-fase0.md) | Números "antes" + achado P0 do trigger `enqueue_email` |
+| 13 | [Baseline Fase 0 — ÓR](./13-baseline-fase0.md) | Números "antes" + achado P0 `enqueue_email` + correção dos domínios reais (prod = `clinicaohrpsiquiatria.com`, preview = `mindscape-revive.lovable.app`; `clinicaor.com.br` não existe) |
 | 📁 | [exemplos/](./exemplos/) | Snippets copy-paste por stack |
 
 ---
