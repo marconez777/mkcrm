@@ -1,50 +1,108 @@
-# Adicionar Seção 0 (Inventário) ao prompt para IA
+## Objetivo
 
-Pequena adição cirúrgica ao `buildAiPrompt` em `src/pages/SettingsForms.tsx`. Nenhum outro arquivo é tocado.
+Quando um lead chega via formulário do site:
+1. Vai para um **pipeline "Formulário Site"** (sistema, não removível) por padrão.
+2. Para formulários específicos (ex: webinar), o destino é configurável — não fixo no código.
+3. É inscrito automaticamente em uma **lista de e-mail "Leads Site"** (sistema, não removível) com nome + email.
+4. Telefone entra se vier no payload, senão usa placeholder existente.
 
-## O que muda
+Tudo continua passando pela edge function `forms-ingest` que já existe — só ganha roteamento extra.
 
-Inserir uma nova **Seção 0 — Inventário obrigatório** logo após o cabeçalho do prompt e **antes** da Seção 1 (Instalar os scripts). Renumerar as seções existentes (1→ continua 1, mas com nota explícita de "só execute depois do inventário").
+---
 
-## Conteúdo da Seção 0
+## 1. Banco de dados (migration única)
 
-Texto que instrui a IA do site a, **antes de tocar em qualquer coisa**:
+### 1.1. Flag de sistema em `pipelines`
+- `ALTER TABLE pipelines ADD COLUMN is_system boolean NOT NULL DEFAULT false`
+- `ALTER TABLE pipelines ADD COLUMN system_key text` (ex: `"forms_site"`, `"webinar"`)
+- Índice único `(clinic_id, system_key) WHERE system_key IS NOT NULL`
+- Trigger `BEFORE DELETE` em `pipelines` que bloqueia se `is_system = true`
 
-1. **Listar todos os `<script>` no `<head>`** que mencionem: `tracking-pixel`, `forms-snippet`, `MKForms`, `mkcrm`, `supabase.co/functions/v1`.
-2. **Listar todos os `<form>`** do projeto e classificar cada um:
-   - `onSubmit` nativo + `<button type="submit">` → snippet captura sozinho.
-   - `fetch` custom / `<button type="button">` → precisa de `window.MKForms.send(formRef)` manual.
-   - Já tem chamada manual a `MKForms.send` → marcar para revisão (risco de duplicação).
-3. **Listar qualquer código de tracking caseiro** que dispare requests para URLs de CRM/analytics antigas (concorre com o pixel oficial).
-4. **Apresentar o inventário ao usuário e aguardar OK** antes de aplicar mudanças.
+### 1.2. Flag de sistema em `email_segments`
+- `ALTER TABLE email_segments ADD COLUMN is_system boolean NOT NULL DEFAULT false`
+- `ALTER TABLE email_segments ADD COLUMN system_key text`
+- Índice único `(clinic_id, system_key) WHERE system_key IS NOT NULL`
+- Trigger `BEFORE DELETE` que bloqueia se `is_system = true`
 
-## Regras de decisão (incluídas na seção)
+### 1.3. Campo de roteamento em `form_definitions`
+Já existe `default_pipeline_stage_id` — basta usar. Adicionar:
+- `ALTER TABLE form_definitions ADD COLUMN default_email_segment_id uuid REFERENCES email_segments(id) ON DELETE SET NULL`
 
-Tabela curta orientando a IA sobre cada caso:
+Assim cada formulário pode sobrescrever pipeline/lista; quando nulo, cai no padrão "Formulário Site" / "Leads Site".
 
-| Achado | Ação |
-|---|---|
-| Pixel já existe com `project_id` correto | Manter, não duplicar |
-| Pixel existe com `project_id` diferente | Substituir pelo correto |
-| Snippet já existe com token correto | Manter |
-| Snippet existe com token diferente / antigo | Substituir |
-| Pixel **depois** do snippet no HTML | Reordenar (pixel primeiro) |
-| Form com `onSubmit` nativo + `MKForms.send` manual | Remover a chamada manual (duplicaria) |
-| Form com `fetch` custom **sem** `MKForms.send` | Adicionar a chamada manual |
-| Tracking caseiro / dataLayer antigo apontando pra outro CRM | Remover |
+### 1.4. Seed automático por clínica
+Função `ensure_system_form_assets(_clinic_id uuid)` que cria (idempotente):
+- Pipeline `is_system=true, system_key='forms_site', name='Formulário Site', kind='sales'`
+- Stage inicial "Novo" dentro dele
+- Segment `is_system=true, system_key='leads_site', name='Leads Site', filters={kind:'static'}`
 
-## Aviso sobre cookies
+Chamadas:
+- Backfill: rodar para todas as clínicas existentes na própria migration
+- Novas clínicas: trigger `AFTER INSERT ON clinics` que chama a função
 
-Curta nota explicando: **não limpar `_mk_vid` / `_mk_sid`** dos visitantes. Esses cookies preservam o histórico de jornada — apagá-los faz o site tratar visitantes recorrentes como novos.
+---
 
-## Detalhe técnico
+## 2. Edge function `forms-ingest` (ajuste)
 
-- Arquivo: `src/pages/SettingsForms.tsx`
-- Função: `buildAiPrompt` (linhas ~511-669)
-- Inserir bloco Markdown novo entre o parágrafo introdutório e a "## 1. Instalar os 2 scripts"
-- Renumeração: nenhum identificador externo depende dos números das seções, então não há side-effects.
+No fluxo de lead novo, quando `def.default_pipeline_stage_id` for nulo, resolver o stage inicial do pipeline `system_key='forms_site'` da clínica e usar como fallback. (Hoje o código já lê `def.default_pipeline_stage_id || integration.default_pipeline_stage_id`; só ampliar para incluir o fallback do sistema.)
 
-## Fora de escopo
+Após criar/atualizar o lead, se `email` existe:
+1. Inserir em `email_segment_contacts` na lista `system_key='leads_site'` (com `lead_id`, `email`, `name`).
+2. Se `def.default_email_segment_id` for setado, inserir também nessa segunda lista.
+3. Usar `ON CONFLICT DO NOTHING` (já tem unique `(segment_id, email)`).
 
-- Não muda nada além do texto do prompt.
-- Não toca edge functions, schema, rotas ou UI.
+Nenhuma mudança nos contratos público da function — só comportamento interno.
+
+---
+
+## 3. UI
+
+### 3.1. `Kanban` / `PipelineSidebar` e `EditPipelineDialog`
+- Badge "Sistema" ao lado do nome quando `is_system`.
+- Botão Excluir desabilitado com tooltip "Pipeline do sistema, criado para receber leads do site."
+- Bloqueio de rename do `system_key`, mas permite renomear o `name` se a clínica quiser.
+
+### 3.2. `SettingsForms.tsx` — aba de formulários
+Por formulário descoberto (`form_definitions`), adicionar dois selects:
+- **Pipeline / etapa de destino** (padrão: "Formulário Site → Novo")
+- **Lista de e-mail** (padrão: "Leads Site")
+
+Permite, por exemplo, mapear o form `webinar-xyz` para um pipeline "Webinar" criado pela própria clínica. Persiste em `form_definitions.default_pipeline_stage_id` e `default_email_segment_id`.
+
+### 3.3. Página de Listas/Segmentos de e-mail
+- Mesma proteção visual de "Sistema" + bloqueio de exclusão na lista "Leads Site".
+
+---
+
+## 4. Estrutura técnica
+
+```text
+forms-ingest (recebe submissão)
+  ├── resolve pipeline_stage:
+  │     def.default_pipeline_stage_id
+  │  ?? integration.default_pipeline_stage_id
+  │  ?? stage inicial do pipeline system_key='forms_site'
+  ├── upsert lead (com telefone se presente)
+  ├── insere em email_segment_contacts:
+  │     - sempre na lista system_key='leads_site'
+  │     - + def.default_email_segment_id (se setado)
+  └── log normal (form_submissions, lead_events)
+```
+
+---
+
+## 5. O que NÃO muda
+
+- Contratos da edge function (`form_key`, `fields`, headers).
+- Snippet/pixel/token no site da clínica.
+- Tabelas existentes de tracking, leads, RLS.
+- Pipelines não-sistema continuam editáveis/removíveis como hoje.
+
+---
+
+## 6. Entrega
+
+1. Migration (schema + triggers + função `ensure_system_form_assets` + backfill).
+2. Patch em `supabase/functions/forms-ingest/index.ts` (fallback de stage + inserir em segment).
+3. UI: badges de sistema + bloqueio de delete em pipelines e segments.
+4. `SettingsForms.tsx`: selects de pipeline/stage e lista por formulário, salvando em `form_definitions`.
