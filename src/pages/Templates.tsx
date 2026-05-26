@@ -24,6 +24,7 @@ const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}",
 export default function Templates() {
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
+  const customDefs = useCustomFieldDefsFull();
   const confirm = useConfirm();
 
   const load = async () => {
