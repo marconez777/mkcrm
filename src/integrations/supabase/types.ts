@@ -3701,6 +3701,112 @@ export type Database = {
           },
         ]
       }
+      scheduled_report_runs: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          error: string | null
+          id: string
+          message_preview: string | null
+          metrics: Json | null
+          report_id: string
+          status: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          message_preview?: string | null
+          metrics?: Json | null
+          report_id: string
+          status: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          message_preview?: string | null
+          metrics?: Json | null
+          report_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_report_runs_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_reports: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          group_jid: string
+          group_name: string | null
+          id: string
+          instance_id: string
+          last_error: string | null
+          last_sent_at: string | null
+          last_status: string | null
+          metrics: Json
+          name: string
+          send_time: string
+          tz: string
+          updated_at: string
+          weekdays: number[]
+        }
+        Insert: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          group_jid: string
+          group_name?: string | null
+          id?: string
+          instance_id: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string | null
+          metrics?: Json
+          name?: string
+          send_time?: string
+          tz?: string
+          updated_at?: string
+          weekdays?: number[]
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          group_jid?: string
+          group_name?: string | null
+          id?: string
+          instance_id?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string | null
+          metrics?: Json
+          name?: string
+          send_time?: string
+          tz?: string
+          updated_at?: string
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_reports_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settings: {
         Row: {
           connection_state: string | null

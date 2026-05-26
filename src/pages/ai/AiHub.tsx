@@ -8,6 +8,7 @@ import AiInsights from "@/pages/AiInsights";
 import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Broadcasts from "@/pages/Broadcasts";
 import Messages from "./Messages";
+import ScheduledReports from "@/pages/ScheduledReports";
 import type { FeatureKey } from "@/lib/features";
 
 type TabDef = {
@@ -35,6 +36,7 @@ const TABS: TabDef[] = [
     features: ["sequences", "automations", "templates"],
   },
   { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", features: ["broadcasts"] },
+  { value: "reports", path: "/ai/reports", label: "Relatórios agendados" },
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
   { value: "insights", path: "/ai/insights", label: "Insights", features: ["agents"] },
   { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos", features: ["metrics_ai_usage"] },
@@ -74,6 +76,7 @@ export default function AiHub() {
           <TabsContent value="usage" className="mt-0"><MetricsAiUsage /></TabsContent>
           <TabsContent value="messages" className="mt-0"><Messages /></TabsContent>
           <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>
+          <TabsContent value="reports" className="mt-0"><ScheduledReports /></TabsContent>
         </Tabs>
       </div>
     </div>
