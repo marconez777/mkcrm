@@ -898,36 +898,6 @@ export type Database = {
         }
         Relationships: []
       }
-      auth_lockouts: {
-        Row: {
-          created_at: string
-          email: string
-          failed_attempts: number
-          last_attempt_at: string
-          last_ip: string | null
-          locked_until: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          failed_attempts?: number
-          last_attempt_at?: string
-          last_ip?: string | null
-          locked_until?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          failed_attempts?: number
-          last_attempt_at?: string
-          last_ip?: string | null
-          locked_until?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       automation_runs: {
         Row: {
           automation_id: string
