@@ -17,56 +17,53 @@
 
 ---
 
-## Fase 1 — Captura mínima viável (1–2 dias) — CRM-only
+## Fase 1 — Captura mínima viável (REVISADO 2026-05-26)
 
-Resolve **P0.2**, **P0.3** e **P1.6** sem depender do time do site.
+> **Revisão importante:** o diagnóstico do site (ver §5) revelou que (a) `tracking-pixel`, `tracking-event` e `tracking-identify` **já existem no CRM** e já fazem page_view SPA + `_mk_vid`/`_mk_sid` + UTM + `whatsapp_click` automático, e (b) o site **já emite CustomEvents** `mk:lead:created`, `mk:test:started`, `mk:test:completed` no `window`. A Fase 1 anterior (interceptar fetch + criar `track-event` novo) foi **substituída** por algo muito menor.
+>
+> A migração de telefone E.164 (item 1.3 antigo) foi **adiada** — auditoria mostrou 8 arquivos com `.eq("phone", ...)` em formato digits-only (evolution-webhook, evolution-delete-lead, evolution-collect-leads, sequence-trigger, NewConversationDialog, etc.). Migrar quebra todos. Precisa de plano dedicado.
 
-### 1.1 — Interceptar `fetch` para `submit-test-result` (resolve P0.2)
+### 1.1 — CRM: bridge `mk:*` no `tracking-pixel` ✅ FEITO
 
-Adicionar no `forms-snippet/index.ts`, após o listener de submit:
+`supabase/functions/tracking-pixel/index.ts` agora escuta:
+- `mk:lead:created`, `mk:lead:updated`
+- `mk:test:started`, `mk:test:completed`
+- `mk:wa:click`
+- `mk:webinar:registered`, `mk:webinar:joined`
 
-```js
-var origFetch = window.fetch;
-window.fetch = function(input, init){
-  try {
-    var url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (url.indexOf('/submit-test-result') !== -1) {
-      var body = {};
-      try { body = JSON.parse((init && init.body) || '{}'); } catch(e) {}
-      sendCustomEvent('test_completed', body);
-    }
-  } catch(e) {}
-  return origFetch.apply(this, arguments);
-};
+E drena uma fila pré-boot (`window.mkQueue`) caso o site dispare CustomEvents antes do script async carregar.
+
+Cada `mk:foo:bar` vira `track("foo_bar", detail)` → `tracking-event` grava em `tracking_events` com `event_type='custom'`.
+
+### 1.2 — Site: instalar o `tracking-pixel` no `<head>` (PENDENTE — dev do site)
+
+Antes do `forms-snippet`, colar no `index.html` do projeto mindscape-revive:
+
+```html
+<script async src="https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/tracking-pixel?project_id=cf038458-457d-4c1a-9ac4-c88c3c8353a1"></script>
 ```
 
-Criar `sendCustomEvent(type, detail)` que faz POST para um novo endpoint `track-event` (ou reaproveita `forms-ingest` com `form_key = '__event__'` + payload).
+`project_id` = `clinic_id` da ÓR. Após instalado:
+- Visitor ganha `_mk_vid` (cookie 365d) + `_mk_sid` (session 30min)
+- Page_views SPA automáticos (`pushState`/`replaceState`/`popstate`)
+- UTMs persistidas em `tracking_visitors`
+- Clicks em `wa.me`/`api.whatsapp.com` viram `whatsapp_click` (já tem listener nativo no pixel, linhas 200-291)
+- CustomEvents `mk:*` que o site já dispara passam a ser capturados (item 1.1)
+- Próximo form submit traz `visitor_id` populado → `forms-ingest` faz `link_source='form_submission'` em `tracking_identity_links` → resolve P0.1
 
-**Decisão pendente:** novo endpoint dedicado vs reuso de `forms-ingest`. Recomendo **novo endpoint** (`track-event/index.ts`) para não poluir `form_submissions`.
+### 1.3 — Telefone E.164 (ADIADO — risco alto)
 
-### 1.2 — Capturar clicks em WhatsApp (resolve P0.3)
+Auditoria revelou que migrar `leads.phone` para `+E.164` quebra:
+- `evolution-webhook` (3 lookups por `phone` digits-only, vindos de `remoteJid.replace(/\D/g,'')`)
+- `evolution-delete-lead`, `evolution-collect-leads`
+- `sequence-trigger`
+- `NewConversationDialog` (frontend)
+- `_shared/evolution.ts`
+- `external-lead-capture`
 
-```js
-document.addEventListener('click', function(ev){
-  var a = ev.target.closest && ev.target.closest('a[href*="wa.me"], a[href*="api.whatsapp.com"]');
-  if (!a) return;
-  sendCustomEvent('whatsapp_click', {
-    href: a.href,
-    text: (a.innerText || '').slice(0, 80),
-    pathname: location.pathname
-  });
-}, true);
-```
+Para fazer: ou (a) atualizar todos os 8 call-sites + migration coordenada, ou (b) manter DB digits-only e padronizar APENAS na exibição/export. Decidir antes de tocar.
 
-No CRM, o `track-event` insere em `lead_events` (sem `lead_id` ainda — vincula depois via `visitor_id` ou na próxima submissão).
 
-### 1.3 — Padronizar telefone para `+E.164` (resolve P1.6)
-
-- Alterar `forms-ingest/index.ts:54-60` para retornar `"+55..."`.
-- Migration retroativa: `UPDATE leads SET phone = '+' || phone WHERE phone ~ '^[0-9]+$' AND length(phone) >= 12`.
-- Atualizar `docs/integracao/05-atribuicao-leads.md` e `10-referencia-tecnica.md`.
-
-**Saída da Fase 1:** CRM recebe 100 % das conclusões de teste e dos clicks WhatsApp; telefones alinhados.
 
 ---
 
