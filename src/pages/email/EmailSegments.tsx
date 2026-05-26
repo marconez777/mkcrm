@@ -469,38 +469,92 @@ export default function EmailSegments() {
                 )}
               </div>
 
-              {/* Contatos manuais */}
-              <div className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2"><Mail className="h-4 w-4" /> Contatos manuais</Label>
-                  <span className="text-xs text-muted-foreground">{contacts.length} contato(s)</span>
+              {/* Seletor de contatos (apenas para segmento estático) */}
+              {kind === "static" && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2"><Mail className="h-4 w-4" /> Selecionar contatos</Label>
+                    <span className="text-xs text-muted-foreground">{selectedContactIds.size} selecionado(s)</span>
+                  </div>
+                  {availableContacts.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-2">
+                      Nenhum contato cadastrado.{" "}
+                      <Link to="/email/contacts" className="text-primary underline">
+                        Cadastre na aba Contatos
+                      </Link>
+                      .
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          className="pl-8"
+                          placeholder="Buscar por nome ou e-mail"
+                          value={contactSearch}
+                          onChange={(e) => setContactSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline"
+                          onClick={() => {
+                            const visible = availableContacts.filter((c) => {
+                              const q = contactSearch.trim().toLowerCase();
+                              if (!q) return true;
+                              return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                            });
+                            const allSelected = visible.every((c) => selectedContactIds.has(c.id));
+                            setSelectedContactIds((prev) => {
+                              const next = new Set(prev);
+                              if (allSelected) visible.forEach((c) => next.delete(c.id));
+                              else visible.forEach((c) => next.add(c.id));
+                              return next;
+                            });
+                          }}
+                        >
+                          Selecionar/desmarcar todos (visíveis)
+                        </button>
+                        <Link to="/email/contacts" className="text-muted-foreground hover:underline">
+                          Gerenciar contatos →
+                        </Link>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto space-y-1">
+                        {availableContacts
+                          .filter((c) => {
+                            const q = contactSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                          })
+                          .map((c) => {
+                            const checked = selectedContactIds.has(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => toggleContact(c.id)}
+                                className={`w-full flex items-center gap-2 text-left text-sm border rounded px-2 py-1.5 transition-colors ${
+                                  checked ? "bg-primary/10 border-primary/40" : "hover:bg-accent"
+                                }`}
+                              >
+                                <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                                  checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"
+                                }`}>
+                                  {checked && <Check className="h-3 w-3" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate">{c.email}</div>
+                                  {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
                 </div>
-                {!editing && (
-                  <p className="text-xs text-muted-foreground">Salve o segmento primeiro para adicionar contatos.</p>
-                )}
-                {editing && (
-                  <>
-                    <div className="flex gap-2">
-                      <Input placeholder="Nome (opcional)" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} />
-                      <Input placeholder="email@exemplo.com" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} />
-                      <Button type="button" size="sm" onClick={addContact}>Adicionar</Button>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto space-y-1">
-                      {contacts.map((c) => (
-                        <div key={c.id} className="flex items-center justify-between text-sm border rounded px-2 py-1">
-                          <div className="min-w-0">
-                            <div className="truncate">{c.email}</div>
-                            {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
-                          </div>
-                          <Button size="sm" variant="ghost" onClick={() => removeContact(c.id)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <Switch checked={active} onCheckedChange={setActive} id="active" />
