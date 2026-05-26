@@ -93,6 +93,7 @@ export default function PipelineSidebar({ pipelines, currentId, onSelect, onNew,
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} />
                 <span className={`truncate text-sm ${active ? "font-semibold text-foreground" : "text-foreground/80"}`}>{p.name}</span>
                 {p.is_default && <Star className="h-3 w-3 shrink-0 fill-warning text-warning" />}
+                {p.is_system && <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-bold uppercase text-muted-foreground" title="Funil do sistema, não pode ser excluído">sis</span>}
                 {p.kind === "sales" && p.whatsapp_instance_id && (
                   <MessageCircleMore className="h-3 w-3 shrink-0 text-success" />
                 )}
