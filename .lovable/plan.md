@@ -1,61 +1,50 @@
-# Relatório diário no grupo do WhatsApp
+# Plano
 
-Sim, dá pra fazer. Vou criar um sistema novo de "Relatórios agendados" (separado das Automações de lead, porque elas atuam sobre 1 lead — aqui o destinatário é um grupo). Você cadastra: instância WhatsApp + grupo + horário + métricas. Todo dia, no horário escolhido, o sistema dispara a mensagem.
+Sim — dá para usar **a mesma fonte/lógica do Tracking**, e esse é o caminho certo.
 
-## O que entra no relatório (período: hoje, fuso da clínica)
+## O que vou fazer
 
-- Visitantes únicos
-- Cliques no WhatsApp (botões/links rastreados pelo tracker, incluindo `wa-redirect`)
-- Leads novos via formulário (`form_source` começando com `form:`)
-- Leads novos via WhatsApp (`form_source = 'whatsapp'`)
+1. **Centralizar o cálculo das métricas do Tracking**
+   - Extrair a lógica hoje espalhada no dashboard para uma fonte única de métricas.
+   - O relatório agendado vai consumir essa mesma fonte, em vez de manter regras paralelas.
 
-Formato da mensagem (ajustável depois):
-```text
-📊 Relatório do dia — 26/05
-👀 Visitantes únicos: 342
-💬 Cliques no WhatsApp: 47
-📝 Leads (formulário): 8
-📱 Leads (WhatsApp): 12
-```
+2. **Fazer o relatório usar exatamente os mesmos filtros do dashboard**
+   - Mesmo recorte de período.
+   - Mesmo escopo por clínica.
+   - Mesmos eventos para WhatsApp, formulário, visitantes e sessões.
 
-## Onde fica na interface
+3. **Corrigir a separação de leads por origem**
+   - Manter no relatório o total coerente com o card **Leads identificados = 3**.
+   - Separar corretamente em **2 formulário** e **1 WhatsApp** com a mesma regra de origem usada no Tracking.
 
-Nova aba/página **"Relatórios agendados"** (sugiro em `Automações → Relatórios`, ou item próprio na sidebar). Lista com:
-- Nome
-- Instância WhatsApp (dropdown das já existentes)
-- Grupo de destino (botão **"Buscar grupos"** consulta a Evolution e mostra os grupos da instância; também aceita colar o JID manualmente, ex.: `12036xxxxxx@g.us`)
-- Horário (ex.: 20:00) + fuso (default America/Sao_Paulo)
-- Dias da semana (default: todos)
-- Quais métricas incluir (checkboxes)
-- Ativar/Pausar
-- Botão **"Enviar agora"** (teste)
-- Histórico das últimas execuções
+4. **Eliminar divergência futura**
+   - Deixar dashboard e relatório dependentes da mesma implementação, para não “descasarem” de novo.
+
+## O que encontrei
+
+- O dashboard de **Tracking** calcula os cards direto no frontend em `src/pages/Tracking.tsx`.
+- Ele usa estas fontes:
+  - **Visitantes únicos** → `tracking_visitors` por `last_seen_at`
+  - **Sessões** → `tracking_sessions` por `started_at`
+  - **Eventos / pageviews / clique WhatsApp / formulário** → `tracking_events`
+  - **Leads identificados** → `tracking_identity_links`
+- O relatório diário hoje replica essa lógica separadamente em `supabase/functions/scheduled-report-tick/index.ts`, e foi aí que nasceu a divergência.
+
+## Detalhe importante
+
+O dashboard atual mostra claramente o total de leads (**3**), mas a quebra **formulário vs WhatsApp** não vem de um card pronto; ela é inferida pela origem do vínculo (`link_source`) na tabela de leads/origem. Então o certo não é “ler o número da tela”, e sim **reusar a mesma regra-base que alimenta o Tracking**.
+
+## Resultado esperado
+
+Depois da implementação, o relatório deve bater com o Tracking para o período “Hoje”, incluindo:
+- **Visitantes únicos:** 29
+- **Cliques WhatsApp:** 7
+- **Leads identificados:** 3
+- **Leads formulário:** 2
+- **Leads WhatsApp:** 1
 
 ## Detalhes técnicos
 
-**Nova tabela** `scheduled_reports` (clinic_id, name, instance_id, group_jid, send_time, tz, weekdays[], metrics jsonb, enabled, last_sent_at, last_status, last_error) + `scheduled_report_runs` para histórico. RLS por `clinic_id`.
-
-**Nova edge function** `scheduled-report-tick`:
-- Roda a cada minuto via `pg_cron` (já temos pg_cron/pg_net configurados).
-- Lê `scheduled_reports` enabled, calcula a hora local de cada um pelo `tz`, compara com `send_time` e `weekdays`, e ignora se `last_sent_at` já é de hoje.
-- Para cada elegível: roda as queries de métricas e envia via Evolution `/message/sendText/{instance}` usando `number = group_jid` (a API aceita JID de grupo nesse mesmo endpoint).
-- Grava `scheduled_report_runs` com status/preview do texto.
-
-**Nova edge function** `evolution-fetch-groups` (autenticada): chama `/group/fetchAllGroups/{instance}?getParticipants=false` e devolve `[{id, subject}]` para popular o seletor no painel.
-
-**Queries das métricas** (escopo `clinic_id` + janela do dia local convertida para UTC):
-- Visitantes únicos: `count(distinct visitor_id) FROM tracking_events WHERE clinic_id=$1 AND created_at >= $2`
-- Cliques no WhatsApp: `tracking_events` com `event='click'` e `properties->>'kind' IN ('whatsapp','wa')` **ou** `url ILIKE '%wa.me%'`, **mais** acessos ao endpoint `wa-redirect` (já contabilizados como evento) — uso a união por `visitor_id`.
-- Leads form / Leads WhatsApp: `count(*) FROM leads WHERE clinic_id=$1 AND created_at >= $2 AND form_source ...`
-
-**Envio para grupo:** Evolution aceita JID de grupo no campo `number` do `sendText`. Se preferir, posso criar um helper `evoSendToJid(instance, jid, text)` em `_shared/evolution.ts` para reuso.
-
-**Sem novas secrets:** usa Evolution API já configurada por instância e o LOVABLE/Supabase service role já presentes.
-
-## Fora de escopo desta primeira versão
-
-- Gráficos/imagens no relatório (só texto).
-- Comparativo com dia anterior / semana (pode ser próximo passo).
-- Múltiplos grupos por relatório (crie 1 relatório por grupo).
-
-Se aprovar, eu sigo: migration → edge functions → cron → tela de gestão.
+- Vou tirar a regra duplicada de `scheduled-report-tick`.
+- Vou criar uma função compartilhada/consulta canônica de métricas de Tracking.
+- O dashboard e o relatório vão consumir essa mesma base para evitar discrepância entre frontend e backend.
