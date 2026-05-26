@@ -101,7 +101,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   function pickQuick(i: number) {
     const q = filteredQuick[i];
     if (!q) return;
-    const filled = applyVariables(q.content, { name: lead.name, phone: lead.phone });
+    const filled = applyVariables(q.content, lead as any, customFieldDefs);
     setText(filled);
     setShowQuick(false);
     requestAnimationFrame(() => taRef.current?.focus());
