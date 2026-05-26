@@ -306,12 +306,12 @@ export default function EmailCampaigns() {
       </Card>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Editar campanha" : "Nova campanha"}</DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto pr-1 -mr-1 flex-1">
               <div className="space-y-1.5">
                 <Label>Nome</Label>
                 <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
