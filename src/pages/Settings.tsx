@@ -42,7 +42,7 @@ export default function SettingsPage() {
   const confirm = useConfirm();
   const canManage = isSuperAdmin || !!membership;
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
-  const showTracking = false;
+  
   const showFields = hasFeature("custom_fields");
   const showEmail = hasFeature("email_marketing");
 
