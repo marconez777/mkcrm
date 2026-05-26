@@ -53,8 +53,12 @@ Deno.serve(async (req) => {
   const refOrigin = req.headers.get("Origin") || req.headers.get("Referer");
   const host = toHost(refOrigin);
 
-  const { data: clinic } = await supabase
-    .from("clinics").select("id, settings").eq("slug", projectId).maybeSingle();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+  const clinicQuery = supabase.from("clinics").select("id, settings");
+  const { data: clinic } = await (isUuid
+    ? clinicQuery.or(`id.eq.${projectId},slug.eq.${projectId}`)
+    : clinicQuery.eq("slug", projectId)
+  ).maybeSingle();
   if (!clinic) {
     return new Response("unknown_project", { status: 404, headers: corsHeaders });
   }
