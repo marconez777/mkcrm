@@ -156,21 +156,21 @@ export default function Templates() {
                     const isDate = f.field_type === "date" || f.field_type === "datetime";
                     const base = `{{campo.${f.field_key}}}`;
                     return (
-                      <>
-                        <Button key={base} size="sm" variant="outline" type="button" onClick={() => insertVar(base)} title={f.label}>
+                      <span key={f.field_key} className="contents">
+                        <Button size="sm" variant="outline" type="button" onClick={() => insertVar(base)} title={f.label}>
                           {base}
                         </Button>
                         {isDate && (
                           <>
-                            <Button key={base + "data"} size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:data}}`)} title={`${f.label} — apenas data`}>
+                            <Button size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:data}}`)} title={`${f.label} — apenas data`}>
                               {`{{campo.${f.field_key}:data}}`}
                             </Button>
-                            <Button key={base + "hora"} size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:hora}}`)} title={`${f.label} — apenas hora`}>
+                            <Button size="sm" variant="outline" type="button" onClick={() => insertVar(`{{campo.${f.field_key}:hora}}`)} title={`${f.label} — apenas hora`}>
                               {`{{campo.${f.field_key}:hora}}`}
                             </Button>
                           </>
                         )}
-                      </>
+                      </span>
                     );
                   })}
                 </div>
