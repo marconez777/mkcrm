@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const body = await req.json();
-    const { clinic_id, template_slug, jobs } = body ?? {};
+    const { clinic_id, template_slug, jobs, from_domain_override } = body ?? {};
     if (!clinic_id || !template_slug || !Array.isArray(jobs) || jobs.length === 0) {
       return jsonResponse({ error: "missing clinic_id, template_slug or jobs[]" }, { status: 400 });
     }
@@ -47,16 +47,23 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!template) return jsonResponse({ error: "template not found" }, { status: 404 });
 
-    const fromDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    // R-21: rotação de domínio (override aplicado a todo o batch)
+    const tplDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    const overrideDomain = typeof from_domain_override === "string" ? from_domain_override.trim().toLowerCase() : "";
+    const fromDomain = overrideDomain || tplDomain;
     if (!fromDomain) return jsonResponse({ error: "invalid from_email" }, { status: 400 });
+    const effectiveFromEmail = overrideDomain
+      ? `${String(template.from_email).split("@")[0]}@${overrideDomain}`
+      : String(template.from_email);
 
-    // domínio
+    // domínio (valida o efetivo)
     const { data: dom } = await supabase
       .from("email_domains").select("status")
       .eq("clinic_id", clinic_id).eq("domain", fromDomain).maybeSingle();
     if (!dom || (dom.status !== "verified" && dom.status !== "partially_verified")) {
       return jsonResponse({ error: `domain ${fromDomain} not verified` }, { status: 412 });
     }
+
 
     // integração / api key
     let RESEND_API_KEY = DEFAULT_RESEND_API_KEY;
@@ -175,13 +182,18 @@ Deno.serve(async (req) => {
         site_url: SITE_URL,
         year: new Date().getFullYear(),
       };
-      const subject = renderTemplate(template.subject, renderVars);
+      // R-20: subject override por variante
+      const subjectSrc = (typeof job.subject_override === "string" && job.subject_override.trim())
+        || (typeof (job.variables ?? {}).subject_override === "string" && (job.variables ?? {}).subject_override.trim())
+        || template.subject;
+      const subject = renderTemplate(subjectSrc, renderVars);
       const html = renderTemplate(template.html_body, renderVars);
       const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
       const overrideName = typeof job.from_name_override === "string" ? job.from_name_override.trim() : "";
       const fromName = overrideName || String(template.from_name ?? "").trim();
-      const fromHeader = fromName ? `${fromName} <${template.from_email}>` : String(template.from_email);
+      const fromHeader = fromName ? `${fromName} <${effectiveFromEmail}>` : effectiveFromEmail;
+
 
       const payload: Record<string, unknown> = {
         from: fromHeader,
@@ -271,8 +283,11 @@ Deno.serve(async (req) => {
           status: "sent",
           related_lead_id: p.job.related_lead_id ?? null,
           related_lead_table: p.job.related_lead_table ?? null,
+          variant_id: p.job.variant_id ?? null,
+          from_domain_override: overrideDomain || null,
           events: [{ type: "sent", at: new Date().toISOString(), batch: true }],
         });
+
         if (p.useDedup) {
           await supabase.from("email_send_dedup")
             .update({ resend_id: resendId })

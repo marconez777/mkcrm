@@ -1565,6 +1565,65 @@ export type Database = {
           },
         ]
       }
+      email_campaign_variants: {
+        Row: {
+          campaign_id: string
+          clicked_count: number
+          clinic_id: string
+          created_at: string
+          from_name_override: string | null
+          id: string
+          is_winner: boolean
+          label: string
+          opened_count: number
+          sent_count: number
+          subject_override: string | null
+          template_slug_override: string | null
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          campaign_id: string
+          clicked_count?: number
+          clinic_id: string
+          created_at?: string
+          from_name_override?: string | null
+          id?: string
+          is_winner?: boolean
+          label: string
+          opened_count?: number
+          sent_count?: number
+          subject_override?: string | null
+          template_slug_override?: string | null
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          campaign_id?: string
+          clicked_count?: number
+          clinic_id?: string
+          created_at?: string
+          from_name_override?: string | null
+          id?: string
+          is_winner?: boolean
+          label?: string
+          opened_count?: number
+          sent_count?: number
+          subject_override?: string | null
+          template_slug_override?: string | null
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaign_variants_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_campaigns: {
         Row: {
           clinic_id: string
@@ -1573,11 +1632,13 @@ export type Database = {
           enqueued_count: number
           error: string | null
           failed_count: number
+          from_domain_pool: string | null
           from_name_override: string | null
           id: string
           name: string
           scheduled_for: string | null
           segment_id: string | null
+          send_rate_per_minute: number | null
           sent_at: string | null
           sent_count: number
           status: string
@@ -1586,6 +1647,8 @@ export type Database = {
           test_sent_at: string | null
           total_recipients: number
           updated_at: string
+          variant_strategy: string
+          winner_picked_at: string | null
         }
         Insert: {
           clinic_id: string
@@ -1594,11 +1657,13 @@ export type Database = {
           enqueued_count?: number
           error?: string | null
           failed_count?: number
+          from_domain_pool?: string | null
           from_name_override?: string | null
           id?: string
           name: string
           scheduled_for?: string | null
           segment_id?: string | null
+          send_rate_per_minute?: number | null
           sent_at?: string | null
           sent_count?: number
           status?: string
@@ -1607,6 +1672,8 @@ export type Database = {
           test_sent_at?: string | null
           total_recipients?: number
           updated_at?: string
+          variant_strategy?: string
+          winner_picked_at?: string | null
         }
         Update: {
           clinic_id?: string
@@ -1615,11 +1682,13 @@ export type Database = {
           enqueued_count?: number
           error?: string | null
           failed_count?: number
+          from_domain_pool?: string | null
           from_name_override?: string | null
           id?: string
           name?: string
           scheduled_for?: string | null
           segment_id?: string | null
+          send_rate_per_minute?: number | null
           sent_at?: string | null
           sent_count?: number
           status?: string
@@ -1628,6 +1697,8 @@ export type Database = {
           test_sent_at?: string | null
           total_recipients?: number
           updated_at?: string
+          variant_strategy?: string
+          winner_picked_at?: string | null
         }
         Relationships: [
           {
@@ -1700,6 +1771,8 @@ export type Database = {
           last_checked_at: string | null
           region: string
           resend_domain_id: string | null
+          rotation_pool: string | null
+          rotation_weight: number
           status: string
           updated_at: string
         }
@@ -1712,6 +1785,8 @@ export type Database = {
           last_checked_at?: string | null
           region?: string
           resend_domain_id?: string | null
+          rotation_pool?: string | null
+          rotation_weight?: number
           status?: string
           updated_at?: string
         }
@@ -1724,6 +1799,8 @@ export type Database = {
           last_checked_at?: string | null
           region?: string
           resend_domain_id?: string | null
+          rotation_pool?: string | null
+          rotation_weight?: number
           status?: string
           updated_at?: string
         }
@@ -1783,6 +1860,7 @@ export type Database = {
           delivered_at: string | null
           error: string | null
           events: Json
+          from_domain_override: string | null
           id: string
           opened_at: string | null
           recipient_email: string
@@ -1793,6 +1871,7 @@ export type Database = {
           status: string
           subject: string
           template_slug: string | null
+          variant_id: string | null
         }
         Insert: {
           bounced_at?: string | null
@@ -1803,6 +1882,7 @@ export type Database = {
           delivered_at?: string | null
           error?: string | null
           events?: Json
+          from_domain_override?: string | null
           id?: string
           opened_at?: string | null
           recipient_email: string
@@ -1813,6 +1893,7 @@ export type Database = {
           status?: string
           subject: string
           template_slug?: string | null
+          variant_id?: string | null
         }
         Update: {
           bounced_at?: string | null
@@ -1823,6 +1904,7 @@ export type Database = {
           delivered_at?: string | null
           error?: string | null
           events?: Json
+          from_domain_override?: string | null
           id?: string
           opened_at?: string | null
           recipient_email?: string
@@ -1833,6 +1915,7 @@ export type Database = {
           status?: string
           subject?: string
           template_slug?: string | null
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -1901,6 +1984,7 @@ export type Database = {
           created_at: string
           error: string | null
           force_send: boolean
+          from_domain_override: string | null
           from_name_override: string | null
           id: string
           priority: number
@@ -1914,6 +1998,7 @@ export type Database = {
           template_slug: string | null
           updated_at: string
           variables: Json
+          variant_id: string | null
         }
         Insert: {
           attempts?: number
@@ -1921,6 +2006,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           force_send?: boolean
+          from_domain_override?: string | null
           from_name_override?: string | null
           id?: string
           priority?: number
@@ -1934,6 +2020,7 @@ export type Database = {
           template_slug?: string | null
           updated_at?: string
           variables?: Json
+          variant_id?: string | null
         }
         Update: {
           attempts?: number
@@ -1941,6 +2028,7 @@ export type Database = {
           created_at?: string
           error?: string | null
           force_send?: boolean
+          from_domain_override?: string | null
           from_name_override?: string | null
           id?: string
           priority?: number
@@ -1954,6 +2042,7 @@ export type Database = {
           template_slug?: string | null
           updated_at?: string
           variables?: Json
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -4922,6 +5011,11 @@ export type Database = {
           kind: string
           similarity: number
         }[]
+      }
+      pick_ab_winner: { Args: { _campaign_id: string }; Returns: string }
+      pick_rotation_domain: {
+        Args: { _clinic_id: string; _pool: string }
+        Returns: string
       }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }

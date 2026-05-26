@@ -83,7 +83,11 @@ Deno.serve(async (req) => {
       force = false,
       queue_id,
       from_name_override,
+      from_domain_override,
+      variant_id,
+      subject_override,
     } = body ?? {};
+
 
     if (!clinic_id || !template_slug || !recipient_email) {
       return jsonResponse({ error: "missing fields: clinic_id, template_slug, recipient_email" }, { status: 400 });
@@ -120,10 +124,15 @@ Deno.serve(async (req) => {
     }
 
     // 1.1 Domínio remetente precisa estar verificado (cache 60s)
-    const fromDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    // R-21: se from_domain_override veio do dispatcher (multi-domain rotation),
+    // valida e usa o override para warmup/throttle.
+    const tplDomain = String(template.from_email).split("@")[1]?.toLowerCase();
+    const overrideDomain = typeof from_domain_override === "string" ? from_domain_override.trim().toLowerCase() : "";
+    const fromDomain = overrideDomain || tplDomain;
     if (!fromDomain) {
       return jsonResponse({ error: "invalid from_email in template" }, { status: 400 });
     }
+
     const domKey = `${clinic_id}:${fromDomain}`;
     let dom: any = getCached(domCache, domKey);
     if (!dom) {
@@ -295,8 +304,11 @@ Deno.serve(async (req) => {
       year: new Date().getFullYear(),
     };
 
-    // 6. Render
-    const subject = renderTemplate(template.subject, renderVars);
+    // 6. Render (subject_override permite A/B test)
+    const subjectSrc = (typeof subject_override === "string" && subject_override.trim())
+      || (typeof (variables as any)?.subject_override === "string" && (variables as any).subject_override.trim())
+      || template.subject;
+    const subject = renderTemplate(subjectSrc, renderVars);
     const html = renderTemplate(template.html_body, renderVars);
     const text = template.text_body ? renderTemplate(template.text_body, renderVars) : undefined;
 
@@ -308,10 +320,16 @@ Deno.serve(async (req) => {
       if (clinicRow) setCached(clinicCache, clinic_id, clinicRow);
     }
 
-    const fromEmail = String(template.from_email ?? "").trim();
+    // R-21: aplica domain override (rotação) preservando o local-part
+    let fromEmail = String(template.from_email ?? "").trim();
+    const domOverride = typeof from_domain_override === "string" ? from_domain_override.trim().toLowerCase() : "";
+    if (domOverride && fromEmail.includes("@")) {
+      fromEmail = `${fromEmail.split("@")[0]}@${domOverride}`;
+    }
     const overrideName = typeof from_name_override === "string" ? from_name_override.trim() : "";
     const fromName = overrideName || String(template.from_name ?? "").trim();
     const fromHeader = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
 
     const resendBody: Record<string, unknown> = {
       from: fromHeader,
@@ -365,6 +383,8 @@ Deno.serve(async (req) => {
         error: json?.message || JSON.stringify(json),
         related_lead_id: related_lead_id ?? null,
         related_lead_table: related_lead_table ?? null,
+        variant_id: variant_id ?? null,
+        from_domain_override: overrideDomain || null,
         events: [{ type: "send_failed", at: new Date().toISOString(), data: json }],
       });
       return jsonResponse({ error: json?.message || "send failed", resend: json }, { status: 502 });
@@ -381,10 +401,13 @@ Deno.serve(async (req) => {
         status: "sent",
         related_lead_id: related_lead_id ?? null,
         related_lead_table: related_lead_table ?? null,
+        variant_id: variant_id ?? null,
+        from_domain_override: overrideDomain || null,
         events: [{ type: "sent", at: new Date().toISOString() }],
       })
       .select("id")
       .single();
+
 
     // (cota já consumida atomicamente em claim_email_quota acima)
 

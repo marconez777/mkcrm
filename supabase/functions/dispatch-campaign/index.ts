@@ -169,35 +169,86 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "template_inactive" }, { status: 412 });
     }
 
-    // R-4: batch INSERT em chunks grandes (ON CONFLICT DO NOTHING via index dedup parcial)
-    const nowIso = new Date().toISOString();
-    const fromOverride = campaign.from_name_override ?? null;
+    // R-20: carrega variantes A/B (se houver)
+    let variants: Array<{
+      id: string;
+      weight: number;
+      subject_override: string | null;
+      template_slug_override: string | null;
+      from_name_override: string | null;
+    }> = [];
+    if ((campaign.variant_strategy ?? "none") !== "none") {
+      const { data: vs } = await supabase
+        .from("email_campaign_variants")
+        .select("id, weight, subject_override, template_slug_override, from_name_override")
+        .eq("campaign_id", campaign_id);
+      variants = (vs as any[]) ?? [];
+    }
+    const totalWeight = variants.reduce((s, v) => s + Math.max(v.weight ?? 1, 1), 0);
+    const pickVariant = (idx: number) => {
+      if (!variants.length) return null;
+      // round-robin ponderado determinístico
+      const slot = idx % totalWeight;
+      let acc = 0;
+      for (const v of variants) {
+        acc += Math.max(v.weight ?? 1, 1);
+        if (slot < acc) return v;
+      }
+      return variants[0];
+    };
+
+    // R-18: throttling — espalha scheduled_at se send_rate_per_minute estiver definido
+    const baseTime = Date.now();
+    const ratePerMin = Number(campaign.send_rate_per_minute ?? 0) || 0;
+    const scheduleFor = (idx: number) => {
+      if (!ratePerMin || ratePerMin <= 0) return new Date(baseTime).toISOString();
+      const minuteOffset = Math.floor(idx / ratePerMin);
+      return new Date(baseTime + minuteOffset * 60_000).toISOString();
+    };
+
+    // R-4: batch INSERT em chunks grandes
+    const fromOverrideBase = campaign.from_name_override ?? null;
+    const fromDomainPool = (campaign.from_domain_pool ?? "").trim() || null;
     const relatedTable = `campaign_${campaign_id}`;
     const CHUNK = 1000;
     let enqueued = 0;
     for (let i = 0; i < recipients.length; i += CHUNK) {
       const chunk = recipients.slice(i, i + CHUNK);
-      const rows = chunk.map((r) => ({
-        clinic_id: campaign.clinic_id,
-        template_slug: campaign.template_slug,
-        recipient_email: r.email,
-        recipient_name: r.name,
-        variables: { name: r.name ?? "", campaign_id },
-        scheduled_at: nowIso,
-        related_lead_id: r.lead_id,
-        related_lead_table: relatedTable,
-        force_send: false,
-        from_name_override: fromOverride,
-        priority: 5, // R-7: campanha = padrão; auth/transacional fica à frente
-        status: "pending",
+      const rows = await Promise.all(chunk.map(async (r, j) => {
+        const globalIdx = i + j;
+        const v = pickVariant(globalIdx);
+        const slug = v?.template_slug_override || campaign.template_slug;
+        const fromName = v?.from_name_override ?? fromOverrideBase;
+        // R-21: rotação de domínios (resolve por linha pra distribuir reputação)
+        let fromDomainOverride: string | null = null;
+        if (fromDomainPool) {
+          const { data: picked } = await supabase.rpc("pick_rotation_domain", {
+            _clinic_id: campaign.clinic_id, _pool: fromDomainPool,
+          });
+          fromDomainOverride = (picked as string | null) || null;
+        }
+        return {
+          clinic_id: campaign.clinic_id,
+          template_slug: slug,
+          recipient_email: r.email,
+          recipient_name: r.name,
+          variables: { name: r.name ?? "", campaign_id, variant_id: v?.id ?? null, subject_override: v?.subject_override ?? null },
+          scheduled_at: scheduleFor(globalIdx),
+          related_lead_id: r.lead_id,
+          related_lead_table: relatedTable,
+          force_send: false,
+          from_name_override: fromName,
+          from_domain_override: fromDomainOverride,
+          variant_id: v?.id ?? null,
+          priority: 5,
+          status: "pending",
+        };
       }));
       const { data: inserted, error: insErr } = await supabase
         .from("email_queue")
         .insert(rows)
         .select("id");
       if (insErr) {
-        // Conflitos do índice parcial não viram erro (ON CONFLICT implícito nem sempre aplica)
-        // Em caso de erro, fallback por linha
         console.warn("batch insert error, falling back:", insErr.message);
         for (const row of rows) {
           const { data } = await supabase.rpc("enqueue_email", {
@@ -210,7 +261,7 @@ Deno.serve(async (req) => {
             _related_lead_id: row.related_lead_id,
             _related_lead_table: row.related_lead_table,
             _force_send: false,
-            _from_name_override: fromOverride,
+            _from_name_override: row.from_name_override,
           });
           if (data) enqueued++;
         }
@@ -218,6 +269,7 @@ Deno.serve(async (req) => {
         enqueued += inserted?.length ?? 0;
       }
     }
+
 
     // Campanha vazia ainda é "sent" — só "failed" se houver destinatários e nenhum enfileirou
     const finalStatus = recipients.length === 0

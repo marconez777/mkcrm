@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-26 — email Tier 3 implementado (recursos enterprise)
+
+### Adicionado
+- **R-18 Throttling por campanha**: coluna `email_campaigns.send_rate_per_minute`. `dispatch-campaign` espalha `scheduled_at` em janelas de 1 minuto quando configurado.
+- **R-19 Segmentação avançada**: regras `last_message_at_range`, `deal_value_range` e `custom_field` no helper `_email_segment_rule_to_sql`.
+- **R-20 A/B test**: nova tabela `email_campaign_variants` (label, weight, subject/template/from_name overrides, contadores, is_winner). `email_campaigns.variant_strategy` + `winner_picked_at`. RPC `pick_ab_winner`. Colunas `variant_id` em `email_queue` e `email_logs`.
+- **R-21 Multi-domínio rotativo**: colunas `rotation_pool` + `rotation_weight` em `email_domains`. `email_campaigns.from_domain_pool`. RPC `pick_rotation_domain` (weighted random). Colunas `from_domain_override` em `email_queue` e `email_logs`. `send-email` e `send-email-batch` aplicam o override preservando o local-part; warmup/throttle/validação operam no domínio efetivo. `process-email-queue` agrupa batches incluindo o override no key.
+
+---
+
+
+
 ## 2026-05-26 — email Tier 2 implementado (escala e deliverability)
 
 ### Adicionado
