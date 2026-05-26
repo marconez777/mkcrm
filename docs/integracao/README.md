@@ -19,6 +19,8 @@
 | 08 | [Segurança](./08-seguranca.md) | Tokens, CORS, LGPD, rate-limit, rotação |
 | 09 | [Troubleshooting](./09-troubleshooting.md) | "Meu lead não chegou" → siga este fluxograma |
 | 10 | [Referência técnica](./10-referencia-tecnica.md) | Schemas, tabelas, edge functions, limites |
+| 11 | [Análise de conflitos — Clínica ÓR](./11-analise-conflitos-site-or.md) | Caso real: o que está quebrado entre site e CRM, com diagnóstico |
+| 12 | [Roadmap de correção](./12-roadmap-correcao.md) | Plano faseado para destravar a integração ÓR |
 | 📁 | [exemplos/](./exemplos/) | Snippets copy-paste por stack |
 
 ---
