@@ -72,16 +72,13 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 - **R-17. Métricas em tempo real** ⏳ pendente — view materializada de throughput + alertas operacionais (não-bloqueante para go-live).
 
 
-### Tier 3 — Recursos para o cliente grande
+### Tier 3 — Recursos para o cliente grande ✅ implementado 2026-05-26
 
-- **R-18. Throttling por campanha**
-  - `email_campaigns.send_rate_per_minute` — disparo gradual (100/h em vez de 10k em 30min).
-- **R-19. Segmentação avançada server-side**
-  - Expandir `resolve_email_segment` RPC com: `created_at` ranges, `last_message_at`, `score`, custom fields.
-- **R-20. A/B test de subject/template**
-  - `email_campaign_variants` (split 50/50, vencedor pelo open rate em 24h).
-- **R-21. Multi-domínio rotativo**
-  - Clínica com `notify1.dominio`, `notify2.dominio`... dispatcher rotaciona para distribuir reputação.
+- **R-18. Throttling por campanha** ✅ — Coluna `email_campaigns.send_rate_per_minute`. Quando definida, `dispatch-campaign` espalha `scheduled_at` por janelas de 1 minuto (ex.: rate=100 → 100 jobs em t+0, 100 em t+1min, etc.). NULL = sem throttle.
+- **R-19. Segmentação avançada server-side** ✅ — `_email_segment_rule_to_sql` agora aceita `last_message_at_range` (from/to), `deal_value_range` (min/max) e `custom_field` (key + value/values, com fallback a `?key`).
+- **R-20. A/B test de subject/template** ✅ — Tabela `email_campaign_variants(label, weight, subject_override, template_slug_override, from_name_override, sent_count, opened_count, clicked_count, is_winner)`. `email_campaigns.variant_strategy` ativa A/B (`none|ab|multi`). `dispatch-campaign` faz round-robin ponderado determinístico por destinatário. Colunas `email_queue.variant_id` e `email_logs.variant_id` rastreiam atribuição. RPC `pick_ab_winner(_campaign_id)` recalcula métricas e marca vencedor por taxa de abertura.
+- **R-21. Multi-domínio rotativo** ✅ — Colunas `email_domains.rotation_pool` + `rotation_weight` agrupam domínios verificados em pools. `email_campaigns.from_domain_pool` indica o pool a usar. `dispatch-campaign` chama RPC `pick_rotation_domain` por linha (weighted random) e salva em `email_queue.from_domain_override`. `send-email` e `send-email-batch` substituem o domínio do `from_email` preservando o local-part; warmup, throttle e validação operam no domínio efetivo. `process-email-queue` agrupa batches por `(clinic_id, template_slug, from_domain_override)` para manter o `From` consistente no Resend Batch API.
+
 
 ---
 
