@@ -26,6 +26,8 @@ export type Pipeline = {
   color: string;
   position: number;
   is_default: boolean;
+  is_system?: boolean;
+  system_key?: string | null;
   whatsapp_instance_id: string | null;
   created_at: string;
   updated_at: string;
