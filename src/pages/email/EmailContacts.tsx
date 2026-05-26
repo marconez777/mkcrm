@@ -464,13 +464,13 @@ export default function EmailContacts() {
         <Card className="overflow-hidden">
           <div className="max-h-[60vh] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 sticky top-0">
+              <thead>
                 <tr>
-                  <th className="text-left px-3 py-2">E-mail</th>
-                  <th className="text-left px-3 py-2">Nome</th>
-                  <th className="text-left px-3 py-2">Origens</th>
-                  <th className="text-left px-3 py-2">Segmentos</th>
-                  <th className="text-right px-3 py-2"></th>
+                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">E-mail</th>
+                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Nome</th>
+                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Origens</th>
+                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Segmentos</th>
+                  <th className="text-right px-3 py-2 sticky top-0 z-10 bg-muted"></th>
                 </tr>
               </thead>
               <tbody>
