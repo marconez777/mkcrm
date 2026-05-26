@@ -69,7 +69,7 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 - **R-14. Separar fila por tipo** ❌ não necessário — R-7 (prioridade na fila única) já cobre o caso.
 - **R-15. Resend Batch API** ✅ — Nova edge function `send-email-batch` (até 100 por chamada). `process-email-queue` agrupa jobs por `(clinic_id, template_slug)` e envia em lote quando o grupo tem ≥3 jobs; menos que isso vai singular. Fallback automático para singular se a chamada batch falhar. Reduz ~95% das chamadas HTTP em campanhas.
 - **R-16. Feedback loop bounce/complaint** ✅ — Trigger `email_logs_bounce_health_trigger` (AFTER UPDATE OF status). Função `check_clinic_bounce_health` calcula bounce_rate/complaint_rate nas últimas 1000 mensagens; se `bounce_rate > 5%` ou `complaint_rate > 0.3%`, **pausa automaticamente** campanhas em `running/sending/scheduled` da clínica e grava em `email_health_alerts(clinic_id, alert_type, metric_value, threshold, sample_size, action_taken)`. Throttle de 10min entre alertas para não pausar repetidamente.
-- **R-17. Métricas em tempo real** ⏳ pendente — view materializada de throughput + alertas operacionais (não-bloqueante para go-live).
+- **R-17. Métricas em tempo real** ✅ — Views `email_throughput_stats` (por clínica, agrega fila + logs) e `email_system_health` (global). Tabela `email_operational_alerts` com tipos (`queue_backlog`, `stuck_processing`, `high_failure_rate`, etc.). Função `check_email_operational_health` verifica backlog (>500), jobs presos (>10min) e taxa de falha (>10%). Trigger na fila dispara a cada 100 inserts. Admins e owners têm acesso via RLS.
 
 
 ### Tier 3 — Recursos para o cliente grande ✅ implementado 2026-05-26
