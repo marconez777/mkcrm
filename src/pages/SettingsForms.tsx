@@ -536,9 +536,53 @@ Este site precisa enviar **visitas, eventos de tracking e submissões de formul�
 
 ---
 
+## 0. INVENTÁRIO OBRIGATÓRIO — faça ANTES de mexer em qualquer arquivo
+
+Se este site **já tem alguma integração com o MK CRM** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
+
+### 0.1 Liste todos os \`<script>\` no \`<head>\` que mencionem:
+- \`tracking-pixel\`
+- \`forms-snippet\`
+- \`MKForms\`
+- \`mkcrm\`
+- \`supabase.co/functions/v1\`
+
+Para cada um anote: URL completa, \`project_id\` ou \`token\` no querystring, e posição relativa (qual vem antes).
+
+### 0.2 Liste todos os \`<form>\` do projeto e classifique cada um:
+- **Tipo A** — \`onSubmit\` nativo + \`<button type="submit">\` → snippet captura sozinho, não precisa de bridge.
+- **Tipo B** — \`fetch\` custom OU \`<button type="button">\` → precisa de \`window.MKForms.send(formRef)\` manual.
+- **Tipo C** — Já tem chamada manual a \`window.MKForms.send(...)\` em algum lugar → **marcar para revisão** (risco de duplicação se também for Tipo A).
+
+### 0.3 Liste qualquer código de tracking caseiro
+\`fetch\` direto para URLs de CRM/analytics antigas, dataLayer custom apontando pra outro destino, pixels de terceiros que tentam fazer o mesmo papel. Tudo isso concorre com o pixel oficial e deve ser removido.
+
+### 0.4 Regras de decisão (aplique APÓS o OK do usuário)
+
+| Achado no inventário | Ação |
+|---|---|
+| Pixel já existe com \`project_id=${clinicId}\` | **Manter**, não duplicar |
+| Pixel existe com \`project_id\` diferente | **Substituir** pelo correto (Seção 1) |
+| Snippet já existe com token \`${token.slice(0, 8)}...\` | **Manter** |
+| Snippet existe com token diferente / antigo | **Substituir** pelo correto |
+| Pixel está **depois** do snippet no HTML | **Reordenar** — pixel primeiro |
+| Form Tipo A **+** chamada manual \`MKForms.send\` | **Remover** a chamada manual (duplicaria) |
+| Form Tipo B **sem** \`MKForms.send\` | **Adicionar** a chamada manual (Seção 2.1) |
+| Tracking caseiro / dataLayer pra outro CRM | **Remover** |
+| Nada disso existe | Aplicar tudo das Seções 1-6 do zero |
+
+### 0.5 NÃO FAÇA isto durante a reinstalação
+- ❌ **Não limpe** os cookies \`_mk_vid\` / \`_mk_sid\` dos visitantes. Eles preservam o histórico de jornada — apagá-los faz o site tratar visitantes recorrentes como novos.
+- ❌ **Não remova** o snippet/pixel "pra reinstalar do zero" se já estiverem corretos — só ajuste o que está errado.
+
+---
+
 ## 1. Instalar os 2 scripts no <head> do index.html
 
+(só execute este passo se o inventário da Seção 0 indicar que pixel ou snippet estão ausentes / desatualizados)
+
 Cole **exatamente nesta ordem** (o pixel TEM que vir antes do snippet de formulários, porque ele cria os cookies _mk_vid/_mk_sid que o snippet lê):
+
 
 \`\`\`html
 <!-- MK CRM — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
