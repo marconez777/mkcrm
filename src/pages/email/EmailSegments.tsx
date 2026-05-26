@@ -147,8 +147,19 @@ export default function EmailSegments() {
 
   function resetForm() {
     setName(""); setDescription(""); setKind("dynamic"); setMatch("any"); setRules([]); setActive(true);
-    setContacts([]); setNewContactEmail(""); setNewContactName("");
+    setSelectedContactIds(new Set()); setContactSearch("");
     setPreviewCount(null); setPreviewSample([]); setEditing(null);
+  }
+
+  async function loadAvailableContacts(targetClinicId: string) {
+    const { data } = await supabase
+      .from("email_segment_contacts")
+      .select("id, email, name, lead_id")
+      .eq("clinic_id", targetClinicId)
+      .is("segment_id", null)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    setAvailableContacts((data as Contact[]) ?? []);
   }
 
   async function openEdit(s: Segment) {
@@ -158,12 +169,30 @@ export default function EmailSegments() {
     const f = normalizeFilters(s.filters);
     setKind(f.kind); setMatch(f.match); setRules(f.rules);
     setActive(s.active);
-    const { data: cs } = await supabase
+    const segClinicId = (s as any).clinic_id as string;
+    // Carrega contatos disponíveis da clínica
+    await loadAvailableContacts(segClinicId);
+    // Carrega vínculos atuais e marca os correspondentes pelo e-mail
+    const { data: links } = await supabase
       .from("email_segment_contacts")
-      .select("id, email, name, created_at")
-      .eq("segment_id", s.id)
-      .order("created_at", { ascending: false });
-    setContacts((cs as Contact[]) ?? []);
+      .select("email")
+      .eq("segment_id", s.id);
+    const linkedEmails = new Set((links ?? []).map((l: any) => String(l.email).toLowerCase()));
+    const { data: pool } = await supabase
+      .from("email_segment_contacts")
+      .select("id, email")
+      .eq("clinic_id", segClinicId)
+      .is("segment_id", null);
+    const idsToSelect = new Set<string>();
+    (pool ?? []).forEach((c: any) => {
+      if (linkedEmails.has(String(c.email).toLowerCase())) idsToSelect.add(c.id);
+    });
+    setSelectedContactIds(idsToSelect);
+    setOpenNew(true);
+  }
+
+  async function openCreate() {
+    if (clinicId) await loadAvailableContacts(clinicId);
     setOpenNew(true);
   }
 
