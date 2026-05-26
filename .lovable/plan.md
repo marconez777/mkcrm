@@ -1,50 +1,27 @@
-# Plano
+## Objetivo
+Remover completamente o recurso de bloqueio por tentativas de login, que está travando usuários mesmo digitando a senha correta.
 
-Sim — dá para usar **a mesma fonte/lógica do Tracking**, e esse é o caminho certo.
+## Mudanças
 
-## O que vou fazer
+### 1. Frontend — `src/pages/Auth.tsx`
+Trocar a chamada da edge function `auth-login` por login direto via Supabase Auth:
+- Substituir `supabase.functions.invoke("auth-login", ...)` por `supabase.auth.signInWithPassword({ email, password })`.
+- Remover o parsing customizado de erro do contexto da function.
+- Mensagens de erro voltam a vir direto do Supabase Auth (já em PT no nosso fluxo padrão).
 
-1. **Centralizar o cálculo das métricas do Tracking**
-   - Extrair a lógica hoje espalhada no dashboard para uma fonte única de métricas.
-   - O relatório agendado vai consumir essa mesma fonte, em vez de manter regras paralelas.
+### 2. Edge function — `supabase/functions/auth-login/`
+Deletar a função inteira (não é mais usada). Sem ela, não há mais contagem de tentativas, lockout de 12h, nem retorno 423.
 
-2. **Fazer o relatório usar exatamente os mesmos filtros do dashboard**
-   - Mesmo recorte de período.
-   - Mesmo escopo por clínica.
-   - Mesmos eventos para WhatsApp, formulário, visitantes e sessões.
-
-3. **Corrigir a separação de leads por origem**
-   - Manter no relatório o total coerente com o card **Leads identificados = 3**.
-   - Separar corretamente em **2 formulário** e **1 WhatsApp** com a mesma regra de origem usada no Tracking.
-
-4. **Eliminar divergência futura**
-   - Deixar dashboard e relatório dependentes da mesma implementação, para não “descasarem” de novo.
-
-## O que encontrei
-
-- O dashboard de **Tracking** calcula os cards direto no frontend em `src/pages/Tracking.tsx`.
-- Ele usa estas fontes:
-  - **Visitantes únicos** → `tracking_visitors` por `last_seen_at`
-  - **Sessões** → `tracking_sessions` por `started_at`
-  - **Eventos / pageviews / clique WhatsApp / formulário** → `tracking_events`
-  - **Leads identificados** → `tracking_identity_links`
-- O relatório diário hoje replica essa lógica separadamente em `supabase/functions/scheduled-report-tick/index.ts`, e foi aí que nasceu a divergência.
-
-## Detalhe importante
-
-O dashboard atual mostra claramente o total de leads (**3**), mas a quebra **formulário vs WhatsApp** não vem de um card pronto; ela é inferida pela origem do vínculo (`link_source`) na tabela de leads/origem. Então o certo não é “ler o número da tela”, e sim **reusar a mesma regra-base que alimenta o Tracking**.
-
-## Resultado esperado
-
-Depois da implementação, o relatório deve bater com o Tracking para o período “Hoje”, incluindo:
-- **Visitantes únicos:** 29
-- **Cliques WhatsApp:** 7
-- **Leads identificados:** 3
-- **Leads formulário:** 2
-- **Leads WhatsApp:** 1
+### 3. Banco — migration
+- `DROP TABLE public.auth_lockouts CASCADE;`
+- Limpar quaisquer lockouts atuais ao remover a tabela (efeito colateral do drop).
 
 ## Detalhes técnicos
+- `auth-login` hoje faz: checa `auth_lockouts.locked_until`, tenta `signInWithPassword`, em erro incrementa `failed_attempts` e bloqueia em 5 falhas por 12h. Tudo isso some.
+- O Supabase Auth nativo continua tendo seu próprio rate-limit por IP (muito mais frouxo) — não há perda de segurança crítica, mas o usuário não fica mais travado após poucas tentativas.
+- Tabela `auth_lockouts` tem políticas RLS apenas para super_admin; nada no app frontend lê ela, então o drop é seguro.
+- Tipos do Supabase (`src/integrations/supabase/types.ts`) serão regenerados automaticamente após a migration.
 
-- Vou tirar a regra duplicada de `scheduled-report-tick`.
-- Vou criar uma função compartilhada/consulta canônica de métricas de Tracking.
-- O dashboard e o relatório vão consumir essa mesma base para evitar discrepância entre frontend e backend.
+## Não muda
+- Fluxo de "Esqueci minha senha" continua igual.
+- Telas, layout e demais regras de auth permanecem intactas.

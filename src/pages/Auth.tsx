@@ -31,34 +31,11 @@ export default function AuthPage() {
     if (!email || !password) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("auth-login", {
-        body: { email: email.trim().toLowerCase(), password },
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
       });
-      if (error) {
-        const ctx: any = (error as any)?.context;
-        let msg = error.message || "Falha na autenticação";
-        try {
-          if (ctx instanceof Response) {
-            const parsed = await ctx.clone().json();
-            msg = parsed?.message || parsed?.error || msg;
-          } else if (typeof ctx?.body === "string") {
-            const parsed = JSON.parse(ctx.body);
-            msg = parsed?.message || parsed?.error || msg;
-          } else if (typeof ctx?.json === "function") {
-            const parsed = await ctx.json();
-            msg = parsed?.message || parsed?.error || msg;
-          }
-        } catch {}
-        throw new Error(msg);
-      }
-      if (!data?.access_token || !data?.refresh_token) {
-        throw new Error("Resposta inválida do servidor");
-      }
-      const { error: sessErr } = await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      });
-      if (sessErr) throw sessErr;
+      if (error) throw error;
       nav(from, { replace: true });
     } catch (err: any) {
       toast.error(err?.message ?? "Falha na autenticação");
