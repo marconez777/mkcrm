@@ -10,7 +10,7 @@
 |---|------|------|------------|
 | 0.1 | Rodar SQL `6.1` a `6.7` da análise | CRM | dev CRM |
 | 0.2 | Rodar o "prompt de diagnóstico do site" (seção 5 da análise) | Site | dev do site |
-| 0.3 | Confirmar/ajustar `allowed_domains` do token `mkf_3a2f5dd0…` | CRM | dev CRM |
+| 0.3 | Ajustar `allowed_domains` do token `mkf_3a2f5dd0…` para `clinicaohrpsiquiatria.com` (prod) + `mindscape-revive.lovable.app` (preview Lovable) — hostname puro, sem `https://` nem `/` | CRM | dev CRM |
 | 0.4 | Documentar baseline (quantos leads/dia, % com `visitor_id NULL`, % com PII completo) | CRM | dev CRM |
 
 **Critério de saída:** temos números de antes — base para medir melhoria das fases seguintes.
