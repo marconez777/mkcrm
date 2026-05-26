@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Send, Smile, Paperclip, Zap, Clock, X, FileText, Loader2, Mic, Square, Trash2 } from "lucide-react";
 import type { Lead } from "@/types/crm";
 import { useQuickReplies, applyVariables } from "@/hooks/useQuickReplies";
+import { useCustomFieldDefs } from "@/hooks/useCustomFieldDefs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
