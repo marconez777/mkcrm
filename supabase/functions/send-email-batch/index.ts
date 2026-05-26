@@ -283,8 +283,11 @@ Deno.serve(async (req) => {
           status: "sent",
           related_lead_id: p.job.related_lead_id ?? null,
           related_lead_table: p.job.related_lead_table ?? null,
+          variant_id: p.job.variant_id ?? null,
+          from_domain_override: overrideDomain || null,
           events: [{ type: "sent", at: new Date().toISOString(), batch: true }],
         });
+
         if (p.useDedup) {
           await supabase.from("email_send_dedup")
             .update({ resend_id: resendId })
