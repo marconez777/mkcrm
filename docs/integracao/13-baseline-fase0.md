@@ -14,7 +14,7 @@ Este documento é o "antes". Toda melhoria da Fase 1+ deve ser medida contra est
 1. **Quanto tracking estamos perdendo?** → **100 %**. Nenhum submit do site grava `visitor_id`/`session_id` em `tracking_identity_links` com `link_source='form_submission'`. Os 7 vínculos existentes vieram de `whatsapp_tracking_code` (4) e `phone_hash_existing` (3) — nada do snippet de forms.
 2. **Quantos leads/dia chegam dos domínios da ÓR via forms?** → **Zero.** 172 leads em 30 dias, **todos** com `form_source = NULL` e `landing_page = NULL`. O site nunca produziu lead bem-sucedido via `forms-ingest` — só 2 submits totais, **ambos com erro** (ver §3 abaixo).
 3. **Existem eventos `test_completed` e `whatsapp_click`?** → **Não.** `lead_events` só tem `attendant_changed` (1328), `stage_changed` (478) e `stage_changed_by_ai` (48). Nenhum evento de origem (form_submission, page_view, whatsapp_click, test_completed).
-4. **`allowed_domains` do token está correto?** → **Não — incompleto.** Atual: `["https://clinicaohrpsiquiatria.com/"]`. **Faltam:** `clinicaor.com.br` e o domínio Lovable de preview do site (`*.lovable.app`).
+4. **`allowed_domains` do token está correto?** → **Quase — formato sujo + falta preview.** Atual: `["https://clinicaohrpsiquiatria.com/"]` (com `https://` e `/` final — funcionou só porque o normalizador é tolerante). Domínio de produção real é `clinicaohrpsiquiatria.com`. **Falta** o preview Lovable `mindscape-revive.lovable.app`. O domínio `clinicaor.com.br` **não existe** — foi suposição errada na primeira análise.
 
 ---
 
@@ -59,18 +59,22 @@ SELECT id, name, slug FROM clinics WHERE name ILIKE '%or%' OR slug ILIKE '%or%';
 | `id` | `cf9ec890-83fe-4751-9bc5-aacc69f7e9bd` |
 | `name` | Site Or |
 | `status` | active |
-| `allowed_domains` | `["https://clinicaohrpsiquiatria.com/"]` |
-| `total_submissions` | **0** |
+| `allowed_domains` | `["https://clinicaohrpsiquiatria.com/"]` ⚠️ formato sujo (URL completa em vez de hostname) |
+| `total_submissions` | **0** (contador só incrementa em `status='ok'`) |
 | `last_submission_at` | `null` |
 
-> O campo conta apenas submissões `status='ok'`. As 2 falhas em §3 não incrementaram.
+> Apesar do formato torto, o normalizador do `forms-ingest` aceitou — prova: as 2 submissões falhas em §3 vieram com `Origin: https://clinicaohrpsiquiatria.com` e passaram pelo check de origem (falharam só depois, no trigger).
 
-**Ação imediata (UI, antes da Fase 1):** adicionar em `/settings/forms` → editar integração "Site Or" → allowed_domains:
-- `clinicaohrpsiquiatria.com`
-- `clinicaor.com.br`
-- `mindscape-revive.lovable.app` (ou o domínio de preview atual)
+**Domínios reais da Clínica Or:**
+- **Produção:** `clinicaohrpsiquiatria.com` ← snippet instalado, único enviando dados hoje
+- **Preview Lovable:** `mindscape-revive.lovable.app` ← onde o time edita; ainda não está em `allowed_domains`
+- `clinicaor.com.br` **NÃO existe** (suposição errada da análise inicial)
 
-Pode manter sem `https://` e sem barra final — o normalizador de `forms-ingest` faz strip do scheme e trailing slash.
+**Ação imediata (UI, antes da Fase 1):** em `/settings/forms` → editar "Site Or" → allowed_domains:
+- `clinicaohrpsiquiatria.com` (substituir o valor torto atual)
+- `mindscape-revive.lovable.app`
+
+Sem `https://`, sem barra final, sem espaço.
 
 ---
 
@@ -200,7 +204,7 @@ FROM leads WHERE clinic_id='cf038458-457d-4c1a-9ac4-c88c3c8353a1';
 **Sim, com 2 pré-requisitos não previstos:**
 
 1. ⚠️ **Validar que `enqueue_email` agora aceita a chamada de 9 args.** Pedir 1 submit real no site e conferir `form_submissions.status='ok'`. Se falhar, Fase 1 não roda — o trigger continua quebrando todo lead criado por forms-ingest.
-2. ⚠️ **Atualizar `allowed_domains`** da integração `Site Or` via UI para incluir `clinicaor.com.br` e o domínio Lovable de preview do site. Sem isso o teste do item 1 retorna 403.
+2. ⚠️ **Atualizar `allowed_domains`** da integração `Site Or` via UI para `clinicaohrpsiquiatria.com` + `mindscape-revive.lovable.app` (hostname puro, sem `https://` nem `/`). Sem isso, qualquer teste a partir do preview Lovable retorna 403.
 
 Depois disso, a Fase 1 pode rodar sem dependências externas:
 - Novo endpoint `track-event` (capturar `test_completed` via fetch interceptor + `whatsapp_click` via click listener).

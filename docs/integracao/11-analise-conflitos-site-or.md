@@ -292,7 +292,7 @@ Cole no chat do Lovable do site da Clínica ÓR:
 > ```
 > Preciso de um diagnóstico da integração com o CRM MK. Por favor:
 >
-> 1. Confirme que o seguinte script está presente em `index.html` **dentro do `<head>`** e que carrega em produção (todos os 3 domínios: clinicaohrpsiquiatria.com, clinicaor.com.br, mindscape-revive.lovable.app):
+> 1. Confirme que o seguinte script está presente em `index.html` **dentro do `<head>`** e que carrega em produção (domínios reais: `clinicaohrpsiquiatria.com` em produção, `mindscape-revive.lovable.app` em preview):
 >    <script async src="https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/forms-snippet?token=mkf_3a2f5dd057a3314e39829f5e1c56868c"></script>
 >
 > 2. Abra cada uma destas páginas em produção, no DevTools console, e rode estes comandos. Cole o resultado:
