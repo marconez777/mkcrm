@@ -228,7 +228,12 @@ export default function EmailAutomations() {
                 {editing.steps.map((s, i) => (
                   <Card key={i} className="p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold">Passo {i + 1}</span>
+                      <span className="text-xs font-semibold">
+                        Passo {i + 1}
+                        <span className="ml-2 font-normal text-[10px] text-muted-foreground">
+                          {i === 0 ? "após entrada do lead" : "após o passo anterior"}
+                        </span>
+                      </span>
                       <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing({ ...editing, steps: editing.steps.filter((_, j) => j !== i) })}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
