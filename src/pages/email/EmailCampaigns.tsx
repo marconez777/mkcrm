@@ -278,7 +278,7 @@ export default function EmailCampaigns() {
       c.status === "failed"
         ? "bg-[hsl(var(--status-failed-fg))]"
         : c.status === "sent"
-          ? "bg-muted-foreground/40"
+          ? "bg-[hsl(var(--status-sent-fg))]"
           : "bg-primary";
     return (
       <div className="mt-1.5 h-1 w-24 rounded-full bg-muted overflow-hidden">
