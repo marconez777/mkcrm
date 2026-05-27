@@ -303,9 +303,16 @@ export default function EmailCampaigns() {
                 <TableCell className="text-right text-xs tabular-nums">{c.sent_count} / {c.total_recipients}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{c.scheduled_for ? new Date(c.scheduled_for).toLocaleString("pt-BR") : "—"}</TableCell>
                 <TableCell className="text-right space-x-1">
-                  <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
-                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
-                  </Button>
+                  {c.status === "sending" ? (
+                    <Button size="sm" variant="default" onClick={() => setLiveId(c.id)}>
+                      <span className="mr-1.5"><LivePulseDot /></span>
+                      Ao vivo
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
+                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                    </Button>
+                  )}
                   {["draft", "scheduled"].includes(c.status) && (
                     <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
                       <Pencil className="mr-1 h-3 w-3" />Editar
