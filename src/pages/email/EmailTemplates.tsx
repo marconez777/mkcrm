@@ -190,19 +190,21 @@ export default function EmailTemplates() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Templates de Email</h1>
-          <p className="text-sm text-muted-foreground">Crie modelos reutilizáveis para campanhas e automações.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Templates de Email</h1>
+          <p className="text-sm text-muted-foreground mt-1">Crie modelos reutilizáveis para campanhas e automações.</p>
         </div>
-        <Button onClick={() => navigate("/email/templates/new")}><Plus className="mr-2 h-4 w-4" />Novo template</Button>
+        <Button onClick={() => navigate("/email/templates/new")} className="rounded-xl px-5 py-2.5 shadow-[var(--shadow-soft)]">
+          <Plus className="mr-2 h-4 w-4" />Novo template
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <Card className="p-3 space-y-1 h-fit">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-semibold text-muted-foreground">Pastas</div>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-3 space-y-1 h-fit">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Pastas</div>
             <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setFolderOpen(true)}>
               <FolderPlus className="h-3 w-3" />
             </Button>
@@ -210,14 +212,14 @@ export default function EmailTemplates() {
           {[{ id: "all", name: "Todos" }, { id: "none", name: "Sem pasta" }, ...folders].map((f) => (
             <div
               key={f.id}
-              className={`group flex items-center justify-between rounded px-2 py-1.5 text-xs hover:bg-accent ${activeFolder === f.id ? "bg-accent font-medium" : ""}`}
+              className={`group flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-muted/40 ${activeFolder === f.id ? "bg-muted/60 font-medium" : ""}`}
             >
               <button
                 type="button"
                 onClick={() => setActiveFolder(f.id)}
                 className="flex flex-1 items-center gap-1.5 text-left"
               >
-                <Folder className="h-3 w-3" />
+                <Folder className="h-3.5 w-3.5" />
                 {f.name}
               </button>
               {!["all", "none"].includes(f.id) && (
@@ -232,32 +234,33 @@ export default function EmailTemplates() {
               )}
             </div>
           ))}
-        </Card>
+        </div>
 
-        <Card className="p-0 overflow-hidden">
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] overflow-hidden">
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Nenhum template</div>
+            <div className="p-12 text-center text-sm text-muted-foreground">Nenhum template</div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-border/40">
               {filtered.map((t) => (
-                <div key={t.id} className="p-3 flex items-center gap-3">
+                <div key={t.id} className="p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{t.name}</span>
-                      <Badge variant="outline" className="text-[10px]">{t.slug}</Badge>
+                      <span className="font-semibold text-sm truncate">{t.name}</span>
+                      <Badge variant="outline" className="text-[10px] font-mono">{t.slug}</Badge>
                       {!t.active && <Badge variant="secondary" className="text-[10px]">inativo</Badge>}
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">{t.subject}</div>
+                    <div className="text-xs text-muted-foreground truncate mt-0.5">{t.subject}</div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => navigate(`/email/templates/${t.id}`)}>Editar</Button>
-                  <Button size="sm" variant="ghost" onClick={() => duplicate(t)}><Copy className="h-3 w-3" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(t)}><Trash2 className="h-3 w-3" /></Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/email/templates/${t.id}`)} className="rounded-lg">Editar</Button>
+                  <Button size="icon" variant="ghost" onClick={() => duplicate(t)} className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Duplicar"><Copy className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => remove(t)} className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Excluir"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </div>
       </div>
+
 
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
         <DialogContent>
