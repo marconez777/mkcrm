@@ -2,7 +2,7 @@
 
 > Referência completa do módulo de Email Marketing do CRM mkart.
 > Cobre: telas, edge functions, tabelas, fluxos, integrações (Resend), helpers e regras de negócio.
-> Última atualização: 2026-05-26.
+> Última atualização: 2026-05-27.
 
 ---
 
@@ -73,11 +73,16 @@ Modelo interno em `src/lib/email/types.ts` (`EmailBlock`). Renderização: `bloc
 
 ### 2.5 `EmailCampaigns.tsx` (`/email/campaigns`)
 CRUD de campanhas (`email_campaigns`):
-- Selecionar template (ativo) + segmento (opcional) + agendamento.
+- Selecionar template (ativo) + segmento (opcional) + agendamento + `from_name_override` + `from_domain_pool` + `send_rate_per_minute`.
+- **Pré-visualizar destinatários**: `CampaignRecipientsPreview` mostra amostra do segmento resolvido.
+- **A/B variants** (R-20): editar `email_campaign_variants` (label, weight, overrides de subject/template/from_name) com `variant_strategy = 'none' | 'ab' | 'multi'`.
 - **Enviar agora**: invoca `dispatch-campaign` com o `campaign_id`.
 - **Enviar teste** (Beaker): `dispatch-campaign` com `test_only: true` e `test_email_override` — usa amostra de 1 lead do segmento para preencher variáveis.
-- Mostra status: `draft | scheduled | sending | sent | failed`.
-- Totais: `total_recipients`, `sent_count`, `failed_count`.
+- **Pause / Resume**: alterna `status='paused'` ↔ `sending/scheduled`. Pausar bloqueia novo dispatch; jobs já enfileirados continuam.
+- **Duplicar**: copia template, segmento, variants e configurações para uma nova campanha em `draft`.
+- **Acompanhar ao vivo**: `CampaignLiveDialog` mostra throughput em tempo real (view `campaign_throughput`) com `ThroughputChart`, `RadialProgress` e `LivePulseDot`.
+- Mostra status: `draft | scheduled | sending | sent | paused | failed`.
+- Totais: `total_recipients`, `enqueued_count`, `sent_count`, `failed_count`.
 
 ### 2.6 `EmailAutomations.tsx` (`/email/automations`)
 Drip automatizado (`email_automations`):
@@ -165,7 +170,7 @@ Assistente DNS para o domínio:
 Todas em `supabase/functions/`. Helpers compartilhados em `_shared/email.ts` (`corsHeaders`, `jsonResponse`, `renderTemplate`, `sanitizeTagValue`, `isInternalContext`).
 
 ### 3.1 `send-email`
-**Entrada principal de envio.** Auth: service-role **ou** JWT de admin/super-admin.
+**Envio unitário.** Caminho usado por automações, testes e fallback do batch. Auth: service-role **ou** JWT de admin/super-admin.
 
 Body:
 ```json
@@ -178,92 +183,122 @@ Body:
   "related_lead_id": "uuid?",
   "related_lead_table": "string?",
   "force": false,
-  "queue_id": "uuid?"
+  "queue_id": "uuid?",
+  "from_domain_override": "string?",
+  "variant_id": "uuid?"
 }
 ```
 
-Pipeline:
-1. **Feature gate** `clinic_has_feature(clinic_id, 'email_marketing')`. Se off → marca queue como `cancelled` e retorna `{ skipped: true, reason: "feature_disabled" }`.
-2. **Carrega template** ativo por `(clinic_id, slug)`.
-3. **Verifica domínio**: `from_email`'s domain deve existir em `email_domains` com `status = 'verified'`. Senão → `412`.
-4. **Suppression**: se não `force`, checa `email_unsubscribes`. Match → marca queue `cancelled`.
-5. **Idempotência**: se há contexto externo (`related_lead_table` não-interno via `isInternalContext`), bloqueia reenvio se já existe `email_logs` com status `sent|delivered|opened|clicked` para o mesmo `(clinic, slug, email, table)`.
-6. **Cota diária**: `clinic_email_quota(clinic_id)` (RPC, default 1000). Lê/atualiza `email_send_state.sent_today`. Se excedida → reagenda job para 12:00 UTC do dia seguinte (~9h BRT).
-7. **Unsubscribe URL**: `generate_unsubscribe_token(clinic_id, email)` (HMAC) → monta `${SITE_URL}/unsubscribe?clinic=...&email=...&token=...`.
-8. **Render**: `renderTemplate` substitui `{{ var }}` em `subject`, `html_body`, `text_body`. Vars auto-injetadas: `recipient_email`, `recipient_name`, `unsubscribe_url`, `site_url`, `year`.
-9. **Envio Resend** — `POST https://api.resend.com/emails` **direto** (não usa o connector gateway Lovable), autenticando com `Bearer ${RESEND_API_KEY}`. Inclui headers `List-Unsubscribe` + `List-Unsubscribe-Post: One-Click` e tags `template`, `category`, `clinic` (sanitizadas).
-10. **Loga** em `email_logs` (`status: sent`, `resend_id`) e incrementa `email_send_state`.
-11. Em erro → loga com `status: failed` + retorna `502`.
+Pipeline atual (pós Tier 1/2):
+1. **Feature gate** `clinic_has_feature(clinic_id, 'email_marketing')`. Off → marca queue `cancelled` e retorna `{ skipped: true, reason: "feature_disabled" }`.
+2. **Carrega template** ativo por `(clinic_id, slug)` — com cache em memória do isolate (TTL 60s, R-6). Mesma cache para `email_domains`, `clinic_email_integrations`, `clinics.slug`.
+3. **Resolve domínio efetivo**: se `from_domain_override` veio do dispatcher (R-21 multi-domínio), substitui o domínio do `from_email` preservando o local-part.
+4. **Verifica domínio**: linha em `email_domains` com `status = 'verified'`. Senão → `412`.
+5. **Suppression**: se não `force`, checa `email_unsubscribes`. Match → marca queue `cancelled`.
+6. **Idempotência atômica (R-10)**: `INSERT INTO email_send_dedup(clinic, slug, email, context) ON CONFLICT DO NOTHING`. Conflito = já enviado, pula. Falhas posteriores no envio fazem `DELETE` para liberar reenvio.
+7. **Cota diária (R-11)**: RPC `claim_email_quota(_clinic_id)` (UPSERT atômico com reset diário). Estourou → libera dedup + reagenda job para 12:00 UTC do dia seguinte (~9h BRT).
+8. **Warmup do domínio (R-12)**: RPC `claim_domain_warmup(_clinic_id, _domain)`. Curva `50→100→500→1k→5k→10k→25k→ilimitado` por dia desde `started_at`. Estourou → libera dedup + reagenda +30min.
+9. **Throttle por domínio destino (R-13)**: RPC `claim_recipient_throttle(_clinic_id, _dest_domain, _limit_per_hour: 1000)`. Estourou → libera dedup + reagenda próxima janela horária.
+10. **Unsubscribe URL**: `generate_unsubscribe_token(clinic_id, email)` (HMAC) → `${SITE_URL}/unsubscribe?clinic=...&email=...&token=...`.
+11. **Render**: `renderTemplate` substitui `{{ var }}` em `subject`, `html_body`, `text_body`. Vars auto-injetadas: `recipient_email`, `recipient_name`, `unsubscribe_url`, `site_url`, `year`.
+12. **Envio Resend** — `POST https://api.resend.com/emails` **direto** (não usa gateway), autenticando com `Bearer ${RESEND_API_KEY}`. Headers `List-Unsubscribe` + `List-Unsubscribe-Post: One-Click`. Tags: `template`, `category`, `clinic`, `variant` (sanitizadas). Links recebem UTMs anexadas — open/click tracking é do Resend nativo.
+13. **Loga** em `email_logs` (`status: sent`, `resend_id`, `variant_id`, `from_domain_override`).
+14. Em erro → libera dedup, release de warmup/throttle, loga `status: failed` + retorna `502`.
 
-### 3.2 `process-email-queue`
-Dispatcher da fila (cron a cada 1 min):
-- Pega até **50** jobs `pending` com `scheduled_at <= now()`.
+### 3.2 `send-email-batch`
+**Envio em lote — caminho principal de campanhas (R-15).** Auth: service-role.
+
+Body: `{ clinic_id, template_slug, jobs: [...], from_domain_override?, idempotency_key? }`.
+
+Características:
+- Até **100 destinatários por chamada** (Resend Batch API `POST /emails/batch`).
+- Pre-checks por job (suppression, dedup `email_send_dedup`, cota, warmup, throttle) — jobs reprovados são pulados/reagendados antes da chamada batch.
+- Envia o batch para `https://api.resend.com/emails/batch`.
+- **Fallback automático para singular** se a chamada batch retornar erro completo.
+- Loga cada envio individualmente em `email_logs` com `variant_id` e `from_domain_override`.
+- Reduz ~95% das chamadas HTTP ao Resend em campanhas grandes.
+
+### 3.3 `process-email-queue`
+Dispatcher da fila (cron ~15s + self-trigger R-3):
+- **Reaper**: jobs com `status='processing'` há mais de **10 min** (`STALE_PROCESSING_MIN`) voltam para `pending`.
+- Pega até **400** jobs `pending` (`BATCH_SIZE`) com `scheduled_at <= now()`, ordenados por `priority ASC, scheduled_at ASC` (R-7: `auth=1, transacional=2, campaign=3, drip=4, batch=5`).
 - Marca como `processing`.
-- Para cada job, chama `send-email` via HTTP.
-- Trata erros classificando:
+- **Agrupa** por `(clinic_id, template_slug, from_domain_override)`:
+  - Grupo com **≥3** jobs → `send-email-batch` (Resend Batch API).
+  - Grupos menores → `send-email` singular, em chunks de `CONCURRENCY=2` (respeita 2 req/s do Resend).
+- **Self-trigger** ao final se ainda há `pending` na fila.
+- Erros classificados:
   - **Permanentes** (`not found or inactive`, `invalid to field`, `not verified`) → `failed` sem retry.
   - **Quota** → reagenda para 12 UTC amanhã.
+  - **Warmup / throttle** → reagenda conforme a política de cada RPC.
   - **Rate limit** (`retry after Xs|ms`) → reagenda com delay parseado + 1s.
-  - **Outros**: até **3 tentativas** com backoff `1min → 5min → 30min`.
-- Atualiza queue com status final (`sent | failed | pending`).
+  - **Outros**: até **3 tentativas** (`MAX_ATTEMPTS`) com backoff `1min → 5min → 30min`.
 
-### 3.3 `dispatch-campaign`
-Resolve uma campanha em recipients e enfileira:
+### 3.4 `dispatch-campaign`
+Resolve uma campanha em recipients e enfileira (em lote, R-4):
 - Auth: service-role ou admin/super-admin.
 - Body: `{ campaign_id, test_only?, test_email_override? }`.
 - **Teste**: pega 1 lead amostral do segmento, enfileira 1 job com `force: true`, marca `test_sent_at`, dispara `process-email-queue` imediatamente.
 - **Real**:
   - Se `test_email` no campaign → 1 recipient.
-  - Senão, carrega leads da clínica com `email IS NOT NULL` filtrados por `segment.filters` (`stage_ids` IN, `tags` overlaps), limit 10k.
-  - Para cada, chama RPC `enqueue_email` (que insere em `email_queue`).
+  - Senão, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL` aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
+  - Para cada destinatário, pré-calcula:
+    - **A/B variant** via round-robin ponderado determinístico por email (R-20) → grava `email_queue.variant_id`.
+    - **Rotation domain** via RPC `pick_rotation_domain(_pool, _clinic)` (R-21) → grava `email_queue.from_domain_override`.
+    - **Schedule espalhado** em janelas de 1 min se `send_rate_per_minute` setado (R-18).
+  - INSERT em lote em `email_queue` (chunks de 500).
   - Atualiza `email_campaigns` com `status`, `total_recipients`, `enqueued_count`, `sent_at`.
+  - `status='paused'` na campanha aborta novos despachos.
 
-### 3.4 `resend-webhook`
+### 3.5 `resend-webhook`
 Receptor de eventos do Resend.
-- **Valida assinatura Svix** se `RESEND_WEBHOOK_SECRET` setado (sem secret aceita unsigned — só dev).
-- Eventos tratados: `email.delivered | email.opened | email.clicked | email.bounced | email.complained`.
+- **Valida assinatura Svix** (via svix SDK oficial) se `RESEND_WEBHOOK_SECRET` setado (sem secret aceita unsigned — só dev).
+- **Dedup por `svix-id` (R-5)**: INSERT em `resend_webhook_events(svix_id PK, event_type, resend_id)`. Conflito `23505` → `{ deduped: true }` sem reprocessar.
+- Eventos consumidos: `email.delivered | email.opened | email.clicked | email.bounced | email.complained`. (`email.sent` e `email.delivery_delayed` vão para `events[]` apenas.)
 - Encontra `email_logs` por `resend_id`, faz `events.push(...)` e atualiza colunas `*_at` + `status`.
-- **Bounce hard ou Permanent** → upsert em `email_unsubscribes(reason: 'bounce')`.
-- **Complaint** → upsert em `email_unsubscribes(reason: 'complaint')`.
+- **Bounce hard ou Permanent** → upsert em `email_unsubscribes(reason: 'bounce', source: 'resend-webhook')`.
+- **Complaint** → upsert em `email_unsubscribes(reason: 'complaint', source: 'resend-webhook')`.
+- Trigger `email_logs_bounce_health_trigger` chama `check_clinic_bounce_health` — se bounce>5% ou complaint>0.3% nas últimas 1000 → pausa campanhas e grava em `email_health_alerts` (R-16).
 
-### 3.5 `email-unsubscribe` (público, sem JWT)
+### 3.6 `email-unsubscribe` (público, sem JWT)
 - Actions: `validate | unsubscribe | reactivate`.
 - Sempre exige `clinic_id + email + token` válidos via RPC `verify_unsubscribe_token` (HMAC).
 - `unsubscribe`: upsert em `email_unsubscribes` + **cascade**: cancela todos jobs pendentes (`status=pending`, `force_send=false`) daquela combinação clinic+email.
 - `reactivate`: `DELETE FROM email_unsubscribes WHERE clinic_id=? AND email=?`.
 - Reasons aceitos: `too-many | not-interested | never-signed | other | user-request`.
 
-### 3.6 `email-domain-manage` (super admin only)
+### 3.7 `email-domain-manage` (super admin only)
 Gerencia domínios via Resend:
 - `action: create` → `POST /domains` no Resend, upsert em `email_domains` com `status`, `dns_records`, `region`.
 - `action: verify` → `POST /domains/{id}/verify`, depois `GET /domains/{id}` para refresh do status; atualiza linha.
 - `action: delete` → `DELETE /domains/{id}` no Resend + `DELETE` local.
 
-### 3.7 `backfill-resend-events` (super admin only)
+### 3.8 `backfill-resend-events` (super admin only)
 Sincroniza histórico:
 - Pega até 200 `email_logs` com `resend_id NOT NULL` e `delivered_at IS NULL`.
 - Para cada, `GET /emails/{id}` no Resend e atualiza status/timestamps.
 - Bounces/complaints viram entries em `email_unsubscribes`.
 
-### 3.8 `process-scheduled-campaigns`
+### 3.9 `process-scheduled-campaigns`
 Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled_for <= now()` (limit 20) e dispara `dispatch-campaign` para cada uma. É o que faz "Agendar campanha" funcionar.
 
-### 3.9 `scheduled-dispatcher` (referência cruzada)
+### 3.10 `scheduled-dispatcher` (referência cruzada)
 **Não pertence ao módulo de email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Listado aqui só para evitar confusão com o `process-scheduled-campaigns`.
 
-### 3.10 `email-automations-tick`
-Cron a cada 5 min. Motor de drip para `email_automations`:
+### 3.11 `email-automations-tick`
+Cron a cada 5 min. Motor de drip para `email_automations` (paralelo, concorrência 10 — R-9):
 - Lê todas as automações com `active = true`.
 - Detecta leads candidatos desde `last_run_at` (cursor por automação):
   - `lead_created` → `leads.created_at > since` (com `email IS NOT NULL`).
   - `lead_stage_changed` → `lead_stage_history.moved_at > since`; respeita `trigger_config.to_stage_id` (ou `stage_id`).
   - `lead_tag_added` → `lead_events` com `type='tag_added'` e filtro opcional `payload.tag`.
+  - `segment_contact_added` → entrada nova em `email_segment_contacts` (ou lead que passou a casar o segmento) desde `since`.
 - Para cada lead novo, tenta INSERT em `email_automation_enrollments` (`UNIQUE(automation_id, lead_id)`). Unique violation = já enrolado, ignorado silenciosamente.
 - Enfileira **todos os steps** da automação via RPC `enqueue_email` com `scheduled_at = now() + delay_minutes`.
 - `related_lead_table = "automation_<id>"` → idempotência/deduplicação delegada ao `send-email`.
 - Atualiza `steps_enqueued` no enrollment e avança `last_run_at` da automação.
 
-Suppression, idempotência, cota e verificação de domínio ficam por conta do `send-email` no momento do envio.
+Suppression, idempotência atômica, cota, warmup, throttle e verificação de domínio ficam por conta do `send-email`/`send-email-batch` no momento do envio.
 
 ---
 
@@ -273,21 +308,41 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 
 | Tabela | Função |
 |---|---|
-| `email_domains` | Domínios verificados (1+ por clínica). Read: clínica; Write: super admin. |
+| `email_domains` | Domínios verificados (1+ por clínica). Colunas extras: `rotation_pool`, `rotation_weight` (R-21). Read: clínica; Write: super admin. |
 | `email_templates` | Templates (HTML + blocks JSON). |
 | `email_template_folders` | Pastas para organizar templates. |
-| `email_segments` | Filtros JSON salvos sobre `leads`. |
-| `email_campaigns` | Campanhas (template + segment + agendamento + totais). |
-| `email_automations` | Drip por trigger (steps JSON). |
+| `email_segments` | Filtros JSON salvos sobre `leads` (suporta `tags`, `stage_ids`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19). |
+| `email_segment_contacts` | Contatos manuais (fora de `leads`) usados em campanhas. |
+| `email_campaigns` | Campanhas (template + segmento + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`. |
+| `email_campaign_variants` | Variantes A/B/multi (R-20): `label`, `weight`, `subject_override`, `template_slug_override`, `from_name_override`, `sent_count`, `opened_count`, `clicked_count`, `is_winner`. |
+| `email_automations` | Drip por trigger (steps JSON). Triggers: `lead_created`, `lead_stage_changed`, `lead_tag_added`, `segment_contact_added`. |
 | `email_automation_enrollments` | Leads enrolados numa automação (`UNIQUE(automation_id, lead_id)`). Conta `steps_enqueued`. |
-| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `attempts`, `scheduled_at`, `error`, `force_send` (ignora suppression/idempotência), `variables`, `related_lead_id`, `related_lead_table`. |
-| `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint. **Read-only** para o app. |
+| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `priority` (R-7), `attempts`, `scheduled_at`, `error`, `force_send`, `variables`, `related_lead_id`, `related_lead_table`, `variant_id`, `from_domain_override`. |
+| `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint + `variant_id`, `from_domain_override`. **Read-only** para o app. |
+| `email_send_dedup` | Idempotência atômica (R-10) — UNIQUE `(clinic_id, template_slug, email, context)`. |
 | `email_unsubscribes` | Lista de supressão por clinic+email. Admin pode deletar (reativar). |
-| `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Read-only. |
+| `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Acesso via RPC `claim_email_quota` (R-11). |
+| `email_domain_warmup` | Curva de aquecimento por `(clinic_id, domain)` — R-12. Opt-in. |
+| `email_recipient_throttle` | Throttle por `(clinic_id, dest_domain, window_start)` — R-13. |
+| `clinic_email_integrations` | Configuração de integração de email por clínica (provider, secret_name). |
+| `resend_webhook_events` | Dedup de eventos do Resend por `svix_id` (R-5). |
+| `email_health_alerts` | Alertas de saúde (bounce/complaint > threshold) — R-16. |
+| `email_operational_alerts` | Alertas operacionais (backlog, stuck, failure_rate) — R-17. |
+| `campaign_throughput` | Throughput por minuto por campanha (alimenta `CampaignLiveDialog`). |
+
+Views: `email_throughput_stats` (por clínica), `email_system_health` (global) — R-17.
 
 Funções SQL relevantes:
-- `clinic_email_quota(_clinic_id uuid) → integer` — cota diária da clínica.
-- `enqueue_email(...) → uuid` — insert em `email_queue`.
+- `claim_email_quota(_clinic_id) → { allowed, sent_today, quota }` — UPSERT atômico (R-11).
+- `claim_domain_warmup(_clinic_id, _domain) → { allowed, ... }` — R-12.
+- `claim_recipient_throttle(_clinic_id, _dest_domain, _limit_per_hour) → { allowed, ... }` — R-13.
+- `release_domain_warmup(_clinic_id, _domain)` — libera vaga em caso de falha.
+- `pick_rotation_domain(_pool, _clinic_id) → text` — R-21.
+- `pick_ab_winner(_campaign_id)` — recalcula métricas e marca vencedor (R-20).
+- `check_clinic_bounce_health(_clinic_id)` — pausa campanhas se threshold estourado (R-16).
+- `check_email_operational_health()` — gera alertas operacionais (R-17).
+- `clinic_email_quota(_clinic_id) → integer` — cota diária da clínica.
+- `enqueue_email(...) → uuid` — insert em `email_queue` (usado por automações e teste).
 - `generate_unsubscribe_token(_clinic_id, _email) → text` — HMAC.
 - `verify_unsubscribe_token(_clinic_id, _email, _token) → boolean`.
 - `clinic_has_feature(_clinic_id, _key)` — feature flag check.
@@ -326,25 +381,33 @@ Helpers:
 ```text
 UI EmailCampaigns "Enviar"
    └──▶ supabase.functions.invoke('dispatch-campaign', { campaign_id })
-         ├── carrega campaign + segment filters
-         ├── query leads (clinic, email NOT NULL, filtros)
-         ├── for each: RPC enqueue_email() → email_queue.status='pending'
-         └── update email_campaigns (status='sent', totals)
+         ├── carrega campaign + segment filters + variants
+         ├── paginação leads/contatos (range 1k)
+         ├── pick A/B variant + rotation domain + schedule spread
+         ├── INSERT em lote em email_queue (chunks 500, status='pending')
+         └── update email_campaigns (status='sending', totals)
 
-CRON (1min) → process-email-queue
-   ├── pega 50 jobs pending
-   ├── for each → HTTP send-email (service-role auth)
-   │     ├── feature gate, template, domain verified
-   │     ├── suppression check
-   │     ├── idempotency check (email_logs)
-   │     ├── quota check (email_send_state)
-   │     ├── render + Resend POST /emails
-   │     └── insert email_logs (status='sent', resend_id)
-   └── update email_queue (sent | failed | reschedule)
+CRON ~15s (+ self-trigger) → process-email-queue
+   ├── reaper de jobs travados (>10min em 'processing')
+   ├── pega até 400 pending (ORDER BY priority, scheduled_at)
+   ├── agrupa por (clinic, slug, from_domain_override)
+   │     ├── grupos ≥3 → send-email-batch (Resend Batch API)
+   │     └── singulares → send-email (CONCURRENCY=2)
+   │           ├── feature gate, template (cache), domain verified
+   │           ├── suppression check
+   │           ├── INSERT email_send_dedup (atômico — R-10)
+   │           ├── claim_email_quota (atômico — R-11)
+   │           ├── claim_domain_warmup (R-12)
+   │           ├── claim_recipient_throttle (R-13)
+   │           ├── render + Resend POST
+   │           └── insert email_logs (status='sent', resend_id, variant_id)
+   └── update email_queue (sent | failed | reschedule por quota/warmup/throttle)
 
 Resend → POST /functions/v1/resend-webhook
-   └── update email_logs status/timestamps
-        └── on bounce/complaint: upsert email_unsubscribes
+   ├── svix verify + dedup por svix-id (resend_webhook_events)
+   ├── update email_logs status/timestamps + events[]
+   ├── on bounce/complaint: upsert email_unsubscribes
+   └── trigger bounce_health → pausa campanhas se >5%/>0.3% (R-16)
 ```
 
 ### 6.2 Descadastro
@@ -424,31 +487,42 @@ Edge functions exigem:
 ## 10. Roadmap / pontos abertos
 
 - Domain creation está restrita a super admin via `/admin`; não há self-serve para clínicas (intencional para evitar custo de verificação).
-- Não há A/B test nativo de subject (campo `subject` é único por template).
-- O contador `email_send_state` é por clínica; não há cota global de plataforma.
+- O contador de cota (via `claim_email_quota` + `email_send_state`) é por clínica; não há cota global de plataforma.
+- Pause de campanha não cancela jobs já enfileirados — drena o que está em `email_queue`.
+- Sem botão "reenviar para quem não abriu" como ação nativa (criar nova campanha + segmento com `custom_field`).
+- UI de timeline por recipient (eventos) — hoje só `EmailLogs` com colunas de timestamp.
 
-> **Roadmap de escala/performance:** ver `docs/roadmap/EMAIL_SCALE.md` para o plano detalhado (R-1 a R-21 em 4 tiers) antes de subir clientes de alto volume.
+> **Status do roadmap de escala:** Tier 0/1/2/3 ✅ implementados (R-1 a R-21). Ver `docs/roadmap/EMAIL_SCALE.md` para detalhes e SLOs.
+
+> **A/B test nativo** já existe (R-20): `email_campaign_variants` + `variant_strategy` + `pick_ab_winner`.
 
 ---
 
 ## 11. Performance & throughput (estado atual)
 
-> Estes são os **limites observados hoje**. Plano para superá-los em `docs/roadmap/EMAIL_SCALE.md`.
+> Atualizado pós Tier 0/1/2/3. Limites/ajustes em `docs/roadmap/EMAIL_SCALE.md`.
 
 | Item | Valor atual | Onde mexer |
 |---|---|---|
-| Cron `process-email-queue` | 1 min | `pg_cron` job |
-| Batch size por execução | 50 | `BATCH_SIZE` em `process-email-queue/index.ts` |
-| Concorrência por batch | 5 | `CONCURRENCY` em `process-email-queue/index.ts` |
+| Cron `process-email-queue` | ~15s (cron + self-trigger R-3) | `pg_cron` job + final do handler |
+| Batch size por execução | **400** | `BATCH_SIZE` em `process-email-queue/index.ts` |
+| Concorrência (singular) | **2** (respeita 2 req/s do Resend) | `CONCURRENCY` em `process-email-queue/index.ts` |
+| Resend Batch API | até **100** por chamada | `send-email-batch/index.ts` |
+| Threshold de agrupamento batch | **≥3** jobs no mesmo `(clinic, slug, from_domain)` | `process-email-queue/index.ts` |
 | Reaper de jobs travados | 10 min | `STALE_PROCESSING_MIN` |
 | Max attempts antes de `failed` | 3 | `MAX_ATTEMPTS` |
 | Backoff de retry | 1min → 5min → 30min | `process-email-queue/index.ts` |
-| Reagendamento por cota | 12:00 UTC dia+1 (~9h BRT) | `send-email/index.ts` §4 |
-| Chunk de enqueue em `dispatch-campaign` | 20 RPCs paralelos | `dispatch-campaign/index.ts` |
-| Limit de leads carregados por campanha | 10.000 | `dispatch-campaign/index.ts` |
-| Cron `email-automations-tick` | 5 min | `pg_cron` job |
-| Cota diária default por clínica | 1.000 | RPC `clinic_email_quota` |
+| Reagendamento por cota | 12:00 UTC dia+1 (~9h BRT) | `send-email/index.ts` §7 |
+| Reagendamento por warmup | +30min | `send-email/index.ts` §8 |
+| Reagendamento por throttle dest | próxima janela horária | `send-email/index.ts` §9 |
+| Chunk de enqueue em `dispatch-campaign` | INSERT em lote de 500 (R-4) | `dispatch-campaign/index.ts` |
+| Paginação de leads por campanha | 1.000 por range, sem teto fixo | `dispatch-campaign/index.ts` |
+| Cron `email-automations-tick` | 5 min, concorrência 10 (R-9) | `pg_cron` job |
+| Cota diária default por clínica | 1.000 | RPC `claim_email_quota` / `clinic_email_quota` |
+| Warmup default | 50→100→500→1k→5k→10k→25k→∞ (opt-in) | `claim_domain_warmup` + `email_domain_warmup` |
+| Throttle default por domínio destino | 1.000 / hora | `claim_recipient_throttle` |
+| Cache de template/domínio no isolate | TTL 60s | `send-email`/`send-email-batch` |
 
-**Teto prático hoje:** ~50 emails/min ≈ **3.000/h** por instância. Suficiente para clínicas pequenas/médias; **insuficiente** para cliente de alto volume — ver roadmap de escala.
+**Throughput observado:** com Batch API + cron 15s, campanhas de 10k destinatários enviam em <2h (SLO). Pico depende fortemente da reputação/plano Resend da clínica.
 
-**Sem priorização:** campanha massiva, drip e transacional competem na mesma fila ordenada apenas por `scheduled_at`. Email transacional pode esperar atrás de uma campanha de 50k. Endereçado por R-7.
+**Priorização da fila (R-7):** `priority ASC, scheduled_at ASC` com `auth=1, transacional=2, campaign=3, drip=4, batch=5`. Email transacional/auth não fica atrás de campanha massiva.
