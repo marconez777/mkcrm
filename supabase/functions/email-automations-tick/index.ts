@@ -16,7 +16,7 @@ type Automation = {
   clinic_id: string;
   name: string;
   active: boolean;
-  trigger_type: "lead_created" | "lead_stage_changed" | "lead_tag_added";
+  trigger_type: "lead_created" | "lead_stage_changed" | "lead_tag_added" | "segment_contact_added";
   trigger_config: Record<string, unknown>;
   steps: Step[];
   last_run_at: string | null;
