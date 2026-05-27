@@ -78,39 +78,6 @@ export default function EmailAutomations() {
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
   useEffect(() => { document.title = "Email — Automações"; }, []);
 
-  function presetActive(key: string) {
-    return items.find((i) => i.preset_key === key && i.active);
-  }
-
-  async function togglePreset(preset: typeof PRESETS[number], on: boolean) {
-    if (!clinicId) return;
-    setBusy(true);
-    try {
-      const existing = items.find((i) => i.preset_key === preset.key);
-      if (existing) {
-        const { error } = await supabase.from("email_automations").update({ active: on }).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("email_automations").insert({
-          clinic_id: clinicId,
-          name: preset.name,
-          description: preset.description,
-          preset_key: preset.key,
-          trigger_type: preset.trigger_type,
-          trigger_config: {},
-          steps: preset.steps,
-          active: on,
-        });
-        if (error) throw error;
-      }
-      toast.success(on ? "Receita ativada" : "Receita desativada");
-      await load();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function startCreate() {
     setEditing({
