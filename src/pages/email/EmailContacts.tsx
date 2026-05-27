@@ -323,12 +323,12 @@ export default function EmailContacts() {
             {totals.total} únicos · {totals.leads} de leads · {totals.manual} inscrições manuais
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={exportCsv} className="rounded-xl"><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
 
           <Dialog open={openImport} onOpenChange={setOpenImport}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline"><Upload className="h-4 w-4 mr-2" />Importar planilha</Button>
+              <Button size="sm" variant="outline" className="rounded-xl"><Upload className="h-4 w-4 mr-2" />Importar planilha</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>Importar contatos</DialogTitle></DialogHeader>
@@ -396,7 +396,7 @@ export default function EmailContacts() {
 
           <Dialog open={openAdd} onOpenChange={setOpenAdd}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4 mr-2" />Adicionar contato</Button>
+              <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Adicionar contato</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Novo contato</DialogTitle></DialogHeader>
@@ -429,14 +429,14 @@ export default function EmailContacts() {
         </div>
       </div>
 
-      <Card className="p-3">
+      <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-3">
         <div className="flex gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Buscar por e-mail ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-8 rounded-xl" placeholder="Buscar por e-mail ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={filterSource} onValueChange={setFilterSource}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[180px] rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todas as origens</SelectItem>
               <SelectItem value="lead">Leads</SelectItem>
@@ -445,14 +445,14 @@ export default function EmailContacts() {
             </SelectContent>
           </Select>
           <Select value={filterSegment} onValueChange={setFilterSegment}>
-            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[200px] rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todos os segmentos</SelectItem>
               {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-      </Card>
+      </div>
 
       {loading ? (
         <div className="text-center text-muted-foreground py-8">Carregando...</div>
