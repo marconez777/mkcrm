@@ -184,19 +184,24 @@ export default function EmailSegments() {
   }
 
   async function openEdit(s: Segment) {
-    setEditing(s);
-    setName(s.name);
-    setDescription(s.description ?? "");
-    const f = normalizeFilters(s.filters);
-    setKind(f.kind); setMatch(f.match); setRules(f.rules);
-    setActive(s.active);
-    const segClinicId = (s as any).clinic_id as string;
-    const pool = await loadAvailableContacts(segClinicId, s.id);
-    const idsToSelect = new Set<string>(
-      pool.filter((c: any) => c.segment_id === s.id).map((c: any) => c.id),
-    );
-    setSelectedContactIds(idsToSelect);
-    setOpenNew(true);
+    setEditingLoadingId(s.id);
+    try {
+      setEditing(s);
+      setName(s.name);
+      setDescription(s.description ?? "");
+      const f = normalizeFilters(s.filters);
+      setKind(f.kind); setMatch(f.match); setRules(f.rules);
+      setActive(s.active);
+      const segClinicId = (s as any).clinic_id as string;
+      const pool = await loadAvailableContacts(segClinicId, s.id);
+      const idsToSelect = new Set<string>(
+        pool.filter((c: any) => c.segment_id === s.id).map((c: any) => c.id),
+      );
+      setSelectedContactIds(idsToSelect);
+      setOpenNew(true);
+    } finally {
+      setEditingLoadingId(null);
+    }
   }
 
   async function openCreate() {
