@@ -343,14 +343,14 @@ export default function EmailSegments() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Segmentos</h2>
-          <p className="text-sm text-muted-foreground">Listas dinâmicas (por filtros) ou estáticas (contatos manuais)</p>
+          <h2 className="text-2xl font-bold tracking-tight">Segmentos</h2>
+          <p className="text-sm text-muted-foreground mt-1">Listas dinâmicas (por filtros) ou estáticas (contatos manuais)</p>
         </div>
-        <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={async () => {
+        <div className="flex gap-2 flex-wrap">
+        <Button size="sm" variant="outline" className="rounded-xl" onClick={async () => {
           const { data: { user } } = await supabase.auth.getUser();
           const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
           if (!cm?.clinic_id) return toast.error("Clínica não encontrada");
@@ -380,7 +380,7 @@ export default function EmailSegments() {
         </Button>
         <Dialog open={openNew} onOpenChange={(o) => { if (o) openCreate(); else { setOpenNew(false); resetForm(); } }}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
+            <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Editar segmento" : "Novo segmento"}</DialogTitle></DialogHeader>
@@ -588,40 +588,44 @@ export default function EmailSegments() {
       {loading ? (
         <div className="text-center text-muted-foreground py-8">Carregando...</div>
       ) : segments.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">Nenhum segmento criado</Card>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-12 text-center text-muted-foreground">
+          Nenhum segmento criado
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {segments.map((s) => {
             const f = normalizeFilters(s.filters);
             return (
-              <Card key={s.id} className="p-4">
+              <div key={s.id} className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-5 hover:border-border transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium truncate">{s.name}</div>
+                      <div className="font-semibold truncate">{s.name}</div>
                       <Badge variant="outline" className="text-[10px]">
                         {f.kind === "static" ? "Estático" : "Dinâmico"}
                       </Badge>
                     </div>
-                    {s.description && <div className="text-xs text-muted-foreground truncate">{s.description}</div>}
-                    <div className="text-xs text-muted-foreground mt-2 flex flex-wrap gap-x-2 gap-y-1">
-                      {s.active ? <span className="text-green-600">● Ativo</span> : <span>○ Inativo</span>}
+                    {s.description && <div className="text-xs text-muted-foreground truncate mt-1">{s.description}</div>}
+                    <div className="text-xs text-muted-foreground mt-3 flex flex-wrap gap-x-2 gap-y-1">
+                      {s.active
+                        ? <span className="text-[hsl(var(--status-sending-fg))]">● Ativo</span>
+                        : <span>○ Inativo</span>}
                       <span>·</span>
                       <span>{counts[s.id] ?? "…"} destinatário(s)</span>
                       {f.rules.length > 0 && <span>· {f.rules.length} regra(s)</span>}
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>Editar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-muted-foreground hover:text-foreground">Editar</Button>
                     {!s.is_system && (
-                      <Button size="sm" variant="ghost" onClick={() => remove(s)}>
+                      <Button size="icon" variant="ghost" onClick={() => remove(s)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                     {s.is_system && <Badge variant="secondary" className="self-center text-[10px]">sistema</Badge>}
                   </div>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
