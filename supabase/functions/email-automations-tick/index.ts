@@ -150,11 +150,21 @@ Deno.serve(async (req) => {
           .eq("clinic_id", auto.clinic_id)
           .eq("segment_id", segmentId)
           .gt("created_at", since)
-          .not("lead_id", "is", null)
           .order("created_at", { ascending: true })
           .limit(500);
         if (scErr) throw scErr;
-        const leadIds = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
+        const rows = scs ?? [];
+        const leadIds = Array.from(new Set(
+          rows.map((r: any) => r.lead_id).filter((x: any) => !!x)
+        ));
+        const emails = Array.from(new Set(
+          rows
+            .filter((r: any) => !r.lead_id)
+            .map((r: any) => (r.email ?? "").toString().trim().toLowerCase())
+            .filter((x: string) => x.length > 0)
+        ));
+        const byId = new Map<string, LeadRow>();
+        const byEmail = new Map<string, LeadRow>();
         if (leadIds.length) {
           const { data: leads } = await supabase
             .from("leads")
@@ -162,14 +172,28 @@ Deno.serve(async (req) => {
             .in("id", leadIds)
             .eq("clinic_id", auto.clinic_id)
             .not("email", "is", null);
-          const byId = new Map((leads ?? []).map((l: any) => [l.id, l]));
-          candidates = (scs ?? [])
-            .filter((r: any) => byId.has(r.lead_id))
-            .map((r: any) => ({
-              lead: byId.get(r.lead_id) as LeadRow,
-              source_event: `segment_contact:${r.id}`,
-            }));
+          for (const l of (leads ?? []) as any[]) byId.set(l.id, l);
         }
+        if (emails.length) {
+          const { data: leads } = await supabase
+            .from("leads")
+            .select("id, clinic_id, name, email, phone")
+            .in("email", emails)
+            .eq("clinic_id", auto.clinic_id);
+          for (const l of (leads ?? []) as any[]) {
+            const em = (l.email ?? "").toString().trim().toLowerCase();
+            if (em && !byEmail.has(em)) byEmail.set(em, l);
+          }
+        }
+        candidates = rows
+          .map((r: any) => {
+            const lead = r.lead_id
+              ? byId.get(r.lead_id)
+              : byEmail.get((r.email ?? "").toString().trim().toLowerCase());
+            if (!lead) return null;
+            return { lead, source_event: `segment_contact:${r.id}` };
+          })
+          .filter((x: any): x is { lead: LeadRow; source_event: string } => !!x);
       } else if (auto.trigger_type === "lead_stage_changed") {
         const toStageId = (auto.trigger_config?.to_stage_id ?? auto.trigger_config?.stage_id) as string | undefined;
         let q = supabase
