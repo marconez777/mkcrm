@@ -34,6 +34,7 @@ import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
 import { CampaignLiveDialog } from "@/components/email/live/CampaignLiveDialog";
 import { LivePulseDot } from "@/components/email/live/LivePulseDot";
+import { StatusBadge } from "@/components/email/StatusBadge";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
