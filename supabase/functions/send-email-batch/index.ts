@@ -238,10 +238,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, sent: 0, skipped: skipped.length });
     }
 
-    // ---- Resend /emails/batch ----
+    // ---- Resend /emails/batch (idempotency-key opcional — recomendado pelo Resend) ----
+    const resendHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+    };
+    if (typeof idempotency_key === "string" && idempotency_key.trim()) {
+      resendHeaders["Idempotency-Key"] = idempotency_key.trim().slice(0, 256);
+    }
     const resp = await fetch("https://api.resend.com/emails/batch", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+      headers: resendHeaders,
       body: JSON.stringify(prepared.map((p) => p.payload)),
     });
     const json: any = await resp.json().catch(() => ({}));
