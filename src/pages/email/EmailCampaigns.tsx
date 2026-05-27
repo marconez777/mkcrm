@@ -378,6 +378,7 @@ export default function EmailCampaigns() {
               ))}
             </TableBody>
           </Table>
+          <TablePager page={page} total={total} onPageChange={setPage} />
         </div>
 
 
@@ -459,7 +460,6 @@ export default function EmailCampaigns() {
         open={!!liveId}
         onOpenChange={(o) => !o && setLiveId(null)}
       />
-      </div>
     </div>
   );
 }
