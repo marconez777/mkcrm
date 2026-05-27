@@ -64,6 +64,7 @@ export default function EmailCampaigns() {
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [reporting, setReporting] = useState<Campaign | null>(null);
+  const [liveId, setLiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
