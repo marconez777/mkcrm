@@ -68,6 +68,7 @@ export default function EmailTemplateEditor() {
   const [htmlOpen, setHtmlOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importHtml, setImportHtml] = useState("");
   const [importMode, setImportMode] = useState<"replace" | "append">("replace");
@@ -271,6 +272,7 @@ export default function EmailTemplateEditor() {
   async function sendTest() {
     if (!tpl?.id) { toast.error("Salve o template primeiro"); return; }
     if (!testEmail.includes("@")) { toast.error("Informe um email válido"); return; }
+    setSendingTest(true);
     try {
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
@@ -287,6 +289,8 @@ export default function EmailTemplateEditor() {
       setTestOpen(false);
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setSendingTest(false);
     }
   }
 
@@ -451,20 +455,24 @@ export default function EmailTemplateEditor() {
       </Dialog>
 
       {/* Test */}
-      <Dialog open={testOpen} onOpenChange={setTestOpen}>
+      <Dialog open={testOpen} onOpenChange={(o) => { if (!sendingTest) setTestOpen(o); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Enviar teste</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Email destino</Label>
-            <Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="seu@email.com" />
+            <Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="seu@email.com" disabled={sendingTest} />
             <p className="text-xs text-muted-foreground">Ignora cota e supressões. Use a versão salva.</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setTestOpen(false)}>Cancelar</Button>
-            <Button onClick={sendTest}><Send className="h-3.5 w-3.5 mr-1" />Enviar</Button>
+            <Button variant="ghost" onClick={() => setTestOpen(false)} disabled={sendingTest}>Cancelar</Button>
+            <Button onClick={sendTest} disabled={sendingTest}>
+              {sendingTest ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+              {sendingTest ? "Enviando…" : "Enviar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Import HTML */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
