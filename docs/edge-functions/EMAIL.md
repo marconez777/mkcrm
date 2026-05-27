@@ -479,31 +479,42 @@ Edge functions exigem:
 ## 10. Roadmap / pontos abertos
 
 - Domain creation está restrita a super admin via `/admin`; não há self-serve para clínicas (intencional para evitar custo de verificação).
-- Não há A/B test nativo de subject (campo `subject` é único por template).
-- O contador `email_send_state` é por clínica; não há cota global de plataforma.
+- O contador de cota (via `claim_email_quota` + `email_send_state`) é por clínica; não há cota global de plataforma.
+- Pause de campanha não cancela jobs já enfileirados — drena o que está em `email_queue`.
+- Sem botão "reenviar para quem não abriu" como ação nativa (criar nova campanha + segmento com `custom_field`).
+- UI de timeline por recipient (eventos) — hoje só `EmailLogs` com colunas de timestamp.
 
-> **Roadmap de escala/performance:** ver `docs/roadmap/EMAIL_SCALE.md` para o plano detalhado (R-1 a R-21 em 4 tiers) antes de subir clientes de alto volume.
+> **Status do roadmap de escala:** Tier 0/1/2/3 ✅ implementados (R-1 a R-21). Ver `docs/roadmap/EMAIL_SCALE.md` para detalhes e SLOs.
+
+> **A/B test nativo** já existe (R-20): `email_campaign_variants` + `variant_strategy` + `pick_ab_winner`.
 
 ---
 
 ## 11. Performance & throughput (estado atual)
 
-> Estes são os **limites observados hoje**. Plano para superá-los em `docs/roadmap/EMAIL_SCALE.md`.
+> Atualizado pós Tier 0/1/2/3. Limites/ajustes em `docs/roadmap/EMAIL_SCALE.md`.
 
 | Item | Valor atual | Onde mexer |
 |---|---|---|
-| Cron `process-email-queue` | 1 min | `pg_cron` job |
-| Batch size por execução | 50 | `BATCH_SIZE` em `process-email-queue/index.ts` |
-| Concorrência por batch | 5 | `CONCURRENCY` em `process-email-queue/index.ts` |
+| Cron `process-email-queue` | ~15s (cron + self-trigger R-3) | `pg_cron` job + final do handler |
+| Batch size por execução | **400** | `BATCH_SIZE` em `process-email-queue/index.ts` |
+| Concorrência (singular) | **2** (respeita 2 req/s do Resend) | `CONCURRENCY` em `process-email-queue/index.ts` |
+| Resend Batch API | até **100** por chamada | `send-email-batch/index.ts` |
+| Threshold de agrupamento batch | **≥3** jobs no mesmo `(clinic, slug, from_domain)` | `process-email-queue/index.ts` |
 | Reaper de jobs travados | 10 min | `STALE_PROCESSING_MIN` |
 | Max attempts antes de `failed` | 3 | `MAX_ATTEMPTS` |
 | Backoff de retry | 1min → 5min → 30min | `process-email-queue/index.ts` |
-| Reagendamento por cota | 12:00 UTC dia+1 (~9h BRT) | `send-email/index.ts` §4 |
-| Chunk de enqueue em `dispatch-campaign` | 20 RPCs paralelos | `dispatch-campaign/index.ts` |
-| Limit de leads carregados por campanha | 10.000 | `dispatch-campaign/index.ts` |
-| Cron `email-automations-tick` | 5 min | `pg_cron` job |
-| Cota diária default por clínica | 1.000 | RPC `clinic_email_quota` |
+| Reagendamento por cota | 12:00 UTC dia+1 (~9h BRT) | `send-email/index.ts` §7 |
+| Reagendamento por warmup | +30min | `send-email/index.ts` §8 |
+| Reagendamento por throttle dest | próxima janela horária | `send-email/index.ts` §9 |
+| Chunk de enqueue em `dispatch-campaign` | INSERT em lote de 500 (R-4) | `dispatch-campaign/index.ts` |
+| Paginação de leads por campanha | 1.000 por range, sem teto fixo | `dispatch-campaign/index.ts` |
+| Cron `email-automations-tick` | 5 min, concorrência 10 (R-9) | `pg_cron` job |
+| Cota diária default por clínica | 1.000 | RPC `claim_email_quota` / `clinic_email_quota` |
+| Warmup default | 50→100→500→1k→5k→10k→25k→∞ (opt-in) | `claim_domain_warmup` + `email_domain_warmup` |
+| Throttle default por domínio destino | 1.000 / hora | `claim_recipient_throttle` |
+| Cache de template/domínio no isolate | TTL 60s | `send-email`/`send-email-batch` |
 
-**Teto prático hoje:** ~50 emails/min ≈ **3.000/h** por instância. Suficiente para clínicas pequenas/médias; **insuficiente** para cliente de alto volume — ver roadmap de escala.
+**Throughput observado:** com Batch API + cron 15s, campanhas de 10k destinatários enviam em <2h (SLO). Pico depende fortemente da reputação/plano Resend da clínica.
 
-**Sem priorização:** campanha massiva, drip e transacional competem na mesma fila ordenada apenas por `scheduled_at`. Email transacional pode esperar atrás de uma campanha de 50k. Endereçado por R-7.
+**Priorização da fila (R-7):** `priority ASC, scheduled_at ASC` com `auth=1, transacional=2, campaign=3, drip=4, batch=5`. Email transacional/auth não fica atrás de campanha massiva.
