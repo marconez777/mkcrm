@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
 import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
+import { fetchAllPaged } from "@/lib/fetch-all";
 
 type Segment = { id: string; name: string };
 
@@ -95,25 +96,27 @@ export default function EmailContacts() {
     setClinicId(cid);
     if (!cid) { setLoading(false); return; }
 
-    const [{ data: segs }, { data: leadsData }, { data: manual }] = await Promise.all([
+    const [{ data: segs }, leadsData, manual] = await Promise.all([
       supabase.from("email_segments").select("id, name").eq("clinic_id", cid).order("name"),
-      supabase.from("leads")
-        .select("id, email, name, created_at, form_source")
-        .eq("clinic_id", cid)
-        .not("email", "is", null)
-        .neq("email", "")
-        .order("created_at", { ascending: false })
-        .limit(2000),
-      supabase.from("email_segment_contacts")
-        .select("id, email, name, created_at, segment_id, lead_id")
-        .eq("clinic_id", cid)
-        .order("created_at", { ascending: false })
-        .limit(2000),
+      fetchAllPaged<LeadRow>(() =>
+        supabase.from("leads")
+          .select("id, email, name, created_at, form_source")
+          .eq("clinic_id", cid)
+          .not("email", "is", null)
+          .neq("email", "")
+          .order("created_at", { ascending: false })
+      ),
+      fetchAllPaged<SegContactRow>(() =>
+        supabase.from("email_segment_contacts")
+          .select("id, email, name, created_at, segment_id, lead_id")
+          .eq("clinic_id", cid)
+          .order("created_at", { ascending: false })
+      ),
     ]);
 
     setSegments((segs as Segment[]) ?? []);
-    setLeads(((leadsData as LeadRow[]) ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
-    setSegContacts(((manual as SegContactRow[]) ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
+    setLeads((leadsData ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
+    setSegContacts((manual ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
     setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
