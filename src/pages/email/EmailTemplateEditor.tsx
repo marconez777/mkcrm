@@ -272,6 +272,7 @@ export default function EmailTemplateEditor() {
   async function sendTest() {
     if (!tpl?.id) { toast.error("Salve o template primeiro"); return; }
     if (!testEmail.includes("@")) { toast.error("Informe um email válido"); return; }
+    setSendingTest(true);
     try {
       const { error } = await supabase.functions.invoke("send-email", {
         body: {
@@ -288,6 +289,8 @@ export default function EmailTemplateEditor() {
       setTestOpen(false);
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setSendingTest(false);
     }
   }
 
