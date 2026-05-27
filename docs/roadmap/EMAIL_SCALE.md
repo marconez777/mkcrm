@@ -66,11 +66,23 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 - **R-21. Multi-domínio rotativo** ✅ — Colunas `email_domains.rotation_pool` + `rotation_weight` agrupam domínios verificados em pools. `email_campaigns.from_domain_pool` indica o pool a usar. `dispatch-campaign` chama RPC `pick_rotation_domain` por linha (weighted random) e salva em `email_queue.from_domain_override`. `send-email` e `send-email-batch` substituem o domínio do `from_email` preservando o local-part; warmup, throttle e validação operam no domínio efetivo. `process-email-queue` agrupa batches por `(clinic_id, template_slug, from_domain_override)` para manter o `From` consistente no Resend Batch API.
 
 
+
+### Tier 4 — Alto volume / cliente migrando ✅ implementado 2026-05-27
+
+Cliente em migração com domínio já aquecido fora da ferramenta. Sem warmup, sem throttle, cota livre. Alvo: ~5k/min sustentado (teto Resend 5 req/s × 100 batch = 30k/min teórico).
+
+- **R-22. Tunagem do dispatcher** ✅ — `process-email-queue`: `BATCH_SIZE 400 → 1000`, `CONCURRENCY 2 → 5`, `BATCH_PARALLELISM 3 → 5`, `BATCH_GROUP_MIN 3 → 2`, `SELF_TRIGGER_THRESHOLD 50 → 100`. Encosta no rate limit oficial do Resend (5 req/s/team).
+- **R-23. Cota e throttle por clínica via `clinics.settings.email`** ✅ — `quota_daily` (default 1000) já era lido por `clinic_email_quota`. Adicionado novo flag `throttle_recipient_enabled` (default `true`). Quando `false`, `send-email` e `send-email-batch` pulam a RPC `claim_recipient_throttle` (1 round-trip Postgres a menos por job). Configuração da MCD:
+  ```json
+  { "quota_daily": 50000000, "throttle_recipient_enabled": false }
+  ```
+- **Próximo nível**: pedir aumento de rate limit no Resend (10–20 req/s para trusted senders). Após aprovação, subir `CONCURRENCY` e `BATCH_PARALLELISM` proporcionalmente → teto ~120k/min.
+
 ---
 
 ## Status geral
 
-Tier 0, 1, 2 e 3 estão ✅ implementados. Restam itens pontuais opcionais (R-8 modo 202 assíncrono para campanhas >50k; R-14 fila física separada — descartado em favor de R-7).
+Tier 0, 1, 2, 3 e 4 estão ✅ implementados. Restam itens pontuais opcionais (R-8 modo 202 assíncrono para campanhas >50k; R-14 fila física separada — descartado em favor de R-7).
 
 ## Histórico de priorização (referência)
 

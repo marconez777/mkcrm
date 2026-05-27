@@ -297,11 +297,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ skipped: true, reason: "warmup_cap_reached", cap: (warmupClaim as any).daily_cap });
     }
 
-    // 4.2 R-13: rate-limit por domínio destinatário (1000/h)
+    // 4.2 R-13: rate-limit por domínio destinatário (1000/h) — pode ser desligado por clínica
     const destDomain = email.split("@")[1]?.toLowerCase() ?? "unknown";
-    const { data: throttleClaim } = await supabase
-      .rpc("claim_recipient_throttle", { _clinic_id: clinic_id, _dest_domain: destDomain, _limit_per_hour: 1000 })
-      .single();
+    // Tier 4: pula throttle se clinics.settings.email.throttle_recipient_enabled === false
+    let throttleEnabled = true;
+    {
+      let cs: any = getCached(clinicCache, clinic_id);
+      if (!cs) {
+        const { data } = await supabase.from("clinics").select("slug, settings").eq("id", clinic_id).maybeSingle();
+        cs = data;
+        if (cs) setCached(clinicCache, clinic_id, cs);
+      }
+      if (cs?.settings?.email?.throttle_recipient_enabled === false) throttleEnabled = false;
+    }
+    const throttleClaim = throttleEnabled
+      ? (await supabase.rpc("claim_recipient_throttle", { _clinic_id: clinic_id, _dest_domain: destDomain, _limit_per_hour: 1000 }).single()).data
+      : null;
     if ((throttleClaim as any) && (throttleClaim as any).allowed === false) {
       if (useDedup) {
         await supabase.from("email_send_dedup").delete()
@@ -347,7 +358,7 @@ Deno.serve(async (req) => {
     // 7. Slug da clínica para tag (cache 60s)
     let clinicRow: any = getCached(clinicCache, clinic_id);
     if (!clinicRow) {
-      const { data } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
+      const { data } = await supabase.from("clinics").select("slug, settings").eq("id", clinic_id).maybeSingle();
       clinicRow = data;
       if (clinicRow) setCached(clinicCache, clinic_id, clinicRow);
     }
