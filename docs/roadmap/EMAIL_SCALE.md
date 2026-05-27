@@ -2,7 +2,7 @@
 
 > **Quando ler:** antes de subir cliente de alto volume, ao planejar otimizações da fila/automações/campanhas, ou ao avaliar custo de Postgres no módulo de email.
 > **Escopo:** módulo de email marketing (campanhas, automações, fila, envio). Para auth emails ver `docs/roadmap/EMAIL.md`.
-> **Última atualização:** 2026-05-26.
+> **Última atualização:** 2026-05-27.
 
 ---
 
@@ -31,27 +31,13 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 
 ## Roadmap
 
-### Tier 0 — Quick wins (1–2 dias, sem mudança de arquitetura)
+### Tier 0 — Quick wins ✅ implementado 2026-05-26
 
-- **R-1. Subir throughput do dispatcher** *(resolve G1)*
-  - Cron `1min → 15s` (via `pg_cron` `*/15 * * * * *` ou self-trigger).
-  - `BATCH_SIZE: 50 → 200`, `CONCURRENCY: 5 → 20`.
-  - **Resultado esperado:** ~**12.000 emails/h** por instância.
-- **R-2. Índices críticos** *(resolve G3, G9)*
-  ```sql
-  CREATE INDEX CONCURRENTLY idx_email_queue_pending
-    ON email_queue(scheduled_at) WHERE status = 'pending';
-  CREATE INDEX CONCURRENTLY idx_email_logs_idempotency
-    ON email_logs(clinic_id, template_slug, recipient_email, related_lead_table);
-  CREATE INDEX CONCURRENTLY idx_email_logs_resend_id
-    ON email_logs(resend_id);
-  ```
-- **R-3. Self-trigger pós-batch** *(resolve G1)*
-  - No fim de `process-email-queue`, se ainda há `pending`, dispara `process-email-queue` recursivamente (mesma técnica já usada em `dispatch-campaign`). Elimina latência do cron.
-- **R-4. Paralelizar enqueue do `dispatch-campaign`** *(resolve G4)*
-  - Trocar 2.500 RPCs por **INSERT em lote** em `email_queue` (chunks de 500). 1 round-trip por 500 vs 1 por linha.
-- **R-5. Dedup de webhook Resend** *(resolve G9)*
-  - Unique `(resend_id, event_type)` em nova tabela `email_log_events` OU normalizar para ignorar evento repetido em JSON antes do `push`.
+- **R-1. Subir throughput do dispatcher** ✅ *(G1)* — Cron passou para ~15s, `BATCH_SIZE=400`, `CONCURRENCY=2` no caminho singular (Batch API absorve o resto). Throughput observado bem acima de 12k/h em campanhas grandes graças ao `send-email-batch`.
+- **R-2. Índices críticos** ✅ *(G3, G9)* — Índices em `email_queue(scheduled_at) WHERE status='pending'`, `email_logs(resend_id)` e equivalente para dedup criados via migration.
+- **R-3. Self-trigger pós-batch** ✅ *(G1)* — `process-email-queue` re-invoca a si mesma se ainda há jobs `pending` ao final do batch.
+- **R-4. Enqueue em lote no `dispatch-campaign`** ✅ *(G4)* — INSERT em `email_queue` em chunks de 500 substitui as RPCs linha-a-linha.
+- **R-5. Dedup de webhook Resend** ✅ *(G9)* — Tabela `resend_webhook_events(svix_id PK, event_type, resend_id)`. `resend-webhook` faz INSERT e ignora `23505` como deduped.
 
 ### Tier 1 — Performance estrutural ✅ implementado 2026-05-26
 
@@ -82,7 +68,11 @@ A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `
 
 ---
 
-## Sugestão de priorização
+## Status geral
+
+Tier 0, 1, 2 e 3 estão ✅ implementados. Restam itens pontuais opcionais (R-8 modo 202 assíncrono para campanhas >50k; R-14 fila física separada — descartado em favor de R-7).
+
+## Histórico de priorização (referência)
 
 | Janela | Itens | Ganho |
 |---|---|---|
