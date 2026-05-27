@@ -132,6 +132,20 @@ function pathOf(u?: string | null) {
   if (!u) return "—";
   try { return new URL(u).pathname || "/"; } catch { return u; }
 }
+function shortenPath(p: string, max = 40): string {
+  if (!p || p.length <= max) return p;
+  const idx = p.indexOf("/", 1);
+  if (idx > 0 && idx < max - 8) {
+    const prefix = p.slice(0, idx + 1);
+    const rest = p.slice(idx + 1);
+    const keep = Math.max(4, Math.floor((max - prefix.length - 1) / 2));
+    if (rest.length > keep * 2 + 1) {
+      return prefix + rest.slice(0, keep) + "…" + rest.slice(-keep);
+    }
+  }
+  const half = Math.floor((max - 1) / 2);
+  return p.slice(0, half) + "…" + p.slice(-half);
+}
 const REFERRER_NAMES: { match: RegExp; name: string }[] = [
   { match: /google\./i, name: "Google" },
   { match: /bing\./i, name: "Bing" },
@@ -668,7 +682,7 @@ export default function Tracking() {
                         </TableCell>
                         <TableCell className="text-[11px]">
                           {v.first_landing_page ? (
-                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" className="text-primary hover:underline whitespace-nowrap">{pagePath}</a>
+                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" title={v.first_landing_page} className="text-primary hover:underline whitespace-nowrap">{shortenPath(pagePath)}</a>
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
