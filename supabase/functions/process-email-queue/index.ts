@@ -8,11 +8,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const MAX_ATTEMPTS = 3;
-const BATCH_SIZE = 400;            // ↑ de 200 (combina com cron a cada 10s)
-const CONCURRENCY = 2;             // ↓ de 20 — singular usa Resend direto, respeitar 2 req/s
-const BATCH_PARALLELISM = 3;       // máx 3 batches Resend simultâneos (3×100 = 300/rajada)
+const BATCH_SIZE = 1000;           // Tier 4: ↑ de 400 — drena mais por ciclo
+const CONCURRENCY = 5;             // Tier 4: ↑ de 2 — Resend permite 5 req/s por team
+const BATCH_PARALLELISM = 5;       // Tier 4: ↑ de 3 — 5×100 = 500 emails/rajada
 const STALE_PROCESSING_MIN = 10;
-const SELF_TRIGGER_THRESHOLD = 50; // ↓ de 150 — re-invoca cedo pra drenar a fila
+const SELF_TRIGGER_THRESHOLD = 100; // ↑ de 50 — evita re-trigger desnecessário com BATCH_SIZE maior
+const BATCH_GROUP_MIN = 2;         // Tier 4: ↓ de 3 — agrupa em Batch API mais cedo
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -150,7 +151,7 @@ Deno.serve(async (req) => {
     type BatchTask = { key: string; chunk: any[]; idx: number };
     const batchTasks: BatchTask[] = [];
     for (const [key, group] of groups) {
-      if (group.length < 3) { singles.push(...group); continue; }
+      if (group.length < BATCH_GROUP_MIN) { singles.push(...group); continue; }
       for (let i = 0; i < group.length; i += 100) {
         batchTasks.push({ key, chunk: group.slice(i, i + 100), idx: batchTasks.length });
       }
