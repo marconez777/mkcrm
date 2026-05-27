@@ -168,12 +168,15 @@ export default function EmailDashboard() {
   const stats = useMemo(() => {
     if (useAggregated) {
       const a = aggregateMetrics(metricRows);
+      const failedAgg = a.failed + a.bounced + a.complained;
+      const pendingDelivery = Math.max(0, a.sent - a.delivered - failedAgg);
       return {
         total: a.sent,
         delivered: a.delivered,
+        pendingDelivery,
         opened: a.opened,
         clicked: a.clicked,
-        failed: a.failed + a.bounced + a.complained,
+        failed: failedAgg,
         deliveredPct: a.deliveredPct,
         openPct: a.openPct,
         clickPct: a.clickPct,
@@ -181,13 +184,15 @@ export default function EmailDashboard() {
       };
     }
     const total = logs.length;
-    const delivered = logs.filter((l) => l.status === "delivered" || l.opened_at || l.clicked_at).length;
+    const delivered = logs.filter((l) => !!l.delivered_at || l.status === "delivered" || l.opened_at || l.clicked_at).length;
     const opened = logs.filter((l) => l.opened_at).length;
     const clicked = logs.filter((l) => l.clicked_at).length;
     const failed = logs.filter((l) => ["failed", "bounced", "complained"].includes(l.status)).length;
+    const pendingDelivery = Math.max(0, total - delivered - failed);
     return {
       total,
       delivered,
+      pendingDelivery,
       opened,
       clicked,
       failed,
