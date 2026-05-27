@@ -45,33 +45,6 @@ const toDays = (m: number) => Math.floor((m || 0) / 1440);
 const toHours = (m: number) => Math.floor(((m || 0) % 1440) / 60);
 const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(0, Math.min(23, h)) * 60);
 
-const PRESETS = [
-  {
-    key: "welcome",
-    name: "Boas-vindas a novos leads",
-    description: "Envia um email de boas-vindas assim que o lead é criado.",
-    trigger_type: "lead_created",
-    steps: [{ template_slug: "", delay_minutes: 0 }],
-  },
-  {
-    key: "warmup",
-    name: "Sequência de aquecimento (3 emails)",
-    description: "3 emails ao longo de 7 dias para apresentar a clínica.",
-    trigger_type: "lead_created",
-    steps: [
-      { template_slug: "", delay_minutes: 0 },
-      { template_slug: "", delay_minutes: 60 * 24 * 3 },
-      { template_slug: "", delay_minutes: 60 * 24 * 7 },
-    ],
-  },
-  {
-    key: "reactivation",
-    name: "Reativação de inativos",
-    description: "Email para leads sem interação recente.",
-    trigger_type: "lead_stage_changed",
-    steps: [{ template_slug: "", delay_minutes: 0 }],
-  },
-];
 
 const TRIGGERS = [
   { value: "lead_created", label: "Lead criado" },
