@@ -51,6 +51,25 @@
     --chat-bubble-me: 142 71% 92%;
     --chat-bubble-them: 0 0% 100%;
     --chat-bg: 210 20% 96%;
+
+    /* Soft SaaS surface tokens */
+    --surface-muted: 210 20% 98%;
+    --card-radius-lg: 1.25rem;
+    --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.04);
+
+    /* Tinted status pills */
+    --status-sending-bg: 142 71% 95%;
+    --status-sending-fg: 142 71% 30%;
+    --status-scheduled-bg: 217 91% 95%;
+    --status-scheduled-fg: 217 91% 40%;
+    --status-sent-bg: 210 20% 94%;
+    --status-sent-fg: 215 16% 40%;
+    --status-paused-bg: 38 92% 94%;
+    --status-paused-fg: 38 92% 35%;
+    --status-failed-bg: 0 84% 96%;
+    --status-failed-fg: 0 74% 45%;
+    --status-draft-bg: 210 20% 94%;
+    --status-draft-fg: 215 16% 45%;
   }
 
   .dark {
@@ -76,6 +95,22 @@
     --chat-bubble-me: 142 71% 25%;
     --chat-bubble-them: 222 47% 14%;
     --chat-bg: 222 47% 10%;
+
+    --surface-muted: 222 47% 10%;
+    --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.2);
+
+    --status-sending-bg: 142 71% 18%;
+    --status-sending-fg: 142 71% 80%;
+    --status-scheduled-bg: 217 91% 18%;
+    --status-scheduled-fg: 217 91% 80%;
+    --status-sent-bg: 222 47% 18%;
+    --status-sent-fg: 215 20% 75%;
+    --status-paused-bg: 38 60% 18%;
+    --status-paused-fg: 38 92% 75%;
+    --status-failed-bg: 0 50% 20%;
+    --status-failed-fg: 0 84% 80%;
+    --status-draft-bg: 222 47% 18%;
+    --status-draft-fg: 215 20% 70%;
   }
 }
 

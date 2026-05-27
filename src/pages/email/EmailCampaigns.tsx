@@ -34,6 +34,7 @@ import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
 import { CampaignLiveDialog } from "@/components/email/live/CampaignLiveDialog";
 import { LivePulseDot } from "@/components/email/live/LivePulseDot";
+import { StatusBadge } from "@/components/email/StatusBadge";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
@@ -259,90 +260,117 @@ export default function EmailCampaigns() {
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
-  function statusBadge(s: string) {
-    const map: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      sent: "default", sending: "default", scheduled: "secondary", draft: "secondary", failed: "destructive", paused: "outline",
-    };
-    const labels: Record<string, string> = { paused: "pausada", sending: "enviando", sent: "enviada", scheduled: "agendada", draft: "rascunho", failed: "falhou" };
-    return <Badge variant={map[s] ?? "secondary"}>{labels[s] ?? s}</Badge>;
+  function progressBar(c: Campaign) {
+    const total = c.total_recipients || 0;
+    if (!total) return null;
+    const pct = Math.min(100, Math.round((c.sent_count / total) * 100));
+    const color =
+      c.status === "failed"
+        ? "bg-[hsl(var(--status-failed-fg))]"
+        : c.status === "sent"
+          ? "bg-muted-foreground/40"
+          : "bg-primary";
+    return (
+      <div className="mt-1.5 h-1 w-24 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Campanhas de Email</h1>
-          <p className="text-sm text-muted-foreground">Envios únicos para listas segmentadas.</p>
+    <div className="min-h-screen bg-[hsl(var(--surface-muted))]">
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Campanhas de Email</h1>
+            <p className="text-sm text-muted-foreground mt-1">Envios únicos para listas segmentadas.</p>
+          </div>
+          <Button
+            onClick={startCreate}
+            className="rounded-xl px-5 py-2.5 shadow-[var(--shadow-soft)]"
+          >
+            <Plus className="mr-2 h-4 w-4" />Nova campanha
+          </Button>
         </div>
-        <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" />Nova campanha</Button>
-      </div>
 
-      <Card className="p-0 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Template</TableHead>
-              <TableHead>Segmento</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Enviados</TableHead>
-              <TableHead>Agendada</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhuma campanha</TableCell></TableRow>
-            )}
-            {items.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell className="font-mono text-xs">{c.template_slug}</TableCell>
-                <TableCell className="text-xs">{segments.find((s) => s.id === c.segment_id)?.name ?? "—"}</TableCell>
-                <TableCell>{statusBadge(c.status)}</TableCell>
-                <TableCell className="text-right text-xs tabular-nums">{c.sent_count} / {c.total_recipients}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{c.scheduled_for ? new Date(c.scheduled_for).toLocaleString("pt-BR") : "—"}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  {c.status === "sending" ? (
-                    <Button size="sm" variant="default" onClick={() => setLiveId(c.id)}>
-                      <span className="mr-1.5"><LivePulseDot /></span>
-                      Ao vivo
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
-                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
-                    </Button>
-                  )}
-                  {["draft", "scheduled"].includes(c.status) && (
-                    <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
-                      <Pencil className="mr-1 h-3 w-3" />Editar
-                    </Button>
-                  )}
-                  {["draft", "scheduled"].includes(c.status) && (
-                    <Button size="sm" variant="outline" onClick={() => dispatch(c)} disabled={busy}>
-                      <Send className="mr-1 h-3 w-3" />Enviar
-                    </Button>
-                  )}
-                  {["sending", "scheduled"].includes(c.status) && (
-                    <Button size="sm" variant="outline" onClick={() => pause(c)} disabled={busy}>
-                      <Pause className="mr-1 h-3 w-3" />Pausar
-                    </Button>
-                  )}
-                  {c.status === "paused" && (
-                    <Button size="sm" variant="outline" onClick={() => resume(c)} disabled={busy}>
-                      <Play className="mr-1 h-3 w-3" />Retomar
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => duplicate(c)} disabled={busy}>
-                    <Copy className="mr-1 h-3 w-3" />Duplicar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(c)}><Trash2 className="h-3 w-3" /></Button>
-                </TableCell>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40 border-border/40">
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground py-4">Nome</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Template</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Segmento</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Status</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Enviados</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Agendada</TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground text-right">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody className="divide-y divide-border/40">
+              {items.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                    Nenhuma campanha ainda.
+                  </TableCell>
+                </TableRow>
+              )}
+              {items.map((c) => (
+                <TableRow key={c.id} className="border-0 hover:bg-muted/40 transition-colors">
+                  <TableCell className="font-semibold py-5">{c.name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{c.template_slug}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{segments.find((s) => s.id === c.segment_id)?.name ?? "—"}</TableCell>
+                  <TableCell><StatusBadge status={c.status} /></TableCell>
+                  <TableCell className="tabular-nums">
+                    <div className="text-sm font-medium">{c.sent_count} / {c.total_recipients}</div>
+                    {progressBar(c)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.scheduled_for ? new Date(c.scheduled_for).toLocaleString("pt-BR") : "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {c.status === "sending" ? (
+                        <Button size="sm" variant="outline" onClick={() => setLiveId(c.id)} className="rounded-lg">
+                          <span className="mr-1.5"><LivePulseDot /></span>
+                          Ao vivo
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => setReporting(c)} className="rounded-lg">
+                          <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                        </Button>
+                      )}
+                      {["draft", "scheduled"].includes(c.status) && (
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(c)} title="Editar" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {["draft", "scheduled"].includes(c.status) && (
+                        <Button size="icon" variant="ghost" onClick={() => dispatch(c)} disabled={busy} title="Enviar agora" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {["sending", "scheduled"].includes(c.status) && (
+                        <Button size="icon" variant="ghost" onClick={() => pause(c)} disabled={busy} title="Pausar" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                          <Pause className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {c.status === "paused" && (
+                        <Button size="icon" variant="ghost" onClick={() => resume(c)} disabled={busy} title="Retomar" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                          <Play className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" onClick={() => duplicate(c)} disabled={busy} title="Duplicar" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => remove(c)} title="Excluir" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-h-[90vh] flex flex-col">
@@ -422,6 +450,7 @@ export default function EmailCampaigns() {
         open={!!liveId}
         onOpenChange={(o) => !o && setLiveId(null)}
       />
+      </div>
     </div>
   );
 }
