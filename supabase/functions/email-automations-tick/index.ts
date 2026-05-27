@@ -103,34 +103,27 @@ Deno.serve(async (req) => {
             return result;
           }
         }
-        let q = supabase
+        const leadIdSet = new Set(leadIdsFilter ?? []);
+        const emailSet = new Set(emailsFilter ?? []);
+        const hasSegmentFilter = !!segmentId;
+
+        // Busca leads recentes e filtra em memória (segmentos grandes
+        // estouram o tamanho da URL se usarmos id.in / email.in via OR).
+        const { data: leads, error } = await supabase
           .from("leads")
           .select("id, clinic_id, name, email, phone, created_at")
           .eq("clinic_id", auto.clinic_id)
           .gt("created_at", since)
           .not("email", "is", null)
-          .limit(500);
-        if (leadIdsFilter || emailsFilter) {
-          const parts: string[] = [];
-          if (leadIdsFilter && leadIdsFilter.length) {
-            parts.push(`id.in.(${leadIdsFilter.join(",")})`);
-          }
-          if (emailsFilter && emailsFilter.length) {
-            const quoted = emailsFilter
-              .map((e) => `"${e.replace(/"/g, '\\"')}"`)
-              .join(",");
-            parts.push(`email.in.(${quoted})`);
-          }
-          if (parts.length) q = q.or(parts.join(","));
-        }
-        const { data: leads, error } = await q;
+          .order("created_at", { ascending: true })
+          .limit(1000);
         if (error) throw error;
         candidates = (leads ?? [])
           .filter((l: any) => {
-            if (!emailsFilter || emailsFilter.length === 0) return true;
-            if (leadIdsFilter && leadIdsFilter.includes(l.id)) return true;
+            if (!hasSegmentFilter) return true;
+            if (leadIdSet.has(l.id)) return true;
             const em = (l.email ?? "").toString().trim().toLowerCase();
-            return emailsFilter.includes(em);
+            return em.length > 0 && emailSet.has(em);
           })
           .map((l: any) => ({
             lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
