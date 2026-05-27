@@ -29,9 +29,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil, Pause, Play, Copy } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil, Pause, Play, Copy, Activity } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
+import { CampaignLiveDialog } from "@/components/email/live/CampaignLiveDialog";
+import { LivePulseDot } from "@/components/email/live/LivePulseDot";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
