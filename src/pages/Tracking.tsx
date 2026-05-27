@@ -724,14 +724,14 @@ export default function Tracking() {
                         </TableCell>
                         <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
                         <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fs ? <Badge variant="secondary">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{f?.fs ? <Badge className="bg-sky-400 hover:bg-sky-400 text-white border-transparent">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
                           {link ? (
                             <div className="flex items-center gap-1 flex-wrap">
                               {isWhatsappSource(link.link_source) ? (
                                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
                               ) : (
-                                <Badge variant="secondary">sim</Badge>
+                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent">sim</Badge>
                               )}
                             </div>
                           ) : <span className="text-muted-foreground">—</span>}
