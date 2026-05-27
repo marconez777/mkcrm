@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
+import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
 
 type Segment = { id: string; name: string };
 
@@ -314,11 +315,11 @@ export default function EmailContacts() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Contatos</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-2xl font-bold tracking-tight">Contatos</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             {totals.total} únicos · {totals.leads} de leads · {totals.manual} inscrições manuais
           </p>
         </div>
