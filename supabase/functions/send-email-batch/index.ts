@@ -78,7 +78,8 @@ Deno.serve(async (req) => {
     if (!RESEND_API_KEY) return jsonResponse({ error: "RESEND_API_KEY missing" }, { status: 503 });
 
     // clínica para tag
-    const { data: clinicRow } = await supabase.from("clinics").select("slug").eq("id", clinic_id).maybeSingle();
+    const { data: clinicRow } = await supabase.from("clinics").select("slug, settings").eq("id", clinic_id).maybeSingle();
+    const throttleEnabled = (clinicRow as any)?.settings?.email?.throttle_recipient_enabled !== false;
 
     // unsubscribes (1 query — todas as suppressed deste lote)
     const emailsLower = jobs.map((j: any) => String(j.recipient_email).toLowerCase());
@@ -152,9 +153,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // throttle por destino
-      const { data: throttleClaim } = await supabase
-        .rpc("claim_recipient_throttle", { _clinic_id: clinic_id, _dest_domain: destDomain, _limit_per_hour: 1000 }).single();
+      // throttle por destino (pulável por clínica — Tier 4)
+      const throttleClaim = throttleEnabled
+        ? (await supabase.rpc("claim_recipient_throttle", { _clinic_id: clinic_id, _dest_domain: destDomain, _limit_per_hour: 1000 }).single()).data
+        : null;
       if ((throttleClaim as any)?.allowed === false) {
         if (useDedup) {
           await supabase.from("email_send_dedup").delete()
