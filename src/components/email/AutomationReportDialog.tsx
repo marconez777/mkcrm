@@ -277,7 +277,9 @@ export function AutomationReportDialog({
                   return (
                     <tr key={i} className="border-t">
                       <td className="p-3 text-muted-foreground">{i + 1}</td>
-                      <td className="p-3 text-muted-foreground">+{day}d</td>
+                      <td className="p-3 text-muted-foreground" title={i === 0 ? "após entrada do lead" : "após o passo anterior"}>
+                        +{day}d {i === 0 ? "" : <span className="text-[10px] opacity-70">após anterior</span>}
+                      </td>
                       <td className="p-3">
                         <code className="text-[11px] text-muted-foreground">
                           {step.template_slug || "—"}

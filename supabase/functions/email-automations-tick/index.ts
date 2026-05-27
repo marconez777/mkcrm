@@ -258,11 +258,13 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // 4) enfileira todos os steps de uma vez com o delay relativo a agora
+      // 4) enfileira todos os steps de uma vez com delay CUMULATIVO
+      //    (cada passo agendado para delay_minutes APÓS o passo anterior).
       let enqueuedForLead = 0;
-      const baseTs = Date.now();
+      let cursorTs = Date.now();
       for (const step of steps) {
-        const scheduledAt = new Date(baseTs + (step.delay_minutes ?? 0) * 60_000).toISOString();
+        cursorTs += (step.delay_minutes ?? 0) * 60_000;
+        const scheduledAt = new Date(cursorTs).toISOString();
         const { error: qErr } = await supabase.rpc("enqueue_email", {
           _clinic_id: auto.clinic_id,
           _template_slug: step.template_slug,
