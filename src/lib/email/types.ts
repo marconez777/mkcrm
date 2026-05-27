@@ -35,6 +35,7 @@ export type CtaBlock = BlockBase & {
   radius: number;
   paddingX: number;
   paddingY: number;
+  fullWidth?: boolean;
 };
 
 export type DividerBlock = BlockBase & {

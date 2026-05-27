@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Upload, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -149,6 +150,12 @@ export default function Inspector({ block, onChange }: Props) {
           <ColorField label="Fundo" value={block.bg} onChange={(v) => upd({ bg: v })} />
           <ColorField label="Texto" value={block.color} onChange={(v) => upd({ color: v })} />
           <AlignField value={block.align} onChange={(v) => upd({ align: v })} />
+          <Field label="Largura total (até as margens)">
+            <div className="flex items-center gap-2">
+              <Switch checked={!!block.fullWidth} onCheckedChange={(v) => upd({ fullWidth: v })} />
+              <span className="text-muted-foreground">{block.fullWidth ? "Ativada" : "Desativada"}</span>
+            </div>
+          </Field>
           <Field label={`Raio (${block.radius}px)`}>
             <Slider value={[block.radius]} min={0} max={32} step={1} onValueChange={(v) => upd({ radius: v[0] })} />
           </Field>
