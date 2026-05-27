@@ -288,8 +288,8 @@ export default function EmailCampaigns() {
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--surface-muted))]">
-      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+    <div className="space-y-8">
+      <div>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Campanhas de Email</h1>
