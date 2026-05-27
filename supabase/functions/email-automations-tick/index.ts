@@ -78,18 +78,26 @@ Deno.serve(async (req) => {
       if (auto.trigger_type === "lead_created") {
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
         let leadIdsFilter: string[] | null = null;
+        let emailsFilter: string[] | null = null;
         if (segmentId) {
-          // restringe aos leads pertencentes ao segmento
+          // restringe aos leads pertencentes ao segmento — match por
+          // lead_id OU por email (segmentos estáticos podem ter só email)
           const { data: scs, error: scErr } = await supabase
             .from("email_segment_contacts")
-            .select("lead_id")
+            .select("lead_id, email")
             .eq("clinic_id", auto.clinic_id)
             .eq("segment_id", segmentId)
-            .not("lead_id", "is", null)
-            .limit(5000);
+            .limit(10000);
           if (scErr) throw scErr;
-          leadIdsFilter = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
-          if (leadIdsFilter.length === 0) {
+          leadIdsFilter = Array.from(new Set(
+            (scs ?? []).map((r: any) => r.lead_id).filter((x: any) => !!x)
+          ));
+          emailsFilter = Array.from(new Set(
+            (scs ?? [])
+              .map((r: any) => (r.email ?? "").toString().trim().toLowerCase())
+              .filter((x: string) => x.length > 0)
+          ));
+          if (leadIdsFilter.length === 0 && emailsFilter.length === 0) {
             // segmento vazio — nada a enrolar
             await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
             return result;
@@ -102,13 +110,32 @@ Deno.serve(async (req) => {
           .gt("created_at", since)
           .not("email", "is", null)
           .limit(500);
-        if (leadIdsFilter) q = q.in("id", leadIdsFilter);
+        if (leadIdsFilter || emailsFilter) {
+          const parts: string[] = [];
+          if (leadIdsFilter && leadIdsFilter.length) {
+            parts.push(`id.in.(${leadIdsFilter.join(",")})`);
+          }
+          if (emailsFilter && emailsFilter.length) {
+            const quoted = emailsFilter
+              .map((e) => `"${e.replace(/"/g, '\\"')}"`)
+              .join(",");
+            parts.push(`email.in.(${quoted})`);
+          }
+          if (parts.length) q = q.or(parts.join(","));
+        }
         const { data: leads, error } = await q;
         if (error) throw error;
-        candidates = (leads ?? []).map((l: any) => ({
-          lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
-          source_event: `lead_created:${l.created_at}`,
-        }));
+        candidates = (leads ?? [])
+          .filter((l: any) => {
+            if (!emailsFilter || emailsFilter.length === 0) return true;
+            if (leadIdsFilter && leadIdsFilter.includes(l.id)) return true;
+            const em = (l.email ?? "").toString().trim().toLowerCase();
+            return emailsFilter.includes(em);
+          })
+          .map((l: any) => ({
+            lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
+            source_event: `lead_created:${l.created_at}`,
+          }));
       } else if (auto.trigger_type === "segment_contact_added") {
         // dispara quando um contato é adicionado ao segmento (independente da idade do lead)
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
