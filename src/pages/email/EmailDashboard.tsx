@@ -60,6 +60,7 @@ type Log = {
   opened_at: string | null;
   clicked_at: string | null;
   bounced_at: string | null;
+  delivered_at: string | null;
   error: string | null;
 };
 
