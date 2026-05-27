@@ -20,6 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -60,6 +62,7 @@ type Log = {
   opened_at: string | null;
   clicked_at: string | null;
   bounced_at: string | null;
+  delivered_at: string | null;
   error: string | null;
 };
 
@@ -117,7 +120,7 @@ export default function EmailDashboard() {
     const [{ data: ls }, { data: q }, { data: state }, { data: c }] = await Promise.all([
       supabase
         .from("email_logs")
-        .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,error")
+        .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
         .gte("sent_at", since)
         .order("sent_at", { ascending: false })
         .limit(1000),
@@ -168,12 +171,15 @@ export default function EmailDashboard() {
   const stats = useMemo(() => {
     if (useAggregated) {
       const a = aggregateMetrics(metricRows);
+      const failedAgg = a.failed + a.bounced + a.complained;
+      const pendingDelivery = Math.max(0, a.sent - a.delivered - failedAgg);
       return {
         total: a.sent,
         delivered: a.delivered,
+        pendingDelivery,
         opened: a.opened,
         clicked: a.clicked,
-        failed: a.failed + a.bounced + a.complained,
+        failed: failedAgg,
         deliveredPct: a.deliveredPct,
         openPct: a.openPct,
         clickPct: a.clickPct,
@@ -181,13 +187,15 @@ export default function EmailDashboard() {
       };
     }
     const total = logs.length;
-    const delivered = logs.filter((l) => l.status === "delivered" || l.opened_at || l.clicked_at).length;
+    const delivered = logs.filter((l) => !!l.delivered_at || l.status === "delivered" || l.opened_at || l.clicked_at).length;
     const opened = logs.filter((l) => l.opened_at).length;
     const clicked = logs.filter((l) => l.clicked_at).length;
     const failed = logs.filter((l) => ["failed", "bounced", "complained"].includes(l.status)).length;
+    const pendingDelivery = Math.max(0, total - delivered - failed);
     return {
       total,
       delivered,
+      pendingDelivery,
       opened,
       clicked,
       failed,
@@ -337,9 +345,33 @@ export default function EmailDashboard() {
           <div className="text-xs text-muted-foreground">no período</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3 w-3" />Entregues</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" />
+            Entregues
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 cursor-help opacity-60" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
+                  Entregas confirmadas pelo provedor (Resend) via webhook
+                  <code className="mx-1">email.delivered</code>. A confirmação
+                  pode levar de segundos a horas (especialmente Outlook/Hotmail) —
+                  por isso pode haver e-mails enviados ainda aguardando confirmação.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.deliveredPct}%</div>
-          <div className="text-xs text-muted-foreground">{stats.delivered} entregas</div>
+          <div className="text-xs text-muted-foreground">
+            {stats.delivered.toLocaleString("pt-BR")} confirmados
+            {stats.pendingDelivery > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {" · "}
+                {stats.pendingDelivery.toLocaleString("pt-BR")} aguardando
+              </span>
+            )}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><Eye className="h-3 w-3" />Abertura</div>
