@@ -155,18 +155,19 @@ export default function EmailSegments() {
   }
 
   async function loadAvailableContacts(targetClinicId: string, currentSegmentId?: string) {
-    let query = supabase
-      .from("email_segment_contacts")
-      .select("id, email, name, lead_id, segment_id")
-      .eq("clinic_id", targetClinicId)
-      .order("created_at", { ascending: false })
-      .limit(10000);
-    if (currentSegmentId) {
-      query = query.or(`segment_id.is.null,segment_id.eq.${currentSegmentId}`);
-    } else {
-      query = query.is("segment_id", null);
-    }
-    const { data } = await query;
+    const data = await fetchAllPaged<any>(() => {
+      let q = supabase
+        .from("email_segment_contacts")
+        .select("id, email, name, lead_id, segment_id")
+        .eq("clinic_id", targetClinicId)
+        .order("created_at", { ascending: false });
+      if (currentSegmentId) {
+        q = q.or(`segment_id.is.null,segment_id.eq.${currentSegmentId}`);
+      } else {
+        q = q.is("segment_id", null);
+      }
+      return q;
+    });
     // Dedup por e-mail, preferindo a linha do segmento atual
     const byEmail = new Map<string, any>();
     (data as any[] ?? []).forEach((c) => {
