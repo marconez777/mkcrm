@@ -77,38 +77,9 @@ Deno.serve(async (req) => {
     try {
       if (auto.trigger_type === "lead_created") {
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
-        let leadIdsFilter: string[] | null = null;
-        let emailsFilter: string[] | null = null;
-        if (segmentId) {
-          // restringe aos leads pertencentes ao segmento — match por
-          // lead_id OU por email (segmentos estáticos podem ter só email)
-          const { data: scs, error: scErr } = await supabase
-            .from("email_segment_contacts")
-            .select("lead_id, email")
-            .eq("clinic_id", auto.clinic_id)
-            .eq("segment_id", segmentId)
-            .limit(10000);
-          if (scErr) throw scErr;
-          leadIdsFilter = Array.from(new Set(
-            (scs ?? []).map((r: any) => r.lead_id).filter((x: any) => !!x)
-          ));
-          emailsFilter = Array.from(new Set(
-            (scs ?? [])
-              .map((r: any) => (r.email ?? "").toString().trim().toLowerCase())
-              .filter((x: string) => x.length > 0)
-          ));
-          if (leadIdsFilter.length === 0 && emailsFilter.length === 0) {
-            // segmento vazio — nada a enrolar
-            await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
-            return result;
-          }
-        }
-        const leadIdSet = new Set(leadIdsFilter ?? []);
-        const emailSet = new Set(emailsFilter ?? []);
-        const hasSegmentFilter = !!segmentId;
 
-        // Busca leads recentes e filtra em memória (segmentos grandes
-        // estouram o tamanho da URL se usarmos id.in / email.in via OR).
+        // Busca leads recentes e valida o segmento via função SQL,
+        // que já suporta segmentos dinâmicos e estáticos.
         const { data: leads, error } = await supabase
           .from("leads")
           .select("id, clinic_id, name, email, phone, created_at")
@@ -118,17 +89,23 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: true })
           .limit(1000);
         if (error) throw error;
-        candidates = (leads ?? [])
-          .filter((l: any) => {
-            if (!hasSegmentFilter) return true;
-            if (leadIdSet.has(l.id)) return true;
-            const em = (l.email ?? "").toString().trim().toLowerCase();
-            return em.length > 0 && emailSet.has(em);
-          })
-          .map((l: any) => ({
+        const filtered: typeof candidates = [];
+        for (const l of (leads ?? []) as any[]) {
+          if (segmentId) {
+            const { data: matches, error: matchErr } = await supabase.rpc("lead_matches_segment", {
+              _lead_id: l.id,
+              _segment_id: segmentId,
+            });
+            if (matchErr) throw matchErr;
+            if (!matches) continue;
+          }
+
+          filtered.push({
             lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
             source_event: `lead_created:${l.created_at}`,
-          }));
+          });
+        }
+        candidates = filtered;
       } else if (auto.trigger_type === "segment_contact_added") {
         // dispara quando um contato é adicionado ao segmento (independente da idade do lead)
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
