@@ -179,6 +179,7 @@ export default function EmailCampaigns() {
       });
       if (error) throw error;
       toast.success("Campanha em envio");
+      setLiveId(c.id);
       await load();
     } catch (e: any) {
       toast.error(e.message);
