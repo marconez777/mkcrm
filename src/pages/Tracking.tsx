@@ -682,7 +682,7 @@ export default function Tracking() {
                         </TableCell>
                         <TableCell className="text-[11px]">
                           {v.first_landing_page ? (
-                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" className="text-primary hover:underline whitespace-nowrap">{pagePath}</a>
+                            <a href={v.first_landing_page} target="_blank" rel="noreferrer" title={v.first_landing_page} className="text-primary hover:underline whitespace-nowrap">{shortenPath(pagePath)}</a>
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
