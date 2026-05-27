@@ -740,9 +740,14 @@ export default function Tracking() {
                           {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>
-                          <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => deleteVisitor(v.visitor_id)} title="Remover registro (e lead, se houver)">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
