@@ -1,0 +1,1 @@
+UPDATE public.email_automations SET last_run_at = '2026-05-27 13:00:00+00' WHERE id = 'f844b5b5-b337-4321-bb9b-5c232e260d2d';

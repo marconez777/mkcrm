@@ -78,37 +78,57 @@ Deno.serve(async (req) => {
       if (auto.trigger_type === "lead_created") {
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
         let leadIdsFilter: string[] | null = null;
+        let emailsFilter: string[] | null = null;
         if (segmentId) {
-          // restringe aos leads pertencentes ao segmento
+          // restringe aos leads pertencentes ao segmento — match por
+          // lead_id OU por email (segmentos estáticos podem ter só email)
           const { data: scs, error: scErr } = await supabase
             .from("email_segment_contacts")
-            .select("lead_id")
+            .select("lead_id, email")
             .eq("clinic_id", auto.clinic_id)
             .eq("segment_id", segmentId)
-            .not("lead_id", "is", null)
-            .limit(5000);
+            .limit(10000);
           if (scErr) throw scErr;
-          leadIdsFilter = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
-          if (leadIdsFilter.length === 0) {
+          leadIdsFilter = Array.from(new Set(
+            (scs ?? []).map((r: any) => r.lead_id).filter((x: any) => !!x)
+          ));
+          emailsFilter = Array.from(new Set(
+            (scs ?? [])
+              .map((r: any) => (r.email ?? "").toString().trim().toLowerCase())
+              .filter((x: string) => x.length > 0)
+          ));
+          if (leadIdsFilter.length === 0 && emailsFilter.length === 0) {
             // segmento vazio — nada a enrolar
             await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
             return result;
           }
         }
-        let q = supabase
+        const leadIdSet = new Set(leadIdsFilter ?? []);
+        const emailSet = new Set(emailsFilter ?? []);
+        const hasSegmentFilter = !!segmentId;
+
+        // Busca leads recentes e filtra em memória (segmentos grandes
+        // estouram o tamanho da URL se usarmos id.in / email.in via OR).
+        const { data: leads, error } = await supabase
           .from("leads")
           .select("id, clinic_id, name, email, phone, created_at")
           .eq("clinic_id", auto.clinic_id)
           .gt("created_at", since)
           .not("email", "is", null)
-          .limit(500);
-        if (leadIdsFilter) q = q.in("id", leadIdsFilter);
-        const { data: leads, error } = await q;
+          .order("created_at", { ascending: true })
+          .limit(1000);
         if (error) throw error;
-        candidates = (leads ?? []).map((l: any) => ({
-          lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
-          source_event: `lead_created:${l.created_at}`,
-        }));
+        candidates = (leads ?? [])
+          .filter((l: any) => {
+            if (!hasSegmentFilter) return true;
+            if (leadIdSet.has(l.id)) return true;
+            const em = (l.email ?? "").toString().trim().toLowerCase();
+            return em.length > 0 && emailSet.has(em);
+          })
+          .map((l: any) => ({
+            lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
+            source_event: `lead_created:${l.created_at}`,
+          }));
       } else if (auto.trigger_type === "segment_contact_added") {
         // dispara quando um contato é adicionado ao segmento (independente da idade do lead)
         const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
@@ -123,11 +143,21 @@ Deno.serve(async (req) => {
           .eq("clinic_id", auto.clinic_id)
           .eq("segment_id", segmentId)
           .gt("created_at", since)
-          .not("lead_id", "is", null)
           .order("created_at", { ascending: true })
           .limit(500);
         if (scErr) throw scErr;
-        const leadIds = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
+        const rows = scs ?? [];
+        const leadIds = Array.from(new Set(
+          rows.map((r: any) => r.lead_id).filter((x: any) => !!x)
+        ));
+        const emails = Array.from(new Set(
+          rows
+            .filter((r: any) => !r.lead_id)
+            .map((r: any) => (r.email ?? "").toString().trim().toLowerCase())
+            .filter((x: string) => x.length > 0)
+        ));
+        const byId = new Map<string, LeadRow>();
+        const byEmail = new Map<string, LeadRow>();
         if (leadIds.length) {
           const { data: leads } = await supabase
             .from("leads")
@@ -135,14 +165,28 @@ Deno.serve(async (req) => {
             .in("id", leadIds)
             .eq("clinic_id", auto.clinic_id)
             .not("email", "is", null);
-          const byId = new Map((leads ?? []).map((l: any) => [l.id, l]));
-          candidates = (scs ?? [])
-            .filter((r: any) => byId.has(r.lead_id))
-            .map((r: any) => ({
-              lead: byId.get(r.lead_id) as LeadRow,
-              source_event: `segment_contact:${r.id}`,
-            }));
+          for (const l of (leads ?? []) as any[]) byId.set(l.id, l);
         }
+        if (emails.length) {
+          const { data: leads } = await supabase
+            .from("leads")
+            .select("id, clinic_id, name, email, phone")
+            .in("email", emails)
+            .eq("clinic_id", auto.clinic_id);
+          for (const l of (leads ?? []) as any[]) {
+            const em = (l.email ?? "").toString().trim().toLowerCase();
+            if (em && !byEmail.has(em)) byEmail.set(em, l);
+          }
+        }
+        candidates = rows
+          .map((r: any) => {
+            const lead = r.lead_id
+              ? byId.get(r.lead_id)
+              : byEmail.get((r.email ?? "").toString().trim().toLowerCase());
+            if (!lead) return null;
+            return { lead, source_event: `segment_contact:${r.id}` };
+          })
+          .filter((x: any): x is { lead: LeadRow; source_event: string } => !!x);
       } else if (auto.trigger_type === "lead_stage_changed") {
         const toStageId = (auto.trigger_config?.to_stage_id ?? auto.trigger_config?.stage_id) as string | undefined;
         let q = supabase
