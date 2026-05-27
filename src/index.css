@@ -62,8 +62,8 @@
     --status-sending-fg: 142 71% 30%;
     --status-scheduled-bg: 217 91% 95%;
     --status-scheduled-fg: 217 91% 40%;
-    --status-sent-bg: 210 20% 94%;
-    --status-sent-fg: 215 16% 40%;
+    --status-sent-bg: 142 71% 94%;
+    --status-sent-fg: 142 71% 30%;
     --status-paused-bg: 38 92% 94%;
     --status-paused-fg: 38 92% 35%;
     --status-failed-bg: 0 84% 96%;
