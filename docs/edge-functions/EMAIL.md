@@ -381,25 +381,33 @@ Helpers:
 ```text
 UI EmailCampaigns "Enviar"
    └──▶ supabase.functions.invoke('dispatch-campaign', { campaign_id })
-         ├── carrega campaign + segment filters
-         ├── query leads (clinic, email NOT NULL, filtros)
-         ├── for each: RPC enqueue_email() → email_queue.status='pending'
-         └── update email_campaigns (status='sent', totals)
+         ├── carrega campaign + segment filters + variants
+         ├── paginação leads/contatos (range 1k)
+         ├── pick A/B variant + rotation domain + schedule spread
+         ├── INSERT em lote em email_queue (chunks 500, status='pending')
+         └── update email_campaigns (status='sending', totals)
 
-CRON (1min) → process-email-queue
-   ├── pega 50 jobs pending
-   ├── for each → HTTP send-email (service-role auth)
-   │     ├── feature gate, template, domain verified
-   │     ├── suppression check
-   │     ├── idempotency check (email_logs)
-   │     ├── quota check (email_send_state)
-   │     ├── render + Resend POST /emails
-   │     └── insert email_logs (status='sent', resend_id)
-   └── update email_queue (sent | failed | reschedule)
+CRON ~15s (+ self-trigger) → process-email-queue
+   ├── reaper de jobs travados (>10min em 'processing')
+   ├── pega até 400 pending (ORDER BY priority, scheduled_at)
+   ├── agrupa por (clinic, slug, from_domain_override)
+   │     ├── grupos ≥3 → send-email-batch (Resend Batch API)
+   │     └── singulares → send-email (CONCURRENCY=2)
+   │           ├── feature gate, template (cache), domain verified
+   │           ├── suppression check
+   │           ├── INSERT email_send_dedup (atômico — R-10)
+   │           ├── claim_email_quota (atômico — R-11)
+   │           ├── claim_domain_warmup (R-12)
+   │           ├── claim_recipient_throttle (R-13)
+   │           ├── render + Resend POST
+   │           └── insert email_logs (status='sent', resend_id, variant_id)
+   └── update email_queue (sent | failed | reschedule por quota/warmup/throttle)
 
 Resend → POST /functions/v1/resend-webhook
-   └── update email_logs status/timestamps
-        └── on bounce/complaint: upsert email_unsubscribes
+   ├── svix verify + dedup por svix-id (resend_webhook_events)
+   ├── update email_logs status/timestamps + events[]
+   ├── on bounce/complaint: upsert email_unsubscribes
+   └── trigger bounce_health → pausa campanhas se >5%/>0.3% (R-16)
 ```
 
 ### 6.2 Descadastro
