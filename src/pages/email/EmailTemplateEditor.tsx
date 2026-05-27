@@ -455,20 +455,24 @@ export default function EmailTemplateEditor() {
       </Dialog>
 
       {/* Test */}
-      <Dialog open={testOpen} onOpenChange={setTestOpen}>
+      <Dialog open={testOpen} onOpenChange={(o) => { if (!sendingTest) setTestOpen(o); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Enviar teste</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Email destino</Label>
-            <Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="seu@email.com" />
+            <Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="seu@email.com" disabled={sendingTest} />
             <p className="text-xs text-muted-foreground">Ignora cota e supressões. Use a versão salva.</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setTestOpen(false)}>Cancelar</Button>
-            <Button onClick={sendTest}><Send className="h-3.5 w-3.5 mr-1" />Enviar</Button>
+            <Button variant="ghost" onClick={() => setTestOpen(false)} disabled={sendingTest}>Cancelar</Button>
+            <Button onClick={sendTest} disabled={sendingTest}>
+              {sendingTest ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+              {sendingTest ? "Enviando…" : "Enviar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Import HTML */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
