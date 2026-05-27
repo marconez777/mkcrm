@@ -62,6 +62,7 @@ export default function EmailContacts() {
   const [search, setSearch] = useState("");
   const [filterSegment, setFilterSegment] = useState<string>("__all");
   const [filterSource, setFilterSource] = useState<string>("__all");
+  const [page, setPage] = useState(0);
 
   // add manual
   const [openAdd, setOpenAdd] = useState(false);
@@ -182,6 +183,14 @@ export default function EmailContacts() {
       return true;
     });
   }, [grouped, search, filterSource, filterSegment]);
+
+  // Reset paginação quando filtros mudam
+  useEffect(() => { setPage(0); }, [search, filterSource, filterSegment]);
+
+  const paged = useMemo(
+    () => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    [filtered, page],
+  );
 
   const totals = useMemo(() => {
     const leadCount = grouped.filter((g) => g.leadId).length;
