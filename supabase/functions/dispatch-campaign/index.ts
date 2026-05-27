@@ -212,21 +212,38 @@ Deno.serve(async (req) => {
     const relatedTable = `campaign_${campaign_id}`;
     const CHUNK = 1000;
     let enqueued = 0;
+
+    // R-21 (O(1) por destinatário): carrega pool de domínios UMA VEZ
+    // e distribui round-robin ponderado em memória — evita 1 RPC por contato.
+    let rotationDomains: string[] = []; // já "expandido" por peso
+    if (fromDomainPool) {
+      const { data: pool } = await supabase
+        .from("email_domains")
+        .select("domain, rotation_weight, status")
+        .eq("clinic_id", campaign.clinic_id)
+        .eq("rotation_pool", fromDomainPool)
+        .in("status", ["verified", "partially_verified"]);
+      for (const d of (pool ?? []) as any[]) {
+        const w = Math.max(parseInt(String(d.rotation_weight ?? 1), 10) || 1, 1);
+        for (let k = 0; k < w; k++) rotationDomains.push(String(d.domain));
+      }
+      // shuffle leve pra não começar sempre pelo mesmo
+      for (let i = rotationDomains.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rotationDomains[i], rotationDomains[j]] = [rotationDomains[j], rotationDomains[i]];
+      }
+    }
+    const pickDomain = (idx: number): string | null =>
+      rotationDomains.length ? rotationDomains[idx % rotationDomains.length] : null;
+
     for (let i = 0; i < recipients.length; i += CHUNK) {
       const chunk = recipients.slice(i, i + CHUNK);
-      const rows = await Promise.all(chunk.map(async (r, j) => {
+      const rows = chunk.map((r, j) => {
         const globalIdx = i + j;
         const v = pickVariant(globalIdx);
         const slug = v?.template_slug_override || campaign.template_slug;
         const fromName = v?.from_name_override ?? fromOverrideBase;
-        // R-21: rotação de domínios (resolve por linha pra distribuir reputação)
-        let fromDomainOverride: string | null = null;
-        if (fromDomainPool) {
-          const { data: picked } = await supabase.rpc("pick_rotation_domain", {
-            _clinic_id: campaign.clinic_id, _pool: fromDomainPool,
-          });
-          fromDomainOverride = (picked as string | null) || null;
-        }
+        const fromDomainOverride = pickDomain(globalIdx);
         return {
           clinic_id: campaign.clinic_id,
           template_slug: slug,
@@ -243,7 +260,7 @@ Deno.serve(async (req) => {
           priority: 5,
           status: "pending",
         };
-      }));
+      });
       const { data: inserted, error: insErr } = await supabase
         .from("email_queue")
         .insert(rows)
@@ -269,6 +286,7 @@ Deno.serve(async (req) => {
         enqueued += inserted?.length ?? 0;
       }
     }
+
 
 
     // Campanha vazia ainda é "sent" — só "failed" se houver destinatários e nenhum enfileirou

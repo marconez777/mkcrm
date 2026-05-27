@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const body = await req.json();
-    const { clinic_id, template_slug, jobs, from_domain_override } = body ?? {};
+    const { clinic_id, template_slug, jobs, from_domain_override, idempotency_key } = body ?? {};
     if (!clinic_id || !template_slug || !Array.isArray(jobs) || jobs.length === 0) {
       return jsonResponse({ error: "missing clinic_id, template_slug or jobs[]" }, { status: 400 });
     }
@@ -238,10 +238,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, sent: 0, skipped: skipped.length });
     }
 
-    // ---- Resend /emails/batch ----
+    // ---- Resend /emails/batch (idempotency-key opcional — recomendado pelo Resend) ----
+    const resendHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+    };
+    if (typeof idempotency_key === "string" && idempotency_key.trim()) {
+      resendHeaders["Idempotency-Key"] = idempotency_key.trim().slice(0, 256);
+    }
     const resp = await fetch("https://api.resend.com/emails/batch", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+      headers: resendHeaders,
       body: JSON.stringify(prepared.map((p) => p.payload)),
     });
     const json: any = await resp.json().catch(() => ({}));
