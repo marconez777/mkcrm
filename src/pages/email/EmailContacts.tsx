@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
 import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
+import { fetchAllPaged } from "@/lib/fetch-all";
 
 type Segment = { id: string; name: string };
 
