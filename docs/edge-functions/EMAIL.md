@@ -308,21 +308,41 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 
 | Tabela | Função |
 |---|---|
-| `email_domains` | Domínios verificados (1+ por clínica). Read: clínica; Write: super admin. |
+| `email_domains` | Domínios verificados (1+ por clínica). Colunas extras: `rotation_pool`, `rotation_weight` (R-21). Read: clínica; Write: super admin. |
 | `email_templates` | Templates (HTML + blocks JSON). |
 | `email_template_folders` | Pastas para organizar templates. |
-| `email_segments` | Filtros JSON salvos sobre `leads`. |
-| `email_campaigns` | Campanhas (template + segment + agendamento + totais). |
-| `email_automations` | Drip por trigger (steps JSON). |
+| `email_segments` | Filtros JSON salvos sobre `leads` (suporta `tags`, `stage_ids`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19). |
+| `email_segment_contacts` | Contatos manuais (fora de `leads`) usados em campanhas. |
+| `email_campaigns` | Campanhas (template + segmento + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`. |
+| `email_campaign_variants` | Variantes A/B/multi (R-20): `label`, `weight`, `subject_override`, `template_slug_override`, `from_name_override`, `sent_count`, `opened_count`, `clicked_count`, `is_winner`. |
+| `email_automations` | Drip por trigger (steps JSON). Triggers: `lead_created`, `lead_stage_changed`, `lead_tag_added`, `segment_contact_added`. |
 | `email_automation_enrollments` | Leads enrolados numa automação (`UNIQUE(automation_id, lead_id)`). Conta `steps_enqueued`. |
-| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `attempts`, `scheduled_at`, `error`, `force_send` (ignora suppression/idempotência), `variables`, `related_lead_id`, `related_lead_table`. |
-| `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint. **Read-only** para o app. |
+| `email_queue` | Fila de envio. Colunas-chave: `status` (`pending\|processing\|sent\|failed\|cancelled`), `priority` (R-7), `attempts`, `scheduled_at`, `error`, `force_send`, `variables`, `related_lead_id`, `related_lead_table`, `variant_id`, `from_domain_override`. |
+| `email_logs` | Histórico de envios + timestamps de delivery/open/click/bounce/complaint + `variant_id`, `from_domain_override`. **Read-only** para o app. |
+| `email_send_dedup` | Idempotência atômica (R-10) — UNIQUE `(clinic_id, template_slug, email, context)`. |
 | `email_unsubscribes` | Lista de supressão por clinic+email. Admin pode deletar (reativar). |
-| `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Read-only. |
+| `email_send_state` | Contador diário de envios (`sent_today`, `quota_resets_at`). Acesso via RPC `claim_email_quota` (R-11). |
+| `email_domain_warmup` | Curva de aquecimento por `(clinic_id, domain)` — R-12. Opt-in. |
+| `email_recipient_throttle` | Throttle por `(clinic_id, dest_domain, window_start)` — R-13. |
+| `clinic_email_integrations` | Configuração de integração de email por clínica (provider, secret_name). |
+| `resend_webhook_events` | Dedup de eventos do Resend por `svix_id` (R-5). |
+| `email_health_alerts` | Alertas de saúde (bounce/complaint > threshold) — R-16. |
+| `email_operational_alerts` | Alertas operacionais (backlog, stuck, failure_rate) — R-17. |
+| `campaign_throughput` | Throughput por minuto por campanha (alimenta `CampaignLiveDialog`). |
+
+Views: `email_throughput_stats` (por clínica), `email_system_health` (global) — R-17.
 
 Funções SQL relevantes:
-- `clinic_email_quota(_clinic_id uuid) → integer` — cota diária da clínica.
-- `enqueue_email(...) → uuid` — insert em `email_queue`.
+- `claim_email_quota(_clinic_id) → { allowed, sent_today, quota }` — UPSERT atômico (R-11).
+- `claim_domain_warmup(_clinic_id, _domain) → { allowed, ... }` — R-12.
+- `claim_recipient_throttle(_clinic_id, _dest_domain, _limit_per_hour) → { allowed, ... }` — R-13.
+- `release_domain_warmup(_clinic_id, _domain)` — libera vaga em caso de falha.
+- `pick_rotation_domain(_pool, _clinic_id) → text` — R-21.
+- `pick_ab_winner(_campaign_id)` — recalcula métricas e marca vencedor (R-20).
+- `check_clinic_bounce_health(_clinic_id)` — pausa campanhas se threshold estourado (R-16).
+- `check_email_operational_health()` — gera alertas operacionais (R-17).
+- `clinic_email_quota(_clinic_id) → integer` — cota diária da clínica.
+- `enqueue_email(...) → uuid` — insert em `email_queue` (usado por automações e teste).
 - `generate_unsubscribe_token(_clinic_id, _email) → text` — HMAC.
 - `verify_unsubscribe_token(_clinic_id, _email, _token) → boolean`.
 - `clinic_has_feature(_clinic_id, _key)` — feature flag check.
