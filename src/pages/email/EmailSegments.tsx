@@ -153,15 +153,31 @@ export default function EmailSegments() {
     setPreviewCount(null); setPreviewSample([]); setEditing(null);
   }
 
-  async function loadAvailableContacts(targetClinicId: string) {
-    const { data } = await supabase
+  async function loadAvailableContacts(targetClinicId: string, currentSegmentId?: string) {
+    let query = supabase
       .from("email_segment_contacts")
-      .select("id, email, name, lead_id")
+      .select("id, email, name, lead_id, segment_id")
       .eq("clinic_id", targetClinicId)
-      .is("segment_id", null)
       .order("created_at", { ascending: false })
-      .limit(5000);
-    setAvailableContacts((data as Contact[]) ?? []);
+      .limit(10000);
+    if (currentSegmentId) {
+      query = query.or(`segment_id.is.null,segment_id.eq.${currentSegmentId}`);
+    } else {
+      query = query.is("segment_id", null);
+    }
+    const { data } = await query;
+    // Dedup por e-mail, preferindo a linha do segmento atual
+    const byEmail = new Map<string, any>();
+    (data as any[] ?? []).forEach((c) => {
+      const key = String(c.email).toLowerCase();
+      const existing = byEmail.get(key);
+      if (!existing || (currentSegmentId && c.segment_id === currentSegmentId)) {
+        byEmail.set(key, c);
+      }
+    });
+    const merged = [...byEmail.values()];
+    setAvailableContacts(merged as Contact[]);
+    return merged;
   }
 
   async function openEdit(s: Segment) {
@@ -172,23 +188,10 @@ export default function EmailSegments() {
     setKind(f.kind); setMatch(f.match); setRules(f.rules);
     setActive(s.active);
     const segClinicId = (s as any).clinic_id as string;
-    // Carrega contatos disponíveis da clínica
-    await loadAvailableContacts(segClinicId);
-    // Carrega vínculos atuais e marca os correspondentes pelo e-mail
-    const { data: links } = await supabase
-      .from("email_segment_contacts")
-      .select("email")
-      .eq("segment_id", s.id);
-    const linkedEmails = new Set((links ?? []).map((l: any) => String(l.email).toLowerCase()));
-    const { data: pool } = await supabase
-      .from("email_segment_contacts")
-      .select("id, email")
-      .eq("clinic_id", segClinicId)
-      .is("segment_id", null);
-    const idsToSelect = new Set<string>();
-    (pool ?? []).forEach((c: any) => {
-      if (linkedEmails.has(String(c.email).toLowerCase())) idsToSelect.add(c.id);
-    });
+    const pool = await loadAvailableContacts(segClinicId, s.id);
+    const idsToSelect = new Set<string>(
+      pool.filter((c: any) => c.segment_id === s.id).map((c: any) => c.id),
+    );
     setSelectedContactIds(idsToSelect);
     setOpenNew(true);
   }
