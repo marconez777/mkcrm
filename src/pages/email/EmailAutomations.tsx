@@ -48,6 +48,7 @@ const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(
 
 const TRIGGERS = [
   { value: "lead_created", label: "Lead criado" },
+  { value: "segment_contact_added", label: "Adicionado ao segmento" },
   { value: "lead_stage_changed", label: "Lead mudou de estágio" },
   { value: "lead_tag_added", label: "Tag adicionada ao lead" },
 ];
