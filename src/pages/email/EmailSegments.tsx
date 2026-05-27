@@ -627,7 +627,9 @@ export default function EmailSegments() {
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-muted-foreground hover:text-foreground">Editar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} disabled={editingLoadingId === s.id} className="text-muted-foreground hover:text-foreground">
+                      {editingLoadingId === s.id ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Carregando…</> : "Editar"}
+                    </Button>
                     {!s.is_system && (
                       <Button size="icon" variant="ghost" onClick={() => remove(s)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
