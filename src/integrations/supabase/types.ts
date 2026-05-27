@@ -1226,6 +1226,30 @@ export type Database = {
           },
         ]
       }
+      campaign_throughput: {
+        Row: {
+          campaign_id: string
+          failed: number
+          minute: string
+          sent: number
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          failed?: number
+          minute: string
+          sent?: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          failed?: number
+          minute?: string
+          sent?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clinic_email_integrations: {
         Row: {
           clinic_id: string
@@ -1605,6 +1629,7 @@ export type Database = {
           from_domain_pool: string | null
           from_name_override: string | null
           id: string
+          last_sent_at: string | null
           name: string
           scheduled_for: string | null
           segment_id: string | null
@@ -1630,6 +1655,7 @@ export type Database = {
           from_domain_pool?: string | null
           from_name_override?: string | null
           id?: string
+          last_sent_at?: string | null
           name: string
           scheduled_for?: string | null
           segment_id?: string | null
@@ -1655,6 +1681,7 @@ export type Database = {
           from_domain_pool?: string | null
           from_name_override?: string | null
           id?: string
+          last_sent_at?: string | null
           name?: string
           scheduled_for?: string | null
           segment_id?: string | null
