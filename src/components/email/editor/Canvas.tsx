@@ -78,7 +78,7 @@ function BlockPreview({
             <Input
               value={b.text}
               onChange={(e) => onChange({ ...b, text: e.target.value })}
-              className="inline-block w-auto border-dashed text-center font-semibold"
+              className={`border-dashed text-center font-semibold ${b.fullWidth ? "w-full block" : "inline-block w-auto"}`}
               style={{ background: b.bg, color: b.color, padding: `${b.paddingY}px ${b.paddingX}px`, borderRadius: b.radius, height: "auto" }}
             />
           </div>
@@ -88,9 +88,12 @@ function BlockPreview({
         <div style={{ textAlign: b.align }}>
           <span
             style={{
-              display: "inline-block",
+              display: b.fullWidth ? "block" : "inline-block",
+              width: b.fullWidth ? "100%" : undefined,
+              textAlign: "center",
               background: b.bg, color: b.color, padding: `${b.paddingY}px ${b.paddingX}px`,
               borderRadius: b.radius, fontWeight: 600, fontSize: 14,
+              boxSizing: "border-box",
             }}
           >
             {b.text}
