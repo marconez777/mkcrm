@@ -215,6 +215,7 @@ export default function Tracking() {
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const { isSuperAdmin, membership } = useAuth();
+  const confirm = useConfirm();
   const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
 
   // global filters
