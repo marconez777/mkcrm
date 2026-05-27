@@ -234,63 +234,71 @@ Dispatcher da fila (cron ~15s + self-trigger R-3):
   - **Rate limit** (`retry after Xs|ms`) → reagenda com delay parseado + 1s.
   - **Outros**: até **3 tentativas** (`MAX_ATTEMPTS`) com backoff `1min → 5min → 30min`.
 
-### 3.3 `dispatch-campaign`
-Resolve uma campanha em recipients e enfileira:
+### 3.4 `dispatch-campaign`
+Resolve uma campanha em recipients e enfileira (em lote, R-4):
 - Auth: service-role ou admin/super-admin.
 - Body: `{ campaign_id, test_only?, test_email_override? }`.
 - **Teste**: pega 1 lead amostral do segmento, enfileira 1 job com `force: true`, marca `test_sent_at`, dispara `process-email-queue` imediatamente.
 - **Real**:
   - Se `test_email` no campaign → 1 recipient.
-  - Senão, carrega leads da clínica com `email IS NOT NULL` filtrados por `segment.filters` (`stage_ids` IN, `tags` overlaps), limit 10k.
-  - Para cada, chama RPC `enqueue_email` (que insere em `email_queue`).
+  - Senão, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL` aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
+  - Para cada destinatário, pré-calcula:
+    - **A/B variant** via round-robin ponderado determinístico por email (R-20) → grava `email_queue.variant_id`.
+    - **Rotation domain** via RPC `pick_rotation_domain(_pool, _clinic)` (R-21) → grava `email_queue.from_domain_override`.
+    - **Schedule espalhado** em janelas de 1 min se `send_rate_per_minute` setado (R-18).
+  - INSERT em lote em `email_queue` (chunks de 500).
   - Atualiza `email_campaigns` com `status`, `total_recipients`, `enqueued_count`, `sent_at`.
+  - `status='paused'` na campanha aborta novos despachos.
 
-### 3.4 `resend-webhook`
+### 3.5 `resend-webhook`
 Receptor de eventos do Resend.
-- **Valida assinatura Svix** se `RESEND_WEBHOOK_SECRET` setado (sem secret aceita unsigned — só dev).
-- Eventos tratados: `email.delivered | email.opened | email.clicked | email.bounced | email.complained`.
+- **Valida assinatura Svix** (via svix SDK oficial) se `RESEND_WEBHOOK_SECRET` setado (sem secret aceita unsigned — só dev).
+- **Dedup por `svix-id` (R-5)**: INSERT em `resend_webhook_events(svix_id PK, event_type, resend_id)`. Conflito `23505` → `{ deduped: true }` sem reprocessar.
+- Eventos consumidos: `email.delivered | email.opened | email.clicked | email.bounced | email.complained`. (`email.sent` e `email.delivery_delayed` vão para `events[]` apenas.)
 - Encontra `email_logs` por `resend_id`, faz `events.push(...)` e atualiza colunas `*_at` + `status`.
-- **Bounce hard ou Permanent** → upsert em `email_unsubscribes(reason: 'bounce')`.
-- **Complaint** → upsert em `email_unsubscribes(reason: 'complaint')`.
+- **Bounce hard ou Permanent** → upsert em `email_unsubscribes(reason: 'bounce', source: 'resend-webhook')`.
+- **Complaint** → upsert em `email_unsubscribes(reason: 'complaint', source: 'resend-webhook')`.
+- Trigger `email_logs_bounce_health_trigger` chama `check_clinic_bounce_health` — se bounce>5% ou complaint>0.3% nas últimas 1000 → pausa campanhas e grava em `email_health_alerts` (R-16).
 
-### 3.5 `email-unsubscribe` (público, sem JWT)
+### 3.6 `email-unsubscribe` (público, sem JWT)
 - Actions: `validate | unsubscribe | reactivate`.
 - Sempre exige `clinic_id + email + token` válidos via RPC `verify_unsubscribe_token` (HMAC).
 - `unsubscribe`: upsert em `email_unsubscribes` + **cascade**: cancela todos jobs pendentes (`status=pending`, `force_send=false`) daquela combinação clinic+email.
 - `reactivate`: `DELETE FROM email_unsubscribes WHERE clinic_id=? AND email=?`.
 - Reasons aceitos: `too-many | not-interested | never-signed | other | user-request`.
 
-### 3.6 `email-domain-manage` (super admin only)
+### 3.7 `email-domain-manage` (super admin only)
 Gerencia domínios via Resend:
 - `action: create` → `POST /domains` no Resend, upsert em `email_domains` com `status`, `dns_records`, `region`.
 - `action: verify` → `POST /domains/{id}/verify`, depois `GET /domains/{id}` para refresh do status; atualiza linha.
 - `action: delete` → `DELETE /domains/{id}` no Resend + `DELETE` local.
 
-### 3.7 `backfill-resend-events` (super admin only)
+### 3.8 `backfill-resend-events` (super admin only)
 Sincroniza histórico:
 - Pega até 200 `email_logs` com `resend_id NOT NULL` e `delivered_at IS NULL`.
 - Para cada, `GET /emails/{id}` no Resend e atualiza status/timestamps.
 - Bounces/complaints viram entries em `email_unsubscribes`.
 
-### 3.8 `process-scheduled-campaigns`
+### 3.9 `process-scheduled-campaigns`
 Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled_for <= now()` (limit 20) e dispara `dispatch-campaign` para cada uma. É o que faz "Agendar campanha" funcionar.
 
-### 3.9 `scheduled-dispatcher` (referência cruzada)
+### 3.10 `scheduled-dispatcher` (referência cruzada)
 **Não pertence ao módulo de email** — processa `scheduled_messages` (WhatsApp) e `pending_replies` (auto-reply IA). Listado aqui só para evitar confusão com o `process-scheduled-campaigns`.
 
-### 3.10 `email-automations-tick`
-Cron a cada 5 min. Motor de drip para `email_automations`:
+### 3.11 `email-automations-tick`
+Cron a cada 5 min. Motor de drip para `email_automations` (paralelo, concorrência 10 — R-9):
 - Lê todas as automações com `active = true`.
 - Detecta leads candidatos desde `last_run_at` (cursor por automação):
   - `lead_created` → `leads.created_at > since` (com `email IS NOT NULL`).
   - `lead_stage_changed` → `lead_stage_history.moved_at > since`; respeita `trigger_config.to_stage_id` (ou `stage_id`).
   - `lead_tag_added` → `lead_events` com `type='tag_added'` e filtro opcional `payload.tag`.
+  - `segment_contact_added` → entrada nova em `email_segment_contacts` (ou lead que passou a casar o segmento) desde `since`.
 - Para cada lead novo, tenta INSERT em `email_automation_enrollments` (`UNIQUE(automation_id, lead_id)`). Unique violation = já enrolado, ignorado silenciosamente.
 - Enfileira **todos os steps** da automação via RPC `enqueue_email` com `scheduled_at = now() + delay_minutes`.
 - `related_lead_table = "automation_<id>"` → idempotência/deduplicação delegada ao `send-email`.
 - Atualiza `steps_enqueued` no enrollment e avança `last_run_at` da automação.
 
-Suppression, idempotência, cota e verificação de domínio ficam por conta do `send-email` no momento do envio.
+Suppression, idempotência atômica, cota, warmup, throttle e verificação de domínio ficam por conta do `send-email`/`send-email-batch` no momento do envio.
 
 ---
 
