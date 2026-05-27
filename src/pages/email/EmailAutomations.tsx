@@ -48,6 +48,7 @@ const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(
 
 const TRIGGERS = [
   { value: "lead_created", label: "Lead criado" },
+  { value: "segment_contact_added", label: "Adicionado ao segmento" },
   { value: "lead_stage_changed", label: "Lead mudou de estágio" },
   { value: "lead_tag_added", label: "Tag adicionada ao lead" },
 ];
@@ -195,7 +196,7 @@ export default function EmailAutomations() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Segmento (opcional)</Label>
+                <Label>Segmento {editing.trigger_type === "segment_contact_added" ? "(obrigatório)" : "(opcional)"}</Label>
                 <Select
                   value={editing.trigger_config?.segment_id ?? "__all__"}
                   onValueChange={(v) => setEditing({
@@ -205,11 +206,17 @@ export default function EmailAutomations() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Todos os leads (sem filtro)</SelectItem>
+                    {editing.trigger_type !== "segment_contact_added" && (
+                      <SelectItem value="__all__">Todos os leads (sem filtro)</SelectItem>
+                    )}
                     {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">Filtra os leads que entram nesta automação.</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {editing.trigger_type === "segment_contact_added"
+                    ? "Dispara sempre que um contato é adicionado a este segmento (independente da idade do lead)."
+                    : "Filtra os leads que entram nesta automação."}
+                </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

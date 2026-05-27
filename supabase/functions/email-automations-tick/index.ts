@@ -16,7 +16,7 @@ type Automation = {
   clinic_id: string;
   name: string;
   active: boolean;
-  trigger_type: "lead_created" | "lead_stage_changed" | "lead_tag_added";
+  trigger_type: "lead_created" | "lead_stage_changed" | "lead_tag_added" | "segment_contact_added";
   trigger_config: Record<string, unknown>;
   steps: Step[];
   last_run_at: string | null;
@@ -76,18 +76,73 @@ Deno.serve(async (req) => {
 
     try {
       if (auto.trigger_type === "lead_created") {
-        const { data: leads, error } = await supabase
+        const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
+        let leadIdsFilter: string[] | null = null;
+        if (segmentId) {
+          // restringe aos leads pertencentes ao segmento
+          const { data: scs, error: scErr } = await supabase
+            .from("email_segment_contacts")
+            .select("lead_id")
+            .eq("clinic_id", auto.clinic_id)
+            .eq("segment_id", segmentId)
+            .not("lead_id", "is", null)
+            .limit(5000);
+          if (scErr) throw scErr;
+          leadIdsFilter = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
+          if (leadIdsFilter.length === 0) {
+            // segmento vazio — nada a enrolar
+            await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
+            return result;
+          }
+        }
+        let q = supabase
           .from("leads")
           .select("id, clinic_id, name, email, phone, created_at")
           .eq("clinic_id", auto.clinic_id)
           .gt("created_at", since)
           .not("email", "is", null)
           .limit(500);
+        if (leadIdsFilter) q = q.in("id", leadIdsFilter);
+        const { data: leads, error } = await q;
         if (error) throw error;
         candidates = (leads ?? []).map((l: any) => ({
           lead: { id: l.id, clinic_id: l.clinic_id, name: l.name, email: l.email, phone: l.phone },
           source_event: `lead_created:${l.created_at}`,
         }));
+      } else if (auto.trigger_type === "segment_contact_added") {
+        // dispara quando um contato é adicionado ao segmento (independente da idade do lead)
+        const segmentId = (auto.trigger_config?.segment_id ?? null) as string | null;
+        if (!segmentId) {
+          // sem segmento configurado, não há como filtrar — pula
+          await supabase.from("email_automations").update({ last_run_at: nowIso }).eq("id", auto.id);
+          return result;
+        }
+        const { data: scs, error: scErr } = await supabase
+          .from("email_segment_contacts")
+          .select("id, lead_id, email, name, created_at")
+          .eq("clinic_id", auto.clinic_id)
+          .eq("segment_id", segmentId)
+          .gt("created_at", since)
+          .not("lead_id", "is", null)
+          .order("created_at", { ascending: true })
+          .limit(500);
+        if (scErr) throw scErr;
+        const leadIds = Array.from(new Set((scs ?? []).map((r: any) => r.lead_id)));
+        if (leadIds.length) {
+          const { data: leads } = await supabase
+            .from("leads")
+            .select("id, clinic_id, name, email, phone")
+            .in("id", leadIds)
+            .eq("clinic_id", auto.clinic_id)
+            .not("email", "is", null);
+          const byId = new Map((leads ?? []).map((l: any) => [l.id, l]));
+          candidates = (scs ?? [])
+            .filter((r: any) => byId.has(r.lead_id))
+            .map((r: any) => ({
+              lead: byId.get(r.lead_id) as LeadRow,
+              source_event: `segment_contact:${r.id}`,
+            }));
+        }
       } else if (auto.trigger_type === "lead_stage_changed") {
         const toStageId = (auto.trigger_config?.to_stage_id ?? auto.trigger_config?.stage_id) as string | undefined;
         let q = supabase
