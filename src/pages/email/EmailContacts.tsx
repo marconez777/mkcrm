@@ -524,8 +524,6 @@ export default function EmailContacts() {
           <TablePager page={page} total={filtered.length} onPageChange={setPage} />
         </div>
       )}
-        </Card>
-      )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
