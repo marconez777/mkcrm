@@ -27,6 +27,18 @@ function renderBlock(b: EmailBlock): string {
       return `<tr><td align="${b.align}" style="padding:8px 0;">${wrapped}</td></tr>`;
     }
     case "cta": {
+      if (b.fullWidth) {
+        return `<tr><td style="padding:16px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="center" bgcolor="${b.bg}" style="background:${b.bg};border-radius:${b.radius}px;">
+              <a href="${escapeAttr(b.href)}" target="_blank" rel="noopener"
+                 style="display:block;width:100%;background:${b.bg};color:${b.color};text-decoration:none;
+                 padding:${b.paddingY}px ${b.paddingX}px;border-radius:${b.radius}px;font-weight:600;
+                 font-family:Arial,Helvetica,sans-serif;font-size:14px;text-align:center;box-sizing:border-box;">${escapeAttr(b.text)}</a>
+            </td>
+          </tr></table>
+        </td></tr>`;
+      }
       return `<tr><td align="${b.align}" style="padding:16px 0;">
         <a href="${escapeAttr(b.href)}" target="_blank" rel="noopener"
            style="display:inline-block;background:${b.bg};color:${b.color};text-decoration:none;
