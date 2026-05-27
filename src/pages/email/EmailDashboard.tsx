@@ -20,8 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -41,7 +39,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  Mail,
   CheckCircle2,
   MousePointerClick,
   AlertTriangle,
