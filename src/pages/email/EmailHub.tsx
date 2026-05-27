@@ -32,8 +32,8 @@ export default function EmailHub() {
   const current = TABS.find((t) => t.path === location.pathname)?.value ?? "dashboard";
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-6xl px-6 pt-6 pb-12">
+    <div className="h-full overflow-auto bg-[hsl(var(--surface-muted))]">
+      <div className="mx-auto max-w-6xl px-6 pt-8 pb-12">
         <Tabs
           value={current}
           onValueChange={(v) => {
