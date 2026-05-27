@@ -84,6 +84,7 @@ export default function EmailSegments() {
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Segment | null>(null);
+  const [editingLoadingId, setEditingLoadingId] = useState<string | null>(null);
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [knownFormSources, setKnownFormSources] = useState<string[]>([]);
