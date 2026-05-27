@@ -10,9 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { AttributionTab } from "@/pages/tracking/AttributionTab";
+import { useConfirm } from "@/hooks/useDialogs";
+import { toast } from "sonner";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
