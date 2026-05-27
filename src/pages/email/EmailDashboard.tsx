@@ -20,8 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -41,7 +39,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  Mail,
   CheckCircle2,
   MousePointerClick,
   AlertTriangle,
@@ -75,6 +72,19 @@ const RANGES = [
   { id: "90d", label: "90 dias", hours: 24 * 90 },
 ];
 
+// Unificado: tratamos "sent" e "delivered" como o mesmo conceito ("Entregue")
+// para evitar confundir o usuário com "aguardando confirmação".
+const STATUS_LABEL: Record<string, string> = {
+  sent: "entregue",
+  delivered: "entregue",
+  opened: "aberto",
+  clicked: "clicado",
+  failed: "falhou",
+  bounced: "bounce",
+  complained: "spam",
+  queued: "na fila",
+};
+
 function statusBadge(s: string) {
   const map: Record<string, "default" | "secondary" | "destructive"> = {
     sent: "default",
@@ -86,7 +96,7 @@ function statusBadge(s: string) {
     complained: "destructive",
     queued: "secondary",
   };
-  return <Badge variant={map[s] ?? "secondary"}>{s}</Badge>;
+  return <Badge variant={map[s] ?? "secondary"}>{STATUS_LABEL[s] ?? s}</Badge>;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -300,11 +310,11 @@ export default function EmailDashboard() {
   const quotaPct = quota > 0 ? Math.round((sentToday / quota) * 100) : 0;
 
   const chartConfig = {
-    sent: { label: "Enviados", color: "hsl(var(--primary))" },
+    sent: { label: "Entregues", color: "hsl(var(--primary))" },
     opened: { label: "Abertos", color: "hsl(142 71% 45%)" },
     clicked: { label: "Cliques", color: "hsl(262 83% 58%)" },
     failed: { label: "Falhas", color: "hsl(var(--destructive))" },
-    count: { label: "Envios", color: "hsl(var(--primary))" },
+    count: { label: "Entregues", color: "hsl(var(--primary))" },
   };
 
   return (
@@ -340,48 +350,24 @@ export default function EmailDashboard() {
       {/* Stat cards */}
       <div className="grid gap-3 md:grid-cols-4">
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Mail className="h-3 w-3" />Enviados</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.total}</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3 w-3" />Entregues</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.total.toLocaleString("pt-BR")}</div>
           <div className="text-xs text-muted-foreground">no período</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CheckCircle2 className="h-3 w-3" />
-            Entregues
-            <TooltipProvider delayDuration={150}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-3 w-3 cursor-help opacity-60" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
-                  Entregas confirmadas pelo provedor (Resend) via webhook
-                  <code className="mx-1">email.delivered</code>. A confirmação
-                  pode levar de segundos a horas (especialmente Outlook/Hotmail) —
-                  por isso pode haver e-mails enviados ainda aguardando confirmação.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.deliveredPct}%</div>
-          <div className="text-xs text-muted-foreground">
-            {stats.delivered.toLocaleString("pt-BR")} confirmados
-            {stats.pendingDelivery > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
-                {" · "}
-                {stats.pendingDelivery.toLocaleString("pt-BR")} aguardando
-              </span>
-            )}
-          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="h-3 w-3" />Falhas</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.failedPct}%</div>
+          <div className="text-xs text-muted-foreground">{stats.failed.toLocaleString("pt-BR")} no período</div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><Eye className="h-3 w-3" />Abertura</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.openPct}%</div>
-          <div className="text-xs text-muted-foreground">{stats.opened} aberturas</div>
+          <div className="text-xs text-muted-foreground">{stats.opened.toLocaleString("pt-BR")} aberturas</div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><MousePointerClick className="h-3 w-3" />Cliques</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.clickPct}%</div>
-          <div className="text-xs text-muted-foreground">{stats.clicked} cliques</div>
+          <div className="text-xs text-muted-foreground">{stats.clicked.toLocaleString("pt-BR")} cliques</div>
         </Card>
       </div>
 
@@ -428,8 +414,7 @@ export default function EmailDashboard() {
           <div className="text-sm font-semibold mb-3">Funil ({range.label})</div>
           <div className="space-y-2">
             {[
-              { label: "Enviados", n: stats.total, pct: 100, color: "bg-primary" },
-              { label: "Entregues", n: stats.delivered, pct: stats.deliveredPct, color: "bg-primary/80" },
+              { label: "Entregues", n: stats.total, pct: 100, color: "bg-primary" },
               { label: "Abertos", n: stats.opened, pct: stats.openPct, color: "bg-emerald-500" },
               { label: "Clicaram", n: stats.clicked, pct: stats.clickPct, color: "bg-violet-500" },
             ].map((s) => (
@@ -544,10 +529,11 @@ export default function EmailDashboard() {
             <SelectTrigger className="h-8 w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos status</SelectItem>
-              <SelectItem value="sent">Enviado</SelectItem>
-              <SelectItem value="delivered">Entregue</SelectItem>
+              <SelectItem value="sent">Entregue</SelectItem>
+              <SelectItem value="opened">Aberto</SelectItem>
+              <SelectItem value="clicked">Clicado</SelectItem>
               <SelectItem value="failed">Falhou</SelectItem>
-              <SelectItem value="bounced">Bounced</SelectItem>
+              <SelectItem value="bounced">Bounce</SelectItem>
             </SelectContent>
           </Select>
           <Select value={templateFilter} onValueChange={setTemplateFilter}>
@@ -566,7 +552,7 @@ export default function EmailDashboard() {
                 <TableHead>Destinatário</TableHead>
                 <TableHead>Assunto</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Enviado</TableHead>
+                <TableHead>Quando</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
