@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
+import { Plus, Trash2, Loader2, BarChart3 } from "lucide-react";
 import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
 import { useConfirm } from "@/hooks/useDialogs";
 
