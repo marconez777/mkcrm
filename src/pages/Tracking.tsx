@@ -414,7 +414,7 @@ export default function Tracking() {
       description: leadId
         ? "Isso vai apagar o visitante (eventos, sessões, vínculos) E o lead associado. Ação irreversível."
         : "Isso vai apagar o visitante e todos os eventos/sessões. Ação irreversível.",
-      confirmText: "Remover",
+      confirmLabel: "Remover",
       destructive: true,
     });
     if (!ok) return;
