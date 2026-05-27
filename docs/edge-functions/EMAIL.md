@@ -289,11 +289,12 @@ Cron a cada 5 min. Busca `email_campaigns` com `status='scheduled'` e `scheduled
 Cron a cada 5 min. Motor de drip para `email_automations` (paralelo, concorrência 10 — R-9):
 - Lê todas as automações com `active = true`.
 - Detecta leads candidatos desde `last_run_at` (cursor por automação):
-  - `lead_created` → `leads.created_at > since` (com `email IS NOT NULL`).
+  - `lead_created` → `leads.created_at > since` (com `email IS NOT NULL`), e quando houver `trigger_config.segment_id` o match é feito via `lead_matches_segment()` para suportar segmentos dinâmicos e estáticos.
   - `lead_stage_changed` → `lead_stage_history.moved_at > since`; respeita `trigger_config.to_stage_id` (ou `stage_id`).
   - `lead_tag_added` → `lead_events` com `type='tag_added'` e filtro opcional `payload.tag`.
   - `segment_contact_added` → entrada nova em `email_segment_contacts` (ou lead que passou a casar o segmento) desde `since`.
 - Para cada lead novo, tenta INSERT em `email_automation_enrollments` (`UNIQUE(automation_id, lead_id)`). Unique violation = já enrolado, ignorado silenciosamente.
+- **Importante:** `segment_contact_added` depende de materialização em `email_segment_contacts`; já `lead_created` com segmento usa a lógica real do segmento sobre `leads` e não depende dessa tabela estar preenchida.
 - Enfileira **todos os steps** da automação via RPC `enqueue_email` com `scheduled_at = now() + delay_minutes`.
 - `related_lead_table = "automation_<id>"` → idempotência/deduplicação delegada ao `send-email`.
 - Atualiza `steps_enqueued` no enrollment e avança `last_run_at` da automação.
