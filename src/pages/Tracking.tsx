@@ -10,9 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { AttributionTab } from "@/pages/tracking/AttributionTab";
+import { useConfirm } from "@/hooks/useDialogs";
+import { toast } from "sonner";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -213,6 +215,7 @@ export default function Tracking() {
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const { isSuperAdmin, membership } = useAuth();
+  const confirm = useConfirm();
   const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
 
   // global filters
@@ -402,6 +405,40 @@ export default function Tracking() {
   }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const deleteVisitor = async (visitorId: string) => {
+    const link = links[visitorId];
+    const leadId = link?.lead_id as string | undefined;
+    const ok = await confirm({
+      title: "Remover registro?",
+      description: leadId
+        ? "Isso vai apagar o visitante (eventos, sessões, vínculos) E o lead associado. Ação irreversível."
+        : "Isso vai apagar o visitante e todos os eventos/sessões. Ação irreversível.",
+      confirmLabel: "Remover",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      // ordem importa por causa de FKs (events/sessions/links referenciam visitor)
+      await supabase.from("tracking_events").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_sessions").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_identity_links").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_lead_sources").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_visitors").delete().eq("visitor_id", visitorId);
+      if (leadId) {
+        const { error: lErr } = await supabase.from("leads").delete().eq("id", leadId);
+        if (lErr) throw lErr;
+      }
+      toast.success("Registro removido");
+      // remoção local imediata + reload em background
+      setVisitors((prev) => prev.filter((v) => v.visitor_id !== visitorId));
+      setLinks((prev) => { const n = { ...prev }; delete n[visitorId]; return n; });
+      load();
+    } catch (e: any) {
+      toast.error("Erro ao remover: " + (e?.message ?? "desconhecido"));
+    }
+  };
+
 
   const openJourney = async (visitorId: string) => {
     setJourneyVisitor(visitorId);
@@ -703,9 +740,14 @@ export default function Tracking() {
                           {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>
-                          <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => deleteVisitor(v.visitor_id)} title="Remover registro (e lead, se houver)">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
