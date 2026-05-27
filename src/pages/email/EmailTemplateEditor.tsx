@@ -68,6 +68,7 @@ export default function EmailTemplateEditor() {
   const [htmlOpen, setHtmlOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importHtml, setImportHtml] = useState("");
   const [importMode, setImportMode] = useState<"replace" | "append">("replace");
