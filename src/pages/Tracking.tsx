@@ -406,6 +406,40 @@ export default function Tracking() {
 
   useEffect(() => { load(); }, [load]);
 
+  const deleteVisitor = async (visitorId: string) => {
+    const link = links[visitorId];
+    const leadId = link?.lead_id as string | undefined;
+    const ok = await confirm({
+      title: "Remover registro?",
+      description: leadId
+        ? "Isso vai apagar o visitante (eventos, sessões, vínculos) E o lead associado. Ação irreversível."
+        : "Isso vai apagar o visitante e todos os eventos/sessões. Ação irreversível.",
+      confirmText: "Remover",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      // ordem importa por causa de FKs (events/sessions/links referenciam visitor)
+      await supabase.from("tracking_events").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_sessions").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_identity_links").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_lead_sources").delete().eq("visitor_id", visitorId);
+      await supabase.from("tracking_visitors").delete().eq("visitor_id", visitorId);
+      if (leadId) {
+        const { error: lErr } = await supabase.from("leads").delete().eq("id", leadId);
+        if (lErr) throw lErr;
+      }
+      toast.success("Registro removido");
+      // remoção local imediata + reload em background
+      setVisitors((prev) => prev.filter((v) => v.visitor_id !== visitorId));
+      setLinks((prev) => { const n = { ...prev }; delete n[visitorId]; return n; });
+      load();
+    } catch (e: any) {
+      toast.error("Erro ao remover: " + (e?.message ?? "desconhecido"));
+    }
+  };
+
+
   const openJourney = async (visitorId: string) => {
     setJourneyVisitor(visitorId);
     setJourneyLoading(true);
