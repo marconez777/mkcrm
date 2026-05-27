@@ -150,6 +150,12 @@ export default function Inspector({ block, onChange }: Props) {
           <ColorField label="Fundo" value={block.bg} onChange={(v) => upd({ bg: v })} />
           <ColorField label="Texto" value={block.color} onChange={(v) => upd({ color: v })} />
           <AlignField value={block.align} onChange={(v) => upd({ align: v })} />
+          <Field label="Largura total (até as margens)">
+            <div className="flex items-center gap-2">
+              <Switch checked={!!block.fullWidth} onCheckedChange={(v) => upd({ fullWidth: v })} />
+              <span className="text-muted-foreground">{block.fullWidth ? "Ativada" : "Desativada"}</span>
+            </div>
+          </Field>
           <Field label={`Raio (${block.radius}px)`}>
             <Slider value={[block.radius]} min={0} max={32} step={1} onValueChange={(v) => upd({ radius: v[0] })} />
           </Field>
