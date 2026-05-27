@@ -416,6 +416,12 @@ export default function EmailCampaigns() {
         open={!!reporting}
         onOpenChange={(o) => !o && setReporting(null)}
       />
+
+      <CampaignLiveDialog
+        campaignId={liveId}
+        open={!!liveId}
+        onOpenChange={(o) => !o && setLiveId(null)}
+      />
     </div>
   );
 }
