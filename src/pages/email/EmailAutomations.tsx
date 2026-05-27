@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Sparkles, Workflow, BarChart3 } from "lucide-react";
+import { Plus, Trash2, Loader2, BarChart3 } from "lucide-react";
 import { AutomationReportDialog } from "@/components/email/AutomationReportDialog";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -45,33 +45,6 @@ const toDays = (m: number) => Math.floor((m || 0) / 1440);
 const toHours = (m: number) => Math.floor(((m || 0) % 1440) / 60);
 const toMinutes = (d: number, h: number) => (Math.max(0, d) * 1440) + (Math.max(0, Math.min(23, h)) * 60);
 
-const PRESETS = [
-  {
-    key: "welcome",
-    name: "Boas-vindas a novos leads",
-    description: "Envia um email de boas-vindas assim que o lead é criado.",
-    trigger_type: "lead_created",
-    steps: [{ template_slug: "", delay_minutes: 0 }],
-  },
-  {
-    key: "warmup",
-    name: "Sequência de aquecimento (3 emails)",
-    description: "3 emails ao longo de 7 dias para apresentar a clínica.",
-    trigger_type: "lead_created",
-    steps: [
-      { template_slug: "", delay_minutes: 0 },
-      { template_slug: "", delay_minutes: 60 * 24 * 3 },
-      { template_slug: "", delay_minutes: 60 * 24 * 7 },
-    ],
-  },
-  {
-    key: "reactivation",
-    name: "Reativação de inativos",
-    description: "Email para leads sem interação recente.",
-    trigger_type: "lead_stage_changed",
-    steps: [{ template_slug: "", delay_minutes: 0 }],
-  },
-];
 
 const TRIGGERS = [
   { value: "lead_created", label: "Lead criado" },
@@ -105,39 +78,6 @@ export default function EmailAutomations() {
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
   useEffect(() => { document.title = "Email — Automações"; }, []);
 
-  function presetActive(key: string) {
-    return items.find((i) => i.preset_key === key && i.active);
-  }
-
-  async function togglePreset(preset: typeof PRESETS[number], on: boolean) {
-    if (!clinicId) return;
-    setBusy(true);
-    try {
-      const existing = items.find((i) => i.preset_key === preset.key);
-      if (existing) {
-        const { error } = await supabase.from("email_automations").update({ active: on }).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("email_automations").insert({
-          clinic_id: clinicId,
-          name: preset.name,
-          description: preset.description,
-          preset_key: preset.key,
-          trigger_type: preset.trigger_type,
-          trigger_config: {},
-          steps: preset.steps,
-          active: on,
-        });
-        if (error) throw error;
-      }
-      toast.success(on ? "Receita ativada" : "Receita desativada");
-      await load();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function startCreate() {
     setEditing({
@@ -196,78 +136,39 @@ export default function EmailAutomations() {
         <p className="text-sm text-muted-foreground">Dispare emails automaticamente baseado em eventos.</p>
       </div>
 
-      <Tabs defaultValue="presets">
-        <TabsList>
-          <TabsTrigger value="presets"><Sparkles className="mr-2 h-3 w-3" />Receitas prontas</TabsTrigger>
-          <TabsTrigger value="custom"><Workflow className="mr-2 h-3 w-3" />Personalizado</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="presets" className="space-y-3">
-          {PRESETS.map((p) => {
-            const existing = items.find((i) => i.preset_key === p.key);
-            const active = !!(existing && existing.active);
-            return (
-              <Card key={p.key} className="p-4 flex items-start gap-4">
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">{p.name}</div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    Disparo: {TRIGGERS.find((t) => t.value === p.trigger_type)?.label ?? p.trigger_type} ·{" "}
-                    {p.steps.length} email{p.steps.length > 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {existing && (
-                    <Button size="sm" variant="outline" onClick={() => setReporting(existing)}>
-                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
-                    </Button>
-                  )}
-                  <Switch checked={active} onCheckedChange={(v) => togglePreset(p, v)} disabled={busy} />
-                  <span className="text-xs text-muted-foreground">{active ? "Ativa" : "Inativa"}</span>
-                </div>
-              </Card>
-            );
-          })}
-          <p className="text-xs text-muted-foreground">
-            Edite os templates usados em cada receita na aba <strong>Templates</strong>.
-            As receitas usam os slugs padrão (welcome, warmup-1, warmup-2, warmup-3, reactivation).
-          </p>
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-3">
-          <div className="flex justify-end">
-            <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" />Nova automação</Button>
-          </div>
-          {custom.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma automação personalizada</Card>
-          ) : (
-            <div className="space-y-2">
-              {custom.map((a) => (
-                <Card key={a.id} className="p-4 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{a.name}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {TRIGGERS.find((t) => t.value === a.trigger_type)?.label ?? a.trigger_type}
-                      </Badge>
-                      <Badge variant={a.active ? "default" : "secondary"} className="text-[10px]">
-                        {a.active ? "Ativa" : "Pausada"}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{a.steps?.length ?? 0} passo(s)</p>
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" />Nova automação</Button>
+        </div>
+        {custom.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma automação personalizada</Card>
+        ) : (
+          <div className="space-y-2">
+            {custom.map((a) => (
+              <Card key={a.id} className="p-4 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{a.name}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {TRIGGERS.find((t) => t.value === a.trigger_type)?.label ?? a.trigger_type}
+                    </Badge>
+                    <Badge variant={a.active ? "default" : "secondary"} className="text-[10px]">
+                      {a.active ? "Ativa" : "Pausada"}
+                    </Badge>
                   </div>
-                  <Switch checked={a.active} onCheckedChange={() => toggleActive(a)} />
-                  <Button size="sm" variant="outline" onClick={() => setReporting(a)}>
-                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditing({ ...a })}>Editar</Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(a)}><Trash2 className="h-3 w-3" /></Button>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                  <p className="text-xs text-muted-foreground">{a.steps?.length ?? 0} passo(s)</p>
+                </div>
+                <Switch checked={a.active} onCheckedChange={() => toggleActive(a)} />
+                <Button size="sm" variant="outline" onClick={() => setReporting(a)}>
+                  <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing({ ...a })}>Editar</Button>
+                <Button size="sm" variant="ghost" onClick={() => remove(a)}><Trash2 className="h-3 w-3" /></Button>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
