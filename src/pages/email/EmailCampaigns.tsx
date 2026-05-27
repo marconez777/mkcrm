@@ -289,8 +289,7 @@ export default function EmailCampaigns() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Campanhas de Email</h1>
             <p className="text-sm text-muted-foreground mt-1">Envios únicos para listas segmentadas.</p>
