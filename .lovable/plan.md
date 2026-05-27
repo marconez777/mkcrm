@@ -1,67 +1,87 @@
-# Sync completo da documentação de email campaigns
 
-Objetivo: alinhar `docs/integrations/RESEND.md`, `docs/edge-functions/EMAIL.md`, `docs/flows/EMAIL_CAMPAIGN.md` e `docs/roadmap/EMAIL_SCALE.md` com o código real (pós Tier 0/1/2/3 e R-20 A/B).
+# Plano: máxima velocidade de envio — MCD
 
-## 1. `docs/integrations/RESEND.md` — críticos
+## Diagnóstico final
 
-- **Webhook**: remover menção a `INSERT email_events` e `UPDATE email_recipients` (tabelas não existem). Substituir pelo fluxo real: dedup em `resend_webhook_events` (svix-id) → update em `email_logs` (append `events[]`, status, `delivered_at/opened_at/clicked_at/bounced_at/complained_at`) → bounce hard/complaint upserta `email_unsubscribes`.
-- **Tracking open/click**: remover claim de pixel customizado e rewrite de `<a href>` pelo `send-email`. Documentar real: `send-email` só aplica UTMs; open/click vêm do tracking nativo do Resend via webhook.
-- **Domínio não verificado**: corrigir — retorna **412** (não fallback para domínio compartilhado).
-- Atualizar "Pegadinhas" e remover sugestão de svix SDK (já é svix oficial).
+| # | Gargalo | Valor atual | Após mudança |
+|---|---|---|---|
+| 1 | Cota diária da MCD | **1.000/dia** (default) | **ilimitada** (50M) |
+| 2 | `CONCURRENCY` (envios singulares paralelos) | 2 | **5** |
+| 3 | `BATCH_PARALLELISM` (Resend Batch simultâneos) | 3 | **5** |
+| 4 | Threshold para agrupar em Batch API | ≥3 jobs | **≥2 jobs** |
+| 5 | `BATCH_SIZE` por execução do cron | 400 | **1.000** |
+| 6 | Cron interval | 10s ✅ ok | mantém |
+| 7 | Throttle por domínio destino (1.000/h Gmail etc.) | ligado | **desligado p/ MCD** |
+| 8 | Warmup do domínio | já off (tabela vazia) | mantém off ✅ |
 
-## 2. `docs/edge-functions/EMAIL.md` — alto impacto
+**Resend rate limit oficial: 5 req/s por team** (fonte: docs.resend.com/api-reference/rate-limit). Com Batch API (100 emails/req), teto = **30.000/min**. Já há retry com `Retry-After` em 429 — seguro encostar no limite.
 
-- **§3.1 `send-email` pipeline**: reescrever para refletir arquitetura atual:
-  - Idempotência via `email_send_dedup` (INSERT ON CONFLICT) — R-10
-  - Quota via RPC `claim_email_quota` (não leitura direta de `email_send_state`) — R-11
-  - Warmup de domínio (R-12) com `email_domain_warmup`
-  - Throttle por destinatário (R-13) com `email_recipient_throttle`
-- **§10 A/B test**: remover "não há A/B nativo". Documentar R-20: `email_campaign_variants`, `variant_strategy` em `email_campaigns`, função `pick_ab_winner`, colunas `winner_picked_at`/`is_winner`.
-- **§11 throughput**: corrigir `BATCH_SIZE=400`, `CONCURRENCY=2`; revisar estimativa de envios/h.
-- **Tabelas**: adicionar seção/menção a `email_send_dedup`, `email_domain_warmup`, `email_recipient_throttle`, `email_campaign_variants`, `resend_webhook_events`, `clinic_email_integrations`.
-- **`email-automations-tick`**: adicionar trigger `segment_contact_added`.
-- **Nova edge function `send-email-batch`** (Resend Batch API, R-15): documentar como caminho principal de envio de campanhas, diferenças vs `send-email` unitário.
-- **Reaper** em `process-email-queue` para jobs travados (stuck > N min).
+## Mudanças
 
-## 3. `docs/flows/EMAIL_CAMPAIGN.md`
+### 1. Cota ilimitada para a MCD (via insert tool)
 
-- Atores: adicionar `send-email-batch` como caminho principal de campanhas; `send-email` fica para automações/testes.
-- Sequência: substituir o passo 5 do `send-email` ("idempotency em email_logs") por dedup em `email_send_dedup` + quota via `claim_email_quota`.
-- Adicionar fluxo **pause/resume** (status `paused` + reaped).
-- Nota sobre snapshot de audiência: mencionar `CampaignRecipientsPreview` no frontend.
-- Aviso `email_events`/`email_recipients` já existe — manter, mas reforçar.
+```sql
+UPDATE clinics
+SET settings = jsonb_set(
+  jsonb_set(coalesce(settings,'{}'::jsonb), '{email}', coalesce(settings->'email','{}'::jsonb)),
+  '{email,quota_daily}', '50000000'::jsonb
+)
+WHERE id = '3c48b379-f084-478d-a51c-9daa41ad661a';
+```
 
-## 4. `docs/roadmap/EMAIL_SCALE.md`
+Mais um flag para desligar o throttle por destino só para a MCD:
+```sql
+UPDATE clinics
+SET settings = jsonb_set(settings, '{email,throttle_recipient_enabled}', 'false'::jsonb)
+WHERE id = '3c48b379-f084-478d-a51c-9daa41ad661a';
+```
 
-- Marcar como ✅ os itens já implementados:
-  - **R-3** self-trigger
-  - **R-4** batch INSERT em `email_queue`
-  - **R-5** dedup de webhook via `resend_webhook_events`
-  - (validar R-10 a R-15, R-20 já marcados; ajustar se faltar)
+Nada de migration — função `clinic_email_quota` já lê esse caminho.
 
-## 5. Features de UI não documentadas (adicionar em `docs/edge-functions/EMAIL.md` ou referenciar `docs/frontend/PAGES.md`)
+### 2. `supabase/functions/process-email-queue/index.ts`
 
-- `EmailCampaigns.tsx`: botão **Duplicate**, **Pause/Resume**, `from_name_override`, `CampaignLiveDialog`, `CampaignRecipientsPreview`.
-- Listar em "Frontend" ou seção dedicada de UI da campanha.
+```ts
+const BATCH_SIZE = 1000;            // ↑ de 400
+const CONCURRENCY = 5;              // ↑ de 2 (alinha com 5 req/s Resend)
+const BATCH_PARALLELISM = 5;        // ↑ de 3
+const SELF_TRIGGER_THRESHOLD = 100; // ↑ de 50 (evita re-trigger desnecessário)
+```
 
-## Detalhes técnicos
+E baixar o gate de batch:
+```ts
+if (group.length < 2) { singles.push(...group); continue; } // antes: < 3
+```
 
-- Validação pós-edit: reler cada doc atualizado e cruzar com:
-  - `supabase/functions/send-email/index.ts`
-  - `supabase/functions/send-email-batch/index.ts`
-  - `supabase/functions/process-email-queue/index.ts`
-  - `supabase/functions/resend-webhook/index.ts`
-  - `supabase/functions/email-automations-tick/index.ts`
-  - `src/pages/email/EmailCampaigns.tsx`
-- Manter formato/estilo existente dos docs (PT-BR, tabelas, blocos `text` para diagramas, "Última atualização: 2026-05-27").
-- Não tocar em `docs/roadmap/EMAIL.md` (é só sobre auth emails).
+### 3. `supabase/functions/send-email/index.ts` e `send-email-batch/index.ts`
 
-## Entregáveis
+Antes de chamar `claim_recipient_throttle`, ler o flag (já cacheado em `clinic_email_integrations`/`clinics` cache 60s) e pular se `throttle_recipient_enabled === false`. Isso elimina 1 round-trip Postgres por job para a MCD.
 
-4 arquivos editados:
-1. `docs/integrations/RESEND.md`
-2. `docs/edge-functions/EMAIL.md`
-3. `docs/flows/EMAIL_CAMPAIGN.md`
-4. `docs/roadmap/EMAIL_SCALE.md`
+### 4. Documentação
 
-Sem alterações de código de aplicação ou schema.
+Atualizar `docs/roadmap/EMAIL_SCALE.md` adicionando **Tier 4 — alto volume** com a baseline nova e a tabela de flags por clínica (`quota_daily`, `throttle_recipient_enabled`).
+
+## Resultado esperado para a MCD
+
+| Cenário | Hoje | Após mudanças |
+|---|---|---|
+| Campanha homogênea 10k (Batch API) | ~1h | **~2–4 min** |
+| Tempo para 10.000 sem warmup nem throttle | ~1h+cota estoura em 1k | **~2–4 min** |
+| 2× 10k/dia | impossível (cota 1k) | **trivial** |
+
+## Riscos
+
+- **Outras clínicas seguem em 1.000/dia e 2 req/s singular** ❌ — não, `CONCURRENCY/BATCH_PARALLELISM` são globais. Subir para 5 afeta todas, mas o teto Resend é 5 req/s mesmo, então é correto. Não há regressão para os outros clientes.
+- **Burst momentâneo > 5 req/s**: com 5 batches paralelos podemos enviar 5 req em <1s. Se bater 429, retry com backoff já tratado. Sem perda.
+- **Throttle off na MCD**: domínio já tem reputação na ferramenta anterior, você confirmou. Health check (R-16) continua ativo (pausa se bounce>5%).
+
+## Arquivos afetados
+
+- `supabase/functions/process-email-queue/index.ts` — 5 linhas (constantes + threshold)
+- `supabase/functions/send-email/index.ts` — guard no `claim_recipient_throttle`
+- `supabase/functions/send-email-batch/index.ts` — idem
+- Insert tool: 1 UPDATE em `clinics` (cota + flag)
+- `docs/roadmap/EMAIL_SCALE.md` — registrar Tier 4
+
+## Próximo passo (fora do código, depois do go-live)
+
+Abrir ticket no Resend pedindo aumento de rate limit (10–20 req/s) — "trusted sender, domain migrating with existing reputation". Quando aprovado, subir `CONCURRENCY` e `BATCH_PARALLELISM` proporcionalmente → teto vai para **~120k/min**.
