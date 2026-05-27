@@ -29,9 +29,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil, Pause, Play, Copy } from "lucide-react";
+import { Plus, Loader2, Send, Calendar, Trash2, Beaker, BarChart3, Pencil, Pause, Play, Copy, Activity } from "lucide-react";
 import { CampaignReportDialog } from "@/components/email/CampaignReportDialog";
 import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipientsPreview";
+import { CampaignLiveDialog } from "@/components/email/live/CampaignLiveDialog";
+import { LivePulseDot } from "@/components/email/live/LivePulseDot";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
@@ -62,6 +64,7 @@ export default function EmailCampaigns() {
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [reporting, setReporting] = useState<Campaign | null>(null);
+  const [liveId, setLiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -176,6 +179,7 @@ export default function EmailCampaigns() {
       });
       if (error) throw error;
       toast.success("Campanha em envio");
+      setLiveId(c.id);
       await load();
     } catch (e: any) {
       toast.error(e.message);
@@ -299,9 +303,16 @@ export default function EmailCampaigns() {
                 <TableCell className="text-right text-xs tabular-nums">{c.sent_count} / {c.total_recipients}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{c.scheduled_for ? new Date(c.scheduled_for).toLocaleString("pt-BR") : "—"}</TableCell>
                 <TableCell className="text-right space-x-1">
-                  <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
-                    <BarChart3 className="mr-1 h-3 w-3" />Relatório
-                  </Button>
+                  {c.status === "sending" ? (
+                    <Button size="sm" variant="default" onClick={() => setLiveId(c.id)}>
+                      <span className="mr-1.5"><LivePulseDot /></span>
+                      Ao vivo
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setReporting(c)}>
+                      <BarChart3 className="mr-1 h-3 w-3" />Relatório
+                    </Button>
+                  )}
                   {["draft", "scheduled"].includes(c.status) && (
                     <Button size="sm" variant="outline" onClick={() => setEditing(c)}>
                       <Pencil className="mr-1 h-3 w-3" />Editar
@@ -404,6 +415,12 @@ export default function EmailCampaigns() {
         campaign={reporting}
         open={!!reporting}
         onOpenChange={(o) => !o && setReporting(null)}
+      />
+
+      <CampaignLiveDialog
+        campaignId={liveId}
+        open={!!liveId}
+        onOpenChange={(o) => !o && setLiveId(null)}
       />
     </div>
   );

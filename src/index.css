@@ -132,3 +132,10 @@
   .kanban-grabbing { cursor: grabbing !important; user-select: none; }
   .kanban-grabbing * { cursor: grabbing !important; }
 }
+
+/* Artistic mesh spinner — fase 2 live campaign */
+@keyframes artisticMesh {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
