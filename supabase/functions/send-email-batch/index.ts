@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const body = await req.json();
-    const { clinic_id, template_slug, jobs, from_domain_override } = body ?? {};
+    const { clinic_id, template_slug, jobs, from_domain_override, idempotency_key } = body ?? {};
     if (!clinic_id || !template_slug || !Array.isArray(jobs) || jobs.length === 0) {
       return jsonResponse({ error: "missing clinic_id, template_slug or jobs[]" }, { status: 400 });
     }
