@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
+import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
 
 type Segment = { id: string; name: string };
 
@@ -61,6 +62,7 @@ export default function EmailContacts() {
   const [search, setSearch] = useState("");
   const [filterSegment, setFilterSegment] = useState<string>("__all");
   const [filterSource, setFilterSource] = useState<string>("__all");
+  const [page, setPage] = useState(0);
 
   // add manual
   const [openAdd, setOpenAdd] = useState(false);
@@ -181,6 +183,14 @@ export default function EmailContacts() {
       return true;
     });
   }, [grouped, search, filterSource, filterSegment]);
+
+  // Reset paginação quando filtros mudam
+  useEffect(() => { setPage(0); }, [search, filterSource, filterSegment]);
+
+  const paged = useMemo(
+    () => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    [filtered, page],
+  );
 
   const totals = useMemo(() => {
     const leadCount = grouped.filter((g) => g.leadId).length;
@@ -314,20 +324,20 @@ export default function EmailContacts() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Contatos</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-2xl font-bold tracking-tight">Contatos</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             {totals.total} únicos · {totals.leads} de leads · {totals.manual} inscrições manuais
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={exportCsv} className="rounded-xl"><Download className="h-4 w-4 mr-2" />Exportar CSV</Button>
 
           <Dialog open={openImport} onOpenChange={setOpenImport}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline"><Upload className="h-4 w-4 mr-2" />Importar planilha</Button>
+              <Button size="sm" variant="outline" className="rounded-xl"><Upload className="h-4 w-4 mr-2" />Importar planilha</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>Importar contatos</DialogTitle></DialogHeader>
@@ -395,7 +405,7 @@ export default function EmailContacts() {
 
           <Dialog open={openAdd} onOpenChange={setOpenAdd}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4 mr-2" />Adicionar contato</Button>
+              <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Adicionar contato</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Novo contato</DialogTitle></DialogHeader>
@@ -428,14 +438,14 @@ export default function EmailContacts() {
         </div>
       </div>
 
-      <Card className="p-3">
+      <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-3">
         <div className="flex gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Buscar por e-mail ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-8 rounded-xl" placeholder="Buscar por e-mail ou nome..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={filterSource} onValueChange={setFilterSource}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[180px] rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todas as origens</SelectItem>
               <SelectItem value="lead">Leads</SelectItem>
@@ -444,81 +454,75 @@ export default function EmailContacts() {
             </SelectContent>
           </Select>
           <Select value={filterSegment} onValueChange={setFilterSegment}>
-            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[200px] rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todos os segmentos</SelectItem>
               {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-      </Card>
+      </div>
 
       {loading ? (
         <div className="text-center text-muted-foreground py-8">Carregando...</div>
       ) : filtered.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-12 text-center text-muted-foreground">
           <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
           Nenhum contato encontrado
-        </Card>
+        </div>
       ) : (
-        <Card className="overflow-hidden">
-          <div className="max-h-[60vh] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">E-mail</th>
-                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Nome</th>
-                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Origens</th>
-                  <th className="text-left px-3 py-2 sticky top-0 z-10 bg-muted">Segmentos</th>
-                  <th className="text-right px-3 py-2 sticky top-0 z-10 bg-muted"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.slice(0, 500).map((g) => {
-                  const hasManual = g.segmentEntries.some((e) => !e.fromLead);
-                  const hasAuto = g.segmentEntries.some((e) => e.fromLead);
-                  const segNames = [...new Set(
-                    g.segmentEntries.map((e) => e.segment_name).filter(Boolean) as string[]
-                  )];
-                  return (
-                    <tr key={g.email} className="border-t">
-                      <td className="px-3 py-2 truncate max-w-[260px]">{g.email}</td>
-                      <td className="px-3 py-2 truncate max-w-[180px]">{g.name ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {g.leadId && (
-                            <Badge variant="outline" className="text-[10px]">
-                              Lead{g.formSource ? ` · ${g.formSource}` : ""}
-                            </Badge>
-                          )}
-                          {hasAuto && (
-                            <Badge variant="outline" className="text-[10px]">Auto · formulário</Badge>
-                          )}
-                          {hasManual && (
-                            <Badge variant="secondary" className="text-[10px]">Manual</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {segNames.length ? segNames.join(", ") : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <Button size="sm" variant="ghost" onClick={() => setToDelete(g)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {filtered.length > 500 && (
-            <div className="text-xs text-muted-foreground p-2 border-t text-center">
-              Exibindo 500 de {filtered.length}. Use os filtros para refinar.
-            </div>
-          )}
-        </Card>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/40 border-b border-border/40">
+                <th className="text-left px-4 py-4 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">E-mail</th>
+                <th className="text-left px-4 py-4 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Nome</th>
+                <th className="text-left px-4 py-4 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Origens</th>
+                <th className="text-left px-4 py-4 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Segmentos</th>
+                <th className="text-right px-4 py-4"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {paged.map((g) => {
+                const hasManual = g.segmentEntries.some((e) => !e.fromLead);
+                const hasAuto = g.segmentEntries.some((e) => e.fromLead);
+                const segNames = [...new Set(
+                  g.segmentEntries.map((e) => e.segment_name).filter(Boolean) as string[]
+                )];
+                return (
+                  <tr key={g.email} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-4 truncate max-w-[260px]" title={g.email}>{g.email}</td>
+                    <td className="px-4 py-4 truncate max-w-[180px]">{g.name ?? "—"}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {g.leadId && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Lead{g.formSource ? ` · ${g.formSource}` : ""}
+                          </Badge>
+                        )}
+                        {hasAuto && (
+                          <Badge variant="outline" className="text-[10px]">Auto · formulário</Badge>
+                        )}
+                        {hasManual && (
+                          <Badge variant="secondary" className="text-[10px]">Manual</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-xs text-muted-foreground">
+                      {segNames.length ? segNames.join(", ") : "—"}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <Button size="icon" variant="ghost" onClick={() => setToDelete(g)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <TablePager page={page} total={filtered.length} onPageChange={setPage} />
+        </div>
       )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
