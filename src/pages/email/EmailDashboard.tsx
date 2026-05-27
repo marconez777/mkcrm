@@ -345,9 +345,33 @@ export default function EmailDashboard() {
           <div className="text-xs text-muted-foreground">no período</div>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3 w-3" />Entregues</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" />
+            Entregues
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 cursor-help opacity-60" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
+                  Entregas confirmadas pelo provedor (Resend) via webhook
+                  <code className="mx-1">email.delivered</code>. A confirmação
+                  pode levar de segundos a horas (especialmente Outlook/Hotmail) —
+                  por isso pode haver e-mails enviados ainda aguardando confirmação.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{stats.deliveredPct}%</div>
-          <div className="text-xs text-muted-foreground">{stats.delivered} entregas</div>
+          <div className="text-xs text-muted-foreground">
+            {stats.delivered.toLocaleString("pt-BR")} confirmados
+            {stats.pendingDelivery > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {" · "}
+                {stats.pendingDelivery.toLocaleString("pt-BR")} aguardando
+              </span>
+            )}
+          </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground"><Eye className="h-3 w-3" />Abertura</div>
