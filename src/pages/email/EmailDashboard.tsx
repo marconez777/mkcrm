@@ -118,7 +118,7 @@ export default function EmailDashboard() {
     const [{ data: ls }, { data: q }, { data: state }, { data: c }] = await Promise.all([
       supabase
         .from("email_logs")
-        .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,error")
+        .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
         .gte("sent_at", since)
         .order("sent_at", { ascending: false })
         .limit(1000),
