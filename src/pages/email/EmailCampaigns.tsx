@@ -450,6 +450,7 @@ export default function EmailCampaigns() {
         open={!!liveId}
         onOpenChange={(o) => !o && setLiveId(null)}
       />
+      </div>
     </div>
   );
 }
