@@ -1,92 +1,111 @@
-# Plano: acelerar envio de campanhas (revisado com pesquisa da comunidade)
+# Fase 2 — Painel ao vivo de campanha em envio
 
-## Diagnóstico baseado em dados reais + pesquisa
+## Diagnóstico (do que existe hoje + benchmark)
 
-**Campanha real medida** (445 contatos): 6 min, ~74/min médio.
-**Meta**: 10.000 e-mails em ≤ 8–10 min, 2x/dia.
+Hoje a única visão durante o envio é o `CampaignReportDialog` estático (consultas pontuais a `email_logs`/`email_queue`, sem realtime, sem ETA, sem throughput). Status na tabela mostra só `sent_count / total_recipients`.
 
-### Conta matemática que muda tudo
-- Cron 15s → 4 ticks/min → com `BATCH_SIZE=200` o teto é **800/min** (10k em 12,5 min, no melhor cenário). Já não bate a meta.
-- **Resend NÃO é o gargalo**: limite padrão é 2 req/s. Usando Batch API (100 e-mails/call), 2 req/s = **12.000 e-mails/min** teórico. Estamos usando <10% do limite.
-- Gargalo real: (a) `UPDATE` individual por job no banco, (b) `pick_rotation_domain` RPC por destinatário no enqueue, (c) `CONCURRENCY=20` no caminho singular **viola** o rate limit de 2 req/s do Resend (cada singular é 1 req).
+A pesquisa de mercado mostrou algo interessante: **nenhuma das ferramentas líderes (Mailchimp, Klaviyo, Brevo, Resend, Customer.io, MailerLite, ActiveCampaign) faz streaming realtime de verdade durante o envio**. Todas usam polling lento (30–60s) com barra simples e a mensagem "Sending to X of Y". Como já temos `campaign_throughput` por minuto + trigger atualizando `email_campaigns` (fase 1), temos uma vantagem real — dá pra entregar uma UX bem acima do mercado.
 
-### Configuração-alvo calculada
+## O que vamos construir
+
+Uma **tela dedicada** (sheet/drawer ou rota `/email/campaigns/:id/live`) que abre automaticamente quando o usuário aperta "Enviar" e fica acessível pelo botão "Acompanhar ao vivo" enquanto a campanha está em `sending` (e somente nela). Layout dividido em 4 zonas:
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ ●pulse  Enviando agora  ·  "Black Friday 2025"     [Pausar] [×]│
+├──────────────────┬─────────────────────────────────────────────┤
+│                  │   Enviados    Falhas    Na fila    Taxa     │
+│   [Radial Ring   │   8.420↑      12       1.580       1.240/min│
+│    74% c/ conic  │                                              │
+│    gradient]     │   ETA: ~1 min 18s            Iniciada às 14:32│
+├──────────────────┴─────────────────────────────────────────────┤
+│   Throughput por minuto (últimos 15 min) — AreaChart Recharts │
+├────────────────────────────────────────────────────────────────┤
+│  ▼ Falhas recentes (12)              ▼ Domínios em rotação (3)│
+└────────────────────────────────────────────────────────────────┘
 ```
-10.000 / 40 ticks (10 min × 4 ticks/min) = 250 e-mails por tick
-→ BATCH_SIZE = 400 com 3 batches Resend paralelos (3 × 100 + sobra)
-→ 0,2 req/s consumidos (folga enorme dentro dos 2 req/s)
+
+## Componentes novos
+
+1. **`CampaignLiveDialog`** (substitui o atual ao vivo; `CampaignReportDialog` continua para campanhas já encerradas).
+   - Sheet full-height à direita (estilo Linear/Vercel) ou rota dedicada — vou usar Sheet/Dialog grande pra não quebrar fluxo.
+   - Auto-abre quando o usuário clica "Enviar" e a campanha entra em `sending`.
+
+2. **`RadialProgress`** — SVG puro (sem lib), com `stroke-dasharray` animado. Gradiente `primary → primary-glow` (do design system). Transition `cubic-bezier`. Mostra `74%` no centro.
+
+3. **`LivePulseDot`** — pontinho verde com `animate-ping` (Tailwind nativo) ao lado do título "Enviando agora".
+
+4. **`CountUp`** — hook `useCountUp(target, 600ms)` com `requestAnimationFrame` + ease-out cubic. Evita flicker do re-render do Realtime.
+
+5. **`ArtisticSpinner`** — spinner "derretente" (escolha entre 3 opções, todas CSS puro):
+   - **Opção A — Conic gradient rotativo (Stripe-like)**: mais sóbrio, ~15 linhas CSS.
+   - **Opção B — Mesh gradient morfando (Vercel-like)**: gradiente animado com `background-size: 300%`, mais "derretente".
+   - **Opção C — Blob SVG morfando (Linear-like)**: precisa framer-motion (já não usamos — adicionar 4kb).
+
+   **Default: opção B (mesh gradient)** — CSS puro, GPU-accelerated, zero JS, zero dependência nova. Fica num cantinho do header da sheet, ~32px, indica "vivo e bonito" sem distrair.
+
+6. **`ThroughputChart`** — `AreaChart` do Recharts (já instalado), lendo de `campaign_throughput` filtrado pelos últimos 15 minutos. Gradient fill, sem grid pesado, tooltip mínimo.
+
+7. **`FailuresCollapsible`** + **`DomainPoolStatus`** — listas colapsáveis (Accordion shadcn), opcionais, mostram últimos N erros e os domínios em rotação com contagem por um.
+
+## Realtime — como evitar flicker / vazamento
+
+Duas subscriptions Supabase Realtime, ambas com cleanup forte:
+
+- **`campaign_throughput` filtrada por `campaign_id`**: cada `INSERT` ou `UPDATE` adiciona/atualiza ponto no AreaChart e alimenta o cálculo de throughput.
+- **`email_campaigns` filtrada por `id`**: cada `UPDATE` atualiza `sent_count`, `failed_count`, `last_sent_at` — vai pro CountUp.
+
+Cuidados (anti-padrões da pesquisa):
+- `useRef` para acumular eventos quando vier burst (envios rápidos = vários eventos por segundo).
+- Debounce de 250ms antes de chamar `setState` em counters — `CountUp` já anima a transição, então não precisa atualizar a cada milissegundo.
+- `supabase.removeChannel` no cleanup do `useEffect`, sempre.
+- Fallback: se sem evento por > 10s, **polling de backup** a cada 5s (rede instável, Realtime caindo). Para de "pollar" no momento que o Realtime volta.
+
+## ETA — fórmula
+
+EWMA (média móvel exponencial) com α = 0.3 sobre o throughput por minuto:
+
+```text
+ewmaRate = 0.3 * taxaAtual + 0.7 * ewmaRateAnterior      // msgs/min
+remaining = total_recipients - sent_count
+etaMin = remaining / ewmaRate
 ```
 
-## Mudanças (ordenadas por impacto)
+Regras de exibição:
+- Primeiros 2 minutos: mostra `"Calculando…"` (amostra pequena = ETA instável).
+- Se `etaMin < 2`: formata em segundos (`"~45s"`).
+- Se subir > 20% vs o anterior: aplica cap visual (mostra anterior × 1.2) e ícone `↑ leve atraso`.
+- Se taxa = 0 por > 3min em status `sending`: mostra `"Aguardando próxima rajada…"` (não trava ETA).
 
-### 1. [CRÍTICO] `process-email-queue` — UPDATE em lote
-Hoje cada job dispara seu próprio `UPDATE email_queue SET status='sent'`. Para 10k = 10k roundtrips.
-- Coletar IDs ao fim do tick e fazer **um** update por status:
-  `update({status:'sent', sent_at}).in('id', sentIds)` e mesmo para failed.
-- Aplicar tanto no caminho singular quanto no batch (hoje `send-email-batch` também atualiza individualmente).
-- **Impacto esperado: -70% no tempo do tick.**
+## Onde plugar
 
-### 2. [CRÍTICO] `dispatch-campaign` — enqueue O(1) por destinatário
-- Remover `pick_rotation_domain` do loop. Carregar o pool **uma vez**, distribuir round-robin **em memória**.
-- Mantém o `INSERT` em lotes de 1000 já existente.
-- **Impacto esperado**: enfileirar 10k em <10 s (hoje provavelmente leva 1–2 min).
+- **Botão "Enviar"** no `EmailCampaigns.tsx`: após `dispatch-campaign` retornar ok, abre `CampaignLiveDialog` automaticamente.
+- **Nova coluna na tabela** de campanhas — quando `status = sending`, o botão "Relatório" vira **"Acompanhar ao vivo"** (com pulse dot verde). Para campanhas já `sent`, mantém o `CampaignReportDialog` antigo.
+- **Botão "Pausar"** já existe — agora aparece dentro da live dialog também, no header, com confirmação inline.
 
-### 3. [ALTO] Aumentar throughput por tick
-- `BATCH_SIZE`: 200 → **400**.
-- **Limitar paralelismo de batches Resend a 3** (3 × 100 = 300 e-mails por rajada). Hoje é ilimitado — pode estourar 429.
-- `CONCURRENCY` do caminho singular: 20 → **2** (cada singular = 1 req/s direto ao Resend; estamos violando o rate-limit oficial e os 429 vão de volta pra fila, derrubando throughput).
-- `SELF_TRIGGER_THRESHOLD`: 150 → **50** (re-invoca cedo, drena sem esperar próximo cron).
+## Performance — o que vai e o que não vai
 
-### 4. [ALTO] Idempotency keys no Batch API
-- Recomendação oficial do Resend para campanhas. Passar `idempotency_key: campaign-<id>-chunk-<n>` evita duplicatas em retries sem custo extra de quota.
+- Spinner mesh gradient: `background-position` animado = GPU compositor only, ~0% CPU. ✅
+- CountUp via `requestAnimationFrame`: pausa quando aba em background. ✅
+- Recharts AreaChart com no máximo 15 pontos (15 minutos): leve. ✅
+- Realtime com filtro `eq.campaign_id`: só recebe eventos da campanha aberta. ✅
+- Sem WebGL, sem Lottie pesado, sem framer-motion nova (mesh gradient cobre o "derretente").
 
-### 5. [ALTO] Backoff exponencial em 429
-- Hoje o handler já respeita `Retry-After`, mas não tem jitter. Adicionar `+ Math.random() * 200ms` evita "trovejada" quando vários ticks batem no rate-limit ao mesmo tempo.
+## Fora deste plano (registro)
 
-### 6. [MÉDIO] Cron mais agressivo
-- `process-email-queue-every-minute`: 15 s → **10 s**.
-- Combinado com self-trigger e batch maior, drena 10k em ~30–40 ticks.
-
-### 7. [MÉDIO] Counters reais por trigger (base do painel)
-- Trigger no `email_queue` que, em transição `pending → sent | failed`, faz `UPDATE email_campaigns SET sent_count = sent_count + 1`, lendo o `campaign_id` de `related_lead_table = 'campaign_<id>'`.
-- Nova coluna `email_campaigns.last_sent_at` (atualizada pelo mesmo trigger).
-- Tabela leve `campaign_throughput(campaign_id, minute, sent, failed)` para o gráfico ao vivo da fase 2.
-- Backfill one-shot dos contadores das campanhas já enviadas.
-
-## Importante: conta nova de 10k contatos
-
-A pesquisa foi unânime no warm-up. Mandar 10k no dia 1 de um domínio/conta nova **queima a reputação imediatamente** (Gmail/Yahoo bloqueiam, hard bounces >5% derrubam o domínio).
-
-**Schedule recomendado para a conta nova** (a apresentar no painel ou na criação da campanha):
-| Semana | Volume/dia | Quem |
-|---|---|---|
-| 1 | 200 → 2.000 | mais engajados |
-| 2 | 2.000 → 10.000 | engajados últimos 30d |
-| 3+ | 10.000 cheio | lista completa |
-
-Thresholds a vigiar: bounce <3%, complaints <0,1%, unsubscribes <0,5%.
-
-→ **Sugestão (não implementada agora, só registro)**: campo `warm_up_mode` em `email_campaigns` que limita `enqueued_count` ao teto do dia atual. Posso adicionar numa próxima rodada se quiser.
-
-Plano do Resend para 20k/dia: **Scale + Dedicated IP** (~$90/mês + add-on). Em IP compartilhado, o risco de "vizinho tóxico" é real em volume alto.
-
-## Fora deste plano (decisão consciente)
-
-- **Migrar para pgmq** (extensão nativa do Postgres com `SKIP LOCKED`, DLQ, visibility timeout). Pesquisa recomenda fortemente. Mas é refactor grande do `email_queue` + de tudo que enfileira (sequences, automations, transacionais). Vou propor numa segunda fase se os 6 itens acima não chegarem na meta.
-- **AWS SES como provedor alternativo** (10× mais barato, rate 100 msg/s vs 2 req/s do Resend). Só vale a pena acima de ~500k/mês.
-- **Redesenho do painel ao vivo** (barra de progresso, ETA, lista de falhas, realtime subscription). Depende dos counters/throughput do item 7 estarem populando — fase seguinte.
+- **Mapa geográfico de envio**: não temos dados de localização. Skip.
+- **Log stream estilo GitHub Actions** com cada e-mail individual: pesado em campanhas de 10k e duplica o `EmailQueue`. Skip — já existe a página dedicada `/email/queue`.
+- **Notificação browser push** quando campanha terminar: extra de fase 3 se virar pedido.
+- **A/B variant compare ao vivo** (sent_count por variante): bonito mas precisa segmentar `campaign_throughput` por `variant_id` (mudança de schema). Fica para depois.
 
 ## Validação após implementar
 
-1. Disparar a próxima campanha real (idealmente em segmento menor, ~500 contatos) e medir início → último `sent_at`. Meta: <40 s.
-2. Conferir `campaign_throughput` por minuto — deve ficar **estável** (sem vales como o 14/min do fim da última campanha).
-3. `email_campaigns.sent_count` deve bater com `count(*)` em `email_queue status='sent'` em tempo real.
-4. Logs do `process-email-queue`: **zero** `429 Retry-After`.
-5. Quando estiver estável em 500 contatos, escalar para 5k e depois 10k.
+1. Disparar campanha de teste (~500 contatos) → live dialog abre sozinha, ring sobe suave, CountUp sem flicker, ETA converge.
+2. Cortar Wi-Fi 10s → polling fallback assume; ao voltar, Realtime retoma sem duplicar eventos.
+3. Pausar pelo botão → status muda em < 1s, dot pulsante para de pulsar, banner "Pausada" aparece.
+4. Fechar a sheet e reabrir → reconstrói o gráfico dos últimos 15 min direto do banco; ETA recalcula.
+5. Lighthouse na tela: spinner não estoura `Total Blocking Time`; AreaChart abaixo de 16ms de paint.
 
-## Fontes da pesquisa
-- Resend rate limits oficiais: https://resend.com/changelog/api-rate-limit, https://resend.com/docs/api-reference/rate-limit
-- Padrão Promise.all + batch: https://dev.to/dalenguyen/mastering-email-rate-limits-a-deep-dive-into-resend-api-and-cloud-run-debugging-3973
-- Supabase Edge Functions + Cron + Queues: https://supabase.com/blog/processing-large-jobs-with-edge-functions
-- Warm-up schedule: https://mailflowauthority.com/email-infrastructure/ip-warming-schedule
-- Postgres SKIP LOCKED para filas (justificativa do pgmq): https://prequel.co/blog/sql-maxis-why-we-ditched-rabbitmq-and-replaced-it-with-a-postgres-queue
+## Decisão pendente (única)
+
+**Qual spinner usar?** Default proposto é o mesh gradient (B). Posso seguir com ele direto ou, se preferir, te mostro as 3 opções renderizadas pra escolher antes. Quer escolher ou pode ir no default?
