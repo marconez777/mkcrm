@@ -35,6 +35,7 @@ import { CampaignRecipientsPreview } from "@/components/email/CampaignRecipients
 import { CampaignLiveDialog } from "@/components/email/live/CampaignLiveDialog";
 import { LivePulseDot } from "@/components/email/live/LivePulseDot";
 import { StatusBadge } from "@/components/email/StatusBadge";
+import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Campaign = {
@@ -67,16 +68,25 @@ export default function EmailCampaigns() {
   const [reporting, setReporting] = useState<Campaign | null>(null);
   const [liveId, setLiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
 
   async function load() {
     if (!clinicId) return;
-    const [{ data: cs }, { data: ts }, { data: ss }] = await Promise.all([
-      supabase.from("email_campaigns").select("*").order("created_at", { ascending: false }),
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const [{ data: cs, count }, { data: ts }, { data: ss }] = await Promise.all([
+      supabase
+        .from("email_campaigns")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to),
       supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
       supabase.from("email_segments").select("id,name").order("name"),
     ]);
     const campaigns = (cs ?? []) as Campaign[];
-    // Conta sent/failed reais a partir de email_logs e email_queue por campanha
+    setTotal(count ?? 0);
+    // Conta sent/failed reais a partir de email_logs e email_queue por campanha (somente página atual)
     const ids = campaigns.map((c) => `campaign_${c.id}`);
     if (ids.length > 0) {
       const [{ data: logs }, { data: queue }] = await Promise.all([
@@ -108,7 +118,7 @@ export default function EmailCampaigns() {
   }
 
 
-  useEffect(() => { if (clinicId) load(); }, [clinicId]);
+  useEffect(() => { if (clinicId) load(); }, [clinicId, page]);
   useEffect(() => { document.title = "Email — Campanhas"; }, []);
 
   function startCreate() {
