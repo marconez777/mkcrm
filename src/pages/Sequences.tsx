@@ -344,7 +344,7 @@ export default function Sequences() {
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-semibold">Passo {idx + 1}</span>
-                      <Badge variant="outline">{minutesToHuman(s.delay_minutes)}{idx > 0 ? " após anterior" : ""}</Badge>
+                      <Badge variant="outline">{Math.round(s.delay_minutes / 1440)} dia(s){idx > 0 ? " após anterior" : ""}</Badge>
                       <div className="ml-auto flex gap-1">
                         <Button variant="ghost" size="sm" onClick={() => moveStep(idx, -1)} disabled={idx === 0}><ArrowUp className="h-3 w-3" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => moveStep(idx, 1)} disabled={idx === steps.length - 1}><ArrowDown className="h-3 w-3" /></Button>
@@ -353,10 +353,14 @@ export default function Sequences() {
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label>Atraso</Label>
-                        <Input type="number" min="0" value={s.delay_minutes}
-                          onChange={(e) => updateStep(s.id, { delay_minutes: Number(e.target.value) })} />
+                        <Label>Atraso (dias)</Label>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" min="0" value={Math.round(s.delay_minutes / 1440)}
+                            onChange={(e) => updateStep(s.id, { delay_minutes: Number(e.target.value) * 1440 })} />
+                          <span className="text-xs text-muted-foreground">dias</span>
+                        </div>
                       </div>
+
                       <div className="col-span-2">
                         <Label>Template (opcional — sobrescreve texto livre)</Label>
                         <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
