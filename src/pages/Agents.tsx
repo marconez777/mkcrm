@@ -238,10 +238,10 @@ export default function Agents() {
     const d = data as any;
     toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
     setBatchUrls("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const ingestUrl = async () => {
