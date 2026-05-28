@@ -74,16 +74,18 @@ export default function AiInsights() {
     const agentIds = [...new Set(ins.map((m) => m.agent_id).filter(Boolean) as string[])];
     const leadIds = [...new Set(ins.map((m) => m.lead_id).filter(Boolean) as string[])];
 
-    const [{ data: ag }, { data: ld }] = await Promise.all([
-      agentIds.length
-        ? supabase.from("ai_agents").select("id,name").in("id", agentIds)
-        : Promise.resolve({ data: [] as Agent[] }),
-      leadIds.length
-        ? supabase.from("leads").select("id,name,phone").in("id", leadIds)
-        : Promise.resolve({ data: [] as Lead[] }),
+    const [ag, ld] = await Promise.all([
+      fetchAllByIn<any>(
+        (slice) => supabase.from("ai_agents").select("id,name").in("id", slice),
+        agentIds,
+      ),
+      fetchAllByIn<any>(
+        (slice) => supabase.from("leads").select("id,name,phone").in("id", slice),
+        leadIds,
+      ),
     ]);
-    setAgents(Object.fromEntries((ag || []).map((a: any) => [a.id, a])));
-    setLeads(Object.fromEntries((ld || []).map((l: any) => [l.id, l])));
+    setAgents(Object.fromEntries(ag.map((a: any) => [a.id, a])));
+    setLeads(Object.fromEntries(ld.map((l: any) => [l.id, l])));
     setLoading(false);
   }
 
