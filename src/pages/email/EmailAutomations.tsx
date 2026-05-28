@@ -67,14 +67,14 @@ export default function EmailAutomations() {
 
   async function load() {
     if (!clinicId) return;
-    const [{ data: a }, { data: t }, { data: s }] = await Promise.all([
-      supabase.from("email_automations").select("*").order("created_at", { ascending: false }),
-      supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
-      supabase.from("email_segments").select("id,name").eq("clinic_id", clinicId).order("name"),
+    const [a, t, s] = await Promise.all([
+      fetchAllPaged<any>(() => supabase.from("email_automations").select("*").order("created_at", { ascending: false })),
+      fetchAllPaged<any>(() => supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name")),
+      fetchAllPaged<any>(() => supabase.from("email_segments").select("id,name").eq("clinic_id", clinicId).order("name")),
     ]);
-    setItems((a ?? []) as any);
-    setTemplates((t ?? []) as any);
-    setSegments((s ?? []) as any);
+    setItems(a as any);
+    setTemplates(t as any);
+    setSegments(s as any);
   }
 
   useEffect(() => { if (clinicId) load(); }, [clinicId]);
