@@ -90,8 +90,8 @@ function McpServersPanel({ agentId }: { agentId: string }) {
   const [servers, setServers] = useState<any[]>([]);
   const [name, setName] = useState(""); const [url, setUrl] = useState("");
   const load = async () => {
-    const { data } = await supabase.from("agent_mcp_servers").select("*").eq("agent_id", agentId);
-    setServers(data ?? []);
+    const { data } = await supabase.rpc("admin_list_agent_mcp_servers", { _agent_id: agentId });
+    setServers((data as any[]) ?? []);
   };
   useEffect(() => { load(); }, [agentId]);
   const add = async () => {
@@ -266,8 +266,10 @@ export default function Agents() {
   const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key";
 
   const load = async () => {
-    const data = await fetchAllPaged<any>(() => supabase.from("ai_agents").select(AGENT_COLS).order("created_at"));
-    setAgents(data as any);
+    // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
+    const { data, error } = await supabase.rpc("admin_list_ai_agents");
+    if (error) { toast.error(error.message); return; }
+    setAgents((data as any) ?? []);
   };
   useEffect(() => { load(); }, []);
 
@@ -288,11 +290,13 @@ export default function Agents() {
         name: "Novo agente",
         system_prompt: "Você é um atendente prestativo. Responda em português.",
       })
-      .select(AGENT_COLS)
+      .select("id")
       .single();
     if (error) return toast.error(error.message);
     await load();
-    setSelected(data as any);
+    // Recarrega via RPC admin (inclui colunas sensíveis)
+    const { data: full } = await supabase.rpc("admin_get_ai_agent", { _id: (data as any).id });
+    setSelected(((full as any) ?? [])[0] ?? null);
   };
 
   const save = async () => {
