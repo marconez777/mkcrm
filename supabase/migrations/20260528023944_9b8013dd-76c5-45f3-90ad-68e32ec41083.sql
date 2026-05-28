@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS esc_clinic_created_idx ON public.email_segment_contacts (clinic_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS leads_clinic_created_email_idx ON public.leads (clinic_id, created_at DESC) WHERE email IS NOT NULL AND email <> '';
