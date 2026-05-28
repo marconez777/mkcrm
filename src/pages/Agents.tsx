@@ -290,11 +290,13 @@ export default function Agents() {
         name: "Novo agente",
         system_prompt: "Você é um atendente prestativo. Responda em português.",
       })
-      .select(AGENT_COLS)
+      .select("id")
       .single();
     if (error) return toast.error(error.message);
     await load();
-    setSelected(data as any);
+    // Recarrega via RPC admin (inclui colunas sensíveis)
+    const { data: full } = await supabase.rpc("admin_get_ai_agent", { _id: (data as any).id });
+    setSelected(((full as any) ?? [])[0] ?? null);
   };
 
   const save = async () => {
