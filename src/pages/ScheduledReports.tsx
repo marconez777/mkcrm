@@ -52,14 +52,14 @@ export default function ScheduledReports() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [{ data: r }, { data: ins }] = await Promise.all([
-      supabase.from("scheduled_reports").select("*").order("created_at"),
+    const [r, { data: ins }] = await Promise.all([
+      fetchAllPaged<any>(() => supabase.from("scheduled_reports").select("*").order("created_at")),
       supabase.from("whatsapp_instances").select("id, name, is_default").order("name"),
     ]);
-    setList((r ?? []) as any);
+    setList(r as any);
     setInstances(ins ?? []);
     if (selected) {
-      const updated = (r ?? []).find((x: any) => x.id === selected.id);
+      const updated = r.find((x: any) => x.id === selected.id);
       if (updated) setSelected(updated as any);
     }
   };
