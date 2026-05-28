@@ -559,12 +559,13 @@ async function fetchLeads(args: {
 
   if (bucket === "enrolled") {
     if (!automationId) return [];
-    const { data } = await supabase
-      .from("email_automation_enrollments")
-      .select("lead_id, recipient_email, enrolled_at")
-      .eq("automation_id", automationId)
-      .order("enrolled_at", { ascending: false })
-      .limit(2000);
+    const data = await fetchAllPaged<any>(() =>
+      supabase
+        .from("email_automation_enrollments")
+        .select("lead_id, recipient_email, enrolled_at")
+        .eq("automation_id", automationId)
+        .order("enrolled_at", { ascending: false })
+    );
     const leadIds = (data ?? []).map((r: any) => r.lead_id).filter(Boolean);
     const names = await fetchLeadNames(leadIds);
     return (data ?? []).map((r: any) => ({
@@ -578,17 +579,20 @@ async function fetchLeads(args: {
 
   if (bucket === "all") {
     // Union queue (pending/failed) + logs — usado por campanhas pra mostrar todos os destinatários
-    const qReq = supabase
-      .from("email_queue")
-      .select("related_lead_id, recipient_email, recipient_name, scheduled_at, status, error")
-      .eq("related_lead_table", relatedTable)
-      .limit(5000);
-    const lReq = supabase
-      .from("email_logs")
-      .select("related_lead_id, recipient_email, sent_at, status")
-      .eq("related_lead_table", relatedTable)
-      .limit(5000);
-    const [{ data: qRows }, { data: lRows }] = await Promise.all([qReq, lReq]);
+    const [qRows, lRows] = await Promise.all([
+      fetchAllPaged<any>(() =>
+        supabase
+          .from("email_queue")
+          .select("related_lead_id, recipient_email, recipient_name, scheduled_at, status, error")
+          .eq("related_lead_table", relatedTable)
+      ),
+      fetchAllPaged<any>(() =>
+        supabase
+          .from("email_logs")
+          .select("related_lead_id, recipient_email, sent_at, status")
+          .eq("related_lead_table", relatedTable)
+      ),
+    ]);
     const nameByEmail = new Map<string, string>();
     const byEmail = new Map<string, any>();
     for (const r of (qRows ?? []) as any[]) {
