@@ -361,10 +361,10 @@ export default function Agents() {
     }
     toast.success(`Documento ingerido (${(data as any)?.chunks} chunks)`);
     setDocTitle(""); setDocContent("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const removeDoc = async (id: string) => {
