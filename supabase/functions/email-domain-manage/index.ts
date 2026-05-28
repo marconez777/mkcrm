@@ -76,6 +76,54 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === "import") {
+      // Importa domínio que já existe no Resend (criado fora da ferramenta).
+      if (!clinic_id || !domain) return jsonResponse({ error: "missing clinic_id or domain" }, { status: 400 });
+      const cleanDomain = String(domain).toLowerCase().trim();
+      const RESEND_API_KEY = await resolveResendKey(admin, clinic_id, null);
+      if (!RESEND_API_KEY) return jsonResponse({ error: "Resend API key not configured for this clinic" }, { status: 503 });
+
+      const listResp = await fetch(`${RESEND_BASE}/domains`, {
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+      });
+      const listJson = await listResp.json().catch(() => ({}));
+      if (!listResp.ok) return jsonResponse({ error: listJson?.message || "Resend list failed", resend: listJson }, { status: 502 });
+      const items: any[] = Array.isArray(listJson?.data) ? listJson.data : Array.isArray(listJson) ? listJson : [];
+      const found = items.find((x: any) => String(x?.name ?? "").toLowerCase() === cleanDomain);
+      if (!found?.id) return jsonResponse({ error: `Domínio '${cleanDomain}' não encontrado no Resend desta clínica` }, { status: 404 });
+
+      await fetch(`${RESEND_BASE}/domains/${found.id}/verify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+      }).catch(() => {});
+      const detailResp = await fetch(`${RESEND_BASE}/domains/${found.id}`, {
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+      });
+      const detail = await detailResp.json().catch(() => ({}));
+      const status = detail?.status ?? found?.status ?? "pending";
+      const dnsRecords = detail?.records ?? found?.records ?? [];
+      const regionVal = detail?.region ?? found?.region ?? region;
+
+      const { data: row, error } = await admin
+        .from("email_domains")
+        .upsert(
+          {
+            clinic_id,
+            domain: cleanDomain,
+            resend_domain_id: found.id,
+            status,
+            region: regionVal,
+            dns_records: dnsRecords,
+            last_checked_at: new Date().toISOString(),
+          },
+          { onConflict: "clinic_id,domain" },
+        )
+        .select()
+        .single();
+      if (error) return jsonResponse({ error: error.message }, { status: 500 });
+      return jsonResponse({ ok: true, domain: row });
+    }
+
     if (action === "create") {
       if (!clinic_id || !domain) return jsonResponse({ error: "missing clinic_id or domain" }, { status: 400 });
       const cleanDomain = String(domain).toLowerCase().trim();
