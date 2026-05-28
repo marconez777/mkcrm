@@ -551,27 +551,40 @@ export default function EmailSegments() {
                           onChange={(e) => setContactSearch(e.target.value)}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <button
-                          type="button"
-                          className="text-primary hover:underline"
-                          onClick={() => {
-                            const visible = availableContacts.filter((c) => {
+                      <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="text-primary hover:underline"
+                            onClick={() => {
                               const q = contactSearch.trim().toLowerCase();
-                              if (!q) return true;
-                              return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
-                            });
-                            const allSelected = visible.every((c) => selectedContactIds.has(c.id));
-                            setSelectedContactIds((prev) => {
-                              const next = new Set(prev);
-                              if (allSelected) visible.forEach((c) => next.delete(c.id));
-                              else visible.forEach((c) => next.add(c.id));
-                              return next;
-                            });
-                          }}
-                        >
-                          Selecionar/desmarcar todos (visíveis)
-                        </button>
+                              const matches = availableContacts.filter((c) => {
+                                if (!q) return true;
+                                return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                              });
+                              const allSelected = matches.length > 0 && matches.every((c) => selectedContactIds.has(c.id));
+                              setSelectedContactIds((prev) => {
+                                const next = new Set(prev);
+                                if (allSelected) matches.forEach((c) => next.delete(c.id));
+                                else matches.forEach((c) => next.add(c.id));
+                                return next;
+                              });
+                            }}
+                          >
+                            {contactSearch.trim()
+                              ? "Selecionar/desmarcar todos (do filtro)"
+                              : "Selecionar/desmarcar todos"}
+                          </button>
+                          {selectedContactIds.size > 0 && (
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:underline"
+                              onClick={() => setSelectedContactIds(new Set())}
+                            >
+                              Limpar seleção
+                            </button>
+                          )}
+                        </div>
                         <Link to="/email/contacts" className="text-muted-foreground hover:underline">
                           Gerenciar contatos →
                         </Link>
