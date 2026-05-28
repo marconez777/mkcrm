@@ -197,7 +197,13 @@ export function CampaignReportDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto relative">
+          {loading && loadProgress && loadProgress.total > 500 && (
+            <LoadingRadialOverlay
+              value={(loadProgress.loaded / loadProgress.total) * 100}
+              caption={`${loadProgress.loaded.toLocaleString("pt-BR")} de ${loadProgress.total.toLocaleString("pt-BR")} registros`}
+            />
+          )}
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
