@@ -156,12 +156,17 @@ export default function EmailSegments() {
           .eq("segment_id", s.id);
         next[s.id] = count ?? 0;
       } else {
-        // dinâmico: usa RPC, mas força range alto para escapar do default 1000
-        const { data } = await supabase
-          .rpc("resolve_email_segment", { _segment_id: s.id })
-          .range(0, 99999);
+        // dinâmico: pagina a RPC para escapar do default 1000
         const set = new Set<string>();
-        (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+        const PAGE = 1000;
+        for (let offset = 0; offset < 200_000; offset += PAGE) {
+          const { data } = await supabase
+            .rpc("resolve_email_segment", { _segment_id: s.id })
+            .range(offset, offset + PAGE - 1);
+          const rows = (data as any[]) ?? [];
+          rows.forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+          if (rows.length < PAGE) break;
+        }
         next[s.id] = set.size;
       }
     }));
