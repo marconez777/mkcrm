@@ -1,36 +1,29 @@
-## Objetivo
+## O que muda
 
-Adicionar dois novos gatilhos para Sequências:
-1. **"Lead entra em um pipeline"** — dispara quando o lead é movido (ou criado) em qualquer coluna de um pipeline específico.
-2. **"Lead movido para coluna"** — já existe; vou ampliá-lo para também disparar quando o lead for **criado** já naquela coluna (hoje só dispara no UPDATE).
+Hoje a sequência de WhatsApp já tem o campo `enabled`, mas o toggle está escondido dentro da aba **Configuração** e só é salvo ao clicar em "Salvar". Vou trazer a mesma experiência das **Automações de Email**: um interruptor visível direto na lista lateral, com badge **Ativa / Pausada**, que persiste na hora.
 
-## Migration (banco)
+## UI (`src/pages/Sequences.tsx`)
 
-1. Relaxar o CHECK de `message_sequences.trigger_type` para incluir `'pipeline_enter'`.
-2. Recriar `enroll_lead_on_stage_change()`:
-   - Disparar tanto em INSERT quanto em UPDATE de `leads`.
-   - No INSERT: tratar como "entrou no stage atual" e "entrou no pipeline atual".
-   - No UPDATE: disparar quando `stage_id` mudar **ou** quando o `pipeline_id` (derivado do novo stage) mudar.
-   - Em cada caso, inscrever em sequências:
-     - `trigger_type='stage_enter'` cujo `trigger_config->>'stage_id' = NEW.stage_id`
-     - `trigger_type='pipeline_enter'` cujo `trigger_config->>'pipeline_id' = pipeline do NEW.stage_id`
-   - Manter cooldown e `source` registrando qual gatilho/origem.
-3. Recriar o trigger em `leads`:
-   ```sql
-   DROP TRIGGER trg_enroll_on_stage_change ON public.leads;
-   CREATE TRIGGER trg_enroll_on_stage_change
-     AFTER INSERT OR UPDATE OF stage_id ON public.leads
-     FOR EACH ROW EXECUTE FUNCTION public.enroll_lead_on_stage_change();
-   ```
+1. **Sidebar (lista de sequências)** — em cada item adicionar:
+   - Badge `Ativa` (default) ou `Pausada` (secondary) ao lado do nome
+   - `<Switch>` que chama um novo `toggleEnabled(seq)` — faz `UPDATE message_sequences SET enabled = !enabled` imediatamente, atualiza o estado local e mostra toast ("Sequência ativada/pausada"). Não exige clicar em Salvar.
+   - Remover o badge `off` atual (substituído pelos novos)
+   - Usar `e.stopPropagation()` no Switch para não selecionar o item ao alternar
+2. **Aba Configuração** — manter o Switch "Sequência ativa" como está (continua funcionando via Salvar), para consistência com o resto do formulário.
 
-## UI — `src/pages/Sequences.tsx`
+## Verificação de disparo
 
-1. Adicionar `pipeline_enter` ao type `trigger_type` e à lista `TRIGGERS` com label "Lead entra em um pipeline".
-2. Carregar `pipelines` no `load()` (`supabase.from("pipelines").select("id, name").order("position")`).
-3. Render condicional quando `trigger_type === "pipeline_enter"`: dropdown com pipelines salvando em `trigger_config.pipeline_id`.
-4. Ajustar copy/help text do `stage_enter` para deixar claro que também vale para leads recém-criados naquela coluna.
+O backend já respeita `enabled`:
+- `enroll_lead_on_stage_change()` (trigger no `leads`) filtra `WHERE enabled = true` — então ativar/desativar passa a valer para os próximos INSERT/UPDATE de leads imediatamente.
+- `sequence-trigger` (webhook) retorna 403 se `enabled = false`.
+- `sequence-tick` (scheduler dos passos) pula enrollments cuja sequência foi desativada.
 
-## Fora de escopo
+Depois de implementar, vou:
+1. Ler uma sequência de teste no banco para confirmar que o toggle gravou `enabled = true`.
+2. Inspecionar o trigger DB já existente (sem alterar) para reconfirmar o filtro `enabled = true` na enumeração de sequências candidatas.
+3. Pedir para você mover/criar um lead na coluna gatilho e abrir a aba **Inscritos** para validar a entrada do enrollment.
 
-- Sem mudanças no scheduler/edge functions (a inscrição via DB trigger já é processada normalmente).
-- Sem mudanças no editor de passos (atraso em dias já feito antes).
+## Fora do escopo
+
+- Nenhuma alteração em edge functions, migrações ou triggers do banco.
+- Nenhuma mudança na aba Mensagens / passos.
