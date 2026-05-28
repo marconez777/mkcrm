@@ -300,7 +300,8 @@ export default function EmailContacts() {
     if (!mapEmail) return toast.error("Mapeie a coluna de e-mail");
     setImporting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       const seen = new Set<string>();
       const rows = importRows
         .map((r) => ({
