@@ -428,7 +428,14 @@ export default function EmailSegments() {
           <DialogTrigger asChild>
             <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto relative">
+            {saving && saveProgress && saveProgress.total > 100 && (
+              <LoadingRadialOverlay
+                value={(saveProgress.loaded / saveProgress.total) * 100}
+                label="Salvando"
+                caption={`${saveProgress.loaded.toLocaleString("pt-BR")} de ${saveProgress.total.toLocaleString("pt-BR")} contatos`}
+              />
+            )}
             <DialogHeader><DialogTitle>{editing ? "Editar segmento" : "Novo segmento"}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
