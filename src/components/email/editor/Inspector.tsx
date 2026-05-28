@@ -21,8 +21,17 @@ function AvatarUpload({ value, onChange }: { value: string; onChange: (url: stri
     if (!file) return;
     setBusy(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+      const { data: cm } = await supabase
+        .from("clinic_members")
+        .select("clinic_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (!cm?.clinic_id) throw new Error("Clínica não encontrada");
       const ext = file.name.split(".").pop() || "png";
-      const path = `signatures/${crypto.randomUUID()}.${ext}`;
+      const path = `${cm.clinic_id}/signatures/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from("email-assets").upload(path, file, { upsert: false, contentType: file.type });
       if (error) throw error;
       const { data } = supabase.storage.from("email-assets").getPublicUrl(path);
