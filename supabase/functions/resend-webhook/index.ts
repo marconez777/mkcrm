@@ -78,12 +78,8 @@ Deno.serve(async (req) => {
       case "email.bounced":
         update.status = "bounced";
         update.bounced_at = eventTs;
-        if (event.data?.bounce?.type === "hard" || event.data?.bounce?.type === "Permanent") {
-          await supabase.from("email_unsubscribes").upsert(
-            { clinic_id: log.clinic_id, email: log.recipient_email, reason: "bounce", source: "resend-webhook" },
-            { onConflict: "clinic_id,email" },
-          );
-        }
+        // Supressão (insert em email_unsubscribes + remoção de email_segment_contacts)
+        // é feita automaticamente pelo trigger trg_email_logs_suppress_on_bounce.
         break;
       case "email.complained":
         update.status = "complained";
