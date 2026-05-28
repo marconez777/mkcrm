@@ -611,10 +611,11 @@ export function AutomationLeadsSheet({
 async function fetchLeads(args: {
   automationId: string | null;
   relatedTable: string;
+  enrolledLeadIds?: string[];
   bucket: Bucket;
   stepSlug?: string;
 }): Promise<LeadRow[]> {
-  const { automationId, relatedTable, bucket, stepSlug } = args;
+  const { automationId, relatedTable, enrolledLeadIds = [], bucket, stepSlug } = args;
 
   if (bucket === "enrolled") {
     if (!automationId) return [];
