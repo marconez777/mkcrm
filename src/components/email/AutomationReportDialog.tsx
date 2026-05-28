@@ -110,30 +110,31 @@ export function AutomationReportDialog({
     if (!automationId || !relatedTable) return;
     setLoading(true);
     try {
-      const [{ count: enrolled }, { data: logsRows }, { data: queueRows }] =
-        await Promise.all([
-          supabase
-            .from("email_automation_enrollments")
-            .select("*", { count: "exact", head: true })
-            .eq("automation_id", automationId),
+      const [{ count: enrolled }, logsRows, queueRows] = await Promise.all([
+        supabase
+          .from("email_automation_enrollments")
+          .select("*", { count: "exact", head: true })
+          .eq("automation_id", automationId),
+        fetchAllPaged<any>(() =>
           supabase
             .from("email_logs")
             .select(
               "template_slug,status,opened_at,clicked_at,bounced_at,complained_at,related_lead_id,recipient_email,sent_at"
             )
             .eq("related_lead_table", relatedTable)
-            .limit(10000),
+        ),
+        fetchAllPaged<any>(() =>
           supabase
             .from("email_queue")
             .select(
               "template_slug,status,related_lead_id,recipient_email,scheduled_at,error"
             )
             .eq("related_lead_table", relatedTable)
-            .limit(10000),
-        ]);
+        ),
+      ]);
       setEnrolledCount(enrolled ?? 0);
-      setLogs((logsRows ?? []) as any);
-      setQueue((queueRows ?? []) as any);
+      setLogs(logsRows as any);
+      setQueue(queueRows as any);
     } finally {
       setLoading(false);
     }
