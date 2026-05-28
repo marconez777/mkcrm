@@ -349,20 +349,27 @@ export default function EmailTemplateEditor() {
           />
         </div>
         <div>
-          <Label className="text-[10px] uppercase">Remetente</Label>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase">Remetente</Label>
+            {(!tpl.from_email || !tpl.from_email.includes("@")) && (
+              <span className="text-[9px] uppercase font-medium rounded px-1.5 py-0.5 bg-yellow-500/15 text-yellow-700 dark:text-yellow-400">
+                Configurar antes de enviar
+              </span>
+            )}
+          </div>
           <div className="flex gap-1 mt-1">
             <Input
               className="h-7 flex-1"
-              value={tpl.from_email.split("@")[0] ?? ""}
+              value={(tpl.from_email || "").split("@")[0] ?? ""}
               onChange={(e) => {
-                const dom = tpl.from_email.split("@")[1] ?? domains[0]?.domain ?? "";
-                setTpl({ ...tpl, from_email: `${e.target.value}@${dom}` });
+                const dom = (tpl.from_email || "").split("@")[1] ?? domains[0]?.domain ?? "";
+                setTpl({ ...tpl, from_email: dom ? `${e.target.value}@${dom}` : e.target.value });
               }}
               placeholder="contato"
             />
             <Select
-              value={tpl.from_email.split("@")[1] ?? domains[0]?.domain}
-              onValueChange={(v) => setTpl({ ...tpl, from_email: `${tpl.from_email.split("@")[0] || "contato"}@${v}` })}
+              value={(tpl.from_email || "").split("@")[1] ?? domains[0]?.domain ?? ""}
+              onValueChange={(v) => setTpl({ ...tpl, from_email: `${(tpl.from_email || "").split("@")[0] || "contato"}@${v}` })}
             >
               <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="@domínio" /></SelectTrigger>
               <SelectContent>
