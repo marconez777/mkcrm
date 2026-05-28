@@ -236,7 +236,8 @@ export default function EmailContacts() {
     const email = addEmail.trim().toLowerCase();
     if (!/.+@.+\..+/.test(email)) return toast.error("E-mail inválido");
     if (!clinicId) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     const { error } = await supabase.from("email_segment_contacts").insert({
       clinic_id: clinicId,
       segment_id: addSegment && addSegment !== "__none" ? addSegment : null,
