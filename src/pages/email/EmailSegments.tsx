@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Eye, Loader2, X, Users, Filter, Mail, Check, Search } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { fetchAllPaged } from "@/lib/fetch-all";
+import { LoadingRadial, LoadingRadialOverlay } from "@/components/ui/loading-radial";
 import { Link } from "react-router-dom";
 
 type RuleType = "form_source" | "tag" | "stage" | "has_email" | "utm_campaign" | "created_at_range";
@@ -111,6 +112,7 @@ export default function EmailSegments() {
   const [previewing, setPreviewing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState<{ loaded: number; total: number } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -313,10 +315,12 @@ export default function EmailSegments() {
           }));
         // Insere em chunks para evitar timeouts / payload gigante
         const CHUNK = 500;
+        setSaveProgress({ loaded: 0, total: rows.length });
         for (let i = 0; i < rows.length; i += CHUNK) {
           const slice = rows.slice(i, i + CHUNK);
           const { error: insErr } = await supabase.from("email_segment_contacts").insert(slice);
           if (insErr) { toast.error(insErr.message); return; }
+          setSaveProgress({ loaded: Math.min(rows.length, i + slice.length), total: rows.length });
         }
       } else if (kind === "dynamic" && segmentId) {
         // Limpa qualquer vínculo antigo se trocou de estático para dinâmico
@@ -327,6 +331,7 @@ export default function EmailSegments() {
       setOpenNew(false); resetForm(); load();
     } finally {
       setSaving(false);
+      setSaveProgress(null);
     }
   }
 
@@ -423,7 +428,14 @@ export default function EmailSegments() {
           <DialogTrigger asChild>
             <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto relative">
+            {saving && saveProgress && saveProgress.total > 100 && (
+              <LoadingRadialOverlay
+                value={(saveProgress.loaded / saveProgress.total) * 100}
+                label="Salvando"
+                caption={`${saveProgress.loaded.toLocaleString("pt-BR")} de ${saveProgress.total.toLocaleString("pt-BR")} contatos`}
+              />
+            )}
             <DialogHeader><DialogTitle>{editing ? "Editar segmento" : "Novo segmento"}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -629,7 +641,9 @@ export default function EmailSegments() {
       </div>
 
       {loading ? (
-        <div className="text-center text-muted-foreground py-8">Carregando...</div>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-16 flex items-center justify-center">
+          <LoadingRadial caption="Segmentos" />
+        </div>
       ) : segments.length === 0 ? (
         <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-12 text-center text-muted-foreground">
           Nenhum segmento criado

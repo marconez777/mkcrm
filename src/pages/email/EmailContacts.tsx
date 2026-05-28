@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Upload, Plus, Trash2, Download, Search, Loader2, Users, AlertTriangle } from "lucide-react";
 import { TablePager, PAGE_SIZE } from "@/components/email/TablePager";
 import { fetchAllPaged } from "@/lib/fetch-all";
+import { LoadingRadial } from "@/components/ui/loading-radial";
 
 type Segment = { id: string; name: string };
 
@@ -60,6 +61,7 @@ export default function EmailContacts() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [segContacts, setSegContacts] = useState<SegContactRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [search, setSearch] = useState("");
   const [filterSegment, setFilterSegment] = useState<string>("__all");
   const [filterSource, setFilterSource] = useState<string>("__all");
@@ -96,21 +98,41 @@ export default function EmailContacts() {
     setClinicId(cid);
     if (!cid) { setLoading(false); return; }
 
+    // Conta total pra calcular % real do carregamento
+    const [{ count: leadsTotal }, { count: segTotal }] = await Promise.all([
+      supabase.from("leads").select("id", { count: "exact", head: true })
+        .eq("clinic_id", cid).not("email", "is", null).neq("email", ""),
+      supabase.from("email_segment_contacts").select("id", { count: "exact", head: true })
+        .eq("clinic_id", cid),
+    ]);
+    const grandTotal = (leadsTotal ?? 0) + (segTotal ?? 0);
+    setLoadProgress({ loaded: 0, total: grandTotal });
+    let loadedSoFar = 0;
+    const bump = (delta: number) => {
+      loadedSoFar = Math.min(grandTotal, loadedSoFar + delta);
+      setLoadProgress({ loaded: loadedSoFar, total: grandTotal });
+    };
+    let prevLeads = 0, prevSeg = 0;
+
     const [{ data: segs }, leadsData, manual] = await Promise.all([
       supabase.from("email_segments").select("id, name").eq("clinic_id", cid).order("name"),
-      fetchAllPaged<LeadRow>(() =>
-        supabase.from("leads")
+      fetchAllPaged<LeadRow>(
+        () => supabase.from("leads")
           .select("id, email, name, created_at, form_source")
           .eq("clinic_id", cid)
           .not("email", "is", null)
           .neq("email", "")
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        1000, 100_000,
+        (loaded) => { bump(loaded - prevLeads); prevLeads = loaded; },
       ),
-      fetchAllPaged<SegContactRow>(() =>
-        supabase.from("email_segment_contacts")
+      fetchAllPaged<SegContactRow>(
+        () => supabase.from("email_segment_contacts")
           .select("id, email, name, created_at, segment_id, lead_id")
           .eq("clinic_id", cid)
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        1000, 100_000,
+        (loaded) => { bump(loaded - prevSeg); prevSeg = loaded; },
       ),
     ]);
 
@@ -118,6 +140,7 @@ export default function EmailContacts() {
     setLeads((leadsData ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
     setSegContacts((manual ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
     setLoading(false);
+    setLoadProgress(null);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -467,7 +490,20 @@ export default function EmailContacts() {
       </div>
 
       {loading ? (
-        <div className="text-center text-muted-foreground py-8">Carregando...</div>
+        <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-16 flex items-center justify-center">
+          <LoadingRadial
+            value={
+              loadProgress && loadProgress.total > 0
+                ? (loadProgress.loaded / loadProgress.total) * 100
+                : undefined
+            }
+            caption={
+              loadProgress && loadProgress.total > 0
+                ? `${loadProgress.loaded.toLocaleString("pt-BR")} de ${loadProgress.total.toLocaleString("pt-BR")} contatos`
+                : "Contatos"
+            }
+          />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="bg-card rounded-[var(--card-radius-lg)] border border-border/60 shadow-[var(--shadow-soft)] p-12 text-center text-muted-foreground">
           <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
