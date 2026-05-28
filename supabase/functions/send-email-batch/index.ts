@@ -318,6 +318,7 @@ Deno.serve(async (req) => {
         await supabase.from("email_queue").update({
           status: "pending",
           scheduled_at: new Date(Date.now() + 60_000).toISOString(),
+          attempts: (Number(p.job.attempts ?? 0) || 0) + 1,
           error: r?.message || "no id returned",
           updated_at: new Date().toISOString(),
         }).eq("id", p.job.queue_id);
