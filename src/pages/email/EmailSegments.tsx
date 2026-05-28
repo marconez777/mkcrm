@@ -110,6 +110,7 @@ export default function EmailSegments() {
   const [previewSample, setPreviewSample] = useState<string[]>([]);
   const [previewing, setPreviewing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -137,13 +138,26 @@ export default function EmailSegments() {
     setKnownUtm([...utm].sort());
     setLoading(false);
 
-    // contagem assíncrona por segmento via RPC
+    // contagem assíncrona por segmento — sem limite de 1000
     const next: Record<string, number> = {};
     await Promise.all(((segs as Segment[]) ?? []).map(async (s) => {
-      const { data } = await supabase.rpc("resolve_email_segment", { _segment_id: s.id });
-      const set = new Set<string>();
-      (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
-      next[s.id] = set.size;
+      const f = normalizeFilters(s.filters);
+      if (f.kind === "static") {
+        // count exato direto na tabela de vínculos
+        const { count } = await supabase
+          .from("email_segment_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("segment_id", s.id);
+        next[s.id] = count ?? 0;
+      } else {
+        // dinâmico: usa RPC, mas força range alto para escapar do default 1000
+        const { data } = await supabase
+          .rpc("resolve_email_segment", { _segment_id: s.id })
+          .range(0, 99999);
+        const set = new Set<string>();
+        (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+        next[s.id] = set.size;
+      }
     }));
     setCounts(next);
   }
@@ -257,51 +271,59 @@ export default function EmailSegments() {
       toast.error("Selecione ao menos um contato"); return;
     }
 
-    let segmentId = editing?.id;
-    let segClinicId: string | null = null;
-    if (editing) {
-      const { error } = await supabase.from("email_segments").update({
-        name, description: description || null, filters: filtersPayload, active,
-      }).eq("id", editing.id);
-      if (error) return toast.error(error.message);
-      segClinicId = (editing as any).clinic_id ?? clinicId;
-    } else {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
-      const { data: ins, error } = await supabase.from("email_segments").insert({
-        name, description: description || null, filters: filtersPayload, active,
-        source_table: "leads", clinic_id: cm?.clinic_id, created_by: user!.id,
-      }).select("id").single();
-      if (error) return toast.error(error.message);
-      segmentId = ins!.id;
-      segClinicId = cm?.clinic_id ?? null;
-    }
-
-    // Sincroniza vínculos para segmentos estáticos
-    if (kind === "static" && segmentId && segClinicId) {
-      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
-      const { data: { user } } = await supabase.auth.getUser();
-      const rows = availableContacts
-        .filter((c) => selectedContactIds.has(c.id))
-        .map((c) => ({
-          segment_id: segmentId,
-          clinic_id: segClinicId,
-          email: c.email,
-          name: c.name,
-          lead_id: c.lead_id,
-          added_by: user!.id,
-        }));
-      if (rows.length > 0) {
-        const { error: insErr } = await supabase.from("email_segment_contacts").insert(rows);
-        if (insErr) return toast.error(insErr.message);
+    setSaving(true);
+    try {
+      let segmentId = editing?.id;
+      let segClinicId: string | null = null;
+      if (editing) {
+        const { error } = await supabase.from("email_segments").update({
+          name, description: description || null, filters: filtersPayload, active,
+        }).eq("id", editing.id);
+        if (error) { toast.error(error.message); return; }
+        segClinicId = (editing as any).clinic_id ?? clinicId;
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
+        const { data: ins, error } = await supabase.from("email_segments").insert({
+          name, description: description || null, filters: filtersPayload, active,
+          source_table: "leads", clinic_id: cm?.clinic_id, created_by: user!.id,
+        }).select("id").single();
+        if (error) { toast.error(error.message); return; }
+        segmentId = ins!.id;
+        segClinicId = cm?.clinic_id ?? null;
       }
-    } else if (kind === "dynamic" && segmentId) {
-      // Limpa qualquer vínculo antigo se trocou de estático para dinâmico
-      await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
-    }
 
-    toast.success(editing ? "Segmento atualizado" : "Segmento criado");
-    setOpenNew(false); resetForm(); load();
+      // Sincroniza vínculos para segmentos estáticos
+      if (kind === "static" && segmentId && segClinicId) {
+        await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+        const { data: { user } } = await supabase.auth.getUser();
+        const rows = availableContacts
+          .filter((c) => selectedContactIds.has(c.id))
+          .map((c) => ({
+            segment_id: segmentId,
+            clinic_id: segClinicId,
+            email: c.email,
+            name: c.name,
+            lead_id: c.lead_id,
+            added_by: user!.id,
+          }));
+        // Insere em chunks para evitar timeouts / payload gigante
+        const CHUNK = 500;
+        for (let i = 0; i < rows.length; i += CHUNK) {
+          const slice = rows.slice(i, i + CHUNK);
+          const { error: insErr } = await supabase.from("email_segment_contacts").insert(slice);
+          if (insErr) { toast.error(insErr.message); return; }
+        }
+      } else if (kind === "dynamic" && segmentId) {
+        // Limpa qualquer vínculo antigo se trocou de estático para dinâmico
+        await supabase.from("email_segment_contacts").delete().eq("segment_id", segmentId);
+      }
+
+      toast.success(editing ? "Segmento atualizado" : "Segmento criado");
+      setOpenNew(false); resetForm(); load();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function preview() {
@@ -309,7 +331,7 @@ export default function EmailSegments() {
     try {
       if (editing) {
         const [{ data, error }, { data: unsubs }] = await Promise.all([
-          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }),
+          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }).range(0, 99999),
           supabase.from("email_unsubscribes").select("email").eq("clinic_id", (editing as any).clinic_id ?? ""),
         ]);
         if (error) throw error;
@@ -588,8 +610,10 @@ export default function EmailSegments() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenNew(false)}>Cancelar</Button>
-              <Button onClick={save}>Salvar</Button>
+              <Button variant="outline" onClick={() => setOpenNew(false)} disabled={saving}>Cancelar</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando…</> : "Salvar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
