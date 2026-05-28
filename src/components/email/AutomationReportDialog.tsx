@@ -704,39 +704,66 @@ async function fetchLeads(args: {
 
 
 
+  const slug = stepSlug ?? "";
+  const useLeadFallback = enrolledLeadIds.length > 0 && !!slug;
+
   if (bucket === "queued" || bucket === "failed") {
     // failed inclui email_queue.failed e email_logs failed/bounced/complained
-    let queueRows: any[] = [];
-    if (bucket === "queued") {
-      queueRows = await fetchAllPaged<any>(() =>
+    const queueStatus = bucket === "queued" ? "pending" : "failed";
+    const [qByTable, qByLead] = await Promise.all([
+      fetchAllPaged<any>(() =>
         supabase
           .from("email_queue")
-          .select("related_lead_id, recipient_email, scheduled_at, error, status")
+          .select("related_lead_id, recipient_email, scheduled_at, error, status, template_slug, related_lead_table")
           .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .eq("status", "pending")
-          .order("scheduled_at", { ascending: true })
-      );
-    } else {
-      queueRows = await fetchAllPaged<any>(() =>
-        supabase
-          .from("email_queue")
-          .select("related_lead_id, recipient_email, scheduled_at, error, status")
-          .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .eq("status", "failed")
-      );
-    }
+          .eq("template_slug", slug)
+          .eq("status", queueStatus)
+      ),
+      useLeadFallback
+        ? fetchAllByIn<any>(
+            (s) =>
+              supabase
+                .from("email_queue")
+                .select("related_lead_id, recipient_email, scheduled_at, error, status, template_slug, related_lead_table")
+                .in("related_lead_id", s)
+                .eq("template_slug", slug)
+                .eq("status", queueStatus),
+            enrolledLeadIds
+          )
+        : Promise.resolve([] as any[]),
+    ]);
+    const queueRows = dedupRows(
+      [...qByTable, ...qByLead],
+      (r) => `${r.related_lead_id ?? r.recipient_email}|${r.scheduled_at}|${r.status}`
+    );
 
     let logRows: any[] = [];
     if (bucket === "failed") {
-      logRows = await fetchAllPaged<any>(() =>
-        supabase
-          .from("email_logs")
-          .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at")
-          .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .in("status", ["bounced", "complained", "failed"])
+      const [lByTable, lByLead] = await Promise.all([
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_logs")
+            .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at, template_slug")
+            .eq("related_lead_table", relatedTable)
+            .eq("template_slug", slug)
+            .in("status", ["bounced", "complained", "failed"])
+        ),
+        useLeadFallback
+          ? fetchAllByIn<any>(
+              (s) =>
+                supabase
+                  .from("email_logs")
+                  .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at, template_slug")
+                  .in("related_lead_id", s)
+                  .eq("template_slug", slug)
+                  .in("status", ["bounced", "complained", "failed"]),
+              enrolledLeadIds
+            )
+          : Promise.resolve([] as any[]),
+      ]);
+      logRows = dedupRows(
+        [...lByTable, ...lByLead],
+        (r) => `${r.related_lead_id ?? r.recipient_email}|${r.sent_at}`
       );
     }
 
@@ -768,18 +795,41 @@ async function fetchLeads(args: {
     }));
   }
 
-  // sent / opened / clicked → email_logs
-  const data = await fetchAllPaged<any>(() => {
-    let q = supabase
-      .from("email_logs")
-      .select("related_lead_id, recipient_email, sent_at, opened_at, clicked_at")
-      .eq("related_lead_table", relatedTable)
-      .eq("template_slug", stepSlug ?? "");
-    if (bucket === "opened") q = q.not("opened_at", "is", null);
-    if (bucket === "clicked") q = q.not("clicked_at", "is", null);
+  // sent / opened / clicked → email_logs (by table + by lead/slug fallback)
+  const selectCols = "related_lead_id, recipient_email, sent_at, opened_at, clicked_at, template_slug";
+  const applyBucketFilter = (q: any) => {
+    if (bucket === "opened") return q.not("opened_at", "is", null);
+    if (bucket === "clicked") return q.not("clicked_at", "is", null);
     return q;
-  });
-  const rows = data ?? [];
+  };
+  const [byTable, byLead] = await Promise.all([
+    fetchAllPaged<any>(() =>
+      applyBucketFilter(
+        supabase
+          .from("email_logs")
+          .select(selectCols)
+          .eq("related_lead_table", relatedTable)
+          .eq("template_slug", slug)
+      )
+    ),
+    useLeadFallback
+      ? fetchAllByIn<any>(
+          (s) =>
+            applyBucketFilter(
+              supabase
+                .from("email_logs")
+                .select(selectCols)
+                .in("related_lead_id", s)
+                .eq("template_slug", slug)
+            ),
+          enrolledLeadIds
+        )
+      : Promise.resolve([] as any[]),
+  ]);
+  const rows = dedupRows(
+    [...byTable, ...byLead],
+    (r) => `${r.related_lead_id ?? r.recipient_email}|${r.sent_at}`
+  );
   const leadIds = rows.map((r: any) => r.related_lead_id).filter(Boolean);
   const names = await fetchLeadNames(leadIds);
   return rows.map((r: any) => {
@@ -799,6 +849,12 @@ async function fetchLeads(args: {
       ts_label,
     };
   });
+}
+
+function dedupRows<T extends Record<string, any>>(rows: T[], key: (r: T) => string): T[] {
+  const m = new Map<string, T>();
+  for (const r of rows) m.set(key(r), r);
+  return Array.from(m.values());
 }
 
 async function fetchLeadNames(ids: string[]): Promise<Map<string, string>> {
