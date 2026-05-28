@@ -265,13 +265,17 @@ Deno.serve(async (req) => {
         }
         await supabase.rpc("release_domain_warmup", { _clinic_id: clinic_id, _domain: fromDomain });
       }
-      // re-pending dos jobs
-      await supabase.from("email_queue").update({
-        status: "pending",
-        scheduled_at: new Date(Date.now() + 60_000).toISOString(),
-        error: json?.message || `batch failed ${resp.status}`,
-        updated_at: new Date().toISOString(),
-      }).in("id", prepared.map((p) => p.job.queue_id));
+      // re-pending dos jobs — incrementa attempts individualmente pra evitar loop infinito
+      const errMsg = json?.message || `batch failed ${resp.status}`;
+      await Promise.all(prepared.map((p) =>
+        supabase.from("email_queue").update({
+          status: "pending",
+          scheduled_at: new Date(Date.now() + 60_000).toISOString(),
+          attempts: (Number(p.job.attempts ?? 0) || 0) + 1,
+          error: errMsg,
+          updated_at: new Date().toISOString(),
+        }).eq("id", p.job.queue_id)
+      ));
       return jsonResponse({ error: json?.message || "batch failed", resend: json }, { status: 502 });
     }
 
