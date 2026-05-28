@@ -1,6 +1,6 @@
 // Periodic tick: evaluates enabled automations and fires actions per matching lead.
 // Triggered by pg_cron every 5 minutes.
-import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 
 type Automation = {
@@ -232,8 +232,7 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  const auth = await requireUser(req);
-  if (auth instanceof Response) return auth;
+  // Tick público — chamado por pg_cron (sem Authorization Bearer). verify_jwt=false em config.toml.
   const supabase = sb();
 
   try {
