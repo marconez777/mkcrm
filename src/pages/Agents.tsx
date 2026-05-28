@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -216,10 +217,10 @@ export default function Agents() {
         return;
       }
       toast.success(`PDF ingerido (${(data as any)?.chunks} chunks, ${(data as any)?.pages} páginas)`);
-      const { data: docs } = await supabase
+      const docs = await fetchAllPaged<any>(() => supabase
         .from("ai_documents").select("id, title, source, created_at")
-        .eq("agent_id", selected.id).order("created_at", { ascending: false });
-      setDocs(docs ?? []);
+        .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+      setDocs(docs);
     };
     reader.readAsDataURL(file);
   };
@@ -237,10 +238,10 @@ export default function Agents() {
     const d = data as any;
     toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
     setBatchUrls("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const ingestUrl = async () => {
@@ -256,28 +257,28 @@ export default function Agents() {
     }
     toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
     setUrlInput("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key";
 
   const load = async () => {
-    const { data } = await supabase.from("ai_agents").select(AGENT_COLS).order("created_at");
-    setAgents((data ?? []) as any);
+    const data = await fetchAllPaged<any>(() => supabase.from("ai_agents").select(AGENT_COLS).order("created_at"));
+    setAgents(data as any);
   };
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
     if (!selected) { setDocs([]); return; }
-    supabase
+    fetchAllPaged<any>(() => supabase
       .from("ai_documents")
       .select("id, title, source, created_at")
       .eq("agent_id", selected.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setDocs(data ?? []));
+      .order("created_at", { ascending: false }))
+      .then((data) => setDocs(data));
   }, [selected?.id]);
 
   const create = async () => {
@@ -360,10 +361,10 @@ export default function Agents() {
     }
     toast.success(`Documento ingerido (${(data as any)?.chunks} chunks)`);
     setDocTitle(""); setDocContent("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const removeDoc = async (id: string) => {

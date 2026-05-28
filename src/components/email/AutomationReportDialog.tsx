@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllPaged } from "@/lib/fetch-all";
+import { fetchAllPaged, fetchAllByIn } from "@/lib/fetch-all";
 import {
   Dialog,
   DialogContent,
@@ -742,24 +742,21 @@ async function fetchLeads(args: {
 }
 
 async function fetchLeadNames(ids: string[]): Promise<Map<string, string>> {
-  const unique = Array.from(new Set(ids.filter(Boolean)));
-  if (unique.length === 0) return new Map();
-  const { data } = await supabase
-    .from("leads")
-    .select("id, name")
-    .in("id", unique);
-  return new Map((data ?? []).map((r: any) => [r.id, r.name]));
+  const rows = await fetchAllByIn<any>(
+    (slice) => supabase.from("leads").select("id, name").in("id", slice),
+    ids,
+  );
+  return new Map(rows.map((r: any) => [r.id, r.name]));
 }
 
 async function fetchContactNames(emails: string[]): Promise<Map<string, string>> {
-  const unique = Array.from(new Set(emails.map((e) => e.toLowerCase()).filter(Boolean)));
-  if (unique.length === 0) return new Map();
-  const { data } = await supabase
-    .from("email_segment_contacts")
-    .select("email, name")
-    .in("email", unique);
+  const lowered = emails.map((e) => String(e ?? "").toLowerCase()).filter(Boolean);
+  const rows = await fetchAllByIn<any>(
+    (slice) => supabase.from("email_segment_contacts").select("email, name").in("email", slice),
+    lowered,
+  );
   const m = new Map<string, string>();
-  for (const r of (data ?? []) as any[]) {
+  for (const r of rows) {
     if (r.name) m.set(String(r.email).toLowerCase(), r.name);
   }
   return m;

@@ -119,10 +119,14 @@ export default function EmailSegments() {
       const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user.id).limit(1).maybeSingle();
       if (cm?.clinic_id) setClinicId(cm.clinic_id);
     }
-    const [{ data: segs, error }, { data: st }, { data: leads }] = await Promise.all([
+    const [{ data: segs, error }, { data: st }, leads] = await Promise.all([
       supabase.from("email_segments").select("*").order("created_at", { ascending: false }),
       supabase.from("pipeline_stages").select("id, name, pipeline_id"),
-      supabase.from("leads").select("form_source, tags, utm_campaign").limit(2000),
+      fetchAllPaged<any>(
+        () => supabase.from("leads").select("form_source, tags, utm_campaign"),
+        1000,
+        20_000,
+      ),
     ]);
     if (error) toast.error(error.message);
     setSegments((segs as Segment[]) ?? []);
@@ -387,7 +391,11 @@ export default function EmailSegments() {
           const { data: { user } } = await supabase.auth.getUser();
           const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
           if (!cm?.clinic_id) return toast.error("Clínica não encontrada");
-          const { data: leads } = await supabase.from("leads").select("form_source").eq("clinic_id", cm.clinic_id).not("form_source", "is", null).limit(5000);
+          const leads = await fetchAllPaged<any>(
+            () => supabase.from("leads").select("form_source").eq("clinic_id", cm.clinic_id).not("form_source", "is", null),
+            1000,
+            20_000,
+          );
           const sources = [...new Set((leads ?? []).map((l: any) => l.form_source).filter(Boolean))];
           if (!sources.length) return toast.info("Nenhum lead com origem de formulário encontrado ainda");
           const existing = new Set(segments.map((s) => s.name));

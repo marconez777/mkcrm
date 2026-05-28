@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllByIn } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +44,11 @@ export default function Team() {
     const ids = (data ?? []).map((m: any) => m.user_id);
     let profilesMap: Record<string, { email: string | null; full_name: string | null }> = {};
     if (ids.length) {
-      const { data: profs } = await supabase.from("profiles").select("user_id, email, full_name").in("user_id", ids);
-      profilesMap = Object.fromEntries((profs ?? []).map((p: any) => [p.user_id, { email: p.email, full_name: p.full_name }]));
+      const profs = await fetchAllByIn<any>(
+        (slice) => supabase.from("profiles").select("user_id, email, full_name").in("user_id", slice),
+        ids,
+      );
+      profilesMap = Object.fromEntries(profs.map((p: any) => [p.user_id, { email: p.email, full_name: p.full_name }]));
     }
     setMembers((data ?? []).map((m: any) => ({ ...m, profile: profilesMap[m.user_id] ?? null })));
   }

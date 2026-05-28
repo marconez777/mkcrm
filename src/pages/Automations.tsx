@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,14 +48,14 @@ export default function Automations() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [{ data: a }, { data: ag }, { data: st }, { data: tp }, { data: cf }] = await Promise.all([
-      supabase.from("automations").select("*").order("created_at"),
+    const [a, { data: ag }, { data: st }, { data: tp }, { data: cf }] = await Promise.all([
+      fetchAllPaged<any>(() => supabase.from("automations").select("*").order("created_at")),
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
       supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
     ]);
-    setList((a ?? []) as any);
+    setList(a as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);

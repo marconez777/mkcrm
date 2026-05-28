@@ -76,14 +76,14 @@ export default function EmailCampaigns() {
     if (!clinicId) return;
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const [{ data: cs, count }, { data: ts }, { data: ss }] = await Promise.all([
+    const [{ data: cs, count }, ts, ss] = await Promise.all([
       supabase
         .from("email_campaigns")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(from, to),
-      supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name"),
-      supabase.from("email_segments").select("id,name").order("name"),
+      fetchAllPaged<any>(() => supabase.from("email_templates").select("id,slug,name").eq("active", true).order("name")),
+      fetchAllPaged<any>(() => supabase.from("email_segments").select("id,name").order("name")),
     ]);
     const campaigns = (cs ?? []) as Campaign[];
     setTotal(count ?? 0);

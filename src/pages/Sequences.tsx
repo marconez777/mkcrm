@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,13 +61,13 @@ export default function Sequences() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [{ data: s }, { data: st }, { data: tp }, { data: ins }] = await Promise.all([
-      supabase.from("message_sequences").select("*").order("created_at"),
+    const [s, { data: st }, { data: tp }, { data: ins }] = await Promise.all([
+      fetchAllPaged<any>(() => supabase.from("message_sequences").select("*").order("created_at")),
       supabase.from("pipeline_stages").select("id, name, pipeline_id, color").order("position"),
       supabase.from("message_templates").select("id, name, content").order("name"),
       supabase.from("whatsapp_instances").select("id, name, is_default"),
     ]);
-    setList((s ?? []) as any);
+    setList(s as any);
     setStages(st ?? []);
     setTemplates(tp ?? []);
     setInstances(ins ?? []);

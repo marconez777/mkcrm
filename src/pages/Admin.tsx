@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,8 +47,10 @@ export default function Admin() {
   useEffect(() => { document.title = "Admin — MK CRM"; }, []);
 
   async function load() {
-    const { data, error } = await supabase.from("clinics").select("*").order("created_at", { ascending: false });
-    if (error) toast.error(error.message); else setClinics((data ?? []) as any);
+    try {
+      const data = await fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false }));
+      setClinics(data as any);
+    } catch (e: any) { toast.error(e.message); }
   }
   useEffect(() => { if (isSuperAdmin) load(); }, [isSuperAdmin]);
 

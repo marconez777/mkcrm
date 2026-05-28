@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,13 +76,13 @@ export default function EmailTemplates() {
 
   async function load() {
     if (!clinicId) return;
-    const [{ data: fs }, { data: ts }, { data: ds }] = await Promise.all([
-      supabase.from("email_template_folders").select("id,name,sort_order").order("sort_order"),
-      supabase.from("email_templates").select("*").order("updated_at", { ascending: false }),
+    const [fs, ts, { data: ds }] = await Promise.all([
+      fetchAllPaged<any>(() => supabase.from("email_template_folders").select("id,name,sort_order").order("sort_order")),
+      fetchAllPaged<any>(() => supabase.from("email_templates").select("*").order("updated_at", { ascending: false })),
       supabase.from("email_domains").select("id,domain,status").eq("clinic_id", clinicId),
     ]);
-    setFolders((fs ?? []) as any);
-    setTemplates((ts ?? []) as any);
+    setFolders(fs as any);
+    setTemplates(ts as any);
     setDomains((ds ?? []) as any);
   }
 

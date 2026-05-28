@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 
 const BASE = "MK CRM";
 
@@ -13,9 +14,13 @@ export function useUnreadTitle() {
 
     let active = true;
     (async () => {
-      const { data } = await supabase.from("leads").select("unread_count");
+      const data = await fetchAllPaged<any>(
+        () => supabase.from("leads").select("unread_count"),
+        1000,
+        500_000,
+      );
       if (!active) return;
-      totalRef.current = (data ?? []).reduce(
+      totalRef.current = data.reduce(
         (s: number, r: any) => s + (r.unread_count ?? 0),
         0,
       );

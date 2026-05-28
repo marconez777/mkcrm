@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,8 +54,10 @@ function BroadcastList() {
   const [creating, setCreating] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("broadcasts").select("*").order("created_at", { ascending: false });
-    setItems((data ?? []) as unknown as Broadcast[]);
+    const data = await fetchAllPaged<any>(() =>
+      supabase.from("broadcasts").select("*").order("created_at", { ascending: false }),
+    );
+    setItems(data as unknown as Broadcast[]);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
