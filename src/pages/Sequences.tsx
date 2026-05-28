@@ -18,7 +18,7 @@ type Sequence = {
   name: string;
   description: string | null;
   enabled: boolean;
-  trigger_type: "stage_enter" | "webhook" | "manual";
+  trigger_type: "stage_enter" | "pipeline_enter" | "webhook" | "manual";
   trigger_config: any;
   whatsapp_instance_id: string | null;
   stop_on_reply: boolean;
@@ -38,9 +38,11 @@ type Step = {
 
 const TRIGGERS = [
   { id: "stage_enter", label: "Lead movido para coluna" },
+  { id: "pipeline_enter", label: "Lead entra em um pipeline" },
   { id: "webhook", label: "Webhook do site (URL pública)" },
   { id: "manual", label: "Apenas manual (botão no lead)" },
 ];
+
 
 const minutesToHuman = (m: number) => {
   if (m === 0) return "imediato";
@@ -54,6 +56,7 @@ export default function Sequences() {
   const [selected, setSelected] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
@@ -61,17 +64,20 @@ export default function Sequences() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [s, { data: st }, { data: tp }, { data: ins }] = await Promise.all([
+    const [s, { data: st }, { data: pp }, { data: tp }, { data: ins }] = await Promise.all([
       fetchAllPaged<any>(() => supabase.from("message_sequences").select("*").order("created_at")),
       supabase.from("pipeline_stages").select("id, name, pipeline_id, color").order("position"),
+      supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("message_templates").select("id, name, content").order("name"),
       supabase.from("whatsapp_instances").select("id, name, is_default"),
     ]);
     setList(s as any);
     setStages(st ?? []);
+    setPipelines(pp ?? []);
     setTemplates(tp ?? []);
     setInstances(ins ?? []);
   };
+
 
   useEffect(() => { load(); }, []);
 
@@ -296,15 +302,33 @@ export default function Sequences() {
 
                   {selected.trigger_type === "stage_enter" && (
                     <div>
-                      <Label>Quando lead for movido para</Label>
+                      <Label>Quando lead for movido para (ou criado em)</Label>
                       <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                         value={selected.trigger_config?.stage_id ?? ""}
                         onChange={(e) => setSelected({ ...selected, trigger_config: { stage_id: e.target.value } })}>
                         <option value="">— escolha —</option>
-                        {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {stages.map((s) => {
+                          const pipe = pipelines.find((p) => p.id === s.pipeline_id);
+                          return <option key={s.id} value={s.id}>{pipe ? `${pipe.name} › ${s.name}` : s.name}</option>;
+                        })}
                       </select>
+                      <p className="mt-1 text-xs text-muted-foreground">Dispara também quando o lead já é criado nessa coluna.</p>
                     </div>
                   )}
+
+                  {selected.trigger_type === "pipeline_enter" && (
+                    <div>
+                      <Label>Quando lead entrar no pipeline</Label>
+                      <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        value={selected.trigger_config?.pipeline_id ?? ""}
+                        onChange={(e) => setSelected({ ...selected, trigger_config: { pipeline_id: e.target.value } })}>
+                        <option value="">— escolha —</option>
+                        {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <p className="mt-1 text-xs text-muted-foreground">Dispara quando o lead entra em qualquer coluna deste pipeline (criação ou mudança vinda de outro pipeline).</p>
+                    </div>
+                  )}
+
 
                   {selected.trigger_type === "webhook" && (
                     <div className="space-y-2">

@@ -1,21 +1,36 @@
-## Mudança
+## Objetivo
 
-Em `src/pages/Sequences.tsx` (editor de Passos das Sequências de WhatsApp), o campo "Atraso" hoje aceita **minutos** e o badge mostra "24min". Vou convertê-lo para **dias**.
+Adicionar dois novos gatilhos para Sequências:
+1. **"Lead entra em um pipeline"** — dispara quando o lead é movido (ou criado) em qualquer coluna de um pipeline específico.
+2. **"Lead movido para coluna"** — já existe; vou ampliá-lo para também disparar quando o lead for **criado** já naquela coluna (hoje só dispara no UPDATE).
 
-## Alterações
+## Migration (banco)
 
-**Arquivo:** `src/pages/Sequences.tsx`
+1. Relaxar o CHECK de `message_sequences.trigger_type` para incluir `'pipeline_enter'`.
+2. Recriar `enroll_lead_on_stage_change()`:
+   - Disparar tanto em INSERT quanto em UPDATE de `leads`.
+   - No INSERT: tratar como "entrou no stage atual" e "entrou no pipeline atual".
+   - No UPDATE: disparar quando `stage_id` mudar **ou** quando o `pipeline_id` (derivado do novo stage) mudar.
+   - Em cada caso, inscrever em sequências:
+     - `trigger_type='stage_enter'` cujo `trigger_config->>'stage_id' = NEW.stage_id`
+     - `trigger_type='pipeline_enter'` cujo `trigger_config->>'pipeline_id' = pipeline do NEW.stage_id`
+   - Manter cooldown e `source` registrando qual gatilho/origem.
+3. Recriar o trigger em `leads`:
+   ```sql
+   DROP TRIGGER trg_enroll_on_stage_change ON public.leads;
+   CREATE TRIGGER trg_enroll_on_stage_change
+     AFTER INSERT OR UPDATE OF stage_id ON public.leads
+     FOR EACH ROW EXECUTE FUNCTION public.enroll_lead_on_stage_change();
+   ```
 
-1. **Input de Atraso (linha ~357):** passar a editar dias.
-   - `value={Math.round(s.delay_minutes / 1440)}`
-   - `onChange`: salvar `delay_minutes: Number(e.target.value) * 1440`
-   - Adicionar sufixo visual "dias" ao lado do input.
-   - Label vira `Atraso (dias)`.
+## UI — `src/pages/Sequences.tsx`
 
-2. **Badge (linha 347):** substituir `minutesToHuman(s.delay_minutes)` por algo como `${Math.round(s.delay_minutes/1440)} dia(s)` para refletir a nova unidade.
+1. Adicionar `pipeline_enter` ao type `trigger_type` e à lista `TRIGGERS` com label "Lead entra em um pipeline".
+2. Carregar `pipelines` no `load()` (`supabase.from("pipelines").select("id, name").order("position")`).
+3. Render condicional quando `trigger_type === "pipeline_enter"`: dropdown com pipelines salvando em `trigger_config.pipeline_id`.
+4. Ajustar copy/help text do `stage_enter` para deixar claro que também vale para leads recém-criados naquela coluna.
 
-## O que NÃO muda
+## Fora de escopo
 
-- Coluna `delay_minutes` no banco continua em minutos (multiplicador 1440 internamente).
-- Lógica do scheduler (`process-sequences-tick` etc.) não é tocada.
-- Editor de automações de e-mail (`EmailAutomations.tsx`) já usa dias/horas — sem alteração.
+- Sem mudanças no scheduler/edge functions (a inscrição via DB trigger já é processada normalmente).
+- Sem mudanças no editor de passos (atraso em dias já feito antes).
