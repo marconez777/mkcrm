@@ -89,7 +89,7 @@ export default function EmailTemplateEditor() {
 
       if (isNew) {
         const def = (ds ?? []).find((d: any) => d.status === "verified") ?? (ds ?? [])[0];
-        const fromEmail = def ? `contato@${def.domain}` : "";
+        const fromEmail = def?.domain ? `contato@${def.domain}` : "";
         setTpl({
           id: "", name: "Novo template", slug: "", subject: "", preheader: "",
           from_name: "", from_email: fromEmail, reply_to: null, category: "marketing",
