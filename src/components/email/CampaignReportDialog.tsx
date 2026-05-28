@@ -132,6 +132,7 @@ export function CampaignReportDialog({
       setTotalRecipients(setEmails.size || campaign?.total_recipients || 0);
     } finally {
       setLoading(false);
+      setLoadProgress(null);
     }
   }
 
