@@ -95,6 +95,7 @@ export function AutomationReportDialog({
 }) {
   const [loading, setLoading] = useState(false);
   const [enrolledCount, setEnrolledCount] = useState(0);
+  const [enrolledLeadIds, setEnrolledLeadIds] = useState<string[]>([]);
   const [logs, setLogs] = useState<EmailLogRow[]>([]);
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [sheet, setSheet] = useState<{
@@ -107,14 +108,27 @@ export function AutomationReportDialog({
   const relatedTable = automationId ? `automation_${automationId}` : null;
 
   async function load() {
-    if (!automationId || !relatedTable) return;
+    if (!automationId || !relatedTable || !automation) return;
     setLoading(true);
     try {
-      const [{ count: enrolled }, logsRows, queueRows] = await Promise.all([
+      // 1) Enrollments
+      const enrollmentsRows = await fetchAllPaged<any>(() =>
         supabase
           .from("email_automation_enrollments")
-          .select("*", { count: "exact", head: true })
-          .eq("automation_id", automationId),
+          .select("lead_id")
+          .eq("automation_id", automationId)
+      );
+      const leadIds = Array.from(
+        new Set((enrollmentsRows ?? []).map((r: any) => r.lead_id).filter(Boolean))
+      ) as string[];
+      setEnrolledCount(enrollmentsRows?.length ?? 0);
+      setEnrolledLeadIds(leadIds);
+
+      // 2) Logs/queue: correlaciona por related_lead_table E também por
+      //    (lead_id + template_slug). Isso captura envios feitos sob IDs
+      //    antigos quando a automação foi recriada.
+      const slugs = automation.steps.map((s) => s.template_slug).filter(Boolean);
+      const [logsByTable, logsByLead, queueByTable, queueByLead] = await Promise.all([
         fetchAllPaged<any>(() =>
           supabase
             .from("email_logs")
@@ -123,6 +137,19 @@ export function AutomationReportDialog({
             )
             .eq("related_lead_table", relatedTable)
         ),
+        leadIds.length && slugs.length
+          ? fetchAllByIn<any>(
+              (slice) =>
+                supabase
+                  .from("email_logs")
+                  .select(
+                    "template_slug,status,opened_at,clicked_at,bounced_at,complained_at,related_lead_id,recipient_email,sent_at"
+                  )
+                  .in("related_lead_id", slice)
+                  .in("template_slug", slugs),
+              leadIds
+            )
+          : Promise.resolve([] as any[]),
         fetchAllPaged<any>(() =>
           supabase
             .from("email_queue")
@@ -131,10 +158,37 @@ export function AutomationReportDialog({
             )
             .eq("related_lead_table", relatedTable)
         ),
+        leadIds.length && slugs.length
+          ? fetchAllByIn<any>(
+              (slice) =>
+                supabase
+                  .from("email_queue")
+                  .select(
+                    "template_slug,status,related_lead_id,recipient_email,scheduled_at,error"
+                  )
+                  .in("related_lead_id", slice)
+                  .in("template_slug", slugs),
+              leadIds
+            )
+          : Promise.resolve([] as any[]),
       ]);
-      setEnrolledCount(enrolled ?? 0);
-      setLogs(logsRows as any);
-      setQueue(queueRows as any);
+
+      const dedup = <T extends Record<string, any>>(rows: T[], key: (r: T) => string) => {
+        const m = new Map<string, T>();
+        for (const r of rows) m.set(key(r), r);
+        return Array.from(m.values());
+      };
+      const mergedLogs = dedup(
+        [...(logsByTable as any[]), ...(logsByLead as any[])],
+        (r) => `${r.related_lead_id ?? r.recipient_email}|${r.template_slug}|${r.sent_at}`
+      );
+      const mergedQueue = dedup(
+        [...(queueByTable as any[]), ...(queueByLead as any[])],
+        (r) =>
+          `${r.related_lead_id ?? r.recipient_email}|${r.template_slug}|${r.scheduled_at}|${r.status}`
+      );
+      setLogs(mergedLogs as any);
+      setQueue(mergedQueue as any);
     } finally {
       setLoading(false);
     }
@@ -146,6 +200,7 @@ export function AutomationReportDialog({
       setLogs([]);
       setQueue([]);
       setEnrolledCount(0);
+      setEnrolledLeadIds([]);
       setSheet(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -373,6 +428,7 @@ export function AutomationReportDialog({
       <AutomationLeadsSheet
         automationId={automationId}
         relatedTable={relatedTable}
+        enrolledLeadIds={enrolledLeadIds}
         sheet={sheet}
         onClose={() => setSheet(null)}
       />
@@ -442,11 +498,13 @@ type LeadRow = {
 export function AutomationLeadsSheet({
   automationId,
   relatedTable,
+  enrolledLeadIds = [],
   sheet,
   onClose,
 }: {
   automationId: string | null;
   relatedTable: string | null;
+  enrolledLeadIds?: string[];
   sheet: { bucket: Bucket; stepSlug?: string; title: string } | null;
   onClose: () => void;
 }) {
@@ -465,6 +523,7 @@ export function AutomationLeadsSheet({
         const data = await fetchLeads({
           automationId,
           relatedTable,
+          enrolledLeadIds,
           bucket: sheet.bucket,
           stepSlug: sheet.stepSlug,
         });
@@ -474,7 +533,7 @@ export function AutomationLeadsSheet({
       }
     })();
     setSearch("");
-  }, [sheet, automationId, relatedTable]);
+  }, [sheet, automationId, relatedTable, enrolledLeadIds]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -552,10 +611,11 @@ export function AutomationLeadsSheet({
 async function fetchLeads(args: {
   automationId: string | null;
   relatedTable: string;
+  enrolledLeadIds?: string[];
   bucket: Bucket;
   stepSlug?: string;
 }): Promise<LeadRow[]> {
-  const { automationId, relatedTable, bucket, stepSlug } = args;
+  const { automationId, relatedTable, enrolledLeadIds = [], bucket, stepSlug } = args;
 
   if (bucket === "enrolled") {
     if (!automationId) return [];
@@ -644,39 +704,66 @@ async function fetchLeads(args: {
 
 
 
+  const slug = stepSlug ?? "";
+  const useLeadFallback = enrolledLeadIds.length > 0 && !!slug;
+
   if (bucket === "queued" || bucket === "failed") {
     // failed inclui email_queue.failed e email_logs failed/bounced/complained
-    let queueRows: any[] = [];
-    if (bucket === "queued") {
-      queueRows = await fetchAllPaged<any>(() =>
+    const queueStatus = bucket === "queued" ? "pending" : "failed";
+    const [qByTable, qByLead] = await Promise.all([
+      fetchAllPaged<any>(() =>
         supabase
           .from("email_queue")
-          .select("related_lead_id, recipient_email, scheduled_at, error, status")
+          .select("related_lead_id, recipient_email, scheduled_at, error, status, template_slug, related_lead_table")
           .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .eq("status", "pending")
-          .order("scheduled_at", { ascending: true })
-      );
-    } else {
-      queueRows = await fetchAllPaged<any>(() =>
-        supabase
-          .from("email_queue")
-          .select("related_lead_id, recipient_email, scheduled_at, error, status")
-          .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .eq("status", "failed")
-      );
-    }
+          .eq("template_slug", slug)
+          .eq("status", queueStatus)
+      ),
+      useLeadFallback
+        ? fetchAllByIn<any>(
+            (s) =>
+              supabase
+                .from("email_queue")
+                .select("related_lead_id, recipient_email, scheduled_at, error, status, template_slug, related_lead_table")
+                .in("related_lead_id", s)
+                .eq("template_slug", slug)
+                .eq("status", queueStatus),
+            enrolledLeadIds
+          )
+        : Promise.resolve([] as any[]),
+    ]);
+    const queueRows = dedupRows(
+      [...qByTable, ...qByLead],
+      (r) => `${r.related_lead_id ?? r.recipient_email}|${r.scheduled_at}|${r.status}`
+    );
 
     let logRows: any[] = [];
     if (bucket === "failed") {
-      logRows = await fetchAllPaged<any>(() =>
-        supabase
-          .from("email_logs")
-          .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at")
-          .eq("related_lead_table", relatedTable)
-          .eq("template_slug", stepSlug ?? "")
-          .in("status", ["bounced", "complained", "failed"])
+      const [lByTable, lByLead] = await Promise.all([
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_logs")
+            .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at, template_slug")
+            .eq("related_lead_table", relatedTable)
+            .eq("template_slug", slug)
+            .in("status", ["bounced", "complained", "failed"])
+        ),
+        useLeadFallback
+          ? fetchAllByIn<any>(
+              (s) =>
+                supabase
+                  .from("email_logs")
+                  .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at, template_slug")
+                  .in("related_lead_id", s)
+                  .eq("template_slug", slug)
+                  .in("status", ["bounced", "complained", "failed"]),
+              enrolledLeadIds
+            )
+          : Promise.resolve([] as any[]),
+      ]);
+      logRows = dedupRows(
+        [...lByTable, ...lByLead],
+        (r) => `${r.related_lead_id ?? r.recipient_email}|${r.sent_at}`
       );
     }
 
@@ -708,18 +795,41 @@ async function fetchLeads(args: {
     }));
   }
 
-  // sent / opened / clicked → email_logs
-  const data = await fetchAllPaged<any>(() => {
-    let q = supabase
-      .from("email_logs")
-      .select("related_lead_id, recipient_email, sent_at, opened_at, clicked_at")
-      .eq("related_lead_table", relatedTable)
-      .eq("template_slug", stepSlug ?? "");
-    if (bucket === "opened") q = q.not("opened_at", "is", null);
-    if (bucket === "clicked") q = q.not("clicked_at", "is", null);
+  // sent / opened / clicked → email_logs (by table + by lead/slug fallback)
+  const selectCols = "related_lead_id, recipient_email, sent_at, opened_at, clicked_at, template_slug";
+  const applyBucketFilter = (q: any) => {
+    if (bucket === "opened") return q.not("opened_at", "is", null);
+    if (bucket === "clicked") return q.not("clicked_at", "is", null);
     return q;
-  });
-  const rows = data ?? [];
+  };
+  const [byTable, byLead] = await Promise.all([
+    fetchAllPaged<any>(() =>
+      applyBucketFilter(
+        supabase
+          .from("email_logs")
+          .select(selectCols)
+          .eq("related_lead_table", relatedTable)
+          .eq("template_slug", slug)
+      )
+    ),
+    useLeadFallback
+      ? fetchAllByIn<any>(
+          (s) =>
+            applyBucketFilter(
+              supabase
+                .from("email_logs")
+                .select(selectCols)
+                .in("related_lead_id", s)
+                .eq("template_slug", slug)
+            ),
+          enrolledLeadIds
+        )
+      : Promise.resolve([] as any[]),
+  ]);
+  const rows = dedupRows(
+    [...byTable, ...byLead],
+    (r) => `${r.related_lead_id ?? r.recipient_email}|${r.sent_at}`
+  );
   const leadIds = rows.map((r: any) => r.related_lead_id).filter(Boolean);
   const names = await fetchLeadNames(leadIds);
   return rows.map((r: any) => {
@@ -739,6 +849,12 @@ async function fetchLeads(args: {
       ts_label,
     };
   });
+}
+
+function dedupRows<T extends Record<string, any>>(rows: T[], key: (r: T) => string): T[] {
+  const m = new Map<string, T>();
+  for (const r of rows) m.set(key(r), r);
+  return Array.from(m.values());
 }
 
 async function fetchLeadNames(ids: string[]): Promise<Map<string, string>> {
