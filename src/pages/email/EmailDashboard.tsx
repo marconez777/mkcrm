@@ -127,13 +127,14 @@ export default function EmailDashboard() {
     if (!clinicId) return;
     setLoading(true);
     const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
-    const [{ data: ls }, { data: q }, { data: state }, { data: c }] = await Promise.all([
-      supabase
-        .from("email_logs")
-        .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
-        .gte("sent_at", since)
-        .order("sent_at", { ascending: false })
-        .limit(1000),
+    const [ls, { data: q }, { data: state }, { data: c }] = await Promise.all([
+      fetchAllPaged<any>(() =>
+        supabase
+          .from("email_logs")
+          .select("id,template_slug,recipient_email,subject,status,sent_at,opened_at,clicked_at,bounced_at,delivered_at,error")
+          .gte("sent_at", since)
+          .order("sent_at", { ascending: false })
+      , 1000, 50_000),
       supabase.from("email_queue").select("status").eq("clinic_id", clinicId),
       supabase.from("email_send_state").select("sent_today").eq("clinic_id", clinicId).maybeSingle(),
       supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle(),
