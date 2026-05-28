@@ -138,13 +138,26 @@ export default function EmailSegments() {
     setKnownUtm([...utm].sort());
     setLoading(false);
 
-    // contagem assíncrona por segmento via RPC
+    // contagem assíncrona por segmento — sem limite de 1000
     const next: Record<string, number> = {};
     await Promise.all(((segs as Segment[]) ?? []).map(async (s) => {
-      const { data } = await supabase.rpc("resolve_email_segment", { _segment_id: s.id });
-      const set = new Set<string>();
-      (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
-      next[s.id] = set.size;
+      const f = normalizeFilters(s.filters);
+      if (f.kind === "static") {
+        // count exato direto na tabela de vínculos
+        const { count } = await supabase
+          .from("email_segment_contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("segment_id", s.id);
+        next[s.id] = count ?? 0;
+      } else {
+        // dinâmico: usa RPC, mas força range alto para escapar do default 1000
+        const { data } = await supabase
+          .rpc("resolve_email_segment", { _segment_id: s.id })
+          .range(0, 99999);
+        const set = new Set<string>();
+        (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+        next[s.id] = set.size;
+      }
     }));
     setCounts(next);
   }
