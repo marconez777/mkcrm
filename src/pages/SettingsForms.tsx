@@ -72,9 +72,12 @@ export default function SettingsForms() {
 
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("form_integrations").select("*").order("created_at", { ascending: false });
-    if (error) toast.error(error.message); else setList((data ?? []) as any);
+    try {
+      const data = await fetchAllPaged<any>(() =>
+        supabase.from("form_integrations").select("*").order("created_at", { ascending: false }),
+      );
+      setList(data as any);
+    } catch (e: any) { toast.error(e.message); }
     setLoading(false);
   }
 
