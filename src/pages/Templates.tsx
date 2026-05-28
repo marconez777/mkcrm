@@ -29,8 +29,8 @@ export default function Templates() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const { data } = await supabase.from("message_templates").select("*").order("name");
-    setItems((data ?? []) as any);
+    const data = await fetchAllPaged<any>(() => supabase.from("message_templates").select("*").order("name"));
+    setItems(data as any);
   };
   useEffect(() => { load(); }, []);
 
