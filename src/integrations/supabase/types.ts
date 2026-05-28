@@ -5029,6 +5029,107 @@ export type Database = {
       }
       _email_segment_rule_to_sql: { Args: { _rule: Json }; Returns: string }
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
+      admin_get_ai_agent: {
+        Args: { _id: string }
+        Returns: {
+          api_key: string | null
+          base_url: string | null
+          clinic_id: string
+          created_at: string
+          debounce_seconds: number
+          description: string | null
+          embedding_api_key: string | null
+          embedding_model: string | null
+          enabled: boolean
+          id: string
+          is_system: boolean
+          max_iterations: number
+          max_tool_calls: number
+          model: string
+          name: string
+          planning_mode: boolean
+          provider: string
+          rag_top_k: number
+          reranker_api_key: string | null
+          reranker_provider: string | null
+          role: string | null
+          silent: boolean
+          system_key: string | null
+          system_prompt: string
+          temperature: number
+          tools: Json
+          updated_at: string
+          use_hybrid_search: boolean
+          use_hyde: boolean
+          use_memory: boolean
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ai_agents"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      admin_list_agent_mcp_servers: {
+        Args: { _agent_id: string }
+        Returns: {
+          agent_id: string
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          headers: Json
+          id: string
+          name: string
+          url: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_mcp_servers"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      admin_list_ai_agents: {
+        Args: never
+        Returns: {
+          api_key: string | null
+          base_url: string | null
+          clinic_id: string
+          created_at: string
+          debounce_seconds: number
+          description: string | null
+          embedding_api_key: string | null
+          embedding_model: string | null
+          enabled: boolean
+          id: string
+          is_system: boolean
+          max_iterations: number
+          max_tool_calls: number
+          model: string
+          name: string
+          planning_mode: boolean
+          provider: string
+          rag_top_k: number
+          reranker_api_key: string | null
+          reranker_provider: string | null
+          role: string | null
+          silent: boolean
+          system_key: string | null
+          system_prompt: string
+          temperature: number
+          tools: Json
+          updated_at: string
+          use_hybrid_search: boolean
+          use_hyde: boolean
+          use_memory: boolean
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ai_agents"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       broadcast_freeze_audience: {
         Args: {
           _broadcast_id: string
