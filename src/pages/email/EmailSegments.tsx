@@ -110,6 +110,7 @@ export default function EmailSegments() {
   const [previewSample, setPreviewSample] = useState<string[]>([]);
   const [previewing, setPreviewing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
