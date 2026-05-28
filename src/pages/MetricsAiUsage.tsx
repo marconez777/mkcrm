@@ -76,15 +76,15 @@ export default function MetricsAiUsage() {
     // resolve agent + lead names
     const agentIds = Array.from(new Set(list.map((r) => r.agent_id).filter(Boolean))) as string[];
     const leadIds = Array.from(new Set(list.map((r) => r.lead_id).filter(Boolean))) as string[];
-    const [aRes, lRes] = await Promise.all([
-      agentIds.length ? supabase.from("ai_agents").select("id, name").in("id", agentIds) : Promise.resolve({ data: [] }),
-      leadIds.length ? supabase.from("leads").select("id, name, phone").in("id", leadIds) : Promise.resolve({ data: [] }),
+    const [aRows, lRows] = await Promise.all([
+      fetchAllByIn<any>((slice) => supabase.from("ai_agents").select("id, name").in("id", slice), agentIds),
+      fetchAllByIn<any>((slice) => supabase.from("leads").select("id, name, phone").in("id", slice), leadIds),
     ]);
     const am: Record<string, string> = {};
-    (aRes.data ?? []).forEach((a: any) => { am[a.id] = a.name; });
+    aRows.forEach((a: any) => { am[a.id] = a.name; });
     setAgents(am);
     const lm: Record<string, { name: string | null; phone: string }> = {};
-    (lRes.data ?? []).forEach((l: any) => { lm[l.id] = { name: l.name, phone: l.phone }; });
+    lRows.forEach((l: any) => { lm[l.id] = { name: l.name, phone: l.phone }; });
     setLeads(lm);
     setLoadingRows(false);
   };
