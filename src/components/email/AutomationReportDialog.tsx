@@ -498,11 +498,13 @@ type LeadRow = {
 export function AutomationLeadsSheet({
   automationId,
   relatedTable,
+  enrolledLeadIds = [],
   sheet,
   onClose,
 }: {
   automationId: string | null;
   relatedTable: string | null;
+  enrolledLeadIds?: string[];
   sheet: { bucket: Bucket; stepSlug?: string; title: string } | null;
   onClose: () => void;
 }) {
@@ -521,6 +523,7 @@ export function AutomationLeadsSheet({
         const data = await fetchLeads({
           automationId,
           relatedTable,
+          enrolledLeadIds,
           bucket: sheet.bucket,
           stepSlug: sheet.stepSlug,
         });
@@ -530,7 +533,7 @@ export function AutomationLeadsSheet({
       }
     })();
     setSearch("");
-  }, [sheet, automationId, relatedTable]);
+  }, [sheet, automationId, relatedTable, enrolledLeadIds]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
