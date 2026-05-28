@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import {
   Dialog,
   DialogContent,
