@@ -1,9 +1,13 @@
-// Helper para buscar todas as linhas além do limite padrão (1000) do PostgREST.
-// Usa .range() em páginas até esgotar.
+// Helpers para escapar o limite default de 1000 linhas por resposta do PostgREST.
+
 const PAGE = 1000;
 
+/**
+ * Pagina por .range() até esgotar. `build` deve devolver um query builder do
+ * supabase SEM .range/.limit. Ordem é preservada se você passou .order() no build.
+ */
 export async function fetchAllPaged<T>(
-  build: () => any, // factory que retorna um query builder do supabase (sem range/limit)
+  build: () => any,
   pageSize = PAGE,
   hardCap = 100_000,
 ): Promise<T[]> {
@@ -19,4 +23,25 @@ export async function fetchAllPaged<T>(
     from += pageSize;
   }
   return all;
+}
+
+/**
+ * Roda múltiplos .in(column, chunk) e concatena. Evita o teto de 1000 valores
+ * no IN e URIs muito longas.
+ */
+export async function fetchAllByIn<T>(
+  build: (chunk: any[]) => any,
+  values: any[],
+  chunkSize = 500,
+): Promise<T[]> {
+  const unique = Array.from(new Set(values.filter((v) => v !== null && v !== undefined)));
+  if (unique.length === 0) return [];
+  const out: T[] = [];
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const slice = unique.slice(i, i + chunkSize);
+    const { data, error } = await build(slice);
+    if (error) throw error;
+    out.push(...((data ?? []) as T[]));
+  }
+  return out;
 }

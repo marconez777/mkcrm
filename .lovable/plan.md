@@ -1,54 +1,73 @@
-# Remover limite de 1000 em toda a ferramenta de e-mail
+# Varredura completa — pontos onde o limite de 1000 do PostgREST ainda machuca
 
-## Causa raiz
+Fiz uma varredura em todo `src/`. Abaixo, agrupado por área, o que **precisa** virar `fetchAllPaged`/chunked-IN e o que **não precisa** (já é paginação visual ou top-N intencional).
 
-O PostgREST do Supabase aplica um limite default de 1000 linhas por resposta. Onde quer que o código faça `select(...)` sem `.range(0, N)` (ou com `.limit(N)` mas confiando que N será maior que o total), só vêm 1000 linhas. Isso afeta a prévia de "Nova campanha" (a badge "1000 enviáveis" da screenshot), os relatórios de campanha/automação e o dashboard.
+## E-mails — ainda pendentes
 
-Já temos o helper `src/lib/fetch-all.ts` (`fetchAllPaged`) que pagina automaticamente. Vamos usá-lo em todos os pontos.
+### `src/components/email/AutomationReportDialog.tsx`
+- **`fetchLeadNames(ids)`** (linha 744) — `.in("id", ids)` com até milhares de ids; PostgREST devolve no máx. 1000 nomes, então a coluna "Nome" fica em branco em relatórios grandes. → quebrar em chunks de 500 e agregar no `Map`.
+- **`fetchContactNames(emails)`** (linha 754) — mesmo problema com `email_segment_contacts.in("email", …)`. → mesmo chunking.
 
-## Mudanças
+### `src/pages/email/EmailSegments.tsx`
+- Linha 125 — `leads.select("form_source, tags, utm_campaign").limit(2000)` usado para popular sugestões de chips de filtro. Em clínicas com >2000 leads as sugestões ficam parciais. → `fetchAllPaged` com `hardCap` 20.000 (sugestões só precisam de cobertura, não exatidão).
+- Linha 390 — `leads.select("form_source").limit(5000)` (mesmo caso, outra aba). → idem.
 
-### 1. `src/components/email/CampaignRecipientsPreview.tsx` (a tela da screenshot)
-- `supabase.rpc("resolve_email_segment", { _segment_id })` → adicionar `.range(0, 99999)` para receber todos os contatos do segmento (RPCs respeitam range no PostgREST).
-- Fallback "todos os leads" (`.from("leads").limit(5000)`) → trocar por `fetchAllPaged` com filtros existentes (`clinic_id`, `email not null`, `email != ''`).
-- `email_unsubscribes ... .in("email", emails)` → quebrar `emails` em chunks de 500 e agregar resultado (a cláusula `IN` com 4000+ valores também pode estourar o limite de resposta e/ou tamanho da URL).
-- Badge passa a refletir o total real (ex.: "4287 enviáveis").
+### `src/pages/email/EmailTemplates.tsx`
+- Linha 80 — `email_templates.select("*").order("updated_at")` sem range. Clínicas com >1000 templates não veem os mais antigos. → `fetchAllPaged`.
 
-### 2. `src/components/email/CampaignReportDialog.tsx` (relatório de campanha)
-- `email_logs.limit(10000)` e `email_queue.limit(10000)` → `fetchAllPaged` paginando por `related_lead_table = campaign_<id>`.
-- Stats (enviados, abertos, clicados, falhados, na fila) e união por e-mail passam a refletir todos os destinatários.
+### `src/pages/email/EmailAutomations.tsx`
+- Linha 70 — `email_automations.select("*")` sem range. → `fetchAllPaged`.
 
-### 3. `src/components/email/AutomationReportDialog.tsx` (relatório de automação)
-Trocar todos os `.limit(2000|5000|10000)` por `fetchAllPaged`:
-- `load()`: `email_logs` e `email_queue` por `related_lead_table`.
-- `loadLeadsForBucket()` em todos os buckets:
-  - `enrolled` → `email_automation_enrollments`
-  - `all` → `email_queue` + `email_logs` (usado também por campanhas)
-  - `queued`, `failed` → `email_queue` + `email_logs`
-  - `sent`, `opened`, `clicked` → `email_logs`
+### `src/pages/email/EmailCampaigns.tsx`
+- Linhas 85-86 — `email_templates` e `email_segments` para popular o dropdown do dialog de campanha. → `fetchAllPaged` (mesmo padrão do EmailReports).
 
-### 4. `src/pages/email/EmailDashboard.tsx`
-- `email_logs.limit(1000)` na função `load()` → `fetchAllPaged` com `gte("sent_at", since)` e `order("sent_at", desc)`, com `hardCap` razoável (ex.: 50.000) para não travar a UI em janelas longas.
+## E-mails — NÃO mexer (intencional ou já correto)
 
-### 5. `src/pages/email/EmailCampaigns.tsx`
-- Agregados de `email_logs` e `email_queue` com `.limit(20000)` (linhas 93-94) → `fetchAllPaged` para que `sent_count` / totalizações por campanha listada não sejam truncados quando uma clínica tem muitas campanhas grandes.
+- `EmailLogs.tsx`, `EmailQueue.tsx`, `EmailUnsubscribes.tsx`, `EmailContacts.tsx`, lista principal do `EmailSegments.tsx` — paginação visual com `count: exact` + `.range(from,to)`.
+- `CampaignLiveDialog.tsx:89` — `limit(20)` é "últimos 20 itens da fila", proposital.
+- RPCs (`report_template_stats`, `report_campaign_stats`, `resolve_email_segment`, `campaign_throughput`, `email_metrics_daily`) — agregam no servidor.
+- `EmailDashboard.tsx`, `CampaignReportDialog.tsx`, `AutomationReportDialog.load()` e `loadLeadsForBucket()`, `CampaignRecipientsPreview.tsx` — já corrigidos na rodada anterior.
 
-### 6. `src/pages/email/EmailReports.tsx`
-- Dropdown de campanhas (`email_campaigns.limit(100)`) → aumentar para usar `fetchAllPaged` (clínicas com mais de 100 campanhas não conseguem selecionar as antigas). Demais stats já usam RPCs do servidor (`report_template_stats`, `report_campaign_stats`), sem limite client-side.
+## Fora do módulo de e-mail (resto da ferramenta)
 
-### 7. Loaders adequados
-A prévia de destinatários e os relatórios passam a fazer múltiplos round-trips: manter o `Loader2` já existente enquanto a paginação roda, sem mudar a UX.
+### Alta prioridade (dados de cliente que crescem para sempre)
 
-## Onde NÃO mexer (já estão corretos)
+- **`src/hooks/useUnreadTitle.ts`** linha 16 — `leads.select("unread_count")` sem paginação. O contador de "não lidas" no `<title>` da aba para em 1000 leads, então clínicas grandes mostram número errado. → `fetchAllPaged` com hardCap alto.
+- **`src/pages/Admin.tsx`** linha 49 — `clinics.select("*")` sem range. Em produção, a tela admin pode esconder clínicas. → `fetchAllPaged`.
+- **`src/pages/SettingsForms.tsx`** linha 75 — `form_integrations.select("*")` (sem range). → `fetchAllPaged`.
+- **`src/pages/Broadcasts.tsx`** linha 56 — `broadcasts.select("*")` (sem range). → `fetchAllPaged`.
+- **`src/pages/Automations.tsx`** linha 51 — `automations.select("*")` (sem range). → `fetchAllPaged`.
+- **`src/pages/Templates.tsx`** linha 31 — `message_templates.select("*")` (sem range). → `fetchAllPaged`.
+- **`src/pages/Sequences.tsx`** linha 64 — `message_sequences.select("*")`. → `fetchAllPaged`.
+- **`src/pages/ScheduledReports.tsx`** linha 55 — `scheduled_reports.select("*")`. → `fetchAllPaged`.
+- **`src/pages/Agents.tsx`** linhas 220/241/260/364 — `ai_documents.select(...)` sem range e usado em listas. → `fetchAllPaged`.
 
-- `EmailContacts.tsx`, `EmailSegments.tsx` — já corrigidos em loops anteriores.
-- `EmailLogs.tsx`, `EmailQueue.tsx`, `EmailUnsubscribes.tsx` — usam paginação com `count: exact` + `.range(from, to)` controlada pelo usuário; cada página tem 1000 por design.
-- `CampaignLiveDialog.tsx` — `email_queue.limit(20)` é intencional (últimos 20 itens da fila ao vivo).
-- RPCs server-side (`report_template_stats`, `report_campaign_stats`, `campaign_throughput`, `email_metrics_daily`) — agregam no banco, sem limite de linhas.
+### Média prioridade — `.in(...)` que podem estourar 1000
 
-## Detalhes técnicos
+- `src/pages/Team.tsx:46` — `profiles.in("user_id", ids)`. → chunking se equipes grandes.
+- `src/pages/AgentMemories.tsx:54,57` — `ai_agents`/`leads` por id; agente pode ter milhares de leads referenciados. → chunking.
+- `src/pages/AiInsights.tsx:78,81` — mesmo padrão. → chunking.
+- `src/pages/MetricsAiUsage.tsx:79,80` — mesmo padrão. → chunking.
+- `src/components/inbox/ConversationList.tsx:103` — `leads.update().in("id", ids)`: o update funciona mas a resposta retorna no máx 1000 (ok, o efeito acontece). Não precisa mexer, mas observar.
+- `src/components/lead/LeadTimelineTab.tsx:127,135,154` — `.in("visitor_id", …)` / `.in("id", …)`. → chunking se o lead acumular muitos visitantes.
+- `src/components/email/CampaignRecipientsPreview.tsx:81` — JÁ chunked na rodada anterior.
 
-- `fetchAllPaged(build, pageSize=1000, hardCap=100_000)` recebe uma factory que devolve um query builder sem `.range/.limit`. Vamos usá-lo em todos os pontos acima.
-- Para RPCs (`resolve_email_segment`) o helper não se aplica — usamos `.range(0, 99999)` direto, mesmo padrão já adotado em `EmailSegments.tsx`.
-- Para `.in("email", [...])` com listas grandes, criar utilitário inline que divide em chunks de 500 e concatena resultados (evita 414 URI Too Long e o teto de 1000 por resposta).
-- Nenhuma alteração de schema, RLS ou edge function.
+### Caps intencionais que vou DEIXAR como estão
+
+- `MetricsOps.tsx:25-26` (messages 5000, leads 2000) — dashboards de janela curta; cap intencional para custo.
+- `Tracking.tsx:287,300,450,451` e `TrackingDebug.tsx:117,132,140,176,177` — top-N de eventos/sessões recentes.
+- `LeadTimelineTab.tsx:80-120` — timeline de UM lead, 200 eventos por tipo é janela.
+- `ContextRail.tsx`, `ChatPane.tsx`, `useLeadsPaginated.ts` — paginação ou top-N de chat.
+- `Broadcasts.tsx:170` (broadcast_events 100), `Automations.tsx:72,131` (logs 20), `ScheduledReports.tsx:73` (15), `AiInsights.tsx:61` (200), `AgentMemories.tsx:44` (500), `MetricsAiUsage.tsx:71` (5000), `AiDashboard.tsx:96,103` (5000), `Metrics.tsx:48` (1000), `CommandPalette.tsx:59` (top 8), `SettingsForms.tsx:182` (200) — todos são "últimos N" ou janelas de métrica, não listas de domínio.
+- Dropdowns/configs pequenas: `attendants`, `quick_replies`, `pipelines`, `pipeline_stages`, `whatsapp_instances`, `task_boards`, `clinic_members` — domínio inerentemente <1000.
+
+## Como implementar
+
+1. Trocar cada select listado em "Alta prioridade" e os dois do `AutomationReportDialog` por `fetchAllPaged(() => supabase.from(...).select(...)...)`, mantendo `order` e filtros.
+2. Para os `.in(...)` listados em "Média prioridade": utilitário inline `chunkedIn(table, column, values, select)` que parte em 500, concatena resultados.
+3. `useUnreadTitle`: `fetchAllPaged` na carga inicial; a subscription realtime já mantém o contador atualizado depois.
+4. Sem mudanças de schema, RLS, ou edge functions.
+
+## Esperado depois
+
+Nenhum select de domínio (leads, clinics, campanhas, integrações, templates, etc.) trunca silenciosamente em 1000. Top-N e janelas de métrica continuam com cap, mas isso é decisão de produto, não bug.
