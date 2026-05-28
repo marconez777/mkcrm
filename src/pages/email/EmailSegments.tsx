@@ -156,12 +156,17 @@ export default function EmailSegments() {
           .eq("segment_id", s.id);
         next[s.id] = count ?? 0;
       } else {
-        // dinâmico: usa RPC, mas força range alto para escapar do default 1000
-        const { data } = await supabase
-          .rpc("resolve_email_segment", { _segment_id: s.id })
-          .range(0, 99999);
+        // dinâmico: pagina a RPC para escapar do default 1000
         const set = new Set<string>();
-        (data as any[] ?? []).forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+        const PAGE = 1000;
+        for (let offset = 0; offset < 200_000; offset += PAGE) {
+          const { data } = await supabase
+            .rpc("resolve_email_segment", { _segment_id: s.id })
+            .range(offset, offset + PAGE - 1);
+          const rows = (data as any[]) ?? [];
+          rows.forEach((r) => r?.email && set.add(String(r.email).toLowerCase()));
+          if (rows.length < PAGE) break;
+        }
         next[s.id] = set.size;
       }
     }));
@@ -339,20 +344,28 @@ export default function EmailSegments() {
     setPreviewing(true);
     try {
       if (editing) {
-        const [{ data, error }, { data: unsubs }] = await Promise.all([
-          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }).range(0, 99999),
-          supabase.from("email_unsubscribes").select("email").eq("clinic_id", (editing as any).clinic_id ?? ""),
+        const clinicForSeg = (editing as any).clinic_id ?? "";
+        const [{ data: unsubs }] = await Promise.all([
+          supabase.from("email_unsubscribes").select("email").eq("clinic_id", clinicForSeg),
         ]);
-        if (error) throw error;
         const blocked = new Set((unsubs ?? []).map((u: any) => String(u.email).toLowerCase()));
         const all = new Set<string>();
         const eligible = new Set<string>();
-        (data as any[] ?? []).forEach((r) => {
-          if (!r?.email) return;
-          const e = String(r.email).toLowerCase();
-          all.add(e);
-          if (!blocked.has(e)) eligible.add(e);
-        });
+        const PAGE = 1000;
+        for (let offset = 0; offset < 200_000; offset += PAGE) {
+          const { data, error } = await supabase
+            .rpc("resolve_email_segment", { _segment_id: editing.id })
+            .range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          const rows = (data as any[]) ?? [];
+          rows.forEach((r) => {
+            if (!r?.email) return;
+            const e = String(r.email).toLowerCase();
+            all.add(e);
+            if (!blocked.has(e)) eligible.add(e);
+          });
+          if (rows.length < PAGE) break;
+        }
         setPreviewCount(eligible.size);
         setPreviewSample([...eligible].slice(0, 5));
         const suppressed = all.size - eligible.size;

@@ -110,9 +110,18 @@ Deno.serve(async (req) => {
     };
 
     if (campaign.segment_id) {
-      const { data: resolved, error: rErr } = await supabase.rpc("resolve_email_segment", { _segment_id: campaign.segment_id });
-      if (rErr) console.error("resolve_email_segment error:", rErr);
-      for (const r of ((resolved as any[]) ?? [])) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
+      // Pagina o resultado da RPC para escapar do teto default de 1000 do PostgREST.
+      const PAGE = 1000;
+      for (let offset = 0; ; offset += PAGE) {
+        const { data: resolved, error: rErr } = await supabase
+          .rpc("resolve_email_segment", { _segment_id: campaign.segment_id })
+          .range(offset, offset + PAGE - 1);
+        if (rErr) { console.error("resolve_email_segment error:", rErr); break; }
+        const rows = (resolved as any[]) ?? [];
+        for (const r of rows) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
+        if (rows.length < PAGE) break;
+        if (offset + PAGE >= 200_000) break; // safety cap
+      }
     } else {
       // "Todos os leads" — paginar para suportar >1000 (limite default do PostgREST)
       const PAGE = 1000;
