@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
+import { LoadingRadialOverlay } from "@/components/ui/loading-radial";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ export function CampaignReportDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [stats, setStats] = useState<Stats>({
     queued: 0,
     sent: 0,
@@ -72,19 +74,35 @@ export function CampaignReportDialog({
   async function load() {
     if (!relatedTable) return;
     setLoading(true);
+    // Conta total para % real
+    const [{ count: logsCount }, { count: queueCount }] = await Promise.all([
+      supabase.from("email_logs").select("id", { count: "exact", head: true }).eq("related_lead_table", relatedTable),
+      supabase.from("email_queue").select("id", { count: "exact", head: true }).eq("related_lead_table", relatedTable),
+    ]);
+    const grand = (logsCount ?? 0) + (queueCount ?? 0);
+    setLoadProgress({ loaded: 0, total: grand });
+    let prevL = 0, prevQ = 0, sum = 0;
+    const bump = (delta: number) => {
+      sum = Math.min(grand, sum + delta);
+      setLoadProgress({ loaded: sum, total: grand });
+    };
     try {
       const [logsRows, queueRows] = await Promise.all([
-        fetchAllPaged<any>(() =>
-          supabase
+        fetchAllPaged<any>(
+          () => supabase
             .from("email_logs")
             .select("status, opened_at, clicked_at, recipient_email")
-            .eq("related_lead_table", relatedTable)
+            .eq("related_lead_table", relatedTable),
+          1000, 100_000,
+          (loaded) => { bump(loaded - prevL); prevL = loaded; },
         ),
-        fetchAllPaged<any>(() =>
-          supabase
+        fetchAllPaged<any>(
+          () => supabase
             .from("email_queue")
             .select("status, recipient_email")
-            .eq("related_lead_table", relatedTable)
+            .eq("related_lead_table", relatedTable),
+          1000, 100_000,
+          (loaded) => { bump(loaded - prevQ); prevQ = loaded; },
         ),
       ]);
       const logs = logsRows as any[];
