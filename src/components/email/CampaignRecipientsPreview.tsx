@@ -33,13 +33,17 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
         let recipients: Recipient[] = [];
 
         if (segmentId) {
-          // Usa o mesmo resolver do dispatcher — lida com dinâmico e estático.
-          // .range escapa o limite default de 1000 do PostgREST.
-          const { data, error } = await supabase
-            .rpc("resolve_email_segment", { _segment_id: segmentId })
-            .range(0, 99999);
-          if (error) throw error;
-          recipients = (data ?? []).map((r: any) => ({ email: r.email, name: r.name }));
+          // Pagina a RPC para escapar do teto default de 1000 do PostgREST.
+          const PAGE = 1000;
+          for (let offset = 0; offset < 200_000; offset += PAGE) {
+            const { data, error } = await supabase
+              .rpc("resolve_email_segment", { _segment_id: segmentId })
+              .range(offset, offset + PAGE - 1);
+            if (error) throw error;
+            const rows = (data ?? []) as any[];
+            recipients.push(...rows.map((r) => ({ email: r.email, name: r.name })));
+            if (rows.length < PAGE) break;
+          }
         } else {
           // Sem segmento = todos os leads da clínica com email (paginado)
           const rows = await fetchAllPaged<any>(() =>
