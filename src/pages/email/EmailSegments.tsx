@@ -610,8 +610,10 @@ export default function EmailSegments() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenNew(false)}>Cancelar</Button>
-              <Button onClick={save}>Salvar</Button>
+              <Button variant="outline" onClick={() => setOpenNew(false)} disabled={saving}>Cancelar</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando…</> : "Salvar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
