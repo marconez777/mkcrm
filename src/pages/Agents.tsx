@@ -273,12 +273,12 @@ export default function Agents() {
 
   useEffect(() => {
     if (!selected) { setDocs([]); return; }
-    supabase
+    fetchAllPaged<any>(() => supabase
       .from("ai_documents")
       .select("id, title, source, created_at")
       .eq("agent_id", selected.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setDocs(data ?? []));
+      .order("created_at", { ascending: false }))
+      .then((data) => setDocs(data));
   }, [selected?.id]);
 
   const create = async () => {
