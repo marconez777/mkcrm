@@ -229,7 +229,7 @@ export default function EmailTemplateEditor() {
     if (!tpl.subject.trim()) { toast.error("Informe o assunto"); return; }
     if (!tpl.slug || !SLUG_RE.test(tpl.slug)) { toast.error("Slug inválido (use letras, números e hífen, começando por letra)"); return; }
     if (blocks.length === 0) { toast.error("Adicione pelo menos um bloco"); return; }
-    if (!tpl.from_email.includes("@")) { toast.error("Configure um remetente"); return; }
+    // Remetente é opcional no save — bloqueio só acontece ao enviar teste/disparar campanha.
 
     setSaving(true);
     try {
