@@ -89,58 +89,66 @@ export default function EmailContacts() {
 
   async function load() {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: cm } = await supabase
-      .from("clinic_members").select("clinic_id")
-      .eq("user_id", user.id).limit(1).maybeSingle();
-    const cid = cm?.clinic_id ?? null;
-    setClinicId(cid);
-    if (!cid) { setLoading(false); return; }
+    try {
+      // getSession() lê do storage e NÃO disputa o lock do gotrue (diferente de getUser()).
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return;
+      const { data: cm } = await supabase
+        .from("clinic_members").select("clinic_id")
+        .eq("user_id", user.id).limit(1).maybeSingle();
+      const cid = cm?.clinic_id ?? null;
+      setClinicId(cid);
+      if (!cid) return;
 
-    // Conta total pra calcular % real do carregamento
-    const [{ count: leadsTotal }, { count: segTotal }] = await Promise.all([
-      supabase.from("leads").select("id", { count: "exact", head: true })
-        .eq("clinic_id", cid).not("email", "is", null).neq("email", ""),
-      supabase.from("email_segment_contacts").select("id", { count: "exact", head: true })
-        .eq("clinic_id", cid),
-    ]);
-    const grandTotal = (leadsTotal ?? 0) + (segTotal ?? 0);
-    setLoadProgress({ loaded: 0, total: grandTotal });
-    let loadedSoFar = 0;
-    const bump = (delta: number) => {
-      loadedSoFar = Math.min(grandTotal, loadedSoFar + delta);
-      setLoadProgress({ loaded: loadedSoFar, total: grandTotal });
-    };
-    let prevLeads = 0, prevSeg = 0;
+      // Conta total pra calcular % real do carregamento
+      const [{ count: leadsTotal }, { count: segTotal }] = await Promise.all([
+        supabase.from("leads").select("id", { count: "exact", head: true })
+          .eq("clinic_id", cid).not("email", "is", null).neq("email", ""),
+        supabase.from("email_segment_contacts").select("id", { count: "exact", head: true })
+          .eq("clinic_id", cid),
+      ]);
+      const grandTotal = (leadsTotal ?? 0) + (segTotal ?? 0);
+      setLoadProgress({ loaded: 0, total: grandTotal });
+      let loadedSoFar = 0;
+      const bump = (delta: number) => {
+        loadedSoFar = Math.min(grandTotal, loadedSoFar + delta);
+        setLoadProgress({ loaded: loadedSoFar, total: grandTotal });
+      };
+      let prevLeads = 0, prevSeg = 0;
 
-    const [{ data: segs }, leadsData, manual] = await Promise.all([
-      supabase.from("email_segments").select("id, name").eq("clinic_id", cid).order("name"),
-      fetchAllPaged<LeadRow>(
-        () => supabase.from("leads")
-          .select("id, email, name, created_at, form_source")
-          .eq("clinic_id", cid)
-          .not("email", "is", null)
-          .neq("email", "")
-          .order("created_at", { ascending: false }),
-        1000, 100_000,
-        (loaded) => { bump(loaded - prevLeads); prevLeads = loaded; },
-      ),
-      fetchAllPaged<SegContactRow>(
-        () => supabase.from("email_segment_contacts")
-          .select("id, email, name, created_at, segment_id, lead_id")
-          .eq("clinic_id", cid)
-          .order("created_at", { ascending: false }),
-        1000, 100_000,
-        (loaded) => { bump(loaded - prevSeg); prevSeg = loaded; },
-      ),
-    ]);
+      const [{ data: segs }, leadsData, manual] = await Promise.all([
+        supabase.from("email_segments").select("id, name").eq("clinic_id", cid).order("name"),
+        fetchAllPaged<LeadRow>(
+          () => supabase.from("leads")
+            .select("id, email, name, created_at, form_source")
+            .eq("clinic_id", cid)
+            .not("email", "is", null)
+            .neq("email", "")
+            .order("created_at", { ascending: false }),
+          1000, 100_000,
+          (loaded) => { bump(loaded - prevLeads); prevLeads = loaded; },
+        ),
+        fetchAllPaged<SegContactRow>(
+          () => supabase.from("email_segment_contacts")
+            .select("id, email, name, created_at, segment_id, lead_id")
+            .eq("clinic_id", cid)
+            .order("created_at", { ascending: false }),
+          1000, 100_000,
+          (loaded) => { bump(loaded - prevSeg); prevSeg = loaded; },
+        ),
+      ]);
 
-    setSegments((segs as Segment[]) ?? []);
-    setLeads((leadsData ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
-    setSegContacts((manual ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
-    setLoading(false);
-    setLoadProgress(null);
+      setSegments((segs as Segment[]) ?? []);
+      setLeads((leadsData ?? []).map((l) => ({ ...l, email: String(l.email).toLowerCase() })));
+      setSegContacts((manual ?? []).map((c) => ({ ...c, email: String(c.email).toLowerCase() })));
+    } catch (e: any) {
+      console.error("[EmailContacts] load failed", e);
+      toast.error("Falha ao carregar contatos. Recarregue a página.");
+    } finally {
+      setLoading(false);
+      setLoadProgress(null);
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -228,7 +236,8 @@ export default function EmailContacts() {
     const email = addEmail.trim().toLowerCase();
     if (!/.+@.+\..+/.test(email)) return toast.error("E-mail inválido");
     if (!clinicId) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     const { error } = await supabase.from("email_segment_contacts").insert({
       clinic_id: clinicId,
       segment_id: addSegment && addSegment !== "__none" ? addSegment : null,
@@ -291,7 +300,8 @@ export default function EmailContacts() {
     if (!mapEmail) return toast.error("Mapeie a coluna de e-mail");
     setImporting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       const seen = new Set<string>();
       const rows = importRows
         .map((r) => ({
