@@ -424,11 +424,18 @@ export default function EmailSegments() {
         }}>
           <Filter className="h-4 w-4 mr-2" /> Criar segmentos dos formulários
         </Button>
-        <Dialog open={openNew} onOpenChange={(o) => { if (o) openCreate(); else { setOpenNew(false); resetForm(); } }}>
+        <Dialog open={openNew} onOpenChange={(o) => {
+          if (!o) {
+            setOpenNew(false);
+            resetForm();
+            return;
+          }
+          setOpenNew(true);
+        }}>
           <DialogTrigger asChild>
-            <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]"><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
+            <Button size="sm" className="rounded-xl shadow-[var(--shadow-soft)]" onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Novo segmento</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto relative">
+          <DialogContent className="max-w-3xl relative">
             {saving && saveProgress && saveProgress.total > 100 && (
               <LoadingRadialOverlay
                 value={(saveProgress.loaded / saveProgress.total) * 100}
