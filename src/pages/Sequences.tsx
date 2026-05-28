@@ -18,7 +18,7 @@ type Sequence = {
   name: string;
   description: string | null;
   enabled: boolean;
-  trigger_type: "stage_enter" | "webhook" | "manual";
+  trigger_type: "stage_enter" | "pipeline_enter" | "webhook" | "manual";
   trigger_config: any;
   whatsapp_instance_id: string | null;
   stop_on_reply: boolean;
@@ -38,9 +38,11 @@ type Step = {
 
 const TRIGGERS = [
   { id: "stage_enter", label: "Lead movido para coluna" },
+  { id: "pipeline_enter", label: "Lead entra em um pipeline" },
   { id: "webhook", label: "Webhook do site (URL pública)" },
   { id: "manual", label: "Apenas manual (botão no lead)" },
 ];
+
 
 const minutesToHuman = (m: number) => {
   if (m === 0) return "imediato";
