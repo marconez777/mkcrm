@@ -214,12 +214,24 @@ export default function Sequences() {
         </div>
         <div className="px-2">
           {list.map((a) => (
-            <button key={a.id} onClick={() => setSelected(a)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"}`}>
-              <Mail className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{a.name}</span>
-              {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
-            </button>
+            <div
+              key={a.id}
+              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"}`}
+            >
+              <button onClick={() => setSelected(a)} className="flex flex-1 items-center gap-2 text-left min-w-0">
+                <Mail className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate">{a.name}</span>
+                <Badge variant={a.enabled ? "default" : "secondary"} className="text-[10px]">
+                  {a.enabled ? "Ativa" : "Pausada"}
+                </Badge>
+              </button>
+              <Switch
+                checked={a.enabled}
+                onClick={(e) => e.stopPropagation()}
+                onCheckedChange={() => toggleEnabled(a)}
+                className="scale-75"
+              />
+            </div>
           ))}
           {list.length === 0 && (
             <p className="px-3 py-4 text-xs text-muted-foreground">Nenhuma sequência. Crie a primeira.</p>
