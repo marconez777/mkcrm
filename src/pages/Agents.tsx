@@ -257,10 +257,10 @@ export default function Agents() {
     }
     toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
     setUrlInput("");
-    const { data: docs } = await supabase
+    const docs = await fetchAllPaged<any>(() => supabase
       .from("ai_documents").select("id, title, source, created_at")
-      .eq("agent_id", selected.id).order("created_at", { ascending: false });
-    setDocs(docs ?? []);
+      .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+    setDocs(docs);
   };
 
   const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key";
