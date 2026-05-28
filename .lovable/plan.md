@@ -1,87 +1,27 @@
+## Problema
 
-# Plano: máxima velocidade de envio — MCD
+1. **Segmento limita a 1000 destinatários**: a contagem (`counts[s.id]`) e o preview usam `supabase.rpc("resolve_email_segment", ...)` — RPC do PostgREST também respeita o limite default de 1000 linhas por resposta. Mesmo que 4503 contatos estejam vinculados em `email_segment_contacts`, o RPC retorna só os primeiros 1000.
 
-## Diagnóstico final
+2. **Save sem loader**: o botão "Salvar" não tem estado de loading, e com 4000+ linhas o insert demora vários segundos sem feedback visual.
 
-| # | Gargalo | Valor atual | Após mudança |
-|---|---|---|---|
-| 1 | Cota diária da MCD | **1.000/dia** (default) | **ilimitada** (50M) |
-| 2 | `CONCURRENCY` (envios singulares paralelos) | 2 | **5** |
-| 3 | `BATCH_PARALLELISM` (Resend Batch simultâneos) | 3 | **5** |
-| 4 | Threshold para agrupar em Batch API | ≥3 jobs | **≥2 jobs** |
-| 5 | `BATCH_SIZE` por execução do cron | 400 | **1.000** |
-| 6 | Cron interval | 10s ✅ ok | mantém |
-| 7 | Throttle por domínio destino (1.000/h Gmail etc.) | ligado | **desligado p/ MCD** |
-| 8 | Warmup do domínio | já off (tabela vazia) | mantém off ✅ |
+3. **Insert único de 4000+ linhas**: pode dar timeout/erro PostgREST. Vou enviar em chunks de 500.
 
-**Resend rate limit oficial: 5 req/s por team** (fonte: docs.resend.com/api-reference/rate-limit). Com Batch API (100 emails/req), teto = **30.000/min**. Já há retry com `Retry-After` em 429 — seguro encostar no limite.
+## Plano
 
-## Mudanças
+Editar `src/pages/email/EmailSegments.tsx`:
 
-### 1. Cota ilimitada para a MCD (via insert tool)
+1. **Contagem real (sem limite 1000)**: na função `load()`, em vez de chamar o RPC `resolve_email_segment` e contar emails, usar uma contagem direta:
+   - Para segmentos `static`: `supabase.from("email_segment_contacts").select("*", { count: "exact", head: true }).eq("segment_id", s.id)` — retorna count exato sem trazer linhas.
+   - Para segmentos `dynamic`: manter RPC mas embrulhar com `.range(0, 99999)` (PostgREST honra range em RPC) OU contar via paginação. Como dinâmicos raramente passam de 1000 hoje, aplicar `.range(0, 49999)` no RPC já resolve.
 
-```sql
-UPDATE clinics
-SET settings = jsonb_set(
-  jsonb_set(coalesce(settings,'{}'::jsonb), '{email}', coalesce(settings->'email','{}'::jsonb)),
-  '{email,quota_daily}', '50000000'::jsonb
-)
-WHERE id = '3c48b379-f084-478d-a51c-9daa41ad661a';
-```
+2. **Preview do segmento salvo** (`preview()` para editing): aplicar mesmo `.range(0, 49999)` no RPC de `resolve_email_segment` para não cortar em 1000.
 
-Mais um flag para desligar o throttle por destino só para a MCD:
-```sql
-UPDATE clinics
-SET settings = jsonb_set(settings, '{email,throttle_recipient_enabled}', 'false'::jsonb)
-WHERE id = '3c48b379-f084-478d-a51c-9daa41ad661a';
-```
+3. **Loader no Save**:
+   - Adicionar state `saving: boolean`.
+   - `setSaving(true)` no início de `save()`, `false` no `finally`.
+   - Desabilitar botão e mostrar `<Loader2 className="animate-spin" />Salvando…` enquanto `saving`.
+   - Também desabilitar botão "Cancelar" durante save.
 
-Nada de migration — função `clinic_email_quota` já lê esse caminho.
+4. **Insert em chunks**: dividir `rows` em chunks de 500 e fazer inserts sequenciais para evitar payload gigante / timeouts.
 
-### 2. `supabase/functions/process-email-queue/index.ts`
-
-```ts
-const BATCH_SIZE = 1000;            // ↑ de 400
-const CONCURRENCY = 5;              // ↑ de 2 (alinha com 5 req/s Resend)
-const BATCH_PARALLELISM = 5;        // ↑ de 3
-const SELF_TRIGGER_THRESHOLD = 100; // ↑ de 50 (evita re-trigger desnecessário)
-```
-
-E baixar o gate de batch:
-```ts
-if (group.length < 2) { singles.push(...group); continue; } // antes: < 3
-```
-
-### 3. `supabase/functions/send-email/index.ts` e `send-email-batch/index.ts`
-
-Antes de chamar `claim_recipient_throttle`, ler o flag (já cacheado em `clinic_email_integrations`/`clinics` cache 60s) e pular se `throttle_recipient_enabled === false`. Isso elimina 1 round-trip Postgres por job para a MCD.
-
-### 4. Documentação
-
-Atualizar `docs/roadmap/EMAIL_SCALE.md` adicionando **Tier 4 — alto volume** com a baseline nova e a tabela de flags por clínica (`quota_daily`, `throttle_recipient_enabled`).
-
-## Resultado esperado para a MCD
-
-| Cenário | Hoje | Após mudanças |
-|---|---|---|
-| Campanha homogênea 10k (Batch API) | ~1h | **~2–4 min** |
-| Tempo para 10.000 sem warmup nem throttle | ~1h+cota estoura em 1k | **~2–4 min** |
-| 2× 10k/dia | impossível (cota 1k) | **trivial** |
-
-## Riscos
-
-- **Outras clínicas seguem em 1.000/dia e 2 req/s singular** ❌ — não, `CONCURRENCY/BATCH_PARALLELISM` são globais. Subir para 5 afeta todas, mas o teto Resend é 5 req/s mesmo, então é correto. Não há regressão para os outros clientes.
-- **Burst momentâneo > 5 req/s**: com 5 batches paralelos podemos enviar 5 req em <1s. Se bater 429, retry com backoff já tratado. Sem perda.
-- **Throttle off na MCD**: domínio já tem reputação na ferramenta anterior, você confirmou. Health check (R-16) continua ativo (pausa se bounce>5%).
-
-## Arquivos afetados
-
-- `supabase/functions/process-email-queue/index.ts` — 5 linhas (constantes + threshold)
-- `supabase/functions/send-email/index.ts` — guard no `claim_recipient_throttle`
-- `supabase/functions/send-email-batch/index.ts` — idem
-- Insert tool: 1 UPDATE em `clinics` (cota + flag)
-- `docs/roadmap/EMAIL_SCALE.md` — registrar Tier 4
-
-## Próximo passo (fora do código, depois do go-live)
-
-Abrir ticket no Resend pedindo aumento de rate limit (10–20 req/s) — "trusted sender, domain migrating with existing reputation". Quando aprovado, subir `CONCURRENCY` e `BATCH_PARALLELISM` proporcionalmente → teto vai para **~120k/min**.
+Nenhuma mudança em schema/RLS — só frontend.
