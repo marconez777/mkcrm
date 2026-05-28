@@ -50,16 +50,18 @@ export default function AgentMemories() {
     const agentIds = [...new Set(mems.map((m) => m.agent_id).filter(Boolean) as string[])];
     const leadIds = [...new Set(mems.map((m) => m.lead_id).filter(Boolean) as string[])];
 
-    const [{ data: ag }, { data: ld }] = await Promise.all([
-      agentIds.length
-        ? supabase.from("ai_agents").select("id,name").in("id", agentIds)
-        : Promise.resolve({ data: [] as Agent[] }),
-      leadIds.length
-        ? supabase.from("leads").select("id,name,phone").in("id", leadIds)
-        : Promise.resolve({ data: [] as Lead[] }),
+    const [ag, ld] = await Promise.all([
+      fetchAllByIn<Agent>(
+        (slice) => supabase.from("ai_agents").select("id,name").in("id", slice),
+        agentIds,
+      ),
+      fetchAllByIn<Lead>(
+        (slice) => supabase.from("leads").select("id,name,phone").in("id", slice),
+        leadIds,
+      ),
     ]);
-    setAgents(Object.fromEntries((ag || []).map((a: Agent) => [a.id, a])));
-    setLeads(Object.fromEntries((ld || []).map((l: Lead) => [l.id, l])));
+    setAgents(Object.fromEntries(ag.map((a: Agent) => [a.id, a])));
+    setLeads(Object.fromEntries(ld.map((l: Lead) => [l.id, l])));
     setLoading(false);
   }
 
