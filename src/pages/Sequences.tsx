@@ -105,6 +105,19 @@ export default function Sequences() {
     setSelected(data as any);
   };
 
+  const toggleEnabled = async (seq: Sequence) => {
+    const next = !seq.enabled;
+    setList((prev) => prev.map((x) => (x.id === seq.id ? { ...x, enabled: next } : x)));
+    if (selected?.id === seq.id) setSelected({ ...selected, enabled: next });
+    const { error } = await supabase.from("message_sequences").update({ enabled: next }).eq("id", seq.id);
+    if (error) {
+      setList((prev) => prev.map((x) => (x.id === seq.id ? { ...x, enabled: !next } : x)));
+      if (selected?.id === seq.id) setSelected({ ...selected, enabled: !next });
+      return toast.error(error.message);
+    }
+    toast.success(next ? "Sequência ativada" : "Sequência pausada");
+  };
+
   const save = async () => {
     if (!selected) return;
     const { error } = await supabase.from("message_sequences").update({
