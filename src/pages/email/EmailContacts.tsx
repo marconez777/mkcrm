@@ -499,7 +499,7 @@ export default function EmailContacts() {
             }
             caption={
               loadProgress && loadProgress.total > 0
-                ? `${loadProgress.loaded.toLocaleString("pt-BR")} de ${loadProgress.total.toLocaleString("pt-BR")} contatos`
+                ? `${loadProgress.loaded.toLocaleString("pt-BR")} de ${loadProgress.total.toLocaleString("pt-BR")} registros`
                 : "Contatos"
             }
           />
