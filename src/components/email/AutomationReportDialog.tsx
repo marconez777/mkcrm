@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import {
   Dialog,
   DialogContent,
@@ -109,30 +110,31 @@ export function AutomationReportDialog({
     if (!automationId || !relatedTable) return;
     setLoading(true);
     try {
-      const [{ count: enrolled }, { data: logsRows }, { data: queueRows }] =
-        await Promise.all([
-          supabase
-            .from("email_automation_enrollments")
-            .select("*", { count: "exact", head: true })
-            .eq("automation_id", automationId),
+      const [{ count: enrolled }, logsRows, queueRows] = await Promise.all([
+        supabase
+          .from("email_automation_enrollments")
+          .select("*", { count: "exact", head: true })
+          .eq("automation_id", automationId),
+        fetchAllPaged<any>(() =>
           supabase
             .from("email_logs")
             .select(
               "template_slug,status,opened_at,clicked_at,bounced_at,complained_at,related_lead_id,recipient_email,sent_at"
             )
             .eq("related_lead_table", relatedTable)
-            .limit(10000),
+        ),
+        fetchAllPaged<any>(() =>
           supabase
             .from("email_queue")
             .select(
               "template_slug,status,related_lead_id,recipient_email,scheduled_at,error"
             )
             .eq("related_lead_table", relatedTable)
-            .limit(10000),
-        ]);
+        ),
+      ]);
       setEnrolledCount(enrolled ?? 0);
-      setLogs((logsRows ?? []) as any);
-      setQueue((queueRows ?? []) as any);
+      setLogs(logsRows as any);
+      setQueue(queueRows as any);
     } finally {
       setLoading(false);
     }
@@ -557,12 +559,13 @@ async function fetchLeads(args: {
 
   if (bucket === "enrolled") {
     if (!automationId) return [];
-    const { data } = await supabase
-      .from("email_automation_enrollments")
-      .select("lead_id, recipient_email, enrolled_at")
-      .eq("automation_id", automationId)
-      .order("enrolled_at", { ascending: false })
-      .limit(2000);
+    const data = await fetchAllPaged<any>(() =>
+      supabase
+        .from("email_automation_enrollments")
+        .select("lead_id, recipient_email, enrolled_at")
+        .eq("automation_id", automationId)
+        .order("enrolled_at", { ascending: false })
+    );
     const leadIds = (data ?? []).map((r: any) => r.lead_id).filter(Boolean);
     const names = await fetchLeadNames(leadIds);
     return (data ?? []).map((r: any) => ({
@@ -576,17 +579,20 @@ async function fetchLeads(args: {
 
   if (bucket === "all") {
     // Union queue (pending/failed) + logs — usado por campanhas pra mostrar todos os destinatários
-    const qReq = supabase
-      .from("email_queue")
-      .select("related_lead_id, recipient_email, recipient_name, scheduled_at, status, error")
-      .eq("related_lead_table", relatedTable)
-      .limit(5000);
-    const lReq = supabase
-      .from("email_logs")
-      .select("related_lead_id, recipient_email, sent_at, status")
-      .eq("related_lead_table", relatedTable)
-      .limit(5000);
-    const [{ data: qRows }, { data: lRows }] = await Promise.all([qReq, lReq]);
+    const [qRows, lRows] = await Promise.all([
+      fetchAllPaged<any>(() =>
+        supabase
+          .from("email_queue")
+          .select("related_lead_id, recipient_email, recipient_name, scheduled_at, status, error")
+          .eq("related_lead_table", relatedTable)
+      ),
+      fetchAllPaged<any>(() =>
+        supabase
+          .from("email_logs")
+          .select("related_lead_id, recipient_email, sent_at, status")
+          .eq("related_lead_table", relatedTable)
+      ),
+    ]);
     const nameByEmail = new Map<string, string>();
     const byEmail = new Map<string, any>();
     for (const r of (qRows ?? []) as any[]) {
@@ -642,36 +648,36 @@ async function fetchLeads(args: {
     // failed inclui email_queue.failed e email_logs failed/bounced/complained
     let queueRows: any[] = [];
     if (bucket === "queued") {
-      const { data } = await supabase
-        .from("email_queue")
-        .select("related_lead_id, recipient_email, scheduled_at, error, status")
-        .eq("related_lead_table", relatedTable)
-        .eq("template_slug", stepSlug ?? "")
-        .eq("status", "pending")
-        .order("scheduled_at", { ascending: true })
-        .limit(2000);
-      queueRows = data ?? [];
+      queueRows = await fetchAllPaged<any>(() =>
+        supabase
+          .from("email_queue")
+          .select("related_lead_id, recipient_email, scheduled_at, error, status")
+          .eq("related_lead_table", relatedTable)
+          .eq("template_slug", stepSlug ?? "")
+          .eq("status", "pending")
+          .order("scheduled_at", { ascending: true })
+      );
     } else {
-      const { data } = await supabase
-        .from("email_queue")
-        .select("related_lead_id, recipient_email, scheduled_at, error, status")
-        .eq("related_lead_table", relatedTable)
-        .eq("template_slug", stepSlug ?? "")
-        .eq("status", "failed")
-        .limit(2000);
-      queueRows = data ?? [];
+      queueRows = await fetchAllPaged<any>(() =>
+        supabase
+          .from("email_queue")
+          .select("related_lead_id, recipient_email, scheduled_at, error, status")
+          .eq("related_lead_table", relatedTable)
+          .eq("template_slug", stepSlug ?? "")
+          .eq("status", "failed")
+      );
     }
 
     let logRows: any[] = [];
     if (bucket === "failed") {
-      const { data } = await supabase
-        .from("email_logs")
-        .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at")
-        .eq("related_lead_table", relatedTable)
-        .eq("template_slug", stepSlug ?? "")
-        .in("status", ["bounced", "complained", "failed"])
-        .limit(2000);
-      logRows = data ?? [];
+      logRows = await fetchAllPaged<any>(() =>
+        supabase
+          .from("email_logs")
+          .select("related_lead_id, recipient_email, sent_at, error, status, bounced_at, complained_at")
+          .eq("related_lead_table", relatedTable)
+          .eq("template_slug", stepSlug ?? "")
+          .in("status", ["bounced", "complained", "failed"])
+      );
     }
 
     const all = [
@@ -703,15 +709,16 @@ async function fetchLeads(args: {
   }
 
   // sent / opened / clicked → email_logs
-  let q = supabase
-    .from("email_logs")
-    .select("related_lead_id, recipient_email, sent_at, opened_at, clicked_at")
-    .eq("related_lead_table", relatedTable)
-    .eq("template_slug", stepSlug ?? "")
-    .limit(2000);
-  if (bucket === "opened") q = q.not("opened_at", "is", null);
-  if (bucket === "clicked") q = q.not("clicked_at", "is", null);
-  const { data } = await q;
+  const data = await fetchAllPaged<any>(() => {
+    let q = supabase
+      .from("email_logs")
+      .select("related_lead_id, recipient_email, sent_at, opened_at, clicked_at")
+      .eq("related_lead_table", relatedTable)
+      .eq("template_slug", stepSlug ?? "");
+    if (bucket === "opened") q = q.not("opened_at", "is", null);
+    if (bucket === "clicked") q = q.not("clicked_at", "is", null);
+    return q;
+  });
   const rows = data ?? [];
   const leadIds = rows.map((r: any) => r.related_lead_id).filter(Boolean);
   const names = await fetchLeadNames(leadIds);

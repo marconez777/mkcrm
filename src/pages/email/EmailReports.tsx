@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -276,19 +277,20 @@ export default function EmailReports() {
   useEffect(() => {
     if (!clinicId) return;
     (async () => {
-      const [{ data: tpls }, { data: camps }] = await Promise.all([
+      const [{ data: tpls }, camps] = await Promise.all([
         supabase
           .from("email_templates")
           .select("slug,name")
           .eq("clinic_id", clinicId)
           .eq("active", true)
           .order("name"),
-        supabase
-          .from("email_campaigns")
-          .select("id,name,status")
-          .eq("clinic_id", clinicId)
-          .order("created_at", { ascending: false })
-          .limit(100),
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_campaigns")
+            .select("id,name,status")
+            .eq("clinic_id", clinicId)
+            .order("created_at", { ascending: false })
+        ),
       ]);
       setTemplates(tpls ?? []);
       setCampaigns(camps ?? []);

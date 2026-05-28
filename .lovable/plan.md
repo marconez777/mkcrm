@@ -1,27 +1,54 @@
-## Problema
+# Remover limite de 1000 em toda a ferramenta de e-mail
 
-1. **Segmento limita a 1000 destinatários**: a contagem (`counts[s.id]`) e o preview usam `supabase.rpc("resolve_email_segment", ...)` — RPC do PostgREST também respeita o limite default de 1000 linhas por resposta. Mesmo que 4503 contatos estejam vinculados em `email_segment_contacts`, o RPC retorna só os primeiros 1000.
+## Causa raiz
 
-2. **Save sem loader**: o botão "Salvar" não tem estado de loading, e com 4000+ linhas o insert demora vários segundos sem feedback visual.
+O PostgREST do Supabase aplica um limite default de 1000 linhas por resposta. Onde quer que o código faça `select(...)` sem `.range(0, N)` (ou com `.limit(N)` mas confiando que N será maior que o total), só vêm 1000 linhas. Isso afeta a prévia de "Nova campanha" (a badge "1000 enviáveis" da screenshot), os relatórios de campanha/automação e o dashboard.
 
-3. **Insert único de 4000+ linhas**: pode dar timeout/erro PostgREST. Vou enviar em chunks de 500.
+Já temos o helper `src/lib/fetch-all.ts` (`fetchAllPaged`) que pagina automaticamente. Vamos usá-lo em todos os pontos.
 
-## Plano
+## Mudanças
 
-Editar `src/pages/email/EmailSegments.tsx`:
+### 1. `src/components/email/CampaignRecipientsPreview.tsx` (a tela da screenshot)
+- `supabase.rpc("resolve_email_segment", { _segment_id })` → adicionar `.range(0, 99999)` para receber todos os contatos do segmento (RPCs respeitam range no PostgREST).
+- Fallback "todos os leads" (`.from("leads").limit(5000)`) → trocar por `fetchAllPaged` com filtros existentes (`clinic_id`, `email not null`, `email != ''`).
+- `email_unsubscribes ... .in("email", emails)` → quebrar `emails` em chunks de 500 e agregar resultado (a cláusula `IN` com 4000+ valores também pode estourar o limite de resposta e/ou tamanho da URL).
+- Badge passa a refletir o total real (ex.: "4287 enviáveis").
 
-1. **Contagem real (sem limite 1000)**: na função `load()`, em vez de chamar o RPC `resolve_email_segment` e contar emails, usar uma contagem direta:
-   - Para segmentos `static`: `supabase.from("email_segment_contacts").select("*", { count: "exact", head: true }).eq("segment_id", s.id)` — retorna count exato sem trazer linhas.
-   - Para segmentos `dynamic`: manter RPC mas embrulhar com `.range(0, 99999)` (PostgREST honra range em RPC) OU contar via paginação. Como dinâmicos raramente passam de 1000 hoje, aplicar `.range(0, 49999)` no RPC já resolve.
+### 2. `src/components/email/CampaignReportDialog.tsx` (relatório de campanha)
+- `email_logs.limit(10000)` e `email_queue.limit(10000)` → `fetchAllPaged` paginando por `related_lead_table = campaign_<id>`.
+- Stats (enviados, abertos, clicados, falhados, na fila) e união por e-mail passam a refletir todos os destinatários.
 
-2. **Preview do segmento salvo** (`preview()` para editing): aplicar mesmo `.range(0, 49999)` no RPC de `resolve_email_segment` para não cortar em 1000.
+### 3. `src/components/email/AutomationReportDialog.tsx` (relatório de automação)
+Trocar todos os `.limit(2000|5000|10000)` por `fetchAllPaged`:
+- `load()`: `email_logs` e `email_queue` por `related_lead_table`.
+- `loadLeadsForBucket()` em todos os buckets:
+  - `enrolled` → `email_automation_enrollments`
+  - `all` → `email_queue` + `email_logs` (usado também por campanhas)
+  - `queued`, `failed` → `email_queue` + `email_logs`
+  - `sent`, `opened`, `clicked` → `email_logs`
 
-3. **Loader no Save**:
-   - Adicionar state `saving: boolean`.
-   - `setSaving(true)` no início de `save()`, `false` no `finally`.
-   - Desabilitar botão e mostrar `<Loader2 className="animate-spin" />Salvando…` enquanto `saving`.
-   - Também desabilitar botão "Cancelar" durante save.
+### 4. `src/pages/email/EmailDashboard.tsx`
+- `email_logs.limit(1000)` na função `load()` → `fetchAllPaged` com `gte("sent_at", since)` e `order("sent_at", desc)`, com `hardCap` razoável (ex.: 50.000) para não travar a UI em janelas longas.
 
-4. **Insert em chunks**: dividir `rows` em chunks de 500 e fazer inserts sequenciais para evitar payload gigante / timeouts.
+### 5. `src/pages/email/EmailCampaigns.tsx`
+- Agregados de `email_logs` e `email_queue` com `.limit(20000)` (linhas 93-94) → `fetchAllPaged` para que `sent_count` / totalizações por campanha listada não sejam truncados quando uma clínica tem muitas campanhas grandes.
 
-Nenhuma mudança em schema/RLS — só frontend.
+### 6. `src/pages/email/EmailReports.tsx`
+- Dropdown de campanhas (`email_campaigns.limit(100)`) → aumentar para usar `fetchAllPaged` (clínicas com mais de 100 campanhas não conseguem selecionar as antigas). Demais stats já usam RPCs do servidor (`report_template_stats`, `report_campaign_stats`), sem limite client-side.
+
+### 7. Loaders adequados
+A prévia de destinatários e os relatórios passam a fazer múltiplos round-trips: manter o `Loader2` já existente enquanto a paginação roda, sem mudar a UX.
+
+## Onde NÃO mexer (já estão corretos)
+
+- `EmailContacts.tsx`, `EmailSegments.tsx` — já corrigidos em loops anteriores.
+- `EmailLogs.tsx`, `EmailQueue.tsx`, `EmailUnsubscribes.tsx` — usam paginação com `count: exact` + `.range(from, to)` controlada pelo usuário; cada página tem 1000 por design.
+- `CampaignLiveDialog.tsx` — `email_queue.limit(20)` é intencional (últimos 20 itens da fila ao vivo).
+- RPCs server-side (`report_template_stats`, `report_campaign_stats`, `campaign_throughput`, `email_metrics_daily`) — agregam no banco, sem limite de linhas.
+
+## Detalhes técnicos
+
+- `fetchAllPaged(build, pageSize=1000, hardCap=100_000)` recebe uma factory que devolve um query builder sem `.range/.limit`. Vamos usá-lo em todos os pontos acima.
+- Para RPCs (`resolve_email_segment`) o helper não se aplica — usamos `.range(0, 99999)` direto, mesmo padrão já adotado em `EmailSegments.tsx`.
+- Para `.in("email", [...])` com listas grandes, criar utilitário inline que divide em chunks de 500 e concatena resultados (evita 414 URI Too Long e o teto de 1000 por resposta).
+- Nenhuma alteração de schema, RLS ou edge function.

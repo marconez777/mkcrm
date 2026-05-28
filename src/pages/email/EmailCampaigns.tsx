@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -89,9 +90,9 @@ export default function EmailCampaigns() {
     // Conta sent/failed reais a partir de email_logs e email_queue por campanha (somente página atual)
     const ids = campaigns.map((c) => `campaign_${c.id}`);
     if (ids.length > 0) {
-      const [{ data: logs }, { data: queue }] = await Promise.all([
-        supabase.from("email_logs").select("related_lead_table,status").in("related_lead_table", ids).limit(20000),
-        supabase.from("email_queue").select("related_lead_table,status").in("related_lead_table", ids).limit(20000),
+      const [logs, queue] = await Promise.all([
+        fetchAllPaged<any>(() => supabase.from("email_logs").select("related_lead_table,status").in("related_lead_table", ids)),
+        fetchAllPaged<any>(() => supabase.from("email_queue").select("related_lead_table,status").in("related_lead_table", ids)),
       ]);
       const sentBy = new Map<string, number>();
       const failedBy = new Map<string, number>();

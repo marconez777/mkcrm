@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Users, MailX, AlertCircle } from "lucide-react";
@@ -32,23 +33,24 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
         let recipients: Recipient[] = [];
 
         if (segmentId) {
-          // Usa o mesmo resolver do dispatcher — lida com dinâmico e estático
-          const { data, error } = await supabase.rpc("resolve_email_segment", {
-            _segment_id: segmentId,
-          });
+          // Usa o mesmo resolver do dispatcher — lida com dinâmico e estático.
+          // .range escapa o limite default de 1000 do PostgREST.
+          const { data, error } = await supabase
+            .rpc("resolve_email_segment", { _segment_id: segmentId })
+            .range(0, 99999);
           if (error) throw error;
           recipients = (data ?? []).map((r: any) => ({ email: r.email, name: r.name }));
         } else {
-          // Sem segmento = todos os leads da clínica com email
-          const { data, error } = await supabase
-            .from("leads")
-            .select("email,name")
-            .eq("clinic_id", clinicId)
-            .not("email", "is", null)
-            .neq("email", "")
-            .limit(5000);
-          if (error) throw error;
-          recipients = (data ?? []).map((r: any) => ({
+          // Sem segmento = todos os leads da clínica com email (paginado)
+          const rows = await fetchAllPaged<any>(() =>
+            supabase
+              .from("leads")
+              .select("email,name")
+              .eq("clinic_id", clinicId)
+              .not("email", "is", null)
+              .neq("email", "")
+          );
+          recipients = rows.map((r: any) => ({
             email: String(r.email).toLowerCase(),
             name: r.name,
           }));
@@ -64,16 +66,25 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
           deduped.push({ ...r, email: key });
         }
 
-        // Conta unsubscribes
+        // Conta unsubscribes em chunks (evita URI muito longa e teto de 1000)
         let unsubscribed = 0;
         if (deduped.length > 0) {
           const emails = deduped.map((r) => r.email);
-          const { data: unsubs } = await supabase
-            .from("email_unsubscribes")
-            .select("email")
-            .eq("clinic_id", clinicId)
-            .in("email", emails);
-          unsubscribed = (unsubs ?? []).length;
+          const CHUNK = 500;
+          const found = new Set<string>();
+          for (let i = 0; i < emails.length; i += CHUNK) {
+            const slice = emails.slice(i, i + CHUNK);
+            const { data: unsubs, error: unsubErr } = await supabase
+              .from("email_unsubscribes")
+              .select("email")
+              .eq("clinic_id", clinicId)
+              .in("email", slice);
+            if (unsubErr) throw unsubErr;
+            for (const u of (unsubs ?? []) as any[]) {
+              found.add(String(u.email).toLowerCase());
+            }
+          }
+          unsubscribed = found.size;
         }
 
         if (cancelled) return;

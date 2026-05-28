@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import {
   Dialog,
   DialogContent,
@@ -72,20 +73,22 @@ export function CampaignReportDialog({
     if (!relatedTable) return;
     setLoading(true);
     try {
-      const [{ data: logsRows }, { data: queueRows }] = await Promise.all([
-        supabase
-          .from("email_logs")
-          .select("status, opened_at, clicked_at, recipient_email")
-          .eq("related_lead_table", relatedTable)
-          .limit(10000),
-        supabase
-          .from("email_queue")
-          .select("status, recipient_email")
-          .eq("related_lead_table", relatedTable)
-          .limit(10000),
+      const [logsRows, queueRows] = await Promise.all([
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_logs")
+            .select("status, opened_at, clicked_at, recipient_email")
+            .eq("related_lead_table", relatedTable)
+        ),
+        fetchAllPaged<any>(() =>
+          supabase
+            .from("email_queue")
+            .select("status, recipient_email")
+            .eq("related_lead_table", relatedTable)
+        ),
       ]);
-      const logs = (logsRows ?? []) as any[];
-      const queue = (queueRows ?? []) as any[];
+      const logs = logsRows as any[];
+      const queue = queueRows as any[];
 
       const sent = logs.length;
       const opened = logs.filter((l) => !!l.opened_at).length;
