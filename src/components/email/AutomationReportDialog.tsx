@@ -428,6 +428,7 @@ export function AutomationReportDialog({
       <AutomationLeadsSheet
         automationId={automationId}
         relatedTable={relatedTable}
+        enrolledLeadIds={enrolledLeadIds}
         sheet={sheet}
         onClose={() => setSheet(null)}
       />
