@@ -90,8 +90,8 @@ function McpServersPanel({ agentId }: { agentId: string }) {
   const [servers, setServers] = useState<any[]>([]);
   const [name, setName] = useState(""); const [url, setUrl] = useState("");
   const load = async () => {
-    const { data } = await supabase.from("agent_mcp_servers").select("*").eq("agent_id", agentId);
-    setServers(data ?? []);
+    const { data } = await supabase.rpc("admin_list_agent_mcp_servers", { _agent_id: agentId });
+    setServers((data as any[]) ?? []);
   };
   useEffect(() => { load(); }, [agentId]);
   const add = async () => {
