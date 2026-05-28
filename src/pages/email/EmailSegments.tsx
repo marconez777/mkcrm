@@ -331,7 +331,7 @@ export default function EmailSegments() {
     try {
       if (editing) {
         const [{ data, error }, { data: unsubs }] = await Promise.all([
-          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }),
+          supabase.rpc("resolve_email_segment", { _segment_id: editing.id }).range(0, 99999),
           supabase.from("email_unsubscribes").select("email").eq("clinic_id", (editing as any).clinic_id ?? ""),
         ]);
         if (error) throw error;
