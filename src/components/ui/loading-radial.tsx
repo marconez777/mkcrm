@@ -14,33 +14,23 @@ interface LoadingRadialProps {
   className?: string;
 }
 
-/** Centered radial loader with "Carregando" label. */
+/** Centered radial loader showing only the percentage. */
 export function LoadingRadial({
   value,
-  label = "Carregando",
-  caption,
   size = 120,
   strokeWidth = 8,
   className,
 }: LoadingRadialProps) {
   const showPct = typeof value === "number";
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-3", className)}>
+    <div className={cn("flex items-center justify-center", className)}>
       <ProgressRadial value={value} size={size} strokeWidth={strokeWidth}>
-        <div className="flex flex-col items-center leading-tight">
-          {showPct && (
-            <span className="text-xl font-semibold text-foreground tabular-nums">
-              {Math.round(value!)}%
-            </span>
-          )}
-          <span className={cn("text-sm text-muted-foreground", showPct && "mt-0.5")}>
-            {label}
+        {showPct && (
+          <span className="text-xl font-semibold text-foreground tabular-nums">
+            {Math.round(value!)}%
           </span>
-        </div>
+        )}
       </ProgressRadial>
-      {caption && (
-        <span className="text-sm text-muted-foreground">{caption}</span>
-      )}
     </div>
   );
 }
