@@ -56,6 +56,7 @@ export default function Sequences() {
   const [selected, setSelected] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [stages, setStages] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
@@ -63,17 +64,20 @@ export default function Sequences() {
   const confirm = useConfirm();
 
   const load = async () => {
-    const [s, { data: st }, { data: tp }, { data: ins }] = await Promise.all([
+    const [s, { data: st }, { data: pp }, { data: tp }, { data: ins }] = await Promise.all([
       fetchAllPaged<any>(() => supabase.from("message_sequences").select("*").order("created_at")),
       supabase.from("pipeline_stages").select("id, name, pipeline_id, color").order("position"),
+      supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("message_templates").select("id, name, content").order("name"),
       supabase.from("whatsapp_instances").select("id, name, is_default"),
     ]);
     setList(s as any);
     setStages(st ?? []);
+    setPipelines(pp ?? []);
     setTemplates(tp ?? []);
     setInstances(ins ?? []);
   };
+
 
   useEffect(() => { load(); }, []);
 
