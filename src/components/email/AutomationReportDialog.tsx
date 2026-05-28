@@ -95,6 +95,7 @@ export function AutomationReportDialog({
 }) {
   const [loading, setLoading] = useState(false);
   const [enrolledCount, setEnrolledCount] = useState(0);
+  const [enrolledLeadIds, setEnrolledLeadIds] = useState<string[]>([]);
   const [logs, setLogs] = useState<EmailLogRow[]>([]);
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [sheet, setSheet] = useState<{
@@ -107,14 +108,27 @@ export function AutomationReportDialog({
   const relatedTable = automationId ? `automation_${automationId}` : null;
 
   async function load() {
-    if (!automationId || !relatedTable) return;
+    if (!automationId || !relatedTable || !automation) return;
     setLoading(true);
     try {
-      const [{ count: enrolled }, logsRows, queueRows] = await Promise.all([
+      // 1) Enrollments
+      const enrollmentsRows = await fetchAllPaged<any>(() =>
         supabase
           .from("email_automation_enrollments")
-          .select("*", { count: "exact", head: true })
-          .eq("automation_id", automationId),
+          .select("lead_id")
+          .eq("automation_id", automationId)
+      );
+      const leadIds = Array.from(
+        new Set((enrollmentsRows ?? []).map((r: any) => r.lead_id).filter(Boolean))
+      ) as string[];
+      setEnrolledCount(enrollmentsRows?.length ?? 0);
+      setEnrolledLeadIds(leadIds);
+
+      // 2) Logs/queue: correlaciona por related_lead_table E também por
+      //    (lead_id + template_slug). Isso captura envios feitos sob IDs
+      //    antigos quando a automação foi recriada.
+      const slugs = automation.steps.map((s) => s.template_slug).filter(Boolean);
+      const [logsByTable, logsByLead, queueByTable, queueByLead] = await Promise.all([
         fetchAllPaged<any>(() =>
           supabase
             .from("email_logs")
@@ -123,6 +137,19 @@ export function AutomationReportDialog({
             )
             .eq("related_lead_table", relatedTable)
         ),
+        leadIds.length && slugs.length
+          ? fetchAllByIn<any>(
+              (slice) =>
+                supabase
+                  .from("email_logs")
+                  .select(
+                    "template_slug,status,opened_at,clicked_at,bounced_at,complained_at,related_lead_id,recipient_email,sent_at"
+                  )
+                  .in("related_lead_id", slice)
+                  .in("template_slug", slugs),
+              leadIds
+            )
+          : Promise.resolve([] as any[]),
         fetchAllPaged<any>(() =>
           supabase
             .from("email_queue")
@@ -131,10 +158,37 @@ export function AutomationReportDialog({
             )
             .eq("related_lead_table", relatedTable)
         ),
+        leadIds.length && slugs.length
+          ? fetchAllByIn<any>(
+              (slice) =>
+                supabase
+                  .from("email_queue")
+                  .select(
+                    "template_slug,status,related_lead_id,recipient_email,scheduled_at,error"
+                  )
+                  .in("related_lead_id", slice)
+                  .in("template_slug", slugs),
+              leadIds
+            )
+          : Promise.resolve([] as any[]),
       ]);
-      setEnrolledCount(enrolled ?? 0);
-      setLogs(logsRows as any);
-      setQueue(queueRows as any);
+
+      const dedup = <T extends Record<string, any>>(rows: T[], key: (r: T) => string) => {
+        const m = new Map<string, T>();
+        for (const r of rows) m.set(key(r), r);
+        return Array.from(m.values());
+      };
+      const mergedLogs = dedup(
+        [...(logsByTable as any[]), ...(logsByLead as any[])],
+        (r) => `${r.related_lead_id ?? r.recipient_email}|${r.template_slug}|${r.sent_at}`
+      );
+      const mergedQueue = dedup(
+        [...(queueByTable as any[]), ...(queueByLead as any[])],
+        (r) =>
+          `${r.related_lead_id ?? r.recipient_email}|${r.template_slug}|${r.scheduled_at}|${r.status}`
+      );
+      setLogs(mergedLogs as any);
+      setQueue(mergedQueue as any);
     } finally {
       setLoading(false);
     }
@@ -146,6 +200,7 @@ export function AutomationReportDialog({
       setLogs([]);
       setQueue([]);
       setEnrolledCount(0);
+      setEnrolledLeadIds([]);
       setSheet(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
