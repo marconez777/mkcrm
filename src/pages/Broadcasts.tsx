@@ -54,8 +54,10 @@ function BroadcastList() {
   const [creating, setCreating] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("broadcasts").select("*").order("created_at", { ascending: false });
-    setItems((data ?? []) as unknown as Broadcast[]);
+    const data = await fetchAllPaged<any>(() =>
+      supabase.from("broadcasts").select("*").order("created_at", { ascending: false }),
+    );
+    setItems(data as unknown as Broadcast[]);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
