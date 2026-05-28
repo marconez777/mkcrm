@@ -232,8 +232,7 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  const auth = await requireUser(req);
-  if (auth instanceof Response) return auth;
+  // Tick público — chamado por pg_cron (sem Authorization Bearer). verify_jwt=false em config.toml.
   const supabase = sb();
 
   try {
