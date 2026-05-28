@@ -576,37 +576,49 @@ export default function EmailSegments() {
                           Gerenciar contatos →
                         </Link>
                       </div>
-                      <div className="max-h-60 overflow-y-auto space-y-1">
-                        {availableContacts
-                          .filter((c) => {
-                            const q = contactSearch.trim().toLowerCase();
-                            if (!q) return true;
-                            return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
-                          })
-                          .map((c) => {
-                            const checked = selectedContactIds.has(c.id);
-                            return (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => toggleContact(c.id)}
-                                className={`w-full flex items-center gap-2 text-left text-sm border rounded px-2 py-1.5 transition-colors ${
-                                  checked ? "bg-primary/10 border-primary/40" : "hover:bg-accent"
-                                }`}
-                              >
-                                <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                                  checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"
-                                }`}>
-                                  {checked && <Check className="h-3 w-3" />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="truncate">{c.email}</div>
-                                  {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
-                                </div>
-                              </button>
-                            );
-                          })}
-                      </div>
+                      {(() => {
+                        const q = contactSearch.trim().toLowerCase();
+                        const filtered = availableContacts.filter((c) => {
+                          if (!q) return true;
+                          return c.email.toLowerCase().includes(q) || (c.name ?? "").toLowerCase().includes(q);
+                        });
+                        const RENDER_CAP = 200;
+                        const visible = filtered.slice(0, RENDER_CAP);
+                        const hidden = filtered.length - visible.length;
+                        return (
+                          <>
+                            <div className="text-[11px] text-muted-foreground">
+                              Exibindo {visible.length.toLocaleString("pt-BR")} de {filtered.length.toLocaleString("pt-BR")} contato(s)
+                              {hidden > 0 && " — refine a busca para ver os demais"}
+                            </div>
+                            <div className="max-h-60 overflow-y-auto space-y-1">
+                              {visible.map((c) => {
+                                const checked = selectedContactIds.has(c.id);
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => toggleContact(c.id)}
+                                    className={`w-full flex items-center gap-2 text-left text-sm border rounded px-2 py-1.5 transition-colors ${
+                                      checked ? "bg-primary/10 border-primary/40" : "hover:bg-accent"
+                                    }`}
+                                  >
+                                    <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                                      checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"
+                                    }`}>
+                                      {checked && <Check className="h-3 w-3" />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate">{c.email}</div>
+                                      {c.name && <div className="text-xs text-muted-foreground truncate">{c.name}</div>}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
