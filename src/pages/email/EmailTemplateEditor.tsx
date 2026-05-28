@@ -271,6 +271,7 @@ export default function EmailTemplateEditor() {
 
   async function sendTest() {
     if (!tpl?.id) { toast.error("Salve o template primeiro"); return; }
+    if (!tpl.from_email || !tpl.from_email.includes("@")) { toast.error("Configure um remetente antes de enviar"); return; }
     if (!testEmail.includes("@")) { toast.error("Informe um email válido"); return; }
     setSendingTest(true);
     try {
