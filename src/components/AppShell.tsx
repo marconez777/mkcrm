@@ -24,9 +24,6 @@ const items: NavItem[] = [
     to: "/ai",
     label: "IA",
     icon: Sparkles,
-    children: [
-      { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 },
-    ],
   },
 ];
 
