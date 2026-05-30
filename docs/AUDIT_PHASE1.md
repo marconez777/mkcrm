@@ -106,10 +106,10 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `RESEND.md` | 🟡 | Conferir webhook events e backfill. |
-| `EVOLUTION_API.md` | 🟡 | Adicionar `fetch-groups`. |
-| `LOVABLE_AI.md` | 🟡 | Conferir lista de modelos (preview Gemini 3.1, GPT-5.4/5.5). |
-| `PG_NET_CRON.md` | 🟡 | Adicionar `scheduled-report-tick`. |
+| `RESEND.md` | ✅ | Já cobre R-21 (multi-domínio rotativo) + dedup `resend_webhook_events`. |
+| `EVOLUTION_API.md` | 🟡 | Lista 18 endpoints — vale acrescentar `evolution-fetch-groups` futuramente, mas WHATSAPP.md já cobre. |
+| `LOVABLE_AI.md` | 🟡 | Lista de modelos pode ser ampliada (GPT-5.4/5.5, Gemini 3.1 preview) — não bloqueante. |
+| `PG_NET_CRON.md` | ✅ | Atualizado na Fase 3: `scheduled-report-tick` adicionado, `scheduled-dispatcher` re-descrito. |
 | `EXTERNAL_FORMS.md` | ✅ | |
 
 ### 2.9 `integracao/` (snippet de tracking — guia em PT para clientes)
