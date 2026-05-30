@@ -151,6 +151,17 @@ Sync sob demanda de UM lead: busca chat + mensagens recentes na Evolution e re-i
 
 ---
 
+## `evolution-fetch-groups`
+
+Lista grupos de WhatsApp disponíveis numa instância. Auth: JWT user.
+
+- Body: `{ instance_id }`.
+- Chama Evolution `GET /group/fetchAllGroups/{instance}?getParticipants=false`.
+- Normaliza a lista para `[{ id, subject, size? }]`.
+- Usado pelo **Scheduled Reports** (`ScheduledReports.tsx`) para o usuário escolher o `group_jid` de destino.
+
+---
+
 ## `fetch-wa-avatar`
 
 Busca avatar do contato em `fetchProfilePicture` da Evolution. Atualiza `leads.avatar_url`. Chamado:
