@@ -8,7 +8,7 @@
 >   baseadas em condições periódicas (no_reply_after, stage_idle,
 >   before_appointment).
 >
-> Última atualização: 2026‑05‑25
+> Última atualização: 2026‑05‑30
 
 ---
 
