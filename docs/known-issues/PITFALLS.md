@@ -1,7 +1,7 @@
 # Pegadinhas (Pitfalls)
 
 > **Quando ler:** **SEMPRE antes** de mexer em qualquer coisa. Esta é a lista de erros que a IA (e humanos) já cometeu múltiplas vezes neste projeto.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
