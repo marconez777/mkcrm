@@ -1,7 +1,7 @@
 # Integração: Lovable AI Gateway
 
 > **Quando ler:** antes de adicionar/trocar modelo de IA, calcular custo, ou debugar erro de API key.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
@@ -32,6 +32,13 @@ Endpoint: `https://ai.gateway.lovable.dev/v1/chat/completions` (OpenAI-compatibl
 | `google/gemini-2.5-pro` | `ai-analyst-run`, ingestão de PDF longo |
 | `openai/gpt-5-mini` | fallback configurável por clínica |
 | `google/gemini-2.5-flash-image` | (futuro) geração de imagem |
+
+**Disponíveis no gateway (catálogo expandido — não necessariamente em uso hoje):**
+
+- **OpenAI:** `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5.2`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro`.
+- **Google Gemini:** `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-flash-image`, `gemini-3-flash-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite-preview`, `gemini-3.1-flash-image-preview`, `gemini-3.5-flash`.
+
+Para usar um modelo novo basta passar a string em `model:` na chamada — não precisa de provisionamento extra. Atualizar `_shared/ai-pricing.ts` antes (senão o `cost_usd` em `ai_runs` fica zerado para o modelo novo).
 
 Trocável por clínica em `clinic_settings.ai_model_primary` / `ai_model_fallback`.
 

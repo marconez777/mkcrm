@@ -1,8 +1,9 @@
 # Auditoria da Documentação — Fase 1: Inventário & Mapa
 
 > **Gerado:** 2026-05-30
+> **Encerrada:** 2026-05-30 — todos os 🔴/🟡 resolvidos (Fases 2 a 7). Ver `CHANGELOG.md` para o trilho de mudanças.
 > **Escopo:** varredura de `docs/` (70 arquivos `.md`, ~11.363 linhas) cruzada contra `src/`, `supabase/functions/` (64 edge functions) e `supabase/migrations/` (50+ migrations).
-> **Propósito:** servir de guia para as Fases 2–6. Esta fase **não altera** outros docs — só classifica.
+> **Propósito:** registro histórico do estado pré-auditoria — mantido por referência.
 
 ---
 

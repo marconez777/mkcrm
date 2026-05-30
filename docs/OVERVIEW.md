@@ -2,7 +2,7 @@
 
 > **Quando ler:** primeiro contato com o projeto. Para detalhes profundos, siga os links no [`README.md`](./README.md) → `architecture/`, `database/`, `edge-functions/`, `frontend/`, `flows/`, `integrations/`, `operations/`.
 >
-> **Última atualização:** 2026-05-25.
+> **Última atualização:** 2026-05-30.
 
 ---
 
@@ -134,6 +134,8 @@ Single page `AiHub` que troca de seção:
 | `/ai` ou `/ai/agents` | Lista/editor de **Agentes** (`ai_agents`): prompt, modelo, tools, RAG, memória |
 | `/ai/memories` | `agent_memory` (notas semânticas por agente/lead) |
 | `/ai/usage` ou `/metrics/ai-usage` | Custo/tokens/latência (`ai_usage`) |
+| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
+| `/ai/reports` | Relatórios agendados (envio periódico em grupos WA) |
 | `/ai/automations` | **Automações** baseadas em gatilho → ação |
 | `/ai/sequences` | **Sequências** (drip) de mensagens |
 | `/ai/templates` | Quick replies / message templates |
@@ -206,16 +208,16 @@ Funções SQL centrais (em `public`):
 Cerca de 50 funções em `supabase/functions/`, agrupadas por domínio:
 
 **WhatsApp / Evolution**
-`evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `fetch-wa-avatar` · `transcribe-audio`.
+`evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `evolution-fetch-groups` · `fetch-wa-avatar` · `transcribe-audio`.
 
 **IA**
 `ai-chat` · `ai-assist` · `ai-auto-reply` · `ai-embed` · `ai-eval-run` · `ai-ingest-document` · `ai-ingest-pdf` · `ai-ingest-url` · `ai-ingest-urls` · `agent-run-bulk`.
 
-**Sequências / automações / broadcasts (cron)**
-`automations-tick` · `sequence-enroll` · `sequence-tick` · `sequence-trigger` · `broadcast-control` · `broadcast-tick` · `dispatch-campaign` · `scheduled-dispatcher` · `watch-stale-leads` · `daily-summary`.
+**Sequências / automações / broadcasts / relatórios (cron)**
+`automations-tick` · `sequence-enroll` · `sequence-tick` · `sequence-trigger` · `broadcast-control` · `broadcast-tick` · `dispatch-campaign` · `scheduled-dispatcher` · `scheduled-report-tick` · `watch-stale-leads` · `daily-summary`.
 
 **Email**
-`send-email` · `process-email-queue` · `process-scheduled-campaigns` · `email-domain-manage` · `email-unsubscribe` · `resend-webhook` · `backfill-resend-events`.
+`send-email` · `send-email-batch` · `process-email-queue` · `process-scheduled-campaigns` · `email-domain-manage` · `email-unsubscribe` · `resend-webhook` · `backfill-resend-events`.
 
 **Tracking** (públicas, sem JWT)
 `tracking-pixel` · `tracking-event` · `tracking-identify` · `tracking-config`.

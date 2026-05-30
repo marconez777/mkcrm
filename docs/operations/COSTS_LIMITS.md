@@ -1,7 +1,7 @@
 # Operações: Custos e Limites
 
 > **Quando ler:** antes de mexer em pricing de IA, budget de clínica, throttle de envio, ou quando aparecer alerta de gasto.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
@@ -73,6 +73,21 @@ Reset no dia 1 de cada mês via cron.
 | Email por clínica | 10 req/s Resend default | hardcoded em `dispatch-campaign` |
 | AI runs concorrentes por lead | 1 | `pg_advisory_xact_lock(lead_id)` |
 | Sequence enrollments por lead | sem limite | TODO: anti-spam |
+
+---
+
+## Limites de email em escala
+
+Para o módulo de email marketing, há quatro mecanismos sobrepostos. Detalhes e SLOs em [`roadmap/EMAIL_SCALE.md`](../roadmap/EMAIL_SCALE.md) (R-12, R-13, R-23).
+
+| Mecanismo | Default | Onde | Override |
+|---|---|---|---|
+| **Cota diária por clínica** | 1000 emails/dia | `claim_email_quota` (RPC atômico) | `clinics.settings.email.quota_daily` |
+| **Warm-up de domínio** (opt-in) | curva `50→100→500→1k→5k→10k→25k→ilimitado` por dia desde `started_at` | `email_domain_warmup` (1 linha por clínica+domain) + `claim_domain_warmup`/`release_domain_warmup` | sem linha = sem cap (cliente migrando com domínio já aquecido) |
+| **Throttle por destinatário** | 1000/h por `dest_domain` (janela horária) | `email_recipient_throttle` + `claim_recipient_throttle` | `clinics.settings.email.throttle_recipient_enabled = false` desliga 1 round-trip Postgres/job |
+| **Dispatcher** | `BATCH_SIZE=1000`, `CONCURRENCY=5`, `BATCH_PARALLELISM=5`, cron ~15s | `process-email-queue` (sintoniza ao rate-limit do Resend, 5 req/s) | constantes da edge function |
+
+Pausa automática por bounce/complaint não conta como cap: é proteção de reputação (>5% bounce ou >0.3% complaint nas últimas 1000 mensagens da clínica → todas as campanhas `running/sending/scheduled` viram `paused`, com registro em `email_health_alerts`). Ver [`operations/ERROR_HANDLING.md`](./ERROR_HANDLING.md#resend) e R-16.
 
 ---
 

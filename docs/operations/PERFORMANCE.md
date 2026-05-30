@@ -1,7 +1,7 @@
 # Operações: Performance
 
 > **Quando ler:** antes de adicionar nova query/listagem, otimizar tela lenta, ou debugar latência alta.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
@@ -15,6 +15,10 @@
 | Webhook Evolution → INSERT | <300ms p95 |
 | AI auto-reply (texto curto) | <4s p95 |
 | Broadcast tick (lote 30 msgs) | <30s |
+| Email throughput (transacional) | invocação → Resend <30s p95 |
+| Email campanha 10k destinatários | enqueue <60s, 100% enviado <2h |
+
+> SLOs detalhados do módulo de email (throughput, dispatcher, bounce/complaint) em [`roadmap/EMAIL_SCALE.md`](../roadmap/EMAIL_SCALE.md#slos-propostos). Caps e overrides em [`operations/COSTS_LIMITS.md`](./COSTS_LIMITS.md#limites-de-email-em-escala).
 
 ---
 

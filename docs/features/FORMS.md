@@ -4,7 +4,7 @@
 > landing pages, snippet universal) e transformar em leads no CRM, com
 > deduplicação, atribuição de tracking e log completo.
 >
-> Última atualização: 2026‑05‑25
+> Última atualização: 2026‑05‑30
 
 ---
 
@@ -185,6 +185,12 @@ re‑download e re‑install no WP.
   antes de qualquer escrita.
 - **Token rotation** é obrigatória se um snippet vazar (use `rotate_token`,
   publique novo `<script>` em até 24h).
+- **Endurecimento de tokens (2026‑05‑28):** `GRANT` de `SELECT` em colunas
+  sensíveis de `form_integrations` (`token`, `previous_token`) foi
+  **revogado** para `anon` e restrito a `authenticated` apenas via RLS por
+  `clinic_id`. O snippet público (`forms-snippet`) continua funcionando
+  porque resolve o token via service role na edge function — clientes do
+  Data API não conseguem mais listar tokens sem JWT da clínica dona.
 - **PII**: payload bruto vai em `form_submissions.payload` e
   `leads.custom_fields.form_submission`. Evitar formulários com dados
   sensíveis (saúde, financeiro) sem revisão de retenção.

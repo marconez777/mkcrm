@@ -8,7 +8,7 @@
 >   baseadas em condições periódicas (no_reply_after, stage_idle,
 >   before_appointment).
 >
-> Última atualização: 2026‑05‑25
+> Última atualização: 2026‑05‑30
 
 ---
 
@@ -18,10 +18,10 @@
 
 | Tabela                              | Papel                                                                              |
 |-------------------------------------|------------------------------------------------------------------------------------|
-| `message_sequences`                 | Cabeçalho: `enabled`, `trigger_type`, `cooldown_days`, `whatsapp_instance_id`, `stop_on_reply`, `public_token`. |
+| `message_sequences`                 | Cabeçalho: `enabled`, `trigger_type` (`manual|webhook|stage_change|pipeline_enter`), `cooldown_days`, `whatsapp_instance_id`, `stop_on_reply`, `public_token`. |
 | `message_sequence_steps`            | Passos ordenados por `position`. Conteúdo inline (`content`) ou via `template_id`. `delay_minutes`, `send_window`. |
 | `message_sequence_enrollments`      | Inscrição lead↔sequence: `status` (`active|paused|completed|canceled|failed`), `current_step`, `next_run_at`, `source` (jsonb). |
-| `message_sequence_runs`             | Log por execução de step: `status` (`sent|failed|skipped`), `detail`.              |
+| `message_sequence_runs`             | Log por execução de step: `status` (`sent|failed|skipped`), `detail`, **`replied_at`** (timestamp da primeira resposta do lead após este envio) e snapshot **`stage_id_at_send`** / **`stage_position_at_send`** (estágio do lead no momento do envio). Consumidos pelas RPCs `engagement_sequences_summary` / `engagement_sequence_steps` — ver [`docs/features/ENGAGEMENT.md`](./ENGAGEMENT.md). |
 
 ### 1.2 Triggers
 
@@ -31,9 +31,8 @@
   (`POST { token, phone, name?, email?, tags?, metadata? }`). Resolve a
   sequência pelo `public_token`, cria/atualiza lead na clínica do token,
   aplica cooldown, cria enrollment. Sem JWT — segurança é o token.
-- **Trigger DB (stage change)** — trigger em `leads` cria enrollment quando
-  o lead entra no `stage_id` configurado em `message_sequences.trigger_config`
-  (ver `docs/database/FUNCTIONS_TRIGGERS.md`).
+- **Trigger DB (`stage_change`)** — trigger em `leads` cria enrollment quando o lead **muda** para o `stage_id` configurado em `message_sequences.trigger_config`.
+- **Trigger DB (`pipeline_enter`)** — adicionado em 2026‑05‑28. Cria enrollment quando o lead **entra no pipeline pela primeira vez** (independente de mudança subsequente de estágio). Útil para "boas-vindas" sem disparar em moves laterais. Ver `docs/database/FUNCTIONS_TRIGGERS.md`.
 
 ### 1.3 Worker (`sequence-tick`)
 
