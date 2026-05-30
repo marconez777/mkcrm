@@ -54,6 +54,12 @@ Zera `sent_today` e avança `quota_resets_at` para clínicas cujo `quota_resets_
 
 > Os jobs do `pg_cron` que invocam essas funções estão em `cron.job` (não acessível via tools — usar dashboard). Tipicamente rodam a cada 5–15 min.
 
+### `check_email_operational_health() → void`
+Detecta backlog (>500 jobs na fila), jobs presos em `processing` (>10min) e taxa de falha alta por clínica (>10% nas últimas 100 mensagens). Insere em `email_operational_alerts`. Chamada pelo trigger `email_queue_health_trigger` (a cada ~100 inserts na fila).
+
+### `check_clinic_bounce_health(_clinic_id uuid) → void`
+Calcula `bounce_rate` e `complaint_rate` nas últimas 1000 mensagens da clínica. Se passar dos limites (5% / 0,3%), **pausa automaticamente** campanhas em execução e grava `email_health_alerts`. Chamada pelo trigger `email_logs_bounce_health_trigger`.
+
 ---
 
 ## Triggers utilitárias
