@@ -342,7 +342,15 @@ export default function EmailCampaigns() {
                 <TableRow key={c.id} className="border-0 hover:bg-muted/40 transition-colors">
                   <TableCell className="font-semibold py-5">{c.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{c.template_slug}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{segments.find((s) => s.id === c.segment_id)?.name ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{(() => {
+                    const ids = (c.segment_ids && c.segment_ids.length > 0) ? c.segment_ids : (c.segment_id ? [c.segment_id] : []);
+                    if (ids.length === 0) return "Todos";
+                    const names = ids.map((id) => segments.find((s) => s.id === id)?.name).filter(Boolean) as string[];
+                    if (names.length === 0) return "—";
+                    if (names.length === 1) return names[0];
+                    return `${names[0]} +${names.length - 1}`;
+                  })()}</TableCell>
+
                   <TableCell><StatusBadge status={c.status} /></TableCell>
                   <TableCell className="tabular-nums">
                     <div className="text-sm font-medium">{c.sent_count} / {c.total_recipients}</div>
