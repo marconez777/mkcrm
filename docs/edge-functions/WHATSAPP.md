@@ -1,10 +1,10 @@
 # WHATSAPP — Edge functions Evolution API
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Provider: **Evolution API** (https://github.com/EvolutionAPI/evolution-api), self-hosted.
-> 18 funções: 15 prefixadas `evolution-*` + `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect`.
+> 19 funções: 16 prefixadas `evolution-*` + `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect`.
 > Helpers compartilhados em [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) — toda função abaixo importa de `_shared/evolution.ts`.
-> Fluxos end-to-end: ver `flows/INBOUND_WHATSAPP.md` e `flows/OUTBOUND_WHATSAPP.md` (a serem criados na Etapa 8).
+> Fluxos end-to-end: `flows/INBOUND_WHATSAPP.md` e `flows/OUTBOUND_WHATSAPP.md`.
 
 ## Tabela-mapa
 
