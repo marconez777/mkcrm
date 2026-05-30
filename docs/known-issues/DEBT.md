@@ -106,6 +106,10 @@ Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impa
 
 - ~~Auth com magic link instável~~ — substituído por email+senha + Google (2026-04).
 - ~~`process-scheduled-campaigns` rodando 2× concorrente~~ — advisory lock adicionado (2026-05).
+- ~~A/B test de assunto em email~~ — entregue (R-20, `email_campaign_variants` + `pick_ab_winner`, 2026-05-26). Ver `roadmap/EMAIL_SCALE.md`.
+- ~~Sem warm-up de domínio ao escalar~~ — entregue (R-12 `email_domain_warmup`, 2026-05-26).
+- ~~Sem feedback loop bounce/complaint~~ — entregue (R-16, auto-pausa via `check_clinic_bounce_health`, 2026-05-26).
+- ~~Multi-segmento em campanhas de email~~ — entregue (`email_campaigns.segment_ids uuid[]`, 2026-05-30).
 
 ---
 
