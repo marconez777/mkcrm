@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 4 (features & fluxos): Engajamento vira aba de IA
+
+### Código
+- `src/components/AppShell.tsx`: removido o submenu lateral "IA → Engajamento". O item "IA" do sidebar volta a ser simples.
+- `src/pages/ai/AiHub.tsx`: nova aba **Engajamento** entre "Relatórios agendados" e "Memórias IA". Rota canônica `/ai/engagement`, com aliases `/metrics/engagement` e `/metrics` (compatibilidade).
+- `src/App.tsx`: rotas `/ai/engagement`, `/metrics/engagement` e `/metrics` agora montam `<AiHub />` para manter sidebar + tabs consistentes; import direto de `MetricsEngagement` removido.
+- `src/components/CommandPalette.tsx`: atalho "Engajamento (respostas)" passa a apontar para `/ai/engagement`.
+
+### Documentação
+- `docs/frontend/PAGES.md`: seção 2.3 IA reescrita listando todas as 9 abas do AiHub na ordem atual, com nota explicando que Engajamento, ScheduledReports e AgentMemories vivem como abas (sem item próprio no sidebar).
+- `docs/frontend/ROUTING.md`: tabela de rotas atualizada com `/ai/reports` e `/ai/engagement` (+ aliases `/metrics/engagement`, `/metrics`).
+
+---
+
 ## 2026-05-30 — Auditoria Fase 2 (banco & backend core)
 
 ### Adicionado

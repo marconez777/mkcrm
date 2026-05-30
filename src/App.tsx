@@ -29,7 +29,7 @@ import EmailTemplateEditor from "./pages/email/EmailTemplateEditor";
 import Broadcasts from "./pages/Broadcasts";
 import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
-import MetricsEngagement from "./pages/MetricsEngagement";
+
 
 const queryClient = new QueryClient();
 
@@ -88,8 +88,9 @@ const App = () => (
                       <Route path="/ai/messages/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/messages/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
-                      <Route path="/metrics/engagement" element={<MetricsEngagement />} />
-                      <Route path="/metrics" element={<MetricsEngagement />} />
+                      <Route path="/ai/engagement" element={<AiHub />} />
+                      <Route path="/metrics/engagement" element={<AiHub />} />
+                      <Route path="/metrics" element={<AiHub />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/forms" element={<SettingsForms />} />
