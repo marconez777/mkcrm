@@ -50,17 +50,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Normalize segment list (suporta múltiplos segmentos via segment_ids).
+    const segmentIds: string[] = Array.isArray((campaign as any).segment_ids) && (campaign as any).segment_ids.length > 0
+      ? ((campaign as any).segment_ids as string[]).filter(Boolean)
+      : (campaign.segment_id ? [campaign.segment_id as string] : []);
+
     // === TEST MODE — não muda status, envia 1 email força ===
     if (test_only) {
       const dest = (test_email_override || campaign.test_email || "").trim();
       if (!dest) return jsonResponse({ error: "test_email missing" }, { status: 400 });
 
-      // Variables sample (1º destinatário do segmento via RPC)
+      // Variables sample (1º destinatário do 1º segmento via RPC)
       let s: { name: string | null } | undefined;
-      if (campaign.segment_id) {
-        const { data: resolved } = await supabase.rpc("resolve_email_segment", { _segment_id: campaign.segment_id });
+      if (segmentIds.length > 0) {
+        const { data: resolved } = await supabase.rpc("resolve_email_segment", { _segment_id: segmentIds[0] });
         s = (resolved as any[])?.[0];
       }
+
 
       const { data: qid, error: qErr } = await supabase.rpc("enqueue_email", {
         _clinic_id: campaign.clinic_id,
