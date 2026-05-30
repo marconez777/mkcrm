@@ -437,22 +437,88 @@ export default function EmailCampaigns() {
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Segmento (opcional — vazio = todos os leads)</Label>
-                <Select value={editing.segment_id ?? "none"} onValueChange={(v) => setEditing({ ...editing, segment_id: v === "none" ? null : v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Todos os leads</SelectItem>
-                    {segments.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label>Segmentos (opcional — vazio = todos os leads)</Label>
+                {(() => {
+                  const selected = editing.segment_ids ?? [];
+                  const toggle = (id: string) => {
+                    const next = selected.includes(id)
+                      ? selected.filter((x) => x !== id)
+                      : [...selected, id];
+                    setEditing({ ...editing, segment_ids: next });
+                  };
+                  const selectedNames = selected
+                    .map((id) => segments.find((s) => s.id === id)?.name)
+                    .filter(Boolean) as string[];
+                  return (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="truncate text-left">
+                              {selected.length === 0
+                                ? "Todos os leads"
+                                : selectedNames.length <= 2
+                                  ? selectedNames.join(", ")
+                                  : `${selectedNames.slice(0, 2).join(", ")} +${selectedNames.length - 2}`}
+                            </span>
+                            <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0 ml-2" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-1 max-h-72 overflow-auto" align="start">
+                          {segments.length === 0 && (
+                            <div className="text-xs text-muted-foreground px-2 py-3 text-center">
+                              Nenhum segmento criado ainda.
+                            </div>
+                          )}
+                          {segments.map((s) => {
+                            const checked = selected.includes(s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => toggle(s.id)}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent text-left text-sm"
+                              >
+                                <Checkbox checked={checked} className="pointer-events-none" />
+                                <span className="truncate">{s.name}</span>
+                              </button>
+                            );
+                          })}
+                        </PopoverContent>
+                      </Popover>
+                      {selected.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {selectedNames.map((n, i) => (
+                            <Badge key={selected[i]} variant="secondary" className="gap-1 text-[11px]">
+                              {n}
+                              <button
+                                type="button"
+                                onClick={() => toggle(selected[i])}
+                                className="hover:text-destructive"
+                                aria-label={`Remover ${n}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2"><Calendar className="h-3 w-3" />Agendar para (opcional)</Label>
                 <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} />
               </div>
               {clinicId && (
-                <CampaignRecipientsPreview clinicId={clinicId} segmentId={editing.segment_id} />
+                <CampaignRecipientsPreview clinicId={clinicId} segmentIds={editing.segment_ids ?? []} />
               )}
+
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2"><Beaker className="h-3 w-3" />Email de teste</Label>
                 <Input type="email" placeholder="voce@exemplo.com" value={editing.test_email ?? ""} onChange={(e) => setEditing({ ...editing, test_email: e.target.value })} />
