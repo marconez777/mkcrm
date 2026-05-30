@@ -174,10 +174,55 @@ Cria agentes padrão (atendimento, qualificação, etc.) para nova clínica.
 Incrementa `unread_count` e atualiza `last_message_*` no lead (usado pelo webhook do WhatsApp).
 
 ### `report_campaign_stats(clinic_id, campaign_id)` → table
-Estatísticas agregadas de campanha de email: enviado, entregue, aberto, clicado, rejeitado, reclamado, falhado + taxas + melhor hora + breakdown horário JSONB. Valida `has_clinic_access(clinic_id)`.
+Estatísticas agregadas de campanha de email: enviado, entregue, aberto, clicado, rejeitado, reclamado, falhado + taxas + melhor hora + breakdown horário JSONB. Valida `has_clinic_access(clinic_id)`. Adicionada em 2026-05-27.
+
+### `report_template_stats(clinic_id, template_slug, _from, _to)` → table
+Mesma assinatura da anterior, mas agregando por `template_slug` numa janela de tempo (default 30 dias). Usada pelo dashboard de templates.
 
 ### `log_agent_trace(...)`
 Insere em `agent_traces`. Deriva `clinic_id` a partir de `agent_id` / `lead_id` / `thread_id`.
+
+### Email — quota & throttling
+
+#### `claim_email_quota(_clinic_id uuid)` → `(allowed bool, sent_today int, quota int)`
+Consumo **atômico** da cota diária. Insert/upsert em `email_send_state` com `ON CONFLICT`; se a janela expirou, reseta. Retorna `allowed=false` quando a cota seria estourada (e nesse caso decrementa de volta para não "consumir" indevidamente). Substituiu a contagem SELECT/UPDATE separada que tinha race condition.
+
+#### `claim_domain_warmup(_clinic_id uuid, _domain text)` → `(allowed bool, sent_today int, daily_cap int)`
+Tier 2 / R-15. Consome 1 vaga no warm-up automático de um domínio remetente. `release_domain_warmup(_clinic_id, _domain)` devolve a vaga quando o envio falha.
+
+#### `claim_recipient_throttle(_clinic_id uuid, _domain text)` → `(allowed bool, sent_in_window int, cap int)`
+Tier 2. Limite por **domínio destinatário** (default 1000/h), janela rolante de 1 hora.
+
+#### `pick_ab_winner(_campaign_id uuid)` → uuid
+R-20. Seleciona variante vencedora de uma campanha por melhor taxa de abertura/clique. Marca `is_winner=true` e atualiza `email_campaigns.winner_picked_at`.
+
+#### `pick_rotation_domain(_clinic_id uuid, _pool text)` → text
+R-21. Sorteio ponderado (`weighted random`) entre `email_domains` com `rotation_pool = _pool` e `status='verified'`. Retorna o domínio escolhido para preencher `email_queue.from_domain_override`.
+
+### Segmentos (helpers internos)
+
+#### `_email_segment_rule_to_sql(_rule jsonb)` → text
+Converte uma regra individual (`type ∈ {form_source, tag, stage, has_email, utm_campaign, created_at_range, last_message_at_range, deal_value_range, custom_field}`) numa expressão SQL parametrizada. Suporta flag `negate` (NOT) por regra.
+
+#### `_email_segment_filters_to_where(_filters jsonb)` → text
+Junta as regras usando `match ∈ {any, all}` (default `any` = OR). Faz fallback para os campos legados (`tags`, `stage_id`, `stage_ids`, `has_email`) quando `rules[]` está vazio.
+
+#### `resolve_email_segment(_segment_id uuid)` → `TABLE(email, name, lead_id)`
+Materializa um segmento (`dynamic` ou `static`). `dispatch-campaign` chama uma vez por id em `email_campaigns.segment_ids[]` e une os resultados (dedup por email) antes de enfileirar.
+
+#### `resolve_email_segment_preview(_clinic_id uuid, _filters jsonb)` → `TABLE(email, name, lead_id)`
+Preview ao vivo dos filtros (sem precisar de segmento persistido). Limite hard-coded de 5000 linhas. Usado em `CampaignRecipientsPreview` e no editor de segmentos.
+
+### Engajamento (relatórios)
+
+#### `engagement_broadcasts_summary(_from timestamptz, _to timestamptz)` → table
+Métricas agregadas de broadcasts (enviados, respondidos, taxa de resposta). **REVOKE EXECUTE FROM PUBLIC, anon** (2026-05-30) — acessível só a `authenticated`. Tenant scoping via `current_clinic_id()` dentro da função.
+
+#### `engagement_sequences_summary(_from, _to)` → table
+Mesma ideia para sequências (envios, respostas, conversão por step). Idem revoke.
+
+#### `engagement_sequence_steps(_sequence_id uuid, _from, _to)` → table
+Drill-down por step de uma sequência específica. Idem revoke.
 
 ---
 
