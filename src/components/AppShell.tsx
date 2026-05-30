@@ -14,14 +14,22 @@ import mkLogo from "@/assets/mk-logo.png";
 
 import type { FeatureKey } from "@/lib/features";
 
-const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey }[] = [
+type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
+
+const items: NavItem[] = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
   { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
   { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
-  { to: "/ai", label: "IA", icon: Sparkles },
+  {
+    to: "/ai",
+    label: "IA",
+    icon: Sparkles,
+    children: [
+      { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 },
+    ],
+  },
 ];
 
-type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
@@ -54,7 +62,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isClinicAdmin && hasFeature("team")) {
     navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
-  navItems = [...navItems, { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 }];
+  
   navItems = [...navItems, { to: "/settings", label: "Configurações", icon: Settings }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
