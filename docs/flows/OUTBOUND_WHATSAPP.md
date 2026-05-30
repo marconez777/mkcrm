@@ -1,7 +1,7 @@
 # Fluxo: WhatsApp Outbound (mensagem enviada)
 
 > **Quando ler:** antes de mexer em envio manual, envio por agente IA, ou envio em massa (broadcast).
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
