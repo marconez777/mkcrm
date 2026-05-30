@@ -1,7 +1,7 @@
 # Integração: pg_net + pg_cron
 
 > **Quando ler:** antes de criar/alterar job agendado, ou debugar trigger que dispara edge function via HTTP.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
