@@ -7,9 +7,8 @@ import AgentMemories from "@/pages/AgentMemories";
 import AiInsights from "@/pages/AiInsights";
 import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Broadcasts from "@/pages/Broadcasts";
-import Messages from "./Messages";
+import Messages, { isMessagesPath } from "./Messages";
 import ScheduledReports from "@/pages/ScheduledReports";
-import MetricsEngagement from "@/pages/MetricsEngagement";
 import type { FeatureKey } from "@/lib/features";
 
 type TabDef = {
@@ -17,8 +16,9 @@ type TabDef = {
   path: string;
   aliases?: string[];
   matchPrefix?: string;
+  matcher?: (pathname: string) => boolean;
   label: string;
-  features?: FeatureKey[]; // visible if ANY of these is enabled (default: all)
+  features?: FeatureKey[];
 };
 
 const TABS: TabDef[] = [
@@ -27,18 +27,12 @@ const TABS: TabDef[] = [
   {
     value: "messages",
     path: "/ai/messages",
-    matchPrefix: "/ai/messages",
-    aliases: [
-      "/ai/sequences", "/sequences",
-      "/ai/automations", "/automations",
-      "/ai/templates", "/templates",
-    ],
+    matcher: isMessagesPath,
     label: "Mensagens",
     features: ["sequences", "automations", "templates"],
   },
   { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", features: ["broadcasts"] },
   { value: "reports", path: "/ai/reports", label: "Relatórios agendados" },
-  { value: "engagement", path: "/ai/engagement", aliases: ["/metrics/engagement", "/metrics"], label: "Engajamento" },
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
   { value: "insights", path: "/ai/insights", label: "Insights", features: ["agents"] },
   { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos", features: ["metrics_ai_usage"] },
@@ -52,6 +46,7 @@ export default function AiHub() {
   const visible = TABS.filter((t) => !t.features || t.features.some((f) => hasFeature(f)));
 
   const current =
+    visible.find((t) => t.matcher?.(location.pathname))?.value ??
     visible.find((t) => t.matchPrefix && location.pathname.startsWith(t.matchPrefix))?.value ??
     visible.find((t) => t.path === location.pathname || t.aliases?.includes(location.pathname))?.value ??
     "dashboard";
@@ -79,7 +74,6 @@ export default function AiHub() {
           <TabsContent value="messages" className="mt-0"><Messages /></TabsContent>
           <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>
           <TabsContent value="reports" className="mt-0"><ScheduledReports /></TabsContent>
-          <TabsContent value="engagement" className="mt-0"><MetricsEngagement /></TabsContent>
         </Tabs>
       </div>
     </div>
