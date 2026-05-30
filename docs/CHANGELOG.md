@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 5 (frontend)
+
+### Mudado
+- `docs/frontend/PAGES.md`: seção Email Marketing reescrita listando as 11 sub-rotas (incl. `/email/sites`), com bullets para `EmailCampaigns`, `EmailContacts`, `EmailUnsubscribes`, `EmailReports` e nota sobre `SettingsEmailDomain`/`DnsWizard`. Seção "Métricas" reescrita esclarecendo que `MetricsAiUsage` e `MetricsEngagement` vivem como abas do AiHub, e `MetricsOps` é rota avulsa.
+- `docs/frontend/ROUTING.md`: tabela atualizada — `/email/*` agora lista as 11 sub-rotas explícitas (incl. `/email/sites`), `/settings/forms` ganhou alias `/settings/integration`.
+- `docs/frontend/COMPONENTS.md`: seção 7 "Email" expandida em 7.1 (editor), 7.2 (dialogs/cards: `CampaignRecipientsPreview` multi-segmento, `CampaignReportDialog`, `AutomationReportDialog`, `DnsWizard`, `DomainHealthCard`, `StatusBadge`, `TablePager`) e 7.3 (live: `CampaignLiveDialog`, `RadialProgress`, `ThroughputChart`, `LivePulseDot`, `ArtisticSpinner`).
+- `docs/frontend/HOOKS_LIB.md`: adicionados `useEmailMetrics` (lê `email_metrics_daily`), `useCustomFieldDefs`, `useCountUp`.
+- `docs/frontend/STATE_DATA.md`: nota sobre a publication `supabase_realtime` incluir `campaign_throughput` e `email_campaigns`.
+- `docs/AUDIT_PHASE1.md`: itens 🔴/🟡 da seção `frontend/` marcados como resolvidos.
+
+---
+
 ## 2026-05-30 — Auditoria Fase 4 (resto): features & fluxos
 
 ### Adicionado
