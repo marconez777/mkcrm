@@ -1,7 +1,7 @@
 # Operações: Performance
 
 > **Quando ler:** antes de adicionar nova query/listagem, otimizar tela lenta, ou debugar latência alta.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
