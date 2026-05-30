@@ -256,6 +256,10 @@ Chama uma edge function via `pg_net.http_post` usando `cron_service_role_key` e 
 - **`enqueue_email` retorna NULL silenciosamente** quando a feature `email_marketing` está OFF ou o template não existe/está inativo. Ao chamar do código, logue resposta.
 - **`assert_clinic_id_not_null` derivação**: se o INSERT envia `clinic_id=NULL` propositalmente sem ter FK preenchida, falha com `23502 clinic_id_required`. Sempre passe `clinic_id` explicitamente.
 - **`cleanup_*` funções não rodam se o cron não estiver configurado.** Verifique `cron.job` periodicamente.
+- **`tg_email_queue_campaign_counters` é idempotente** desde 2026-05-28: só conta quando `sent_at` vai de NULL → preenchido. Antes podia inflar `campaign_throughput` em UPDATEs repetidos.
+- **RPCs `engagement_*` não são executáveis por `anon`/`PUBLIC`** desde 2026-05-30. Chamar a partir do frontend exige sessão autenticada.
+- **`pick_rotation_domain` retorna NULL** se nenhum domínio do pool está `status='verified'`. `send-email-batch` então cai no `from` default da clínica.
+- **`claim_email_quota` decrementa de volta** quando ultrapassa o limite, mas isso vira uma operação dupla (insert + update). Em alto volume vale monitorar contenção em `email_send_state`.
 
 ## Lista completa
 
