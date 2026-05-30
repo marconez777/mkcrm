@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Radar, UserRound, ChevronsUpDown } from "lucide-react";
+import { LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard, CalendarClock, Shield, Users, Mail, Radar, UserRound, ChevronsUpDown, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,6 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isClinicAdmin && hasFeature("team")) {
     navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
+  navItems = [...navItems, { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 }];
   navItems = [...navItems, { to: "/settings", label: "Configurações", icon: Settings }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 

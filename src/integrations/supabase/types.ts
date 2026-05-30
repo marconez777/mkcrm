@@ -1114,6 +1114,8 @@ export type Database = {
           phone: string
           replied_at: string | null
           sent_at: string | null
+          stage_id_at_send: string | null
+          stage_position_at_send: number | null
           status: string
         }
         Insert: {
@@ -1131,6 +1133,8 @@ export type Database = {
           phone: string
           replied_at?: string | null
           sent_at?: string | null
+          stage_id_at_send?: string | null
+          stage_position_at_send?: number | null
           status?: string
         }
         Update: {
@@ -1148,6 +1152,8 @@ export type Database = {
           phone?: string
           replied_at?: string | null
           sent_at?: string | null
+          stage_id_at_send?: string | null
+          stage_position_at_send?: number | null
           status?: string
         }
         Relationships: [
@@ -3122,6 +3128,9 @@ export type Database = {
           enrollment_id: string
           id: string
           message_id: string | null
+          replied_at: string | null
+          stage_id_at_send: string | null
+          stage_position_at_send: number | null
           status: string
           step_id: string | null
         }
@@ -3132,6 +3141,9 @@ export type Database = {
           enrollment_id: string
           id?: string
           message_id?: string | null
+          replied_at?: string | null
+          stage_id_at_send?: string | null
+          stage_position_at_send?: number | null
           status: string
           step_id?: string | null
         }
@@ -3142,6 +3154,9 @@ export type Database = {
           enrollment_id?: string
           id?: string
           message_id?: string | null
+          replied_at?: string | null
+          stage_id_at_send?: string | null
+          stage_position_at_send?: number | null
           status?: string
           step_id?: string | null
         }
@@ -5190,6 +5205,38 @@ export type Database = {
       current_clinic_role: {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
+      }
+      engagement_broadcasts_summary: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          broadcast_id: string
+          broadcast_name: string
+          created_at: string
+          qualified_count: number
+          replied_count: number
+          sent_count: number
+        }[]
+      }
+      engagement_sequence_steps: {
+        Args: { _from: string; _sequence_id: string; _to: string }
+        Returns: {
+          qualified_count: number
+          replied_count: number
+          sent_count: number
+          step_id: string
+          step_position: number
+        }[]
+      }
+      engagement_sequences_summary: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          enabled: boolean
+          qualified_count: number
+          replied_count: number
+          sent_count: number
+          sequence_id: string
+          sequence_name: string
+        }[]
       }
       enqueue_email: {
         Args: {

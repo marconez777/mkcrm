@@ -81,6 +81,7 @@ export default function CommandPalette() {
     { label: "Automações", path: "/ai/messages/automations", icon: Zap },
     { label: "Templates", path: "/ai/messages/templates", icon: FileText },
     { label: "Métricas", path: "/metrics", icon: BarChart3 },
+    { label: "Engajamento (respostas)", path: "/metrics/engagement", icon: BarChart3 },
     { label: "Configurações", path: "/settings", icon: Settings },
   ];
 

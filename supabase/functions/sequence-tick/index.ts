@@ -49,8 +49,14 @@ Deno.serve(async (req) => {
         const [{ data: seq }, { data: steps }, { data: lead }] = await Promise.all([
           supabase.from("message_sequences").select("id, enabled, whatsapp_instance_id, stop_on_reply").eq("id", e.sequence_id).single(),
           supabase.from("message_sequence_steps").select("*").eq("sequence_id", e.sequence_id).order("position"),
-          supabase.from("leads").select("id, phone, name, email, company, custom_fields").eq("id", e.lead_id).single(),
+          supabase.from("leads").select("id, phone, name, email, company, custom_fields, stage_id").eq("id", e.lead_id).single(),
         ]);
+        // Snapshot da coluna do pipeline no momento do envio (para qualificação)
+        let stageSnap: { stage_id_at_send: string | null; stage_position_at_send: number | null } = { stage_id_at_send: null, stage_position_at_send: null };
+        if (lead?.stage_id) {
+          const { data: st } = await supabase.from("pipeline_stages").select("id, position").eq("id", lead.stage_id).maybeSingle();
+          if (st) stageSnap = { stage_id_at_send: st.id, stage_position_at_send: st.position };
+        }
 
         if (!seq?.enabled) {
           await supabase.from("message_sequence_enrollments")
@@ -127,6 +133,8 @@ Deno.serve(async (req) => {
           await supabase.from("message_sequence_runs").insert({
             clinic_id: e.clinic_id, enrollment_id: e.id, step_id: step.id,
             status: "sent", detail: rendered.slice(0, 200),
+            stage_id_at_send: stageSnap.stage_id_at_send,
+            stage_position_at_send: stageSnap.stage_position_at_send,
           });
           // Schedule next step
           const nextStep = (steps ?? [])[stepIdx + 1];
