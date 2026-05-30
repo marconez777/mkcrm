@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 6 (ops, roadmap, known-issues) + encerramento
+
+### Mudado
+- `docs/operations/OBSERVABILITY.md`: novas tabelas-trilha `email_operational_alerts` / `email_health_alerts`; nova seção "Views de saúde do módulo Email" cobrindo `email_throughput_stats`, `email_system_health` e o gatilho via `check_email_operational_health`.
+- `docs/operations/ERROR_HANDLING.md`: bloco Resend documenta `tg_suppress_on_bounce` e a **auto-pausa** via `check_clinic_bounce_health` (bounce >5% ou complaint >0.3% pausa campanhas e grava `email_health_alerts`, throttle 10min).
+- `docs/known-issues/PITFALLS.md`: pegadinhas **41** (segment_ids vazio = todos os leads), **42** (pausa por bounce-health não deve ser revertida cegamente), **43** (loop bot-↔-bot — usar `messages.bot_agent_id`).
+- `docs/known-issues/DEBT.md`: marcados como resolvidos A/B (R-20), warmup (R-12), feedback bounce (R-16) e multi-segmento.
+- `docs/roadmap/IMPROVEMENTS.md`: R-8 (A/B email) marcado como entregue, cross-link com `roadmap/EMAIL_SCALE.md`.
+- `docs/integracao/*`: varredura confirmou que os 13 snippets continuam batendo com `tracking-event`/`tracking-identify`/`forms-ingest` (sem drift de payload).
+- `docs/README.md`: data atualizada para 2026-05-30 e contagem corrigida (70 arquivos, não 52).
+- `docs/AUDIT_PHASE1.md`: seções 2.9–2.12 marcadas como ✅ resolvidas — auditoria completa.
+
+### Encerramento da auditoria
+Todas as 6 fases do plano (`.lovable/plan.md`) concluídas:
+- **Fase 1** ✅ Inventário (`AUDIT_PHASE1.md`).
+- **Fase 2** ✅ Banco & backend core (`database/*` + `architecture/AUTH.md`).
+- **Fase 3** ✅ Edge functions & integrações (`edge-functions/*`, `integrations/PG_NET_CRON.md`).
+- **Fase 4** ✅ Features & fluxos (`features/EMAIL_CAMPAIGNS.md`, `features/ENGAGEMENT.md`, `flows/*`).
+- **Fase 5** ✅ Frontend (`frontend/*`).
+- **Fase 6** ✅ Ops, roadmap, known-issues, encerramento.
+
+Nenhuma fase tocou runtime (apenas `docs/` + uma alteração isolada em frontend para mover Engajamento para aba de IA, já registrada na Fase 4).
+
+---
+
 ## 2026-05-30 — Auditoria Fase 3 (edge functions & integrations)
 
 ### Mudado

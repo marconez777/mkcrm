@@ -1,7 +1,7 @@
 # Pegadinhas (Pitfalls)
 
 > **Quando ler:** **SEMPRE antes** de mexer em qualquer coisa. Esta é a lista de erros que a IA (e humanos) já cometeu múltiplas vezes neste projeto.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
@@ -199,6 +199,20 @@ Lista do que **não** editar:
 
 ### 40. Esquecer de atualizar a doc
 **Regra:** mudou código → atualizar doc no mesmo PR, renovar data do topo do arquivo.
+
+### 41. Campanha de email sem `segment_ids[]` ≠ "sem destinatários"
+**Erro:** assumir que `email_campaigns.segment_ids = NULL/[]` é um estado inválido ou bloqueante.
+**Realidade:** quando `segment_ids` é vazio E `segment_id` (legado) também é null, o `dispatch-campaign` interpreta como **"todos os leads + contatos de `email_segment_contacts`"**. Filtrar/exigir segmento na UI sem entender isso esconde campanhas válidas.
+**Faça:** ler `flows/EMAIL_CAMPAIGN.md` e `features/EMAIL_CAMPAIGNS.md` antes de mudar a query de listagem.
+
+### 42. Tentar pausar manualmente campanha pausada por bounce-health
+**Erro:** mexer em `email_campaigns.status` quando a pausa veio de `check_clinic_bounce_health`.
+**Por quê:** o alerta em `email_health_alerts` permanece aberto; sem revisar bounce/complaint rate, retomar dispara nova pausa em minutos.
+**Faça:** investigar `email_health_alerts` (com `metric_value`/`threshold`/`sample_size`) e suprimir manualmente bounces ruins antes de retomar.
+
+### 43. Bot respondendo bot (loop infinito)
+**Erro:** dois agentes IA conversando em loop via WhatsApp.
+**Faça:** sempre setar `messages.bot_agent_id` ao enviar via IA. `ai-auto-reply` ignora mensagens com `bot_agent_id IS NOT NULL`. Ver `flows/AI_AGENT_LOOP.md`.
 
 ---
 

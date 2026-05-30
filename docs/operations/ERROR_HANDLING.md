@@ -1,7 +1,7 @@
 # Operações: Error Handling
 
 > **Quando ler:** antes de adicionar try/catch, novo retry, ou padrão de resposta de erro.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
@@ -80,7 +80,8 @@ Códigos canônicos:
 ### Resend
 - `422 domain_not_verified` → desabilitar domain row, email para admin.
 - `422 invalid_email` → marcar `email_invalid=true` no lead.
-- hard bounce → INSERT `email_unsubscribes`.
+- hard bounce → INSERT `email_unsubscribes` + trigger `tg_suppress_on_bounce` adiciona em `suppressed_emails`.
+- **Auto-pausa por saúde:** `email_logs_bounce_health_trigger` chama `check_clinic_bounce_health` após cada UPDATE de status. Se `bounce_rate > 5%` ou `complaint_rate > 0.3%` (janela das últimas 1000 mensagens), todas as campanhas em `running/sending/scheduled` da clínica são pausadas automaticamente e um registro é gravado em `email_health_alerts` (throttle 10min entre alertas). UI deve mostrar o alerta e exigir ação manual para retomar.
 
 ### Lovable AI
 - `402` → pause clinic AI, email crítico.
