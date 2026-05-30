@@ -1,7 +1,7 @@
 # MIGRATIONS — Histórico e governança
 
-> Última atualização: 2026-05-25
-> Fonte: `supabase/migrations/*.sql` (90 arquivos).
+> Última atualização: 2026-05-30
+> Fonte: `supabase/migrations/*.sql` (~100 arquivos).
 > Cada migration tem timestamp `YYYYMMDDHHMMSS_<uuid>.sql`.
 
 ## Visão geral
@@ -23,6 +23,10 @@
 | 2026-05-18 → 05-19 | IA: agents, threads, messages, RAG (`ai_documents`, `ai_chunks`), embeddings, `match_chunks_hybrid` |
 | 2026-05-20 | Audit log, data_access_log, refinamentos de RLS, `auth_lockouts` |
 | 2026-05-25 | AI spend guard (`ai_spend_limits`, `ai_spend_events`, `ai_spend_notifications_sent`, trigger `ai_usage_spend_guard`), fix de login (auth_lockouts policy) |
+| 2026-05-26 | Email Tier 1 (cache + `email_send_dedup` + RPC `claim_email_quota`), Tier 2 (`email_domain_warmup`, `email_recipient_throttle`, `email_health_alerts`, `send-email-batch`), Tier 3 (`email_campaigns.send_rate_per_minute`, `email_campaign_variants` + `pick_ab_winner`, rotação de domínio: `email_domains.rotation_pool/weight` + `pick_rotation_domain` + `from_domain_override`) |
+| 2026-05-27 | RPC `report_campaign_stats`, `email_campaigns`/`campaign_throughput` no realtime, hardening RLS `clinic_email_integrations`, revoke `whatsapp_instances` secrets para `authenticated` |
+| 2026-05-28 | Revoke `whatsapp_instances`/`form_integrations`/`ai_agents` secrets para `anon`, trigger idempotente `tg_email_queue_campaign_counters`, índices `email_segment_contacts`/`leads`, trigger `tg_suppress_on_bounce`, novo `trigger_type='pipeline_enter'` em `message_sequences` |
+| 2026-05-30 | `message_sequence_runs` ganha `replied_at`/`stage_id_at_send`/`stage_position_at_send`, revoke EXECUTE das RPCs `engagement_*` para `PUBLIC/anon`, `email_campaigns.segment_ids uuid[]` (multi-segmento) + backfill |
 
 ## Como criar uma nova migration
 

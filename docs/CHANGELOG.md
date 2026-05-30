@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 2 (banco & backend core)
+
+### Adicionado
+- `docs/AUDIT_PHASE1.md`: inventário completo de 70 arquivos de doc, status por arquivo, migrations pós-CHANGELOG, ordem sugerida das fases.
+
+### Mudado (refletindo mudanças de código de 2026-05-27 a 2026-05-30)
+- `docs/database/SCHEMA.md`: tabela Email Marketing reescrita com `email_campaigns.segment_ids[]` (multi-segmento), novas colunas `send_rate_per_minute`/`variant_strategy`/`winner_picked_at`/`from_domain_pool`/`last_sent_at`/`from_name_override`; novas tabelas `email_campaign_variants`, `email_domain_warmup`, `email_recipient_throttle`, `email_health_alerts`, `email_operational_alerts`, `email_send_dedup`, `campaign_throughput`; novas colunas `email_queue.priority/variant_id/from_domain_override`, `email_logs.variant_id/from_domain_override`, `email_domains.rotation_pool/weight`, `messages.bot_agent_id`, `message_sequence_runs.replied_at/stage_id_at_send/stage_position_at_send`; views `email_throughput_stats` e `email_system_health`; novos índices; lista de Realtime atualizada (incluindo `campaign_throughput` e `email_campaigns`); 5 novos pitfalls.
+- `docs/database/FUNCTIONS_TRIGGERS.md`: novos triggers (`tg_email_queue_campaign_counters` idempotente, `email_queue_health_trigger`, `tg_suppress_on_bounce`, `email_logs_bounce_health_trigger`, `touch_email_domain_warmup`); constraint `message_sequences_trigger_type_check` com `pipeline_enter`; novas funções de negócio (`report_template_stats`, `claim_email_quota`, `claim_domain_warmup`/`release_domain_warmup`, `claim_recipient_throttle`, `pick_ab_winner`, `pick_rotation_domain`, `check_email_operational_health`, `check_clinic_bounce_health`); helpers de segmentos (`_email_segment_rule_to_sql`, `_email_segment_filters_to_where`, `resolve_email_segment`, `resolve_email_segment_preview`); RPCs de engajamento (`engagement_broadcasts_summary`, `engagement_sequences_summary`, `engagement_sequence_steps`).
+- `docs/database/RLS_POLICIES.md`: nova seção "Endurecimentos recentes" com tabela de revokes em `clinic_email_integrations`, `whatsapp_instances`, `form_integrations`, `ai_agents` e RPCs `engagement_*`.
+- `docs/database/MIGRATIONS.md`: cronologia estendida até 2026-05-30 (4 novas faixas semanais), contagem de migrations atualizada.
+- `docs/architecture/REALTIME.md`: `campaign_throughput` e `email_campaigns` adicionadas à lista da publication.
+- `docs/architecture/AUTH.md`: nota de endurecimento apontando para a nova seção em `RLS_POLICIES.md`.
+
+---
+
 ## 2026-05-26 — email R-17 implementado (métricas em tempo real)
 
 ### Adicionado
