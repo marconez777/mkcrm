@@ -1,7 +1,7 @@
 # Operações: Error Handling
 
 > **Quando ler:** antes de adicionar try/catch, novo retry, ou padrão de resposta de erro.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
