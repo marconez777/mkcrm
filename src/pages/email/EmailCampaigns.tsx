@@ -130,13 +130,14 @@ export default function EmailCampaigns() {
 
   function startCreate() {
     setEditing({
-      id: "", name: "", template_slug: "", segment_id: null, status: "draft",
+      id: "", name: "", template_slug: "", segment_id: null, segment_ids: [], status: "draft",
       scheduled_for: null, total_recipients: 0, sent_count: 0, failed_count: 0,
       test_email: user?.email ?? null, test_sent_at: null, created_at: "",
       from_name_override: null,
     });
     setScheduleDate("");
   }
+
 
   async function save() {
     if (!editing || !clinicId) return;
