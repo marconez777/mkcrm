@@ -1,7 +1,7 @@
 # Integração: Lovable AI Gateway
 
 > **Quando ler:** antes de adicionar/trocar modelo de IA, calcular custo, ou debugar erro de API key.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
