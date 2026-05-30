@@ -128,10 +128,10 @@ Aberto via `useDialogs` de qualquer página (Kanban, Inbox, Tasks).
 Mostra perfil, timeline (mensagens + eventos + form_submissions),
 tags, custom fields, jornada de tracking, tarefas, agendamentos.
 
-### 2.10 Métricas
-- **`Metrics.tsx`** — overview operacional.
-- **`MetricsOps.tsx`** — WhatsApp/IA performance.
-- **`MetricsAiUsage.tsx`** — citado acima.
+### 2.10 Métricas (rotas avulsas, não-aba)
+- **`Metrics.tsx`** — overview operacional (rota não montada hoje; mantida como page para usos pontuais).
+- **`MetricsOps.tsx`** — saúde operacional de email (`email_system_health`, `email_operational_alerts`).
+- **`MetricsAiUsage.tsx`** e **`MetricsEngagement.tsx`** vivem como abas do AiHub (ver §2.3).
 
 ### 2.11 NotFound / Index
 - **`NotFound.tsx`** — 404 dentro do shell.
