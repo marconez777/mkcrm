@@ -1,7 +1,7 @@
 # Dívida Técnica (Technical Debt)
 
 > **Quando ler:** ao priorizar refactor; ao tomar decisão que vai aumentar/diminuir dívida.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impacto × frequência.
 
