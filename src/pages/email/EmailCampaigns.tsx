@@ -48,6 +48,7 @@ type Campaign = {
   name: string;
   template_slug: string;
   segment_id: string | null;
+  segment_ids: string[];
   status: string;
   scheduled_for: string | null;
   total_recipients: number;
@@ -60,6 +61,7 @@ type Campaign = {
 };
 type Tpl = { id: string; slug: string; name: string };
 type Segment = { id: string; name: string };
+
 
 export default function EmailCampaigns() {
   const { membership, user } = useAuth();
