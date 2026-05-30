@@ -1,7 +1,7 @@
 # Operações: Observabilidade
 
 > **Quando ler:** antes de debugar bug em produção, ou de adicionar novo log/métrica.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
