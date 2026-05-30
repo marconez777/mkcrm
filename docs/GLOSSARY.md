@@ -33,3 +33,7 @@
 | **PITR** | Point-in-Time Recovery — backup contínuo do Postgres. |
 | **PII** | Personally Identifiable Information (telefone, email, conteúdo). Nunca logar em claro. |
 | **mkart** | Nome do produto (CRM). |
+| **Segmento múltiplo** | Campanha de email cuja audiência é a **união (OR + dedup por email)** de N segmentos em `email_campaigns.segment_ids[]`. Array vazio + `segment_id` (legado) nulo = "todos os leads + `email_segment_contacts`". |
+| **Engajamento** | Aba `/ai/engagement` que agrega taxa de resposta de broadcasts e sequences via RPCs `engagement_broadcasts_summary` / `engagement_sequences_summary` / `engagement_sequence_steps`. Depende de `messages.bot_agent_id` e do snapshot `replied_at`/`stage_*_at_send` em `message_sequence_runs`. |
+| **Warmup pool** | Curva diária de envio por domínio em `email_domain_warmup` (`50→100→500→1k→5k→10k→25k→∞`). Opt-in: sem linha = sem cap. |
+| **Rotation domain** | Domínio escolhido por `pick_rotation_domain` em pools agrupados via `email_domains.rotation_pool`/`rotation_weight`. Substitui o domínio do `from_email` por linha, preservando local-part. |
