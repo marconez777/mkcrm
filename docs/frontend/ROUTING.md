@@ -2,7 +2,7 @@
 
 > Mapa de URLs, guards e padrões de navegação.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte da verdade: `src/App.tsx`.
 
 ---
@@ -73,11 +73,11 @@ Estrutura em **2 níveis** de `<Routes>`:
 | `/ai/reports`                                | `AiHub`                                | Protected                          |
 | `/ai/engagement`, `/metrics/engagement`, `/metrics` | `AiHub`                         | Protected                          |
 | `/ai/messages`                               | `AiHub`                                | Protected                          |
-| `/email/*` (10 sub-rotas)                    | `pages/email/EmailHub`                 | Feature `email_marketing`          |
+| `/email`, `/email/templates`, `/email/automations`, `/email/campaigns`, `/email/queue`, `/email/logs`, `/email/segments`, `/email/contacts`, `/email/unsubscribes`, `/email/reports`, `/email/sites` (11 sub-rotas) | `pages/email/EmailHub` | Feature `email_marketing` |
 | `/email/templates/:id`                       | `pages/email/EmailTemplateEditor`      | Feature `email_marketing`          |
 | `/settings`                                  | `pages/Settings`                       | Protected                          |
 | `/settings/fields`                           | `pages/SettingsCustomFields`           | Feature `custom_fields`            |
-| `/settings/forms`                            | `pages/SettingsForms`                  | Protected                          |
+| `/settings/forms`, `/settings/integration`   | `pages/SettingsForms`                  | Protected                          |
 | `/settings/email`                            | `pages/email/SettingsEmailDomain`      | Protected                          |
 | `/tracking`                                  | `pages/Tracking`                       | Protected (admin no shell)         |
 | `/tracking-debug`                            | `pages/TrackingDebug`                  | Protected (flag)                   |

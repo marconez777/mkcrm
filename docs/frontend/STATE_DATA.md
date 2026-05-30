@@ -2,7 +2,9 @@
 
 > Como o frontend obtém, cacheia e propaga dados.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
+>
+> Nota 2026-05-30: a publication `supabase_realtime` agora inclui também `campaign_throughput` e `email_campaigns` — `CampaignLiveDialog` assina ambas via `useRealtimeList`/postgres_changes.
 
 ---
 

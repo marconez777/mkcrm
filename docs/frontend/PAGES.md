@@ -3,7 +3,7 @@
 > Catálogo de páginas (`src/pages/**`) com responsabilidade, hooks que
 > consomem e edge functions invocadas.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 
 ---
 
@@ -78,13 +78,23 @@ Páginas filhas relevantes:
 - **`Broadcasts.tsx`** — disparo em massa WhatsApp. Ver `features/BROADCASTS.md`.
 
 ### 2.4 Email Marketing
-**`pages/email/EmailHub.tsx`** — hub análogo ao AiHub para 10 sub-rotas:
-`EmailDashboard`, `EmailTemplates`, `EmailAutomations`, `EmailCampaigns`,
-`EmailQueue`, `EmailLogs`, `EmailSegments`, `EmailContacts`,
-`EmailUnsubscribes`, `EmailReports`.
+**`pages/email/EmailHub.tsx`** — hub análogo ao AiHub para 11 sub-rotas:
+`EmailDashboard` (`/email`), `EmailTemplates` (`/email/templates`),
+`EmailAutomations` (`/email/automations`), `EmailCampaigns` (`/email/campaigns`),
+`EmailQueue` (`/email/queue`), `EmailLogs` (`/email/logs`),
+`EmailSegments` (`/email/segments`), `EmailContacts` (`/email/contacts`),
+`EmailUnsubscribes` (`/email/unsubscribes`), `EmailReports` (`/email/reports`)
+e **`/email/sites`** (placeholder/landing-pages — montado mas ainda WIP).
+
+Páginas filhas relevantes:
+- **`EmailCampaigns.tsx`** — multi-segmento (`segment_ids[]`), A/B, rotação de domínio, pause/resume/duplicar/teste. Ver `features/EMAIL_CAMPAIGNS.md`.
+- **`EmailContacts.tsx`** — base de contatos manuais (`email_segment_contacts`) independente de `leads`.
+- **`EmailUnsubscribes.tsx`** — gerenciamento de supressões (`email_unsubscribes`).
+- **`EmailReports.tsx`** — agregação por template/campanha; lê `email_metrics_daily` via `useEmailMetrics`.
+
 **`EmailTemplateEditor.tsx`** — editor blocks→html (TipTap) com
-`Canvas`, `Inspector`, `Palette` em `components/email/editor/*`.
-**`SettingsEmailDomain.tsx`** — wizard DNS (`DnsWizard`) para Resend.
+`Canvas`, `Inspector`, `Palette`, `TipTapEditor` em `components/email/editor/*`.
+**`SettingsEmailDomain.tsx`** (`/settings/email`) — wizard DNS (`DnsWizard`) para Resend, com `DomainHealthCard`.
 Ver `edge-functions/EMAIL.md`.
 
 ### 2.5 Tracking
@@ -118,10 +128,10 @@ Aberto via `useDialogs` de qualquer página (Kanban, Inbox, Tasks).
 Mostra perfil, timeline (mensagens + eventos + form_submissions),
 tags, custom fields, jornada de tracking, tarefas, agendamentos.
 
-### 2.10 Métricas
-- **`Metrics.tsx`** — overview operacional.
-- **`MetricsOps.tsx`** — WhatsApp/IA performance.
-- **`MetricsAiUsage.tsx`** — citado acima.
+### 2.10 Métricas (rotas avulsas, não-aba)
+- **`Metrics.tsx`** — overview operacional (rota não montada hoje; mantida como page para usos pontuais).
+- **`MetricsOps.tsx`** — saúde operacional de email (`email_system_health`, `email_operational_alerts`).
+- **`MetricsAiUsage.tsx`** e **`MetricsEngagement.tsx`** vivem como abas do AiHub (ver §2.3).
 
 ### 2.11 NotFound / Index
 - **`NotFound.tsx`** — 404 dentro do shell.

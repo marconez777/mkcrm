@@ -95,12 +95,12 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `ROUTING.md` | 🔴 | **Faltam rotas:** `/ai/insights`, `/ai/engagement` (movida para dentro de IA hoje), `/metrics/engagement`, `/metrics/ai-usage`, `/metrics/ops`, `/scheduled-reports`, `/agent-memories`. |
-| `PAGES.md` | 🔴 | **Faltam páginas:** `AiInsights.tsx`, `AgentMemories.tsx`, `MetricsEngagement.tsx`, `MetricsAiUsage.tsx`, `MetricsOps.tsx`, `ScheduledReports.tsx`, `EmailContacts.tsx` (CHANGELOG menciona mas conferir), todas as `pages/ai/*` e `pages/email/*` recentes. |
-| `COMPONENTS.md` | 🟡 | Conferir `CampaignRecipientsPreview` (assinatura mudou hoje: `segmentIds[]`). |
-| `HOOKS_LIB.md` | 🟡 | Pequenas atualizações se surgiram novos hooks. |
+| `ROUTING.md` | ✅ | Atualizado na Fase 5 (2026-05-30): rotas de `/ai/engagement`, `/ai/reports`, 11 sub-rotas de `/email/*` (incl. `/email/sites`), `/settings/integration`. |
+| `PAGES.md` | ✅ | Atualizado nas Fases 4+5: AiHub com 9 abas, seção Email expandida (Contacts/Unsubscribes/Reports), `MetricsOps`/`MetricsEngagement`/`MetricsAiUsage` enquadradas. |
+| `COMPONENTS.md` | ✅ | Atualizado na Fase 5: seção Email reescrita (editor + dialogs + live) com `CampaignRecipientsPreview` (multi-segmento), `CampaignReportDialog`, `AutomationReportDialog`, `DnsWizard`, `DomainHealthCard`, `StatusBadge`, `TablePager`, `live/*`. |
+| `HOOKS_LIB.md` | ✅ | Adicionados `useEmailMetrics`, `useCustomFieldDefs`, `useCountUp`. |
 | `DESIGN_SYSTEM.md` | ✅ | |
-| `STATE_DATA.md` | ✅ | |
+| `STATE_DATA.md` | ✅ | Nota 2026-05-30 sobre realtime de `campaign_throughput`/`email_campaigns`. |
 
 ### 2.8 `integrations/`
 
