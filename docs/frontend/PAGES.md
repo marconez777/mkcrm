@@ -3,7 +3,7 @@
 > Catálogo de páginas (`src/pages/**`) com responsabilidade, hooks que
 > consomem e edge functions invocadas.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 
 ---
 
