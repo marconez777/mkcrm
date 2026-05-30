@@ -40,9 +40,9 @@ Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam
 ### R-7. Multi-timezone por clínica
 - Resolve TD-14. Abre porta para internacionalização.
 
-### R-8. A/B test de assunto em email + variant de prompt IA
-- Tabelas `email_campaign_variants` + `ai_prompt_variants`.
-- UI compare lado-a-lado.
+### R-8. ~~A/B test de assunto em email~~ ✅ entregue (2026-05-26)
+- Entregue como R-20 do `roadmap/EMAIL_SCALE.md`: tabela `email_campaign_variants` + RPC `pick_ab_winner` + rotação ponderada determinística no `dispatch-campaign`.
+- Resta apenas a contraparte de **variant de prompt IA** (`ai_prompt_variants`) — manter como item futuro.
 
 ### R-9. WhatsApp Cloud API oficial (alternativa ao Evolution)
 - Clínicas com volume alto / risco de ban.
