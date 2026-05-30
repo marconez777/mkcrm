@@ -18,10 +18,10 @@
 
 | Tabela                              | Papel                                                                              |
 |-------------------------------------|------------------------------------------------------------------------------------|
-| `message_sequences`                 | Cabeçalho: `enabled`, `trigger_type`, `cooldown_days`, `whatsapp_instance_id`, `stop_on_reply`, `public_token`. |
+| `message_sequences`                 | Cabeçalho: `enabled`, `trigger_type` (`manual|webhook|stage_change|pipeline_enter`), `cooldown_days`, `whatsapp_instance_id`, `stop_on_reply`, `public_token`. |
 | `message_sequence_steps`            | Passos ordenados por `position`. Conteúdo inline (`content`) ou via `template_id`. `delay_minutes`, `send_window`. |
 | `message_sequence_enrollments`      | Inscrição lead↔sequence: `status` (`active|paused|completed|canceled|failed`), `current_step`, `next_run_at`, `source` (jsonb). |
-| `message_sequence_runs`             | Log por execução de step: `status` (`sent|failed|skipped`), `detail`.              |
+| `message_sequence_runs`             | Log por execução de step: `status` (`sent|failed|skipped`), `detail`, **`replied_at`** (timestamp da primeira resposta do lead após este envio) e snapshot **`stage_id_at_send`** / **`stage_position_at_send`** (estágio do lead no momento do envio). Consumidos pelas RPCs `engagement_sequences_summary` / `engagement_sequence_steps` — ver [`docs/features/ENGAGEMENT.md`](./ENGAGEMENT.md). |
 
 ### 1.2 Triggers
 
