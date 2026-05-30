@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 4 (resto): features & fluxos
+
+### Adicionado
+- `docs/features/EMAIL_CAMPAIGNS.md`: feature completa de campanhas — multi-segmento (`segment_ids[]` + dedup union, com fallback `segment_id` legado), A/B (R-20), rotação de domínio + warmup (R-21/R-12), throttle por destinatário, cota, supressão por bounce, agendamento, pause/resume/duplicar/teste.
+- `docs/features/ENGAGEMENT.md`: feature de engajamento — RPCs `engagement_broadcasts_summary`/`_sequences_summary`/`_sequence_steps`, colunas snapshot em `message_sequence_runs`, UI via aba `/ai/engagement`.
+
+### Mudado
+- `docs/flows/EMAIL_CAMPAIGN.md`: passo de resolução de audiência explicita multi-segmento (loop sobre `segment_ids[]` + dedup por email) e fallback `segment_id` legado.
+- `docs/flows/AI_AGENT_LOOP.md`: pegadinha "loop bot-↔-bot" via `messages.bot_agent_id`; nota sobre `replied_at`/`stage_*_at_send` alimentando RPCs de engajamento.
+
+---
+
 ## 2026-05-30 — Auditoria Fase 4 (features & fluxos): Engajamento vira aba de IA
 
 ### Código

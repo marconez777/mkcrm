@@ -85,6 +85,8 @@ Definições: `supabase/functions/_shared/ai-tools.ts`.
 ## Pegadinhas
 
 - **Loop infinito de tool calls**: hard cap em 6 iterações. Se atingir, `ai_runs.status='loop_aborted'` e manda fallback ("um humano te responde já").
+- **Loop bot-↔-bot (cross-agente)**: `messages.bot_agent_id` é gravado em toda mensagem `direction='out'` originada por agente IA. `ai-auto-reply` ignora `inbound` cujo `bot_agent_id` aponta para outro agente da mesma clínica → evita dois agentes conversando entre si via números de teste.
+- **Engajamento de sequências**: `message_sequence_runs.replied_at` (e snapshot `stage_id_at_send` / `stage_position_at_send`) são preenchidos quando o lead responde após o envio. Alimentam as RPCs `engagement_sequences_summary`/`engagement_sequence_steps` (aba `/ai/engagement`).
 - **Tool falha silenciosamente**: sempre verificar `ai_tool_calls.status='error'` em debug. O LLM costuma "fingir" que deu certo se o resultado da tool não for explícito.
 - **Janela de contexto**: cortamos histórico em 30 mensagens por padrão. Conversas muito longas perdem contexto inicial — RAG sobre `lead_notes` mitiga.
 - **Concorrência**: 2 mensagens inbound em <1s podem disparar 2 runs paralelos. Usamos `pg_advisory_xact_lock(lead_id)` no início do `ai-auto-reply` para serializar.

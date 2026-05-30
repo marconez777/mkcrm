@@ -25,7 +25,8 @@
 
 ```text
 Usuário cria campanha em EmailCampaigns
-        │ (template_slug, segmento opcional, scheduled_for?, variant_strategy?,
+        │ (template_slug, segment_ids[] (multi-segmento) | segment_id (legado),
+        │  scheduled_for?, variant_strategy?,
         │  from_name_override?, from_domain_pool?, send_rate_per_minute?)
         ▼
 INSERT email_campaigns(status='draft' | 'scheduled')
@@ -37,8 +38,12 @@ cron 5min: process-scheduled-campaigns
         │ chama dispatch-campaign(campaign_id)
         ▼
 dispatch-campaign
-        │ carrega segmento (filtros JSON; aceita tags/stage_ids/last_message_at_range/
-        │   deal_value_range/custom_field) com paginação por 1k
+        │ resolve audiência (multi-segmento):
+        │   • para cada id em segment_ids[] → RPC resolve_email_segment paginada (1k)
+        │   • união com dedup por email (mantém 1ª ocorrência: name/lead_id)
+        │   • fallback: segment_id (legado) ou "todos os leads + email_segment_contacts"
+        │ filtros JSON suportados: tags / stage_ids / last_message_at_range /
+        │   deal_value_range / custom_field
         │ para cada destinatário:
         │   • pick A/B variant (round-robin ponderado determinístico por email) — R-20
         │   • pick rotation domain (RPC pick_rotation_domain) — R-21
