@@ -316,7 +316,7 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 | `email_template_folders` | Pastas para organizar templates. |
 | `email_segments` | Filtros JSON salvos sobre `leads` (suporta `tags`, `stage_ids`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19). |
 | `email_segment_contacts` | Contatos manuais (fora de `leads`) usados em campanhas. |
-| `email_campaigns` | Campanhas (template + segmento + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`. |
+| `email_campaigns` | Campanhas (template + segmento(s) + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), **`segment_ids uuid[]`** (multi-segmento, union/OR — 2026-05-30), `segment_id` (legacy single, mantido para retrocompat), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`, `last_sent_at`. |
 | `email_campaign_variants` | Variantes A/B/multi (R-20): `label`, `weight`, `subject_override`, `template_slug_override`, `from_name_override`, `sent_count`, `opened_count`, `clicked_count`, `is_winner`. |
 | `email_automations` | Drip por trigger (steps JSON). Triggers: `lead_created`, `lead_stage_changed`, `lead_tag_added`, `segment_contact_added`. |
 | `email_automation_enrollments` | Leads enrolados numa automação (`UNIQUE(automation_id, lead_id)`). Conta `steps_enqueued`. |
