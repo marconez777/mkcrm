@@ -62,7 +62,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isClinicAdmin && hasFeature("team")) {
     navItems = [...navItems, { to: "/team", label: "Equipe", icon: Users }];
   }
-  navItems = [...navItems, { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 }];
+  
   navItems = [...navItems, { to: "/settings", label: "Configurações", icon: Settings }];
   if (isSuperAdmin) navItems = [...navItems, { to: "/admin", label: "Super Admin", icon: Shield }];
 
