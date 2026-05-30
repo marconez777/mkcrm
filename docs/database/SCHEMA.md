@@ -1,6 +1,6 @@
 # SCHEMA — Banco de dados Postgres (Supabase)
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fontes de verdade: `supabase/migrations/*.sql` e introspecção via `information_schema` / `pg_catalog`.
 > Para regras de acesso veja `RLS_POLICIES.md`; para funções/triggers veja `FUNCTIONS_TRIGGERS.md`.
 
