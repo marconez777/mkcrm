@@ -5,7 +5,27 @@
 
 ---
 
-## 2026-05-30 — Auditoria Fase 6 (ops, roadmap, known-issues) + encerramento
+## 2026-05-30 — Auditoria Fase 7 (limpeza fina) — auditoria encerrada
+
+### Mudado
+- `docs/OVERVIEW.md`: lista de edge functions inclui `evolution-fetch-groups`, `send-email-batch` e `scheduled-report-tick`; tabela do hub de IA inclui aba **Engajamento** (`/ai/engagement` + aliases) e **Relatórios agendados** (`/ai/reports`).
+- `docs/GLOSSARY.md`: 4 termos novos — *segmento múltiplo*, *engajamento*, *warmup pool*, *rotation domain*.
+- `docs/features/SEQUENCES_AUTOMATIONS.md`: `trigger_type` agora documenta `pipeline_enter` (2026-05-28); `message_sequence_runs` documenta colunas `replied_at`/`stage_id_at_send`/`stage_position_at_send` consumidas por `engagement_*`.
+- `docs/flows/OUTBOUND_WHATSAPP.md`: nota sobre `messages.bot_agent_id` como loop-guard gravado por `evolution-send`/`evolution-send-media` ao enviar via IA.
+- `docs/operations/COSTS_LIMITS.md`: nova seção "Limites de email em escala" — cota diária, warm-up, throttle por destinatário, tunagem do dispatcher e auto-pausa por bounce/complaint.
+- `docs/operations/PERFORMANCE.md`: SLOs de email transacional/campanha adicionados + cross-link explícito para `roadmap/EMAIL_SCALE.md` e `operations/COSTS_LIMITS.md`.
+- `docs/architecture/FEATURE_FLAGS.md`: nota distinguindo *feature flags globais* (catálogo em `src/lib/features.ts`) de *configurações por clínica* — `variant_strategy`, `from_domain_pool`, `throttle_recipient_enabled`, `quota_daily` ficam em coluna/`clinic_settings`, não em flags.
+- `docs/integrations/EVOLUTION_API.md`: tabela de endpoints inclui `evolution-fetch-groups` (consumido por `scheduled-report-tick`).
+- `docs/integrations/LOVABLE_AI.md`: catálogo expandido do gateway — GPT-5.2/5.4 família + 5.5/5.5-pro, Gemini 3-flash-preview, 3.1-pro/flash-lite/flash-image preview, 3.5-flash, 3-pro-image-preview.
+- `docs/features/FORMS.md`: seção de segurança documenta o revoke de SELECT em `form_integrations.token`/`previous_token` para `anon` (2026-05-28); snippet público continua via service role.
+- `docs/AUDIT_PHASE1.md`: cabeçalho marcado como **encerrado** em 2026-05-30 — as linhas individuais permanecem como registro histórico do estado pré-auditoria.
+
+### Encerramento
+Auditoria 2026-05-30 (Fases 1 a 7) concluída. Todos os itens 🔴/🟡 originais do `AUDIT_PHASE1.md` foram endereçados; o `AUDIT_PHASE1.md` permanece como baseline histórico. A partir daqui, qualquer mudança de código deve seguir a regra do `README.md`: atualizar doc no mesmo PR + bump da data + entry neste `CHANGELOG.md`.
+
+---
+
+## 2026-05-30 — Auditoria Fase 6 (ops, roadmap, known-issues) + encerramento parcial
 
 ### Mudado
 - `docs/operations/OBSERVABILITY.md`: novas tabelas-trilha `email_operational_alerts` / `email_health_alerts`; nova seção "Views de saúde do módulo Email" cobrindo `email_throughput_stats`, `email_system_health` e o gatilho via `check_email_operational_health`.
