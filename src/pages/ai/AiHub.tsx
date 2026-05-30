@@ -9,6 +9,7 @@ import MetricsAiUsage from "@/pages/MetricsAiUsage";
 import Broadcasts from "@/pages/Broadcasts";
 import Messages from "./Messages";
 import ScheduledReports from "@/pages/ScheduledReports";
+import MetricsEngagement from "@/pages/MetricsEngagement";
 import type { FeatureKey } from "@/lib/features";
 
 type TabDef = {
