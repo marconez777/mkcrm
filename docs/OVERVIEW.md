@@ -134,6 +134,8 @@ Single page `AiHub` que troca de seção:
 | `/ai` ou `/ai/agents` | Lista/editor de **Agentes** (`ai_agents`): prompt, modelo, tools, RAG, memória |
 | `/ai/memories` | `agent_memory` (notas semânticas por agente/lead) |
 | `/ai/usage` ou `/metrics/ai-usage` | Custo/tokens/latência (`ai_usage`) |
+| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
+| `/ai/reports` | Relatórios agendados (envio periódico em grupos WA) |
 | `/ai/automations` | **Automações** baseadas em gatilho → ação |
 | `/ai/sequences` | **Sequências** (drip) de mensagens |
 | `/ai/templates` | Quick replies / message templates |
