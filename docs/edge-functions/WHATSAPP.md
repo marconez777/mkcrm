@@ -25,6 +25,7 @@
 | `evolution-delete-lead` | Frontend | `leads`, `messages` | DELETE, INSERT em `deleted_leads` | JWT user |
 | `evolution-delete-message` | Frontend | `messages` | UPDATE soft-delete + Evolution `chat/deleteMessage` | JWT user |
 | `evolution-sync-lead` | Frontend | Evolution `findChat/findMessages` | `leads`, `messages` | JWT user |
+| `evolution-fetch-groups` | Frontend (Scheduled Reports) | Evolution `group/fetchAllGroups` | – (lista grupos WA) | JWT user |
 | `fetch-wa-avatar` | Frontend / `evolution-webhook` | Evolution `fetchProfilePicture` | atualiza `leads.avatar_url` | service role |
 | `transcribe-audio` | Frontend / `ai-auto-reply` | mensagem de áudio | retorna transcrição (não persiste) | JWT user |
 | `wa-redirect` | URL público | `leads.phone` | – (302 para `https://wa.me/...`) | público |
