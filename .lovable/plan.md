@@ -1,43 +1,51 @@
-## Objetivo
-Remover "Engajamento" como sub-item do menu lateral (IA → Engajamento) e adicioná-lo como uma aba dentro do hub de IA, ao lado de Dashboard / Agentes IA / Mensagens / Disparo em massa / Relatórios agendados / Memórias IA / Insights / Custos. Atualizar a documentação para refletir essa mudança.
+## Onde paramos
 
-## Alterações de código
+✅ **Fase 1** — Inventário (`docs/AUDIT_PHASE1.md`).
+✅ **Fase 2** — Banco & backend core (6 docs atualizados).
+✅ **Fase 4 (parcial)** — Engajamento movido para aba de IA + `PAGES.md` + `ROUTING.md` + `CHANGELOG.md` já refletem a mudança.
 
-1. **`src/pages/ai/AiHub.tsx`**
-   - Importar `MetricsEngagement` de `@/pages/MetricsEngagement`.
-   - Adicionar entrada na lista de tabs (após `reports` ou antes de `insights`):
-     `{ value: "engagement", path: "/ai/engagement", aliases: ["/metrics/engagement", "/metrics"], label: "Engajamento" }`.
-   - Adicionar `<TabsContent value="engagement"><MetricsEngagement /></TabsContent>`.
+## O que ainda falta
 
-2. **`src/App.tsx`**
-   - Trocar as rotas `/metrics/engagement` e `/metrics` para renderizarem `<AiHub />` (mantendo aliases via `AiHub`) em vez de `<MetricsEngagement />` direto, para que a aba fique destacada e o layout (sidebar + tabs) seja consistente.
-   - Adicionar rota `/ai/engagement` apontando para `<AiHub />`.
+Pela auditoria, restam **4 fases** (3 → 4(resto) → 5 → 6) + encerramento. Vou rodá-las em ordem de impacto, sem tocar runtime — só `docs/`.
 
-3. **`src/components/AppShell.tsx`**
-   - Remover o array `children` do item "IA" (que continha Engajamento), deixando IA como item simples sem submenu — alinhado com o padrão dos outros itens do hub que vivem só como abas.
+---
 
-4. **`src/components/CommandPalette.tsx`** (se houver entrada "Engajamento")
-   - Atualizar destino para `/ai/engagement`.
+### Fase 4 — Resto: Features & Fluxos (multi-segmento + engajamento)
 
-## Atualização de documentação (Fase 4 — Features & Fluxos)
+- `docs/features/BROADCASTS.md` — sem mudança esperada (WhatsApp, não email); só conferir.
+- ➕ **Criar** `docs/features/EMAIL_CAMPAIGNS.md` cobrindo: multi-segmento (`segment_ids[]`), A/B (`email_campaign_variants` + `pick_ab_winner`), rotação de domínio (`pick_rotation_domain` + warmup), throttle por destinatário, agendamento, supressão por bounce. Linkar `flows/EMAIL_CAMPAIGN.md`.
+- ➕ **Criar** `docs/features/ENGAGEMENT.md` (curto): o que mede, RPCs `engagement_*`, onde está a UI (aba `/ai/engagement`).
+- `docs/flows/EMAIL_CAMPAIGN.md` — atualizar passo "seleção de segmento" → multi-segmento + union dedupe; mencionar A/B, rotação, throttle.
+- `docs/flows/AI_AGENT_LOOP.md` — citar `messages.bot_agent_id` como loop-guard e `replied_at` em sequences.
 
-5. **`docs/frontend/PAGES.md`** e **`docs/frontend/ROUTING.md`**
-   - Marcar `MetricsEngagement` como aba dentro de `/ai` (rota canônica `/ai/engagement`, aliases `/metrics/engagement` e `/metrics`).
-   - Remover menção a submenu lateral "IA → Engajamento".
+### Fase 5 — Frontend (resto além de Engajamento)
 
-6. **`docs/features/`**
-   - Atualizar (ou criar, se faltar) o doc do hub de IA listando todas as abas atuais na ordem: Dashboard, Agentes IA, Mensagens, Disparo em massa, Relatórios agendados, Memórias IA, Insights, Custos, **Engajamento**.
-   - Atualizar o doc de Engajamento indicando que o acesso é via aba dentro de IA, não pelo sidebar.
+- `docs/frontend/PAGES.md` — adicionar `EmailContacts`, `EmailUnsubscribes`, `EmailReports`, `ScheduledReports` se faltarem (Engajamento já feito); checar `Settings/Forms` e novas páginas.
+- `docs/frontend/ROUTING.md` — adicionar quaisquer rotas faltando (`/settings/email`, `/email/contacts`, `/email/unsubscribes`, `/email/reports`, etc.).
+- `docs/frontend/COMPONENTS.md` / `HOOKS_LIB.md` / `STATE_DATA.md` — verificação leve; só atualizar se houver hook/componente novo relevante (`CampaignRecipientsPreview` multi-segmento, `useHealth`, etc.).
 
-7. **`docs/flows/`**
-   - Ajustar qualquer fluxo que mencione navegar pelo sidebar até "IA → Engajamento" para refletir o caminho via aba.
+### Fase 3 — Edge Functions & Integrações
 
-8. **`docs/CHANGELOG.md`**
-   - Adicionar entrada datada 2026-05-30: "UI: Engajamento movido do submenu lateral para aba dentro do hub `/ai` (rota canônica `/ai/engagement`, mantém aliases `/metrics/engagement` e `/metrics`)."
+- `docs/edge-functions/INDEX.md` — adicionar `scheduled-report-tick`, `evolution-fetch-groups`, qualquer outra função recente que falte na listagem.
+- `docs/edge-functions/EMAIL.md` — refletir `dispatch-campaign` multi-segmento e A/B; cobrir warmup/rotação/throttle do lado do dispatcher se aplicável.
+- `docs/edge-functions/AI.md` — mencionar `scheduled-report-tick` (ou criar bloco "Reports"), `bot_agent_id` no loop-guard.
+- `docs/integrations/` — checar Evolution (groups), Resend (warmup/rotação se mudou), Lovable AI (sem mudança esperada).
 
-9. **`docs/AUDIT_PHASE1.md`** (opcional)
-   - Marcar o item "Engajamento como sub-item lateral" como resolvido.
+### Fase 6 — Integração JS, Operations, Roadmap, Known-issues
 
-## Fora de escopo
-- Nenhuma mudança em RPCs `engagement_*`, RLS, ou na página `MetricsEngagement` em si (apenas onde é montada).
-- Sem alteração de permissões/feature flags.
+- `docs/integracao/*` — varredura curta: confirmar que os 13 snippets ainda batem com o tracking real; ajustar se houver drift.
+- `docs/operations/OBSERVABILITY.md` + `ERROR_HANDLING.md` — citar `email_operational_alerts`, `email_health_alerts`, views `email_system_health`/`email_throughput_stats`.
+- `docs/roadmap/` (se existir) e `docs/known-issues/` — marcar como entregue: multi-segmento, R-17 a R-21, engajamento UI.
+- `docs/EMAIL_SCALE.md`, `docs/IMPROVEMENTS.md` — marcar itens concluídos (notado na auditoria).
+
+### Encerramento
+
+- `docs/README.md` — atualizar data e contagem de arquivos.
+- `docs/CHANGELOG.md` — entry consolidada final apontando para auditoria completa.
+- Atualizar `docs/AUDIT_PHASE1.md` marcando todos os itens 🔴/🟡/➕ como resolvidos (ou virar `AUDIT_FINAL.md`).
+
+---
+
+## Execução proposta
+
+Posso seguir **uma fase por turno**, cada uma com seu patch e relatório curto. Sugiro começar pela **Fase 4 (resto)** já que é a de maior impacto de produto e complementa o trabalho de hoje. Confirma?
