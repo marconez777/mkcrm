@@ -208,16 +208,16 @@ Funções SQL centrais (em `public`):
 Cerca de 50 funções em `supabase/functions/`, agrupadas por domínio:
 
 **WhatsApp / Evolution**
-`evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `fetch-wa-avatar` · `transcribe-audio`.
+`evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `evolution-fetch-groups` · `fetch-wa-avatar` · `transcribe-audio`.
 
 **IA**
 `ai-chat` · `ai-assist` · `ai-auto-reply` · `ai-embed` · `ai-eval-run` · `ai-ingest-document` · `ai-ingest-pdf` · `ai-ingest-url` · `ai-ingest-urls` · `agent-run-bulk`.
 
-**Sequências / automações / broadcasts (cron)**
-`automations-tick` · `sequence-enroll` · `sequence-tick` · `sequence-trigger` · `broadcast-control` · `broadcast-tick` · `dispatch-campaign` · `scheduled-dispatcher` · `watch-stale-leads` · `daily-summary`.
+**Sequências / automações / broadcasts / relatórios (cron)**
+`automations-tick` · `sequence-enroll` · `sequence-tick` · `sequence-trigger` · `broadcast-control` · `broadcast-tick` · `dispatch-campaign` · `scheduled-dispatcher` · `scheduled-report-tick` · `watch-stale-leads` · `daily-summary`.
 
 **Email**
-`send-email` · `process-email-queue` · `process-scheduled-campaigns` · `email-domain-manage` · `email-unsubscribe` · `resend-webhook` · `backfill-resend-events`.
+`send-email` · `send-email-batch` · `process-email-queue` · `process-scheduled-campaigns` · `email-domain-manage` · `email-unsubscribe` · `resend-webhook` · `backfill-resend-events`.
 
 **Tracking** (públicas, sem JWT)
 `tracking-pixel` · `tracking-event` · `tracking-identify` · `tracking-config`.
