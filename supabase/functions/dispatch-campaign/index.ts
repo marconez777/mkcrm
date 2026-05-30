@@ -115,20 +115,23 @@ Deno.serve(async (req) => {
       recipients.push({ email: k, name, lead_id });
     };
 
-    if (campaign.segment_id) {
-      // Pagina o resultado da RPC para escapar do teto default de 1000 do PostgREST.
+    if (segmentIds.length > 0) {
+      // Para cada segmento, pagina o resultado da RPC e une (dedup por email via pushRec).
       const PAGE = 1000;
-      for (let offset = 0; ; offset += PAGE) {
-        const { data: resolved, error: rErr } = await supabase
-          .rpc("resolve_email_segment", { _segment_id: campaign.segment_id })
-          .range(offset, offset + PAGE - 1);
-        if (rErr) { console.error("resolve_email_segment error:", rErr); break; }
-        const rows = (resolved as any[]) ?? [];
-        for (const r of rows) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
-        if (rows.length < PAGE) break;
-        if (offset + PAGE >= 200_000) break; // safety cap
+      for (const segId of segmentIds) {
+        for (let offset = 0; ; offset += PAGE) {
+          const { data: resolved, error: rErr } = await supabase
+            .rpc("resolve_email_segment", { _segment_id: segId })
+            .range(offset, offset + PAGE - 1);
+          if (rErr) { console.error("resolve_email_segment error:", rErr, "segment:", segId); break; }
+          const rows = (resolved as any[]) ?? [];
+          for (const r of rows) pushRec(r?.email, r?.name ?? null, r?.lead_id ?? null);
+          if (rows.length < PAGE) break;
+          if (offset + PAGE >= 200_000) break; // safety cap
+        }
       }
     } else {
+
       // "Todos os leads" — paginar para suportar >1000 (limite default do PostgREST)
       const PAGE = 1000;
       for (let offset = 0; ; offset += PAGE) {
