@@ -112,7 +112,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [clinicId, segmentId]);
+  }, [clinicId, segKey]);
 
   const sendable = Math.max(0, state.total - state.unsubscribed);
 
