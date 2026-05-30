@@ -48,14 +48,28 @@
 
 ### 2.3 IA (AiHub)
 **`pages/ai/AiHub.tsx`** — hub que sub-roteia por `useLocation` para
-renderizar `Agents`, `AgentMemories`, `AiInsights`, `AiDashboard`,
-`Messages`, `Sequences`, `Automations`, `Templates`, `Broadcasts`,
-`MetricsAiUsage`. Cada um tem arquivo próprio em `pages/` ou `pages/ai/`.
+renderizar todas as abas de IA. A ordem das abas (todas dentro de `/ai`):
+
+1. **Dashboard** (`/ai`) — `AiDashboard`
+2. **Agentes IA** (`/ai/agents`) — `Agents`
+3. **Mensagens** (`/ai/messages`) — `Messages` (Sequences / Automations / Templates)
+4. **Disparo em massa** (`/ai/broadcasts`) — `Broadcasts`
+5. **Relatórios agendados** (`/ai/reports`) — `ScheduledReports`
+6. **Engajamento** (`/ai/engagement`, aliases `/metrics/engagement`, `/metrics`) — `MetricsEngagement`
+7. **Memórias IA** (`/ai/memories`) — `AgentMemories`
+8. **Insights** (`/ai/insights`) — `AiInsights`
+9. **Custos** (`/ai/usage`, alias `/metrics/ai-usage`) — `MetricsAiUsage`
+
+> Nota: "Engajamento" vive **como aba dentro de `/ai`**, não como item separado
+> no menu lateral. O sidebar só expõe o item "IA" (sem submenu).
 
 Páginas filhas relevantes:
 - **`Agents.tsx`** — CRUD de agentes IA (modelo, prompt, tools, RAG sources).
 - **`AgentMemories.tsx`** — memories embarcadas (`agent_memories`).
 - **`AiInsights.tsx`** — `ai-analyst-run` resultados, alertas.
+- **`ScheduledReports.tsx`** — relatórios agendados (`scheduled-report-tick`).
+- **`MetricsEngagement.tsx`** — respostas de broadcasts/sequências
+  (`engagement_*` RPCs). Acessada via aba **Engajamento** do AiHub.
 - **`MetricsAiUsage.tsx`** — gráfico de gasto por agente/modelo/dia
   (`ai_usage_daily` + `ai-pricing`).
 - **`Sequences.tsx`** — drip campaigns. Ver `features/SEQUENCES_AUTOMATIONS.md`.
