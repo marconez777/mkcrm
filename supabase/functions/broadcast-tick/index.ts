@@ -208,12 +208,22 @@ Deno.serve(async (req) => {
           const nextSendAt = allDone
             ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
             : new Date(Date.now() + 1000).toISOString();
+          // Snapshot da coluna do pipeline ao concluir o envio (para qualificação)
+          let stageSnap: { stage_id_at_send: string | null; stage_position_at_send: number | null } = { stage_id_at_send: null, stage_position_at_send: null };
+          if (allDone && r.lead_id) {
+            const { data: ld } = await supabase.from("leads").select("stage_id").eq("id", r.lead_id).maybeSingle();
+            if (ld?.stage_id) {
+              const { data: st } = await supabase.from("pipeline_stages").select("id, position").eq("id", ld.stage_id).maybeSingle();
+              if (st) stageSnap = { stage_id_at_send: st.id, stage_position_at_send: st.position };
+            }
+          }
           await supabase.from("broadcast_recipients").update({
             status: allDone ? "sent" : "sending",
             parts_sent: newPartsSent,
             sent_at: allDone ? new Date().toISOString() : null,
             next_send_at: nextSendAt,
             last_error: null,
+            ...(allDone ? stageSnap : {}),
           }).eq("id", r.id);
 
           await supabase.from("broadcast_events").insert({
