@@ -31,9 +31,8 @@
   (`POST { token, phone, name?, email?, tags?, metadata? }`). Resolve a
   sequência pelo `public_token`, cria/atualiza lead na clínica do token,
   aplica cooldown, cria enrollment. Sem JWT — segurança é o token.
-- **Trigger DB (stage change)** — trigger em `leads` cria enrollment quando
-  o lead entra no `stage_id` configurado em `message_sequences.trigger_config`
-  (ver `docs/database/FUNCTIONS_TRIGGERS.md`).
+- **Trigger DB (`stage_change`)** — trigger em `leads` cria enrollment quando o lead **muda** para o `stage_id` configurado em `message_sequences.trigger_config`.
+- **Trigger DB (`pipeline_enter`)** — adicionado em 2026‑05‑28. Cria enrollment quando o lead **entra no pipeline pela primeira vez** (independente de mudança subsequente de estágio). Útil para "boas-vindas" sem disparar em moves laterais. Ver `docs/database/FUNCTIONS_TRIGGERS.md`.
 
 ### 1.3 Worker (`sequence-tick`)
 
