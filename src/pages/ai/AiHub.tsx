@@ -79,6 +79,7 @@ export default function AiHub() {
           <TabsContent value="messages" className="mt-0"><Messages /></TabsContent>
           <TabsContent value="broadcasts" className="mt-0"><Broadcasts /></TabsContent>
           <TabsContent value="reports" className="mt-0"><ScheduledReports /></TabsContent>
+          <TabsContent value="engagement" className="mt-0"><MetricsEngagement /></TabsContent>
         </Tabs>
       </div>
     </div>
