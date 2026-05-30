@@ -103,12 +103,28 @@ tipos discriminados (message / event / form / appointment / scheduled).
 
 ---
 
-## 7. Email editor
+## 7. Email
 
+### 7.1 Editor (`components/email/editor/`)
 `Canvas` mostra a árvore de blocks renderizada. `Palette` lista blocks
 arrastáveis. `Inspector` edita props do block selecionado. `TipTapEditor`
 para blocks de texto rico. Conversão blocks↔html em
 `src/lib/email/{blocksToHtml,htmlToBlocks,sanitize,types,variables}.ts`.
+
+### 7.2 Dialogs / cards (`components/email/`)
+- **`CampaignRecipientsPreview`** — preview de destinatários para campanhas multi-segmento (loop sobre `segment_ids[]` + dedup por email; cache por `segKey = segment_ids.sort().join(',')`).
+- **`CampaignReportDialog`** — métricas pós-envio (sent/delivered/opened/clicked/bounced + por variante A/B).
+- **`AutomationReportDialog`** — métricas agregadas por automação de email.
+- **`DnsWizard`** — passo a passo de verificação DNS (SPF, DKIM, MX, return-path) para Resend.
+- **`DomainHealthCard`** — status agregado do domínio (verified/warming/throttled) + alertas de `email_health_alerts`.
+- **`StatusBadge`** — badge colorido reutilizável para status (pending/sent/failed/paused/…).
+- **`TablePager`** — paginador compartilhado pelas tabelas de queue/logs/contacts/unsubscribes.
+
+### 7.3 Live (`components/email/live/`)
+`CampaignLiveDialog` mostra o disparo em tempo real (assina `campaign_throughput` via realtime) com:
+- **`RadialProgress`** — % concluído.
+- **`ThroughputChart`** — emails/min ao longo do tempo (sparkline).
+- **`LivePulseDot`** + **`ArtisticSpinner`** — indicadores visuais de atividade.
 
 ---
 
