@@ -37,6 +37,14 @@ Flags ficam em `clinics.settings.features` (jsonb), no formato:
 
 > Para adicionar uma flag nova: editar `FEATURES` em `src/lib/features.ts`. **Não** é preciso migração — `clinics.settings` é jsonb livre.
 
+> **Não confundir com configurações de domínio.** O módulo de email tem ligas/desligas por clínica que **não são feature flags globais**, e sim colunas de configuração:
+> - `email_campaigns.variant_strategy` (`none|ab|multi`) — ativa A/B por campanha (R-20). Sem catálogo em `features.ts`.
+> - `email_campaigns.from_domain_pool` (text) — opta por rotação de domínio quando um pool em `email_domains.rotation_pool` existir (R-21).
+> - `clinics.settings.email.throttle_recipient_enabled` (bool, default `true`) — desliga a RPC `claim_recipient_throttle` para clientes em alto volume (R-23).
+> - `clinics.settings.email.quota_daily` (int, default 1000) — override do cap diário consumido por `claim_email_quota`.
+>
+> Use `clinic_settings` / coluna dedicada para estas; reserve `features.*` para gates de **produto** (esconde rota, esconde menu).
+
 ---
 
 ## Como usar
