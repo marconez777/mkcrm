@@ -144,15 +144,19 @@ export default function EmailCampaigns() {
     if (!editing.name || !editing.template_slug) { toast.error("Preencha nome e template"); return; }
     setBusy(true);
     try {
+      const segIds = (editing.segment_ids ?? []).filter(Boolean);
       const payload = {
         clinic_id: clinicId,
         name: editing.name,
         template_slug: editing.template_slug,
-        segment_id: editing.segment_id,
+        segment_ids: segIds,
+        // mantém segment_id sincronizado p/ retro-compat (1 segmento) ou null (0 ou >1)
+        segment_id: segIds.length === 1 ? segIds[0] : null,
         test_email: editing.test_email,
         from_name_override: editing.from_name_override?.trim() || null,
         scheduled_for: scheduleDate ? new Date(scheduleDate).toISOString() : null,
         status: scheduleDate ? "scheduled" : "draft",
+
       };
       const q = editing.id
         ? supabase.from("email_campaigns").update(payload).eq("id", editing.id)
