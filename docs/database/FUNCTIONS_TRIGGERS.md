@@ -1,6 +1,6 @@
 # FUNCTIONS_TRIGGERS — Funções e Triggers
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte: `pg_proc` (schema `public`) e `information_schema.triggers`.
 > Funções da extensão `vector` (pgvector) são listadas em `pg_proc` mas omitidas aqui — fazem parte do extension e não devem ser modificadas.
 
@@ -54,6 +54,12 @@ Zera `sent_today` e avança `quota_resets_at` para clínicas cujo `quota_resets_
 
 > Os jobs do `pg_cron` que invocam essas funções estão em `cron.job` (não acessível via tools — usar dashboard). Tipicamente rodam a cada 5–15 min.
 
+### `check_email_operational_health() → void`
+Detecta backlog (>500 jobs na fila), jobs presos em `processing` (>10min) e taxa de falha alta por clínica (>10% nas últimas 100 mensagens). Insere em `email_operational_alerts`. Chamada pelo trigger `email_queue_health_trigger` (a cada ~100 inserts na fila).
+
+### `check_clinic_bounce_health(_clinic_id uuid) → void`
+Calcula `bounce_rate` e `complaint_rate` nas últimas 1000 mensagens da clínica. Se passar dos limites (5% / 0,3%), **pausa automaticamente** campanhas em execução e grava `email_health_alerts`. Chamada pelo trigger `email_logs_bounce_health_trigger`.
+
 ---
 
 ## Triggers utilitárias
@@ -97,6 +103,20 @@ BEFORE INSERT — se `NEW.clinic_id IS NULL`, tenta derivar a partir de `agent_i
 
 ### Em `email_unsubscribes`
 - `trg_cancel_pending_on_unsubscribe` AFTER INSERT — chama `cancel_pending_emails_for(clinic_id, email)` para invalidar fila.
+
+### Em `email_queue`
+- `tg_email_queue_campaign_counters` AFTER INSERT/UPDATE — incrementa `campaign_throughput` quando `sent_at` vai de NULL → preenchido. **Idempotente** (só conta uma vez por linha — adicionado em 2026-05-28).
+- `email_queue_health_trigger` AFTER INSERT (statement-level, a cada ~100 rows) — chama `check_email_operational_health()`.
+
+### Em `email_logs`
+- `tg_suppress_on_bounce` AFTER INSERT/UPDATE — adicionado em 2026-05-28; gera `email_unsubscribes` (suppression) quando `bounced_at` é preenchido com `bounce_type='hard'` ou `complained_at`.
+- `email_logs_bounce_health_trigger` AFTER INSERT/UPDATE — chama `check_clinic_bounce_health(clinic_id)`.
+
+### Em `email_domain_warmup`
+- `touch_email_domain_warmup` BEFORE UPDATE — set `updated_at = now()`.
+
+### Em `message_sequences`
+- Constraint `message_sequences_trigger_type_check` (2026-05-28) — `trigger_type IN ('stage_enter','pipeline_enter','webhook','manual')`.
 
 ### Em `ai_agents`
 - `ai_agents_prevent_system_delete` BEFORE DELETE — bloqueia delete de agentes com `is_system=true`.
@@ -154,10 +174,55 @@ Cria agentes padrão (atendimento, qualificação, etc.) para nova clínica.
 Incrementa `unread_count` e atualiza `last_message_*` no lead (usado pelo webhook do WhatsApp).
 
 ### `report_campaign_stats(clinic_id, campaign_id)` → table
-Estatísticas agregadas de campanha de email: enviado, entregue, aberto, clicado, rejeitado, reclamado, falhado + taxas + melhor hora + breakdown horário JSONB. Valida `has_clinic_access(clinic_id)`.
+Estatísticas agregadas de campanha de email: enviado, entregue, aberto, clicado, rejeitado, reclamado, falhado + taxas + melhor hora + breakdown horário JSONB. Valida `has_clinic_access(clinic_id)`. Adicionada em 2026-05-27.
+
+### `report_template_stats(clinic_id, template_slug, _from, _to)` → table
+Mesma assinatura da anterior, mas agregando por `template_slug` numa janela de tempo (default 30 dias). Usada pelo dashboard de templates.
 
 ### `log_agent_trace(...)`
 Insere em `agent_traces`. Deriva `clinic_id` a partir de `agent_id` / `lead_id` / `thread_id`.
+
+### Email — quota & throttling
+
+#### `claim_email_quota(_clinic_id uuid)` → `(allowed bool, sent_today int, quota int)`
+Consumo **atômico** da cota diária. Insert/upsert em `email_send_state` com `ON CONFLICT`; se a janela expirou, reseta. Retorna `allowed=false` quando a cota seria estourada (e nesse caso decrementa de volta para não "consumir" indevidamente). Substituiu a contagem SELECT/UPDATE separada que tinha race condition.
+
+#### `claim_domain_warmup(_clinic_id uuid, _domain text)` → `(allowed bool, sent_today int, daily_cap int)`
+Tier 2 / R-15. Consome 1 vaga no warm-up automático de um domínio remetente. `release_domain_warmup(_clinic_id, _domain)` devolve a vaga quando o envio falha.
+
+#### `claim_recipient_throttle(_clinic_id uuid, _domain text)` → `(allowed bool, sent_in_window int, cap int)`
+Tier 2. Limite por **domínio destinatário** (default 1000/h), janela rolante de 1 hora.
+
+#### `pick_ab_winner(_campaign_id uuid)` → uuid
+R-20. Seleciona variante vencedora de uma campanha por melhor taxa de abertura/clique. Marca `is_winner=true` e atualiza `email_campaigns.winner_picked_at`.
+
+#### `pick_rotation_domain(_clinic_id uuid, _pool text)` → text
+R-21. Sorteio ponderado (`weighted random`) entre `email_domains` com `rotation_pool = _pool` e `status='verified'`. Retorna o domínio escolhido para preencher `email_queue.from_domain_override`.
+
+### Segmentos (helpers internos)
+
+#### `_email_segment_rule_to_sql(_rule jsonb)` → text
+Converte uma regra individual (`type ∈ {form_source, tag, stage, has_email, utm_campaign, created_at_range, last_message_at_range, deal_value_range, custom_field}`) numa expressão SQL parametrizada. Suporta flag `negate` (NOT) por regra.
+
+#### `_email_segment_filters_to_where(_filters jsonb)` → text
+Junta as regras usando `match ∈ {any, all}` (default `any` = OR). Faz fallback para os campos legados (`tags`, `stage_id`, `stage_ids`, `has_email`) quando `rules[]` está vazio.
+
+#### `resolve_email_segment(_segment_id uuid)` → `TABLE(email, name, lead_id)`
+Materializa um segmento (`dynamic` ou `static`). `dispatch-campaign` chama uma vez por id em `email_campaigns.segment_ids[]` e une os resultados (dedup por email) antes de enfileirar.
+
+#### `resolve_email_segment_preview(_clinic_id uuid, _filters jsonb)` → `TABLE(email, name, lead_id)`
+Preview ao vivo dos filtros (sem precisar de segmento persistido). Limite hard-coded de 5000 linhas. Usado em `CampaignRecipientsPreview` e no editor de segmentos.
+
+### Engajamento (relatórios)
+
+#### `engagement_broadcasts_summary(_from timestamptz, _to timestamptz)` → table
+Métricas agregadas de broadcasts (enviados, respondidos, taxa de resposta). **REVOKE EXECUTE FROM PUBLIC, anon** (2026-05-30) — acessível só a `authenticated`. Tenant scoping via `current_clinic_id()` dentro da função.
+
+#### `engagement_sequences_summary(_from, _to)` → table
+Mesma ideia para sequências (envios, respostas, conversão por step). Idem revoke.
+
+#### `engagement_sequence_steps(_sequence_id uuid, _from, _to)` → table
+Drill-down por step de uma sequência específica. Idem revoke.
 
 ---
 
@@ -191,6 +256,10 @@ Chama uma edge function via `pg_net.http_post` usando `cron_service_role_key` e 
 - **`enqueue_email` retorna NULL silenciosamente** quando a feature `email_marketing` está OFF ou o template não existe/está inativo. Ao chamar do código, logue resposta.
 - **`assert_clinic_id_not_null` derivação**: se o INSERT envia `clinic_id=NULL` propositalmente sem ter FK preenchida, falha com `23502 clinic_id_required`. Sempre passe `clinic_id` explicitamente.
 - **`cleanup_*` funções não rodam se o cron não estiver configurado.** Verifique `cron.job` periodicamente.
+- **`tg_email_queue_campaign_counters` é idempotente** desde 2026-05-28: só conta quando `sent_at` vai de NULL → preenchido. Antes podia inflar `campaign_throughput` em UPDATEs repetidos.
+- **RPCs `engagement_*` não são executáveis por `anon`/`PUBLIC`** desde 2026-05-30. Chamar a partir do frontend exige sessão autenticada.
+- **`pick_rotation_domain` retorna NULL** se nenhum domínio do pool está `status='verified'`. `send-email-batch` então cai no `from` default da clínica.
+- **`claim_email_quota` decrementa de volta** quando ultrapassa o limite, mas isso vira uma operação dupla (insert + update). Em alto volume vale monitorar contenção em `email_send_state`.
 
 ## Lista completa
 

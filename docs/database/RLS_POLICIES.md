@@ -1,6 +1,6 @@
 # RLS_POLICIES — Row Level Security
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte de verdade: `pg_policies` no schema `public` + `supabase/migrations/*.sql`.
 
 ## Princípios
@@ -129,6 +129,20 @@ Aplicado a: `profiles` (self-update), `auth_lockouts` (apenas service_role lê),
 - SELECT: o próprio user vê suas roles; super_admin vê tudo.
 - INSERT/UPDATE/DELETE: super_admin only.
 - ⚠ **Nunca** dê INSERT público — privilege escalation.
+
+## Endurecimentos recentes (2026-05-27 a 2026-05-30)
+
+Várias colunas/funções tiveram acesso revogado dos roles client-side para reduzir superfície de ataque:
+
+| Alvo | Mudança | Migration |
+|---|---|---|
+| `clinic_email_integrations` SELECT | Restrito a admins da clínica (`is_clinic_admin()`); leitura genérica removida. | 2026-05-27 `ba34dac1` |
+| `whatsapp_instances.evolution_api_key`, `webhook_token` | `REVOKE SELECT` de `authenticated` e `anon`. Edge functions usam `service_role`. | 2026-05-27 `5fd7651b` / 2026-05-28 `4cfd67a9` |
+| `form_integrations` tokens | SELECT só para admins da clínica. | 2026-05-28 `4cfd67a9` |
+| `ai_agents.api_key`, `embedding_api_key`, `reranker_api_key` | `REVOKE SELECT` de `authenticated` e `anon`. | 2026-05-28 `b8a57b5c` |
+| RPCs `engagement_broadcasts_summary`, `engagement_sequences_summary`, `engagement_sequence_steps` | `REVOKE EXECUTE FROM PUBLIC, anon`. Acessíveis só por `authenticated`. | 2026-05-30 `ae1f2058` |
+
+**Padrão geral:** segredos e PII de integração nunca devem retornar via Data API; o cliente pede via edge function com `service_role`, que checa `has_clinic_access` antes de devolver mascarado.
 
 ## Como auditar
 

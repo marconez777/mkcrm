@@ -1,6 +1,6 @@
 # SCHEMA — Banco de dados Postgres (Supabase)
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fontes de verdade: `supabase/migrations/*.sql` e introspecção via `information_schema` / `pg_catalog`.
 > Para regras de acesso veja `RLS_POLICIES.md`; para funções/triggers veja `FUNCTIONS_TRIGGERS.md`.
 
@@ -25,7 +25,7 @@ As tabelas são agrupadas por domínio funcional. Cada domínio tem sua própria
 | Pipelines & Leads | `pipelines`, `pipeline_stages`, `leads`, `lead_events`, `lead_stage_history`, `lead_custom_fields`, `lead_internal_notes`, `lead_tasks`, `lead_ai_settings`, `deleted_leads`, `stage_ai_defaults` |
 | WhatsApp & Mensageria | `whatsapp_instances`, `whatsapp_intents`, `messages`, `message_templates`, `quick_replies`, `scheduled_messages`, `pending_replies`, `webhook_events`, `webhook_dedup` |
 | Tasks (Kanban) | `task_boards`, `task_columns`, `tasks`, `task_assignees`, `task_labels`, `task_label_links`, `task_checklist_items`, `task_attachments` |
-| Email Marketing | `email_templates`, `email_template_folders`, `email_queue`, `email_logs`, `email_campaigns`, `email_automations`, `email_automation_enrollments`, `email_segments`, `email_segment_contacts`, `email_unsubscribes`, `email_send_state`, `email_domains`, `clinic_email_integrations` |
+| Email Marketing | `email_templates`, `email_template_folders`, `email_queue`, `email_logs`, `email_campaigns`, `email_campaign_variants`, `email_automations`, `email_automation_enrollments`, `email_segments`, `email_segment_contacts`, `email_unsubscribes`, `email_send_state`, `email_send_dedup`, `email_domains`, `email_domain_warmup`, `email_recipient_throttle`, `email_health_alerts`, `email_operational_alerts`, `campaign_throughput`, `clinic_email_integrations` |
 | Sequências / Automações | `message_sequences`, `message_sequence_steps`, `message_sequence_enrollments`, `message_sequence_runs`, `automations`, `automation_runs` |
 | Broadcasts | `broadcasts`, `broadcast_recipients`, `broadcast_message_groups`, `broadcast_message_parts`, `broadcast_events` |
 | Forms públicos | `form_definitions`, `form_submissions`, `form_integrations` |
@@ -123,7 +123,7 @@ Instâncias da Evolution API. Campos: `instance_name`, `phone_number`, `status`,
 Mapeia intents/regex a respostas automáticas ou agentes.
 
 ### `messages`
-Mensagens trocadas (in/out). Campos: `lead_id`, `clinic_id`, `from_me bool`, `body text`, `media_url`, `media_type`, `wa_message_id text UNIQUE`, `status` ∈ `{pending,sent,delivered,read,failed}`, `sent_at`, `delivered_at`, `read_at`.
+Mensagens trocadas (in/out). Campos: `lead_id`, `clinic_id`, `from_me bool`, `body text`, `media_url`, `media_type`, `wa_message_id text UNIQUE`, `status` ∈ `{pending,sent,delivered,read,failed}`, `sent_at`, `delivered_at`, `read_at`, `bot_agent_id uuid` (preenchido pelo `scheduled-dispatcher` quando o envio veio de um agente — usado pelo `ai-auto-reply` como **loop-guard**: se a última mensagem `from_me` tem `bot_agent_id`, não responde).
 Trigger `trg_stop_sequences_on_reply` — quando `from_me=false`, encerra enrollments de `message_sequences` com `stop_on_reply=true`.
 
 ### `message_templates`
@@ -163,36 +163,76 @@ Buffer de respostas geradas por IA aguardando aprovação humana.
 Organização hierárquica de templates.
 
 ### `email_queue`
-Fila de envio. Status ∈ `{pending, sending, sent, failed, cancelled}`. Campos importantes: `scheduled_at`, `force_send bool`, `related_lead_id`, `related_lead_table text` (usado também como "contexto" — ex.: `auto_<uuid>`, `campaign_<uuid>`).
+Fila de envio. Status ∈ `{pending, sending, sent, failed, cancelled}`. Campos importantes:
+- `scheduled_at`, `force_send bool`, `related_lead_id`, `related_lead_table text` (usado também como "contexto" — ex.: `auto_<uuid>`, `campaign_<uuid>`).
+- `priority smallint` (default 10) — `process-email-queue` ordena por `priority ASC, scheduled_at ASC`; transacional/auth usa `priority=1`, campanha `priority=5`.
+- `variant_id uuid` — referência opcional a `email_campaign_variants` (A/B test).
+- `from_domain_override text` — domínio remetente efetivo escolhido pela rotação (R-21). Quando preenchido, `send-email`/`send-email-batch` reescrevem o `from` preservando o local-part.
+- `from_name_override text` — sobrescreve o nome do remetente por job.
 **Dedup**: a função `enqueue_email` recusa duplicatas de (clinic, template, recipient, related_lead_table) com `status=pending`.
+Índice especial: `email_queue_pending_priority_idx (clinic_id, status, priority, scheduled_at)`.
+
+### `email_send_dedup`
+UNIQUE `(clinic_id, template_slug, recipient_email, related_lead_table)` usada para **idempotência atômica** em `send-email` (INSERT ON CONFLICT, sem race). Substituiu a checagem em duas etapas anterior.
 
 ### `email_logs`
-Resultado dos envios. Campos: `resend_id text UNIQUE`, `status`, `sent_at`, `delivered_at`, `opened_at`, `clicked_at`, `bounced_at`, `complained_at`, `error text`. Alimenta `report_campaign_stats()`.
+Resultado dos envios. Campos: `resend_id text UNIQUE`, `status`, `sent_at`, `delivered_at`, `opened_at`, `clicked_at`, `bounced_at`, `complained_at`, `error text`, `variant_id uuid`, `from_domain_override text`. Alimenta `report_campaign_stats()` e `report_template_stats()`.
 
 ### `email_campaigns`
-Campanhas one-shot. `status` ∈ `{draft, scheduled, sending, sent, failed}`, `segment_id`, `template_slug`, `scheduled_at`.
+Campanhas one-shot. `status` ∈ `{draft, scheduled, sending, sent, failed}`, `template_slug`, `scheduled_for`, `last_sent_at`.
+- `segment_ids uuid[]` (default `'{}'`) — **multi-segmento** (união/OR de N segmentos). Vazio significa "todos os leads".
+- `segment_id uuid` — **deprecado**, mantido para retro-compat; sempre sincronizado com `segment_ids[1]` quando há 1 segmento, `NULL` quando 0 ou >1.
+- `send_rate_per_minute int` — R-18: throttling por campanha. `dispatch-campaign` espalha `scheduled_at` em janelas de 1 minuto.
+- `variant_strategy text` ∈ `{none, ab}` + `winner_picked_at timestamptz` — R-20: A/B testing.
+- `from_domain_pool text` — R-21: nome do pool em `email_domains.rotation_pool` para rotação de remetente.
+- `from_name_override text`, `test_email text`, `test_sent_at timestamptz`.
+
+### `email_campaign_variants` (R-20)
+Variantes de A/B test por campanha. Campos: `campaign_id`, `label`, `weight int`, overrides (`subject`, `template_slug`, `from_name`), contadores (`sent_count`, `opened_count`, `clicked_count`) e `is_winner bool`. RPC `pick_ab_winner` seleciona o vencedor por taxa de abertura/clique.
+
+### `campaign_throughput`
+Contadores em tempo real por campanha (alimentados pelo trigger `tg_email_queue_campaign_counters`). Publicada em `supabase_realtime` para o dashboard ao vivo.
 
 ### `email_automations` + `email_automation_enrollments`
-Automações disparadas por `trigger_type` ∈ `{lead_created, stage_change, manual}`. `steps jsonb` define cada passo (`template_slug`, `delay_days`/`delay_minutes`).
+Automações disparadas por `trigger_type` ∈ `{lead_created, stage_enter, lead_stage_changed, manual}`. `steps jsonb` define cada passo (`template_slug`, `delay_days`/`delay_minutes`). `trigger_config` aceita `segment_id` para filtrar.
 
 ### `email_segments` + `email_segment_contacts`
 - `email_segments.filters jsonb` — regras dinâmicas ou lista estática (`kind ∈ {dynamic, static}`).
-- `email_segment_contacts` — lista estática de emails.
-- Função `lead_matches_segment(_lead_id, _segment_id)` aplica as regras.
+- `email_segment_contacts` — lista estática de emails. Índice `esc_clinic_created_idx (clinic_id, created_at DESC)`.
+- Função `lead_matches_segment(_lead_id, _segment_id)` aplica regras (legado AND ou `rules[]` OR).
+- Helper `_email_segment_rule_to_sql(_rule)` cobre: `form_source`, `tag`, `stage`, `has_email`, `utm_campaign`, `created_at_range`, `last_message_at_range`, `deal_value_range` e `custom_field` (R-19).
+- RPC `resolve_email_segment(_segment_id)` / `resolve_email_segment_preview(_clinic_id, _filters)` expandem o segmento para `(email, name, lead_id)`.
 
 ### `email_unsubscribes`
 Opt-outs. Trigger `trg_cancel_pending_on_unsubscribe` cancela emails pendentes para o email descadastrado.
 
 ### `email_send_state`
-Quota diária por clínica (`sent_today`, `quota_resets_at`). Reset feito por `reset_email_send_state()` via cron.
+Quota diária por clínica (`sent_today`, `quota_resets_at`). Consumo **atômico** via RPC `claim_email_quota(_clinic_id)` (INSERT … ON CONFLICT) — substituiu a contagem por SELECT/UPDATE separados.
 
 ### `email_domains` / `clinic_email_integrations`
-Domínios verificados no Resend e integrações por clínica (chaves API, from_email).
+- `email_domains`: domínios verificados no Resend. Campos `domain`, `status`, `dns_records jsonb`, `region`, `last_checked_at`. **R-21**: `rotation_pool text` (nome do pool) e `rotation_weight int` (peso para `pick_rotation_domain`).
+- `clinic_email_integrations`: chaves API + from_email por clínica. SELECT restrito a admins da clínica (hardening 2026-05-27).
+
+### `email_domain_warmup` (R-15/Tier 2)
+Warm-up automático por domínio remetente: 50→100→500→1k→5k→10k→25k→ilimitado/dia. Consumo atômico via RPCs `claim_domain_warmup` / `release_domain_warmup`.
+
+### `email_recipient_throttle` (Tier 2)
+Limite por domínio destinatário (default 1000/h). RPC `claim_recipient_throttle`.
+
+### `email_health_alerts` / `email_operational_alerts` (R-16/R-17)
+Registro de alertas:
+- `email_health_alerts` — bounces/complaints com `action_taken` (pausa de campanha). Trigger `email_logs_bounce_health_trigger` → `check_clinic_bounce_health`: pausa campanhas em execução quando `bounce_rate > 5%` ou `complaint_rate > 0,3%` nas últimas 1000 mensagens.
+- `email_operational_alerts` — alertas operacionais: `queue_backlog` (>500 jobs), `stuck_processing` (>10min), `high_failure_rate` (>10%), `domain_warmup_limit`, `recipient_throttle_limit`. Trigger `email_queue_health_trigger` dispara a cada 100 inserts; alimentado por `check_email_operational_health`.
+
+### Views: `email_throughput_stats` / `email_system_health`
+Métricas em tempo real:
+- `email_throughput_stats` (por clínica): pendentes, enviados, falhos, abertos, cliques, taxas de bounce/complaint.
+- `email_system_health` (global): fila total, jobs presos, alertas ativos.
 
 ## Sequências / Automações WhatsApp
 
 ### `message_sequences`
-- `name`, `trigger_type` ∈ `{stage_enter, manual}`, `trigger_config jsonb`, `enabled bool`, `stop_on_reply bool`, `cooldown_days int`.
+- `name`, `trigger_type` ∈ `{stage_enter, pipeline_enter, webhook, manual}` (`pipeline_enter` adicionado em 2026-05-28), `trigger_config jsonb`, `enabled bool`, `stop_on_reply bool`, `cooldown_days int`, `public_token text`.
 
 ### `message_sequence_steps`
 - `sequence_id`, `position int`, `delay_minutes int`, `template_slug`, `body text`.
@@ -201,7 +241,9 @@ Domínios verificados no Resend e integrações por clínica (chaves API, from_e
 - `sequence_id`, `lead_id`, `status` ∈ `{active, completed, stopped_by_reply, cancelled}`, `current_step`, `next_run_at`, `started_at`, `ended_at`, `source jsonb`.
 
 ### `message_sequence_runs`
-Log de cada step executado (sucesso/erro).
+Log de cada step executado (sucesso/erro). Adicionados em 2026-05-30:
+- `replied_at timestamptz` — preenchido quando o lead respondeu após o envio (alimenta métricas de engajamento).
+- `stage_id_at_send uuid` + `stage_position_at_send int` — snapshot da stage no momento do envio (atribuição correta mesmo se o lead mudar de stage depois).
 
 ### `automations` / `automation_runs`
 Automações genéricas (gatilho → ação). Versão mais geral; uso mais reduzido.
@@ -296,8 +338,9 @@ Janela horária (`hour_bucket`) usada para rate-limit de auto-reply por lead.
 
 - `ai_chunks` — IVFFlat/HNSW em `embedding`, GIN em `tsv`.
 - `messages` — `(clinic_id, lead_id, created_at)`, `wa_message_id UNIQUE`.
-- `leads` — `(clinic_id, stage_id)`, `(clinic_id, phone)`.
-- `email_queue` — `(clinic_id, status, scheduled_at)`.
+- `leads` — `(clinic_id, stage_id)`, `(clinic_id, phone)`, `leads_clinic_created_email_idx (clinic_id, created_at DESC) WHERE email IS NOT NULL` (acelera resolução de segmentos dinâmicos).
+- `email_queue` — `(clinic_id, status, scheduled_at)`, `email_queue_pending_priority_idx (clinic_id, status, priority, scheduled_at)`.
+- `email_segment_contacts` — `esc_clinic_created_idx (clinic_id, created_at DESC)`.
 - `tracking_events` — `(clinic_id, visitor_id, created_at)`.
 
 > Lista completa em `pg_indexes` (filtrar por `schemaname='public'`).
@@ -309,7 +352,9 @@ Janela horária (`hour_bucket`) usada para rate-limit de auto-reply por lead.
 ## Realtime
 
 Tabelas no publication `supabase_realtime` (assinaturas em tempo real do frontend):
-`email_logs`, `email_queue`, `lead_internal_notes`, `lead_tasks`, `leads`, `messages`, `pipeline_stages`, `pipelines`, `scheduled_messages`, `task_assignees`, `task_attachments`, `task_boards`, `task_checklist_items`, `task_columns`, `task_label_links`, `task_labels`, `tasks`, `webhook_events`.
+`campaign_throughput`, `email_campaigns`, `email_logs`, `email_queue`, `lead_internal_notes`, `lead_tasks`, `leads`, `messages`, `pipeline_stages`, `pipelines`, `scheduled_messages`, `task_assignees`, `task_attachments`, `task_boards`, `task_checklist_items`, `task_columns`, `task_label_links`, `task_labels`, `tasks`, `webhook_events`.
+
+`campaign_throughput` e `email_campaigns` foram adicionadas em 2026-05-27 com `REPLICA IDENTITY FULL` para alimentar o painel ao vivo de campanhas.
 
 Ver `architecture/REALTIME.md` para padrão de uso no frontend.
 
@@ -320,3 +365,7 @@ Ver `architecture/REALTIME.md` para padrão de uso no frontend.
 - `email_queue.related_lead_table` é usado também como **contexto/escopo** (ex.: `campaign_<uuid>`, `auto_<uuid>`), não apenas como nome de tabela. Não filtre por igualdade com `'leads'` esperando todos os emails de leads.
 - `messages.wa_message_id` pode ser `NULL` para mensagens internas; `UNIQUE` permite múltiplos NULL.
 - `ai_chunks.embedding` é `vector(1536)`. Trocar de modelo de embedding exige reindexar tudo.
+- `email_campaigns.segment_ids` **vazio** (`'{}'`) significa "todos os leads", **não** "nenhum destinatário". A coluna legada `segment_id` continua existindo para retro-compat (sincronizada apenas quando há exatamente 1 segmento).
+- `email_queue.priority` é `smallint` com default 10. Valores menores são processados antes; transacional usa `1`, campanhas usam `5`. Esquecer de preencher faz o job ficar no fim da fila.
+- `email_send_dedup` é a fonte de verdade de idempotência. Reenviar o mesmo template para o mesmo destinatário no mesmo dia exige preencher `force_send=true` no job da fila.
+- `email_domains.rotation_pool` precisa estar **igual** no `email_campaigns.from_domain_pool` para que o RPC `pick_rotation_domain` encontre o conjunto. Pools nomeados são case-sensitive.

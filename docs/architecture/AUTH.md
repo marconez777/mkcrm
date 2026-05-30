@@ -1,7 +1,9 @@
 # Autenticação
 
 > **Quando ler:** ao mexer em login/cadastro, convites, papéis, lockout ou Google OAuth.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
+>
+> **Endurecimentos 2026-05-27 a 2026-05-28** (ver `database/RLS_POLICIES.md` §"Endurecimentos recentes"): SELECT de colunas com segredos foi revogado de `authenticated`/`anon` em `whatsapp_instances` (`evolution_api_key`, `webhook_token`), `ai_agents` (`api_key`, `embedding_api_key`, `reranker_api_key`) e tokens de `form_integrations`. `clinic_email_integrations` agora só é legível por admins da clínica. Edge functions usam `service_role` para acessar essas colunas.
 
 ---
 
