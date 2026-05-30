@@ -28,7 +28,8 @@ Ambas habilitadas no schema `extensions` (padrão Supabase).
 | `classifier-daily-batch` | diário (03:00 BRT) | classificação IA em lote |
 | `daily-summary` | diário (08:00 BRT) | envia resumo por email para cada user |
 | `ai-spend-notify` | de hora em hora | checa budget, notifica/pausa |
-| `scheduled-dispatcher` | a cada 1 min | utilitário genérico (futuro) |
+| `scheduled-dispatcher` | a cada 1 min | dispara `pending_replies` (auto-reply IA) + `scheduled_messages` (WhatsApp agendado) |
+| `scheduled-report-tick` | a cada 1 min | confere `scheduled_reports` enabled cujo `send_time/weekdays/tz` casam com agora → monta texto de métricas e envia ao `group_jid` via Evolution |
 
 Listar tudo: `SELECT * FROM cron.job;`
 Histórico: `SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 50;`
