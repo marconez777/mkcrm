@@ -232,7 +232,7 @@ Métricas em tempo real:
 ## Sequências / Automações WhatsApp
 
 ### `message_sequences`
-- `name`, `trigger_type` ∈ `{stage_enter, manual}`, `trigger_config jsonb`, `enabled bool`, `stop_on_reply bool`, `cooldown_days int`.
+- `name`, `trigger_type` ∈ `{stage_enter, pipeline_enter, webhook, manual}` (`pipeline_enter` adicionado em 2026-05-28), `trigger_config jsonb`, `enabled bool`, `stop_on_reply bool`, `cooldown_days int`, `public_token text`.
 
 ### `message_sequence_steps`
 - `sequence_id`, `position int`, `delay_minutes int`, `template_slug`, `body text`.
@@ -241,7 +241,9 @@ Métricas em tempo real:
 - `sequence_id`, `lead_id`, `status` ∈ `{active, completed, stopped_by_reply, cancelled}`, `current_step`, `next_run_at`, `started_at`, `ended_at`, `source jsonb`.
 
 ### `message_sequence_runs`
-Log de cada step executado (sucesso/erro).
+Log de cada step executado (sucesso/erro). Adicionados em 2026-05-30:
+- `replied_at timestamptz` — preenchido quando o lead respondeu após o envio (alimenta métricas de engajamento).
+- `stage_id_at_send uuid` + `stage_position_at_send int` — snapshot da stage no momento do envio (atribuição correta mesmo se o lead mudar de stage depois).
 
 ### `automations` / `automation_runs`
 Automações genéricas (gatilho → ação). Versão mais geral; uso mais reduzido.
