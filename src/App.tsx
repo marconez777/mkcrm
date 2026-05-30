@@ -88,6 +88,8 @@ const App = () => (
                       <Route path="/ai/messages/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/messages/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
+                      <Route path="/metrics/engagement" element={<MetricsEngagement />} />
+                      <Route path="/metrics" element={<MetricsEngagement />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/forms" element={<SettingsForms />} />
