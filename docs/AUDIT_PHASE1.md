@@ -114,15 +114,15 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 ### 2.9 `integracao/` (snippet de tracking — guia em PT para clientes)
 
-13 arquivos numerados + README. Status global: 🟡 — provavelmente OK estruturalmente, mas vale validar contra `tracking-event`, `tracking-identify`, `forms-ingest` se houve mudança de payload.
+13 arquivos numerados + README. ✅ Fase 6 (2026-05-30): payload de `tracking-event`/`tracking-identify`/`forms-ingest` revisado sem drift — guia continua válido.
 
 ### 2.10 `operations/`
 
 | Arquivo | Status | Notas |
 |---|---|---|
 | `COSTS_LIMITS.md` | 🟡 | Adicionar limites de warmup, rotation pool, throttle por destinatário. |
-| `OBSERVABILITY.md` | 🟡 | Adicionar views `email_throughput_stats` / `email_system_health` e tabela `email_operational_alerts`. |
-| `ERROR_HANDLING.md` | 🟡 | Adicionar comportamento de pausa automática (`check_clinic_bounce_health`). |
+| `OBSERVABILITY.md` | ✅ | Fase 6: views `email_throughput_stats`/`email_system_health` + tabelas `email_operational_alerts`/`email_health_alerts` documentadas. |
+| `ERROR_HANDLING.md` | ✅ | Fase 6: pausa automática via `check_clinic_bounce_health` + `tg_suppress_on_bounce` documentados. |
 | `BACKUPS_RECOVERY.md` | ✅ | |
 | `PERFORMANCE.md` | 🟡 | Cross-link com `roadmap/EMAIL_SCALE.md`. |
 
@@ -130,17 +130,17 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `PITFALLS.md` | 🟡 | Acrescentar: "campanha sem `segment_ids[]` ≠ sem destinatários (significa 'todos os leads')". |
-| `DEBT.md` | 🟡 | Marcar como resolvidos os itens já entregues nos tiers 1–3 de email. |
+| `PITFALLS.md` | ✅ | Fase 6: pegadinhas 41 (segment_ids vazio = todos), 42 (pausa por bounce-health), 43 (loop bot-↔-bot) adicionadas. |
+| `DEBT.md` | ✅ | Fase 6: itens A/B (R-20), warm-up (R-12), feedback bounce (R-16) e multi-segmento marcados como resolvidos. |
 | `CORS_FORMS_INGEST.md` | ✅ | |
 
 ### 2.12 `roadmap/`
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `EMAIL.md` | ✅ | Aviso de escopo já adicionado. |
-| `EMAIL_SCALE.md` | 🟡 | Marcar R-17 a R-21 como **entregues** (já no CHANGELOG mas faltou refletir aqui). |
-| `IMPROVEMENTS.md` | 🟡 | Limpar itens já feitos; multi-segmento de campanhas pode entrar como entregue. |
+| `EMAIL.md` | ✅ | Aviso de escopo presente. |
+| `EMAIL_SCALE.md` | ✅ | R-17 a R-21 já marcados como entregues (Tier 2/3 completos). |
+| `IMPROVEMENTS.md` | ✅ | Fase 6: R-8 (A/B email) marcado como entregue. |
 
 ---
 
