@@ -1,7 +1,7 @@
 # Operações: Custos e Limites
 
 > **Quando ler:** antes de mexer em pricing de IA, budget de clínica, throttle de envio, ou quando aparecer alerta de gasto.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
