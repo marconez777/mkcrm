@@ -7,7 +7,7 @@ import { Loader2, Users, MailX, AlertCircle } from "lucide-react";
 
 type Props = {
   clinicId: string;
-  segmentId: string | null;
+  segmentIds: string[];
 };
 
 type Recipient = { email: string; name: string | null };
@@ -22,8 +22,9 @@ type State = {
 
 const INITIAL: State = { loading: false, error: null, total: 0, unsubscribed: 0, sample: [] };
 
-export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
+export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
   const [state, setState] = useState<State>(INITIAL);
+  const segKey = segmentIds.slice().sort().join(",");
 
   useEffect(() => {
     let cancelled = false;
@@ -32,17 +33,19 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
       try {
         let recipients: Recipient[] = [];
 
-        if (segmentId) {
-          // Pagina a RPC para escapar do teto default de 1000 do PostgREST.
+        if (segmentIds.length > 0) {
+          // Pagina cada segmento e une os resultados (dedup mais abaixo).
           const PAGE = 1000;
-          for (let offset = 0; offset < 200_000; offset += PAGE) {
-            const { data, error } = await supabase
-              .rpc("resolve_email_segment", { _segment_id: segmentId })
-              .range(offset, offset + PAGE - 1);
-            if (error) throw error;
-            const rows = (data ?? []) as any[];
-            recipients.push(...rows.map((r) => ({ email: r.email, name: r.name })));
-            if (rows.length < PAGE) break;
+          for (const segId of segmentIds) {
+            for (let offset = 0; offset < 200_000; offset += PAGE) {
+              const { data, error } = await supabase
+                .rpc("resolve_email_segment", { _segment_id: segId })
+                .range(offset, offset + PAGE - 1);
+              if (error) throw error;
+              const rows = (data ?? []) as any[];
+              recipients.push(...rows.map((r) => ({ email: r.email, name: r.name })));
+              if (rows.length < PAGE) break;
+            }
           }
         } else {
           // Sem segmento = todos os leads da clínica com email (paginado)
@@ -59,6 +62,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentId }: Props) {
             name: r.name,
           }));
         }
+
 
         // Dedupe por email
         const seen = new Set<string>();
