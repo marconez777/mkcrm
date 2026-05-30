@@ -2,7 +2,7 @@
 
 > Organização dos componentes React em `src/components/**`.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 
 ---
 
