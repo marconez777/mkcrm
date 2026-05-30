@@ -2,7 +2,7 @@
 
 > Mapa de URLs, guards e padrões de navegação.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte da verdade: `src/App.tsx`.
 
 ---
