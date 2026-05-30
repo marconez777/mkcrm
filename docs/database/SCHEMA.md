@@ -338,8 +338,9 @@ Janela horária (`hour_bucket`) usada para rate-limit de auto-reply por lead.
 
 - `ai_chunks` — IVFFlat/HNSW em `embedding`, GIN em `tsv`.
 - `messages` — `(clinic_id, lead_id, created_at)`, `wa_message_id UNIQUE`.
-- `leads` — `(clinic_id, stage_id)`, `(clinic_id, phone)`.
-- `email_queue` — `(clinic_id, status, scheduled_at)`.
+- `leads` — `(clinic_id, stage_id)`, `(clinic_id, phone)`, `leads_clinic_created_email_idx (clinic_id, created_at DESC) WHERE email IS NOT NULL` (acelera resolução de segmentos dinâmicos).
+- `email_queue` — `(clinic_id, status, scheduled_at)`, `email_queue_pending_priority_idx (clinic_id, status, priority, scheduled_at)`.
+- `email_segment_contacts` — `esc_clinic_created_idx (clinic_id, created_at DESC)`.
 - `tracking_events` — `(clinic_id, visitor_id, created_at)`.
 
 > Lista completa em `pg_indexes` (filtrar por `schemaname='public'`).
@@ -351,7 +352,9 @@ Janela horária (`hour_bucket`) usada para rate-limit de auto-reply por lead.
 ## Realtime
 
 Tabelas no publication `supabase_realtime` (assinaturas em tempo real do frontend):
-`email_logs`, `email_queue`, `lead_internal_notes`, `lead_tasks`, `leads`, `messages`, `pipeline_stages`, `pipelines`, `scheduled_messages`, `task_assignees`, `task_attachments`, `task_boards`, `task_checklist_items`, `task_columns`, `task_label_links`, `task_labels`, `tasks`, `webhook_events`.
+`campaign_throughput`, `email_campaigns`, `email_logs`, `email_queue`, `lead_internal_notes`, `lead_tasks`, `leads`, `messages`, `pipeline_stages`, `pipelines`, `scheduled_messages`, `task_assignees`, `task_attachments`, `task_boards`, `task_checklist_items`, `task_columns`, `task_label_links`, `task_labels`, `tasks`, `webhook_events`.
+
+`campaign_throughput` e `email_campaigns` foram adicionadas em 2026-05-27 com `REPLICA IDENTITY FULL` para alimentar o painel ao vivo de campanhas.
 
 Ver `architecture/REALTIME.md` para padrão de uso no frontend.
 
