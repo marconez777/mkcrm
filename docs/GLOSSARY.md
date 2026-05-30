@@ -1,7 +1,7 @@
 # Glossário
 
 > **Quando ler:** quando aparecer um termo que você não conhece. Mantenha aqui apenas termos **deste projeto** (não Postgres/React genérico).
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
