@@ -1639,6 +1639,7 @@ export type Database = {
           name: string
           scheduled_for: string | null
           segment_id: string | null
+          segment_ids: string[]
           send_rate_per_minute: number | null
           sent_at: string | null
           sent_count: number
@@ -1665,6 +1666,7 @@ export type Database = {
           name: string
           scheduled_for?: string | null
           segment_id?: string | null
+          segment_ids?: string[]
           send_rate_per_minute?: number | null
           sent_at?: string | null
           sent_count?: number
@@ -1691,6 +1693,7 @@ export type Database = {
           name?: string
           scheduled_for?: string | null
           segment_id?: string | null
+          segment_ids?: string[]
           send_rate_per_minute?: number | null
           sent_at?: string | null
           sent_count?: number
