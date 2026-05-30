@@ -52,6 +52,12 @@ status; expõe `overall: "ok"|"warn"|"down"` para a sidebar.
 **`useWaAvatar()`** — busca/cacheia avatar do WhatsApp para um phone via
 `fetch-wa-avatar`. Memoiza por número.
 
+**`useEmailMetrics()`** (`hooks/useEmailMetrics.ts`) — lê a view/tabela agregada `email_metrics_daily` (por clinic+day+template_slug: sent/delivered/opened/clicked/bounced/complained/failed). Use para janelas grandes (>7 dias) — evita o teto de 1000 linhas em `email_logs`. Consumido por `EmailReports` e `EmailDashboard`.
+
+**`useCustomFieldDefs()`** — definições de campos customizados (`custom_fields`) por clínica, com cache em React Query.
+
+**`useCountUp()`** — animação de contagem numérica para KPIs (dashboards de IA e Email).
+
 ### UI
 
 **`useUnreadTitle()`** — soma `leads.unread_count`, atualiza
