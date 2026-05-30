@@ -133,6 +133,8 @@ Deno.serve(async (req) => {
           await supabase.from("message_sequence_runs").insert({
             clinic_id: e.clinic_id, enrollment_id: e.id, step_id: step.id,
             status: "sent", detail: rendered.slice(0, 200),
+            stage_id_at_send: stageSnap.stage_id_at_send,
+            stage_position_at_send: stageSnap.stage_position_at_send,
           });
           // Schedule next step
           const nextStep = (steps ?? [])[stepIdx + 1];
