@@ -1,6 +1,6 @@
 # RLS_POLICIES — Row Level Security
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte de verdade: `pg_policies` no schema `public` + `supabase/migrations/*.sql`.
 
 ## Princípios
