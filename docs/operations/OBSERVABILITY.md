@@ -41,8 +41,21 @@ Helper recomendado: `_shared/logger.ts` (se existir) — adiciona `clinic_id`, `
 | `tracking_events` | eventos web | 90 dias |
 | `cron.job_run_details` | execuções cron | 14 dias (auto Supabase) |
 | `net._http_response` | respostas pg_net | 7 dias (manual cleanup TODO) |
+| `email_operational_alerts` | backlog/stuck/failure-rate na fila de email | 30 dias |
+| `email_health_alerts` | bounce/complaint rate por clínica (auto-pausa) | 90 dias |
 
 ---
+
+## Views de saúde do módulo Email
+
+Para evitar correr query crua, há views materializadas/normais que agregam o estado do pipeline:
+
+| View | Escopo | Para quê |
+|---|---|---|
+| `email_throughput_stats` | por `clinic_id` | fila pendente, sent/failed na última hora/24h, p95 de latência enqueue→sent |
+| `email_system_health` | global | backlog total, oldest pending, taxa de falha agregada, alertas abertos |
+
+Ambas vêm dos triggers `email_queue_health_trigger` (a cada 100 inserts) e `email_logs_bounce_health_trigger` (após UPDATE de status). A função `check_email_operational_health` grava em `email_operational_alerts` quando: backlog >500, jobs `processing` >10min, taxa de falha >10%. Ver `roadmap/EMAIL_SCALE.md#R-17` e `edge-functions/EMAIL.md`.
 
 ## Queries úteis (cole no SQL)
 
