@@ -70,6 +70,8 @@ Estrutura em **2 níveis** de `<Routes>`:
 | `/sequences`, `/ai/sequences`, `/ai/messages/sequences` | `AiHub`                     | Feature `sequences`                |
 | `/templates`, `/ai/templates`, `/ai/messages/templates` | `AiHub`                     | Feature `templates`                |
 | `/ai/broadcasts`, `/ai/broadcasts/:id`       | `AiHub`                                | Feature `broadcasts`               |
+| `/ai/reports`                                | `AiHub`                                | Protected                          |
+| `/ai/engagement`, `/metrics/engagement`, `/metrics` | `AiHub`                         | Protected                          |
 | `/ai/messages`                               | `AiHub`                                | Protected                          |
 | `/email/*` (10 sub-rotas)                    | `pages/email/EmailHub`                 | Feature `email_marketing`          |
 | `/email/templates/:id`                       | `pages/email/EmailTemplateEditor`      | Feature `email_marketing`          |
