@@ -65,7 +65,7 @@ Envio outbound de texto / mídia. Padrão idêntico:
 1. Valida JWT (`requireUser`).
 2. Lê `{ lead_id, text, client_message_id?, quoted_external_id?, bot_agent_id? }` (ou `media_*`).
 3. Carrega `leads.phone` + `whatsapp_instances` correspondente.
-4. INSERT em `messages` com status `pending` (idempotente por `client_message_id`).
+4. INSERT em `messages` com status `pending` (idempotente por `client_message_id`). Quando `bot_agent_id` é passado, é gravado em `messages.bot_agent_id` e funciona como **loop-guard** do `ai-auto-reply` (impede bot-↔-bot — ver `flows/AI_AGENT_LOOP.md`).
 5. Tenta `evoFetch` até 3x com backoff `[0, 2000, 5000]ms`.
 6. Em sucesso, atualiza `messages.status = 'sent'`, `external_id = wa_id`.
 7. Em falha definitiva, status `failed` + `error`.
@@ -77,6 +77,7 @@ Envio outbound de texto / mídia. Padrão idêntico:
 - Evolution exige número no formato `5511999998888@s.whatsapp.net` para alguns endpoints. Helper interno normaliza.
 - Mensagens > 4096 chars são rejeitadas pelo WhatsApp.
 - `quoted_external_id` deve ser um `external_id` válido (id do WA), não nosso UUID.
+- `bot_agent_id` em `messages` é a única forma de o watcher silencioso distinguir mensagem outbound de humano vs. mensagem outbound de bot (evita feedback loop).
 
 ---
 
