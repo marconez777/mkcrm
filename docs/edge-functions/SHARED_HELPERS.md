@@ -1,7 +1,7 @@
 # SHARED_HELPERS — `supabase/functions/_shared/`
 
-> Última atualização: 2026-05-25
-> 12 módulos, ~1.8k linhas. Reutilizados por TODAS as edge functions.
+> Última atualização: 2026-05-30
+> 13 módulos, ~1.9k linhas. Reutilizados por TODAS as edge functions.
 > Regra: lógica usada por ≥2 funções vai para cá. Nunca duplique CORS, RPC de spend-guard, helpers do Evolution etc.
 
 ## Visão geral
@@ -19,6 +19,7 @@
 | `agent-flags.ts` | 26 | `SILENT_TOOLS` + `isSilentByTools()` (auto-reply vs ferramentas mudas) |
 | `mcp.ts` | 110 | Cliente MCP (Model Context Protocol) para tools externas |
 | `attribution.ts` | 207 | UTM → canal (normaliza `traffic_source_rules`) |
+| `template-vars.ts` | — | Resolução de variáveis `{{...}}` em templates de mensagem (lead, custom_fields, clínica) compartilhada por broadcast/sequence/scheduled-dispatcher |
 | `types.ts` | 31 | Tipos compartilhados (mensagens, leads, intents) |
 
 ---

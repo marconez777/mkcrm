@@ -241,8 +241,10 @@ Resolve uma campanha em recipients e enfileira (em lote, R-4):
 - **Teste**: pega 1 lead amostral do segmento, enfileira 1 job com `force: true`, marca `test_sent_at`, dispara `process-email-queue` imediatamente.
 - **Real**:
   - Se `test_email` no campaign → 1 recipient.
-  - Senão, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL` aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
-  - Para cada destinatário, pré-calcula:
+  - Senão, resolve **audience multi-segmento** (2026-05-30):
+    - `email_campaigns.segment_ids uuid[]` (novo) → faz **OR/union** de N segmentos com **dedup por email** (1ª ocorrência vence). Mantém compat com `segment_id` (legacy single) e com "sem segmento" = todos os leads da clínica + `email_segment_contacts`.
+    - Para cada segmento, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL`, aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
+  - Para cada destinatário (já deduplicado), pré-calcula:
     - **A/B variant** via round-robin ponderado determinístico por email (R-20) → grava `email_queue.variant_id`.
     - **Rotation domain** via RPC `pick_rotation_domain(_pool, _clinic)` (R-21) → grava `email_queue.from_domain_override`.
     - **Schedule espalhado** em janelas de 1 min se `send_rate_per_minute` setado (R-18).
@@ -314,7 +316,7 @@ Todas (exceto domínios e logs) usam RLS `clinic_id = current_clinic_id() AND cl
 | `email_template_folders` | Pastas para organizar templates. |
 | `email_segments` | Filtros JSON salvos sobre `leads` (suporta `tags`, `stage_ids`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19). |
 | `email_segment_contacts` | Contatos manuais (fora de `leads`) usados em campanhas. |
-| `email_campaigns` | Campanhas (template + segmento + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`. |
+| `email_campaigns` | Campanhas (template + segmento(s) + agendamento + totais). Colunas: `status` (`draft\|scheduled\|sending\|sent\|paused\|failed`), **`segment_ids uuid[]`** (multi-segmento, union/OR — 2026-05-30), `segment_id` (legacy single, mantido para retrocompat), `variant_strategy`, `from_name_override`, `from_domain_pool`, `send_rate_per_minute`, `test_email`, `winner_picked_at`, `last_sent_at`. |
 | `email_campaign_variants` | Variantes A/B/multi (R-20): `label`, `weight`, `subject_override`, `template_slug_override`, `from_name_override`, `sent_count`, `opened_count`, `clicked_count`, `is_winner`. |
 | `email_automations` | Drip por trigger (steps JSON). Triggers: `lead_created`, `lead_stage_changed`, `lead_tag_added`, `segment_contact_added`. |
 | `email_automation_enrollments` | Leads enrolados numa automação (`UNIQUE(automation_id, lead_id)`). Conta `steps_enqueued`. |

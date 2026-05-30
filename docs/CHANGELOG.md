@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-30 — Auditoria Fase 3 (edge functions & integrations)
+
+### Mudado
+- `docs/edge-functions/INDEX.md`: contagem atualizada para **67 edge functions** + **13 módulos compartilhados**. `evolution-fetch-groups` adicionado ao domínio WhatsApp, `send-email-batch` adicionado ao domínio Email, nova linha "Relatórios agendados (WhatsApp)" com `scheduled-report-tick`.
+- `docs/edge-functions/WHATSAPP.md`: 19 funções (16 `evolution-*`); nova seção `evolution-fetch-groups` (usada por Scheduled Reports). `evolution-send`/`send-media` documentam `bot_agent_id` como loop-guard gravado em `messages.bot_agent_id`.
+- `docs/edge-functions/EMAIL.md`: `dispatch-campaign` §3.4 reescrito para audiência multi-segmento (`segment_ids[]` com union/OR + dedup por email; fallback `segment_id` legado). Tabela §4 inclui `segment_ids uuid[]` e `last_sent_at` em `email_campaigns`.
+- `docs/edge-functions/SHARED_HELPERS.md`: 13 módulos — adicionado `template-vars.ts` (resolução de `{{...}}` compartilhada por broadcast/sequence/scheduled-dispatcher).
+- `docs/integrations/PG_NET_CRON.md`: tabela de jobs cron atualizada — `scheduled-dispatcher` documentado corretamente (auto-reply IA + scheduled_messages); novo job `scheduled-report-tick` (1 min, dispara relatórios de métricas em grupos WA).
+
+---
+
+
 ## 2026-05-30 — Auditoria Fase 5 (frontend)
 
 ### Mudado

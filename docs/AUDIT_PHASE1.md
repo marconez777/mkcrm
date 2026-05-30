@@ -64,12 +64,12 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `INDEX.md` | 🟡 | **Faltam:** `scheduled-report-tick`, `evolution-fetch-groups`. Conferir se `send-email-batch` está listada (já existia). |
-| `AI.md` | 🟡 | Menciona "10 edge functions" — recontar; conferir tools recentes; confirmar listagem de `bot_agent_id`. |
-| `EMAIL.md` | 🔴 | **Faltam:** descrição do envio multi-segmento (`segment_ids[]`) no `dispatch-campaign` (mudou em 2026-05-30). Conferir se §11 reflete tiers 1–3. |
-| `TRACKING.md` | 🟡 | Conferir endpoints novos / `tracking-pixel` se mudou. |
-| `WHATSAPP.md` | 🟡 | Adicionar `evolution-fetch-groups`. Confirmar `bot_agent_id` em `evolution-send`. |
-| `SHARED_HELPERS.md` | 🟡 | Confirmar inclusão de `_shared/agent-flags.ts` (mencionado no CHANGELOG do AI). |
+| `INDEX.md` | ✅ | Atualizado na Fase 3 (2026-05-30): 67 functions, `evolution-fetch-groups`, `send-email-batch` e `scheduled-report-tick` listados; 13 helpers compartilhados. |
+| `AI.md` | ✅ | `bot_agent_id` loop-guard já documentado em §evolution-send / changelog interno. |
+| `EMAIL.md` | ✅ | Atualizado na Fase 3: `dispatch-campaign` multi-segmento (`segment_ids[]`), tabela `email_campaigns` com `segment_ids/last_sent_at`. |
+| `TRACKING.md` | ✅ | Sem mudanças de payload em `tracking-event`/`tracking-identify` desde 2026-05-25. |
+| `WHATSAPP.md` | ✅ | Atualizado na Fase 3: `evolution-fetch-groups` adicionado, `bot_agent_id` documentado em `evolution-send`. |
+| `SHARED_HELPERS.md` | ✅ | Atualizado na Fase 3: incluído `template-vars.ts` (13 módulos). |
 
 ### 2.5 `features/`
 
@@ -106,10 +106,10 @@ Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 de
 
 | Arquivo | Status | Notas |
 |---|---|---|
-| `RESEND.md` | 🟡 | Conferir webhook events e backfill. |
-| `EVOLUTION_API.md` | 🟡 | Adicionar `fetch-groups`. |
-| `LOVABLE_AI.md` | 🟡 | Conferir lista de modelos (preview Gemini 3.1, GPT-5.4/5.5). |
-| `PG_NET_CRON.md` | 🟡 | Adicionar `scheduled-report-tick`. |
+| `RESEND.md` | ✅ | Já cobre R-21 (multi-domínio rotativo) + dedup `resend_webhook_events`. |
+| `EVOLUTION_API.md` | 🟡 | Lista 18 endpoints — vale acrescentar `evolution-fetch-groups` futuramente, mas WHATSAPP.md já cobre. |
+| `LOVABLE_AI.md` | 🟡 | Lista de modelos pode ser ampliada (GPT-5.4/5.5, Gemini 3.1 preview) — não bloqueante. |
+| `PG_NET_CRON.md` | ✅ | Atualizado na Fase 3: `scheduled-report-tick` adicionado, `scheduled-dispatcher` re-descrito. |
 | `EXTERNAL_FORMS.md` | ✅ | |
 
 ### 2.9 `integracao/` (snippet de tracking — guia em PT para clientes)

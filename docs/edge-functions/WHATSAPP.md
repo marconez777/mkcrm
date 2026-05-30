@@ -1,10 +1,10 @@
 # WHATSAPP — Edge functions Evolution API
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Provider: **Evolution API** (https://github.com/EvolutionAPI/evolution-api), self-hosted.
-> 18 funções: 15 prefixadas `evolution-*` + `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect`.
+> 19 funções: 16 prefixadas `evolution-*` + `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect`.
 > Helpers compartilhados em [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) — toda função abaixo importa de `_shared/evolution.ts`.
-> Fluxos end-to-end: ver `flows/INBOUND_WHATSAPP.md` e `flows/OUTBOUND_WHATSAPP.md` (a serem criados na Etapa 8).
+> Fluxos end-to-end: `flows/INBOUND_WHATSAPP.md` e `flows/OUTBOUND_WHATSAPP.md`.
 
 ## Tabela-mapa
 
@@ -25,6 +25,7 @@
 | `evolution-delete-lead` | Frontend | `leads`, `messages` | DELETE, INSERT em `deleted_leads` | JWT user |
 | `evolution-delete-message` | Frontend | `messages` | UPDATE soft-delete + Evolution `chat/deleteMessage` | JWT user |
 | `evolution-sync-lead` | Frontend | Evolution `findChat/findMessages` | `leads`, `messages` | JWT user |
+| `evolution-fetch-groups` | Frontend (Scheduled Reports) | Evolution `group/fetchAllGroups` | – (lista grupos WA) | JWT user |
 | `fetch-wa-avatar` | Frontend / `evolution-webhook` | Evolution `fetchProfilePicture` | atualiza `leads.avatar_url` | service role |
 | `transcribe-audio` | Frontend / `ai-auto-reply` | mensagem de áudio | retorna transcrição (não persiste) | JWT user |
 | `wa-redirect` | URL público | `leads.phone` | – (302 para `https://wa.me/...`) | público |
@@ -64,7 +65,7 @@ Envio outbound de texto / mídia. Padrão idêntico:
 1. Valida JWT (`requireUser`).
 2. Lê `{ lead_id, text, client_message_id?, quoted_external_id?, bot_agent_id? }` (ou `media_*`).
 3. Carrega `leads.phone` + `whatsapp_instances` correspondente.
-4. INSERT em `messages` com status `pending` (idempotente por `client_message_id`).
+4. INSERT em `messages` com status `pending` (idempotente por `client_message_id`). Quando `bot_agent_id` é passado, é gravado em `messages.bot_agent_id` e funciona como **loop-guard** do `ai-auto-reply` (impede bot-↔-bot — ver `flows/AI_AGENT_LOOP.md`).
 5. Tenta `evoFetch` até 3x com backoff `[0, 2000, 5000]ms`.
 6. Em sucesso, atualiza `messages.status = 'sent'`, `external_id = wa_id`.
 7. Em falha definitiva, status `failed` + `error`.
@@ -76,6 +77,7 @@ Envio outbound de texto / mídia. Padrão idêntico:
 - Evolution exige número no formato `5511999998888@s.whatsapp.net` para alguns endpoints. Helper interno normaliza.
 - Mensagens > 4096 chars são rejeitadas pelo WhatsApp.
 - `quoted_external_id` deve ser um `external_id` válido (id do WA), não nosso UUID.
+- `bot_agent_id` em `messages` é a única forma de o watcher silencioso distinguir mensagem outbound de humano vs. mensagem outbound de bot (evita feedback loop).
 
 ---
 
@@ -146,6 +148,17 @@ São operações longas. Recomenda-se UI mostrar progresso via polling de tabela
 ## `evolution-sync-lead`
 
 Sync sob demanda de UM lead: busca chat + mensagens recentes na Evolution e re-ingere. Útil quando webhook perdeu eventos.
+
+---
+
+## `evolution-fetch-groups`
+
+Lista grupos de WhatsApp disponíveis numa instância. Auth: JWT user.
+
+- Body: `{ instance_id }`.
+- Chama Evolution `GET /group/fetchAllGroups/{instance}?getParticipants=false`.
+- Normaliza a lista para `[{ id, subject, size? }]`.
+- Usado pelo **Scheduled Reports** (`ScheduledReports.tsx`) para o usuário escolher o `group_jid` de destino.
 
 ---
 
