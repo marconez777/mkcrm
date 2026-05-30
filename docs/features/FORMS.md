@@ -4,7 +4,7 @@
 > landing pages, snippet universal) e transformar em leads no CRM, com
 > deduplicação, atribuição de tracking e log completo.
 >
-> Última atualização: 2026‑05‑25
+> Última atualização: 2026‑05‑30
 
 ---
 
