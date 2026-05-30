@@ -2,8 +2,8 @@
 
 > **Quem deve ler:** o próprio chat Lovable (em sessões futuras), antes de modificar qualquer parte do sistema. Esta documentação é a **memória externa** do projeto: ler primeiro evita varrer 50+ arquivos.
 >
-> **Última atualização:** 2026-05-25
-> **Status da doc:** ✅ v1.0 completa (52 arquivos) — ver `CHANGELOG.md`.
+> **Última atualização:** 2026-05-30
+> **Status da doc:** ✅ v1.0 + auditoria 2026-05-30 (70 arquivos) — ver `CHANGELOG.md` e `AUDIT_PHASE1.md`.
 
 ---
 
