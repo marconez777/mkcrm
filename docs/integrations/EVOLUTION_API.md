@@ -1,7 +1,7 @@
 # Integração: Evolution API (WhatsApp)
 
 > **Quando ler:** antes de mexer em qualquer função `evolution-*`, provisionamento de instância, QR code, ou debug de mensagens não entregues.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 ---
 
