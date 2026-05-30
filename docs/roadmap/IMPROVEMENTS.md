@@ -1,7 +1,7 @@
 # Roadmap / Melhorias propostas
 
 > **Quando ler:** ao planejar próximo trimestre, ao pegar um item para implementar, ou ao priorizar.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-05-30
 
 Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam **novas capacidades** propostas. Sem compromisso de prazo.
 
