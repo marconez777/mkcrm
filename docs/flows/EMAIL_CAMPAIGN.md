@@ -25,7 +25,8 @@
 
 ```text
 Usuário cria campanha em EmailCampaigns
-        │ (template_slug, segmento opcional, scheduled_for?, variant_strategy?,
+        │ (template_slug, segment_ids[] (multi-segmento) | segment_id (legado),
+        │  scheduled_for?, variant_strategy?,
         │  from_name_override?, from_domain_pool?, send_rate_per_minute?)
         ▼
 INSERT email_campaigns(status='draft' | 'scheduled')
