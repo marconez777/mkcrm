@@ -30,6 +30,8 @@ Nenhuma fase tocou runtime (apenas `docs/` + uma alteração isolada em frontend
 
 ---
 
+## 2026-05-30 — Auditoria Fase 3 (edge functions & integrations)
+
 ### Mudado
 - `docs/edge-functions/INDEX.md`: contagem atualizada para **67 edge functions** + **13 módulos compartilhados**. `evolution-fetch-groups` adicionado ao domínio WhatsApp, `send-email-batch` adicionado ao domínio Email, nova linha "Relatórios agendados (WhatsApp)" com `scheduled-report-tick`.
 - `docs/edge-functions/WHATSAPP.md`: 19 funções (16 `evolution-*`); nova seção `evolution-fetch-groups` (usada por Scheduled Reports). `evolution-send`/`send-media` documentam `bot_agent_id` como loop-guard gravado em `messages.bot_agent_id`.
