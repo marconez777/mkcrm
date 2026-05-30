@@ -365,3 +365,7 @@ Ver `architecture/REALTIME.md` para padrão de uso no frontend.
 - `email_queue.related_lead_table` é usado também como **contexto/escopo** (ex.: `campaign_<uuid>`, `auto_<uuid>`), não apenas como nome de tabela. Não filtre por igualdade com `'leads'` esperando todos os emails de leads.
 - `messages.wa_message_id` pode ser `NULL` para mensagens internas; `UNIQUE` permite múltiplos NULL.
 - `ai_chunks.embedding` é `vector(1536)`. Trocar de modelo de embedding exige reindexar tudo.
+- `email_campaigns.segment_ids` **vazio** (`'{}'`) significa "todos os leads", **não** "nenhum destinatário". A coluna legada `segment_id` continua existindo para retro-compat (sincronizada apenas quando há exatamente 1 segmento).
+- `email_queue.priority` é `smallint` com default 10. Valores menores são processados antes; transacional usa `1`, campanhas usam `5`. Esquecer de preencher faz o job ficar no fim da fila.
+- `email_send_dedup` é a fonte de verdade de idempotência. Reenviar o mesmo template para o mesmo destinatário no mesmo dia exige preencher `force_send=true` no job da fila.
+- `email_domains.rotation_pool` precisa estar **igual** no `email_campaigns.from_domain_pool` para que o RPC `pick_rotation_domain` encontre o conjunto. Pools nomeados são case-sensitive.
