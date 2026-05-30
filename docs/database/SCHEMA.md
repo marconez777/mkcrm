@@ -123,7 +123,7 @@ Instâncias da Evolution API. Campos: `instance_name`, `phone_number`, `status`,
 Mapeia intents/regex a respostas automáticas ou agentes.
 
 ### `messages`
-Mensagens trocadas (in/out). Campos: `lead_id`, `clinic_id`, `from_me bool`, `body text`, `media_url`, `media_type`, `wa_message_id text UNIQUE`, `status` ∈ `{pending,sent,delivered,read,failed}`, `sent_at`, `delivered_at`, `read_at`.
+Mensagens trocadas (in/out). Campos: `lead_id`, `clinic_id`, `from_me bool`, `body text`, `media_url`, `media_type`, `wa_message_id text UNIQUE`, `status` ∈ `{pending,sent,delivered,read,failed}`, `sent_at`, `delivered_at`, `read_at`, `bot_agent_id uuid` (preenchido pelo `scheduled-dispatcher` quando o envio veio de um agente — usado pelo `ai-auto-reply` como **loop-guard**: se a última mensagem `from_me` tem `bot_agent_id`, não responde).
 Trigger `trg_stop_sequences_on_reply` — quando `from_me=false`, encerra enrollments de `message_sequences` com `stop_on_reply=true`.
 
 ### `message_templates`
