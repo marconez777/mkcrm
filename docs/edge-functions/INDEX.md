@@ -18,15 +18,16 @@
 
 | Domínio | Funções | Doc |
 |---|---|---|
-| WhatsApp (Evolution API) | `evolution-*` (15), `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect` | [`WHATSAPP.md`](./WHATSAPP.md) |
+| WhatsApp (Evolution API) | `evolution-*` (16, incl. `evolution-fetch-groups`), `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect` | [`WHATSAPP.md`](./WHATSAPP.md) |
 | IA / Agentes / RAG | `ai-*` (10), `agent-run-bulk`, `ai-spend-notify`, `classifier-daily-batch`, `daily-summary` | [`AI.md`](./AI.md) |
-| Email Marketing (Resend) | `send-email`, `process-email-queue`, `email-automations-tick`, `dispatch-campaign`, `process-scheduled-campaigns`, `resend-webhook`, `backfill-resend-events`, `email-domain-manage`, `email-unsubscribe` | [`EMAIL.md`](./EMAIL.md) |
+| Email Marketing (Resend) | `send-email`, `send-email-batch`, `process-email-queue`, `email-automations-tick`, `dispatch-campaign`, `process-scheduled-campaigns`, `resend-webhook`, `backfill-resend-events`, `email-domain-manage`, `email-unsubscribe` | [`EMAIL.md`](./EMAIL.md) |
 | Tracking (Pixel) | `tracking-pixel`, `tracking-event`, `tracking-identify`, `tracking-config` | [`TRACKING.md`](./TRACKING.md) |
 | Broadcasts | `broadcast-tick`, `broadcast-control` | [`BROADCASTS.md`](./BROADCASTS.md) |
 | Sequências / Automações | `sequence-tick`, `sequence-enroll`, `sequence-trigger`, `automations-tick`, `scheduled-dispatcher`, `watch-stale-leads` | [`SEQUENCES_AUTOMATIONS.md`](./SEQUENCES_AUTOMATIONS.md) |
+| Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | — (ver `features/` futuro) |
 | Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | [`FORMS.md`](./FORMS.md) |
 | Autenticação / Clínicas | `auth-login`, `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](./AUTH.md) (em `architecture/`) |
-| Helpers compartilhados | `_shared/*.ts` (12 arquivos) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
+| Helpers compartilhados | `_shared/*.ts` (13 arquivos, inclui `template-vars.ts`) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
 
 ## Como chamar uma função
 
