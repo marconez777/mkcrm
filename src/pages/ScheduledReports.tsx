@@ -164,7 +164,7 @@ export default function ScheduledReports() {
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         <div className="flex items-center justify-between p-4">
-          <h2 className="text-sm font-semibold">Relatórios agendados</h2>
+          <h2 className="text-sm font-semibold">Relatórios</h2>
           <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
         </div>
         <div className="px-2">
