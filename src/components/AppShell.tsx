@@ -30,7 +30,6 @@ const items: NavItem[] = [
   },
 ];
 
-type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { overall, health } = useHealth();
