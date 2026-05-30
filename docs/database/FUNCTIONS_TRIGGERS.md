@@ -1,6 +1,6 @@
 # FUNCTIONS_TRIGGERS — Funções e Triggers
 
-> Última atualização: 2026-05-25
+> Última atualização: 2026-05-30
 > Fonte: `pg_proc` (schema `public`) e `information_schema.triggers`.
 > Funções da extensão `vector` (pgvector) são listadas em `pg_proc` mas omitidas aqui — fazem parte do extension e não devem ser modificadas.
 
