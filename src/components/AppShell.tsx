@@ -14,11 +14,20 @@ import mkLogo from "@/assets/mk-logo.png";
 
 import type { FeatureKey } from "@/lib/features";
 
-const items: { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey }[] = [
+type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
+
+const items: NavItem[] = [
   { to: "/", label: "Pipeline", icon: LayoutGrid },
   { to: "/inbox", label: "Conversas", icon: Inbox, feature: "inbox" },
   { to: "/tasks", label: "Tarefas", icon: CalendarClock, feature: "tasks" },
-  { to: "/ai", label: "IA", icon: Sparkles },
+  {
+    to: "/ai",
+    label: "IA",
+    icon: Sparkles,
+    children: [
+      { to: "/metrics/engagement", label: "Engajamento", icon: BarChart3 },
+    ],
+  },
 ];
 
 type NavItem = { to: string; label: string; icon: typeof LayoutGrid; feature?: FeatureKey; children?: NavItem[] };
