@@ -1,22 +1,22 @@
 # Realtime
 
-> **Quando ler:** ao habilitar/subscribir em mudanças ao vivo (inbox, kanban, tarefas, fila de email).
-> **Última atualização:** 2026-05-25
+> **Quando ler:** ao habilitar/subscribir em mudanças ao vivo (inbox, kanban, tarefas, fila de email, campanhas).
+> **Última atualização:** 2026-05-30
 
 ---
 
 ## Tabelas na publication `supabase_realtime`
 
-Verificadas em `supabase/migrations`:
+Verificadas via `pg_publication_tables`:
 
 - `messages` — chat WhatsApp
 - `leads` — pipeline e inbox
 - `pipelines`, `pipeline_stages`
-- `lead_internal_notes`
-- `lead_tasks`
+- `lead_internal_notes`, `lead_tasks`
 - `scheduled_messages`
 - `tasks`, `task_boards`, `task_columns`, `task_assignees`, `task_attachments`, `task_checklist_items`, `task_labels`, `task_label_links`
 - `email_queue`, `email_logs`
+- `email_campaigns`, `campaign_throughput` (adicionadas em 2026-05-27 com `REPLICA IDENTITY FULL` — dashboard de campanha ao vivo)
 - `webhook_events`
 
 > Para adicionar tabela à realtime:
