@@ -43,6 +43,7 @@ Por instância (no banco, `clinic_settings`): `wa_instance_name`, `wa_api_key`, 
 | `evolution-sync-lead` | `/chat/findMessages/{name}` | POST |
 | `evolution-delete-message` | `/message/deleteMessage/{name}` | DELETE |
 | `evolution-backfill-all` | múltiplos | — |
+| `evolution-fetch-groups` | `/group/fetchAllGroups/{name}` | GET (usado por `scheduled-report-tick` para resolver destinos de relatórios em grupos) |
 | `evolution-test` | `/instance/fetchInstances` | GET (smoke) |
 
 ---
