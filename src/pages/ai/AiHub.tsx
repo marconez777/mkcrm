@@ -38,6 +38,7 @@ const TABS: TabDef[] = [
   },
   { value: "broadcasts", path: "/ai/broadcasts", matchPrefix: "/ai/broadcasts", label: "Disparo em massa", features: ["broadcasts"] },
   { value: "reports", path: "/ai/reports", label: "Relatórios agendados" },
+  { value: "engagement", path: "/ai/engagement", aliases: ["/metrics/engagement", "/metrics"], label: "Engajamento" },
   { value: "memories", path: "/ai/memories", aliases: ["/agents/memories"], label: "Memórias IA", features: ["agents"] },
   { value: "insights", path: "/ai/insights", label: "Insights", features: ["agents"] },
   { value: "usage", path: "/ai/usage", aliases: ["/metrics/ai-usage"], label: "Custos", features: ["metrics_ai_usage"] },
