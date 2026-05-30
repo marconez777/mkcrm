@@ -268,11 +268,13 @@ export default function EmailCampaigns() {
     if (!clinicId) return;
     setBusy(true);
     try {
+      const segIds = (c.segment_ids ?? []).filter(Boolean);
       const { error } = await supabase.from("email_campaigns").insert({
         clinic_id: clinicId,
         name: `${c.name} (cópia)`,
         template_slug: c.template_slug,
-        segment_id: c.segment_id,
+        segment_ids: segIds,
+        segment_id: segIds.length === 1 ? segIds[0] : null,
         test_email: c.test_email,
         status: "draft",
       });
@@ -281,6 +283,7 @@ export default function EmailCampaigns() {
       await load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
+
 
   function progressBar(c: Campaign) {
     const total = c.total_recipients || 0;
