@@ -75,6 +75,7 @@ evolution-send  (mesma lógica, sem JWT — autorizado por SERVICE_ROLE_KEY)
 - **Mensagem fora do horário comercial**: broadcasts e sequences respeitam `business_hours`; envio manual **não** (intencional).
 - **Variáveis de template** (`{{nome}}`): resolvidas no chamador (`broadcast-tick` faz replace antes de chamar `evolution-send`). `evolution-send` é "burro" — não interpola.
 - **Mídia grande**: limite 16MB (Evolution). Validar antes de upload.
+- **Loop bot-↔-bot:** ao enviar via IA (`ai-auto-reply` → `evolution-send`/`evolution-send-media`), o agente grava `messages.bot_agent_id = <agent_id>` na linha resultante. Esse campo é usado como **loop-guard** pelo próprio `ai-auto-reply`, que ignora mensagens com `bot_agent_id IS NOT NULL` para não responder a si mesmo (ou a outro bot). Ver [`flows/AI_AGENT_LOOP.md`](./AI_AGENT_LOOP.md).
 
 ---
 
