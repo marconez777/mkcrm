@@ -78,13 +78,23 @@ Páginas filhas relevantes:
 - **`Broadcasts.tsx`** — disparo em massa WhatsApp. Ver `features/BROADCASTS.md`.
 
 ### 2.4 Email Marketing
-**`pages/email/EmailHub.tsx`** — hub análogo ao AiHub para 10 sub-rotas:
-`EmailDashboard`, `EmailTemplates`, `EmailAutomations`, `EmailCampaigns`,
-`EmailQueue`, `EmailLogs`, `EmailSegments`, `EmailContacts`,
-`EmailUnsubscribes`, `EmailReports`.
+**`pages/email/EmailHub.tsx`** — hub análogo ao AiHub para 11 sub-rotas:
+`EmailDashboard` (`/email`), `EmailTemplates` (`/email/templates`),
+`EmailAutomations` (`/email/automations`), `EmailCampaigns` (`/email/campaigns`),
+`EmailQueue` (`/email/queue`), `EmailLogs` (`/email/logs`),
+`EmailSegments` (`/email/segments`), `EmailContacts` (`/email/contacts`),
+`EmailUnsubscribes` (`/email/unsubscribes`), `EmailReports` (`/email/reports`)
+e **`/email/sites`** (placeholder/landing-pages — montado mas ainda WIP).
+
+Páginas filhas relevantes:
+- **`EmailCampaigns.tsx`** — multi-segmento (`segment_ids[]`), A/B, rotação de domínio, pause/resume/duplicar/teste. Ver `features/EMAIL_CAMPAIGNS.md`.
+- **`EmailContacts.tsx`** — base de contatos manuais (`email_segment_contacts`) independente de `leads`.
+- **`EmailUnsubscribes.tsx`** — gerenciamento de supressões (`email_unsubscribes`).
+- **`EmailReports.tsx`** — agregação por template/campanha; lê `email_metrics_daily` via `useEmailMetrics`.
+
 **`EmailTemplateEditor.tsx`** — editor blocks→html (TipTap) com
-`Canvas`, `Inspector`, `Palette` em `components/email/editor/*`.
-**`SettingsEmailDomain.tsx`** — wizard DNS (`DnsWizard`) para Resend.
+`Canvas`, `Inspector`, `Palette`, `TipTapEditor` em `components/email/editor/*`.
+**`SettingsEmailDomain.tsx`** (`/settings/email`) — wizard DNS (`DnsWizard`) para Resend, com `DomainHealthCard`.
 Ver `edge-functions/EMAIL.md`.
 
 ### 2.5 Tracking
