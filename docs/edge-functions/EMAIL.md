@@ -241,8 +241,10 @@ Resolve uma campanha em recipients e enfileira (em lote, R-4):
 - **Teste**: pega 1 lead amostral do segmento, enfileira 1 job com `force: true`, marca `test_sent_at`, dispara `process-email-queue` imediatamente.
 - **Real**:
   - Se `test_email` no campaign → 1 recipient.
-  - Senão, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL` aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
-  - Para cada destinatário, pré-calcula:
+  - Senão, resolve **audience multi-segmento** (2026-05-30):
+    - `email_campaigns.segment_ids uuid[]` (novo) → faz **OR/union** de N segmentos com **dedup por email** (1ª ocorrência vence). Mantém compat com `segment_id` (legacy single) e com "sem segmento" = todos os leads da clínica + `email_segment_contacts`.
+    - Para cada segmento, carrega leads + contatos manuais via paginação (range 1k em 1k, R-8) com `email IS NOT NULL`, aplicando `segment.filters` (`stage_ids`, `tags`, `last_message_at_range`, `deal_value_range`, `custom_field` — R-19).
+  - Para cada destinatário (já deduplicado), pré-calcula:
     - **A/B variant** via round-robin ponderado determinístico por email (R-20) → grava `email_queue.variant_id`.
     - **Rotation domain** via RPC `pick_rotation_domain(_pool, _clinic)` (R-21) → grava `email_queue.from_domain_override`.
     - **Schedule espalhado** em janelas de 1 min se `send_rate_per_minute` setado (R-18).
