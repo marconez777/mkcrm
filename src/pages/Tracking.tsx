@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
-import { AttributionTab } from "@/pages/tracking/AttributionTab";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
 import { toast } from "sonner";
 
