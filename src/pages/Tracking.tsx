@@ -105,14 +105,12 @@ type LinkRow = {
   leads?: { id: string; name: string | null; created_at: string; stage_id: string | null } | null;
 };
 
-const PERIODS = {
-  today: { label: "Hoje", ms: 0 },
-  "24h": { label: "Últimas 24 horas", ms: 24 * 60 * 60 * 1000 },
-  "7d": { label: "Últimos 7 dias", ms: 7 * 24 * 60 * 60 * 1000 },
-  "30d": { label: "Últimos 30 dias", ms: 30 * 24 * 60 * 60 * 1000 },
-  custom: { label: "Personalizado", ms: -1 },
-} as const;
-type PeriodKey = keyof typeof PERIODS;
+type PeriodMode =
+  | { kind: "today" }
+  | { kind: "last"; days: 7 | 30 }
+  | { kind: "max" }
+  | { kind: "month"; ym: string };
+
 
 function fmtTime(s?: string | null) {
   if (!s) return "—";
