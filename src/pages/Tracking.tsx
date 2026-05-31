@@ -105,14 +105,12 @@ type LinkRow = {
   leads?: { id: string; name: string | null; created_at: string; stage_id: string | null } | null;
 };
 
-const PERIODS = {
-  today: { label: "Hoje", ms: 0 },
-  "24h": { label: "Últimas 24 horas", ms: 24 * 60 * 60 * 1000 },
-  "7d": { label: "Últimos 7 dias", ms: 7 * 24 * 60 * 60 * 1000 },
-  "30d": { label: "Últimos 30 dias", ms: 30 * 24 * 60 * 60 * 1000 },
-  custom: { label: "Personalizado", ms: -1 },
-} as const;
-type PeriodKey = keyof typeof PERIODS;
+type PeriodMode =
+  | { kind: "today" }
+  | { kind: "last"; days: 7 | 30 }
+  | { kind: "max" }
+  | { kind: "month"; ym: string };
+
 
 function fmtTime(s?: string | null) {
   if (!s) return "—";
@@ -328,9 +326,7 @@ function suggestStageConfig(stages: Record<string, { name: string; color: string
 
 
 export default function Tracking() {
-  const [period, setPeriod] = useState<PeriodKey>("7d");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [periodMode, setPeriodMode] = useState<PeriodMode>({ kind: "last", days: 7 });
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -441,21 +437,25 @@ export default function Tracking() {
 
 
   const computeRange = useCallback(() => {
-    const now = Date.now();
-    if (period === "custom") {
-      const startOfDay = (s: string) => { const d = new Date(s); d.setHours(0, 0, 0, 0); return d.toISOString(); };
-      const endOfDay = (s: string) => { const d = new Date(s); d.setHours(23, 59, 59, 999); return d.toISOString(); };
-      return {
-        sinceISO: customFrom ? startOfDay(customFrom) : new Date(now - 7 * 86400_000).toISOString(),
-        untilISO: customTo ? endOfDay(customTo) : new Date().toISOString(),
-      };
-    }
-    if (period === "today") {
+    const now = new Date();
+    const untilISO = now.toISOString();
+    if (periodMode.kind === "today") {
       const d = new Date(); d.setHours(0, 0, 0, 0);
-      return { sinceISO: d.toISOString(), untilISO: new Date().toISOString() };
+      return { sinceISO: d.toISOString(), untilISO };
     }
-    return { sinceISO: new Date(now - PERIODS[period].ms).toISOString(), untilISO: new Date().toISOString() };
-  }, [period, customFrom, customTo]);
+    if (periodMode.kind === "last") {
+      return { sinceISO: new Date(now.getTime() - periodMode.days * 86400_000).toISOString(), untilISO };
+    }
+    if (periodMode.kind === "max") {
+      return { sinceISO: "1970-01-01T00:00:00.000Z", untilISO };
+    }
+    // month "YYYY-MM"
+    const [y, m] = periodMode.ym.split("-").map(Number);
+    const start = new Date(y, (m ?? 1) - 1, 1, 0, 0, 0, 0);
+    const end = new Date(y, (m ?? 1), 0, 23, 59, 59, 999);
+    return { sinceISO: start.toISOString(), untilISO: end.toISOString() };
+  }, [periodMode]);
+
 
   const { sinceISO, untilISO } = useMemo(() => computeRange(), [computeRange]);
 
@@ -762,27 +762,8 @@ export default function Tracking() {
         </CardHeader>
         {filtersOpen && (
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-6">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Período</label>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(PERIODS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {period === "custom" && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">De</label>
-                <Input type="datetime-local" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">Até</label>
-                <Input type="datetime-local" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-              </div>
-            </>
-          )}
+          {/* Período agora fica fixo acima das KPIs */}
+
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">event_name</label>
             <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder="ex: page_view" />
@@ -893,9 +874,53 @@ export default function Tracking() {
       </Card>
 
 
+      {/* Barra de período (sempre visível) */}
+      {(() => {
+        const months: { value: string; label: string }[] = [];
+        const now = new Date();
+        for (let i = 0; i < 24; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+          months.push({ value: ym, label: label.charAt(0).toUpperCase() + label.slice(1) });
+        }
+        const isActive = (k: PeriodMode["kind"], days?: number) =>
+          periodMode.kind === k && (days === undefined || (periodMode.kind === "last" && periodMode.days === days));
+        const chip = (label: string, active: boolean, onClick: () => void) => (
+          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick}>
+            {label}
+          </Button>
+        );
+        return (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Período:</span>
+            {chip("Hoje", isActive("today"), () => setPeriodMode({ kind: "today" }))}
+            {chip("7 dias", isActive("last", 7), () => setPeriodMode({ kind: "last", days: 7 }))}
+            {chip("30 dias", isActive("last", 30), () => setPeriodMode({ kind: "last", days: 30 }))}
+            {chip("Máximo", isActive("max"), () => setPeriodMode({ kind: "max" }))}
+            <div className="ml-2 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Mês:</span>
+              <Select
+                value={periodMode.kind === "month" ? periodMode.ym : ""}
+                onValueChange={(v) => setPeriodMode({ kind: "month", ym: v })}
+              >
+                <SelectTrigger className="h-8 w-[180px]">
+                  <SelectValue placeholder="Selecionar mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+
         <KpiCard label="Visitas únicas" value={kpis.visitors} />
         <KpiCard label="Leads via formulário" value={kpis.formLeads} />
         <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
