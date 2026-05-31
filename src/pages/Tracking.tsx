@@ -437,21 +437,25 @@ export default function Tracking() {
 
 
   const computeRange = useCallback(() => {
-    const now = Date.now();
-    if (period === "custom") {
-      const startOfDay = (s: string) => { const d = new Date(s); d.setHours(0, 0, 0, 0); return d.toISOString(); };
-      const endOfDay = (s: string) => { const d = new Date(s); d.setHours(23, 59, 59, 999); return d.toISOString(); };
-      return {
-        sinceISO: customFrom ? startOfDay(customFrom) : new Date(now - 7 * 86400_000).toISOString(),
-        untilISO: customTo ? endOfDay(customTo) : new Date().toISOString(),
-      };
-    }
-    if (period === "today") {
+    const now = new Date();
+    const untilISO = now.toISOString();
+    if (periodMode.kind === "today") {
       const d = new Date(); d.setHours(0, 0, 0, 0);
-      return { sinceISO: d.toISOString(), untilISO: new Date().toISOString() };
+      return { sinceISO: d.toISOString(), untilISO };
     }
-    return { sinceISO: new Date(now - PERIODS[period].ms).toISOString(), untilISO: new Date().toISOString() };
-  }, [period, customFrom, customTo]);
+    if (periodMode.kind === "last") {
+      return { sinceISO: new Date(now.getTime() - periodMode.days * 86400_000).toISOString(), untilISO };
+    }
+    if (periodMode.kind === "max") {
+      return { sinceISO: "1970-01-01T00:00:00.000Z", untilISO };
+    }
+    // month "YYYY-MM"
+    const [y, m] = periodMode.ym.split("-").map(Number);
+    const start = new Date(y, (m ?? 1) - 1, 1, 0, 0, 0, 0);
+    const end = new Date(y, (m ?? 1), 0, 23, 59, 59, 999);
+    return { sinceISO: start.toISOString(), untilISO: end.toISOString() };
+  }, [periodMode]);
+
 
   const { sinceISO, untilISO } = useMemo(() => computeRange(), [computeRange]);
 
