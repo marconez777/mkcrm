@@ -64,15 +64,32 @@ export default function Features() {
               className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-site-surface transition-colors hover:border-site-primary/40"
             >
               <div className="relative aspect-[5/4] overflow-hidden bg-site-bg">
+                <img
+                  src={c.img}
+                  alt={`Mockup do produto MK-CRM mostrando ${c.title}`}
+                  loading="lazy"
+                  width={1024}
+                  height={1024}
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                />
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 opacity-70 transition-opacity duration-500 group-hover:opacity-100"
+                  className="pointer-events-none absolute inset-0 opacity-0 mix-blend-screen transition-opacity duration-500 group-hover:opacity-60"
                   style={{
                     background:
-                      "radial-gradient(circle at 50% 70%, hsl(var(--site-accent) / 0.5) 0%, transparent 65%)",
+                      "radial-gradient(circle at 50% 70%, hsl(var(--site-accent) / 0.55) 0%, transparent 65%)",
                   }}
                 />
-                <img
+                {/* Vinheta sutil para fundir com o card */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, transparent, hsl(var(--site-surface)) 95%)",
+                  }}
+                />
+              </div>
                   src={c.img}
                   alt={`Mockup do produto MK-CRM mostrando ${c.title}`}
                   loading="lazy"
