@@ -408,6 +408,8 @@ export default function Tracking() {
   const [visitorsPage, setVisitorsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
   const [leadsPage, setLeadsPage] = useState(1);
+  const [pagesPage, setPagesPage] = useState(1);
+
 
   const computeRange = useCallback(() => {
     const now = Date.now();
