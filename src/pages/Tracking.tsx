@@ -845,9 +845,11 @@ export default function Tracking() {
       <Tabs defaultValue="visitors">
         <TabsList>
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
+          <TabsTrigger value="pages">Páginas</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
         </TabsList>
+
 
 
         {/* Visitantes */}
