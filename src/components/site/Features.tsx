@@ -20,8 +20,8 @@ const CARDS = [
   {
     img: featureIa,
     eyebrow: "IA",
-    title: "Agentes dedicados que vendem por você",
-    body: "Configure agentes por etapa do funil, com memórias da clínica, ferramentas e custo controlado por orçamento mensal.",
+    title: "Agentes que vendem, organizam e resumem",
+    body: "Um agente responde no WhatsApp 24/7 com a base de conhecimento da clínica. Outro observa em silêncio e move os cards no Kanban, tagueia e cria tarefas. Um terceiro entrega um resumo de cada conversa. Tudo com controle de orçamento mensal.",
   },
 ] as const;
 
