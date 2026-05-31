@@ -153,7 +153,7 @@ export default function Pricing() {
               {plan.badge && (
                 <span
                   className={[
-                    "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 site-font-body text-[11px] uppercase tracking-wider",
+                    "absolute top-4 right-4 z-10 rounded-full px-3 py-1 site-font-body text-[11px] uppercase tracking-wider",
                     plan.highlight
                       ? "bg-site-primary text-site-bg"
                       : "border border-site-accent/60 bg-site-bg text-site-text",
