@@ -29,6 +29,8 @@ import EmailTemplateEditor from "./pages/email/EmailTemplateEditor";
 import Broadcasts from "./pages/Broadcasts";
 import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
+import MarketingSite from "./pages/site/MarketingSite";
+import RootGate from "./components/RootGate";
 
 
 const queryClient = new QueryClient();
@@ -52,6 +54,8 @@ const App = () => (
           <ShortcutsDialog />
           <CommandPalette />
           <Routes>
+            <Route path="/site" element={<MarketingSite />} />
+            <Route path="/" element={<RootGate />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<Invite />} />
