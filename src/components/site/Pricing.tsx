@@ -5,53 +5,67 @@ import { AuroraBlob, fadeUp, viewportOnce } from "./_anim";
 const PLANS = [
   {
     name: "Starter",
-    price: "R$ 197",
+    price: "R$ 97",
     period: "/mês",
-    desc: "Para clínicas começando a organizar o funil de vendas.",
+    note: "ou R$ 77/mês no anual · 3 dias grátis",
+    desc: "Para começar com IA, automação e disparos usando suas próprias APIs.",
     cta: "Começar grátis",
     highlight: false,
+    badge: null as string | null,
     features: [
-      "1 número de WhatsApp",
-      "Até 3 atendentes",
-      "Kanban + funil ilimitado",
-      "Inbox unificado",
-      "Suporte por e-mail",
+      "2 números de WhatsApp",
+      "Até 5 atendentes",
+      "CRM com IA",
+      "Agente de IA (sua API)",
+      "Disparos em massa (sua API)",
+      "Automações e cadências",
+      "Email marketing (1.000/dia)",
+      "Tracking avançado",
+      "Relatórios avançados",
+      "Suporte por IA",
+      "Onboarding via call (1h)",
     ],
   },
   {
     name: "Pro",
-    price: "R$ 497",
+    price: "R$ 297",
     period: "/mês",
-    desc: "O combo completo: automação, IA e disparos em massa.",
+    note: "ou R$ 197/mês no anual · 3 dias grátis",
+    desc: "Para clínicas que querem escalar atendimento e operação com prioridade.",
     cta: "Quero o Pro",
     highlight: true,
+    badge: "Mais escolhido" as string | null,
     features: [
-      "Até 5 números de WhatsApp",
+      "Tudo do Starter",
+      "5 números de WhatsApp",
       "Até 15 atendentes",
-      "Agentes de IA (orçamento incluso)",
-      "Automações e cadências",
-      "Disparos em massa + Resend",
-      "Relatórios avançados",
-      "Suporte prioritário",
+      "Suporte prioritário via call",
+      "Onboarding via call dedicado",
     ],
   },
   {
     name: "Scale",
-    price: "Sob consulta",
-    period: "",
-    desc: "Para redes e operações que precisam de SLA dedicado.",
+    price: "R$ 5.000",
+    period: "1x",
+    note: "1 ano de assinatura incluso",
+    desc: "Implementação done-for-you: copy, automações, IA e tracking configurados pela nossa equipe.",
     cta: "Falar com vendas",
     highlight: false,
+    badge: "Pagamento único" as string | null,
     features: [
-      "Números e atendentes ilimitados",
-      "IA com orçamento custom",
-      "Integrações sob medida",
-      "Onboarding white-glove",
-      "SLA + gerente dedicado",
+      "Tudo ilimitado (números e atendentes)",
+      "1 ano de assinatura incluso",
+      "Copy mestre e definição de persona",
+      "Setup completo da ferramenta",
+      "Automações e sequências de e-mail prontas",
+      "Campanhas configuradas",
+      "Treinamento do agente de IA",
+      "Configuração do tracking",
       "Treinamento da equipe",
     ],
   },
 ] as const;
+
 
 export default function Pricing() {
   return (
@@ -136,9 +150,16 @@ export default function Pricing() {
                 ].join(" ")}
                 style={{ background: "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)" }}
               />
-              {plan.highlight && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-site-primary px-3 py-1 site-font-body text-[11px] uppercase tracking-wider text-site-bg">
-                  Mais escolhido
+              {plan.badge && (
+                <span
+                  className={[
+                    "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 site-font-body text-[11px] uppercase tracking-wider",
+                    plan.highlight
+                      ? "bg-site-primary text-site-bg"
+                      : "border border-site-accent/60 bg-site-bg text-site-text",
+                  ].join(" ")}
+                >
+                  {plan.badge}
                 </span>
               )}
 
@@ -148,8 +169,12 @@ export default function Pricing() {
                   <span className="site-font-display text-[48px] leading-none">{plan.price}</span>
                   {plan.period && <span className="site-font-body text-[15px] text-site-muted">{plan.period}</span>}
                 </div>
+                {plan.note && (
+                  <p className="site-font-body mt-2 text-[12px] text-site-muted">{plan.note}</p>
+                )}
                 <p className="site-font-body mt-3 text-[14px] leading-relaxed text-site-muted">{plan.desc}</p>
               </div>
+
 
               <ul className="relative mt-8 flex flex-col gap-3">
                 {plan.features.map((f) => (
