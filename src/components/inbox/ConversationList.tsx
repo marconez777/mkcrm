@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2, Smartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,11 +8,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
+import type { WhatsappInstance } from "@/hooks/useWhatsappInstances";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 import { usePrompt, useConfirm } from "@/hooks/useDialogs";
 import { deleteLead } from "@/lib/delete-lead";
+
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -58,6 +60,9 @@ export default function ConversationList(props: {
   sort: SortKey; setSort: (v: SortKey) => void;
   stageFilter: string | null; setStageFilter: (v: string | null) => void;
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
+  instances?: WhatsappInstance[];
+  instanceId?: string | null;
+  setInstanceId?: (v: string | null) => void;
   onNew: () => void;
   loaded?: boolean;
   hasMore?: boolean;
@@ -67,7 +72,8 @@ export default function ConversationList(props: {
   refreshing?: boolean;
   onCollapse?: () => void;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing, instances = [], instanceId = null, setInstanceId } = props;
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prompt = usePrompt();
   const confirm = useConfirm();
