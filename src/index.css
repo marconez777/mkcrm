@@ -192,3 +192,26 @@
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
+
+/* ───────── Marketing site (institucional) ─────────
+   Marquee infinito + utilitário de fonte display.
+   Respeita prefers-reduced-motion. */
+@layer utilities {
+  .site-font-display { font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -0.02em; }
+  .site-font-body { font-family: "Inter", system-ui, sans-serif; }
+}
+
+@keyframes site-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.site-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: site-marquee 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-marquee-track { animation: none; }
+}
