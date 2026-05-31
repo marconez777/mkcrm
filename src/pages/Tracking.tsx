@@ -231,7 +231,7 @@ function StagePicker({
   onChange,
 }: {
   label: string;
-  stages: Record<string, { name: string; color: string }>;
+  stages: Record<string, { name: string; color: string; pipeline_id?: string }>;
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
@@ -291,7 +291,7 @@ function StagePicker({
 // Heurística: mapeia estágios por nome para consulta / tratamento / nutrição.
 // Baseada nos nomes encontrados no histórico (Consulta Agendada, Tratamento prescrito,
 // Procedimento Agendado, NUTRIÇÃO DE LEADS INATIVOS, Parou de Responder, etc.).
-function suggestStageConfig(stages: Record<string, { name: string; color: string }>): StageConfig {
+function suggestStageConfig(stages: Record<string, { name: string; color: string; pipeline_id?: string }>): StageConfig {
   const consulta: string[] = [];
   const tratamento: string[] = [];
   const nutricao: string[] = [];
@@ -353,7 +353,10 @@ export default function Tracking() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [visitors, setVisitors] = useState<VisitorRow[]>([]);
   const [links, setLinks] = useState<Record<string, LinkRow>>({});
-  const [stages, setStages] = useState<Record<string, { name: string; color: string }>>({});
+  const [stages, setStages] = useState<Record<string, { name: string; color: string; pipeline_id: string }>>({});
+  const [pipelines, setPipelines] = useState<Array<{ id: string; name: string; is_default: boolean; kind: string }>>([]);
+  const [salesPipelineId, setSalesPipelineId] = useState<string>("");
+
   const [allEventNames, setAllEventNames] = useState<string[]>([]);
 
   const [visitorsTotal, setVisitorsTotal] = useState(0);
@@ -384,7 +387,10 @@ export default function Tracking() {
       stageConfig.tratamento.length === 0 &&
       stageConfig.nutricao.length === 0;
     if (!empty) return;
-    const suggestion = suggestStageConfig(stages);
+    const scope = salesPipelineId
+      ? Object.fromEntries(Object.entries(stages).filter(([, s]) => s.pipeline_id === salesPipelineId))
+      : stages;
+    const suggestion = suggestStageConfig(scope);
     if (
       suggestion.consulta.length ||
       suggestion.tratamento.length ||
@@ -392,7 +398,28 @@ export default function Tracking() {
     ) {
       saveStageConfig(suggestion);
     }
-  }, [stages, stageConfigLoaded, stageConfig, saveStageConfig]);
+  }, [stages, salesPipelineId, stageConfigLoaded, stageConfig, saveStageConfig]);
+
+
+  // Apenas os estágios do pipeline oficial de vendas selecionado
+  const salesStages = useMemo(() => {
+    if (!salesPipelineId) return stages;
+    const filtered: typeof stages = {};
+    for (const [id, s] of Object.entries(stages)) {
+      if (s.pipeline_id === salesPipelineId) filtered[id] = s;
+    }
+    return filtered;
+  }, [stages, salesPipelineId]);
+
+  const onSelectSalesPipeline = (id: string) => {
+    setSalesPipelineId(id);
+    if (clinicId) {
+      try { localStorage.setItem(`tracking:sales-pipeline:${clinicId}`, id); } catch { /* ignore */ }
+    }
+    // Limpa seleção atual para que a auto-sugestão (filtrada) rode novamente
+    saveStageConfig({ consulta: [], tratamento: [], nutricao: [] });
+  };
+
 
 
   // visitor-level booleans
@@ -476,11 +503,25 @@ export default function Tracking() {
       }
       setLinks(linkMap);
 
-      // stages
-      const { data: stageData } = await supabase.from("pipeline_stages").select("id, name, color");
-      const stageMap: Record<string, { name: string; color: string }> = {};
-      (stageData ?? []).forEach((s: any) => { stageMap[s.id] = { name: s.name, color: s.color }; });
+      // stages + pipelines
+      const [{ data: stageData }, { data: pipeData }] = await Promise.all([
+        supabase.from("pipeline_stages").select("id, name, color, pipeline_id"),
+        supabase.from("pipelines").select("id, name, is_default, kind").order("position", { ascending: true }),
+      ]);
+      const stageMap: Record<string, { name: string; color: string; pipeline_id: string }> = {};
+      (stageData ?? []).forEach((s: any) => { stageMap[s.id] = { name: s.name, color: s.color, pipeline_id: s.pipeline_id }; });
       setStages(stageMap);
+      const pipes = (pipeData as any[]) ?? [];
+      setPipelines(pipes);
+      // pick default sales pipeline once
+      setSalesPipelineId((prev) => {
+        if (prev) return prev;
+        const saved = clinicId ? localStorage.getItem(`tracking:sales-pipeline:${clinicId}`) : null;
+        if (saved && pipes.some((p) => p.id === saved)) return saved;
+        const def = pipes.find((p) => p.is_default) || pipes.find((p) => p.kind === "sales") || pipes[0];
+        return def?.id ?? "";
+      });
+
 
       // compute per-visitor flags from events
       const flags: typeof vFlags = {};
@@ -773,14 +814,14 @@ export default function Tracking() {
           <div>
             <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+              Selecione o pipeline oficial de vendas e os estágios que contam como cada categoria. A escolha fica salva no navegador.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
             onClick={() => {
-              const s = suggestStageConfig(stages);
+              const s = suggestStageConfig(salesStages);
               saveStageConfig(s);
               toast.success(
                 `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
@@ -791,27 +832,43 @@ export default function Tracking() {
           </Button>
         </CardHeader>
 
-        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <StagePicker
-            label="Consulta fechada"
-            stages={stages}
-            selected={stageConfig.consulta}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
-          />
-          <StagePicker
-            label="Tratamento fechado"
-            stages={stages}
-            selected={stageConfig.tratamento}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
-          />
-          <StagePicker
-            label="Não converteu / nutrição"
-            stages={stages}
-            selected={stageConfig.nutricao}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
-          />
+        <CardContent className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Pipeline oficial de vendas</label>
+            <Select value={salesPipelineId} onValueChange={onSelectSalesPipeline}>
+              <SelectTrigger className="md:w-[360px]"><SelectValue placeholder="Selecione um pipeline" /></SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}{p.is_default ? " (padrão)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <StagePicker
+              label="Consulta fechada"
+              stages={salesStages}
+              selected={stageConfig.consulta}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
+            />
+            <StagePicker
+              label="Tratamento fechado"
+              stages={salesStages}
+              selected={stageConfig.tratamento}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
+            />
+            <StagePicker
+              label="Não converteu / nutrição"
+              stages={salesStages}
+              selected={stageConfig.nutricao}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
+            />
+          </div>
         </CardContent>
       </Card>
+
 
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
