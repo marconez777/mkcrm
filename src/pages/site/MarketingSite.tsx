@@ -7,6 +7,9 @@ import About from "@/components/site/About";
 import Features from "@/components/site/Features";
 import Services from "@/components/site/Services";
 import Integrations from "@/components/site/Integrations";
+import Testimonials from "@/components/site/Testimonials";
+import Pricing from "@/components/site/Pricing";
+import Blog from "@/components/site/Blog";
 
 /**
  * Site institucional do MK-CRM.
@@ -36,10 +39,9 @@ export default function MarketingSite() {
         <Services />
         <Integrations />
 
-        {/* Etapa 5 */}
-        <SectionPlaceholder id="depoimentos" label="Depoimentos" />
-        <SectionPlaceholder id="planos" label="Pricing" />
-        <SectionPlaceholder id="blog" label="Blog / Central (placeholder)" />
+        <Testimonials />
+        <Pricing />
+        <Blog />
 
         {/* Etapa 6 */}
         <SectionPlaceholder id="contato" label="Contato" />
