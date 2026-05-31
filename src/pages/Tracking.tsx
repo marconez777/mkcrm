@@ -479,11 +479,25 @@ export default function Tracking() {
       }
       setLinks(linkMap);
 
-      // stages
-      const { data: stageData } = await supabase.from("pipeline_stages").select("id, name, color");
-      const stageMap: Record<string, { name: string; color: string }> = {};
-      (stageData ?? []).forEach((s: any) => { stageMap[s.id] = { name: s.name, color: s.color }; });
+      // stages + pipelines
+      const [{ data: stageData }, { data: pipeData }] = await Promise.all([
+        supabase.from("pipeline_stages").select("id, name, color, pipeline_id"),
+        supabase.from("pipelines").select("id, name, is_default, kind").order("position", { ascending: true }),
+      ]);
+      const stageMap: Record<string, { name: string; color: string; pipeline_id: string }> = {};
+      (stageData ?? []).forEach((s: any) => { stageMap[s.id] = { name: s.name, color: s.color, pipeline_id: s.pipeline_id }; });
       setStages(stageMap);
+      const pipes = (pipeData as any[]) ?? [];
+      setPipelines(pipes);
+      // pick default sales pipeline once
+      setSalesPipelineId((prev) => {
+        if (prev) return prev;
+        const saved = clinicId ? localStorage.getItem(`tracking:sales-pipeline:${clinicId}`) : null;
+        if (saved && pipes.some((p) => p.id === saved)) return saved;
+        const def = pipes.find((p) => p.is_default) || pipes.find((p) => p.kind === "sales") || pipes[0];
+        return def?.id ?? "";
+      });
+
 
       // compute per-visitor flags from events
       const flags: typeof vFlags = {};
