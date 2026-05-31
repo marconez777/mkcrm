@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
+import { Search, Plus, Filter, ArrowDownUp, Image, Mic, FileText, PanelLeftClose, Pin, PinOff, MailOpen, Mail, MoreVertical, X, Archive, UserPlus, GitBranch, Bookmark, BookmarkPlus, Trash2, Smartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,11 +8,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from "@/integrations/supabase/client";
 import type { Attendant, Lead, Stage } from "@/types/crm";
 import type { FilterKey, SortKey } from "@/pages/Inbox";
+import type { WhatsappInstance } from "@/hooks/useWhatsappInstances";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 import { usePrompt, useConfirm } from "@/hooks/useDialogs";
 import { deleteLead } from "@/lib/delete-lead";
+
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -58,6 +60,9 @@ export default function ConversationList(props: {
   sort: SortKey; setSort: (v: SortKey) => void;
   stageFilter: string | null; setStageFilter: (v: string | null) => void;
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
+  instances?: WhatsappInstance[];
+  instanceId?: string | null;
+  setInstanceId?: (v: string | null) => void;
   onNew: () => void;
   loaded?: boolean;
   hasMore?: boolean;
@@ -67,7 +72,8 @@ export default function ConversationList(props: {
   refreshing?: boolean;
   onCollapse?: () => void;
 }) {
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing, instances = [], instanceId = null, setInstanceId } = props;
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prompt = usePrompt();
   const confirm = useConfirm();
@@ -172,10 +178,45 @@ export default function ConversationList(props: {
             </Button>
           )}
         </div>
+        {instances.length > 1 && setInstanceId && (
+          <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
+            <button
+              onClick={() => setInstanceId(null)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
+                instanceId === null ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+              )}
+              title="Todas as caixas"
+            >
+              <Smartphone className="h-3 w-3" />
+              Todas
+            </button>
+            {instances.map((inst) => {
+              const active = instanceId === inst.id;
+              const state = inst.connection_state;
+              const dot = state === "open" ? "bg-emerald-500" : state === "connecting" ? "bg-amber-500" : "bg-destructive";
+              return (
+                <button
+                  key={inst.id}
+                  onClick={() => setInstanceId(inst.id)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                  title={`${inst.name} • ${state ?? "desconhecido"}`}
+                >
+                  <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+                  <span className="max-w-[110px] truncate">{inst.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input id="inbox-search" placeholder="Buscar (nome, telefone, mensagem)" value={props.q} onChange={(e) => props.setQ(e.target.value)} className="h-9 pl-8" />
         </div>
+
         <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
           {filters.map((f) => (
             <button

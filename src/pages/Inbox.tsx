@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useStages } from "@/hooks/useCrm";
 import { useLeadsPaginated } from "@/hooks/useLeadsPaginated";
 import { useAttendants } from "@/hooks/useAttendants";
+import { useWhatsappInstances } from "@/hooks/useWhatsappInstances";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/crm";
 import ConversationList from "@/components/inbox/ConversationList";
@@ -16,12 +17,47 @@ import { playPing } from "@/hooks/useUnreadTitle";
 export type FilterKey = "all" | "unread" | "mine" | "unassigned" | "archived";
 export type SortKey = "recent" | "unread" | "oldest";
 
+const INSTANCE_LS_KEY = "inbox:instanceId";
+
 export default function InboxPage() {
-  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated();
+  const { instances, defaultInstance } = useWhatsappInstances();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [instanceId, setInstanceIdState] = useState<string | null>(() => {
+    const fromUrl = searchParams.get("inst");
+    if (fromUrl) return fromUrl;
+    const fromLs = typeof localStorage !== "undefined" ? localStorage.getItem(INSTANCE_LS_KEY) : null;
+    return fromLs;
+  });
+
+  // Once instances load, validate selection (drop stale ids, default to is_default)
+  useEffect(() => {
+    if (instances.length === 0) return;
+    if (instanceId && !instances.some((i) => i.id === instanceId)) {
+      setInstanceIdState(null);
+    } else if (instanceId === null && searchParams.get("inst") == null && !localStorage.getItem(INSTANCE_LS_KEY) && defaultInstance) {
+      // First-time pick the default instance only when nothing was previously chosen
+      setInstanceIdState(defaultInstance.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instances.length]);
+
+  const setInstanceId = (v: string | null) => {
+    setInstanceIdState(v);
+    const next = new URLSearchParams(searchParams);
+    if (v) next.set("inst", v); else next.delete("inst");
+    setSearchParams(next, { replace: true });
+    try {
+      if (v) localStorage.setItem(INSTANCE_LS_KEY, v);
+      else localStorage.removeItem(INSTANCE_LS_KEY);
+    } catch {}
+  };
+
+  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated(instanceId);
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
   const { leadId } = useParams();
+
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<SortKey>("recent");
@@ -151,6 +187,9 @@ export default function InboxPage() {
             setStageFilter={setStageFilter}
             tagFilter={tagFilter}
             setTagFilter={setTagFilter}
+            instances={instances}
+            instanceId={instanceId}
+            setInstanceId={setInstanceId}
             onNew={() => setNewOpen(true)}
             loaded={leadsLoaded}
             hasMore={hasMore}
@@ -160,6 +199,7 @@ export default function InboxPage() {
             refreshing={refreshing}
             onCollapse={() => setShowList(false)}
           />
+
         </aside>
       )}
 
@@ -224,7 +264,10 @@ export default function InboxPage() {
         onClose={() => setNewOpen(false)}
         onCreated={(lid) => { setNewOpen(false); nav(`/inbox/${lid}`); }}
         defaultStageId={stages[0]?.id ?? null}
+        defaultInstanceId={instanceId ?? defaultInstance?.id ?? null}
+        instances={instances}
       />
     </div>
   );
 }
+
