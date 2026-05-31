@@ -698,7 +698,8 @@ export default function Tracking() {
     const map = new Map<string, { path: string; sampleUrl: string | null; visitors: Set<string>; leads: Set<string> }>();
     for (const e of events) {
       if (e.event_name !== "page_view") continue;
-      const path = e.page_path || (e.page_url ? pathOf(e.page_url) : null);
+      let path = e.page_path || (e.page_url ? pathOf(e.page_url) : null);
+      if (path && /^\/meu-resultado(\/|$)/i.test(path)) path = "/meu-resultado/*";
       if (!path) continue;
       let row = map.get(path);
       if (!row) {
