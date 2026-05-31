@@ -33,10 +33,18 @@ export default function Testimonials() {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[700px] -translate-x-1/2 opacity-40 blur-3xl"
+        className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[820px] -translate-x-1/2 opacity-65 blur-3xl"
         style={{
           background:
-            "radial-gradient(ellipse at center, hsl(var(--site-accent) / 0.35), transparent 70%)",
+            "radial-gradient(ellipse at center, hsl(var(--site-accent) / 0.55), transparent 70%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[-10%] bottom-[-10%] h-[420px] w-[420px] rounded-full opacity-50 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.4), transparent 70%)",
         }}
       />
 
@@ -57,15 +65,23 @@ export default function Testimonials() {
           {TESTIMONIALS.map((t) => (
             <li
               key={t.name}
-              className="group relative flex flex-col gap-6 rounded-3xl border border-white/10 bg-site-surface p-7 transition-all hover:-translate-y-1 hover:border-site-primary/50"
+              className="group relative flex flex-col gap-6 overflow-hidden rounded-3xl border border-white/10 bg-site-surface p-7 transition-all hover:-translate-y-1 hover:border-site-accent/60"
             >
-              <Quote className="h-7 w-7 text-site-primary" aria-hidden />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity group-hover:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(circle at center, hsl(var(--site-accent) / 0.6), transparent 70%)",
+                }}
+              />
+              <Quote className="relative h-7 w-7 text-site-primary" aria-hidden />
 
-              <p className="site-font-body text-[16px] leading-relaxed text-site-text">
+              <p className="relative site-font-body text-[16px] leading-relaxed text-site-text">
                 “{t.quote}”
               </p>
 
-              <div className="mt-auto flex items-center justify-between gap-4 border-t border-white/5 pt-5">
+              <div className="relative mt-auto flex items-center justify-between gap-4 border-t border-white/5 pt-5">
                 <div>
                   <p className="site-font-display text-[15px] leading-tight">
                     {t.name}
@@ -84,7 +100,7 @@ export default function Testimonials() {
                 </div>
               </div>
 
-              <div className="absolute -top-3 left-7 rounded-full border border-site-primary/40 bg-site-bg px-3 py-1">
+              <div className="absolute -top-3 left-7 rounded-full border border-site-accent/50 bg-site-bg px-3 py-1">
                 <span className="site-font-body text-[11px] uppercase tracking-wider text-site-primary">
                   {t.metric}
                 </span>

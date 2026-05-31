@@ -60,10 +60,18 @@ export default function Pricing() {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute left-[-10%] top-1/2 h-[500px] w-[500px] -translate-y-1/2 rounded-full opacity-40 blur-3xl"
+        className="pointer-events-none absolute left-[-10%] top-1/2 h-[560px] w-[560px] -translate-y-1/2 rounded-full opacity-65 blur-3xl"
         style={{
           background:
-            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.35), transparent 70%)",
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[-12%] top-0 h-[440px] w-[440px] rounded-full opacity-55 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.45), transparent 70%)",
         }}
       />
 
@@ -89,19 +97,31 @@ export default function Pricing() {
             <li
               key={p.name}
               className={[
-                "relative flex flex-col rounded-3xl border p-8 transition-all",
+                "group relative flex flex-col overflow-hidden rounded-3xl border p-8 transition-all",
                 p.highlight
-                  ? "border-site-primary/60 bg-site-bg shadow-[0_30px_80px_-30px_hsl(var(--site-primary)/0.4)]"
-                  : "border-white/10 bg-site-bg hover:border-white/20",
+                  ? "border-site-accent/60 bg-site-bg shadow-[0_30px_80px_-30px_hsl(var(--site-accent)/0.6)]"
+                  : "border-white/10 bg-site-bg hover:border-site-accent/50",
               ].join(" ")}
             >
+              {/* halo roxo */}
+              <div
+                aria-hidden
+                className={[
+                  "pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full blur-3xl transition-opacity",
+                  p.highlight ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                ].join(" ")}
+                style={{
+                  background:
+                    "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)",
+                }}
+              />
               {p.highlight && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-site-primary px-3 py-1 site-font-body text-[11px] uppercase tracking-wider text-site-bg">
                   Mais escolhido
                 </span>
               )}
 
-              <div>
+              <div className="relative">
                 <p className="site-font-display text-[15px] uppercase tracking-wider text-site-muted">
                   {p.name}
                 </p>
@@ -120,7 +140,7 @@ export default function Pricing() {
                 </p>
               </div>
 
-              <ul className="mt-8 flex flex-col gap-3">
+              <ul className="relative mt-8 flex flex-col gap-3">
                 {p.features.map((f) => (
                   <li
                     key={f}
@@ -137,10 +157,10 @@ export default function Pricing() {
               <a
                 href="#contato"
                 className={[
-                  "mt-10 inline-flex h-12 items-center justify-center rounded-full px-6 site-font-body text-[14px] transition-all",
+                  "relative mt-10 inline-flex h-12 items-center justify-center rounded-full px-6 site-font-body text-[14px] transition-all",
                   p.highlight
                     ? "bg-site-primary text-site-bg hover:brightness-110"
-                    : "border border-white/15 text-site-text hover:border-site-primary/60 hover:text-site-primary",
+                    : "border border-white/15 text-site-text hover:border-site-accent/70 hover:text-site-text",
                 ].join(" ")}
               >
                 {p.cta}

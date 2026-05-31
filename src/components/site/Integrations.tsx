@@ -61,10 +61,18 @@ export default function Integrations() {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute right-[-10%] top-[-20%] h-[500px] w-[500px] rounded-full opacity-40 blur-3xl"
+        className="pointer-events-none absolute right-[-12%] top-[-20%] h-[560px] w-[560px] rounded-full opacity-60 blur-3xl"
         style={{
           background:
-            "radial-gradient(circle at center, hsl(var(--site-primary) / 0.25), transparent 70%)",
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.5), transparent 70%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-[-10%] bottom-[-10%] h-[440px] w-[440px] rounded-full opacity-50 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.4), transparent 70%)",
         }}
       />
 
@@ -89,12 +97,20 @@ export default function Integrations() {
           {INTEGRATIONS.map(({ icon: Icon, name, desc }) => (
             <li
               key={name}
-              className="group relative flex flex-col gap-4 rounded-2xl border border-white/10 bg-site-bg p-5 transition-all hover:-translate-y-1 hover:border-site-primary/60"
+              className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-site-bg p-5 transition-all hover:-translate-y-1 hover:border-site-accent/60"
             >
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-site-surface text-site-primary transition-colors group-hover:border-site-primary/60">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -bottom-16 -right-16 h-40 w-40 rounded-full opacity-0 blur-3xl transition-opacity group-hover:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(circle at center, hsl(var(--site-accent) / 0.6), transparent 70%)",
+                }}
+              />
+              <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-site-surface text-site-primary transition-colors group-hover:border-site-accent/60">
                 <Icon className="h-5 w-5" />
               </span>
-              <div>
+              <div className="relative">
                 <h3 className="site-font-display text-[17px] leading-tight">
                   {name}
                 </h3>
