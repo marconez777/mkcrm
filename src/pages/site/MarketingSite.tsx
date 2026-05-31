@@ -33,9 +33,8 @@ export default function MarketingSite() {
         <About />
         <Features />
 
-        {/* Etapa 4 */}
-        <SectionPlaceholder id="servicos" label="Serviços numerados" />
-        <SectionPlaceholder id="integracoes" label="Integrações" />
+        <Services />
+        <Integrations />
 
         {/* Etapa 5 */}
         <SectionPlaceholder id="depoimentos" label="Depoimentos" />
