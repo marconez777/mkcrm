@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
