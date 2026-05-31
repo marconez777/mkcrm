@@ -5,6 +5,8 @@ import Hero from "@/components/site/Hero";
 import Marquee from "@/components/site/Marquee";
 import About from "@/components/site/About";
 import Features from "@/components/site/Features";
+import Services from "@/components/site/Services";
+import Integrations from "@/components/site/Integrations";
 
 /**
  * Site institucional do MK-CRM.
@@ -31,9 +33,8 @@ export default function MarketingSite() {
         <About />
         <Features />
 
-        {/* Etapa 4 */}
-        <SectionPlaceholder id="servicos" label="Serviços numerados" />
-        <SectionPlaceholder id="integracoes" label="Integrações" />
+        <Services />
+        <Integrations />
 
         {/* Etapa 5 */}
         <SectionPlaceholder id="depoimentos" label="Depoimentos" />
