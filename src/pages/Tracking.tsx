@@ -753,7 +753,14 @@ export default function Tracking() {
 
       {/* Filtros globais */}
       <Card className="mb-4">
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Filtros globais</CardTitle></CardHeader>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-sm">Filtros globais</CardTitle>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen((o) => !o)}>
+            {filtersOpen ? "Ocultar" : "Expandir"}
+            <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+          </Button>
+        </CardHeader>
+        {filtersOpen && (
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-6">
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Período</label>
