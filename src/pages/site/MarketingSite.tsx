@@ -10,7 +10,7 @@ import Integrations from "@/components/site/Integrations";
 import Testimonials from "@/components/site/Testimonials";
 import Pricing from "@/components/site/Pricing";
 import Blog from "@/components/site/Blog";
-import Contact from "@/components/site/Contact";
+
 
 /**
  * Site institucional do MK-CRM (deslogado).
@@ -41,8 +41,6 @@ export default function MarketingSite() {
         <Testimonials />
         <Pricing />
         <Blog />
-
-        <Contact />
       </main>
 
       <SiteFooter />
