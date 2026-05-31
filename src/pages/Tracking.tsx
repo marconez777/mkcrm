@@ -739,12 +739,28 @@ export default function Tracking() {
 
       {/* Configuração de estágios */}
       <Card className="mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
-          </p>
+        <CardHeader className="pb-2 flex flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const s = suggestStageConfig(stages);
+              saveStageConfig(s);
+              toast.success(
+                `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
+              );
+            }}
+          >
+            Sugerir automaticamente
+          </Button>
         </CardHeader>
+
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <StagePicker
             label="Consulta fechada"
