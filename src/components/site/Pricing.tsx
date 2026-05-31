@@ -150,9 +150,16 @@ export default function Pricing() {
                 ].join(" ")}
                 style={{ background: "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)" }}
               />
-              {plan.highlight && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-site-primary px-3 py-1 site-font-body text-[11px] uppercase tracking-wider text-site-bg">
-                  Mais escolhido
+              {plan.badge && (
+                <span
+                  className={[
+                    "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 site-font-body text-[11px] uppercase tracking-wider",
+                    plan.highlight
+                      ? "bg-site-primary text-site-bg"
+                      : "border border-site-accent/60 bg-site-bg text-site-text",
+                  ].join(" ")}
+                >
+                  {plan.badge}
                 </span>
               )}
 
@@ -162,8 +169,12 @@ export default function Pricing() {
                   <span className="site-font-display text-[48px] leading-none">{plan.price}</span>
                   {plan.period && <span className="site-font-body text-[15px] text-site-muted">{plan.period}</span>}
                 </div>
+                {plan.note && (
+                  <p className="site-font-body mt-2 text-[12px] text-site-muted">{plan.note}</p>
+                )}
                 <p className="site-font-body mt-3 text-[14px] leading-relaxed text-site-muted">{plan.desc}</p>
               </div>
+
 
               <ul className="relative mt-8 flex flex-col gap-3">
                 {plan.features.map((f) => (
