@@ -814,14 +814,14 @@ export default function Tracking() {
           <div>
             <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+              Selecione o pipeline oficial de vendas e os estágios que contam como cada categoria. A escolha fica salva no navegador.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
             onClick={() => {
-              const s = suggestStageConfig(stages);
+              const s = suggestStageConfig(salesStages);
               saveStageConfig(s);
               toast.success(
                 `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
@@ -832,27 +832,43 @@ export default function Tracking() {
           </Button>
         </CardHeader>
 
-        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <StagePicker
-            label="Consulta fechada"
-            stages={stages}
-            selected={stageConfig.consulta}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
-          />
-          <StagePicker
-            label="Tratamento fechado"
-            stages={stages}
-            selected={stageConfig.tratamento}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
-          />
-          <StagePicker
-            label="Não converteu / nutrição"
-            stages={stages}
-            selected={stageConfig.nutricao}
-            onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
-          />
+        <CardContent className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Pipeline oficial de vendas</label>
+            <Select value={salesPipelineId} onValueChange={onSelectSalesPipeline}>
+              <SelectTrigger className="md:w-[360px]"><SelectValue placeholder="Selecione um pipeline" /></SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}{p.is_default ? " (padrão)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <StagePicker
+              label="Consulta fechada"
+              stages={salesStages}
+              selected={stageConfig.consulta}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
+            />
+            <StagePicker
+              label="Tratamento fechado"
+              stages={salesStages}
+              selected={stageConfig.tratamento}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
+            />
+            <StagePicker
+              label="Não converteu / nutrição"
+              stages={salesStages}
+              selected={stageConfig.nutricao}
+              onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
+            />
+          </div>
         </CardContent>
       </Card>
+
 
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
