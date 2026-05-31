@@ -1,33 +1,38 @@
-# Adicionar atmosfera roxa nas seções intermediárias
 
-Hoje só **Hero** e **Features** carregam o roxo `#590675` (`--site-accent`) com força — glows grandes de fundo e halos nos cards. As seções abaixo ficaram apenas pretas + verde, o que quebra a continuidade visual mostrada nos prints.
+## Objetivo
 
-## Seções afetadas
-1. **Serviços** (`O que entregamos`)
-2. **Integrações nativas**
-3. **Depoimentos** (`Quem já usa`)
-4. **Planos** (`Pricing`)
-5. **Blog / Central** (`Aprenda · Cresça`)
+Adicionar rotação suave ao objeto 3D do Hero (`hero-3d.png`) que reage ao progresso do scroll: gira ao descer, reverte ao subir. Sem afetar layout, textos, botões, navbar ou background.
 
-## O que muda em cada uma
+## Arquivo afetado
 
-Mantendo o padrão Hero/Features (radial roxo de fundo + halo roxo em hover nos cards), aplicar de forma consistente:
+- `src/components/site/Hero.tsx` — único arquivo alterado. Apenas o `<img src={hero3d} />` e seu wrapper recebem a animação.
 
-- **Glows de fundo**: aumentar tamanho/opacidade dos blobs roxos já existentes em Serviços/Depoimentos/Planos, e adicionar onde faltam (Integrações ganha glow roxo no lado oposto do verde; Blog ganha um blob roxo central no topo).
-- **Halos roxos nos cards**: cada card das 5 seções recebe um `radial-gradient` roxo posicionado atrás dele que aparece/intensifica no `group-hover`, igual ao tratamento dos cards de Features.
-- **Bordas/acentos no hover**: trocar `hover:border-site-primary/…` por um mix `hover:border-site-accent/60` em alguns elementos (badges de número em Serviços, ícones em Integrações), criando alternância verde↔roxo entre seções vizinhas.
-- **Plano destaque (Pro)**: trocar o shadow verde por um shadow roxo (`shadow-[0_30px_80px_-30px_hsl(var(--site-accent)/0.55)]`) para dar peso de "premium" — o badge "Mais escolhido" continua verde.
+## Abordagem técnica
 
-## Regras
+Usar **Framer Motion** (`motion` + `useScroll` + `useTransform` + `useSpring`) — já é uma dependência comum e performática, sem listeners manuais de scroll.
 
-- Tudo via tokens semânticos (`--site-accent`, `--site-primary`). Nenhum hex no JSX.
-- Só CSS/Tailwind — não mexer em conteúdo, estrutura, copy ou layout.
-- Não adicionar novos assets de imagem.
+1. Transformar o `<img>` do hero em `motion.img` (mantendo classes, `src`, `alt`, dimensões).
+2. `useScroll()` com `offset: ["start start", "end start"]` ancorado a um `ref` no wrapper da imagem → progresso de 0 a 1 ao longo dos primeiros ~600–900px da Hero.
+3. Mapear o progresso com `useTransform`:
+   - `rotateY`: 0 → 25deg
+   - `rotateZ`: 0 → 8deg
+   - `scale`: 1 → 1.03
+4. Envolver cada transform em `useSpring({ stiffness: 80, damping: 20, mass: 0.6 })` para inércia/suavidade — evita tremidas e dá sensação flutuante.
+5. Aplicar via `style={{ rotateY, rotateZ, scale }}` no `motion.img`. Adicionar `style={{ transformPerspective: 1000, willChange: "transform" }}` para profundidade 3D real e GPU.
+6. O halo verde (div blur atrás da imagem) permanece estático — só o objeto gira.
 
-## Arquivos editados
+## Acessibilidade e mobile
 
-- `src/components/site/Services.tsx`
-- `src/components/site/Integrations.tsx`
-- `src/components/site/Testimonials.tsx`
-- `src/components/site/Pricing.tsx`
-- `src/components/site/Blog.tsx`
+- `useReducedMotion()` do Framer Motion: se `true`, retornar transforms fixos em 0 (sem animação).
+- Mobile (`matchMedia("(max-width: 768px)")` num `useEffect` com state): reduzir intensidade para ~40% (rotateY 0→10deg, rotateZ 0→3deg, sem scale). Detecção uma vez no mount, com listener de resize cancelável.
+
+## Garantias
+
+- Só `transform` e `opacity` (não usados aqui) — nada de `top/left/width/height/margin/padding`.
+- Sem scroll hijacking: nenhum `preventDefault`, nenhum listener de wheel.
+- Layout, copy, cores e estrutura do Hero preservados — apenas o elemento `<img>` ganha `motion` + `style` de transform.
+- Springs garantem reversibilidade automática ao subir o scroll.
+
+## Validação
+
+- Conferir no preview (desktop 1138px e mobile <768px) que a rotação aparece nos primeiros ~700px de scroll, estabiliza depois, e que nada mais muda visualmente.

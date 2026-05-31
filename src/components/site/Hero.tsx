@@ -1,8 +1,52 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Play } from "lucide-react";
+import {
+  motion,
+  useScroll,
+  useSpring,
+  useTransform,
+  useReducedMotion,
+  type MotionValue,
+} from "framer-motion";
 import hero3d from "@/assets/site/hero-3d.png";
 
 export default function Hero() {
+  const imgWrapRef = useRef<HTMLDivElement | null>(null);
+  const reduceMotion = useReducedMotion();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Progresso de scroll ancorado ao wrapper da imagem.
+  // Vai de 0 (topo do hero alinhado com topo da viewport) a 1 (final do hero saindo).
+  const { scrollYProgress } = useScroll({
+    target: imgWrapRef,
+    offset: ["start start", "end start"],
+  });
+
+  // Intensidade reduzida em mobile; zerada com prefers-reduced-motion.
+  const intensity = reduceMotion ? 0 : isMobile ? 0.4 : 1;
+
+  const rotateYRaw = useTransform(scrollYProgress, [0, 1], [0, 25 * intensity]);
+  const rotateZRaw = useTransform(scrollYProgress, [0, 1], [0, 8 * intensity]);
+  const scaleRaw = useTransform(
+    scrollYProgress,
+    [0, 1],
+    [1, 1 + 0.03 * intensity],
+  );
+
+  const spring = { stiffness: 80, damping: 20, mass: 0.6 };
+  const rotateY = useSpring(rotateYRaw, spring) as MotionValue<number>;
+  const rotateZ = useSpring(rotateZRaw, spring) as MotionValue<number>;
+  const scale = useSpring(scaleRaw, spring) as MotionValue<number>;
+
   return (
     <section
       id="hero"
@@ -83,8 +127,12 @@ export default function Hero() {
           </dl>
         </div>
 
-        <div className="relative mx-auto w-full max-w-[560px]">
-          {/* Halo verde por trás da imagem */}
+        <div
+          ref={imgWrapRef}
+          className="relative mx-auto w-full max-w-[560px]"
+          style={{ perspective: 1000 }}
+        >
+          {/* Halo verde por trás da imagem (estático) */}
           <div
             aria-hidden
             className="absolute inset-0 -z-10 blur-3xl"
@@ -93,13 +141,21 @@ export default function Hero() {
                 "radial-gradient(circle at 50% 50%, hsl(var(--site-primary) / 0.35) 0%, transparent 70%)",
             }}
           />
-          <img
+          <motion.img
             src={hero3d}
             alt="Escultura 3D abstrata representando a inteligência do MK-CRM"
             width={1024}
             height={1024}
             className="h-auto w-full select-none drop-shadow-[0_30px_60px_rgba(30,212,0,0.18)]"
             draggable={false}
+            style={{
+              rotateY,
+              rotateZ,
+              scale,
+              transformPerspective: 1000,
+              transformStyle: "preserve-3d",
+              willChange: "transform",
+            }}
           />
         </div>
       </div>
