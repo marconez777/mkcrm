@@ -208,6 +208,8 @@ function SourceCell({ source, medium, campaign, channelGroup }: { source: string
   );
 }
 
+type StageConfig = { consulta: string[]; tratamento: string[]; nutricao: string[] };
+
 export default function Tracking() {
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [customFrom, setCustomFrom] = useState("");
@@ -217,6 +219,7 @@ export default function Tracking() {
   const { isSuperAdmin, membership } = useAuth();
   const confirm = useConfirm();
   const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
+  const clinicId = membership?.clinic?.id ?? null;
 
   // global filters
   const [eventNameFilter, setEventNameFilter] = useState("");
@@ -236,11 +239,23 @@ export default function Tracking() {
   const [stages, setStages] = useState<Record<string, { name: string; color: string }>>({});
   const [allEventNames, setAllEventNames] = useState<string[]>([]);
 
-  const [summary, setSummary] = useState({
-    visitors: 0, sessions: 0, events: 0, page_view: 0,
-    whatsapp_click: 0, form_start: 0, form_submit_attempt: 0,
-    leads_identified: 0, visitors_with_lead: 0, conv_rate: 0,
-  });
+  const [visitorsTotal, setVisitorsTotal] = useState(0);
+
+  // stage configuration (persisted per clinic in localStorage)
+  const [stageConfig, setStageConfig] = useState<StageConfig>({ consulta: [], tratamento: [], nutricao: [] });
+  useEffect(() => {
+    if (!clinicId) return;
+    try {
+      const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
+      if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
+    } catch { /* ignore */ }
+  }, [clinicId]);
+  const saveStageConfig = useCallback((next: StageConfig) => {
+    setStageConfig(next);
+    if (clinicId) {
+      try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
+    }
+  }, [clinicId]);
 
   // visitor-level booleans
   const [vFlags, setVFlags] = useState<Record<string, { wa: boolean; fs: boolean; fa: boolean; sessions: number; events: number; lastPage: string | null }>>({});
@@ -255,8 +270,6 @@ export default function Tracking() {
   const [visitorsPage, setVisitorsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
   const [leadsPage, setLeadsPage] = useState(1);
-  const [pagesPage, setPagesPage] = useState(1);
-  const [waPagesPage, setWaPagesPage] = useState(1);
 
   const computeRange = useCallback(() => {
     const now = Date.now();
