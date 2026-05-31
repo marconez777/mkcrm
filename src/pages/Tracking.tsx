@@ -652,6 +652,34 @@ export default function Tracking() {
     }).sort((a, b) => (b.link.created_at || "").localeCompare(a.link.created_at || ""));
   }, [links, visitors, events, stages]);
 
+  // Relatório de páginas: visitas (visitantes únicos com page_view), leads (visitantes que viraram lead) e conversão
+  const pageReport = useMemo(() => {
+    const map = new Map<string, { path: string; sampleUrl: string | null; visitors: Set<string>; leads: Set<string> }>();
+    for (const e of events) {
+      if (e.event_name !== "page_view") continue;
+      const path = e.page_path || (e.page_url ? pathOf(e.page_url) : null);
+      if (!path) continue;
+      let row = map.get(path);
+      if (!row) {
+        row = { path, sampleUrl: e.page_url, visitors: new Set(), leads: new Set() };
+        map.set(path, row);
+      }
+      row.visitors.add(e.visitor_id);
+      const leadId = links[e.visitor_id]?.lead_id;
+      if (leadId) row.leads.add(leadId);
+    }
+    return Array.from(map.values())
+      .map((r) => ({
+        path: r.path,
+        sampleUrl: r.sampleUrl,
+        visits: r.visitors.size,
+        leads: r.leads.size,
+        rate: r.visitors.size > 0 ? r.leads.size / r.visitors.size : 0,
+      }))
+      .sort((a, b) => b.visits - a.visits);
+  }, [events, links]);
+
+
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
