@@ -353,7 +353,10 @@ export default function Tracking() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [visitors, setVisitors] = useState<VisitorRow[]>([]);
   const [links, setLinks] = useState<Record<string, LinkRow>>({});
-  const [stages, setStages] = useState<Record<string, { name: string; color: string }>>({});
+  const [stages, setStages] = useState<Record<string, { name: string; color: string; pipeline_id: string }>>({});
+  const [pipelines, setPipelines] = useState<Array<{ id: string; name: string; is_default: boolean; kind: string }>>([]);
+  const [salesPipelineId, setSalesPipelineId] = useState<string>("");
+
   const [allEventNames, setAllEventNames] = useState<string[]>([]);
 
   const [visitorsTotal, setVisitorsTotal] = useState(0);
