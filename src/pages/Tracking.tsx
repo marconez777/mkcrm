@@ -874,9 +874,53 @@ export default function Tracking() {
       </Card>
 
 
+      {/* Barra de período (sempre visível) */}
+      {(() => {
+        const months: { value: string; label: string }[] = [];
+        const now = new Date();
+        for (let i = 0; i < 24; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+          months.push({ value: ym, label: label.charAt(0).toUpperCase() + label.slice(1) });
+        }
+        const isActive = (k: PeriodMode["kind"], days?: number) =>
+          periodMode.kind === k && (days === undefined || (periodMode.kind === "last" && periodMode.days === days));
+        const chip = (label: string, active: boolean, onClick: () => void) => (
+          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick}>
+            {label}
+          </Button>
+        );
+        return (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Período:</span>
+            {chip("Hoje", isActive("today"), () => setPeriodMode({ kind: "today" }))}
+            {chip("7 dias", isActive("last", 7), () => setPeriodMode({ kind: "last", days: 7 }))}
+            {chip("30 dias", isActive("last", 30), () => setPeriodMode({ kind: "last", days: 30 }))}
+            {chip("Máximo", isActive("max"), () => setPeriodMode({ kind: "max" }))}
+            <div className="ml-2 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Mês:</span>
+              <Select
+                value={periodMode.kind === "month" ? periodMode.ym : ""}
+                onValueChange={(v) => setPeriodMode({ kind: "month", ym: v })}
+              >
+                <SelectTrigger className="h-8 w-[180px]">
+                  <SelectValue placeholder="Selecionar mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+
         <KpiCard label="Visitas únicas" value={kpis.visitors} />
         <KpiCard label="Leads via formulário" value={kpis.formLeads} />
         <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
