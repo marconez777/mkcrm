@@ -1,69 +1,57 @@
-# Plano: Aliviar animações scroll-based
+## Atualização da Pricing Table
 
-## Diagnóstico
+Vou atualizar **`src/components/site/Pricing.tsx`** com o novo conteúdo dos planos, mantendo todo o visual, animações e estrutura atuais (apenas troca de dados + um pequeno ajuste para suportar preço anual e selo "1x" no Scale).
 
-Hoje o site tem 7 seções animadas (Features, Services, Integrations, Testimonials, Pricing, Blog, About) com o mesmo padrão pesado. Os principais gargalos:
+### Novos planos
 
-1. **Springs em excesso** — cada card faz 5 `useSpring` (opacity, y, scale, rotateX, active) + 2–3 transforms derivados. Em Services (6 cards) são 30+ springs animando em cada frame do scroll. Springs forçam re-cálculo a cada rAF mesmo quando o scroll para.
-2. **Listeners de scroll redundantes** — cada seção monta seu próprio `useScroll`, totalizando 7 observers de scroll simultâneos com cálculo independente de `scrollYProgress`.
-3. **Auroras pesadas** — 4 `AuroraBlob` por seção × 7 seções = até 28 elementos com `blur-3xl` (filtro GPU caríssimo) animando `opacity/scale/x/y` continuamente em loop infinito, mesmo quando a seção está fora da viewport.
-4. **rotateX + perspective** — força camada 3D extra na composição.
-5. **Active highlight curve** — adiciona spring + box-shadow animado por card (box-shadow não é GPU-acelerado e dispara repaint).
-6. **Auroras animam offscreen** — `repeat: Infinity` mantém o rAF rodando mesmo quando a seção não está visível.
+**Starter** — destaque: `false`
+- Preço: `R$ 97` `/mês` · sublinha: "ou R$ 77/mês no anual · 3 dias grátis"
+- Desc: "Para começar com IA, automação e disparos usando suas próprias APIs."
+- CTA: "Começar grátis"
+- Features:
+  - 2 números de WhatsApp
+  - Até 5 atendentes
+  - CRM com IA
+  - Agente de IA (sua API)
+  - Disparos em massa (sua API)
+  - Automações e cadências
+  - Email marketing (1.000/dia)
+  - Tracking avançado
+  - Relatórios avançados
+  - Suporte por IA
+  - Onboarding via call (1h)
 
-## Estratégia
+**Pro** — destaque: `true` (selo "Mais escolhido")
+- Preço: `R$ 297` `/mês` · sublinha: "ou R$ 197/mês no anual · 3 dias grátis"
+- Desc: "Para clínicas que querem escalar atendimento e operação com prioridade."
+- CTA: "Quero o Pro"
+- Features:
+  - Tudo do Starter
+  - 5 números de WhatsApp
+  - Até 15 atendentes
+  - Suporte prioritário via call
+  - Onboarding via call dedicado
 
-Manter a sensação premium, mas cortar o custo:
+**Scale** — destaque: `false`, mas com badge "Pagamento único"
+- Preço: `R$ 5.000` `1x` · sublinha: "1 ano de assinatura incluso"
+- Desc: "Implementação done-for-you: copy, automações, IA e tracking configurados pela nossa equipe."
+- CTA: "Falar com vendas"
+- Features:
+  - Tudo ilimitado (números e atendentes)
+  - 1 ano de assinatura incluso
+  - Copy mestre e definição de persona
+  - Setup completo da ferramenta
+  - Automações e sequências de e-mail prontas
+  - Campanhas configuradas
+  - Treinamento do agente de IA
+  - Configuração do tracking
+  - Treinamento da equipe
 
-### A. Substituir scroll-based contínuo por entry-once em todas as seções **exceto Services**
-- Trocar `useScroll` + `useTransform` + `useSpring` por **`whileInView`** (`viewport={{ once: true, margin: "-10% 0px" }}`) com `transition` tween curta. Isso elimina o cálculo por frame: a animação roda uma vez na entrada e para. Visualmente quase idêntico ao efeito de entrada atual.
-- Remover springs encadeados; usar `initial`/`animate` simples com `ease: [0.22, 1, 0.36, 1]` e `duration: 0.6–0.8`.
-- Manter cascata (delay por índice de card: `0.06 * i`).
-- Remover `rotateX` e `scale` da entrada padrão (manter só `opacity` + `y`). O ganho de fluidez é grande e o efeito final continua premium.
+### Ajustes técnicos mínimos
 
-### B. Services mantém scroll-based, mas otimizado
-Services é a "vitrine" mais elaborada — vale preservar o efeito, mas:
-- Reduzir springs por card de 5 → 2 (apenas `opacity` e `y` com spring; `scale`/`rotateX` viram tween simples ou são removidos).
-- Remover o "active highlight" baseado em `scrollYProgress` (box-shadow + scale boost por card). Substituir por **hover-only** glow (já existe efeito de hover; basta intensificar). Ganho enorme: elimina 6 springs + 6 box-shadow animados.
-- Manter cabeçalho em cascata via `whileInView` (não precisa de scroll contínuo).
+- Adicionar campo opcional `note?: string` em cada plano e renderizá-lo como linha pequena (`text-[12px] text-site-muted`) logo abaixo do preço, quando existir — usado para "ou R$ X/mês no anual · 3 dias grátis" e "1 ano de assinatura incluso".
+- Para o Scale, `period` vira `"1x"` (em vez de `/mês`) — o mesmo slot já existente renderiza isso, sem mudança estrutural.
+- Nenhuma mudança em layout, cores, animações (`fadeUp`, `AuroraBlob`), espaçamentos, hierarquia, navbar ou em qualquer outra seção.
 
-### C. Auroras — drasticamente mais leves
-- Reduzir de 4 → **2** AuroraBlob por seção.
-- Trocar `blur-3xl` (radius ~64px) por `blur-2xl` (40px) — diferença visual mínima, custo de filtro bem menor.
-- Remover parallax `y` baseado em `scrollYProgress` (elimina mais um listener por blob).
-- Animar apenas `opacity` no loop (já é o caso no mobile); remover `x`/`scale`/`y`. Loop continua dando vida sem mover camadas.
-- Pausar animação quando offscreen: envolver com `whileInView` + `viewport={{ once: false }}` e usar `animate` controlado por estado de inView, OU usar `IntersectionObserver` simples para montar/desmontar.
-- Em mobile/`prefers-reduced-motion`: auroras 100% estáticas (sem loop).
-
-### D. _anim.tsx — utilitários atualizados
-- Adicionar helpers `fadeUp` (variants) e `cascade(i)` para reuso.
-- `AuroraBlob` refatorado: sem `parallaxY`, sem props `animate` complexas; só `duration`, `reduce`, `isMobile` e classe de posição.
-
-### E. Hints de performance
-- Adicionar `content-visibility: auto` + `contain-intrinsic-size` nas seções abaixo do fold (corte de layout/paint offscreen).
-- Confirmar `will-change` apenas em elementos realmente animados (remover dos containers estáticos).
-- Garantir que `<section>` raiz não tenha `overflow-hidden` desnecessário que crie stacking context extra.
-
-## Arquivos a editar
-
-- `src/components/site/_anim.tsx` — refatorar `AuroraBlob`, exportar `fadeUp` variants e helper `cascade`.
-- `src/components/site/Features.tsx` — migrar para `whileInView` + variants; reduzir auroras.
-- `src/components/site/Services.tsx` — manter scroll-based no cabeçalho/cards mas cortar springs (5→2 por card), remover active-highlight scroll-based (vira hover), reduzir auroras.
-- `src/components/site/Integrations.tsx` — migrar para `whileInView`; reduzir auroras.
-- `src/components/site/Testimonials.tsx` — idem.
-- `src/components/site/Pricing.tsx` — idem; manter destaque permanente do plano Pro como estilo estático (sem spring).
-- `src/components/site/Blog.tsx` — idem.
-
-## Garantias
-
-- **Zero mudança de copy, layout, cores, espaçamento, hierarquia, cards, navbar.**
-- Mesma sensação de entrada (fade + translateY + cascata + glow nas palavras-chave em verde — esse glow vira CSS estático ou tween curta).
-- `prefers-reduced-motion` continua respeitado.
-- Mobile: simplificado igual hoje (sem rotateX, sem parallax).
-
-## Ganho esperado
-
-- Scroll listeners: 7 → 1 (apenas Services).
-- Springs simultâneos: ~80 → ~12.
-- Elementos com `blur-3xl` animados: ~28 → ~14 com `blur-2xl`, pausados offscreen.
-- rAF ativo durante scroll idle: praticamente zero.
+### Arquivo alterado
+- `src/components/site/Pricing.tsx` (somente conteúdo do array `PLANS` + render do `note`).
