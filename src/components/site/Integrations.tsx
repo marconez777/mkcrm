@@ -14,8 +14,8 @@ import { AuroraBlob, fadeUp, viewportOnce } from "./_anim";
 const INTEGRATIONS = [
   { icon: MessageCircle, name: "WhatsApp Cloud API", desc: "Conexão oficial com Meta para envio em escala e templates aprovados." },
   { icon: Zap, name: "Evolution API", desc: "WhatsApp não-oficial multi-sessão, com QR Code e múltiplas instâncias." },
-  { icon: Mail, name: "Resend", desc: "Envio transacional e campanhas de e-mail com alta entregabilidade." },
-  { icon: Bot, name: "OpenAI · Gemini · Claude", desc: "Modelos plugáveis nos agentes de IA com controle de custo por orçamento." },
+  { icon: Mail, name: "Email marketing nativo", desc: "Domínio próprio com DNS guiado, entregabilidade gerenciada, opt-out automático e métricas de abertura, clique e bounce." },
+  { icon: Bot, name: "OpenAI · Gemini · Claude", desc: "Modelos plugáveis nos agentes de IA com controle de custo por orçamento mensal." },
   { icon: Webhook, name: "Webhooks & API REST", desc: "Plugue qualquer ferramenta externa: agenda, ERP, BI ou automações próprias." },
   { icon: CalendarDays, name: "Google Calendar", desc: "Sincronize agendamentos e bloqueios direto da agenda do consultório." },
   { icon: CreditCard, name: "Stripe & Asaas", desc: "Cobranças, links de pagamento e assinaturas dentro do próprio funil." },

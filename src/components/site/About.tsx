@@ -11,7 +11,7 @@ const PILLARS = [
   {
     icon: BrainCircuit,
     title: "Inteligência embarcada",
-    body: "Agentes de IA dedicados respondem leads, qualificam, criam tarefas e abastecem o pipeline 24h por dia sem perder o tom da sua marca.",
+    body: "Três agentes trabalhando juntos: um responde no WhatsApp, outro move os cards no Kanban silenciosamente e um terceiro resume cada conversa — você abre o lead e já sabe o contexto.",
   },
   {
     icon: HandCoins,
