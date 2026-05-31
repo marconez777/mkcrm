@@ -46,13 +46,21 @@ export default function Services() {
       aria-label="Serviços"
       className="relative overflow-hidden border-t border-white/5 bg-site-bg py-24 sm:py-32"
     >
-      {/* glow lateral */}
+      {/* glows roxos */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -left-40 top-1/3 h-[420px] w-[420px] rounded-full opacity-50 blur-3xl"
+        className="pointer-events-none absolute -left-40 top-1/3 h-[560px] w-[560px] rounded-full opacity-70 blur-3xl"
         style={{
           background:
-            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.35), transparent 70%)",
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-32 bottom-0 h-[420px] w-[420px] rounded-full opacity-50 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.4), transparent 70%)",
         }}
       />
 
@@ -80,18 +88,27 @@ export default function Services() {
           {SERVICES.map((s) => (
             <li
               key={s.n}
-              className="group relative flex flex-col gap-6 bg-site-bg p-8 transition-colors hover:bg-site-surface"
+              className="group relative flex flex-col gap-6 overflow-hidden bg-site-bg p-8 transition-colors hover:bg-site-surface"
             >
-              <div className="flex items-start justify-between">
+              {/* halo roxo no hover */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -top-24 -right-20 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity group-hover:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(circle at center, hsl(var(--site-accent) / 0.55), transparent 70%)",
+                }}
+              />
+              <div className="relative flex items-start justify-between">
                 <span className="site-font-display text-[44px] leading-none text-site-primary">
                   {s.n}
                 </span>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-site-muted transition-all group-hover:border-site-primary group-hover:text-site-primary">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-site-muted transition-all group-hover:border-site-accent/70 group-hover:text-site-text">
                   <ArrowUpRight className="h-4 w-4" />
                 </span>
               </div>
 
-              <div>
+              <div className="relative">
                 <h3 className="site-font-display text-[22px] leading-tight">
                   {s.title}
                 </h3>
@@ -100,7 +117,7 @@ export default function Services() {
                 </p>
               </div>
 
-              <ul className="mt-auto flex flex-wrap gap-2 pt-2">
+              <ul className="relative mt-auto flex flex-wrap gap-2 pt-2">
                 {s.tags.map((t) => (
                   <li
                     key={t}
