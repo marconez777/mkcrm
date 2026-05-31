@@ -850,7 +850,6 @@ export default function Tracking() {
 
       </Tabs>
 
-      </Tabs>
 
       {/* Jornada modal */}
       <Dialog open={!!journeyVisitor} onOpenChange={(o) => { if (!o) { setJourneyVisitor(null); setJourneyData(null); } }}>
