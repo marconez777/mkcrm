@@ -72,6 +72,20 @@
     --status-draft-fg: 215 16% 45%;
     --status-clicked-bg: 262 83% 95%;
     --status-clicked-fg: 262 64% 45%;
+
+    /* ───────── Marketing site (institucional) ─────────
+       Paleta locked: #000000 / #590675 / #1ED400 */
+    --site-bg: 0 0% 0%;
+    --site-surface: 0 0% 4%;
+    --site-surface-2: 0 0% 7%;
+    --site-border: 0 0% 100%;            /* usar com /6 - /12 */
+    --site-text: 0 0% 96%;
+    --site-muted: 0 0% 62%;
+    --site-primary: 105 100% 42%;        /* #1ED400 */
+    --site-primary-foreground: 0 0% 0%;
+    --site-primary-glow: 105 100% 55%;
+    --site-accent: 285 94% 24%;          /* #590675 */
+    --site-accent-glow: 285 90% 45%;
   }
 
   .dark {
