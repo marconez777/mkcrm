@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
-import { AttributionTab } from "@/pages/tracking/AttributionTab";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
 import { toast } from "sonner";
 
@@ -208,6 +208,88 @@ function SourceCell({ source, medium, campaign, channelGroup }: { source: string
   );
 }
 
+type StageConfig = { consulta: string[]; tratamento: string[]; nutricao: string[] };
+
+function KpiCard({ label, value, hint, highlight }: { label: string; value: number | string; hint?: string; highlight?: boolean }) {
+  return (
+    <Card className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
+        {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StagePicker({
+  label,
+  stages,
+  selected,
+  onChange,
+}: {
+  label: string;
+  stages: Record<string, { name: string; color: string }>;
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const entries = Object.entries(stages).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const selSet = new Set(selected);
+  const toggle = (id: string) => {
+    const next = new Set(selSet);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(Array.from(next));
+  };
+  const summary = selected.length === 0
+    ? "Nenhum selecionado"
+    : selected.length <= 2
+      ? selected.map((id) => stages[id]?.name ?? id).join(", ")
+      : `${selected.length} estágios selecionados`;
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full justify-between truncate">
+            <span className="truncate">{summary}</span>
+            <span className="ml-2 text-[10px] text-muted-foreground">{selected.length}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-2" align="start">
+          <div className="mb-1 flex items-center justify-between px-1">
+            <span className="text-xs font-medium">{label}</span>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => onChange([])}
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {entries.length === 0 && (
+              <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum estágio.</p>
+            )}
+            {entries.map(([id, s]) => (
+              <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
+                <Checkbox checked={selSet.has(id)} onCheckedChange={() => toggle(id)} />
+                <span className="truncate">{s.name}</span>
+              </label>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+
+
 export default function Tracking() {
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [customFrom, setCustomFrom] = useState("");
@@ -217,6 +299,7 @@ export default function Tracking() {
   const { isSuperAdmin, membership } = useAuth();
   const confirm = useConfirm();
   const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
+  const clinicId = membership?.clinic?.id ?? null;
 
   // global filters
   const [eventNameFilter, setEventNameFilter] = useState("");
@@ -236,11 +319,23 @@ export default function Tracking() {
   const [stages, setStages] = useState<Record<string, { name: string; color: string }>>({});
   const [allEventNames, setAllEventNames] = useState<string[]>([]);
 
-  const [summary, setSummary] = useState({
-    visitors: 0, sessions: 0, events: 0, page_view: 0,
-    whatsapp_click: 0, form_start: 0, form_submit_attempt: 0,
-    leads_identified: 0, visitors_with_lead: 0, conv_rate: 0,
-  });
+  const [visitorsTotal, setVisitorsTotal] = useState(0);
+
+  // stage configuration (persisted per clinic in localStorage)
+  const [stageConfig, setStageConfig] = useState<StageConfig>({ consulta: [], tratamento: [], nutricao: [] });
+  useEffect(() => {
+    if (!clinicId) return;
+    try {
+      const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
+      if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
+    } catch { /* ignore */ }
+  }, [clinicId]);
+  const saveStageConfig = useCallback((next: StageConfig) => {
+    setStageConfig(next);
+    if (clinicId) {
+      try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
+    }
+  }, [clinicId]);
 
   // visitor-level booleans
   const [vFlags, setVFlags] = useState<Record<string, { wa: boolean; fs: boolean; fa: boolean; sessions: number; events: number; lastPage: string | null }>>({});
@@ -255,8 +350,6 @@ export default function Tracking() {
   const [visitorsPage, setVisitorsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
   const [leadsPage, setLeadsPage] = useState(1);
-  const [pagesPage, setPagesPage] = useState(1);
-  const [waPagesPage, setWaPagesPage] = useState(1);
 
   const computeRange = useCallback(() => {
     const now = Date.now();
@@ -303,46 +396,11 @@ export default function Tracking() {
       const vList = (vData as VisitorRow[]) ?? [];
       setVisitors(vList);
 
-      // sessions count (just total in window for summary)
-      const { count: sessCount } = await supabase.from("tracking_sessions")
-        .select("session_id", { count: "exact", head: true })
-        .gte("started_at", sinceISO).lte("started_at", untilISO);
-
-      // exact totals (PostgREST caps row payloads at 1000 — use head+count for stats)
-      const applyEvFilters = (q: any) => {
-        if (eventNameFilter.trim()) q = q.ilike("event_name", `%${eventNameFilter.trim()}%`);
-        if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-        if (leadFilter.trim()) q = q.ilike("lead_id", `%${leadFilter.trim()}%`);
-        if (pageUrlFilter.trim()) q = q.ilike("page_url", `%${pageUrlFilter.trim()}%`);
-        return q;
-      };
-      const mkEvCount = (extra?: (q: any) => any) => {
-        let q: any = supabase.from("tracking_events").select("event_id", { count: "exact", head: true })
-          .gte("event_time", sinceISO).lte("event_time", untilISO);
-        q = applyEvFilters(q);
-        if (extra) q = extra(q);
-        return q;
-      };
-      const [
-        { count: evTotalCount },
-        { count: pvCount },
-        { count: waCount },
-        { count: fsCount },
-        { count: faCount },
-        { count: visitorsTotalCount },
-      ] = await Promise.all([
-        mkEvCount(),
-        mkEvCount((q) => q.eq("event_name", "page_view")),
-        mkEvCount((q) => q.in("event_name", ["whatsapp_click", "whatsapp_redirect"])),
-        mkEvCount((q) => q.in("event_name", ["form_start", "partial_form_capture"])),
-        mkEvCount((q) => q.eq("event_name", "form_submit_attempt")),
-        (() => {
-          let q: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
-            .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
-          if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-          return q;
-        })(),
-      ]);
+      // exact visitor count (PostgREST caps row payloads at 1000)
+      let vcq: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
+        .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
+      if (visitorFilter.trim()) vcq = vcq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+      const { count: visitorsTotalCount } = await vcq;
 
       // identity links for these visitors
       const ids = vList.map((v) => v.visitor_id);
@@ -385,20 +443,7 @@ export default function Tracking() {
       });
       setVFlags(flags);
 
-      // summary
-      const totalLeads = Object.keys(linkMap).length;
-      setSummary({
-        visitors: visitorsTotalCount ?? vList.length,
-        sessions: sessCount ?? 0,
-        events: evTotalCount ?? allEv.length,
-        page_view: pvCount ?? 0,
-        whatsapp_click: waCount ?? 0,
-        form_start: fsCount ?? 0,
-        form_submit_attempt: faCount ?? 0,
-        leads_identified: totalLeads,
-        visitors_with_lead: totalLeads,
-        conv_rate: (visitorsTotalCount ?? vList.length) ? (totalLeads / (visitorsTotalCount ?? vList.length)) * 100 : 0,
-      });
+      setVisitorsTotal(visitorsTotalCount ?? vList.length);
     } finally {
       setLoading(false);
     }
@@ -481,59 +526,43 @@ export default function Tracking() {
     });
   }, [visitors, vFlags, links, onlyAnon, onlyLeads, onlyWhatsapp, onlyForm, stageFilter]);
 
-  // page report
-  const pageReport = useMemo(() => {
-    const INTERNAL_HOSTS = ["crm.mkart.com.br", "mkcrm.lovable.app", "lovable.app", "lovable.dev", "localhost"];
-    const INTERNAL_PREFIXES = [
-      "/auth", "/onboarding", "/inbox", "/kanban", "/tasks", "/metrics", "/tracking",
-      "/settings", "/admin", "/agents", "/templates", "/sequences", "/automations",
-      "/broadcasts", "/team", "/invite", "/ai", "/email", "/unsubscribe", "/lead",
-      "/tracking-debug",
-    ];
-    const isInternal = (url: string | null | undefined, path: string) => {
-      if (url) {
-        try {
-          const h = new URL(url).hostname;
-          if (INTERNAL_HOSTS.some((d) => h === d || h.endsWith("." + d))) return true;
-        } catch { /* ignore */ }
-      }
-      return INTERNAL_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
-    };
-    const map: Record<string, { pageviews: number; visitors: Set<string>; wa: number; fs: number; fa: number; leads: Set<string> }> = {};
-    events.forEach((e) => {
-      const key = pathOf(e.page_url);
-      if (isInternal(e.page_url, key)) return;
-      if (!map[key]) map[key] = { pageviews: 0, visitors: new Set(), wa: 0, fs: 0, fa: 0, leads: new Set() };
-      const r = map[key];
-      if (e.event_name === "page_view") r.pageviews += 1;
-      if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") r.wa += 1;
-      if (e.event_name === "form_start" || e.event_name === "partial_form_capture") r.fs += 1;
-      if (e.event_name === "form_submit_attempt") r.fa += 1;
-      r.visitors.add(e.visitor_id);
-      const ld = links[e.visitor_id];
-      if (ld) r.leads.add(ld.lead_id);
-    });
-    return Object.entries(map).map(([page, r]) => ({
-      page, pageviews: r.pageviews, visitors: r.visitors.size, wa: r.wa, fs: r.fs, fa: r.fa,
-      leads: r.leads.size, conv: r.visitors.size ? (r.leads.size / r.visitors.size) * 100 : 0,
-    })).sort((a, b) => b.pageviews - a.pageviews);
-  }, [events, links]);
+  // KPIs focados
+  const kpis = useMemo(() => {
+    const leadsArr = Object.values(links);
+    const isWA = (l: LinkRow) => isWhatsappSource(l.link_source);
+    const isForm = (l: LinkRow) => !isWA(l);
+    const inSet = (l: LinkRow, set: string[]) =>
+      !!(l.leads?.stage_id && set.includes(l.leads.stage_id));
 
-  // whatsapp report
-  const whatsappReport = useMemo(() => {
-    const waEvents = events.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect");
-    const uniqueVisitors = new Set(waEvents.map((e) => e.visitor_id));
-    const pageMap: Record<string, number> = {};
-    waEvents.forEach((e) => { const k = pathOf(e.page_url); pageMap[k] = (pageMap[k] ?? 0) + 1; });
-    const turnedLead = Array.from(uniqueVisitors).filter((v) => links[v]).length;
+    const formLeads = leadsArr.filter(isForm);
+    const waLeads = leadsArr.filter(isWA);
+    const consultaLeads = leadsArr.filter((l) => inSet(l, stageConfig.consulta));
+    const tratamentoLeads = leadsArr.filter((l) => inSet(l, stageConfig.tratamento));
+    const nutricaoLeads = leadsArr.filter((l) => inSet(l, stageConfig.nutricao));
+
+    const convertedIds = new Set(
+      [...consultaLeads, ...tratamentoLeads].map((l) => l.lead_id),
+    );
+    const convertedLeads = leadsArr.filter((l) => convertedIds.has(l.lead_id));
+
+    const split = (arr: LinkRow[]) => ({
+      total: arr.length,
+      wa: arr.filter(isWA).length,
+      form: arr.filter(isForm).length,
+    });
+
     return {
-      total: waEvents.length,
-      uniqueVisitors: uniqueVisitors.size,
-      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]),
-      turnedLead,
-      conv: uniqueVisitors.size ? (turnedLead / uniqueVisitors.size) * 100 : 0,
+      visitors: visitorsTotal,
+      formLeads: formLeads.length,
+      waLeads: waLeads.length,
+      totalLeads: leadsArr.length,
+      consulta: split(consultaLeads),
+      tratamento: split(tratamentoLeads),
+      converteu: split(convertedLeads),
+      nutricao: split(nutricaoLeads),
     };
-  }, [events, links]);
+  }, [links, stageConfig, visitorsTotal]);
+
 
   const leadsWithOrigin = useMemo(() => {
     const CONV_EVENTS = new Set([
@@ -650,25 +679,63 @@ export default function Tracking() {
         </CardContent>
       </Card>
 
-      {/* Cards de visão geral */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-        {[
-          { label: "Visitantes únicos", value: summary.visitors },
-          { label: "Sessões", value: summary.sessions },
-          { label: "Eventos totais", value: summary.events },
-          { label: "Pageviews", value: summary.page_view },
-          { label: "Clique WhatsApp", value: summary.whatsapp_click },
-          { label: "Formulários iniciados", value: summary.form_start },
-          { label: "Form. tent. envio", value: summary.form_submit_attempt },
-          { label: "Leads identificados", value: summary.leads_identified },
-          { label: "Visitantes → Lead", value: summary.visitors_with_lead },
-          { label: "Taxa visitante → lead", value: `${summary.conv_rate.toFixed(1)}%` },
-        ].map((c) => (
-          <Card key={c.label}>
-            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{c.label}</CardTitle></CardHeader>
-            <CardContent className="pt-0 text-2xl font-semibold">{c.value}</CardContent>
-          </Card>
-        ))}
+      {/* Configuração de estágios */}
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+          </p>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <StagePicker
+            label="Consulta fechada"
+            stages={stages}
+            selected={stageConfig.consulta}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
+          />
+          <StagePicker
+            label="Tratamento fechado"
+            stages={stages}
+            selected={stageConfig.tratamento}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
+          />
+          <StagePicker
+            label="Não converteu / nutrição"
+            stages={stages}
+            selected={stageConfig.nutricao}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
+          />
+        </CardContent>
+      </Card>
+
+      {/* KPIs focados */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard label="Visitas únicas" value={kpis.visitors} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} />
+        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
+        <KpiCard label="Total de leads" value={kpis.totalLeads} />
+        <KpiCard
+          label="Fechou consulta"
+          value={kpis.consulta.total}
+          hint={`${kpis.consulta.wa} WhatsApp · ${kpis.consulta.form} Form`}
+        />
+        <KpiCard
+          label="Fechou tratamento"
+          value={kpis.tratamento.total}
+          hint={`${kpis.tratamento.wa} WhatsApp · ${kpis.tratamento.form} Form`}
+        />
+        <KpiCard
+          label="Converteu (total)"
+          value={kpis.converteu.total}
+          hint={`${kpis.converteu.wa} WhatsApp · ${kpis.converteu.form} Form`}
+          highlight
+        />
+        <KpiCard
+          label="Não converteu (nutrição)"
+          value={kpis.nutricao.total}
+          hint={`${kpis.nutricao.wa} WhatsApp · ${kpis.nutricao.form} Form`}
+        />
       </div>
 
       <Tabs defaultValue="visitors">
@@ -676,10 +743,8 @@ export default function Tracking() {
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
-          <TabsTrigger value="pages">Páginas</TabsTrigger>
-          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-          <TabsTrigger value="attribution">Atribuição</TabsTrigger>
         </TabsList>
+
 
         {/* Visitantes */}
         <TabsContent value="visitors">
@@ -863,82 +928,8 @@ export default function Tracking() {
           </Card>
         </TabsContent>
 
-        {/* Páginas */}
-        <TabsContent value="pages">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Desempenho por página ({pageReport.length})</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Página</TableHead>
-                    <TableHead className="text-right">Pageviews</TableHead>
-                    <TableHead className="text-right">Visitantes</TableHead>
-                    <TableHead className="text-right">WhatsApp</TableHead>
-                    <TableHead className="text-right">Form. iniciado</TableHead>
-                    <TableHead className="text-right">Form. tent.</TableHead>
-                    <TableHead className="text-right">Leads</TableHead>
-                    <TableHead className="text-right">Conv. %</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageReport.length === 0 && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
-                  )}
-                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((p) => (
-                    <TableRow key={p.page}>
-                      <TableCell className="text-xs">{p.page}</TableCell>
-                      <TableCell className="text-right text-xs">{p.pageviews}</TableCell>
-                      <TableCell className="text-right text-xs">{p.visitors}</TableCell>
-                      <TableCell className="text-right text-xs">{p.wa}</TableCell>
-                      <TableCell className="text-right text-xs">{p.fs}</TableCell>
-                      <TableCell className="text-right text-xs">{p.fa}</TableCell>
-                      <TableCell className="text-right text-xs">{p.leads}</TableCell>
-                      <TableCell className="text-right text-xs">{p.conv.toFixed(1)}%</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* WhatsApp */}
-        <TabsContent value="whatsapp">
-          <div className="grid gap-4 md:grid-cols-4 mb-4">
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Cliques WhatsApp</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.total}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Visitantes únicos</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.uniqueVisitors}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Viraram lead</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.turnedLead}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Taxa WA → lead</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.conv.toFixed(1)}%</CardContent></Card>
-          </div>
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Páginas que mais geraram clique no WhatsApp</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Página</TableHead><TableHead className="text-right">Cliques</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {whatsappReport.topPages.length === 0 && (
-                    <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
-                  )}
-                  {whatsappReport.topPages.slice((waPagesPage - 1) * pageSize, waPagesPage * pageSize).map(([page, n]) => (
-                    <TableRow key={page}><TableCell className="text-xs">{page}</TableCell><TableCell className="text-right text-xs">{n}</TableCell></TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination page={waPagesPage} pageSize={pageSize} total={whatsappReport.topPages.length} onPageChange={setWaPagesPage} onPageSizeChange={setPageSize} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="attribution">
-          {membership?.clinic?.id ? (
-            <AttributionTab clinicId={membership.clinic.id} from={sinceISO} to={untilISO} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem clínica selecionada.</p>
-          )}
-        </TabsContent>
       </Tabs>
+
 
       {/* Jornada modal */}
       <Dialog open={!!journeyVisitor} onOpenChange={(o) => { if (!o) { setJourneyVisitor(null); setJourneyData(null); } }}>
