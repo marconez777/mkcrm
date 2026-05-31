@@ -3,6 +3,8 @@ import SiteNav from "@/components/site/SiteNav";
 import SiteFooter from "@/components/site/SiteFooter";
 import Hero from "@/components/site/Hero";
 import Marquee from "@/components/site/Marquee";
+import About from "@/components/site/About";
+import Features from "@/components/site/Features";
 
 /**
  * Site institucional do MK-CRM.
@@ -26,9 +28,8 @@ export default function MarketingSite() {
         <Hero />
         <Marquee />
 
-        {/* Etapa 3 */}
-        <SectionPlaceholder id="sobre" label="Sobre" />
-        <SectionPlaceholder id="features" label="Features" />
+        <About />
+        <Features />
 
         {/* Etapa 4 */}
         <SectionPlaceholder id="servicos" label="Serviços numerados" />
