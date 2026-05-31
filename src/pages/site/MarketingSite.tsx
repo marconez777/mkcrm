@@ -10,11 +10,10 @@ import Integrations from "@/components/site/Integrations";
 import Testimonials from "@/components/site/Testimonials";
 import Pricing from "@/components/site/Pricing";
 import Blog from "@/components/site/Blog";
+import Contact from "@/components/site/Contact";
 
 /**
- * Site institucional do MK-CRM.
- * Etapa 1 — apenas shell visual com navbar + footer e placeholders das seções.
- * Próximas etapas preenchem Hero, Marquee, Sobre, Features, etc.
+ * Site institucional do MK-CRM (deslogado).
  */
 export default function MarketingSite() {
   useEffect(() => {
@@ -43,35 +42,10 @@ export default function MarketingSite() {
         <Pricing />
         <Blog />
 
-        {/* Etapa 6 */}
-        <SectionPlaceholder id="contato" label="Contato" />
+        <Contact />
       </main>
 
       <SiteFooter />
     </div>
-  );
-}
-
-function SectionPlaceholder({
-  id,
-  label,
-  minH = "min-h-[40vh]",
-}: {
-  id: string;
-  label: string;
-  minH?: string;
-}) {
-  return (
-    <section
-      id={id}
-      className={`${minH} border-b border-white/5 bg-site-bg`}
-      aria-label={`Placeholder ${label}`}
-    >
-      <div className="mx-auto flex h-full max-w-7xl items-center justify-center px-4 py-24 sm:px-6 lg:px-8">
-        <span className="site-font-display rounded-full border border-white/10 px-4 py-2 text-[15px] text-site-muted">
-          {label}
-        </span>
-      </div>
-    </section>
   );
 }
