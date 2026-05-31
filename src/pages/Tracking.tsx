@@ -328,9 +328,7 @@ function suggestStageConfig(stages: Record<string, { name: string; color: string
 
 
 export default function Tracking() {
-  const [period, setPeriod] = useState<PeriodKey>("7d");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [periodMode, setPeriodMode] = useState<PeriodMode>({ kind: "last", days: 7 });
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
