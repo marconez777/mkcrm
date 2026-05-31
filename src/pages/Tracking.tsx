@@ -387,7 +387,10 @@ export default function Tracking() {
       stageConfig.tratamento.length === 0 &&
       stageConfig.nutricao.length === 0;
     if (!empty) return;
-    const suggestion = suggestStageConfig(stages);
+    const scope = salesPipelineId
+      ? Object.fromEntries(Object.entries(stages).filter(([, s]) => s.pipeline_id === salesPipelineId))
+      : stages;
+    const suggestion = suggestStageConfig(scope);
     if (
       suggestion.consulta.length ||
       suggestion.tratamento.length ||
@@ -395,7 +398,8 @@ export default function Tracking() {
     ) {
       saveStageConfig(suggestion);
     }
-  }, [stages, stageConfigLoaded, stageConfig, saveStageConfig]);
+  }, [stages, salesPipelineId, stageConfigLoaded, stageConfig, saveStageConfig]);
+
 
   // Apenas os estágios do pipeline oficial de vendas selecionado
   const salesStages = useMemo(() => {
