@@ -889,7 +889,9 @@ export default function Tracking() {
             />
           </div>
         </CardContent>
+        )}
       </Card>
+
 
 
       {/* KPIs focados */}
