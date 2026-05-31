@@ -291,7 +291,7 @@ function StagePicker({
 // Heurística: mapeia estágios por nome para consulta / tratamento / nutrição.
 // Baseada nos nomes encontrados no histórico (Consulta Agendada, Tratamento prescrito,
 // Procedimento Agendado, NUTRIÇÃO DE LEADS INATIVOS, Parou de Responder, etc.).
-function suggestStageConfig(stages: Record<string, { name: string; color: string }>): StageConfig {
+function suggestStageConfig(stages: Record<string, { name: string; color: string; pipeline_id?: string }>): StageConfig {
   const consulta: string[] = [];
   const tratamento: string[] = [];
   const nutricao: string[] = [];
