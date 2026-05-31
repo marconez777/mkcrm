@@ -178,10 +178,45 @@ export default function ConversationList(props: {
             </Button>
           )}
         </div>
+        {instances.length > 1 && setInstanceId && (
+          <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
+            <button
+              onClick={() => setInstanceId(null)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
+                instanceId === null ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+              )}
+              title="Todas as caixas"
+            >
+              <Smartphone className="h-3 w-3" />
+              Todas
+            </button>
+            {instances.map((inst) => {
+              const active = instanceId === inst.id;
+              const state = inst.connection_state;
+              const dot = state === "open" ? "bg-emerald-500" : state === "connecting" ? "bg-amber-500" : "bg-destructive";
+              return (
+                <button
+                  key={inst.id}
+                  onClick={() => setInstanceId(inst.id)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                  title={`${inst.name} • ${state ?? "desconhecido"}`}
+                >
+                  <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+                  <span className="max-w-[110px] truncate">{inst.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input id="inbox-search" placeholder="Buscar (nome, telefone, mensagem)" value={props.q} onChange={(e) => props.setQ(e.target.value)} className="h-9 pl-8" />
         </div>
+
         <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
           {filters.map((f) => (
             <button
