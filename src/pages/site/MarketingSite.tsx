@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import SiteNav from "@/components/site/SiteNav";
 import SiteFooter from "@/components/site/SiteFooter";
+import Hero from "@/components/site/Hero";
+import Marquee from "@/components/site/Marquee";
 
 /**
  * Site institucional do MK-CRM.
@@ -21,9 +23,8 @@ export default function MarketingSite() {
       <SiteNav />
 
       <main>
-        {/* Etapa 2 */}
-        <SectionPlaceholder id="hero" label="Hero + 3D" minH="min-h-[80vh]" />
-        <SectionPlaceholder id="marquee" label="Marquee" minH="min-h-[80px]" />
+        <Hero />
+        <Marquee />
 
         {/* Etapa 3 */}
         <SectionPlaceholder id="sobre" label="Sobre" />
