@@ -7,6 +7,9 @@ import About from "@/components/site/About";
 import Features from "@/components/site/Features";
 import Services from "@/components/site/Services";
 import Integrations from "@/components/site/Integrations";
+import Testimonials from "@/components/site/Testimonials";
+import Pricing from "@/components/site/Pricing";
+import Blog from "@/components/site/Blog";
 
 /**
  * Site institucional do MK-CRM.
