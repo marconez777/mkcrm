@@ -1,0 +1,119 @@
+import { ArrowUpRight } from "lucide-react";
+
+const SERVICES = [
+  {
+    n: "01",
+    title: "Implantação guiada",
+    body: "Configuramos pipeline, etapas, integrações e usuários junto com sua equipe, em até 7 dias.",
+    tags: ["Onboarding", "Setup WhatsApp", "Importação"],
+  },
+  {
+    n: "02",
+    title: "Automação de funil",
+    body: "Criamos regras, gatilhos e disparos automáticos para nutrir leads sem ninguém esquecer follow-up.",
+    tags: ["Triggers", "Templates", "Cadências"],
+  },
+  {
+    n: "03",
+    title: "IA aplicada à clínica",
+    body: "Agentes treinados com o tom da sua clínica, integrados ao histórico do paciente e ao funil de vendas.",
+    tags: ["Agentes", "Memórias", "Custos controlados"],
+  },
+  {
+    n: "04",
+    title: "Disparos em massa responsáveis",
+    body: "Campanhas segmentadas via WhatsApp e e-mail com controle de janela, limite e opt-out automático.",
+    tags: ["Segmentação", "Resend", "Compliance"],
+  },
+  {
+    n: "05",
+    title: "Relatórios e BI",
+    body: "Dashboards de conversão, produtividade por atendente e ROI por canal — sem precisar abrir planilha.",
+    tags: ["Dashboards", "Export CSV", "API"],
+  },
+  {
+    n: "06",
+    title: "Suporte e evolução contínua",
+    body: "Atendimento humano, roadmap aberto e atualizações constantes para sua clínica nunca parar de crescer.",
+    tags: ["Suporte 24/7", "Roadmap", "SLA"],
+  },
+];
+
+export default function Services() {
+  return (
+    <section
+      id="servicos"
+      aria-label="Serviços"
+      className="relative overflow-hidden border-t border-white/5 bg-site-bg py-24 sm:py-32"
+    >
+      {/* glow lateral */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-40 top-1/3 h-[420px] w-[420px] rounded-full opacity-50 blur-3xl"
+        style={{
+          background:
+            "radial-gradient(circle at center, hsl(var(--site-accent) / 0.35), transparent 70%)",
+        }}
+      />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:items-end">
+          <div>
+            <span className="site-font-body inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-[15px] text-site-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-site-primary" />
+              O que entregamos
+            </span>
+            <h2 className="site-font-display mt-5 text-[44px] leading-[0.95] tracking-tight sm:text-[56px]">
+              Serviços que
+              <br />
+              fazem o <span className="text-site-primary">funil girar</span>.
+            </h2>
+          </div>
+          <p className="site-font-body max-w-xl text-[17px] leading-relaxed text-site-muted md:justify-self-end">
+            Mais do que software: um time e um método para colocar sua operação
+            de vendas em outro patamar — do primeiro contato no WhatsApp ao
+            paciente fidelizado.
+          </p>
+        </div>
+
+        <ol className="mt-16 grid gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/5 sm:grid-cols-2 lg:grid-cols-3">
+          {SERVICES.map((s) => (
+            <li
+              key={s.n}
+              className="group relative flex flex-col gap-6 bg-site-bg p-8 transition-colors hover:bg-site-surface"
+            >
+              <div className="flex items-start justify-between">
+                <span className="site-font-display text-[44px] leading-none text-site-primary">
+                  {s.n}
+                </span>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-site-muted transition-all group-hover:border-site-primary group-hover:text-site-primary">
+                  <ArrowUpRight className="h-4 w-4" />
+                </span>
+              </div>
+
+              <div>
+                <h3 className="site-font-display text-[22px] leading-tight">
+                  {s.title}
+                </h3>
+                <p className="site-font-body mt-3 text-[15px] leading-relaxed text-site-muted">
+                  {s.body}
+                </p>
+              </div>
+
+              <ul className="mt-auto flex flex-wrap gap-2 pt-2">
+                {s.tags.map((t) => (
+                  <li
+                    key={t}
+                    className="site-font-body rounded-full border border-white/10 px-3 py-1 text-[12px] text-site-muted"
+                  >
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
