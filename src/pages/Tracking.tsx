@@ -316,46 +316,11 @@ export default function Tracking() {
       const vList = (vData as VisitorRow[]) ?? [];
       setVisitors(vList);
 
-      // sessions count (just total in window for summary)
-      const { count: sessCount } = await supabase.from("tracking_sessions")
-        .select("session_id", { count: "exact", head: true })
-        .gte("started_at", sinceISO).lte("started_at", untilISO);
-
-      // exact totals (PostgREST caps row payloads at 1000 — use head+count for stats)
-      const applyEvFilters = (q: any) => {
-        if (eventNameFilter.trim()) q = q.ilike("event_name", `%${eventNameFilter.trim()}%`);
-        if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-        if (leadFilter.trim()) q = q.ilike("lead_id", `%${leadFilter.trim()}%`);
-        if (pageUrlFilter.trim()) q = q.ilike("page_url", `%${pageUrlFilter.trim()}%`);
-        return q;
-      };
-      const mkEvCount = (extra?: (q: any) => any) => {
-        let q: any = supabase.from("tracking_events").select("event_id", { count: "exact", head: true })
-          .gte("event_time", sinceISO).lte("event_time", untilISO);
-        q = applyEvFilters(q);
-        if (extra) q = extra(q);
-        return q;
-      };
-      const [
-        { count: evTotalCount },
-        { count: pvCount },
-        { count: waCount },
-        { count: fsCount },
-        { count: faCount },
-        { count: visitorsTotalCount },
-      ] = await Promise.all([
-        mkEvCount(),
-        mkEvCount((q) => q.eq("event_name", "page_view")),
-        mkEvCount((q) => q.in("event_name", ["whatsapp_click", "whatsapp_redirect"])),
-        mkEvCount((q) => q.in("event_name", ["form_start", "partial_form_capture"])),
-        mkEvCount((q) => q.eq("event_name", "form_submit_attempt")),
-        (() => {
-          let q: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
-            .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
-          if (visitorFilter.trim()) q = q.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-          return q;
-        })(),
-      ]);
+      // exact visitor count (PostgREST caps row payloads at 1000)
+      let vcq: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
+        .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
+      if (visitorFilter.trim()) vcq = vcq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
+      const { count: visitorsTotalCount } = await vcq;
 
       // identity links for these visitors
       const ids = vList.map((v) => v.visitor_id);
@@ -398,20 +363,7 @@ export default function Tracking() {
       });
       setVFlags(flags);
 
-      // summary
-      const totalLeads = Object.keys(linkMap).length;
-      setSummary({
-        visitors: visitorsTotalCount ?? vList.length,
-        sessions: sessCount ?? 0,
-        events: evTotalCount ?? allEv.length,
-        page_view: pvCount ?? 0,
-        whatsapp_click: waCount ?? 0,
-        form_start: fsCount ?? 0,
-        form_submit_attempt: faCount ?? 0,
-        leads_identified: totalLeads,
-        visitors_with_lead: totalLeads,
-        conv_rate: (visitorsTotalCount ?? vList.length) ? (totalLeads / (visitorsTotalCount ?? vList.length)) * 100 : 0,
-      });
+      setVisitorsTotal(visitorsTotalCount ?? vList.length);
     } finally {
       setLoading(false);
     }
