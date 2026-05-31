@@ -930,7 +930,45 @@ export default function Tracking() {
           </Card>
         </TabsContent>
 
+        {/* Páginas */}
+        <TabsContent value="pages">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Páginas ({pageReport.length})</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Página</TableHead>
+                    <TableHead className="text-right">Visitas</TableHead>
+                    <TableHead className="text-right">Leads</TableHead>
+                    <TableHead className="text-right">Conversão</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageReport.length === 0 && (
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Sem page_views no período.</TableCell></TableRow>
+                  )}
+                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((r) => (
+                    <TableRow key={r.path}>
+                      <TableCell className="text-xs">
+                        <span title={r.sampleUrl ?? r.path}>{shortenPath(r.path, 60)}</span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.visits}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.leads}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {r.visits > 0 ? `${(r.rate * 100).toFixed(1)}%` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Eventos */}
+
         <TabsContent value="events">
           <Card>
             <CardHeader><CardTitle className="text-sm">Eventos ({events.length})</CardTitle></CardHeader>
