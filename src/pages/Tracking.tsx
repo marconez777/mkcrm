@@ -848,81 +848,8 @@ export default function Tracking() {
           </Card>
         </TabsContent>
 
-        {/* Páginas */}
-        <TabsContent value="pages">
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Desempenho por página ({pageReport.length})</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Página</TableHead>
-                    <TableHead className="text-right">Pageviews</TableHead>
-                    <TableHead className="text-right">Visitantes</TableHead>
-                    <TableHead className="text-right">WhatsApp</TableHead>
-                    <TableHead className="text-right">Form. iniciado</TableHead>
-                    <TableHead className="text-right">Form. tent.</TableHead>
-                    <TableHead className="text-right">Leads</TableHead>
-                    <TableHead className="text-right">Conv. %</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageReport.length === 0 && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
-                  )}
-                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((p) => (
-                    <TableRow key={p.page}>
-                      <TableCell className="text-xs">{p.page}</TableCell>
-                      <TableCell className="text-right text-xs">{p.pageviews}</TableCell>
-                      <TableCell className="text-right text-xs">{p.visitors}</TableCell>
-                      <TableCell className="text-right text-xs">{p.wa}</TableCell>
-                      <TableCell className="text-right text-xs">{p.fs}</TableCell>
-                      <TableCell className="text-right text-xs">{p.fa}</TableCell>
-                      <TableCell className="text-right text-xs">{p.leads}</TableCell>
-                      <TableCell className="text-right text-xs">{p.conv.toFixed(1)}%</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+      </Tabs>
 
-        {/* WhatsApp */}
-        <TabsContent value="whatsapp">
-          <div className="grid gap-4 md:grid-cols-4 mb-4">
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Cliques WhatsApp</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.total}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Visitantes únicos</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.uniqueVisitors}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Viraram lead</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.turnedLead}</CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Taxa WA → lead</CardTitle></CardHeader><CardContent className="pt-0 text-2xl font-semibold">{whatsappReport.conv.toFixed(1)}%</CardContent></Card>
-          </div>
-          <Card>
-            <CardHeader><CardTitle className="text-sm">Páginas que mais geraram clique no WhatsApp</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Página</TableHead><TableHead className="text-right">Cliques</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {whatsappReport.topPages.length === 0 && (
-                    <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-6">Sem dados.</TableCell></TableRow>
-                  )}
-                  {whatsappReport.topPages.slice((waPagesPage - 1) * pageSize, waPagesPage * pageSize).map(([page, n]) => (
-                    <TableRow key={page}><TableCell className="text-xs">{page}</TableCell><TableCell className="text-right text-xs">{n}</TableCell></TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination page={waPagesPage} pageSize={pageSize} total={whatsappReport.topPages.length} onPageChange={setWaPagesPage} onPageSizeChange={setPageSize} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="attribution">
-          {membership?.clinic?.id ? (
-            <AttributionTab clinicId={membership.clinic.id} from={sinceISO} to={untilISO} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem clínica selecionada.</p>
-          )}
-        </TabsContent>
       </Tabs>
 
       {/* Jornada modal */}
