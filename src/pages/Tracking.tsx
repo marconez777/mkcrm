@@ -408,6 +408,8 @@ export default function Tracking() {
   const [visitorsPage, setVisitorsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
   const [leadsPage, setLeadsPage] = useState(1);
+  const [pagesPage, setPagesPage] = useState(1);
+
 
   const computeRange = useCallback(() => {
     const now = Date.now();
@@ -650,6 +652,34 @@ export default function Tracking() {
     }).sort((a, b) => (b.link.created_at || "").localeCompare(a.link.created_at || ""));
   }, [links, visitors, events, stages]);
 
+  // Relatório de páginas: visitas (visitantes únicos com page_view), leads (visitantes que viraram lead) e conversão
+  const pageReport = useMemo(() => {
+    const map = new Map<string, { path: string; sampleUrl: string | null; visitors: Set<string>; leads: Set<string> }>();
+    for (const e of events) {
+      if (e.event_name !== "page_view") continue;
+      const path = e.page_path || (e.page_url ? pathOf(e.page_url) : null);
+      if (!path) continue;
+      let row = map.get(path);
+      if (!row) {
+        row = { path, sampleUrl: e.page_url, visitors: new Set(), leads: new Set() };
+        map.set(path, row);
+      }
+      row.visitors.add(e.visitor_id);
+      const leadId = links[e.visitor_id]?.lead_id;
+      if (leadId) row.leads.add(leadId);
+    }
+    return Array.from(map.values())
+      .map((r) => ({
+        path: r.path,
+        sampleUrl: r.sampleUrl,
+        visits: r.visitors.size,
+        leads: r.leads.size,
+        rate: r.visitors.size > 0 ? r.leads.size / r.visitors.size : 0,
+      }))
+      .sort((a, b) => b.visits - a.visits);
+  }, [events, links]);
+
+
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -815,9 +845,11 @@ export default function Tracking() {
       <Tabs defaultValue="visitors">
         <TabsList>
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
+          <TabsTrigger value="pages">Páginas</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
         </TabsList>
+
 
 
         {/* Visitantes */}
@@ -898,7 +930,45 @@ export default function Tracking() {
           </Card>
         </TabsContent>
 
+        {/* Páginas */}
+        <TabsContent value="pages">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Páginas ({pageReport.length})</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Página</TableHead>
+                    <TableHead className="text-right">Visitas</TableHead>
+                    <TableHead className="text-right">Leads</TableHead>
+                    <TableHead className="text-right">Conversão</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageReport.length === 0 && (
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Sem page_views no período.</TableCell></TableRow>
+                  )}
+                  {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((r) => (
+                    <TableRow key={r.path}>
+                      <TableCell className="text-xs">
+                        <span title={r.sampleUrl ?? r.path}>{shortenPath(r.path, 60)}</span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.visits}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{r.leads}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {r.visits > 0 ? `${(r.rate * 100).toFixed(1)}%` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination page={pagesPage} pageSize={pageSize} total={pageReport.length} onPageChange={setPagesPage} onPageSizeChange={setPageSize} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Eventos */}
+
         <TabsContent value="events">
           <Card>
             <CardHeader><CardTitle className="text-sm">Eventos ({events.length})</CardTitle></CardHeader>
