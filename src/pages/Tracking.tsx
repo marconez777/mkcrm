@@ -210,6 +210,86 @@ function SourceCell({ source, medium, campaign, channelGroup }: { source: string
 
 type StageConfig = { consulta: string[]; tratamento: string[]; nutricao: string[] };
 
+function KpiCard({ label, value, hint, highlight }: { label: string; value: number | string; hint?: string; highlight?: boolean }) {
+  return (
+    <Card className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
+        {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StagePicker({
+  label,
+  stages,
+  selected,
+  onChange,
+}: {
+  label: string;
+  stages: Record<string, { name: string; color: string }>;
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const entries = Object.entries(stages).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const selSet = new Set(selected);
+  const toggle = (id: string) => {
+    const next = new Set(selSet);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(Array.from(next));
+  };
+  const summary = selected.length === 0
+    ? "Nenhum selecionado"
+    : selected.length <= 2
+      ? selected.map((id) => stages[id]?.name ?? id).join(", ")
+      : `${selected.length} estágios selecionados`;
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full justify-between truncate">
+            <span className="truncate">{summary}</span>
+            <span className="ml-2 text-[10px] text-muted-foreground">{selected.length}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-2" align="start">
+          <div className="mb-1 flex items-center justify-between px-1">
+            <span className="text-xs font-medium">{label}</span>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => onChange([])}
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {entries.length === 0 && (
+              <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum estágio.</p>
+            )}
+            {entries.map(([id, s]) => (
+              <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
+                <Checkbox checked={selSet.has(id)} onCheckedChange={() => toggle(id)} />
+                <span className="truncate">{s.name}</span>
+              </label>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+
+
 export default function Tracking() {
   const [period, setPeriod] = useState<PeriodKey>("7d");
   const [customFrom, setCustomFrom] = useState("");
