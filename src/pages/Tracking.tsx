@@ -762,27 +762,8 @@ export default function Tracking() {
         </CardHeader>
         {filtersOpen && (
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-6">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Período</label>
-            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(PERIODS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {period === "custom" && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">De</label>
-                <Input type="datetime-local" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">Até</label>
-                <Input type="datetime-local" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-              </div>
-            </>
-          )}
+          {/* Período agora fica fixo acima das KPIs */}
+
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">event_name</label>
             <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder="ex: page_view" />
