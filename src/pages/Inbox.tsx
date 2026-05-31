@@ -187,6 +187,9 @@ export default function InboxPage() {
             setStageFilter={setStageFilter}
             tagFilter={tagFilter}
             setTagFilter={setTagFilter}
+            instances={instances}
+            instanceId={instanceId}
+            setInstanceId={setInstanceId}
             onNew={() => setNewOpen(true)}
             loaded={leadsLoaded}
             hasMore={hasMore}
@@ -196,6 +199,7 @@ export default function InboxPage() {
             refreshing={refreshing}
             onCollapse={() => setShowList(false)}
           />
+
         </aside>
       )}
 
@@ -260,7 +264,10 @@ export default function InboxPage() {
         onClose={() => setNewOpen(false)}
         onCreated={(lid) => { setNewOpen(false); nav(`/inbox/${lid}`); }}
         defaultStageId={stages[0]?.id ?? null}
+        defaultInstanceId={instanceId ?? defaultInstance?.id ?? null}
+        instances={instances}
       />
     </div>
   );
 }
+
