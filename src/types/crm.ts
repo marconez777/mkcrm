@@ -59,6 +59,7 @@ export type Lead = {
   marked_unread?: boolean;
   ai_summary?: string | null;
   ai_summary_at?: string | null;
+  whatsapp_instance_id?: string | null;
 };
 
 export type Message = {
