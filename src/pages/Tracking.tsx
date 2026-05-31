@@ -816,7 +816,9 @@ export default function Tracking() {
             <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyForm} onCheckedChange={(v) => setOnlyForm(!!v)} /> Com formulário</label>
           </div>
         </CardContent>
+        )}
       </Card>
+
 
       {/* Configuração de estágios */}
       <Card className="mb-4">
