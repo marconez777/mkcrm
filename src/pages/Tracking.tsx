@@ -231,7 +231,7 @@ function StagePicker({
   onChange,
 }: {
   label: string;
-  stages: Record<string, { name: string; color: string }>;
+  stages: Record<string, { name: string; color: string; pipeline_id?: string }>;
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
