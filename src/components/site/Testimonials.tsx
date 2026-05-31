@@ -109,7 +109,7 @@ export default function Testimonials() {
                 </div>
               </div>
 
-              <div className="absolute -top-3 left-7 rounded-full border border-site-accent/50 bg-site-bg px-3 py-1">
+              <div className="absolute top-4 right-4 rounded-full border border-site-accent/50 bg-site-bg px-3 py-1">
                 <span className="site-font-body text-[11px] uppercase tracking-wider text-site-primary">{t.metric}</span>
               </div>
             </motion.li>
