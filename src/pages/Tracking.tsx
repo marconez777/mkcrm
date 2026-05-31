@@ -288,6 +288,43 @@ function StagePicker({
   );
 }
 
+// Heurística: mapeia estágios por nome para consulta / tratamento / nutrição.
+// Baseada nos nomes encontrados no histórico (Consulta Agendada, Tratamento prescrito,
+// Procedimento Agendado, NUTRIÇÃO DE LEADS INATIVOS, Parou de Responder, etc.).
+function suggestStageConfig(stages: Record<string, { name: string; color: string }>): StageConfig {
+  const consulta: string[] = [];
+  const tratamento: string[] = [];
+  const nutricao: string[] = [];
+  const norm = (s: string) => s.toLowerCase();
+  for (const [id, s] of Object.entries(stages)) {
+    const n = norm(s.name);
+    // Nutrição / não converteu primeiro (palavras mais fortes)
+    if (
+      /nutri[cç][aã]o|perdido|desqualif|n[aã]o\s*qualif|sem\s*resposta|parou\s*de\s*responder|n[aã]o\s*respondeu|n[aã]o\s*compareceu|inativ|[uú]ltima\s*tentativa|negou|retornar|vai\s*pensar/.test(n)
+    ) {
+      nutricao.push(id);
+      continue;
+    }
+    // Tratamento / procedimento / pagamento / pós-consulta
+    if (
+      /tratamento|procedimento|pagamento|semana\s*\d|comparecimento|fechou|cliente(s)?\s*ativ|paciente(?!\s*antigo)|retorno/.test(n)
+    ) {
+      tratamento.push(id);
+      continue;
+    }
+    // Consulta / agendamento / reunião
+    if (
+      /consulta|agendad|agendamento|pr[eé][-\s]?agend|reagend|reuni[aã]o|confirma[cç][aã]o\s*de\s*dados|fechamento\s*pendente\s*consulta/.test(n)
+    ) {
+      consulta.push(id);
+      continue;
+    }
+  }
+  return { consulta, tratamento, nutricao };
+}
+
+
+
 
 
 export default function Tracking() {
@@ -323,12 +360,14 @@ export default function Tracking() {
 
   // stage configuration (persisted per clinic in localStorage)
   const [stageConfig, setStageConfig] = useState<StageConfig>({ consulta: [], tratamento: [], nutricao: [] });
+  const [stageConfigLoaded, setStageConfigLoaded] = useState(false);
   useEffect(() => {
     if (!clinicId) return;
     try {
       const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
       if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
     } catch { /* ignore */ }
+    setStageConfigLoaded(true);
   }, [clinicId]);
   const saveStageConfig = useCallback((next: StageConfig) => {
     setStageConfig(next);
@@ -336,6 +375,25 @@ export default function Tracking() {
       try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
     }
   }, [clinicId]);
+  // Auto-sugere a configuração na primeira vez (nada salvo ainda) assim que os estágios carregam.
+  useEffect(() => {
+    if (!stageConfigLoaded) return;
+    if (!Object.keys(stages).length) return;
+    const empty =
+      stageConfig.consulta.length === 0 &&
+      stageConfig.tratamento.length === 0 &&
+      stageConfig.nutricao.length === 0;
+    if (!empty) return;
+    const suggestion = suggestStageConfig(stages);
+    if (
+      suggestion.consulta.length ||
+      suggestion.tratamento.length ||
+      suggestion.nutricao.length
+    ) {
+      saveStageConfig(suggestion);
+    }
+  }, [stages, stageConfigLoaded, stageConfig, saveStageConfig]);
+
 
   // visitor-level booleans
   const [vFlags, setVFlags] = useState<Record<string, { wa: boolean; fs: boolean; fa: boolean; sessions: number; events: number; lastPage: string | null }>>({});
@@ -681,12 +739,28 @@ export default function Tracking() {
 
       {/* Configuração de estágios */}
       <Card className="mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
-          </p>
+        <CardHeader className="pb-2 flex flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const s = suggestStageConfig(stages);
+              saveStageConfig(s);
+              toast.success(
+                `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
+              );
+            }}
+          >
+            Sugerir automaticamente
+          </Button>
         </CardHeader>
+
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <StagePicker
             label="Consulta fechada"
