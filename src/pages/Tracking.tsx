@@ -599,25 +599,63 @@ export default function Tracking() {
         </CardContent>
       </Card>
 
-      {/* Cards de visão geral */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-        {[
-          { label: "Visitantes únicos", value: summary.visitors },
-          { label: "Sessões", value: summary.sessions },
-          { label: "Eventos totais", value: summary.events },
-          { label: "Pageviews", value: summary.page_view },
-          { label: "Clique WhatsApp", value: summary.whatsapp_click },
-          { label: "Formulários iniciados", value: summary.form_start },
-          { label: "Form. tent. envio", value: summary.form_submit_attempt },
-          { label: "Leads identificados", value: summary.leads_identified },
-          { label: "Visitantes → Lead", value: summary.visitors_with_lead },
-          { label: "Taxa visitante → lead", value: `${summary.conv_rate.toFixed(1)}%` },
-        ].map((c) => (
-          <Card key={c.label}>
-            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{c.label}</CardTitle></CardHeader>
-            <CardContent className="pt-0 text-2xl font-semibold">{c.value}</CardContent>
-          </Card>
-        ))}
+      {/* Configuração de estágios */}
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Selecione os estágios do pipeline que contam como cada categoria. A escolha fica salva no navegador.
+          </p>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <StagePicker
+            label="Consulta fechada"
+            stages={stages}
+            selected={stageConfig.consulta}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
+          />
+          <StagePicker
+            label="Tratamento fechado"
+            stages={stages}
+            selected={stageConfig.tratamento}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
+          />
+          <StagePicker
+            label="Não converteu / nutrição"
+            stages={stages}
+            selected={stageConfig.nutricao}
+            onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
+          />
+        </CardContent>
+      </Card>
+
+      {/* KPIs focados */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard label="Visitas únicas" value={kpis.visitors} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} />
+        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
+        <KpiCard label="Total de leads" value={kpis.totalLeads} />
+        <KpiCard
+          label="Fechou consulta"
+          value={kpis.consulta.total}
+          hint={`${kpis.consulta.wa} WhatsApp · ${kpis.consulta.form} Form`}
+        />
+        <KpiCard
+          label="Fechou tratamento"
+          value={kpis.tratamento.total}
+          hint={`${kpis.tratamento.wa} WhatsApp · ${kpis.tratamento.form} Form`}
+        />
+        <KpiCard
+          label="Converteu (total)"
+          value={kpis.converteu.total}
+          hint={`${kpis.converteu.wa} WhatsApp · ${kpis.converteu.form} Form`}
+          highlight
+        />
+        <KpiCard
+          label="Não converteu (nutrição)"
+          value={kpis.nutricao.total}
+          hint={`${kpis.nutricao.wa} WhatsApp · ${kpis.nutricao.form} Form`}
+        />
       </div>
 
       <Tabs defaultValue="visitors">
@@ -625,10 +663,8 @@ export default function Tracking() {
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="leads">Leads com origem</TabsTrigger>
-          <TabsTrigger value="pages">Páginas</TabsTrigger>
-          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-          <TabsTrigger value="attribution">Atribuição</TabsTrigger>
         </TabsList>
+
 
         {/* Visitantes */}
         <TabsContent value="visitors">
