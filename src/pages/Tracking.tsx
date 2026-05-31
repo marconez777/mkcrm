@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { RefreshCw, Eye, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
@@ -333,6 +333,8 @@ export default function Tracking() {
   const [customTo, setCustomTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const { isSuperAdmin, membership } = useAuth();
   const confirm = useConfirm();
   const debugAvailable = isSuperAdmin || (membership?.clinic?.settings as any)?.tracking?.debug_enabled === true;
@@ -751,7 +753,14 @@ export default function Tracking() {
 
       {/* Filtros globais */}
       <Card className="mb-4">
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Filtros globais</CardTitle></CardHeader>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-sm">Filtros globais</CardTitle>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen((o) => !o)}>
+            {filtersOpen ? "Ocultar" : "Expandir"}
+            <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+          </Button>
+        </CardHeader>
+        {filtersOpen && (
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-6">
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Período</label>
@@ -807,7 +816,9 @@ export default function Tracking() {
             <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyForm} onCheckedChange={(v) => setOnlyForm(!!v)} /> Com formulário</label>
           </div>
         </CardContent>
+        )}
       </Card>
+
 
       {/* Configuração de estágios */}
       <Card className="mb-4">
@@ -818,22 +829,32 @@ export default function Tracking() {
               Selecione o pipeline oficial de vendas e os estágios que contam como cada categoria. A escolha fica salva no navegador.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const s = suggestStageConfig(salesStages);
-              saveStageConfig(s);
-              toast.success(
-                `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
-              );
-            }}
-          >
-            Sugerir automaticamente
-          </Button>
+          <div className="flex items-center gap-2">
+            {configOpen && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const s = suggestStageConfig(salesStages);
+                  saveStageConfig(s);
+                  toast.success(
+                    `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
+                  );
+                }}
+              >
+                Sugerir automaticamente
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfigOpen((o) => !o)}>
+              {configOpen ? "Ocultar" : "Expandir"}
+              <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${configOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
         </CardHeader>
 
+        {configOpen && (
         <CardContent className="space-y-3">
+
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Pipeline oficial de vendas</label>
             <Select value={salesPipelineId} onValueChange={onSelectSalesPipeline}>
@@ -868,7 +889,9 @@ export default function Tracking() {
             />
           </div>
         </CardContent>
+        )}
       </Card>
+
 
 
       {/* KPIs focados */}
