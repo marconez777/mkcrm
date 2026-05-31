@@ -829,22 +829,32 @@ export default function Tracking() {
               Selecione o pipeline oficial de vendas e os estágios que contam como cada categoria. A escolha fica salva no navegador.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const s = suggestStageConfig(salesStages);
-              saveStageConfig(s);
-              toast.success(
-                `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
-              );
-            }}
-          >
-            Sugerir automaticamente
-          </Button>
+          <div className="flex items-center gap-2">
+            {configOpen && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const s = suggestStageConfig(salesStages);
+                  saveStageConfig(s);
+                  toast.success(
+                    `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
+                  );
+                }}
+              >
+                Sugerir automaticamente
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfigOpen((o) => !o)}>
+              {configOpen ? "Ocultar" : "Expandir"}
+              <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${configOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
         </CardHeader>
 
+        {configOpen && (
         <CardContent className="space-y-3">
+
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Pipeline oficial de vendas</label>
             <Select value={salesPipelineId} onValueChange={onSelectSalesPipeline}>
