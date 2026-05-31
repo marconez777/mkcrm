@@ -25,7 +25,7 @@ const SERVICES = [
     n: "04",
     title: "Disparos em massa responsáveis",
     body: "Campanhas segmentadas via WhatsApp e e-mail com controle de janela, limite e opt-out automático.",
-    tags: ["Segmentação", "Resend", "Compliance"],
+    tags: ["Segmentação", "Entregabilidade gerenciada", "Compliance"],
   },
   {
     n: "05",
