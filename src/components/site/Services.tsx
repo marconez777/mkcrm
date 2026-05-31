@@ -12,14 +12,14 @@ const SERVICES = [
   {
     n: "02",
     title: "Automação de funil",
-    body: "Criamos regras, gatilhos e disparos automáticos para nutrir leads sem ninguém esquecer follow-up.",
-    tags: ["Triggers", "Templates", "Cadências"],
+    body: "Sequências por entrada de pipeline, mudança de estágio, sem-resposta ou antes da consulta — com janelas de envio e parada automática ao receber resposta.",
+    tags: ["Triggers de pipeline", "Janelas de envio", "Stop on reply"],
   },
   {
     n: "03",
     title: "IA aplicada à clínica",
-    body: "Agentes treinados com o tom da sua clínica, integrados ao histórico do paciente e ao funil de vendas.",
-    tags: ["Agentes", "Memórias", "Custos controlados"],
+    body: "Agente vendedor com RAG sobre sua base, agente classificador que move cards no Kanban e resumo automático de cada conversa — tudo com orçamento mensal controlado.",
+    tags: ["RAG", "Move Kanban", "Resumo automático"],
   },
   {
     n: "04",
