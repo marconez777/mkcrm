@@ -446,59 +446,43 @@ export default function Tracking() {
     });
   }, [visitors, vFlags, links, onlyAnon, onlyLeads, onlyWhatsapp, onlyForm, stageFilter]);
 
-  // page report
-  const pageReport = useMemo(() => {
-    const INTERNAL_HOSTS = ["crm.mkart.com.br", "mkcrm.lovable.app", "lovable.app", "lovable.dev", "localhost"];
-    const INTERNAL_PREFIXES = [
-      "/auth", "/onboarding", "/inbox", "/kanban", "/tasks", "/metrics", "/tracking",
-      "/settings", "/admin", "/agents", "/templates", "/sequences", "/automations",
-      "/broadcasts", "/team", "/invite", "/ai", "/email", "/unsubscribe", "/lead",
-      "/tracking-debug",
-    ];
-    const isInternal = (url: string | null | undefined, path: string) => {
-      if (url) {
-        try {
-          const h = new URL(url).hostname;
-          if (INTERNAL_HOSTS.some((d) => h === d || h.endsWith("." + d))) return true;
-        } catch { /* ignore */ }
-      }
-      return INTERNAL_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
-    };
-    const map: Record<string, { pageviews: number; visitors: Set<string>; wa: number; fs: number; fa: number; leads: Set<string> }> = {};
-    events.forEach((e) => {
-      const key = pathOf(e.page_url);
-      if (isInternal(e.page_url, key)) return;
-      if (!map[key]) map[key] = { pageviews: 0, visitors: new Set(), wa: 0, fs: 0, fa: 0, leads: new Set() };
-      const r = map[key];
-      if (e.event_name === "page_view") r.pageviews += 1;
-      if (e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect") r.wa += 1;
-      if (e.event_name === "form_start" || e.event_name === "partial_form_capture") r.fs += 1;
-      if (e.event_name === "form_submit_attempt") r.fa += 1;
-      r.visitors.add(e.visitor_id);
-      const ld = links[e.visitor_id];
-      if (ld) r.leads.add(ld.lead_id);
-    });
-    return Object.entries(map).map(([page, r]) => ({
-      page, pageviews: r.pageviews, visitors: r.visitors.size, wa: r.wa, fs: r.fs, fa: r.fa,
-      leads: r.leads.size, conv: r.visitors.size ? (r.leads.size / r.visitors.size) * 100 : 0,
-    })).sort((a, b) => b.pageviews - a.pageviews);
-  }, [events, links]);
+  // KPIs focados
+  const kpis = useMemo(() => {
+    const leadsArr = Object.values(links);
+    const isWA = (l: LinkRow) => isWhatsappSource(l.link_source);
+    const isForm = (l: LinkRow) => !isWA(l);
+    const inSet = (l: LinkRow, set: string[]) =>
+      !!(l.leads?.stage_id && set.includes(l.leads.stage_id));
 
-  // whatsapp report
-  const whatsappReport = useMemo(() => {
-    const waEvents = events.filter((e) => e.event_name === "whatsapp_click" || e.event_name === "whatsapp_redirect");
-    const uniqueVisitors = new Set(waEvents.map((e) => e.visitor_id));
-    const pageMap: Record<string, number> = {};
-    waEvents.forEach((e) => { const k = pathOf(e.page_url); pageMap[k] = (pageMap[k] ?? 0) + 1; });
-    const turnedLead = Array.from(uniqueVisitors).filter((v) => links[v]).length;
+    const formLeads = leadsArr.filter(isForm);
+    const waLeads = leadsArr.filter(isWA);
+    const consultaLeads = leadsArr.filter((l) => inSet(l, stageConfig.consulta));
+    const tratamentoLeads = leadsArr.filter((l) => inSet(l, stageConfig.tratamento));
+    const nutricaoLeads = leadsArr.filter((l) => inSet(l, stageConfig.nutricao));
+
+    const convertedIds = new Set(
+      [...consultaLeads, ...tratamentoLeads].map((l) => l.lead_id),
+    );
+    const convertedLeads = leadsArr.filter((l) => convertedIds.has(l.lead_id));
+
+    const split = (arr: LinkRow[]) => ({
+      total: arr.length,
+      wa: arr.filter(isWA).length,
+      form: arr.filter(isForm).length,
+    });
+
     return {
-      total: waEvents.length,
-      uniqueVisitors: uniqueVisitors.size,
-      topPages: Object.entries(pageMap).sort((a, b) => b[1] - a[1]),
-      turnedLead,
-      conv: uniqueVisitors.size ? (turnedLead / uniqueVisitors.size) * 100 : 0,
+      visitors: visitorsTotal,
+      formLeads: formLeads.length,
+      waLeads: waLeads.length,
+      totalLeads: leadsArr.length,
+      consulta: split(consultaLeads),
+      tratamento: split(tratamentoLeads),
+      converteu: split(convertedLeads),
+      nutricao: split(nutricaoLeads),
     };
-  }, [events, links]);
+  }, [links, stageConfig, visitorsTotal]);
+
 
   const leadsWithOrigin = useMemo(() => {
     const CONV_EVENTS = new Set([
