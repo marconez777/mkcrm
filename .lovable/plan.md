@@ -1,95 +1,69 @@
-## Escopo
+# Plano: Aliviar animações scroll-based
 
-Aplicar o mesmo padrão de animação scroll-based premium nas 4 seções restantes que ainda não receberam o tratamento:
+## Diagnóstico
 
-- `Integrations` — cabeçalho + 8 cards em grid 4 col
-- `Testimonials` — cabeçalho + 3 cards de depoimento
-- `Pricing` — cabeçalho + 3 planos (com destaque persistente do Pro)
-- `Blog` — cabeçalho + botão "Ver tudo" + 3 cards de post
+Hoje o site tem 7 seções animadas (Features, Services, Integrations, Testimonials, Pricing, Blog, About) com o mesmo padrão pesado. Os principais gargalos:
 
-`Marquee` (faixa de logos infinita) e `SiteNav`/`SiteFooter` ficam de fora — não fazem parte do padrão "seção reveal + cards".
+1. **Springs em excesso** — cada card faz 5 `useSpring` (opacity, y, scale, rotateX, active) + 2–3 transforms derivados. Em Services (6 cards) são 30+ springs animando em cada frame do scroll. Springs forçam re-cálculo a cada rAF mesmo quando o scroll para.
+2. **Listeners de scroll redundantes** — cada seção monta seu próprio `useScroll`, totalizando 7 observers de scroll simultâneos com cálculo independente de `scrollYProgress`.
+3. **Auroras pesadas** — 4 `AuroraBlob` por seção × 7 seções = até 28 elementos com `blur-3xl` (filtro GPU caríssimo) animando `opacity/scale/x/y` continuamente em loop infinito, mesmo quando a seção está fora da viewport.
+4. **rotateX + perspective** — força camada 3D extra na composição.
+5. **Active highlight curve** — adiciona spring + box-shadow animado por card (box-shadow não é GPU-acelerado e dispara repaint).
+6. **Auroras animam offscreen** — `repeat: Infinity` mantém o rAF rodando mesmo quando a seção não está visível.
 
-## Refator leve (anti-duplicação)
+## Estratégia
 
-Criar um único módulo utilitário compartilhado: **`src/components/site/_anim.tsx`** com:
-- Constante `SPRING = { stiffness: 80, damping: 22, mass: 0.5 }`
-- Hook `useIsMobile()` (matchMedia 768px)
-- Componente `AuroraBlob` (versão genérica reutilizável que aceita props de classe, background, animate, duration, parallaxY opcional, reduce, isMobile)
+Manter a sensação premium, mas cortar o custo:
 
-Os 3 arquivos já animados (`About.tsx`, `Features.tsx`, `Services.tsx`) **permanecem inalterados** — o módulo `_anim.tsx` é só para os novos. Não há risco de regressão. (Opcional/futuro: migrar os antigos pra consumir o módulo; não faço agora pra manter o diff escopado.)
+### A. Substituir scroll-based contínuo por entry-once em todas as seções **exceto Services**
+- Trocar `useScroll` + `useTransform` + `useSpring` por **`whileInView`** (`viewport={{ once: true, margin: "-10% 0px" }}`) com `transition` tween curta. Isso elimina o cálculo por frame: a animação roda uma vez na entrada e para. Visualmente quase idêntico ao efeito de entrada atual.
+- Remover springs encadeados; usar `initial`/`animate` simples com `ease: [0.22, 1, 0.36, 1]` e `duration: 0.6–0.8`.
+- Manter cascata (delay por índice de card: `0.06 * i`).
+- Remover `rotateX` e `scale` da entrada padrão (manter só `opacity` + `y`). O ganho de fluidez é grande e o efeito final continua premium.
 
-## Padrão de animação aplicado em cada seção
+### B. Services mantém scroll-based, mas otimizado
+Services é a "vitrine" mais elaborada — vale preservar o efeito, mas:
+- Reduzir springs por card de 5 → 2 (apenas `opacity` e `y` com spring; `scale`/`rotateX` viram tween simples ou são removidos).
+- Remover o "active highlight" baseado em `scrollYProgress` (box-shadow + scale boost por card). Substituir por **hover-only** glow (já existe efeito de hover; basta intensificar). Ganho enorme: elimina 6 springs + 6 box-shadow animados.
+- Manter cabeçalho em cascata via `whileInView` (não precisa de scroll contínuo).
 
-Mesma fórmula validada nas seções anteriores:
+### C. Auroras — drasticamente mais leves
+- Reduzir de 4 → **2** AuroraBlob por seção.
+- Trocar `blur-3xl` (radius ~64px) por `blur-2xl` (40px) — diferença visual mínima, custo de filtro bem menor.
+- Remover parallax `y` baseado em `scrollYProgress` (elimina mais um listener por blob).
+- Animar apenas `opacity` no loop (já é o caso no mobile); remover `x`/`scale`/`y`. Loop continua dando vida sem mover camadas.
+- Pausar animação quando offscreen: envolver com `whileInView` + `viewport={{ once: false }}` e usar `animate` controlado por estado de inView, OU usar `IntersectionObserver` simples para montar/desmontar.
+- Em mobile/`prefers-reduced-motion`: auroras 100% estáticas (sem loop).
 
-### Cabeçalho (entrada sequencial)
-- Badge: `opacity` 0→1 + `y` 12→0 em `[0.05, 0.22]`
-- Título: `opacity` 0→1 + `y` 28→0 em `[0.1, 0.3]`
-- Glow verde sutil nas palavras destacadas em `text-site-primary`: `text-shadow` pulsando para residual em `[0.12, 0.3, 0.45] → [0, 1, 0.32]` (intensidade 0.4× no mobile)
-- Subtítulo/parágrafo: `opacity` 0→1 + `y` 16→0 em `[0.18, 0.38]`
+### D. _anim.tsx — utilitários atualizados
+- Adicionar helpers `fadeUp` (variants) e `cascade(i)` para reuso.
+- `AuroraBlob` refatorado: sem `parallaxY`, sem props `animate` complexas; só `duration`, `reduce`, `isMobile` e classe de posição.
 
-### Cards (sequenciais)
-Cada card vira `motion.li` (ou `motion.a` em Blog) com faixas escalonadas:
-- `opacity` 0→1
-- `y` 50→0 (20 mobile)
-- `scale` combinado com pico ativo: `[start, peak, end] → [0.96, 1.012, 1]` (1,1,1 mobile)
-- `rotateX` 4deg→0deg (0 mobile)
-- Destaque ativo no pico: `boxShadow` interno verde + sombra externa roxa, modulado por uma curva triangular `[peak-0.06, peak, peak+0.06] → [0, 1, 0]`
-- Overlay gradiente discreto verde→roxo no pico
+### E. Hints de performance
+- Adicionar `content-visibility: auto` + `contain-intrinsic-size` nas seções abaixo do fold (corte de layout/paint offscreen).
+- Confirmar `will-change` apenas em elementos realmente animados (remover dos containers estáticos).
+- Garantir que `<section>` raiz não tenha `overflow-hidden` desnecessário que crie stacking context extra.
 
-### Auroras de fundo
-Substituir os 2 blobs estáticos atuais de cada seção por `AuroraBlob` animados (loop muito lento, parallax sutil ligado ao scroll). Em desktop, adicionar 1–2 camadas extras para profundidade. No mobile, manter apenas os blobs originais com breathing de opacidade.
+## Arquivos a editar
 
-## Particularidades por seção
+- `src/components/site/_anim.tsx` — refatorar `AuroraBlob`, exportar `fadeUp` variants e helper `cascade`.
+- `src/components/site/Features.tsx` — migrar para `whileInView` + variants; reduzir auroras.
+- `src/components/site/Services.tsx` — manter scroll-based no cabeçalho/cards mas cortar springs (5→2 por card), remover active-highlight scroll-based (vira hover), reduzir auroras.
+- `src/components/site/Integrations.tsx` — migrar para `whileInView`; reduzir auroras.
+- `src/components/site/Testimonials.tsx` — idem.
+- `src/components/site/Pricing.tsx` — idem; manter destaque permanente do plano Pro como estilo estático (sem spring).
+- `src/components/site/Blog.tsx` — idem.
 
-### `Integrations.tsx`
-- Glow na palavra "tudo" do título
-- 8 cards no grid 2/3/4 colunas — cascata por progresso, faixas estreitas para não demorar demais. Faixas: `[0.22..0.40]` até `[0.42..0.60]`, picos distribuídos por linha.
-- Parágrafo final "Não vê a sua ferramenta…" também recebe fade-in tardio em `[0.6, 0.78]`.
-- `<ul>` recebe `perspective: 1200`.
-- Manter o `hover:-translate-y-1` original — não conflita com o `y` do motion porque o hover é em transform CSS que o Framer Motion sobrescreve via `style`. Solução: remover o `hover:-translate-y-1` e simular com `whileHover={{ y: -4 }}` no `motion.li` para não brigar com o `y` do scroll. (O scroll `y` é uma `MotionValue`; `whileHover` compõe corretamente em Framer Motion v12.)
+## Garantias
 
-### `Testimonials.tsx`
-- Glow na palavra "MK-CRM" do título
-- 3 cards: faixas `[0.22, 0.42]`, `[0.28, 0.48]`, `[0.34, 0.54]`, picos em 0.32, 0.38, 0.44
-- Mesmo tratamento de `hover:-translate-y-1` → `whileHover={{ y: -4 }}`
-- Pílula `metric` no topo do card mantida como está (não anima separadamente para não poluir)
+- **Zero mudança de copy, layout, cores, espaçamento, hierarquia, cards, navbar.**
+- Mesma sensação de entrada (fade + translateY + cascata + glow nas palavras-chave em verde — esse glow vira CSS estático ou tween curta).
+- `prefers-reduced-motion` continua respeitado.
+- Mobile: simplificado igual hoje (sem rotateX, sem parallax).
 
-### `Pricing.tsx`
-- Glow na palavra "sem letra miúda"
-- 3 planos: faixas `[0.22, 0.44]`, `[0.28, 0.5]`, `[0.34, 0.56]`, picos em 0.33, 0.39, 0.45
-- **Plano Pro (highlight)**: mantém a borda permanente, halo roxo persistente, sombra `shadow-[0_30px_80px_-30px_hsl(var(--site-accent)/0.6)]` e a badge "Mais escolhido". A animação de entrada/destaque é **somada** ao destaque permanente do Pro — o glow ativo passa por todos, mas o Pro continua visualmente mais alto sempre. Implementação: a curva de destaque do Pro tem floor maior (residual 0.4 em vez de 0), garantindo que ele sempre brilhe um pouco.
-- CTA `<a>` dentro do plano não anima individualmente — herda do card.
+## Ganho esperado
 
-### `Blog.tsx`
-- Glow na palavra "central de ajuda"
-- Botão "Ver tudo" entra junto com o subtítulo (`[0.2, 0.4]`)
-- 3 cards (são `<a>` dentro de `<li>`): aplico `motion.a` para o link, ou `motion.li` no wrapper — opto por `motion.li` para preservar o `<a>` interativo intacto. Faixas: `[0.3, 0.5]`, `[0.36, 0.56]`, `[0.42, 0.62]`, picos em 0.4, 0.46, 0.52.
-- `hover:-translate-y-1` no `<a>` interno é preservado (não conflita com `y` do `motion.li`).
-- Parágrafo "Em breve: central de ajuda…" recebe fade-in tardio em `[0.6, 0.78]`.
-
-## Garantias técnicas
-
-- Só `transform`, `opacity`, `box-shadow`, `text-shadow` — nada de reflow.
-- `prefers-reduced-motion`: tudo em estado final, sem glow, blobs estáticos.
-- Mobile (<768px): sem `rotateX`, sem `scale`, parallax desligado, blobs reduzidos a breathing de opacity.
-- `willChange: "transform, opacity"` nos elementos animados.
-- Copy, classes de cor, layout grid e estrutura DOM 100% preservados — apenas tags trocadas para `motion.*`, blobs trocados por `AuroraBlob`, e overlays absolutos adicionais.
-
-## Arquivos
-
-- **Criar**: `src/components/site/_anim.tsx` (utils compartilhados)
-- **Editar**: `src/components/site/Integrations.tsx`
-- **Editar**: `src/components/site/Testimonials.tsx`
-- **Editar**: `src/components/site/Pricing.tsx`
-- **Editar**: `src/components/site/Blog.tsx`
-
-## Validação
-
-Preview a 1138px: rolar do topo ao rodapé e verificar que cada seção restante agora tem:
-1. Cabeçalho em cascata com glow nos termos verdes
-2. Cards entrando em sequência com destaque migrando
-3. Auroras roxas respirando suavemente no fundo
-4. Pricing: Pro continua visualmente proeminente o tempo todo
-
-Conferir mobile (<768px) e `prefers-reduced-motion`.
+- Scroll listeners: 7 → 1 (apenas Services).
+- Springs simultâneos: ~80 → ~12.
+- Elementos com `blur-3xl` animados: ~28 → ~14 com `blur-2xl`, pausados offscreen.
+- rAF ativo durante scroll idle: praticamente zero.
