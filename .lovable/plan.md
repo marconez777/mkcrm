@@ -1,38 +1,45 @@
-
-## Objetivo
-
-Adicionar rotação suave ao objeto 3D do Hero (`hero-3d.png`) que reage ao progresso do scroll: gira ao descer, reverte ao subir. Sem afetar layout, textos, botões, navbar ou background.
-
 ## Arquivo afetado
 
-- `src/components/site/Hero.tsx` — único arquivo alterado. Apenas o `<img src={hero3d} />` e seu wrapper recebem a animação.
+`src/components/site/About.tsx` — único arquivo. Sem mudança em layout, copy, cores ou estrutura DOM (apenas wrappers `motion.*`).
 
-## Abordagem técnica
+## Abordagem
 
-Usar **Framer Motion** (`motion` + `useScroll` + `useTransform` + `useSpring`) — já é uma dependência comum e performática, sem listeners manuais de scroll.
+Framer Motion (já instalado) com `useScroll` + `useTransform` + `useSpring` ancorado a um `ref` da seção. Sem IntersectionObserver, sem listeners de scroll manuais, sem hijacking.
 
-1. Transformar o `<img>` do hero em `motion.img` (mantendo classes, `src`, `alt`, dimensões).
-2. `useScroll()` com `offset: ["start start", "end start"]` ancorado a um `ref` no wrapper da imagem → progresso de 0 a 1 ao longo dos primeiros ~600–900px da Hero.
-3. Mapear o progresso com `useTransform`:
-   - `rotateY`: 0 → 25deg
-   - `rotateZ`: 0 → 8deg
-   - `scale`: 1 → 1.03
-4. Envolver cada transform em `useSpring({ stiffness: 80, damping: 20, mass: 0.6 })` para inércia/suavidade — evita tremidas e dá sensação flutuante.
-5. Aplicar via `style={{ rotateY, rotateZ, scale }}` no `motion.img`. Adicionar `style={{ transformPerspective: 1000, willChange: "transform" }}` para profundidade 3D real e GPU.
-6. O halo verde (div blur atrás da imagem) permanece estático — só o objeto gira.
+### 1. Título à esquerda
+- `motion.div` envolvendo o bloco do `h2` + badge.
+- `opacity` 0 → 1 e `x` -40 → 0 conforme `scrollYProgress` da seção em `[0, 0.25]`.
+- Springs suaves (`stiffness: 80, damping: 22`).
 
-## Acessibilidade e mobile
+### 2. Glow na palavra "relacionamento"
+- `motion.span` ao redor da palavra com `text-shadow` animado: `0 0 0 transparent` → `0 0 24px hsl(var(--site-primary) / 0.55)` durante a entrada `[0.05, 0.3]`, depois suaviza de volta para um glow residual mínimo (`0 0 8px / 0.2`) em `[0.3, 0.45]` para não ficar permanentemente chamativo.
 
-- `useReducedMotion()` do Framer Motion: se `true`, retornar transforms fixos em 0 (sem animação).
-- Mobile (`matchMedia("(max-width: 768px)")` num `useEffect` com state): reduzir intensidade para ~40% (rotateY 0→10deg, rotateZ 0→3deg, sem scale). Detecção uma vez no mount, com listener de resize cancelável.
+### 3. Parágrafo à direita
+- `motion.p` com `opacity` 0 → 1 e `y` 24 → 0 em `[0.1, 0.35]`.
 
-## Garantias
+### 4. Cards em sequência (1 → 2 → 3)
+- Cada `<article>` vira `motion.article`, com sua própria faixa de progresso:
+  - Card 1: `[0.2, 0.45]`
+  - Card 2: `[0.3, 0.55]`
+  - Card 3: `[0.4, 0.65]`
+- Transforms por card: `opacity` 0 → 1, `y` 40 → 0, `scale` 0.96 → 1, `rotateX` 4deg → 0deg.
+- Wrapper grid recebe `style={{ perspective: 1200 }}` para o `rotateX` ter profundidade real.
 
-- Só `transform` e `opacity` (não usados aqui) — nada de `top/left/width/height/margin/padding`.
-- Sem scroll hijacking: nenhum `preventDefault`, nenhum listener de wheel.
-- Layout, copy, cores e estrutura do Hero preservados — apenas o elemento `<img>` ganha `motion` + `style` de transform.
-- Springs garantem reversibilidade automática ao subir o scroll.
+### 5. Destaque ativo "passando" pelos cards
+- Cada card recebe um `motion.div` interno absoluto (atrás do conteúdo) com:
+  - Borda verde extra (`box-shadow: 0 0 0 1px hsl(var(--site-primary) / X)`)
+  - Glow verde sutil (`0 20px 60px -20px hsl(var(--site-primary) / X)`)
+  - Gradiente discreto roxo→verde (semelhante ao halo existente do card)
+- A opacidade desse overlay é uma curva "pico" (`useTransform` com array `[in, peak, out] → [0, 1, 0.25]`) por card, sincronizada com sua faixa — fica brilhante quando entra e suaviza para um destaque residual elegante. Card 1 mantém o destaque residual visível para casar com o estilo atual da hover.
+
+### 6. Acessibilidade e mobile
+- `useReducedMotion()`: quando `true`, todos os transforms retornam valor final (opacity 1, sem deslocamento) e o overlay de destaque fica em opacidade residual fixa.
+- `matchMedia("(max-width: 768px)")` via `useState` + listener: no mobile, remover `rotateX` e `scale`, manter só `opacity` + `y` curto (16px). Glow do título e overlay dos cards reduzidos para ~40% de intensidade.
+
+### 7. Garantias técnicas
+- Só `transform`, `opacity` e `box-shadow`/`text-shadow` (não animam reflow).
+- Reversível ao subir (springs reagem ao `scrollYProgress` em ambas direções).
+- Sem mudança em copy, classes de cor, layout grid ou hierarquia DOM além de trocar tags por `motion.*` e adicionar overlays absolutos.
 
 ## Validação
-
-- Conferir no preview (desktop 1138px e mobile <768px) que a rotação aparece nos primeiros ~700px de scroll, estabiliza depois, e que nada mais muda visualmente.
+- Conferir no preview: rolar até a seção e observar entrada sequencial; rolar de volta e ver reversão; reduzir viewport para <768px e checar versão simplificada.
