@@ -360,12 +360,14 @@ export default function Tracking() {
 
   // stage configuration (persisted per clinic in localStorage)
   const [stageConfig, setStageConfig] = useState<StageConfig>({ consulta: [], tratamento: [], nutricao: [] });
+  const [stageConfigLoaded, setStageConfigLoaded] = useState(false);
   useEffect(() => {
     if (!clinicId) return;
     try {
       const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
       if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
     } catch { /* ignore */ }
+    setStageConfigLoaded(true);
   }, [clinicId]);
   const saveStageConfig = useCallback((next: StageConfig) => {
     setStageConfig(next);
@@ -373,6 +375,25 @@ export default function Tracking() {
       try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
     }
   }, [clinicId]);
+  // Auto-sugere a configuração na primeira vez (nada salvo ainda) assim que os estágios carregam.
+  useEffect(() => {
+    if (!stageConfigLoaded) return;
+    if (!Object.keys(stages).length) return;
+    const empty =
+      stageConfig.consulta.length === 0 &&
+      stageConfig.tratamento.length === 0 &&
+      stageConfig.nutricao.length === 0;
+    if (!empty) return;
+    const suggestion = suggestStageConfig(stages);
+    if (
+      suggestion.consulta.length ||
+      suggestion.tratamento.length ||
+      suggestion.nutricao.length
+    ) {
+      saveStageConfig(suggestion);
+    }
+  }, [stages, stageConfigLoaded, stageConfig, saveStageConfig]);
+
 
   // visitor-level booleans
   const [vFlags, setVFlags] = useState<Record<string, { wa: boolean; fs: boolean; fa: boolean; sessions: number; events: number; lastPage: string | null }>>({});
