@@ -397,6 +397,26 @@ export default function Tracking() {
     }
   }, [stages, stageConfigLoaded, stageConfig, saveStageConfig]);
 
+  // Apenas os estágios do pipeline oficial de vendas selecionado
+  const salesStages = useMemo(() => {
+    if (!salesPipelineId) return stages;
+    const filtered: typeof stages = {};
+    for (const [id, s] of Object.entries(stages)) {
+      if (s.pipeline_id === salesPipelineId) filtered[id] = s;
+    }
+    return filtered;
+  }, [stages, salesPipelineId]);
+
+  const onSelectSalesPipeline = (id: string) => {
+    setSalesPipelineId(id);
+    if (clinicId) {
+      try { localStorage.setItem(`tracking:sales-pipeline:${clinicId}`, id); } catch { /* ignore */ }
+    }
+    // Limpa seleção atual para que a auto-sugestão (filtrada) rode novamente
+    saveStageConfig({ consulta: [], tratamento: [], nutricao: [] });
+  };
+
+
 
   // visitor-level booleans
   const [vFlags, setVFlags] = useState<Record<string, { wa: boolean; fs: boolean; fa: boolean; sessions: number; events: number; lastPage: string | null }>>({});
