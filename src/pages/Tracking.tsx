@@ -288,6 +288,43 @@ function StagePicker({
   );
 }
 
+// Heurística: mapeia estágios por nome para consulta / tratamento / nutrição.
+// Baseada nos nomes encontrados no histórico (Consulta Agendada, Tratamento prescrito,
+// Procedimento Agendado, NUTRIÇÃO DE LEADS INATIVOS, Parou de Responder, etc.).
+function suggestStageConfig(stages: Record<string, { name: string; color: string }>): StageConfig {
+  const consulta: string[] = [];
+  const tratamento: string[] = [];
+  const nutricao: string[] = [];
+  const norm = (s: string) => s.toLowerCase();
+  for (const [id, s] of Object.entries(stages)) {
+    const n = norm(s.name);
+    // Nutrição / não converteu primeiro (palavras mais fortes)
+    if (
+      /nutri[cç][aã]o|perdido|desqualif|n[aã]o\s*qualif|sem\s*resposta|parou\s*de\s*responder|n[aã]o\s*respondeu|n[aã]o\s*compareceu|inativ|[uú]ltima\s*tentativa|negou|retornar|vai\s*pensar/.test(n)
+    ) {
+      nutricao.push(id);
+      continue;
+    }
+    // Tratamento / procedimento / pagamento / pós-consulta
+    if (
+      /tratamento|procedimento|pagamento|semana\s*\d|comparecimento|fechou|cliente(s)?\s*ativ|paciente(?!\s*antigo)|retorno/.test(n)
+    ) {
+      tratamento.push(id);
+      continue;
+    }
+    // Consulta / agendamento / reunião
+    if (
+      /consulta|agendad|agendamento|pr[eé][-\s]?agend|reagend|reuni[aã]o|confirma[cç][aã]o\s*de\s*dados|fechamento\s*pendente\s*consulta/.test(n)
+    ) {
+      consulta.push(id);
+      continue;
+    }
+  }
+  return { consulta, tratamento, nutricao };
+}
+
+
+
 
 
 export default function Tracking() {
