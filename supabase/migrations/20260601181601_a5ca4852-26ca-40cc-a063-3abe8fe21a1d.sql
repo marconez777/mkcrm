@@ -1,0 +1,2 @@
+ALTER TABLE public.automation_runs ADD COLUMN IF NOT EXISTS appointment_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_automation_runs_lookup ON public.automation_runs (automation_id, lead_id, status, created_at DESC);
