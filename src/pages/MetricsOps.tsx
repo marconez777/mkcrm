@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
 import { Activity, Clock, Users, TrendingUp, Inbox, MessageSquare } from "lucide-react";
 
@@ -23,12 +24,15 @@ export default function MetricsOps() {
     const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
     Promise.all([
       supabase.from("messages").select("lead_id, from_me, timestamp").gte("timestamp", since).order("timestamp", { ascending: true }).limit(5000),
-      supabase.from("leads").select("id, created_at, attendant_id, stage_id, archived_at, unread_count, last_message_at").limit(2000),
+      fetchAllPaged<LeadRow>(
+        () => supabase.from("leads").select("id, created_at, attendant_id, stage_id, archived_at, unread_count, last_message_at"),
+        1000,
+      ),
       supabase.from("attendants").select("id, name, color"),
       supabase.from("pipeline_stages").select("id, name, color").order("position"),
     ]).then(([m, l, a, s]) => {
       setMsgs((m.data ?? []) as MsgRow[]);
-      setLeads((l.data ?? []) as LeadRow[]);
+      setLeads(l);
       setAttendants((a.data ?? []) as any);
       setStages((s.data ?? []) as any);
     });
