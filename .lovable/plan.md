@@ -1,110 +1,68 @@
-## Problema
+# Criar `docs/features/APPOINTMENT_REMINDERS.md`
 
-Na página **Tracking**, os KPIs de leads e conversão funcionam em "Hoje" e "7 dias", mas zeram em "30 dias", "Máximo" e em meses inteiros — mesmo com leads reais no período (Mai/2026 mostra 25 leads como mês, mas 0 em "Máximo").
+Documento novo, dedicado a lembretes antes da consulta, baseado no trigger `before_appointment` do `automations-tick`.
 
-## Causa raiz
+## Estrutura do arquivo
 
-Em `src/pages/Tracking.tsx` (`load`), após buscar os visitantes do período fazemos:
+1. **Visão geral** — lembretes hoje são **Automations** (não Sequences), reaproveitando o motor genérico. Cron a cada 5 min.
+2. **Pré-requisitos**
+   - Custom field tipo `datetime` no lead (ex.: `data_consulta`) com valor ISO parseável (`2026-06-15T14:30:00-03:00`).
+   - Template de mensagem (ou agente IA) já criado.
+   - Instância de WhatsApp conectada no lead.
+3. **Como o trigger funciona** (resumo do código)
+   - Lê `leads.custom_fields[field_key]`, não a tabela `appointments`.
+   - Dispara quando `now ∈ [appt - offset_minutes, appt - 5min]`.
+   - Filtros opcionais: `tz`, `preferred_time` (HH:MM), `business_hours_only` (seg-sex 08-18), `stage_id`.
+   - Regra escondida: com `preferred_time`, exige que o `target` caia no **mesmo dia local** do `now`.
+   - Limite de 200 candidatos por tick.
+4. **Passo a passo na UI** (`/ai/messages/automations`)
+   - Nova automation → trigger `before_appointment`.
+   - Preencher `field_key`, `offset_minutes`, `tz`, opcionais.
+   - Escolher ação (`send_template` ou `ai_followup`).
+   - Definir `cooldown_hours` para evitar duplicata.
+5. **Exemplo completo: 24h + 2h antes**
+   - **Automation A (D-1 09:00):**
+     ```json
+     trigger_config: {
+       "field_key": "data_consulta",
+       "offset_minutes": 1440,
+       "tz": "America/Sao_Paulo",
+       "preferred_time": "09:00",
+       "business_hours_only": true
+     }
+     action_type: send_template
+     action_config: { "template_id": "<uuid lembrete 24h>" }
+     cooldown_hours: 20
+     ```
+   - **Automation B (D-0, 2h antes):**
+     ```json
+     trigger_config: {
+       "field_key": "data_consulta",
+       "offset_minutes": 120,
+       "tz": "America/Sao_Paulo"
+     }
+     action_type: send_template
+     action_config: { "template_id": "<uuid lembrete 2h>" }
+     cooldown_hours: 3
+     ```
+   - Sugestão de conteúdo dos templates (com `{{nome}}`, `{{primeiro_nome}}`).
+6. **Diferenças importantes**
+   - vs **Sequences**: `stop_on_reply` **não se aplica** a Automations — o lembrete dispara mesmo se o lead já confirmou. Workaround: usar `stage_id` ou mover lead para estágio "Confirmado" e filtrar.
+   - vs **`scheduled_messages`** (`src/lib/scheduled-messages.ts`): mensagem única, manual, agendada pelo atendente no inbox. Não tem regra recorrente.
+   - Tabela `appointments` existe mas o trigger **ignora** ela; sincronizar manualmente para `leads.custom_fields[field_key]` se vier de outra origem.
+7. **Troubleshooting**
+   - Não dispara: data não é ISO; tz errado; `preferred_time` HH:MM inválido; passou de `appt-5min`; lead arquivado; passou do limite de 200; cooldown ainda ativo.
+   - Dispara duas vezes: `cooldown_hours` muito baixo.
+   - Dispara fora do horário: faltou `business_hours_only` ou `preferred_time`.
+   - Lead já confirmou e ainda recebe: filtrar por `stage_id` ou desenrolar manualmente.
+8. **Links**
+   - `docs/features/SEQUENCES_AUTOMATIONS.md` §2
+   - `docs/flows/LEAD_LIFECYCLE.md`
+   - `supabase/functions/automations-tick/index.ts`
 
-```ts
-const ids = vList.map(v => v.visitor_id);
-await supabase.from("tracking_identity_links").select("...").in("visitor_id", ids);
-```
+## Detalhes técnicos
 
-Em períodos longos a lista cresce (936 visitantes em 30d, confirmado no banco). Centenas de UUIDs no `.in()` geram uma URL enorme que estoura o limite de URI do PostgREST/HTTP — a request falha silenciosamente (sem `throw`), `linkData` volta `null` e `links` fica vazio. Resultado: visitantes corretos, mas todos os KPIs de leads/consulta/tratamento/conversão zeram.
-
-Além disso, durante o `load` os cards continuam mostrando os números antigos (ou zeros), passando a impressão de "0 leads" antes da query terminar.
-
----
-
-## Etapa 1 — Corrigir KPIs zerados em períodos longos
-
-Eliminar a falha silenciosa do `.in()` longo, sem mudar UI nem semântica dos KPIs.
-
-### Mudanças em `src/pages/Tracking.tsx` (função `load`)
-
-Trocar o bloco do `.in("visitor_id", ids)` por chunking via helper que já existe no projeto (`fetchAllByIn` em `src/lib/fetch-all.ts`):
-
-```ts
-import { fetchAllByIn } from "@/lib/fetch-all";
-
-const linkMap: Record<string, LinkRow> = {};
-if (ids.length) {
-  const linkRows = await fetchAllByIn<LinkRow>(
-    (slice) => supabase
-      .from("tracking_identity_links")
-      .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
-      .in("visitor_id", slice),
-    ids,
-    200, // chunk pequeno o suficiente para caber na URL
-  );
-  for (const l of linkRows) {
-    if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
-  }
-}
-setLinks(linkMap);
-```
-
-Defensivo (não muda comportamento): logar `error` das queries principais (`tracking_events`, `tracking_visitors`, count) com `console.warn` para não engolir falhas futuras.
-
-### Validação
-
-1. "Máximo" → KPIs ≥ aos de "Mai/2026".
-2. "30 dias" → mostra leads (≥ "7 dias").
-3. "7 dias" e "Hoje" → continuam iguais.
-4. Aba "Leads com origem" lista os leads novamente.
-
-### Arquivos
-- `src/pages/Tracking.tsx`
-
----
-
-## Etapa 2 — Melhorar experiência de loading
-
-Hoje, enquanto `load` roda, os cards de KPI mostram valores antigos ou zeros, confundindo o usuário (parece que "não tem dados"). Vamos esconder/bloquear as métricas até a carga terminar.
-
-### Mudanças em `src/pages/Tracking.tsx`
-
-1. **Skeleton nos KPIs**: enquanto `loading === true`, substituir o valor numérico em `KpiCard` por um skeleton (`<Skeleton className="h-7 w-16" />` de `@/components/ui/skeleton`). O label fica visível para não "pular" o layout. Aplicar nos 8 cards (Visitas únicas, Leads via formulário, Leads via WhatsApp, Total de leads, Fechou consulta, Fechou tratamento, Converteu, Não converteu).
-
-2. **Esconder hints durante load**: o `hint` ("0 WhatsApp · 0 Form") também vira skeleton quando `loading`.
-
-3. **Bloquear as abas de tabelas**: enquanto `loading`, mostrar um overlay leve (opacidade reduzida + `pointer-events-none`) sobre o `<Tabs>` com um spinner central, em vez de exibir tabelas vazias. Reusar `RefreshCw` animado.
-
-4. **Botões e seletor de período**: desabilitar `Período` (Hoje/7d/30d/Máximo/Mês) durante `loading` para evitar disparos sobrepostos. O botão "Atualizar dados" já é desabilitado.
-
-5. **Suportar trocas rápidas de período sem flicker**: marcar `loading` ANTES de limpar dados (`setEvents`, `setVisitors`, `setLinks`, `setVisitorsTotal(0)` no início de `load`) para que o skeleton apareça imediatamente em vez de cards com números desatualizados.
-
-6. **Acessibilidade**: KPI em loading recebe `aria-busy="true"`.
-
-### Detalhe de `KpiCard`
-
-Adicionar prop opcional `loading?: boolean`:
-
-```tsx
-function KpiCard({ label, value, hint, highlight, loading }: {...}) {
-  return (
-    <Card aria-busy={loading || undefined} ...>
-      <CardHeader>...</CardHeader>
-      <CardContent>
-        {loading
-          ? <Skeleton className="h-7 w-16" />
-          : <div className="text-2xl font-semibold ...">{value}</div>}
-        {hint && (loading ? <Skeleton className="mt-1 h-3 w-24" /> : <div className="...">{hint}</div>)}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-Passar `loading={loading}` em todas as instâncias de `KpiCard`.
-
-### Validação
-
-1. Trocar período → KPIs viram skeleton imediatamente; ao terminar, valores aparecem de uma vez.
-2. Tabelas não exibem "vazias" durante o load — overlay com spinner.
-3. Botões de período desabilitam enquanto carrega.
-4. Sem layout shift perceptível.
-
-### Arquivos
-- `src/pages/Tracking.tsx`
+- Arquivo único: `docs/features/APPOINTMENT_REMINDERS.md` (~150 linhas markdown).
+- Estilo seguindo padrão dos outros docs em `docs/features/` (frontmatter com "Última atualização", tabelas, blocos JSON).
+- Nenhum código de aplicação alterado.
+- Não tocar em `LEAD_LIFECYCLE.md` nem `SEQUENCES_AUTOMATIONS.md` nesta etapa (correções podem vir em plano separado se desejado).
