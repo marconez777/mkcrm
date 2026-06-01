@@ -150,9 +150,11 @@ Deno.serve(async (req) => {
 function renderHtml(d: {
   clinicName: string; leadsNew: number; sent: number; opened: number; clicked: number;
   bounced: number; failed: number; openRate: number; clickRate: number; top3: [string, number][];
+  formLeads: number; formNoWhatsapp: number; formToConsulta: number; formToTratamento: number;
+  bucketsConfigured: boolean;
 }) {
-  const row = (label: string, val: number | string) => `
-    <tr><td style="padding:8px 0;color:#555;font-size:14px">${label}</td>
+  const row = (label: string, val: number | string, indent = false) => `
+    <tr><td style="padding:8px 0;color:#555;font-size:14px;${indent ? "padding-left:18px;" : ""}">${label}</td>
         <td style="padding:8px 0;text-align:right;font-weight:600;font-size:14px">${val}</td></tr>`;
   return `<!doctype html><html><body style="margin:0;background:#f6f6f6;font-family:-apple-system,Segoe UI,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
@@ -162,12 +164,17 @@ function renderHtml(d: {
         <p style="margin:0 0 16px;color:#888;font-size:13px">${d.clinicName} — últimas 24h</p>
         <table width="100%" cellpadding="0" cellspacing="0">
           ${row("Novos leads", d.leadsNew)}
+          ${row("Leads via formulário", d.formLeads)}
+          ${d.formLeads ? row("↳ sem contato no WhatsApp", d.formNoWhatsapp, true) : ""}
+          ${d.formLeads && d.bucketsConfigured ? row("↳ converteram em consulta", d.formToConsulta, true) : ""}
+          ${d.formLeads && d.bucketsConfigured ? row("↳ converteram em tratamento", d.formToTratamento, true) : ""}
           ${row("Emails enviados", d.sent)}
           ${row("Abertura", `${d.openRate}% (${d.opened})`)}
           ${row("Cliques", `${d.clickRate}% (${d.clicked})`)}
           ${row("Bounces", d.bounced)}
           ${row("Falhas na fila", d.failed)}
         </table>
+        ${d.formLeads && !d.bucketsConfigured ? `<p style="margin:16px 0 0;color:#999;font-size:12px">Dica: configure as etapas de consulta/tratamento em /tracking para ver a conversão dos leads de formulário.</p>` : ""}
         ${d.top3.length ? `<h3 style="margin:24px 0 8px;font-size:14px">Top templates</h3>
           <ul style="margin:0;padding-left:18px;color:#444;font-size:13px">
             ${d.top3.map(([s, n]) => `<li>${s} — ${n}</li>`).join("")}
