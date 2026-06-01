@@ -27,13 +27,15 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
   return (data?.length ?? 0) > 0;
 }
 
-async function logRun(supabase: any, automationId: string, leadId: string, status: string, detail?: string) {
-  await supabase.from("automation_runs").insert({
+async function logRun(supabase: any, automationId: string, leadId: string, clinicId: string, status: string, detail?: string) {
+  const { error } = await supabase.from("automation_runs").insert({
     automation_id: automationId,
     lead_id: leadId,
+    clinic_id: clinicId,
     status,
     detail: detail?.slice(0, 500),
   });
+  if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
 
 async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
@@ -253,7 +255,7 @@ Deno.serve(async (req) => {
           continue;
         }
         const res = await runAction(supabase, a, lead.id);
-        await logRun(supabase, a.id, lead.id, res.ok ? "success" : "error", res.detail);
+        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail);
         if (res.ok) fired++; else failed++;
       }
       summary.push({ automation: a.name, candidates: candidates.length, fired, skipped, failed });
