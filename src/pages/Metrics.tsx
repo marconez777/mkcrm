@@ -41,13 +41,15 @@ export default function Metrics() {
 
   useEffect(() => {
     const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
-    supabase
-      .from("ai_usage")
-      .select("*")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(1000)
-      .then(({ data }) => setRows((data ?? []) as any));
+    fetchAllPaged<any>(
+      () => supabase
+        .from("ai_usage")
+        .select("*")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false }),
+      1000,
+      50_000,
+    ).then((data) => setRows(data));
   }, [range.id]);
 
   const stats = useMemo(() => {
