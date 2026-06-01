@@ -1,46 +1,49 @@
-# Auditoria de ações no lead (autor + data/hora)
+# Plano
 
-Hoje a timeline já mostra "Etapa alterada" e "Atendente alterado" via trigger `log_lead_changes` na tabela `leads`, mas:
-- não grava **quem** fez (`auth.uid()`);
-- não registra mudanças em **campos personalizados** (`custom_fields`);
-- a UI não exibe o nome do usuário responsável.
+## 1. Dropdown "Etapa" só mostra etapas do pipeline do lead
 
-## Etapas
+Hoje `ContextRail.tsx` recebe **todas** as `pipeline_stages` (de todos os pipelines) e renderiza a lista inteira no Select de etapa. Por isso aparecem "Acompanhamento Mensal", "Engajamento Positivo", etc. junto com as do pipeline do lead.
 
-### 1. Banco — adicionar autor e cobrir custom_fields
-Migração:
-- `ALTER TABLE lead_events ADD COLUMN actor_user_id uuid` (nullable, ações automáticas ficam `null`).
-- Index `(actor_user_id, created_at DESC)` para futuros relatórios.
-- Recriar `log_lead_changes()`:
-  - Capturar `auth.uid()` em `actor_user_id` para todos os inserts.
-  - Manter `stage_changed` e `attendant_changed`.
-  - Novo evento `custom_fields_changed` quando `NEW.custom_fields IS DISTINCT FROM OLD.custom_fields`. Payload com diff por chave:
-    ```json
-    { "changes": { "data_consulta": { "from": "...", "to": "..." }, "valor": {...} } }
-    ```
-    Calculado iterando as chaves de `OLD ∪ NEW` e incluindo só as que mudaram.
-- O trigger já dispara em `AFTER UPDATE` na `leads` — drag-and-drop do kanban, troca de atendente, edição de campo no painel direito do Inbox e qualquer outro caminho que use `update leads` passa a ser auditado automaticamente, sem mudar código de UI.
+**Mudança em `src/components/inbox/ContextRail.tsx`:**
+- Derivar `pipelineStages = stages.filter(s => s.pipeline_id === lead.pipeline_id)` (memoizado por `lead.pipeline_id` + `stages`).
+- Usar `pipelineStages` no `.map()` do `SelectContent` da Etapa.
+- Manter o lookup atual `stages.find(s => s.id === lead.stage_id)` para o label do trigger (cobre o caso raro do stage_id apontar para outro pipeline — vai ser corrigido pelo passo 2).
+- Se `pipelineStages.length === 0` (lead sem `pipeline_id`), cair no comportamento atual (mostrar todas) para não travar a UI.
 
-### 2. Frontend — exibir autor na timeline
-- `src/components/lead/timeline/types.ts`: adicionar label PT-BR `custom_fields_changed: "Campos personalizados"` em `CRM_EVENT_PT` e expandir `TimelineItem` com `actor_name?: string`.
-- `src/components/lead/LeadTimelineTab.tsx` e `src/components/inbox/ContextRail.tsx`:
-  - Ao carregar `lead_events`, coletar `actor_user_id` distintos e buscar nomes via `profiles` (já existente — mesma fonte usada nos atendentes).
-  - Renderizar linha extra "por **{nome}**" abaixo do título (mesma estética de "movido por usuário" já presente no print). Sem autor → "automático".
-  - Para `custom_fields_changed`, render amigável: para cada chave alterada mostrar `{label do campo}: "{antigo}" → "{novo}"` (resolver label via `useCustomFieldDefs`); fallback no `field_key` se não houver definição.
+Nenhuma outra tela é afetada — Kanban já filtra por pipeline.
 
-### 3. Resolução do nome do autor
-- Usar `profiles.full_name` (ou `email` como fallback) com `in_("user_id", ids)`.
-- Cache local por sessão dentro do componente (Map) para não refazer fetch a cada evento novo via realtime.
+## 2. Reparo de dados: leads do "Agendamentos Novo" com etapa de outro pipeline → "Qualificação"
 
-## Detalhes técnicos
+Verifiquei no banco:
 
-- O trigger roda como `SECURITY INVOKER`, então `auth.uid()` reflete o usuário autenticado da request — funciona para updates feitos pelo cliente Supabase no browser. Updates feitos por edge functions com `service_role` ficarão com `actor_user_id = null` (correto — não é ação humana).
-- Para futuro: o mesmo padrão pode ser estendido para `lead_internal_notes`, `lead_tasks`, etc. Fora do escopo agora.
-- Sem mudanças em RLS — `lead_events` já é leitura pública dentro do app.
+```sql
+SELECT count(*) FROM leads l
+JOIN pipeline_stages ps ON ps.id = l.stage_id
+WHERE l.pipeline_id = '737242e7-...-Agendamentos Novo'
+  AND ps.pipeline_id <> l.pipeline_id;
+-- => 0
+```
 
-## Arquivos afetados
-- `supabase/migrations/<novo>.sql` — coluna + trigger atualizado.
-- `src/components/lead/timeline/types.ts` — novo label e tipo.
-- `src/components/lead/LeadTimelineTab.tsx` — fetch de profiles + render do autor + render de custom_fields_changed.
-- `src/components/inbox/ContextRail.tsx` — mesmo tratamento na timeline do drawer.
-- `docs/features/` — nota curta no doc relevante (opcional).
+Hoje **não existem leads desalinhados** nesse pipeline. Mesmo assim, rodarei a migração de reparo para fechar a porta (vai afetar 0 linhas agora, mas serve de safety net e cobre qualquer lead que entre no estado inconsistente até a UI ser publicada).
+
+**Migração (UPDATE):**
+```sql
+UPDATE leads
+SET stage_id = '34fd2408-59e2-446a-8dd5-866eb484ea04',  -- "Qualificação" do Agendamentos Novo
+    stage_changed_at = now()
+WHERE pipeline_id = '737242e7-8efc-4a8f-9fed-f09c6e5dc227'
+  AND (
+    stage_id IS NULL
+    OR stage_id NOT IN (
+      SELECT id FROM pipeline_stages
+      WHERE pipeline_id = '737242e7-8efc-4a8f-9fed-f09c6e5dc227'
+    )
+  );
+```
+
+O trigger `log_lead_changes` já vai registrar `stage_changed` no `lead_events` automaticamente (sem `actor_user_id`, ficando como ação de sistema).
+
+## Fora de escopo
+
+- Não vou alterar Kanban, automações, ou outras telas — só o dropdown da rail e o reparo único de dados.
+- Não vou tocar em `useStages` (continua trazendo todas as etapas; o filtro fica no componente).
