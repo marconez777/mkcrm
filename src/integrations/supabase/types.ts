@@ -2744,6 +2744,7 @@ export type Database = {
       }
       lead_events: {
         Row: {
+          actor_user_id: string | null
           clinic_id: string
           created_at: string
           id: string
@@ -2752,6 +2753,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          actor_user_id?: string | null
           clinic_id?: string
           created_at?: string
           id?: string
@@ -2760,6 +2762,7 @@ export type Database = {
           type: string
         }
         Update: {
+          actor_user_id?: string | null
           clinic_id?: string
           created_at?: string
           id?: string
