@@ -31,13 +31,16 @@ Deno.serve(async (req) => {
       const features = c.settings?.features ?? {};
       if (features.email_marketing === false) continue;
 
-      const [{ count: leadsNew }, { data: logs }, { count: failed }] = await Promise.all([
+      const [{ count: leadsNew }, { data: logs }, { count: failed }, { data: formLeadsRaw }] = await Promise.all([
         supabase.from("leads").select("id", { count: "exact", head: true })
           .eq("clinic_id", c.id).gte("created_at", since),
         supabase.from("email_logs").select("status, opened_at, clicked_at, bounced_at, template_slug")
           .eq("clinic_id", c.id).gte("sent_at", since).limit(5000),
         supabase.from("email_queue").select("id", { count: "exact", head: true })
           .eq("clinic_id", c.id).eq("status", "failed").gte("updated_at", since),
+        supabase.from("leads").select("id, stage_id, last_message_at")
+          .eq("clinic_id", c.id).gte("created_at", since)
+          .not("form_source", "is", null).limit(5000),
       ]);
 
       const totalSent = logs?.length ?? 0;
@@ -46,11 +49,26 @@ Deno.serve(async (req) => {
       const bounced = logs?.filter((l: any) => l.bounced_at).length ?? 0;
       const failedCount = failed ?? 0;
 
+      // Métricas de formulário
+      const formLeads = formLeadsRaw ?? [];
+      const formLeadsCount = formLeads.length;
+      const formNoWhatsapp = formLeads.filter((l: any) => !l.last_message_at).length;
+      const buckets = (c.settings?.tracking_stage_buckets ?? {}) as {
+        consulta?: string[]; tratamento?: string[]; nutricao?: string[];
+      };
+      const bucketsConfigured = !!(buckets.consulta?.length || buckets.tratamento?.length);
+      const formToConsulta = bucketsConfigured
+        ? formLeads.filter((l: any) => l.stage_id && (buckets.consulta || []).includes(l.stage_id)).length
+        : 0;
+      const formToTratamento = bucketsConfigured
+        ? formLeads.filter((l: any) => l.stage_id && (buckets.tratamento || []).includes(l.stage_id)).length
+        : 0;
+
       const topMap = new Map<string, number>();
       for (const l of logs ?? []) topMap.set(l.template_slug, (topMap.get(l.template_slug) ?? 0) + 1);
       const top3 = [...topMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-      if (totalSent === 0 && (leadsNew ?? 0) === 0 && failedCount === 0) continue;
+      if (totalSent === 0 && (leadsNew ?? 0) === 0 && failedCount === 0 && formLeadsCount === 0) continue;
 
       // From: pega domínio verificado da clínica ou fallback
       const { data: domain } = await supabase
