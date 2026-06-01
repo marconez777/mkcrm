@@ -105,7 +105,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       const crmEventsQuery = supabase
         .from("lead_events")
-        .select("id, created_at, type, payload")
+        .select("id, created_at, type, payload, actor_user_id")
         .eq("clinic_id", resolvedClinicId)
         .eq("lead_id", leadId)
         .order("created_at", { ascending: false })
