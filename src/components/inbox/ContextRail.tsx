@@ -163,11 +163,23 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     }
   }
 
+  const { pipelines } = usePipelines();
   const stage = stages.find((s) => s.id === lead.stage_id);
-  const pipelineStages = lead.pipeline_id
-    ? stages.filter((s) => s.pipeline_id === lead.pipeline_id)
+  const currentPipelineId = form.pipeline_id ?? lead.pipeline_id ?? null;
+  const pipelineStages = currentPipelineId
+    ? stages.filter((s) => s.pipeline_id === currentPipelineId)
     : stages;
   const stageOptions = pipelineStages.length > 0 ? pipelineStages : stages;
+
+  async function changePipeline(newPipelineId: string) {
+    if (newPipelineId === currentPipelineId) return;
+    const nextStages = stages
+      .filter((s) => s.pipeline_id === newPipelineId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const stageStillValid = nextStages.some((s) => s.id === form.stage_id);
+    const nextStageId = stageStillValid ? form.stage_id ?? null : nextStages[0]?.id ?? null;
+    await patch({ pipeline_id: newPipelineId, stage_id: nextStageId } as Partial<Lead>);
+  }
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
