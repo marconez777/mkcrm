@@ -684,6 +684,7 @@ export default function Tracking() {
 
     const formLeads = leadsArr.filter(isForm);
     const waLeads = leadsArr.filter(isWA);
+    const formNoWa = formLeads.filter((l) => !l.leads?.last_message_at).length;
     const consultaLeads = leadsArr.filter((l) => inSet(l, stageConfig.consulta));
     const tratamentoLeads = leadsArr.filter((l) => inSet(l, stageConfig.tratamento));
     const nutricaoLeads = leadsArr.filter((l) => inSet(l, stageConfig.nutricao));
@@ -702,6 +703,7 @@ export default function Tracking() {
     return {
       visitors: visitorsTotal,
       formLeads: formLeads.length,
+      formNoWa,
       waLeads: waLeads.length,
       totalLeads: leadsArr.length,
       consulta: split(consultaLeads),
