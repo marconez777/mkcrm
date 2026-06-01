@@ -1,38 +1,47 @@
-# Plano
+## Causa raiz
 
-Adicionar campo **Funil** na rail de contexto (acima de **Etapa**) e fazer a Etapa reagir à troca de funil.
+As duas automations de lembrete (`Lembrete — 1 dia antes` e `Lembrete — 1 hora antes`) estão com `cooldown_hours = 0`. No worker `automations-tick`:
 
-## Mudanças em `src/components/inbox/ContextRail.tsx`
+- `recentlyRan` faz `created_at >= now() - 0h` → nunca acha run anterior.
+- `shouldSkipForAppointment` usa a mesma janela `now - 0h` → também nunca acha.
 
-1. **Carregar pipelines** via `usePipelines()` (`src/hooks/usePipelines.ts`) — já existe, retorna a lista ordenada com realtime.
-2. **Novo `<Select>` "Funil"** logo antes do bloco de Etapa:
-   - `value = form.pipeline_id`
-   - Opções: todos os `pipelines` (com bolinha `p.color` + `p.name`).
-   - `onValueChange`: chama `changePipeline(newId)`.
-3. **Função `changePipeline(newPipelineId)`**:
-   - Filtra `stages` por `pipeline_id === newPipelineId`, ordena por `position`, pega o primeiro como etapa inicial (`initialStageId`). Como `pipeline_stages` não tem coluna `is_initial`, usar o de menor `position`.
-   - Se a `stage_id` atual já pertence ao novo pipeline, mantém. Senão, substitui pelo `initialStageId` (pode ser `null` se o pipeline não tiver etapas).
-   - `patch({ pipeline_id: newPipelineId, stage_id: novoStageId })` num único update — o trigger `log_lead_changes` registra `stage_changed` e também precisa registrar pipeline. Hoje o trigger só loga stage/attendant/custom_fields — vou **adicionar evento `pipeline_changed`** no trigger para deixar a timeline coerente.
-4. **Etapa** já está filtrada pelo `lead.pipeline_id` (mudança anterior). Como o `Select` usa `form.pipeline_id` indiretamente via `lead.pipeline_id`, vou trocar para usar `form.pipeline_id` no filtro (`pipelineStages = stages.filter(s => s.pipeline_id === form.pipeline_id)`) para a lista atualizar instantaneamente após o usuário trocar o funil, mesmo antes do roundtrip.
+Resultado: a cada tick do cron (5 em 5 min), enquanto o lead estiver dentro da janela `[appt - offset, appt - 5min]`, dispara de novo. Confirmado nos `automation_runs`: lead `48b7c1c0…` recebeu **5 disparos em 20 minutos** para a mesma consulta de 02/06 13:00.
 
-## Migração: trigger `log_lead_changes`
+Os lembretes hoje estão `enabled = false` (devem ter sido desligados depois do incidente), mas o bug volta no momento que reativarem.
 
-Adicionar bloco no `log_lead_changes()`:
-```sql
-IF NEW.pipeline_id IS DISTINCT FROM OLD.pipeline_id THEN
-  INSERT INTO lead_events(lead_id, type, payload, actor_user_id)
-  VALUES (NEW.id, 'pipeline_changed',
-    jsonb_build_object('from', OLD.pipeline_id, 'to', NEW.pipeline_id),
-    auth.uid());
-END IF;
+## Correção
+
+### 1. Worker `supabase/functions/automations-tick/index.ts`
+Endurecer para nunca aceitar cooldown 0/negativo em `before_appointment`. Aplicar um piso seguro derivado do `offset_minutes`:
+
+```ts
+const effectiveCooldownH = Math.max(
+  a.cooldown_hours ?? 0,
+  Math.ceil((Number(a.trigger_config?.offset_minutes ?? 60) / 60) * 1.5),
+);
 ```
 
-## Timeline (mínimo)
+Usar `effectiveCooldownH` em `shouldSkipForAppointment` e `recentlyRan`. Isso garante:
+- Lembrete 1h antes (offset 60) → cooldown mínimo 2h.
+- Lembrete 24h antes (offset 1440) → cooldown mínimo 36h.
 
-- `src/components/lead/timeline/types.ts`: adicionar `pipeline_changed: "Funil alterado"` em `CRM_EVENT_PT`.
-- Render textual padrão (nome dos pipelines pode ficar como UUID por ora — fora de escopo resolver nome). Se trivial, faço um lookup leve com a lista já presente.
+A lógica de reagendamento (comparar `appointment_at` do último run com a data atual do lead) continua funcionando — se o paciente reagendar, dispara de novo mesmo dentro do cooldown.
+
+### 2. Migration de dados
+Corrigir as duas automations existentes para valores sãos:
+
+```sql
+UPDATE automations SET cooldown_hours = 20  WHERE id = '65e28148-c2eb-439f-ae3d-694f9acda28e'; -- 1 dia antes
+UPDATE automations SET cooldown_hours = 3   WHERE id = 'c3111dc7-30de-4d5e-92d6-e8f557423b60'; -- 1 hora antes
+```
+
+Valores baseados no que `docs/features/APPOINTMENT_REMINDERS.md` recomenda.
+
+### 3. UI `src/pages/Automations.tsx` (defensivo)
+No form de criação/edição de automation, quando `trigger_type = before_appointment`, validar `cooldown_hours >= 1` e mostrar hint:
+> "Defina um cooldown maior que a janela de disparo (recomendado: ~`offset_minutes/60 * 1.5`h) para não enviar o mesmo lembrete várias vezes."
 
 ## Fora de escopo
-
-- Kanban e outras telas (já lidam com pipeline).
-- Não vou criar UI de "mover lead para outro funil em massa".
+- Mudar o intervalo do cron.
+- Refatorar o modelo de fila para idempotência forte (overkill aqui — o piso de cooldown resolve).
+- Reativar as automations (o usuário decide quando).
