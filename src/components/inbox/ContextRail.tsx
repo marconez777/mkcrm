@@ -241,6 +241,35 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="space-y-3">
 
           <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Funil</Label>
+            <Select value={currentPipelineId ?? undefined} onValueChange={changePipeline}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecionar funil">
+                  {(() => {
+                    const p = pipelines.find((x) => x.id === currentPipelineId);
+                    return p ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                        {p.name}
+                      </span>
+                    ) : "Selecionar funil";
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapa</Label>
             <Select value={form.stage_id ?? undefined} onValueChange={(v) => patch({ stage_id: v })}>
               <SelectTrigger className="h-9">
