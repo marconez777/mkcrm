@@ -290,12 +290,17 @@ Deno.serve(async (req) => {
       const candidates = await findCandidates(supabase, a);
       let fired = 0, skipped = 0, failed = 0;
       for (const lead of candidates) {
-        if (await recentlyRan(supabase, a.id, lead.id, a.cooldown_hours)) {
+        const apptISO: string | null = lead.appointment_at ?? null;
+        const isAppt = a.trigger_type === "before_appointment";
+        const skip = isAppt && apptISO
+          ? await shouldSkipForAppointment(supabase, a.id, lead.id, a.cooldown_hours, apptISO)
+          : await recentlyRan(supabase, a.id, lead.id, a.cooldown_hours);
+        if (skip) {
           skipped++;
           continue;
         }
         const res = await runAction(supabase, a, lead.id);
-        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail);
+        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail, apptISO);
         if (res.ok) fired++; else failed++;
       }
       summary.push({ automation: a.name, candidates: candidates.length, fired, skipped, failed });
