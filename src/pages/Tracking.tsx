@@ -969,8 +969,9 @@ export default function Tracking() {
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
 
         <KpiCard label="Visitas únicas" value={kpis.visitors} loading={loading} />
-        <KpiCard label="Leads via formulário" value={kpis.formLeads} loading={loading} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} hint={`${kpis.formNoWa} sem WhatsApp`} loading={loading} />
         <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} loading={loading} />
+
         <KpiCard label="Total de leads" value={kpis.totalLeads} loading={loading} />
         <KpiCard
           label="Fechou consulta"
