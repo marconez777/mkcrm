@@ -15,6 +15,8 @@ import { Link as RouterLink } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchAllByIn } from "@/lib/fetch-all";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
