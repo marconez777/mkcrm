@@ -18,11 +18,11 @@ interface Props {
 }
 
 // Colunas customizadas a importar (resto é ignorado)
-const CUSTOM_COLUMNS: { col: string; key: string; label: string; type: string }[] = [
+const CUSTOM_COLUMNS: { col: string; key: string; label: string; type: string; normalize?: "date" }[] = [
   { col: "Interesse", key: "interesse", label: "Interesse", type: "text" },
   { col: "Procedimentos", key: "procedimentos", label: "Procedimentos", type: "text" },
-  { col: "Dara e horário", key: "data_horario", label: "Data e horário", type: "text" },
-  { col: "Data e horário", key: "data_horario", label: "Data e horário", type: "text" },
+  { col: "Dara e horário", key: "data_horario", label: "Data e horário", type: "text", normalize: "date" },
+  { col: "Data e horário", key: "data_horario", label: "Data e horário", type: "text", normalize: "date" },
   { col: "Teleconsulta?", key: "teleconsulta", label: "Teleconsulta?", type: "text" },
   { col: "Link de Consulta:", key: "link_consulta", label: "Link de Consulta", type: "url" },
   { col: "Pagamento", key: "pagamento", label: "Pagamento", type: "text" },
@@ -52,10 +52,10 @@ function normalizePhone(raw: any): string | null {
 
 function parseKommoDate(s: any): string | null {
   if (!s) return null;
-  // dd.mm.yyyy hh:mm:ss
+  // dd.mm.yyyy hh:mm:ss -> ISO com offset -03:00 (America/Sao_Paulo)
   const m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return null;
-  return `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`;
+  return `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}-03:00`;
 }
 
 const COLORS = ["#6366f1", "#22c55e", "#ef4444", "#f59e0b", "#06b6d4", "#a855f7", "#ec4899"];
