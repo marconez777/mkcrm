@@ -438,7 +438,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                   label = `Atendente → ${to?.name ?? "—"}`;
                   Icon = UserCheck;
                   color = "bg-emerald-500";
+                } else if (e.type === "custom_fields_changed") {
+                  const keys = e.payload?.changes ? Object.keys(e.payload.changes) : [];
+                  const names = keys.map((k) => customDefs.find((d) => d.field_key === k)?.label || k);
+                  label = `Campo${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
+                  color = "bg-amber-500";
                 }
+                const actor = e.actor_user_id ? userMap[e.actor_user_id] : null;
                 return (
                   <li key={e.id} className="relative">
                     <span className={`absolute -left-[21px] top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${color} text-[8px] text-white`}>
@@ -446,8 +452,9 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                     </span>
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-foreground/90">{label}</span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(e.created_at)}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground" title={new Date(e.created_at).toLocaleString("pt-BR")}>{timeAgo(e.created_at)}</span>
                     </div>
+                    {actor && <div className="text-[10px] text-muted-foreground">por {actor}</div>}
                   </li>
                 );
               })}
