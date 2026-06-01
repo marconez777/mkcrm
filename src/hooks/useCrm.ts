@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import type { Stage, Lead } from "@/types/crm";
 
 // Only these fields trigger a re-render in the UI; ignore updated_at and noisy internals
