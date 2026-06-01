@@ -31,6 +31,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   const [form, setForm] = useState<Partial<Lead>>(lead);
   const [tagInput, setTagInput] = useState("");
   const [events, setEvents] = useState<LeadEvent[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, string>>({});
   const [savingNotes, setSavingNotes] = useState(false);
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
@@ -80,7 +81,16 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
       ]);
       if (!active) return;
-      if (ev) setEvents(ev as LeadEvent[]);
+      if (ev) {
+        setEvents(ev as LeadEvent[]);
+        const ids = Array.from(new Set((ev as any[]).map((e) => e.actor_user_id).filter(Boolean)));
+        if (ids.length) {
+          const { data: profs } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids);
+          const m: Record<string, string> = {};
+          (profs || []).forEach((p: any) => { m[p.user_id] = p.full_name || p.email || "Usuário"; });
+          if (active) setUserMap((prev) => ({ ...prev, ...m }));
+        }
+      }
       setAgents(ag ?? []);
       setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
       setCustomDefs((defs ?? []) as any);
@@ -88,8 +98,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     // Realtime: append new events
     const ch = supabase
       .channel(`lead-events-${lead.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, (p) => {
-        setEvents((cur) => [p.new as LeadEvent, ...cur]);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, async (p) => {
+        const ev = p.new as LeadEvent;
+        setEvents((cur) => [ev, ...cur]);
+        if (ev.actor_user_id && !userMap[ev.actor_user_id]) {
+          const { data: prof } = await supabase.from("profiles").select("user_id, full_name, email").eq("user_id", ev.actor_user_id).maybeSingle();
+          if (prof) setUserMap((prev) => ({ ...prev, [(prof as any).user_id]: (prof as any).full_name || (prof as any).email || "Usuário" }));
+        }
       })
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
@@ -423,7 +438,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                   label = `Atendente → ${to?.name ?? "—"}`;
                   Icon = UserCheck;
                   color = "bg-emerald-500";
+                } else if (e.type === "custom_fields_changed") {
+                  const keys = e.payload?.changes ? Object.keys(e.payload.changes) : [];
+                  const names = keys.map((k) => customDefs.find((d) => d.field_key === k)?.label || k);
+                  label = `Campo${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
+                  color = "bg-amber-500";
                 }
+                const actor = e.actor_user_id ? userMap[e.actor_user_id] : null;
                 return (
                   <li key={e.id} className="relative">
                     <span className={`absolute -left-[21px] top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full ${color} text-[8px] text-white`}>
@@ -431,8 +452,9 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                     </span>
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-foreground/90">{label}</span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(e.created_at)}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground" title={new Date(e.created_at).toLocaleString("pt-BR")}>{timeAgo(e.created_at)}</span>
                     </div>
+                    {actor && <div className="text-[10px] text-muted-foreground">por {actor}</div>}
                   </li>
                 );
               })}

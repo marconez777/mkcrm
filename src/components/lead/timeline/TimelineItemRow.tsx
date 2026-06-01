@@ -62,6 +62,9 @@ export default function TimelineItemRow({ item }: { item: TimelineItem }) {
               <span className="truncate font-medium">{item.title}</span>
             </div>
             {item.subtitle && <div className="mt-0.5 truncate text-muted-foreground">{item.subtitle}</div>}
+            {item.actorName && !item.subtitle?.includes(item.actorName) && (
+              <div className="mt-0.5 text-[10px] text-muted-foreground">por {item.actorName}</div>
+            )}
           </div>
           <span title={new Date(item.at).toLocaleString("pt-BR")} className="shrink-0 whitespace-nowrap text-muted-foreground">
             {relative(item.at)}
