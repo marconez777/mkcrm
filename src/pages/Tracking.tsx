@@ -210,15 +210,19 @@ function SourceCell({ source, medium, campaign, channelGroup }: { source: string
 
 type StageConfig = { consulta: string[]; tratamento: string[]; nutricao: string[] };
 
-function KpiCard({ label, value, hint, highlight }: { label: string; value: number | string; hint?: string; highlight?: boolean }) {
+function KpiCard({ label, value, hint, highlight, loading }: { label: string; value: number | string; hint?: string; highlight?: boolean; loading?: boolean }) {
   return (
-    <Card className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
+    <Card aria-busy={loading || undefined} className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
       <CardHeader className="pb-2">
         <CardTitle className="text-xs text-muted-foreground">{label}</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
-        {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+        {loading ? (
+          <Skeleton className="h-7 w-16" />
+        ) : (
+          <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
+        )}
+        {hint && (loading ? <Skeleton className="mt-2 h-3 w-24" /> : <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>)}
       </CardContent>
     </Card>
   );
