@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -499,25 +500,31 @@ export default function Tracking() {
       // pull events in window — used for summary, tables, flags, pages report
       let evq = supabase.from("tracking_events").select("*")
         .gte("event_time", sinceISO).lte("event_time", untilISO)
-        .order("event_time", { ascending: false }).limit(5000);
+        .order("event_time", { ascending: false });
       if (eventNameFilter.trim()) evq = evq.ilike("event_name", `%${eventNameFilter.trim()}%`);
       if (visitorFilter.trim()) evq = evq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       if (leadFilter.trim()) evq = evq.ilike("lead_id", `%${leadFilter.trim()}%`);
       if (pageUrlFilter.trim()) evq = evq.ilike("page_url", `%${pageUrlFilter.trim()}%`);
-      const { data: evData, error: evErr } = await evq;
-      if (evErr) console.warn("[tracking] events_query_error", evErr);
-      const allEv = (evData as EventRow[]) ?? [];
+      let allEv: EventRow[] = [];
+      try {
+        allEv = await fetchAllPaged<EventRow>(() => evq, 1000, 100_000);
+      } catch (evErr) {
+        console.warn("[tracking] events_query_error", evErr);
+      }
       setEvents(allEv);
       setAllEventNames(Array.from(new Set(allEv.map((e) => e.event_name))).sort());
 
       // visitors in window
       let vq = supabase.from("tracking_visitors").select("visitor_id, first_seen_at, last_seen_at, first_landing_page, first_referrer, first_source, first_medium, first_campaign, last_source, last_medium, last_campaign, last_channel_group, last_non_direct_source, last_non_direct_medium, last_non_direct_campaign, last_non_direct_channel_group")
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO)
-        .order("last_seen_at", { ascending: false }).limit(1000);
+        .order("last_seen_at", { ascending: false });
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-      const { data: vData, error: vErr } = await vq;
-      if (vErr) console.warn("[tracking] visitors_query_error", vErr);
-      const vList = (vData as VisitorRow[]) ?? [];
+      let vList: VisitorRow[] = [];
+      try {
+        vList = await fetchAllPaged<VisitorRow>(() => vq, 1000, 50_000);
+      } catch (vErr) {
+        console.warn("[tracking] visitors_query_error", vErr);
+      }
       setVisitors(vList);
 
       // exact visitor count (PostgREST caps row payloads at 1000)

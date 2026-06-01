@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllByIn } from "@/lib/fetch-all";
+import { fetchAllByIn, fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,14 +63,16 @@ export default function MetricsAiUsage() {
     setLoadingRows(true);
     const since = new Date(`${fromDate}T00:00:00`).toISOString();
     const until = new Date(`${toDate}T23:59:59.999`).toISOString();
-    const { data } = await supabase
-      .from("ai_usage")
-      .select("*")
-      .gte("created_at", since)
-      .lte("created_at", until)
-      .order("created_at", { ascending: false })
-      .limit(5000);
-    const list = (data ?? []) as Row[];
+    const list = await fetchAllPaged<Row>(
+      () => supabase
+        .from("ai_usage")
+        .select("*")
+        .gte("created_at", since)
+        .lte("created_at", until)
+        .order("created_at", { ascending: false }),
+      1000,
+      50_000,
+    );
     setRows(list);
     setPage(0);
     // resolve agent + lead names

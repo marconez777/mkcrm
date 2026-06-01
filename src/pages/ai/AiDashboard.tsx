@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Bot,
@@ -87,27 +88,33 @@ export default function AiDashboard() {
       const endPrev = new Date(now - hoursMs).toISOString();
 
       const [cur, prev, ag, au] = await Promise.all([
-        supabase
-          .from("ai_usage")
-          .select("id, agent_id, model, operation, status, input_tokens, output_tokens, total_tokens, latency_ms, error, created_at")
-          .eq("clinic_id", clinicId)
-          .gte("created_at", startCur)
-          .order("created_at", { ascending: false })
-          .limit(5000),
-        supabase
-          .from("ai_usage")
-          .select("id, model, input_tokens, output_tokens, status, latency_ms, created_at")
-          .eq("clinic_id", clinicId)
-          .gte("created_at", startPrev)
-          .lt("created_at", endPrev)
-          .limit(5000),
+        fetchAllPaged<Row>(
+          () => supabase
+            .from("ai_usage")
+            .select("id, agent_id, model, operation, status, input_tokens, output_tokens, total_tokens, latency_ms, error, created_at")
+            .eq("clinic_id", clinicId)
+            .gte("created_at", startCur)
+            .order("created_at", { ascending: false }),
+          1000,
+          50_000,
+        ),
+        fetchAllPaged<Row>(
+          () => supabase
+            .from("ai_usage")
+            .select("id, model, input_tokens, output_tokens, status, latency_ms, created_at")
+            .eq("clinic_id", clinicId)
+            .gte("created_at", startPrev)
+            .lt("created_at", endPrev),
+          1000,
+          50_000,
+        ),
         supabase.from("ai_agents").select("id, name", { count: "exact" }).eq("clinic_id", clinicId),
         supabase.from("automations").select("id", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("enabled", true),
       ]);
 
-      const curRows = (cur.data ?? []) as Row[];
+      const curRows = cur;
       setRows(curRows);
-      setPrevRows((prev.data ?? []) as Row[]);
+      setPrevRows(prev);
       const am: Record<string, string> = {};
       (ag.data ?? []).forEach((a: any) => { am[a.id] = a.name; });
       setAgentsMap(am);

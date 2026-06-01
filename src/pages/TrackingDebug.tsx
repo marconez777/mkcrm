@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,10 +115,14 @@ export default function TrackingDebug() {
         supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("last_seen_at", since24h),
         supabase.from("tracking_sessions").select("session_id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("started_at", since24h),
         supabase.from("tracking_events").select("id", { count: "exact", head: true }).eq("clinic_id", OR_CLINIC_ID).gte("event_time", since24h),
-        supabase.from("tracking_events").select("event_name").eq("clinic_id", OR_CLINIC_ID).gte("event_time", since24h).limit(10000),
+        fetchAllPaged<{ event_name: string }>(
+          () => supabase.from("tracking_events").select("event_name").eq("clinic_id", OR_CLINIC_ID).gte("event_time", since24h),
+          1000,
+          100_000,
+        ),
       ]);
       const counts: Record<string, number> = {};
-      (evCounts.data ?? []).forEach((r: any) => { counts[r.event_name] = (counts[r.event_name] ?? 0) + 1; });
+      (evCounts ?? []).forEach((r: any) => { counts[r.event_name] = (counts[r.event_name] ?? 0) + 1; });
       setSummary({
         visitors24h: v24.count ?? 0,
         sessions24h: s24.count ?? 0,
