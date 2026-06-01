@@ -111,7 +111,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const isWeekday = !["Sat", "Sun"].includes(localWeekday);
     const localHour = Number(get("hour"));
 
-    if (businessOnly && (!isWeekday || localHour < 8 || localHour >= 18)) return [];
+    if (businessOnly && (!isWeekday || localHour < businessStart || localHour >= businessEnd)) return [];
     if (preferred && localHM < preferred) return [];
 
     const out: any[] = [];
