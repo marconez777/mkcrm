@@ -14,6 +14,7 @@ import { deleteLead } from "@/lib/delete-lead";
 import CustomFieldsPanel from "./CustomFieldsPanel";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
+import { usePipelines } from "@/hooks/usePipelines";
 
 import { useConfirm } from "@/hooks/useDialogs";
 
