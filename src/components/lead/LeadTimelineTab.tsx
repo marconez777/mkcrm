@@ -211,12 +211,18 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
       (stageRes.data || []).forEach((s) => {
         const from = s.from_stage_id ? stageMap.get(s.from_stage_id) || "—" : "—";
         const to = s.to_stage_id ? stageMap.get(s.to_stage_id) || "—" : "—";
+        const userName = s.moved_by_user_id ? userMap.get(s.moved_by_user_id) : null;
         merged.push({
           id: `stg-${s.id}`,
           at: s.moved_at,
           category: "stage",
           title: `Etapa: ${from} → ${to}`,
-          subtitle: s.moved_by_agent_id ? "movido por agente IA" : s.moved_by_user_id ? "movido por usuário" : undefined,
+          subtitle: s.moved_by_agent_id
+            ? "movido por agente IA"
+            : userName
+              ? `movido por ${userName}`
+              : s.moved_by_user_id ? "movido por usuário" : undefined,
+          actorName: userName ?? null,
           meta: null,
         });
       });
@@ -228,20 +234,33 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           category: "note",
           title: `Nota interna${n.author_name ? ` — ${n.author_name}` : ""}`,
           subtitle: n.text ? (n.text.length > 140 ? n.text.slice(0, 140) + "…" : n.text) : undefined,
+          actorName: n.author_name ?? null,
           meta: n.text && n.text.length > 140 ? { text: n.text } : null,
         });
       });
 
-      (crmRes.data || []).forEach((e) => {
+      (crmRes.data || []).forEach((e: any) => {
+        const actorName = e.actor_user_id ? userMap.get(e.actor_user_id) ?? null : null;
+        let subtitle: string | undefined;
+        if (e.type === "custom_fields_changed" && e.payload?.changes) {
+          const parts: string[] = [];
+          for (const [k, diff] of Object.entries<any>(e.payload.changes)) {
+            const label = cfLabelMap.get(k) || k;
+            parts.push(`${label}: ${fmtVal(diff?.from)} → ${fmtVal(diff?.to)}`);
+          }
+          subtitle = parts.join(" · ");
+        }
         merged.push({
           id: `crm-${e.id}`,
           at: e.created_at,
           category: "crm",
           title: crmEventTitle(e.type),
-          subtitle: undefined,
+          subtitle,
+          actorName,
           meta: e.payload as Record<string, unknown> | null,
         });
       });
+
 
       (taskRes.data || []).forEach((t) => {
         merged.push({
