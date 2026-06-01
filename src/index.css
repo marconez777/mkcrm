@@ -181,9 +181,10 @@
     border: 2px solid transparent;
   }
   .kanban-scroll:hover::-webkit-scrollbar { height: 18px; }
-  .kanban-snap { scroll-snap-align: start; }
+  .kanban-snap { scroll-snap-align: start; contain: layout paint style; }
   .kanban-grabbing { cursor: grabbing !important; user-select: none; }
   .kanban-grabbing * { cursor: grabbing !important; }
+  .kanban-card { contain: layout paint; }
 }
 
 /* Artistic mesh spinner — fase 2 live campaign */

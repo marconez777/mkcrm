@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent, closestCorners,
@@ -64,6 +65,8 @@ function formatMoney(v: number | null) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
+const EMPTY_LEADS: Lead[] = [];
+
 const UI_KEY = "pipeline:ui:v1";
 type SavedUi = { collapsed: string[]; compact: boolean; dateFilterPreset?: string | null; dateFilterCustom?: { from: string; to: string } | null };
 function loadUi(): SavedUi {
@@ -94,14 +97,23 @@ function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
   return EMPTY_DATE_FILTER;
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; onMoveToStage?: (l: Lead, stageId: string) => void; stages?: Stage[]; compact?: boolean }>(function LeadCard(
+type LeadCardProps = {
+  lead: Lead;
+  onOpen: (l: Lead) => void;
+  onMove: (l: Lead) => void;
+  onMoveToStage?: (l: Lead, stageId: string) => void;
+  stages?: Stage[];
+  compact?: boolean;
+};
+
+const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCard(
   { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
-  const otherStages = (stages ?? []).filter((s) => s.id !== lead.stage_id);
+  const otherStages = useMemo(() => (stages ?? []).filter((s) => s.id !== lead.stage_id), [stages, lead.stage_id]);
   return (
     <div
       ref={setNodeRef}
@@ -110,7 +122,7 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       {...listeners}
       onClick={() => onOpen(lead)}
       data-kanban-card
-      className={`group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
+      className={`kanban-card group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
     >
       <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
         <DropdownMenu>
@@ -183,6 +195,26 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
         )}
       </div>
     </div>
+  );
+}), (prev, next) => {
+  if (prev.compact !== next.compact) return false;
+  if (prev.onOpen !== next.onOpen) return false;
+  if (prev.onMove !== next.onMove) return false;
+  if (prev.onMoveToStage !== next.onMoveToStage) return false;
+  if (prev.stages !== next.stages) return false;
+  const a = prev.lead, b = next.lead;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.phone === b.phone &&
+    a.last_message_at === b.last_message_at &&
+    a.last_message_preview === b.last_message_preview &&
+    a.unread_count === b.unread_count &&
+    a.pinned_at === b.pinned_at &&
+    a.stage_id === b.stage_id &&
+    a.position === b.position &&
+    a.created_at === b.created_at &&
+    a.deal_value === b.deal_value
   );
 });
 
@@ -279,18 +311,87 @@ function Column({
         </div>
       </div>
       <div className="mb-2 h-[3px] w-full rounded-full" style={{ background: stageColor }} />
-      <div
-        ref={setNodeRef}
-        data-kanban-column-body
-        className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
-      >
-        <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} onMoveToStage={onMoveLeadToStage} stages={allStages} compact={compact} />)}
-        </SortableContext>
-        {leads.length === 0 && (
+      <VirtualizedColumnBody
+        leads={leads}
+        compact={compact}
+        isOver={isOver}
+        setDroppableRef={setNodeRef}
+        onOpen={onOpenLead}
+        onMove={onMoveLead}
+        onMoveToStage={onMoveLeadToStage}
+        allStages={allStages}
+      />
+    </div>
+  );
+}
+
+function VirtualizedColumnBody({
+  leads, compact, isOver, setDroppableRef, onOpen, onMove, onMoveToStage, allStages,
+}: {
+  leads: Lead[]; compact: boolean; isOver: boolean;
+  setDroppableRef: (el: HTMLElement | null) => void;
+  onOpen: (l: Lead) => void; onMove: (l: Lead) => void;
+  onMoveToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    setDroppableRef(el);
+  }, [setDroppableRef]);
+  // Card aproximado: compacto ~58px, normal ~108px (com preview ainda mais). Gap de 8px.
+  const estimate = compact ? 62 : 112;
+  const virtualizer = useVirtualizer({
+    count: leads.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => estimate,
+    overscan: 8,
+    getItemKey: (i) => leads[i]?.id ?? i,
+  });
+  const items = virtualizer.getVirtualItems();
+  const ids = useMemo(() => leads.map((l) => l.id), [leads]);
+
+  return (
+    <div
+      ref={setRefs}
+      data-kanban-column-body
+      className={`scrollbar-thin flex-1 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        {leads.length === 0 ? (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+            {items.map((v) => {
+              const lead = leads[v.index];
+              if (!lead) return null;
+              return (
+                <div
+                  key={lead.id}
+                  data-index={v.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${v.start}px)`,
+                    paddingBottom: 8,
+                  }}
+                >
+                  <LeadCard
+                    lead={lead}
+                    onOpen={onOpen}
+                    onMove={onMove}
+                    onMoveToStage={onMoveToStage}
+                    stages={allStages}
+                    compact={compact}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
+      </SortableContext>
     </div>
   );
 }
@@ -319,28 +420,54 @@ export default function KanbanPage() {
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
   const [query, setQuery] = useState("");
 
-  const stages = allStages.filter((s) => s.pipeline_id === currentId);
-  const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
-  const dateFiltered = dateFilter.from
-    ? allPipelineLeads.filter((l) => {
-        if (!l.created_at) return false;
-        const t = new Date(l.created_at).getTime();
-        if (dateFilter.from && t < dateFilter.from.getTime()) return false;
-        if (dateFilter.to && t > dateFilter.to.getTime()) return false;
-        return true;
-      })
-    : allPipelineLeads;
+  const stages = useMemo(() => allStages.filter((s) => s.pipeline_id === currentId), [allStages, currentId]);
+  const allPipelineLeads = useMemo(() => allLeads.filter((l) => l.pipeline_id === currentId), [allLeads, currentId]);
+  const dateFromMs = dateFilter.from?.getTime() ?? null;
+  const dateToMs = dateFilter.to?.getTime() ?? null;
+  const dateFiltered = useMemo(() => {
+    if (dateFromMs == null) return allPipelineLeads;
+    return allPipelineLeads.filter((l) => {
+      if (!l.created_at) return false;
+      const t = new Date(l.created_at).getTime();
+      if (dateFromMs != null && t < dateFromMs) return false;
+      if (dateToMs != null && t > dateToMs) return false;
+      return true;
+    });
+  }, [allPipelineLeads, dateFromMs, dateToMs]);
   const normalizedQ = query.trim().toLowerCase();
   const phoneQ = normalizedQ.replace(/\D/g, "");
-  const leads = normalizedQ
-    ? dateFiltered.filter((l) => {
-        const name = (l.name ?? "").toLowerCase();
-        const phone = (l.phone ?? "").replace(/\D/g, "");
-        if (name.includes(normalizedQ)) return true;
-        if (phoneQ && phone.includes(phoneQ)) return true;
-        return false;
-      })
-    : dateFiltered;
+  const leads = useMemo(() => {
+    if (!normalizedQ) return dateFiltered;
+    return dateFiltered.filter((l) => {
+      const name = (l.name ?? "").toLowerCase();
+      const phone = (l.phone ?? "").replace(/\D/g, "");
+      if (name.includes(normalizedQ)) return true;
+      if (phoneQ && phone.includes(phoneQ)) return true;
+      return false;
+    });
+  }, [dateFiltered, normalizedQ, phoneQ]);
+
+  // Pré-agrupa leads por stage_id (já ordenado por pinned + última mensagem) uma única vez por render do pipeline.
+  const leadsByStage = useMemo(() => {
+    const map = new Map<string, Lead[]>();
+    for (const s of stages) map.set(s.id, []);
+    for (const l of leads) {
+      if (!l.stage_id) continue;
+      const arr = map.get(l.stage_id);
+      if (arr) arr.push(l);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const ap = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bp = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (ap !== bp) return bp - ap;
+        const al = a.last_message_at ? new Date(a.last_message_at).getTime() : new Date(a.created_at).getTime();
+        const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : new Date(b.created_at).getTime();
+        return bl - al;
+      });
+    }
+    return map;
+  }, [stages, leads]);
 
   useEffect(() => {
     saveUi({
@@ -415,7 +542,7 @@ export default function KanbanPage() {
     });
   }
 
-  async function moveLeadToStage(lead: Lead, targetStageId: string) {
+  const moveLeadToStage = useCallback(async (lead: Lead, targetStageId: string) => {
     if (!targetStageId || targetStageId === lead.stage_id) return;
     const previousStageId = lead.stage_id;
     const previousPosition = lead.position ?? 0;
@@ -439,8 +566,12 @@ export default function KanbanPage() {
       } : undefined,
       duration: 6000,
     });
-  }
+  }, [leads, allStages, setLeads]);
 
+  const openLeadCb = useCallback((l: Lead) => setOpenLead(l), []);
+  const openMoveCb = useCallback((l: Lead) => setMovingLead(l), []);
+  const editStageCb = useCallback((s: Stage) => setEditingStage(s), []);
+  const requestDeleteStage = useCallback((s: Stage) => setDeletingStage(s), []);
 
   async function addColumn() {
     if (!newColName.trim() || !currentId) return;
@@ -449,10 +580,6 @@ export default function KanbanPage() {
       name: newColName.trim(), position: pos, pipeline_id: currentId,
     });
     setNewColName(""); setNewColOpen(false);
-  }
-
-  function requestDeleteStage(stage: Stage) {
-    setDeletingStage(stage);
   }
 
   async function confirmDeleteStage() {
@@ -564,22 +691,15 @@ export default function KanbanPage() {
                       <Column
                         key={s.id}
                         stage={s}
-                        leads={leads.filter((l) => l.stage_id === s.id).slice().sort((a, b) => {
-                          const ap = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
-                          const bp = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
-                          if (ap !== bp) return bp - ap;
-                          const al = a.last_message_at ? new Date(a.last_message_at).getTime() : new Date(a.created_at).getTime();
-                          const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : new Date(b.created_at).getTime();
-                          return bl - al;
-                        })}
-                        onOpenLead={setOpenLead}
-                        onMoveLead={setMovingLead}
+                        leads={leadsByStage.get(s.id) ?? EMPTY_LEADS}
+                        onOpenLead={openLeadCb}
+                        onMoveLead={openMoveCb}
                         onMoveLeadToStage={moveLeadToStage}
                         allStages={stages}
                         collapsed={ui.collapsed.includes(s.id)}
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
-                        onEdit={setEditingStage}
+                        onEdit={editStageCb}
                         onDelete={requestDeleteStage}
                       />
                     ))}
