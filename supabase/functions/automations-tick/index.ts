@@ -81,6 +81,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const tz: string = cfg.tz || "America/Sao_Paulo";
     const preferred: string | undefined = cfg.preferred_time; // "HH:MM"
     const businessOnly: boolean = !!cfg.business_hours_only;
+    const businessStart = Number(cfg.business_hours_start ?? 10);
+    const businessEnd = Number(cfg.business_hours_end ?? 22);
     if (!fieldKey) return [];
 
     const now = new Date();
@@ -109,7 +111,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const isWeekday = !["Sat", "Sun"].includes(localWeekday);
     const localHour = Number(get("hour"));
 
-    if (businessOnly && (!isWeekday || localHour < 8 || localHour >= 18)) return [];
+    if (businessOnly && (!isWeekday || localHour < businessStart || localHour >= businessEnd)) return [];
     if (preferred && localHM < preferred) return [];
 
     const out: any[] = [];
