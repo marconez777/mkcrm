@@ -28,9 +28,10 @@ export function usePipelines() {
     })();
 
     const ch = supabase
-      .channel(`pipelines-rt`)
+      .channel(`pipelines-rt-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "pipelines" }, async () => {
         const { data } = await supabase.from("pipelines").select("*").order("position");
+        if (!active) return;
         setPipelines((data ?? []) as Pipeline[]);
       })
       .subscribe();
