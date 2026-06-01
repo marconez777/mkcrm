@@ -180,13 +180,42 @@ manualmente (trigger DB ou no ponto de criação) para
 
 ---
 
-## 7. Troubleshooting
+## 7. Reagendamento
+
+Quando o `custom_fields[field_key]` do lead é atualizado para uma **nova data**,
+a automation considera isso como reagendamento e **dispara o lembrete de novo**,
+mesmo que já tenha enviado para a data anterior.
+
+### Como funciona
+
+Cada `automation_run` grava em `appointment_at` a data da consulta usada no
+disparo. No tick seguinte, em vez de checar só o cooldown, o worker compara:
+
+- Última `appointment_at` registrada **=** data atual do lead → cooldown clássico
+  (não reenvia).
+- Última `appointment_at` registrada **≠** data atual do lead → reagendou,
+  ignora cooldown e dispara na próxima janela válida.
+- Sem run anterior → dispara normalmente.
+
+### Implicações
+
+- Reagendar A → B → C dentro do mesmo dia pode gerar até 3 mensagens
+  (uma por nova data). Esperado.
+- Runs antigos (anteriores à coluna `appointment_at`) sem data gravada caem
+  no cooldown clássico para evitar broadcast retroativo.
+- Cancelar (limpar o custom field) impede novos disparos, mas não cancela
+  mensagens já enviadas.
+
+---
+
+## 8. Troubleshooting
 
 | Sintoma                                    | Causa provável / fix                                                                 |
 |--------------------------------------------|--------------------------------------------------------------------------------------|
 | Lembrete não dispara                       | `custom_fields[field_key]` não é ISO; `tz` errado; já passou de `appt-5min`; lead arquivado (`archived_at` set); cooldown ainda ativo. |
 | Dispara na madrugada                       | Faltou `preferred_time` (lembrete D-1) ou `business_hours_only`.                     |
-| Dispara duas vezes no mesmo dia            | `cooldown_hours` muito baixo. Aumentar para cobrir a janela.                         |
+| Dispara duas vezes no mesmo dia            | `cooldown_hours` muito baixo **ou** lead foi reagendado (esperado — ver §7).         |
+| Lead reagendou e não recebeu lembrete novo | Run antigo sem `appointment_at`; só vale para runs gravados após a migração.         |
 | Dispara só para alguns leads               | Mais de 200 candidatos no tick — outros entram no próximo. Considerar `stage_id`.    |
 | Lead que já confirmou ainda recebe         | Filtrar `stage_id` no trigger; mover confirmados para outro estágio.                 |
 | `preferred_time` ignorado                  | Formato precisa ser `HH:MM` 24h (ex.: `09:00`, não `9:00 AM`).                       |
@@ -196,7 +225,7 @@ manualmente (trigger DB ou no ponto de criação) para
 Para inspecionar runs:
 
 ```sql
-select created_at, status, detail
+select created_at, status, appointment_at, detail
 from automation_runs
 where automation_id = '<id>'
 order by created_at desc
