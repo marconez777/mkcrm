@@ -418,28 +418,54 @@ export default function KanbanPage() {
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
   const [query, setQuery] = useState("");
 
-  const stages = allStages.filter((s) => s.pipeline_id === currentId);
-  const allPipelineLeads = allLeads.filter((l) => l.pipeline_id === currentId);
-  const dateFiltered = dateFilter.from
-    ? allPipelineLeads.filter((l) => {
-        if (!l.created_at) return false;
-        const t = new Date(l.created_at).getTime();
-        if (dateFilter.from && t < dateFilter.from.getTime()) return false;
-        if (dateFilter.to && t > dateFilter.to.getTime()) return false;
-        return true;
-      })
-    : allPipelineLeads;
+  const stages = useMemo(() => allStages.filter((s) => s.pipeline_id === currentId), [allStages, currentId]);
+  const allPipelineLeads = useMemo(() => allLeads.filter((l) => l.pipeline_id === currentId), [allLeads, currentId]);
+  const dateFromMs = dateFilter.from?.getTime() ?? null;
+  const dateToMs = dateFilter.to?.getTime() ?? null;
+  const dateFiltered = useMemo(() => {
+    if (dateFromMs == null) return allPipelineLeads;
+    return allPipelineLeads.filter((l) => {
+      if (!l.created_at) return false;
+      const t = new Date(l.created_at).getTime();
+      if (dateFromMs != null && t < dateFromMs) return false;
+      if (dateToMs != null && t > dateToMs) return false;
+      return true;
+    });
+  }, [allPipelineLeads, dateFromMs, dateToMs]);
   const normalizedQ = query.trim().toLowerCase();
   const phoneQ = normalizedQ.replace(/\D/g, "");
-  const leads = normalizedQ
-    ? dateFiltered.filter((l) => {
-        const name = (l.name ?? "").toLowerCase();
-        const phone = (l.phone ?? "").replace(/\D/g, "");
-        if (name.includes(normalizedQ)) return true;
-        if (phoneQ && phone.includes(phoneQ)) return true;
-        return false;
-      })
-    : dateFiltered;
+  const leads = useMemo(() => {
+    if (!normalizedQ) return dateFiltered;
+    return dateFiltered.filter((l) => {
+      const name = (l.name ?? "").toLowerCase();
+      const phone = (l.phone ?? "").replace(/\D/g, "");
+      if (name.includes(normalizedQ)) return true;
+      if (phoneQ && phone.includes(phoneQ)) return true;
+      return false;
+    });
+  }, [dateFiltered, normalizedQ, phoneQ]);
+
+  // Pré-agrupa leads por stage_id (já ordenado por pinned + última mensagem) uma única vez por render do pipeline.
+  const leadsByStage = useMemo(() => {
+    const map = new Map<string, Lead[]>();
+    for (const s of stages) map.set(s.id, []);
+    for (const l of leads) {
+      if (!l.stage_id) continue;
+      const arr = map.get(l.stage_id);
+      if (arr) arr.push(l);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const ap = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bp = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (ap !== bp) return bp - ap;
+        const al = a.last_message_at ? new Date(a.last_message_at).getTime() : new Date(a.created_at).getTime();
+        const bl = b.last_message_at ? new Date(b.last_message_at).getTime() : new Date(b.created_at).getTime();
+        return bl - al;
+      });
+    }
+    return map;
+  }, [stages, leads]);
 
   useEffect(() => {
     saveUi({
