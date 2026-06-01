@@ -6,6 +6,7 @@ export type TimelineItem = {
   category: TimelineCategory;
   title: string;
   subtitle?: string;
+  actorName?: string | null;
   meta?: Record<string, unknown> | null;
 };
 
