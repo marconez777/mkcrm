@@ -24,12 +24,15 @@ export default function MetricsOps() {
     const since = new Date(Date.now() - range.hours * 3600_000).toISOString();
     Promise.all([
       supabase.from("messages").select("lead_id, from_me, timestamp").gte("timestamp", since).order("timestamp", { ascending: true }).limit(5000),
-      supabase.from("leads").select("id, created_at, attendant_id, stage_id, archived_at, unread_count, last_message_at").limit(2000),
+      fetchAllPaged<LeadRow>(
+        () => supabase.from("leads").select("id, created_at, attendant_id, stage_id, archived_at, unread_count, last_message_at"),
+        1000,
+      ),
       supabase.from("attendants").select("id, name, color"),
       supabase.from("pipeline_stages").select("id, name, color").order("position"),
     ]).then(([m, l, a, s]) => {
       setMsgs((m.data ?? []) as MsgRow[]);
-      setLeads((l.data ?? []) as LeadRow[]);
+      setLeads(l);
       setAttendants((a.data ?? []) as any);
       setStages((s.data ?? []) as any);
     });
