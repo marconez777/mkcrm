@@ -540,7 +540,7 @@ export default function KanbanPage() {
     });
   }
 
-  async function moveLeadToStage(lead: Lead, targetStageId: string) {
+  const moveLeadToStage = useCallback(async (lead: Lead, targetStageId: string) => {
     if (!targetStageId || targetStageId === lead.stage_id) return;
     const previousStageId = lead.stage_id;
     const previousPosition = lead.position ?? 0;
@@ -564,8 +564,12 @@ export default function KanbanPage() {
       } : undefined,
       duration: 6000,
     });
-  }
+  }, [leads, allStages, setLeads]);
 
+  const openLeadCb = useCallback((l: Lead) => setOpenLead(l), []);
+  const openMoveCb = useCallback((l: Lead) => setMovingLead(l), []);
+  const editStageCb = useCallback((s: Stage) => setEditingStage(s), []);
+  const requestDeleteStage = useCallback((s: Stage) => setDeletingStage(s), []);
 
   async function addColumn() {
     if (!newColName.trim() || !currentId) return;
@@ -574,10 +578,6 @@ export default function KanbanPage() {
       name: newColName.trim(), position: pos, pipeline_id: currentId,
     });
     setNewColName(""); setNewColOpen(false);
-  }
-
-  function requestDeleteStage(stage: Stage) {
-    setDeletingStage(stage);
   }
 
   async function confirmDeleteStage() {
