@@ -912,7 +912,7 @@ export default function Tracking() {
         const isActive = (k: PeriodMode["kind"], days?: number) =>
           periodMode.kind === k && (days === undefined || (periodMode.kind === "last" && periodMode.days === days));
         const chip = (label: string, active: boolean, onClick: () => void) => (
-          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick}>
+          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick} disabled={loading}>
             {label}
           </Button>
         );
