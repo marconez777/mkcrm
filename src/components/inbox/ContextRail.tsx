@@ -81,7 +81,16 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
       ]);
       if (!active) return;
-      if (ev) setEvents(ev as LeadEvent[]);
+      if (ev) {
+        setEvents(ev as LeadEvent[]);
+        const ids = Array.from(new Set((ev as any[]).map((e) => e.actor_user_id).filter(Boolean)));
+        if (ids.length) {
+          const { data: profs } = await supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids);
+          const m: Record<string, string> = {};
+          (profs || []).forEach((p: any) => { m[p.user_id] = p.full_name || p.email || "Usuário"; });
+          if (active) setUserMap((prev) => ({ ...prev, ...m }));
+        }
+      }
       setAgents(ag ?? []);
       setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
       setCustomDefs((defs ?? []) as any);
@@ -89,8 +98,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     // Realtime: append new events
     const ch = supabase
       .channel(`lead-events-${lead.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, (p) => {
-        setEvents((cur) => [p.new as LeadEvent, ...cur]);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lead_events", filter: `lead_id=eq.${lead.id}` }, async (p) => {
+        const ev = p.new as LeadEvent;
+        setEvents((cur) => [ev, ...cur]);
+        if (ev.actor_user_id && !userMap[ev.actor_user_id]) {
+          const { data: prof } = await supabase.from("profiles").select("user_id, full_name, email").eq("user_id", ev.actor_user_id).maybeSingle();
+          if (prof) setUserMap((prev) => ({ ...prev, [(prof as any).user_id]: (prof as any).full_name || (prof as any).email || "Usuário" }));
+        }
       })
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
