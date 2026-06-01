@@ -95,14 +95,23 @@ function loadInitialDateFilter(ui: SavedUi): DateFilterValue {
   return EMPTY_DATE_FILTER;
 }
 
-const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => void; onMove: (l: Lead) => void; onMoveToStage?: (l: Lead, stageId: string) => void; stages?: Stage[]; compact?: boolean }>(function LeadCard(
+type LeadCardProps = {
+  lead: Lead;
+  onOpen: (l: Lead) => void;
+  onMove: (l: Lead) => void;
+  onMoveToStage?: (l: Lead, stageId: string) => void;
+  stages?: Stage[];
+  compact?: boolean;
+};
+
+const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCard(
   { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
-  const otherStages = (stages ?? []).filter((s) => s.id !== lead.stage_id);
+  const otherStages = useMemo(() => (stages ?? []).filter((s) => s.id !== lead.stage_id), [stages, lead.stage_id]);
   return (
     <div
       ref={setNodeRef}
@@ -111,7 +120,7 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
       {...listeners}
       onClick={() => onOpen(lead)}
       data-kanban-card
-      className={`group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
+      className={`kanban-card group relative cursor-pointer rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${compact ? "p-2" : "p-3"}`}
     >
       <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
         <DropdownMenu>
@@ -184,6 +193,26 @@ const LeadCard = forwardRef<HTMLDivElement, { lead: Lead; onOpen: (l: Lead) => v
         )}
       </div>
     </div>
+  );
+}), (prev, next) => {
+  if (prev.compact !== next.compact) return false;
+  if (prev.onOpen !== next.onOpen) return false;
+  if (prev.onMove !== next.onMove) return false;
+  if (prev.onMoveToStage !== next.onMoveToStage) return false;
+  if (prev.stages !== next.stages) return false;
+  const a = prev.lead, b = next.lead;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.phone === b.phone &&
+    a.last_message_at === b.last_message_at &&
+    a.last_message_preview === b.last_message_preview &&
+    a.unread_count === b.unread_count &&
+    a.pinned_at === b.pinned_at &&
+    a.stage_id === b.stage_id &&
+    a.position === b.position &&
+    a.created_at === b.created_at &&
+    a.deal_value === b.deal_value
   );
 });
 
