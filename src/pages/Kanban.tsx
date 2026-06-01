@@ -65,6 +65,8 @@ function formatMoney(v: number | null) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
+const EMPTY_LEADS: Lead[] = [];
+
 const UI_KEY = "pipeline:ui:v1";
 type SavedUi = { collapsed: string[]; compact: boolean; dateFilterPreset?: string | null; dateFilterCustom?: { from: string; to: string } | null };
 function loadUi(): SavedUi {
