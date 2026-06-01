@@ -150,18 +150,28 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
               initialFocus
               className={cn("p-3 pointer-events-auto")}
             />
-            {field.field_type === "datetime" && d && (
-              <div className="border-t p-2">
-                <input
-                  type="time"
-                  value={format(d, "HH:mm")}
-                  onChange={(e) => {
-                    const [h, m] = e.target.value.split(":").map(Number);
-                    const nd = new Date(d); nd.setHours(h || 0, m || 0, 0, 0);
-                    onChange(nd.toISOString());
-                  }}
-                  className="w-full rounded border bg-background px-2 py-1 text-xs"
-                />
+            {d && (
+              <div className="flex items-center gap-2 border-t p-2">
+                {field.field_type === "datetime" && (
+                  <input
+                    type="time"
+                    value={format(d, "HH:mm")}
+                    onChange={(e) => {
+                      const [h, m] = e.target.value.split(":").map(Number);
+                      const nd = new Date(d); nd.setHours(h || 0, m || 0, 0, 0);
+                      onChange(nd.toISOString());
+                    }}
+                    className="flex-1 rounded border bg-background px-2 py-1 text-xs"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => onChange(null)}
+                  className="ml-auto inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                  title="Limpar data"
+                >
+                  <X className="h-3 w-3" /> Limpar
+                </button>
               </div>
             )}
           </PopoverContent>
