@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
 import { Activity, Clock, Users, TrendingUp, Inbox, MessageSquare } from "lucide-react";
 
