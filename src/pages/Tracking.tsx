@@ -946,34 +946,40 @@ export default function Tracking() {
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
 
-        <KpiCard label="Visitas únicas" value={kpis.visitors} />
-        <KpiCard label="Leads via formulário" value={kpis.formLeads} />
-        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
-        <KpiCard label="Total de leads" value={kpis.totalLeads} />
+        <KpiCard label="Visitas únicas" value={kpis.visitors} loading={loading} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} loading={loading} />
+        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} loading={loading} />
+        <KpiCard label="Total de leads" value={kpis.totalLeads} loading={loading} />
         <KpiCard
           label="Fechou consulta"
           value={kpis.consulta.total}
           hint={`${kpis.consulta.wa} WhatsApp · ${kpis.consulta.form} Form`}
+          loading={loading}
         />
         <KpiCard
           label="Fechou tratamento"
           value={kpis.tratamento.total}
           hint={`${kpis.tratamento.wa} WhatsApp · ${kpis.tratamento.form} Form`}
+          loading={loading}
         />
         <KpiCard
           label="Converteu (total)"
           value={kpis.converteu.total}
           hint={`${kpis.converteu.wa} WhatsApp · ${kpis.converteu.form} Form`}
           highlight
+          loading={loading}
         />
         <KpiCard
           label="Não converteu (nutrição)"
           value={kpis.nutricao.total}
           hint={`${kpis.nutricao.wa} WhatsApp · ${kpis.nutricao.form} Form`}
+          loading={loading}
         />
       </div>
 
+      <div className="relative">
       <Tabs defaultValue="visitors">
+
         <TabsList>
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
           <TabsTrigger value="pages">Páginas</TabsTrigger>
