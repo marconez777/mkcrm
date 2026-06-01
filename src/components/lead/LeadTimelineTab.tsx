@@ -155,7 +155,35 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
         (stageRows || []).forEach((s) => stageMap.set(s.id, s.name));
       }
 
+      // Resolve actor user names (for crm events and stage history)
+      const userIds = new Set<string>();
+      (crmRes.data || []).forEach((e: any) => { if (e.actor_user_id) userIds.add(e.actor_user_id); });
+      (stageRes.data || []).forEach((s: any) => { if (s.moved_by_user_id) userIds.add(s.moved_by_user_id); });
+      const userMap = new Map<string, string>();
+      if (userIds.size) {
+        const { data: profRows } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", Array.from(userIds));
+        (profRows || []).forEach((p: any) => userMap.set(p.user_id, p.full_name || p.email || "Usuário"));
+      }
+
+      // Resolve custom field labels
+      const { data: cfDefs } = await supabase
+        .from("lead_custom_fields")
+        .select("field_key, label");
+      const cfLabelMap = new Map<string, string>();
+      (cfDefs || []).forEach((d: any) => cfLabelMap.set(d.field_key, d.label || d.field_key));
+
+      function fmtVal(v: any): string {
+        if (v === null || v === undefined || v === "") return "—";
+        if (typeof v === "string") return v.length > 40 ? v.slice(0, 40) + "…" : v;
+        if (typeof v === "object") return JSON.stringify(v);
+        return String(v);
+      }
+
       const merged: TimelineItem[] = [];
+
 
       (trackRes.data || []).forEach((e) => {
         if (!MILESTONE_TRACKING_EVENTS.has(e.event_name)) return;
