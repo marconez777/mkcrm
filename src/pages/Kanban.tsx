@@ -309,18 +309,87 @@ function Column({
         </div>
       </div>
       <div className="mb-2 h-[3px] w-full rounded-full" style={{ background: stageColor }} />
-      <div
-        ref={setNodeRef}
-        data-kanban-column-body
-        className={`scrollbar-thin flex-1 space-y-2 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
-      >
-        <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpenLead} onMove={onMoveLead} onMoveToStage={onMoveLeadToStage} stages={allStages} compact={compact} />)}
-        </SortableContext>
-        {leads.length === 0 && (
+      <VirtualizedColumnBody
+        leads={leads}
+        compact={compact}
+        isOver={isOver}
+        setDroppableRef={setNodeRef}
+        onOpen={onOpenLead}
+        onMove={onMoveLead}
+        onMoveToStage={onMoveLeadToStage}
+        allStages={allStages}
+      />
+    </div>
+  );
+}
+
+function VirtualizedColumnBody({
+  leads, compact, isOver, setDroppableRef, onOpen, onMove, onMoveToStage, allStages,
+}: {
+  leads: Lead[]; compact: boolean; isOver: boolean;
+  setDroppableRef: (el: HTMLElement | null) => void;
+  onOpen: (l: Lead) => void; onMove: (l: Lead) => void;
+  onMoveToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el;
+    setDroppableRef(el);
+  }, [setDroppableRef]);
+  // Card aproximado: compacto ~58px, normal ~108px (com preview ainda mais). Gap de 8px.
+  const estimate = compact ? 62 : 112;
+  const virtualizer = useVirtualizer({
+    count: leads.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => estimate,
+    overscan: 8,
+    getItemKey: (i) => leads[i]?.id ?? i,
+  });
+  const items = virtualizer.getVirtualItems();
+  const ids = useMemo(() => leads.map((l) => l.id), [leads]);
+
+  return (
+    <div
+      ref={setRefs}
+      data-kanban-column-body
+      className={`scrollbar-thin flex-1 overflow-y-auto rounded-lg border-2 border-dashed p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-transparent bg-muted/30"}`}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        {leads.length === 0 ? (
           <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+            {items.map((v) => {
+              const lead = leads[v.index];
+              if (!lead) return null;
+              return (
+                <div
+                  key={lead.id}
+                  data-index={v.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${v.start}px)`,
+                    paddingBottom: 8,
+                  }}
+                >
+                  <LeadCard
+                    lead={lead}
+                    onOpen={onOpen}
+                    onMove={onMove}
+                    onMoveToStage={onMoveToStage}
+                    stages={allStages}
+                    compact={compact}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
+      </SortableContext>
     </div>
   );
 }
