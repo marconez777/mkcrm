@@ -206,7 +206,14 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
         const custom: Record<string, any> = {};
         for (const cf of fieldsToCreate) {
           const v = row[cf.col];
-          if (v != null && v !== "") custom[cf.key] = v;
+          if (v == null || v === "") continue;
+          if (cf.normalize === "date") {
+            const iso = parseKommoDate(v);
+            if (iso) custom[cf.key] = iso;
+            // se não parsear, ignora silenciosamente para não poluir o JSON
+          } else {
+            custom[cf.key] = v;
+          }
         }
 
         let email: string | null = null;
