@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, ChevronDown, ExternalLink } from "lucide-react";
+import { CalendarIcon, ChevronDown, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { CustomFieldDef, Lead } from "@/types/crm";
