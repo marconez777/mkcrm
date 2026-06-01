@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
           continue;
         }
         const res = await runAction(supabase, a, lead.id);
-        await logRun(supabase, a.id, lead.id, res.ok ? "success" : "error", res.detail);
+        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail);
         if (res.ok) fired++; else failed++;
       }
       summary.push({ automation: a.name, candidates: candidates.length, fired, skipped, failed });
