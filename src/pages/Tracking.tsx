@@ -370,17 +370,37 @@ export default function Tracking() {
   const [stageConfigLoaded, setStageConfigLoaded] = useState(false);
   useEffect(() => {
     if (!clinicId) return;
-    try {
-      const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
-      if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
-    } catch { /* ignore */ }
-    setStageConfigLoaded(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle();
+        const remote = (data?.settings as any)?.tracking_stage_buckets;
+        if (!cancelled && remote && (remote.consulta || remote.tratamento || remote.nutricao)) {
+          setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...remote });
+          setStageConfigLoaded(true);
+          return;
+        }
+      } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
+        if (!cancelled && raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
+      } catch { /* ignore */ }
+      if (!cancelled) setStageConfigLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, [clinicId]);
   const saveStageConfig = useCallback((next: StageConfig) => {
     setStageConfig(next);
-    if (clinicId) {
-      try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
-    }
+    if (!clinicId) return;
+    try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
+    // Persiste em clinics.settings para uso server-side (daily-summary etc.)
+    (async () => {
+      try {
+        const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle();
+        const merged = { ...(data?.settings as any || {}), tracking_stage_buckets: next };
+        await supabase.from("clinics").update({ settings: merged }).eq("id", clinicId);
+      } catch { /* ignore — fallback localStorage já feito */ }
+    })();
   }, [clinicId]);
   // Auto-sugere a configuração na primeira vez (nada salvo ainda) assim que os estágios carregam.
   useEffect(() => {
