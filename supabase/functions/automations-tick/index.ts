@@ -27,13 +27,53 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
   return (data?.length ?? 0) > 0;
 }
 
-async function logRun(supabase: any, automationId: string, leadId: string, clinicId: string, status: string, detail?: string) {
+// Para trigger before_appointment: bloqueia reenvio apenas se o último run
+// de sucesso foi para a MESMA data de consulta. Se a data mudou (reagendamento),
+// permite disparar de novo.
+async function shouldSkipForAppointment(
+  supabase: any,
+  automationId: string,
+  leadId: string,
+  cooldownHours: number,
+  currentApptISO: string,
+) {
+  const since = new Date(Date.now() - cooldownHours * 3600_000).toISOString();
+  const { data } = await supabase
+    .from("automation_runs")
+    .select("appointment_at")
+    .eq("automation_id", automationId)
+    .eq("lead_id", leadId)
+    .eq("status", "success")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const last = data?.[0];
+  if (!last) return false;
+  // Run antigo sem appointment_at: aplica cooldown clássico (não reenvia) para
+  // evitar broadcast retroativo.
+  if (!last.appointment_at) return true;
+  const lastTs = new Date(last.appointment_at).getTime();
+  const curTs = new Date(currentApptISO).getTime();
+  // Mesma data → ainda em cooldown. Data diferente → reagendou, libera.
+  return lastTs === curTs;
+}
+
+async function logRun(
+  supabase: any,
+  automationId: string,
+  leadId: string,
+  clinicId: string,
+  status: string,
+  detail?: string,
+  appointmentAt?: string | null,
+) {
   const { error } = await supabase.from("automation_runs").insert({
     automation_id: automationId,
     lead_id: leadId,
     clinic_id: clinicId,
     status,
     detail: detail?.slice(0, 500),
+    appointment_at: appointmentAt ?? null,
   });
   if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
