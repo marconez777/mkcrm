@@ -14,6 +14,7 @@ import { deleteLead } from "@/lib/delete-lead";
 import CustomFieldsPanel from "./CustomFieldsPanel";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
+import { usePipelines } from "@/hooks/usePipelines";
 
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -162,11 +163,23 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     }
   }
 
+  const { pipelines } = usePipelines();
   const stage = stages.find((s) => s.id === lead.stage_id);
-  const pipelineStages = lead.pipeline_id
-    ? stages.filter((s) => s.pipeline_id === lead.pipeline_id)
+  const currentPipelineId = form.pipeline_id ?? lead.pipeline_id ?? null;
+  const pipelineStages = currentPipelineId
+    ? stages.filter((s) => s.pipeline_id === currentPipelineId)
     : stages;
   const stageOptions = pipelineStages.length > 0 ? pipelineStages : stages;
+
+  async function changePipeline(newPipelineId: string) {
+    if (newPipelineId === currentPipelineId) return;
+    const nextStages = stages
+      .filter((s) => s.pipeline_id === newPipelineId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const stageStillValid = nextStages.some((s) => s.id === form.stage_id);
+    const nextStageId = stageStillValid ? form.stage_id ?? null : nextStages[0]?.id ?? null;
+    await patch({ pipeline_id: newPipelineId, stage_id: nextStageId } as Partial<Lead>);
+  }
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
@@ -226,6 +239,35 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         />
 
         <div className="space-y-3">
+
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Funil</Label>
+            <Select value={currentPipelineId ?? undefined} onValueChange={changePipeline}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecionar funil">
+                  {(() => {
+                    const p = pipelines.find((x) => x.id === currentPipelineId);
+                    return p ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                        {p.name}
+                      </span>
+                    ) : "Selecionar funil";
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapa</Label>

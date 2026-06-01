@@ -57,6 +57,7 @@ export function trackingEventTitle(name: string) {
 const CRM_EVENT_PT: Record<string, string> = {
   lead_created: "Lead criado",
   stage_changed: "Etapa alterada",
+  pipeline_changed: "Funil alterado",
   attendant_changed: "Atendente alterado",
   attendant_assigned: "Atendente atribuído",
   custom_fields_changed: "Campos personalizados alterados",

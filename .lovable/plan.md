@@ -1,49 +1,38 @@
 # Plano
 
-## 1. Dropdown "Etapa" só mostra etapas do pipeline do lead
+Adicionar campo **Funil** na rail de contexto (acima de **Etapa**) e fazer a Etapa reagir à troca de funil.
 
-Hoje `ContextRail.tsx` recebe **todas** as `pipeline_stages` (de todos os pipelines) e renderiza a lista inteira no Select de etapa. Por isso aparecem "Acompanhamento Mensal", "Engajamento Positivo", etc. junto com as do pipeline do lead.
+## Mudanças em `src/components/inbox/ContextRail.tsx`
 
-**Mudança em `src/components/inbox/ContextRail.tsx`:**
-- Derivar `pipelineStages = stages.filter(s => s.pipeline_id === lead.pipeline_id)` (memoizado por `lead.pipeline_id` + `stages`).
-- Usar `pipelineStages` no `.map()` do `SelectContent` da Etapa.
-- Manter o lookup atual `stages.find(s => s.id === lead.stage_id)` para o label do trigger (cobre o caso raro do stage_id apontar para outro pipeline — vai ser corrigido pelo passo 2).
-- Se `pipelineStages.length === 0` (lead sem `pipeline_id`), cair no comportamento atual (mostrar todas) para não travar a UI.
+1. **Carregar pipelines** via `usePipelines()` (`src/hooks/usePipelines.ts`) — já existe, retorna a lista ordenada com realtime.
+2. **Novo `<Select>` "Funil"** logo antes do bloco de Etapa:
+   - `value = form.pipeline_id`
+   - Opções: todos os `pipelines` (com bolinha `p.color` + `p.name`).
+   - `onValueChange`: chama `changePipeline(newId)`.
+3. **Função `changePipeline(newPipelineId)`**:
+   - Filtra `stages` por `pipeline_id === newPipelineId`, ordena por `position`, pega o primeiro como etapa inicial (`initialStageId`). Como `pipeline_stages` não tem coluna `is_initial`, usar o de menor `position`.
+   - Se a `stage_id` atual já pertence ao novo pipeline, mantém. Senão, substitui pelo `initialStageId` (pode ser `null` se o pipeline não tiver etapas).
+   - `patch({ pipeline_id: newPipelineId, stage_id: novoStageId })` num único update — o trigger `log_lead_changes` registra `stage_changed` e também precisa registrar pipeline. Hoje o trigger só loga stage/attendant/custom_fields — vou **adicionar evento `pipeline_changed`** no trigger para deixar a timeline coerente.
+4. **Etapa** já está filtrada pelo `lead.pipeline_id` (mudança anterior). Como o `Select` usa `form.pipeline_id` indiretamente via `lead.pipeline_id`, vou trocar para usar `form.pipeline_id` no filtro (`pipelineStages = stages.filter(s => s.pipeline_id === form.pipeline_id)`) para a lista atualizar instantaneamente após o usuário trocar o funil, mesmo antes do roundtrip.
 
-Nenhuma outra tela é afetada — Kanban já filtra por pipeline.
+## Migração: trigger `log_lead_changes`
 
-## 2. Reparo de dados: leads do "Agendamentos Novo" com etapa de outro pipeline → "Qualificação"
-
-Verifiquei no banco:
-
+Adicionar bloco no `log_lead_changes()`:
 ```sql
-SELECT count(*) FROM leads l
-JOIN pipeline_stages ps ON ps.id = l.stage_id
-WHERE l.pipeline_id = '737242e7-...-Agendamentos Novo'
-  AND ps.pipeline_id <> l.pipeline_id;
--- => 0
+IF NEW.pipeline_id IS DISTINCT FROM OLD.pipeline_id THEN
+  INSERT INTO lead_events(lead_id, type, payload, actor_user_id)
+  VALUES (NEW.id, 'pipeline_changed',
+    jsonb_build_object('from', OLD.pipeline_id, 'to', NEW.pipeline_id),
+    auth.uid());
+END IF;
 ```
 
-Hoje **não existem leads desalinhados** nesse pipeline. Mesmo assim, rodarei a migração de reparo para fechar a porta (vai afetar 0 linhas agora, mas serve de safety net e cobre qualquer lead que entre no estado inconsistente até a UI ser publicada).
+## Timeline (mínimo)
 
-**Migração (UPDATE):**
-```sql
-UPDATE leads
-SET stage_id = '34fd2408-59e2-446a-8dd5-866eb484ea04',  -- "Qualificação" do Agendamentos Novo
-    stage_changed_at = now()
-WHERE pipeline_id = '737242e7-8efc-4a8f-9fed-f09c6e5dc227'
-  AND (
-    stage_id IS NULL
-    OR stage_id NOT IN (
-      SELECT id FROM pipeline_stages
-      WHERE pipeline_id = '737242e7-8efc-4a8f-9fed-f09c6e5dc227'
-    )
-  );
-```
-
-O trigger `log_lead_changes` já vai registrar `stage_changed` no `lead_events` automaticamente (sem `actor_user_id`, ficando como ação de sistema).
+- `src/components/lead/timeline/types.ts`: adicionar `pipeline_changed: "Funil alterado"` em `CRM_EVENT_PT`.
+- Render textual padrão (nome dos pipelines pode ficar como UUID por ora — fora de escopo resolver nome). Se trivial, faço um lookup leve com a lista já presente.
 
 ## Fora de escopo
 
-- Não vou alterar Kanban, automações, ou outras telas — só o dropdown da rail e o reparo único de dados.
-- Não vou tocar em `useStages` (continua trazendo todas as etapas; o filtro fica no componente).
+- Kanban e outras telas (já lidam com pipeline).
+- Não vou criar UI de "mover lead para outro funil em massa".
