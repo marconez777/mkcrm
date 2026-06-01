@@ -104,6 +104,11 @@ Deno.serve(async (req) => {
         openRate: totalSent ? Math.round((opened / totalSent) * 100) : 0,
         clickRate: totalSent ? Math.round((clicked / totalSent) * 100) : 0,
         top3,
+        formLeads: formLeadsCount,
+        formNoWhatsapp,
+        formToConsulta,
+        formToTratamento,
+        bucketsConfigured,
       });
 
       const subject = `Resumo diário — ${c.name}`;
