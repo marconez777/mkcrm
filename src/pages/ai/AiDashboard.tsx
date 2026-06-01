@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Bot,
