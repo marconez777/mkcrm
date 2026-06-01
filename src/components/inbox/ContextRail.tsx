@@ -163,6 +163,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   }
 
   const stage = stages.find((s) => s.id === lead.stage_id);
+  const pipelineStages = lead.pipeline_id
+    ? stages.filter((s) => s.pipeline_id === lead.pipeline_id)
+    : stages;
+  const stageOptions = pipelineStages.length > 0 ? pipelineStages : stages;
 
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
