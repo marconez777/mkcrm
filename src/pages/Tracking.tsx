@@ -516,7 +516,7 @@ export default function Tracking() {
           const linkRows = await fetchAllByIn<LinkRow>(
             (slice) => supabase
               .from("tracking_identity_links")
-              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
+              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id, last_message_at)")
               .in("visitor_id", slice),
             ids,
             200,
