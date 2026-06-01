@@ -165,7 +165,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       const target = new Date(appt.getTime() - offsetMin * 60_000);
       // Dispara se passamos o alvo mas ainda faltam >=5min para a consulta
       if (now >= target && now <= new Date(appt.getTime() - 5 * 60_000)) {
-        out.push(l);
+        out.push({ ...l, appointment_at: appt.toISOString() });
       }
       // Para o caso D-1 com preferred_time: garante que estamos no mesmo dia local do target
       if (preferred) {
