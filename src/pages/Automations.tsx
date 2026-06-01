@@ -63,15 +63,42 @@ export default function Automations() {
   };
   useEffect(() => { load(); }, []);
 
+  const loadRuns = async (automationId: string) => {
+    const { data: runRows, error } = await supabase
+      .from("automation_runs")
+      .select("*")
+      .eq("automation_id", automationId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      toast.error(error.message);
+      setRuns([]);
+      return;
+    }
+
+    const leadIds = Array.from(new Set((runRows ?? []).map((row) => row.lead_id).filter(Boolean)));
+    let leadsById = new Map<string, { id: string; name: string | null; phone: string | null }>();
+
+    if (leadIds.length > 0) {
+      const { data: leadsData, error: leadsError } = await supabase
+        .from("leads")
+        .select("id, name, phone")
+        .in("id", leadIds);
+
+      if (leadsError) {
+        toast.error(leadsError.message);
+      } else {
+        leadsById = new Map((leadsData ?? []).map((lead) => [lead.id, lead]));
+      }
+    }
+
+    setRuns((runRows ?? []).map((row) => ({ ...row, lead: leadsById.get(row.lead_id) ?? null })));
+  };
+
   useEffect(() => {
     if (!selected) { setRuns([]); return; }
-    supabase
-      .from("automation_runs")
-      .select("*, leads(name, phone)")
-      .eq("automation_id", selected.id)
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => setRuns(data ?? []));
+    loadRuns(selected.id);
   }, [selected?.id]);
 
   const create = async () => {
@@ -124,14 +151,7 @@ export default function Automations() {
     setRunning(false);
     if (error) return toast.error(error.message);
     toast.success(`Tick executado (${(data as any)?.summary?.length ?? 0} regras)`);
-    if (selected) {
-      const { data: r } = await supabase
-        .from("automation_runs")
-        .select("*, leads(name, phone)")
-        .eq("automation_id", selected.id)
-        .order("created_at", { ascending: false }).limit(20);
-      setRuns(r ?? []);
-    }
+    if (selected) await loadRuns(selected.id);
   };
 
   const updTrigger = (patch: any) =>
@@ -406,7 +426,7 @@ export default function Automations() {
               {runs.map((r) => (
                 <div key={r.id} className="flex items-center justify-between rounded border bg-muted/40 px-3 py-2 text-xs">
                   <div className="flex flex-col">
-                    <span className="font-medium">{r.leads?.name ?? r.leads?.phone ?? r.lead_id.slice(0, 8)}</span>
+                    <span className="font-medium">{r.lead?.name ?? r.lead?.phone ?? r.lead_id.slice(0, 8)}</span>
                     {r.detail && <span className="text-muted-foreground truncate max-w-md">{r.detail}</span>}
                   </div>
                   <div className="flex items-center gap-2">
