@@ -929,7 +929,7 @@ export default function Tracking() {
                 value={periodMode.kind === "month" ? periodMode.ym : ""}
                 onValueChange={(v) => setPeriodMode({ kind: "month", ym: v })}
               >
-                <SelectTrigger className="h-8 w-[180px]">
+                <SelectTrigger className="h-8 w-[180px]" disabled={loading}>
                   <SelectValue placeholder="Selecionar mês" />
                 </SelectTrigger>
                 <SelectContent>
