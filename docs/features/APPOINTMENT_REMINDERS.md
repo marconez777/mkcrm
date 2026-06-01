@@ -234,7 +234,7 @@ limit 50;
 
 ---
 
-## 8. Links
+## 9. Links
 
 - Motor de Automations: [`SEQUENCES_AUTOMATIONS.md`](./SEQUENCES_AUTOMATIONS.md) §2
 - Lifecycle do lead: [`../flows/LEAD_LIFECYCLE.md`](../flows/LEAD_LIFECYCLE.md)
