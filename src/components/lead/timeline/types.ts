@@ -59,6 +59,7 @@ const CRM_EVENT_PT: Record<string, string> = {
   stage_changed: "Etapa alterada",
   attendant_changed: "Atendente alterado",
   attendant_assigned: "Atendente atribuído",
+  custom_fields_changed: "Campos personalizados alterados",
   appointment_scheduled: "Consulta agendada",
   appointment_confirmed: "Consulta confirmada",
   appointment_canceled: "Consulta cancelada",
