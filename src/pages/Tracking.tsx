@@ -15,6 +15,8 @@ import { Link as RouterLink } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/hooks/useDialogs";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchAllByIn } from "@/lib/fetch-all";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -208,15 +210,19 @@ function SourceCell({ source, medium, campaign, channelGroup }: { source: string
 
 type StageConfig = { consulta: string[]; tratamento: string[]; nutricao: string[] };
 
-function KpiCard({ label, value, hint, highlight }: { label: string; value: number | string; hint?: string; highlight?: boolean }) {
+function KpiCard({ label, value, hint, highlight, loading }: { label: string; value: number | string; hint?: string; highlight?: boolean; loading?: boolean }) {
   return (
-    <Card className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
+    <Card aria-busy={loading || undefined} className={highlight ? "border-primary/60 bg-primary/5" : undefined}>
       <CardHeader className="pb-2">
         <CardTitle className="text-xs text-muted-foreground">{label}</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
-        {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+        {loading ? (
+          <Skeleton className="h-7 w-16" />
+        ) : (
+          <div className={`text-2xl font-semibold ${highlight ? "text-primary" : ""}`}>{value}</div>
+        )}
+        {hint && (loading ? <Skeleton className="mt-2 h-3 w-24" /> : <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>)}
       </CardContent>
     </Card>
   );
@@ -461,6 +467,13 @@ export default function Tracking() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Limpa antes de buscar para os skeletons aparecerem imediatamente,
+    // em vez dos cards mostrarem os números do período anterior.
+    setEvents([]);
+    setVisitors([]);
+    setLinks({});
+    setVFlags({});
+    setVisitorsTotal(0);
     const { sinceISO, untilISO } = computeRange();
     try {
       // pull events in window — used for summary, tables, flags, pages report
@@ -471,7 +484,8 @@ export default function Tracking() {
       if (visitorFilter.trim()) evq = evq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       if (leadFilter.trim()) evq = evq.ilike("lead_id", `%${leadFilter.trim()}%`);
       if (pageUrlFilter.trim()) evq = evq.ilike("page_url", `%${pageUrlFilter.trim()}%`);
-      const { data: evData } = await evq;
+      const { data: evData, error: evErr } = await evq;
+      if (evErr) console.warn("[tracking] events_query_error", evErr);
       const allEv = (evData as EventRow[]) ?? [];
       setEvents(allEv);
       setAllEventNames(Array.from(new Set(allEv.map((e) => e.event_name))).sort());
@@ -481,7 +495,8 @@ export default function Tracking() {
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO)
         .order("last_seen_at", { ascending: false }).limit(1000);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-      const { data: vData } = await vq;
+      const { data: vData, error: vErr } = await vq;
+      if (vErr) console.warn("[tracking] visitors_query_error", vErr);
       const vList = (vData as VisitorRow[]) ?? [];
       setVisitors(vList);
 
@@ -489,19 +504,29 @@ export default function Tracking() {
       let vcq: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
       if (visitorFilter.trim()) vcq = vcq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-      const { count: visitorsTotalCount } = await vcq;
+      const { count: visitorsTotalCount, error: vcErr } = await vcq;
+      if (vcErr) console.warn("[tracking] visitors_count_error", vcErr);
 
-      // identity links for these visitors
+      // identity links for these visitors — chunked para não estourar a URL
+      // do PostgREST (em períodos longos chegamos a 900+ visitor_ids).
       const ids = vList.map((v) => v.visitor_id);
       const linkMap: Record<string, LinkRow> = {};
       if (ids.length) {
-        const { data: linkData } = await supabase
-          .from("tracking_identity_links")
-          .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
-          .in("visitor_id", ids);
-        (linkData as any[] | null)?.forEach((l) => {
-          if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
-        });
+        try {
+          const linkRows = await fetchAllByIn<LinkRow>(
+            (slice) => supabase
+              .from("tracking_identity_links")
+              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
+              .in("visitor_id", slice),
+            ids,
+            200,
+          );
+          for (const l of linkRows) {
+            if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
+          }
+        } catch (e) {
+          console.warn("[tracking] links_chunk_error", e);
+        }
       }
       setLinks(linkMap);
 
@@ -550,7 +575,7 @@ export default function Tracking() {
     } finally {
       setLoading(false);
     }
-  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
+  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter, clinicId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -887,7 +912,7 @@ export default function Tracking() {
         const isActive = (k: PeriodMode["kind"], days?: number) =>
           periodMode.kind === k && (days === undefined || (periodMode.kind === "last" && periodMode.days === days));
         const chip = (label: string, active: boolean, onClick: () => void) => (
-          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick}>
+          <Button key={label} size="sm" variant={active ? "default" : "outline"} className="h-8" onClick={onClick} disabled={loading}>
             {label}
           </Button>
         );
@@ -904,7 +929,7 @@ export default function Tracking() {
                 value={periodMode.kind === "month" ? periodMode.ym : ""}
                 onValueChange={(v) => setPeriodMode({ kind: "month", ym: v })}
               >
-                <SelectTrigger className="h-8 w-[180px]">
+                <SelectTrigger className="h-8 w-[180px]" disabled={loading}>
                   <SelectValue placeholder="Selecionar mês" />
                 </SelectTrigger>
                 <SelectContent>
@@ -921,34 +946,40 @@ export default function Tracking() {
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
 
-        <KpiCard label="Visitas únicas" value={kpis.visitors} />
-        <KpiCard label="Leads via formulário" value={kpis.formLeads} />
-        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} />
-        <KpiCard label="Total de leads" value={kpis.totalLeads} />
+        <KpiCard label="Visitas únicas" value={kpis.visitors} loading={loading} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} loading={loading} />
+        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} loading={loading} />
+        <KpiCard label="Total de leads" value={kpis.totalLeads} loading={loading} />
         <KpiCard
           label="Fechou consulta"
           value={kpis.consulta.total}
           hint={`${kpis.consulta.wa} WhatsApp · ${kpis.consulta.form} Form`}
+          loading={loading}
         />
         <KpiCard
           label="Fechou tratamento"
           value={kpis.tratamento.total}
           hint={`${kpis.tratamento.wa} WhatsApp · ${kpis.tratamento.form} Form`}
+          loading={loading}
         />
         <KpiCard
           label="Converteu (total)"
           value={kpis.converteu.total}
           hint={`${kpis.converteu.wa} WhatsApp · ${kpis.converteu.form} Form`}
           highlight
+          loading={loading}
         />
         <KpiCard
           label="Não converteu (nutrição)"
           value={kpis.nutricao.total}
           hint={`${kpis.nutricao.wa} WhatsApp · ${kpis.nutricao.form} Form`}
+          loading={loading}
         />
       </div>
 
+      <div className="relative">
       <Tabs defaultValue="visitors">
+
         <TabsList>
           <TabsTrigger value="visitors">Visitantes</TabsTrigger>
           <TabsTrigger value="pages">Páginas</TabsTrigger>
@@ -1179,6 +1210,12 @@ export default function Tracking() {
         </TabsContent>
 
       </Tabs>
+        {loading && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
+            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
 
 
       {/* Jornada modal */}
