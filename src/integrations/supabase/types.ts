@@ -900,6 +900,7 @@ export type Database = {
       }
       automation_runs: {
         Row: {
+          appointment_at: string | null
           automation_id: string
           clinic_id: string
           created_at: string
@@ -909,6 +910,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          appointment_at?: string | null
           automation_id: string
           clinic_id?: string
           created_at?: string
@@ -918,6 +920,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          appointment_at?: string | null
           automation_id?: string
           clinic_id?: string
           created_at?: string

@@ -27,13 +27,53 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
   return (data?.length ?? 0) > 0;
 }
 
-async function logRun(supabase: any, automationId: string, leadId: string, clinicId: string, status: string, detail?: string) {
+// Para trigger before_appointment: bloqueia reenvio apenas se o último run
+// de sucesso foi para a MESMA data de consulta. Se a data mudou (reagendamento),
+// permite disparar de novo.
+async function shouldSkipForAppointment(
+  supabase: any,
+  automationId: string,
+  leadId: string,
+  cooldownHours: number,
+  currentApptISO: string,
+) {
+  const since = new Date(Date.now() - cooldownHours * 3600_000).toISOString();
+  const { data } = await supabase
+    .from("automation_runs")
+    .select("appointment_at")
+    .eq("automation_id", automationId)
+    .eq("lead_id", leadId)
+    .eq("status", "success")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const last = data?.[0];
+  if (!last) return false;
+  // Run antigo sem appointment_at: aplica cooldown clássico (não reenvia) para
+  // evitar broadcast retroativo.
+  if (!last.appointment_at) return true;
+  const lastTs = new Date(last.appointment_at).getTime();
+  const curTs = new Date(currentApptISO).getTime();
+  // Mesma data → ainda em cooldown. Data diferente → reagendou, libera.
+  return lastTs === curTs;
+}
+
+async function logRun(
+  supabase: any,
+  automationId: string,
+  leadId: string,
+  clinicId: string,
+  status: string,
+  detail?: string,
+  appointmentAt?: string | null,
+) {
   const { error } = await supabase.from("automation_runs").insert({
     automation_id: automationId,
     lead_id: leadId,
     clinic_id: clinicId,
     status,
     detail: detail?.slice(0, 500),
+    appointment_at: appointmentAt ?? null,
   });
   if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
@@ -125,7 +165,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       const target = new Date(appt.getTime() - offsetMin * 60_000);
       // Dispara se passamos o alvo mas ainda faltam >=5min para a consulta
       if (now >= target && now <= new Date(appt.getTime() - 5 * 60_000)) {
-        out.push(l);
+        out.push({ ...l, appointment_at: appt.toISOString() });
       }
       // Para o caso D-1 com preferred_time: garante que estamos no mesmo dia local do target
       if (preferred) {
@@ -250,12 +290,17 @@ Deno.serve(async (req) => {
       const candidates = await findCandidates(supabase, a);
       let fired = 0, skipped = 0, failed = 0;
       for (const lead of candidates) {
-        if (await recentlyRan(supabase, a.id, lead.id, a.cooldown_hours)) {
+        const apptISO: string | null = lead.appointment_at ?? null;
+        const isAppt = a.trigger_type === "before_appointment";
+        const skip = isAppt && apptISO
+          ? await shouldSkipForAppointment(supabase, a.id, lead.id, a.cooldown_hours, apptISO)
+          : await recentlyRan(supabase, a.id, lead.id, a.cooldown_hours);
+        if (skip) {
           skipped++;
           continue;
         }
         const res = await runAction(supabase, a, lead.id);
-        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail);
+        await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail, apptISO);
         if (res.ok) fired++; else failed++;
       }
       summary.push({ automation: a.name, candidates: candidates.length, fired, skipped, failed });
