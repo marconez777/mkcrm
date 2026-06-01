@@ -1210,6 +1210,12 @@ export default function Tracking() {
         </TabsContent>
 
       </Tabs>
+        {loading && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
+            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
 
 
       {/* Jornada modal */}
