@@ -27,13 +27,15 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
   return (data?.length ?? 0) > 0;
 }
 
-async function logRun(supabase: any, automationId: string, leadId: string, status: string, detail?: string) {
-  await supabase.from("automation_runs").insert({
+async function logRun(supabase: any, automationId: string, leadId: string, clinicId: string, status: string, detail?: string) {
+  const { error } = await supabase.from("automation_runs").insert({
     automation_id: automationId,
     lead_id: leadId,
+    clinic_id: clinicId,
     status,
     detail: detail?.slice(0, 500),
   });
+  if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
 
 async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
