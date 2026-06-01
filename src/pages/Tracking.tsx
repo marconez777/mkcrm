@@ -104,7 +104,7 @@ type LinkRow = {
   created_at: string;
   linked_at: string | null;
   link_source: string | null;
-  leads?: { id: string; name: string | null; created_at: string; stage_id: string | null } | null;
+  leads?: { id: string; name: string | null; created_at: string; stage_id: string | null; last_message_at: string | null } | null;
 };
 
 type PeriodMode =
