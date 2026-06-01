@@ -467,6 +467,13 @@ export default function Tracking() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Limpa antes de buscar para os skeletons aparecerem imediatamente,
+    // em vez dos cards mostrarem os números do período anterior.
+    setEvents([]);
+    setVisitors([]);
+    setLinks({});
+    setVFlags({});
+    setVisitorsTotal(0);
     const { sinceISO, untilISO } = computeRange();
     try {
       // pull events in window — used for summary, tables, flags, pages report
@@ -477,7 +484,8 @@ export default function Tracking() {
       if (visitorFilter.trim()) evq = evq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
       if (leadFilter.trim()) evq = evq.ilike("lead_id", `%${leadFilter.trim()}%`);
       if (pageUrlFilter.trim()) evq = evq.ilike("page_url", `%${pageUrlFilter.trim()}%`);
-      const { data: evData } = await evq;
+      const { data: evData, error: evErr } = await evq;
+      if (evErr) console.warn("[tracking] events_query_error", evErr);
       const allEv = (evData as EventRow[]) ?? [];
       setEvents(allEv);
       setAllEventNames(Array.from(new Set(allEv.map((e) => e.event_name))).sort());
@@ -487,7 +495,8 @@ export default function Tracking() {
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO)
         .order("last_seen_at", { ascending: false }).limit(1000);
       if (visitorFilter.trim()) vq = vq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-      const { data: vData } = await vq;
+      const { data: vData, error: vErr } = await vq;
+      if (vErr) console.warn("[tracking] visitors_query_error", vErr);
       const vList = (vData as VisitorRow[]) ?? [];
       setVisitors(vList);
 
@@ -495,19 +504,29 @@ export default function Tracking() {
       let vcq: any = supabase.from("tracking_visitors").select("visitor_id", { count: "exact", head: true })
         .gte("last_seen_at", sinceISO).lte("last_seen_at", untilISO);
       if (visitorFilter.trim()) vcq = vcq.ilike("visitor_id", `%${visitorFilter.trim()}%`);
-      const { count: visitorsTotalCount } = await vcq;
+      const { count: visitorsTotalCount, error: vcErr } = await vcq;
+      if (vcErr) console.warn("[tracking] visitors_count_error", vcErr);
 
-      // identity links for these visitors
+      // identity links for these visitors — chunked para não estourar a URL
+      // do PostgREST (em períodos longos chegamos a 900+ visitor_ids).
       const ids = vList.map((v) => v.visitor_id);
       const linkMap: Record<string, LinkRow> = {};
       if (ids.length) {
-        const { data: linkData } = await supabase
-          .from("tracking_identity_links")
-          .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
-          .in("visitor_id", ids);
-        (linkData as any[] | null)?.forEach((l) => {
-          if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
-        });
+        try {
+          const linkRows = await fetchAllByIn<LinkRow>(
+            (slice) => supabase
+              .from("tracking_identity_links")
+              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
+              .in("visitor_id", slice),
+            ids,
+            200,
+          );
+          for (const l of linkRows) {
+            if (!linkMap[l.visitor_id]) linkMap[l.visitor_id] = l;
+          }
+        } catch (e) {
+          console.warn("[tracking] links_chunk_error", e);
+        }
       }
       setLinks(linkMap);
 
@@ -556,7 +575,7 @@ export default function Tracking() {
     } finally {
       setLoading(false);
     }
-  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter]);
+  }, [computeRange, eventNameFilter, visitorFilter, leadFilter, pageUrlFilter, clinicId]);
 
   useEffect(() => { load(); }, [load]);
 
