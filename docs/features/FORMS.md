@@ -82,11 +82,18 @@ Para cada campo canônico (`name`, `email`, `phone`, `message`):
 - Senão se `email` → `clinic_id + ilike(email)`.
 - Match: faz patch só de campos vazios (`name`, `email`, `phone` se for
   placeholder `email:...`).
-- Sem match: cria com `stage_id = def.default_pipeline_stage_id ||
-  integration.default_pipeline_stage_id`, `tags = union(integration.tags,
-  def.tags)`, `phone = phone ?? "email:" + email` (placeholder p/ leads
-  só‑email), `form_source = "form:<name>"`, `custom_fields.form_submission`
-  com payload bruto.
+- Sem match: cria com `tags = union(integration.tags, def.tags)`,
+  `phone = phone ?? "email:" + email` (placeholder p/ leads só‑email),
+  `form_source = "form:<name>"`, `custom_fields.form_submission` com payload
+  bruto. **Cascata de `stage_id`** (primeiro que existir):
+  1. `def.default_pipeline_stage_id`
+  2. `integration.default_pipeline_stage_id`
+  3. Pipeline `kind='sales' AND is_default=true` da clínica → etapa cujo
+     nome casa `/nutri/i` (heurística), senão o primeiro estágio (menor
+     `position`). **Este é o caminho padrão hoje** — leads de formulário
+     entram no funil de vendas oficial, na nutrição.
+  4. Pipeline de sistema `forms_site` → estágio "Novo" (fallback legado).
+  5. `null` (lead sem stage).
 
 ### 3.7 Atribuição
 - `visitor_id` presente → upsert em `tracking_identity_links` com

@@ -104,7 +104,7 @@ type LinkRow = {
   created_at: string;
   linked_at: string | null;
   link_source: string | null;
-  leads?: { id: string; name: string | null; created_at: string; stage_id: string | null } | null;
+  leads?: { id: string; name: string | null; created_at: string; stage_id: string | null; last_message_at: string | null } | null;
 };
 
 type PeriodMode =
@@ -370,17 +370,37 @@ export default function Tracking() {
   const [stageConfigLoaded, setStageConfigLoaded] = useState(false);
   useEffect(() => {
     if (!clinicId) return;
-    try {
-      const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
-      if (raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
-    } catch { /* ignore */ }
-    setStageConfigLoaded(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle();
+        const remote = (data?.settings as any)?.tracking_stage_buckets;
+        if (!cancelled && remote && (remote.consulta || remote.tratamento || remote.nutricao)) {
+          setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...remote });
+          setStageConfigLoaded(true);
+          return;
+        }
+      } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem(`tracking:closing-stages:${clinicId}`);
+        if (!cancelled && raw) setStageConfig({ consulta: [], tratamento: [], nutricao: [], ...JSON.parse(raw) });
+      } catch { /* ignore */ }
+      if (!cancelled) setStageConfigLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, [clinicId]);
   const saveStageConfig = useCallback((next: StageConfig) => {
     setStageConfig(next);
-    if (clinicId) {
-      try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
-    }
+    if (!clinicId) return;
+    try { localStorage.setItem(`tracking:closing-stages:${clinicId}`, JSON.stringify(next)); } catch { /* ignore */ }
+    // Persiste em clinics.settings para uso server-side (daily-summary etc.)
+    (async () => {
+      try {
+        const { data } = await supabase.from("clinics").select("settings").eq("id", clinicId).maybeSingle();
+        const merged = { ...(data?.settings as any || {}), tracking_stage_buckets: next };
+        await supabase.from("clinics").update({ settings: merged }).eq("id", clinicId);
+      } catch { /* ignore — fallback localStorage já feito */ }
+    })();
   }, [clinicId]);
   // Auto-sugere a configuração na primeira vez (nada salvo ainda) assim que os estágios carregam.
   useEffect(() => {
@@ -516,7 +536,7 @@ export default function Tracking() {
           const linkRows = await fetchAllByIn<LinkRow>(
             (slice) => supabase
               .from("tracking_identity_links")
-              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id)")
+              .select("visitor_id, lead_id, created_at, linked_at, link_source, leads(id, name, created_at, stage_id, last_message_at)")
               .in("visitor_id", slice),
             ids,
             200,
@@ -664,6 +684,7 @@ export default function Tracking() {
 
     const formLeads = leadsArr.filter(isForm);
     const waLeads = leadsArr.filter(isWA);
+    const formNoWa = formLeads.filter((l) => !l.leads?.last_message_at).length;
     const consultaLeads = leadsArr.filter((l) => inSet(l, stageConfig.consulta));
     const tratamentoLeads = leadsArr.filter((l) => inSet(l, stageConfig.tratamento));
     const nutricaoLeads = leadsArr.filter((l) => inSet(l, stageConfig.nutricao));
@@ -682,6 +703,7 @@ export default function Tracking() {
     return {
       visitors: visitorsTotal,
       formLeads: formLeads.length,
+      formNoWa,
       waLeads: waLeads.length,
       totalLeads: leadsArr.length,
       consulta: split(consultaLeads),
@@ -947,8 +969,9 @@ export default function Tracking() {
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
 
         <KpiCard label="Visitas únicas" value={kpis.visitors} loading={loading} />
-        <KpiCard label="Leads via formulário" value={kpis.formLeads} loading={loading} />
+        <KpiCard label="Leads via formulário" value={kpis.formLeads} hint={`${kpis.formNoWa} sem WhatsApp`} loading={loading} />
         <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} loading={loading} />
+
         <KpiCard label="Total de leads" value={kpis.totalLeads} loading={loading} />
         <KpiCard
           label="Fechou consulta"

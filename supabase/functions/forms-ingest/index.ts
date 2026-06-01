@@ -188,7 +188,26 @@ Deno.serve(async (req) => {
       } else {
         let stageId: string | null =
           def?.default_pipeline_stage_id || integration.default_pipeline_stage_id || null;
-        // Fallback: stage inicial do pipeline de sistema "Formulário Site"
+        // NOVO: pipeline padrão de vendas, etapa "Nutrição" (match por nome).
+        if (!stageId) {
+          const { data: defaultPipe } = await supabase
+            .from("pipelines")
+            .select("id")
+            .eq("clinic_id", integration.clinic_id)
+            .eq("kind", "sales")
+            .eq("is_default", true)
+            .maybeSingle();
+          if (defaultPipe?.id) {
+            const { data: stagesList } = await supabase
+              .from("pipeline_stages")
+              .select("id, name, position")
+              .eq("pipeline_id", defaultPipe.id)
+              .order("position", { ascending: true });
+            const nutri = stagesList?.find((s: any) => /nutri/i.test(s.name || ""));
+            stageId = nutri?.id ?? stagesList?.[0]?.id ?? null;
+          }
+        }
+        // Fallback final: stage inicial do pipeline de sistema "Formulário Site"
         if (!stageId) {
           const { data: sysPipe } = await supabase
             .from("pipelines")

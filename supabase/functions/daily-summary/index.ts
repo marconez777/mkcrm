@@ -31,13 +31,16 @@ Deno.serve(async (req) => {
       const features = c.settings?.features ?? {};
       if (features.email_marketing === false) continue;
 
-      const [{ count: leadsNew }, { data: logs }, { count: failed }] = await Promise.all([
+      const [{ count: leadsNew }, { data: logs }, { count: failed }, { data: formLeadsRaw }] = await Promise.all([
         supabase.from("leads").select("id", { count: "exact", head: true })
           .eq("clinic_id", c.id).gte("created_at", since),
         supabase.from("email_logs").select("status, opened_at, clicked_at, bounced_at, template_slug")
           .eq("clinic_id", c.id).gte("sent_at", since).limit(5000),
         supabase.from("email_queue").select("id", { count: "exact", head: true })
           .eq("clinic_id", c.id).eq("status", "failed").gte("updated_at", since),
+        supabase.from("leads").select("id, stage_id, last_message_at")
+          .eq("clinic_id", c.id).gte("created_at", since)
+          .not("form_source", "is", null).limit(5000),
       ]);
 
       const totalSent = logs?.length ?? 0;
@@ -46,11 +49,26 @@ Deno.serve(async (req) => {
       const bounced = logs?.filter((l: any) => l.bounced_at).length ?? 0;
       const failedCount = failed ?? 0;
 
+      // Métricas de formulário
+      const formLeads = formLeadsRaw ?? [];
+      const formLeadsCount = formLeads.length;
+      const formNoWhatsapp = formLeads.filter((l: any) => !l.last_message_at).length;
+      const buckets = (c.settings?.tracking_stage_buckets ?? {}) as {
+        consulta?: string[]; tratamento?: string[]; nutricao?: string[];
+      };
+      const bucketsConfigured = !!(buckets.consulta?.length || buckets.tratamento?.length);
+      const formToConsulta = bucketsConfigured
+        ? formLeads.filter((l: any) => l.stage_id && (buckets.consulta || []).includes(l.stage_id)).length
+        : 0;
+      const formToTratamento = bucketsConfigured
+        ? formLeads.filter((l: any) => l.stage_id && (buckets.tratamento || []).includes(l.stage_id)).length
+        : 0;
+
       const topMap = new Map<string, number>();
       for (const l of logs ?? []) topMap.set(l.template_slug, (topMap.get(l.template_slug) ?? 0) + 1);
       const top3 = [...topMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-      if (totalSent === 0 && (leadsNew ?? 0) === 0 && failedCount === 0) continue;
+      if (totalSent === 0 && (leadsNew ?? 0) === 0 && failedCount === 0 && formLeadsCount === 0) continue;
 
       // From: pega domínio verificado da clínica ou fallback
       const { data: domain } = await supabase
@@ -86,6 +104,11 @@ Deno.serve(async (req) => {
         openRate: totalSent ? Math.round((opened / totalSent) * 100) : 0,
         clickRate: totalSent ? Math.round((clicked / totalSent) * 100) : 0,
         top3,
+        formLeads: formLeadsCount,
+        formNoWhatsapp,
+        formToConsulta,
+        formToTratamento,
+        bucketsConfigured,
       });
 
       const subject = `Resumo diário — ${c.name}`;
@@ -127,9 +150,11 @@ Deno.serve(async (req) => {
 function renderHtml(d: {
   clinicName: string; leadsNew: number; sent: number; opened: number; clicked: number;
   bounced: number; failed: number; openRate: number; clickRate: number; top3: [string, number][];
+  formLeads: number; formNoWhatsapp: number; formToConsulta: number; formToTratamento: number;
+  bucketsConfigured: boolean;
 }) {
-  const row = (label: string, val: number | string) => `
-    <tr><td style="padding:8px 0;color:#555;font-size:14px">${label}</td>
+  const row = (label: string, val: number | string, indent = false) => `
+    <tr><td style="padding:8px 0;color:#555;font-size:14px;${indent ? "padding-left:18px;" : ""}">${label}</td>
         <td style="padding:8px 0;text-align:right;font-weight:600;font-size:14px">${val}</td></tr>`;
   return `<!doctype html><html><body style="margin:0;background:#f6f6f6;font-family:-apple-system,Segoe UI,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
@@ -139,12 +164,17 @@ function renderHtml(d: {
         <p style="margin:0 0 16px;color:#888;font-size:13px">${d.clinicName} — últimas 24h</p>
         <table width="100%" cellpadding="0" cellspacing="0">
           ${row("Novos leads", d.leadsNew)}
+          ${row("Leads via formulário", d.formLeads)}
+          ${d.formLeads ? row("↳ sem contato no WhatsApp", d.formNoWhatsapp, true) : ""}
+          ${d.formLeads && d.bucketsConfigured ? row("↳ converteram em consulta", d.formToConsulta, true) : ""}
+          ${d.formLeads && d.bucketsConfigured ? row("↳ converteram em tratamento", d.formToTratamento, true) : ""}
           ${row("Emails enviados", d.sent)}
           ${row("Abertura", `${d.openRate}% (${d.opened})`)}
           ${row("Cliques", `${d.clickRate}% (${d.clicked})`)}
           ${row("Bounces", d.bounced)}
           ${row("Falhas na fila", d.failed)}
         </table>
+        ${d.formLeads && !d.bucketsConfigured ? `<p style="margin:16px 0 0;color:#999;font-size:12px">Dica: configure as etapas de consulta/tratamento em /tracking para ver a conversão dos leads de formulário.</p>` : ""}
         ${d.top3.length ? `<h3 style="margin:24px 0 8px;font-size:14px">Top templates</h3>
           <ul style="margin:0;padding-left:18px;color:#444;font-size:13px">
             ${d.top3.map(([s, n]) => `<li>${s} — ${n}</li>`).join("")}
