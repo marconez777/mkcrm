@@ -90,4 +90,5 @@ export type LeadEvent = {
   type: string;
   payload: any;
   created_at: string;
+  actor_user_id?: string | null;
 };
