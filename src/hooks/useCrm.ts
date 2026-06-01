@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
 import type { Stage, Lead } from "@/types/crm";
 
 // Only these fields trigger a re-render in the UI; ignore updated_at and noisy internals
@@ -37,13 +38,18 @@ function useRealtimeList<T extends { id: string }>(
     };
 
     (async () => {
-      const limit = table === "leads" ? 2000 : 500;
-      const { data } = await supabase.from(table).select("*").order(orderBy as string).limit(limit);
-      if (!active) return;
-      const list = ((data ?? []) as unknown as T[]).slice().sort(sortFn);
-      if (list.length === limit) {
-        console.warn(`[useRealtimeList] ${table} atingiu o limite de ${limit} registros — paginação será necessária para volumes maiores.`);
+      let list: T[];
+      if (table === "leads") {
+        const rows = await fetchAllPaged<T>(
+          () => supabase.from("leads").select("*").order(orderBy as string),
+          1000,
+        );
+        list = rows.slice().sort(sortFn);
+      } else {
+        const { data } = await supabase.from(table).select("*").order(orderBy as string).limit(500);
+        list = ((data ?? []) as unknown as T[]).slice().sort(sortFn);
       }
+      if (!active) return;
       setItems(list);
       setLoaded(true);
     })();

@@ -1,47 +1,41 @@
-## Causa raiz
+# Fix: leads não aparecem no Kanban quando a clínica passa de 2000 leads
 
-As duas automations de lembrete (`Lembrete — 1 dia antes` e `Lembrete — 1 hora antes`) estão com `cooldown_hours = 0`. No worker `automations-tick`:
+## Problema
 
-- `recentlyRan` faz `created_at >= now() - 0h` → nunca acha run anterior.
-- `shouldSkipForAppointment` usa a mesma janela `now - 0h` → também nunca acha.
+`useLeads` (em `src/hooks/useCrm.ts`) carrega leads com `.limit(2000)`. A clínica já tem **2419 leads**, então 419 ficam de fora — incluindo Rosa Maria Portolese, Janaina Delluca e Daiane, que **estão corretamente atribuídos** a "Agendamentos Novo / Consulta Agendada" no banco.
 
-Resultado: a cada tick do cron (5 em 5 min), enquanto o lead estiver dentro da janela `[appt - offset, appt - 5min]`, dispara de novo. Confirmado nos `automation_runs`: lead `48b7c1c0…` recebeu **5 disparos em 20 minutos** para a mesma consulta de 02/06 13:00.
+O log de warning `[useRealtimeList] leads atingiu o limite de 2000 registros` já avisa sobre isso no console.
 
-Os lembretes hoje estão `enabled = false` (devem ter sido desligados depois do incidente), mas o bug volta no momento que reativarem.
+## Solução
 
-## Correção
+Trocar o `select(...).limit(2000)` por uma **busca paginada completa** usando o helper existente `src/lib/fetch-all.ts`, mantendo todo o resto do hook (realtime INSERT/UPDATE/DELETE, dedup de render keys, sort) intacto.
 
-### 1. Worker `supabase/functions/automations-tick/index.ts`
-Endurecer para nunca aceitar cooldown 0/negativo em `before_appointment`. Aplicar um piso seguro derivado do `offset_minutes`:
+### Mudanças
+
+**`src/hooks/useCrm.ts`**
+
+1. Importar `fetchAll` de `@/lib/fetch-all`.
+2. No `useEffect` do `useRealtimeList`, quando `table === "leads"`, usar `fetchAll` em vez de um único `select().limit(2000)`, em páginas de 1000.
+3. Manter o `limit(500)` para `pipeline_stages` (volume pequeno, não há risco).
+4. Remover o `console.warn` de "atingiu o limite" para leads, já que não haverá mais teto.
+
+Esqueleto:
 
 ```ts
-const effectiveCooldownH = Math.max(
-  a.cooldown_hours ?? 0,
-  Math.ceil((Number(a.trigger_config?.offset_minutes ?? 60) / 60) * 1.5),
-);
+const list = table === "leads"
+  ? await fetchAll<T>("leads", { orderBy: orderBy as string, pageSize: 1000 })
+  : (await supabase.from(table).select("*").order(orderBy as string).limit(500)).data ?? [];
 ```
 
-Usar `effectiveCooldownH` em `shouldSkipForAppointment` e `recentlyRan`. Isso garante:
-- Lembrete 1h antes (offset 60) → cooldown mínimo 2h.
-- Lembrete 24h antes (offset 1440) → cooldown mínimo 36h.
+(ajustando à assinatura real de `fetch-all.ts` após leitura — se necessário, faço o loop inline com `.range(from, to)`.)
 
-A lógica de reagendamento (comparar `appointment_at` do último run com a data atual do lead) continua funcionando — se o paciente reagendar, dispara de novo mesmo dentro do cooldown.
+## Verificação
 
-### 2. Migration de dados
-Corrigir as duas automations existentes para valores sãos:
-
-```sql
-UPDATE automations SET cooldown_hours = 20  WHERE id = '65e28148-c2eb-439f-ae3d-694f9acda28e'; -- 1 dia antes
-UPDATE automations SET cooldown_hours = 3   WHERE id = 'c3111dc7-30de-4d5e-92d6-e8f557423b60'; -- 1 hora antes
-```
-
-Valores baseados no que `docs/features/APPOINTMENT_REMINDERS.md` recomenda.
-
-### 3. UI `src/pages/Automations.tsx` (defensivo)
-No form de criação/edição de automation, quando `trigger_type = before_appointment`, validar `cooldown_hours >= 1` e mostrar hint:
-> "Defina um cooldown maior que a janela de disparo (recomendado: ~`offset_minutes/60 * 1.5`h) para não enviar o mesmo lembrete várias vezes."
+- Após o deploy, abrir o Kanban no pipeline "Agendamentos Novo" → coluna "Consulta Agendada" deve mostrar Rosa Maria Portolese e Janaina Delluca.
+- Abrir "Base de Pacientes (Geral)" → coluna "consulta agendada" deve mostrar Daiane.
+- Console não deve mais logar o warning de limite.
 
 ## Fora de escopo
-- Mudar o intervalo do cron.
-- Refatorar o modelo de fila para idempotência forte (overkill aqui — o piso de cooldown resolve).
-- Reativar as automations (o usuário decide quando).
+
+- Virtualização da lista para volumes muito maiores (10k+). A paginação resolve o caso atual; otimização futura se a clínica crescer muito mais.
+- Mudar `useLeadsPaginated` (esse já é usado em outras telas que precisam de paginação visível).
