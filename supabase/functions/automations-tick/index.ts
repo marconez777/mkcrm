@@ -289,12 +289,18 @@ Deno.serve(async (req) => {
     for (const a of (automations ?? []) as Automation[]) {
       const candidates = await findCandidates(supabase, a);
       let fired = 0, skipped = 0, failed = 0;
+      // Piso defensivo de cooldown para before_appointment: evita reenvio a cada
+      // tick quando cooldown_hours=0. Mínimo = ceil(offset_h * 1.5).
+      const isAppt = a.trigger_type === "before_appointment";
+      const offsetMin = Number(a.trigger_config?.offset_minutes ?? 60);
+      const effectiveCooldownH = isAppt
+        ? Math.max(a.cooldown_hours ?? 0, Math.ceil((offsetMin / 60) * 1.5), 1)
+        : Math.max(a.cooldown_hours ?? 0, 1);
       for (const lead of candidates) {
         const apptISO: string | null = lead.appointment_at ?? null;
-        const isAppt = a.trigger_type === "before_appointment";
         const skip = isAppt && apptISO
-          ? await shouldSkipForAppointment(supabase, a.id, lead.id, a.cooldown_hours, apptISO)
-          : await recentlyRan(supabase, a.id, lead.id, a.cooldown_hours);
+          ? await shouldSkipForAppointment(supabase, a.id, lead.id, effectiveCooldownH, apptISO)
+          : await recentlyRan(supabase, a.id, lead.id, effectiveCooldownH);
         if (skip) {
           skipped++;
           continue;
