@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent, closestCorners,
