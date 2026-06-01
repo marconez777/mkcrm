@@ -203,8 +203,9 @@ disparo. No tick seguinte, em vez de checar só o cooldown, o worker compara:
   (uma por nova data). Esperado.
 - Runs antigos (anteriores à coluna `appointment_at`) sem data gravada caem
   no cooldown clássico para evitar broadcast retroativo.
-- Cancelar (limpar o custom field) impede novos disparos, mas não cancela
-  mensagens já enviadas.
+- Cancelar (limpar o custom field via botão **Limpar** no popover de data do
+  lead, ou apagando o valor programaticamente) impede novos disparos, mas não
+  cancela mensagens já enviadas.
 
 ---
 
