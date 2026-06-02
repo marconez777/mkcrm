@@ -1146,7 +1146,8 @@ Chame submit_insights.`;
     return { ok: false, ...parsed };
   }
 }
-}
+
+
 
 // ---------- handler ----------
 
