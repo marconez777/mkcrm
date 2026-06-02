@@ -299,6 +299,32 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
               <p className="text-[11px] text-muted-foreground">
                 Esses dados são enviados ao agente como contexto, simulando um lead real chegando pelo WhatsApp. O agente NÃO deve pedir o que já está aqui.
               </p>
+              {personas.length > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-2 py-1.5">
+                  <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground shrink-0">Persona:</span>
+                  <Select value={selectedPersonaId} onValueChange={loadPersona}>
+                    <SelectTrigger className="h-7 flex-1 text-xs">
+                      <SelectValue placeholder="carregar persona salva…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {personas.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name}{p.agent_id === null ? " · global" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPersonaId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setSelectedPersonaId("")}
+                    >limpar</Button>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Input className="h-8" placeholder="Nome" value={simLead.name} onChange={(e) => setSimLead({ ...simLead, name: e.target.value })} />
                 <Input className="h-8" placeholder="Telefone" value={simLead.phone} onChange={(e) => setSimLead({ ...simLead, phone: e.target.value })} />
