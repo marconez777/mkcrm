@@ -1,5 +1,5 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
-import { chunkText, embed, type Agent } from "../_shared/ai.ts";
+import { chunkText, cleanForKnowledge, embed, type Agent } from "../_shared/ai.ts";
 
 function htmlToText(html: string): string {
   return html
@@ -62,13 +62,20 @@ Deno.serve(async (req) => {
     if (text.length < 50) return json({ error: `Texto extraído muito curto (${text.length} chars). A página pode ser renderizada por JavaScript ou estar bloqueando bots.` }, 400);
     const title = customTitle || url;
 
+    // Reescreve em formato amigável (remove menus/CTAs, adiciona seções/listas).
+    const cleaned = await cleanForKnowledge(text, { sourceUrl: url, title: typeof customTitle === "string" ? customTitle : undefined });
+
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")
-      .insert({ agent_id, clinic_id: agent.clinic_id, title, content: text, source: url, metadata: { url } })
+      .insert({
+        agent_id, clinic_id: agent.clinic_id, title,
+        content: cleaned, source: url,
+        metadata: { url, raw_text: text.slice(0, 50_000), cleaned: cleaned !== text },
+      })
       .select("id").single();
     if (docErr) throw docErr;
 
-    const chunks = chunkText(text, 800, 100);
+    const chunks = chunkText(cleaned, 800, 100);
     const rows: any[] = [];
     for (let i = 0; i < chunks.length; i += 16) {
       const batch = chunks.slice(i, i + 16);

@@ -1,30 +1,44 @@
-# Fix — `ai_chunks.clinic_id` NOT NULL nas funções de ingest
+# Limpeza inteligente do conteúdo importado
 
-## Causa-raiz (logs)
+Hoje `ai-ingest-url` (e `ai-ingest-pdf`) só remove tags HTML e colapsa espaços — o resultado vira um "bolo" sem pontuação/seções (menus, breadcrumbs, CRM, RQE, etc. ficam grudados no conteúdo). Isso polui chunks e embeddings.
 
-```
-code: 23502
-message: 'null value in column "clinic_id" of relation "ai_chunks" violates not-null constraint'
-```
+## Solução
 
-Resolvi `ai_documents.clinic_id` antes, mas o mesmo NOT NULL existe em **`ai_chunks`** e nenhuma das funções de ingest seta o campo no insert dos chunks.
+Adicionar uma etapa de **normalização via Lovable AI** entre a extração bruta e o chunking.
 
-## Correção
+### Backend
 
-Em cada função, propagar `clinic_id` (já carregado do agente) também para os objetos do array `rows` antes do `insert("ai_chunks")`.
+1. Novo helper em `supabase/functions/_shared/ai.ts`:
+   - `cleanForKnowledge(rawText, { sourceUrl?, title? }): Promise<string>`
+   - Usa Lovable AI Gateway (`google/gemini-3-flash-preview`, sem streaming) com prompt PT-BR pedindo:
+     - remover menus, navegação, rodapés, CTAs ("Agendar Consulta"), dados de registro profissional repetidos, boilerplate;
+     - preservar 100% do conteúdo informativo;
+     - reescrever em parágrafos com títulos `##` e listas quando fizer sentido;
+     - manter idioma original; não inventar fatos; não resumir.
+   - Trunca entrada a ~30k chars para caber em uma chamada; se maior, processa em janelas e concatena.
+   - Em caso de erro (402/429/timeout): faz fallback para o texto original e loga aviso (ingest não pode falhar por isso).
 
-Arquivos a editar:
-1. `supabase/functions/ai-ingest-url/index.ts` — adicionar `clinic_id: agent.clinic_id` em cada row.
-2. `supabase/functions/ai-ingest-pdf/index.ts` — idem.
-3. `supabase/functions/ai-ingest-document/index.ts` — `ingestChunks` precisa receber/usar o `clinic_id`. Refator: passar `clinic_id` como parâmetro adicional (chamada interna já tem o valor após o lookup do agente).
-4. `supabase/functions/ai-reingest-document/index.ts` — idem; já carrega o agente, basta usar `agent.clinic_id` nos rows.
+2. Integrar em:
+   - `ai-ingest-url/index.ts` — após `htmlToText`, antes do insert em `ai_documents` e do `chunkText`.
+   - `ai-ingest-pdf/index.ts` — após `extractText`.
+   - `ai-ingest-document/index.ts` — NÃO aplicar (já é texto curado pelo usuário).
+   - `ai-reingest-document/index.ts` — NÃO aplicar (usuário já editou).
 
-## Validação
+3. Salvar o texto limpo tanto em `ai_documents.content` quanto como base para os chunks, e guardar o original em `metadata.raw_text` (truncado a 50k) para auditoria/reprocesso.
 
-1. Reimportar a URL `https://clinicaohrpsiquiatria.com/tratamento/estimulacao-magnetica-transcraniana` — deve retornar `{ok:true, chunks:N}`.
-2. Conferir nos logs que não aparece mais 23502 em `ai_chunks`.
-3. Testar também PDF, texto manual e reingest.
+### Frontend
 
-## Não-objetivos
-- Não alterar a constraint (multi-tenant correto).
-- Sem mudanças de UI.
+- Sem mudanças de UX. O modal "Editar documento" continua mostrando `content` — agora já vem formatado.
+- Pequeno hint no card "Importar URL": "O conteúdo é limpo e formatado automaticamente por IA antes da indexação."
+
+### Validação
+
+1. Reimportar `https://clinicaohrpsiquiatria.com/tratamento/estimulacao-magnetica-transcraniana`.
+2. Abrir "Editar documento" e confirmar texto em parágrafos/seções legíveis.
+3. Conferir `chunks` ≥ 5 e teste rápido de pergunta no chat do agente.
+
+### Não-objetivos
+
+- Não trocar o pipeline de embeddings.
+- Não alterar schema do banco.
+- Não introduzir nova função edge (helper compartilhado é suficiente).
