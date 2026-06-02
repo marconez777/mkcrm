@@ -1147,6 +1147,9 @@ Chame submit_insights.`;
     return { ok: false, ...parsed };
   }
 }
+}
+
+
 
 // ---------- Fase 10: Co-piloto de configuração ----------
 
