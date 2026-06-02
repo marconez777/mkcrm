@@ -713,6 +713,265 @@ Chame submit_kb_audit.`;
   }
 }
 
+// ---------- Phase 5: Test Lab — scenarios + evaluation ----------
+
+const SCENARIOS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_scenarios",
+    description: "Gera 3-5 cenários de teste realistas para o agente, adaptados ao nicho e à oferta principal.",
+    parameters: {
+      type: "object",
+      properties: {
+        scenarios: {
+          type: "array",
+          minItems: 3,
+          maxItems: 5,
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "slug curto (ex: 'lead_quente', 'objecao_preco')." },
+              name: { type: "string", description: "Nome curto do cenário (PT-BR)." },
+              persona: { type: "string", description: "Quem é o lead simulado (1-2 frases)." },
+              opening_message: { type: "string", description: "Primeira mensagem que o lead enviaria, no tom dele." },
+              difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+              expected_outcomes: {
+                type: "array",
+                items: { type: "string" },
+                description: "O que o agente DEVE fazer para passar (3-5 critérios objetivos).",
+              },
+            },
+            required: ["id", "name", "persona", "opening_message", "difficulty", "expected_outcomes"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["scenarios"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionGenerateScenarios(builder: Agent, payload: Record<string, unknown>) {
+  const agentId = String(payload.agent_id ?? "");
+  if (!agentId) return { ok: false, code: "missing_agent", status: 400, message: "agent_id obrigatório." };
+
+  const supabase = sb();
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("name, system_prompt, tools")
+    .eq("id", agentId)
+    .single();
+  if (!agent) return { ok: false, code: "not_found", status: 404, message: "Agente não encontrado." };
+
+  const niche = String(payload.niche ?? "other");
+  const goal = String(payload.goal ?? "sdr");
+  const dominantOffer = String(payload.dominant_offer ?? "").trim();
+  const nicheName = NICHE_LABEL[niche] ?? niche;
+  const goalName = GOAL_LABEL[goal] ?? goal;
+
+  const system = await buildBuilderSystemPrompt();
+  const userPrompt = `\
+Gere 3-5 cenários de teste para o agente abaixo. Cada cenário simula um lead REAL chegando.
+
+Agente: ${agent.name}
+Nicho: ${nicheName}
+Objetivo: ${goalName}
+${dominantOffer ? `Oferta principal: ${dominantOffer}` : ""}
+
+Prompt do agente (resumido):
+${String(agent.system_prompt ?? "").slice(0, 1500)}
+
+Regras:
+- Misture dificuldades: 1 fácil (lead quente direto), 1-2 médios (precisa qualificar/responder dúvida), 1 difícil (objeção forte, lead ambíguo, ou pedido fora do escopo que exige escalar).
+- opening_message no TOM do lead (informal, com erros se for o caso), não no tom do agente.
+- expected_outcomes objetivos e verificáveis (ex: "perguntou o nome só se não estava no contexto", "ofereceu o serviço default antes de listar tudo").
+- Linguagem neutra ao nicho. NÃO use termos de saúde se não for clínica/odonto.
+
+Chame submit_scenarios.`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [SCENARIOS_TOOL],
+      { agent_id: builder.id, note: "ai-builder:generate_scenarios" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_scenarios");
+    if (!args?.scenarios?.length) {
+      return { ok: false, code: "unknown", message: "O Construtor não devolveu cenários. Tente novamente." };
+    }
+    return { ok: true, scenarios: args.scenarios.slice(0, 5) };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
+const EVAL_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_evaluation",
+    description: "Avalia o desempenho do agente após uma simulação multi-turn.",
+    parameters: {
+      type: "object",
+      properties: {
+        overall_score: { type: "number", minimum: 0, maximum: 5, description: "Nota geral 0-5." },
+        passed: { type: "boolean", description: "true se o agente cumpriu o cenário aceitavelmente." },
+        scores: {
+          type: "object",
+          properties: {
+            uso_contexto: { type: "number", minimum: 0, maximum: 5, description: "Usou nome/campos/histórico antes de perguntar?" },
+            adesao_oferta: { type: "number", minimum: 0, maximum: 5, description: "Direcionou para a oferta principal antes de listar tudo?" },
+            tom: { type: "number", minimum: 0, maximum: 5, description: "Tom adequado ao nicho e ao lead?" },
+            escalacao: { type: "number", minimum: 0, maximum: 5, description: "Escalou para humano nos gatilhos certos (ou conduziu até o fim sem precisar)?" },
+          },
+          required: ["uso_contexto", "adesao_oferta", "tom", "escalacao"],
+          additionalProperties: false,
+        },
+        strengths: { type: "array", items: { type: "string" }, description: "2-3 acertos concretos." },
+        weaknesses: { type: "array", items: { type: "string" }, description: "2-4 problemas concretos com citação curta." },
+        suggested_patch: { type: "string", description: "Bloco curto em PT-BR para ANEXAR ao system_prompt e corrigir os principais defeitos. Pode ser vazio se nada a melhorar." },
+      },
+      required: ["overall_score", "passed", "scores", "strengths", "weaknesses", "suggested_patch"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionRunEvaluation(builder: Agent, payload: Record<string, unknown>) {
+  const agentId = String(payload.agent_id ?? "");
+  if (!agentId) return { ok: false, code: "missing_agent", status: 400, message: "agent_id obrigatório." };
+
+  const scenario = payload.scenario as {
+    id?: string;
+    name?: string;
+    persona?: string;
+    opening_message?: string;
+    expected_outcomes?: string[];
+  } | undefined;
+  if (!scenario?.opening_message) {
+    return { ok: false, code: "missing_scenario", status: 400, message: "scenario.opening_message obrigatório." };
+  }
+
+  const turnsMax = Math.max(2, Math.min(8, Number(payload.max_turns ?? 5)));
+
+  const supabase = sb();
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("name, system_prompt")
+    .eq("id", agentId)
+    .single();
+  if (!agent) return { ok: false, code: "not_found", status: 404, message: "Agente não encontrado." };
+
+  // Builder simula o lead em N turnos
+  const transcript: Array<{ role: "lead" | "agent"; content: string }> = [
+    { role: "lead", content: scenario.opening_message },
+  ];
+
+  const builderSystem = `Você é um lead simulado em um teste de agente de IA.
+Persona: ${scenario.persona ?? "lead típico"}
+Cenário: ${scenario.name ?? "teste"}
+Regras:
+- Responda SEMPRE em PT-BR, no tom do lead (informal, curto, pode ter erro de digitação).
+- Não saia do papel. Não revele que é simulação.
+- Responda só à última mensagem do agente, em 1-3 frases.
+- Se o agente resolver bem (agendar, qualificar ou escalar corretamente), aceite e encerre com algo como "ok, valeu".
+- Se o agente errar/perguntar coisa óbvia, demonstre frustração de forma realista.`;
+
+  try {
+    for (let turn = 0; turn < turnsMax; turn++) {
+      // 1) agente responde
+      const agentMessages = [
+        { role: "system", content: String(agent.system_prompt ?? "") },
+        ...transcript.map((m) => ({
+          role: m.role === "lead" ? ("user" as const) : ("assistant" as const),
+          content: m.content,
+        })),
+      ];
+      const resAgent = await supabase.functions.invoke("ai-chat", {
+        body: { agent_id: agentId, messages: agentMessages.slice(1) },
+      });
+      const agentText = (resAgent.data as any)?.content ?? "";
+      if (!agentText) break;
+      transcript.push({ role: "agent", content: agentText });
+
+      // 2) builder simula resposta do lead
+      const builderMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        { role: "system", content: builderSystem },
+        ...transcript.map((m) => ({
+          role: m.role === "lead" ? ("assistant" as const) : ("user" as const),
+          content: m.content,
+        })),
+      ];
+      const resBuilder = await chatCompletion(builder, builderMessages, undefined, {
+        agent_id: builder.id,
+        note: "ai-builder:simulate_lead",
+      });
+      if (!resBuilder.ok) break;
+      const leadText = resBuilder.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!leadText) break;
+      transcript.push({ role: "lead", content: leadText });
+
+      // encerra se lead aceitou
+      if (/\b(ok,?\s*valeu|fechou|combinado|perfeito,?\s*at[ée]\s*l[áa]|pode\s*marcar)\b/i.test(leadText)) {
+        break;
+      }
+    }
+
+    // 3) avaliação final
+    const transcriptText = transcript
+      .map((m, i) => `${i + 1}. ${m.role === "lead" ? "LEAD" : "AGENTE"}: ${m.content}`)
+      .join("\n");
+    const criteria = (scenario.expected_outcomes ?? []).map((c) => `- ${c}`).join("\n") || "(sem critérios)";
+
+    const evalUser = `\
+Avalie o desempenho do AGENTE na simulação abaixo.
+
+Cenário: ${scenario.name ?? ""}
+Persona do lead: ${scenario.persona ?? ""}
+
+Critérios esperados:
+${criteria}
+
+Transcrição:
+${transcriptText}
+
+Atribua notas 0-5 nas 4 dimensões. Seja rigoroso mas justo. Se o agente perguntou algo que estava no contexto, baixe uso_contexto. Se ofereceu o catálogo todo em vez da oferta principal, baixe adesao_oferta. suggested_patch só com o estritamente necessário para corrigir o pior defeito.
+
+Chame submit_evaluation.`;
+
+    const resp = await chatCompletion(
+      builder,
+      [
+        { role: "system", content: await buildBuilderSystemPrompt() },
+        { role: "user", content: evalUser },
+      ],
+      [EVAL_TOOL],
+      { agent_id: builder.id, note: "ai-builder:run_evaluation" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_evaluation");
+    if (!args) return { ok: false, code: "unknown", message: "Falha ao avaliar. Tente novamente." };
+
+    return {
+      ok: true,
+      scenario_id: scenario.id,
+      transcript,
+      overall_score: Number(args.overall_score ?? 0),
+      passed: !!args.passed,
+      scores: args.scores ?? {},
+      strengths: args.strengths ?? [],
+      weaknesses: args.weaknesses ?? [],
+      suggested_patch: String(args.suggested_patch ?? ""),
+    };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
 // ---------- handler ----------
 
 Deno.serve(async (req) => {
