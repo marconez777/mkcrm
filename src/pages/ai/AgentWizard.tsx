@@ -162,7 +162,7 @@ export default function AgentWizard() {
   const [testError, setTestError] = useState<ProviderError | null>(null);
 
   const clinicId = membership?.clinic_id ?? null;
-  const userId = membership?.user_id ?? null;
+  const userId = user?.id ?? null;
   const canManage =
     membership?.role === "owner" || membership?.role === "admin";
 
