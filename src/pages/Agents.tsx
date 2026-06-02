@@ -859,20 +859,18 @@ export default function Agents() {
                     <FlaskConical className="h-4 w-4" /> Testar agente
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-3 pb-4">
-                  <Textarea
-                    rows={2}
-                    placeholder="Pergunte algo..."
-                    value={testInput}
-                    onChange={(e) => setTestInput(e.target.value)}
+                <AccordionContent className="pb-4">
+                  <TestLab
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    onPatchToPrompt={(patch) => {
+                      setSelected({
+                        ...selected,
+                        system_prompt: `${selected.system_prompt}\n\n## Patch do Test Lab\n${patch}`,
+                      });
+                      toast.success("Patch anexado ao prompt. Lembre de salvar.");
+                    }}
                   />
-                  <Button onClick={test} disabled={testing} size="sm">
-                    {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Enviar
-                  </Button>
-                  {testOutput && (
-                    <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{testOutput}</div>
-                  )}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
