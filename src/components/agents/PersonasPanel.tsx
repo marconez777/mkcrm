@@ -151,8 +151,8 @@ export function PersonasPanel({ agentId, clinicId }: Props) {
     const ok = await confirm({
       title: "Excluir persona?",
       description: `"${p.name}" será removida.`,
-      confirmText: "Excluir",
-      variant: "destructive",
+      confirmLabel: "Excluir",
+      destructive: true,
     });
     if (!ok) return;
     const { error } = await supabase.from("agent_personas").delete().eq("id", p.id);
