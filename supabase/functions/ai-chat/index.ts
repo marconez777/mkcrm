@@ -401,6 +401,9 @@ Deno.serve(async (req) => {
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agentRow) return json({ error: "agent not found" }, 404);
     if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
+    if (agentRow.draft_mode && lead_id) {
+      return json({ error: "Agente em modo rascunho: só responde no Test Lab. Publique para atender leads." }, 423);
+    }
     if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
     const agent = agentRow as Agent & any;
 
