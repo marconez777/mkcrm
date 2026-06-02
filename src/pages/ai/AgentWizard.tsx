@@ -665,17 +665,19 @@ export default function AgentWizard() {
                 setRefinement={setRefinement}
                 onRegenerate={() => generatePrompt()}
                 onRefine={() => generatePrompt(refinement)}
+                agentName={agentName}
+                setAgentName={setAgentName}
               />
             )}
           </div>
 
           <div className="mt-4 flex items-center justify-between">
-            <Button variant="ghost" onClick={goPrev} disabled={saving}>
+            <Button variant="ghost" onClick={goPrev} disabled={saving || creating}>
               <ArrowLeft className="mr-1 h-4 w-4" />
               {step === 1 ? "Cancelar" : "Voltar"}
             </Button>
             <div className="text-xs text-muted-foreground">
-              {saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
+              {creating ? "Criando agente…" : saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
             </div>
             {step < 5 ? (
               <Button
@@ -693,20 +695,26 @@ export default function AgentWizard() {
               </Button>
             ) : (
               <Button
-                disabled={!canFinish || saving}
-                onClick={async () => {
-                  await persist({ step: 5 });
-                  toast.success("Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.");
-                }}
+                disabled={
+                  !canFinish ||
+                  saving ||
+                  creating ||
+                  agentName.trim().length < 2
+                }
+                onClick={finishAndCreateAgent}
               >
-                Concluir esta fase
-                <Check className="ml-1 h-4 w-4" />
+                {creating ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-4 w-4" />
+                )}
+                Criar agente
               </Button>
             )}
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            As próximas etapas (base de conhecimento, configurações, testes) chegam nas próximas fases do Construtor.
+            Depois de criado, você pode adicionar base de conhecimento, rodar testes e ativar o agente na página dele.
           </p>
         </div>
       </div>
