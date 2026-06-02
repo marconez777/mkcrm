@@ -54,7 +54,7 @@ export default function BuilderManualPanel() {
       .order("version", { ascending: false })
       .limit(100);
     if (error) toast.error(error.message);
-    const rows = (data as Version[]) ?? [];
+    const rows = ((data as unknown) as Version[]) ?? [];
     setVersions(rows);
     const act = rows.find((v) => v.is_active);
     if (act) setDraftContent(act.content);
