@@ -24,9 +24,9 @@ Cada fase abaixo segue 3 portões fixos:
 
 ---
 
-### Fase 11 — Personas & cenários compartilhados
+### Fase 11 — Personas & cenários compartilhados ✅
 
-Tabela `agent_personas` (id, agent_id, clinic_id, name, phone, channel, persona_text, custom_fields jsonb, opening_message, tags[], created_by) — CREATE + GRANT + RLS + POLICY no mesmo migration. Cenários da Fase 5 ganham `persona_id` opcional. Test Lab vira dropdown "carregar persona". Link público de teste fica para o fim (subfase 11b).
+Tabela `agent_personas` criada (id, agent_id nullable = global, clinic_id, name, phone, channel, persona_text, custom_fields jsonb, opening_message, tags[], created_by) com GRANTs + RLS (select: membros da clínica; write: admin) + trigger de `updated_at`. UI: novo accordion "Personas para teste" em `Agents.tsx` com CRUD completo (escopo agente-único ou global da clínica). Test Lab: dropdown "carregar persona" que preenche o painel de lead simulado e pré-popula a `opening_message` no composer. Cenários da Fase 5 ainda não usam `persona_id` — fica como follow-up (11b).
 
 ---
 
