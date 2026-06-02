@@ -15,6 +15,9 @@ import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 import { KbAssistant } from "@/components/agents/KbAssistant";
+import { TestLab } from "@/components/agents/TestLab";
+import { Slider } from "@/components/ui/slider";
+import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
