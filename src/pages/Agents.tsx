@@ -254,7 +254,7 @@ export default function Agents() {
       }
       toast.success(`PDF ingerido (${(data as any)?.chunks} chunks, ${(data as any)?.pages} páginas)`);
       const docs = await fetchAllPaged<any>(() => supabase
-        .from("ai_documents").select("id, title, source, source_type, created_at")
+        .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
         .eq("agent_id", selected.id).order("created_at", { ascending: false }));
       setDocs(docs);
     };
@@ -275,7 +275,7 @@ export default function Agents() {
     toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
     setBatchUrls("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -294,7 +294,7 @@ export default function Agents() {
     toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
     setUrlInput("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -313,7 +313,7 @@ export default function Agents() {
     if (!selected) { setDocs([]); return; }
     fetchAllPaged<any>(() => supabase
       .from("ai_documents")
-      .select("id, title, source, source_type, created_at")
+      .select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id)
       .order("created_at", { ascending: false }))
       .then((data) => setDocs(data));
@@ -422,7 +422,7 @@ export default function Agents() {
     toast.success(`Documento ingerido (${(data as any)?.chunks} chunks)`);
     setDocTitle(""); setDocContent("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -825,7 +825,7 @@ export default function Agents() {
                     clinicId={clinicId}
                     onDocsChanged={async () => {
                       const fresh = await fetchAllPaged<any>(() => supabase
-                        .from("ai_documents").select("id, title, source, source_type, created_at")
+                        .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
                         .eq("agent_id", selected.id).order("created_at", { ascending: false }));
                       setDocs(fresh);
                     }}
