@@ -40,9 +40,13 @@ Deno.serve(async (req) => {
     if (!agent_id) return json({ error: "agent_id required" }, 400);
     if (!title || !content) return json({ error: "title and content required" }, 400);
 
+    const { data: agent } = await supabase.from("ai_agents").select("clinic_id").eq("id", agent_id).single();
+    if (!agent) return json({ error: "agent not found" }, 404);
+    if (!agent.clinic_id) return json({ error: "Agente sem clinic_id" }, 400);
+
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")
-      .insert({ agent_id, title, content, source, metadata })
+      .insert({ agent_id, clinic_id: agent.clinic_id, title, content, source, metadata })
       .select("id").single();
     if (docErr) throw docErr;
 
