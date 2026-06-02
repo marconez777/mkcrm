@@ -1040,6 +1040,16 @@ Deno.serve(async (req) => {
         const result = await actionAuditKb(builder, body.payload ?? {});
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
+      case "generate_scenarios": {
+        if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes." }, 400);
+        const result = await actionGenerateScenarios(builder, body.payload ?? {});
+        return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+      }
+      case "run_evaluation": {
+        if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes." }, 400);
+        const result = await actionRunEvaluation(builder, body.payload ?? {});
+        return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+      }
       default:
         return json({ error: `action desconhecida: ${body.action}` }, 400);
     }
