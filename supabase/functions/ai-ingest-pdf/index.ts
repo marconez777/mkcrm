@@ -31,13 +31,19 @@ Deno.serve(async (req) => {
     if (cleaned.length < 50) return json({ error: "extracted text too short" }, 400);
 
     const docTitle = title || `PDF (${cleaned.slice(0, 40)}…)`;
+    const friendly = await cleanForKnowledge(cleaned, { title: docTitle });
+
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")
-      .insert({ agent_id, clinic_id: agent.clinic_id, title: docTitle, content: cleaned, source: "pdf", metadata: { pages: pdf.numPages, size: bin.byteLength } })
+      .insert({
+        agent_id, clinic_id: agent.clinic_id, title: docTitle,
+        content: friendly, source: "pdf",
+        metadata: { pages: pdf.numPages, size: bin.byteLength, raw_text: cleaned.slice(0, 50_000), cleaned: friendly !== cleaned },
+      })
       .select("id").single();
     if (docErr) throw docErr;
 
-    const chunks = chunkText(cleaned, 800, 100);
+    const chunks = chunkText(friendly, 800, 100);
     const rows: any[] = [];
     for (let i = 0; i < chunks.length; i += 16) {
       const batch = chunks.slice(i, i + 16);
