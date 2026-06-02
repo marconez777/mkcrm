@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const title = customTitle || url;
 
     // Reescreve em formato amigável (remove menus/CTAs, adiciona seções/listas).
-    const cleaned = await cleanForKnowledge(text, { sourceUrl: url, title: typeof customTitle === "string" ? customTitle : undefined });
+    const cleaned = await cleanForKnowledge(agent as Agent, text, { sourceUrl: url, title: typeof customTitle === "string" ? customTitle : undefined });
 
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")
