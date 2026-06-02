@@ -14,7 +14,7 @@ import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, K
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 
-type Provider = "openai" | "anthropic" | "google";
+type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
   id: string;
   name: string;
@@ -46,10 +46,24 @@ const PROVIDER_MODELS: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
   anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
   google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+  xai: ["grok-2-latest", "grok-2-mini", "grok-beta", "grok-vision-beta"],
+  manus: [],
 };
 const PROVIDER_LABEL: Record<Provider, string> = {
-  openai: "OpenAI", anthropic: "Anthropic", google: "Google AI",
+  openai: "OpenAI", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", xai: "xAI (Grok)", manus: "Manus",
 };
+const PROVIDER_KEY_PLACEHOLDER: Record<Provider, string> = {
+  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza...", xai: "xai-...", manus: "API key Manus",
+};
+const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  google: "https://generativelanguage.googleapis.com/v1beta",
+  xai: "https://api.x.ai/v1",
+  manus: "https://api.manus.example/v1 (obrigatório)",
+};
+/** Providers that don't have native embeddings — user must supply an OpenAI/Google embedding key. */
+const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus"];
 
 const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
   {
