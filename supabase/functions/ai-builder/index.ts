@@ -9,7 +9,13 @@ import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, type Agent } from "../_shared/ai.ts";
 import { buildBuilderSystemPrompt, LEAD_CONTEXT_CLAUSE } from "../_shared/builder-system-prompt.ts";
 
-type Action = "ping" | "interview_plan" | "generate_system_prompt";
+type Action =
+  | "ping"
+  | "interview_plan"
+  | "generate_system_prompt"
+  | "suggest_kb_urls"
+  | "draft_knowledge_base"
+  | "audit_kb";
 
 interface Body {
   action: Action;
