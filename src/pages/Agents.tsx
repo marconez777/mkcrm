@@ -10,8 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
@@ -229,6 +230,8 @@ export default function Agents() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [pdfRunning, setPdfRunning] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<{ id: string; title: string; content: string; source_type?: string | null; loading?: boolean } | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
   const [uiMode, setUiMode] = useState<"simple" | "advanced">(
     () => (localStorage.getItem("agents.uiMode") as "simple" | "advanced") || "simple"
   );
@@ -464,6 +467,52 @@ export default function Agents() {
   const removeDoc = async (id: string) => {
     await supabase.from("ai_documents").delete().eq("id", id);
     setDocs((d) => d.filter((x) => x.id !== id));
+  };
+
+  const openDocEditor = async (id: string, title: string, source_type?: string | null) => {
+    setEditingDoc({ id, title, content: "", source_type, loading: true });
+    const { data, error } = await supabase
+      .from("ai_documents")
+      .select("content")
+      .eq("id", id)
+      .single();
+    if (error) {
+      toast.error("Erro ao carregar documento: " + error.message);
+      setEditingDoc(null);
+      return;
+    }
+    setEditingDoc({ id, title, content: (data as any)?.content ?? "", source_type, loading: false });
+  };
+
+  const saveDoc = async (reindex: boolean) => {
+    if (!editingDoc) return;
+    const { id, title, content } = editingDoc;
+    if (!title.trim() || !content.trim()) {
+      toast.error("Título e conteúdo são obrigatórios.");
+      return;
+    }
+    setSavingDoc(true);
+    try {
+      if (reindex) {
+        const { data, error } = await supabase.functions.invoke("ai-reingest-document", {
+          body: { document_id: id, title, content },
+        });
+        if (error || (data as any)?.error) {
+          throw new Error(error?.message ?? (data as any)?.error);
+        }
+        toast.success(`Documento atualizado e re-indexado (${(data as any)?.chunks} chunks).`);
+      } else {
+        const { error } = await supabase.from("ai_documents").update({ title, content }).eq("id", id);
+        if (error) throw error;
+        toast.success("Documento atualizado. Re-indexe para refletir nas buscas.");
+      }
+      setDocs((d) => d.map((x) => (x.id === id ? { ...x, title } : x)));
+      setEditingDoc(null);
+    } catch (e: any) {
+      toast.error("Erro ao salvar: " + (e?.message ?? String(e)));
+    } finally {
+      setSavingDoc(false);
+    }
   };
 
   const test = async () => {
@@ -991,9 +1040,14 @@ export default function Agents() {
                                 );
                               })()}
                             </span>
-                            <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openDocEditor(d.id, d.title, d.source_type)} title="Abrir e editar">
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)} title="Excluir documento">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         {docs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento ainda.</p>}
@@ -1087,6 +1141,65 @@ export default function Agents() {
           </div>
         )}
       </main>
+
+      <Dialog open={!!editingDoc} onOpenChange={(o) => !o && !savingDoc && setEditingDoc(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Editar documento
+              {editingDoc?.source_type === "system_default" && (
+                <Badge variant="secondary" className="text-[10px]">padrão</Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Edite o título e o conteúdo. Ao salvar com re-indexação, os embeddings são recriados — pode levar alguns segundos.
+            </DialogDescription>
+          </DialogHeader>
+          {editingDoc?.loading ? (
+            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Carregando conteúdo…
+            </div>
+          ) : editingDoc ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Título</Label>
+                <Input
+                  value={editingDoc.title}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, title: e.target.value })}
+                  disabled={savingDoc}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Conteúdo</Label>
+                <Textarea
+                  value={editingDoc.content}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, content: e.target.value })}
+                  className="font-mono text-xs min-h-[55vh]"
+                  disabled={savingDoc}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {editingDoc.content.length} caracteres · {editingDoc.content.split("\n").length} linhas
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditingDoc(null)} disabled={savingDoc}>
+              Cancelar
+            </Button>
+            <Button variant="secondary" onClick={() => saveDoc(false)} disabled={savingDoc || editingDoc?.loading}>
+              {savingDoc ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+              Salvar sem re-indexar
+            </Button>
+            <Button onClick={() => saveDoc(true)} disabled={savingDoc || editingDoc?.loading}>
+              {savingDoc ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Salvar e re-indexar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
