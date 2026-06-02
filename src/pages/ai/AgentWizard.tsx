@@ -27,6 +27,7 @@ import {
 import { BUILDER_TOOLTIPS, type TooltipKey } from "@/lib/builder-tooltips";
 import { parseBuilderError, type ProviderError } from "@/lib/builder-errors";
 import { ProviderErrorBanner } from "@/components/agents/ProviderErrorBanner";
+import { filterKnownTools } from "@/lib/agent-tools";
 
 // ---------- Tipos / constantes ----------
 
