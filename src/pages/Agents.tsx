@@ -15,6 +15,9 @@ import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 import { KbAssistant } from "@/components/agents/KbAssistant";
+import { TestLab } from "@/components/agents/TestLab";
+import { Slider } from "@/components/ui/slider";
+import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
@@ -199,6 +202,14 @@ export default function Agents() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [pdfRunning, setPdfRunning] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
+  const [uiMode, setUiMode] = useState<"simple" | "advanced">(
+    () => (localStorage.getItem("agents.uiMode") as "simple" | "advanced") || "simple"
+  );
+  const toggleMode = () => {
+    const next = uiMode === "simple" ? "advanced" : "simple";
+    setUiMode(next);
+    localStorage.setItem("agents.uiMode", next);
+  };
 
   const runBulk = async () => {
     if (!selected) return;
@@ -490,7 +501,15 @@ export default function Agents() {
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={toggleMode}
+                  title="Alternar entre modo Simples (essencial) e Avançado (tudo)"
+                >
+                  {uiMode === "simple" ? "Modo: Simples" : "Modo: Avançado"}
+                </Button>
                 {canManage && (
                   <>
                     <Button variant="outline" size="sm" onClick={runBulk} disabled={bulkRunning} title="Rodar este agente em todos os leads ativos">
@@ -567,7 +586,23 @@ export default function Agents() {
                     </div>
                     <div>
                       <Label>Modelo</Label>
-                      {PROVIDER_MODELS[selected.provider].length > 0 ? (
+                      {uiMode === "simple" && QUALITY_LADDER[selected.provider]?.length > 0 ? (
+                        <div className="space-y-1 pt-1">
+                          <Slider
+                            min={0}
+                            max={2}
+                            step={1}
+                            value={[qualityForModel(selected.provider, selected.model)]}
+                            onValueChange={([v]) => setSelected({ ...selected, model: modelForQuality(selected.provider, v) })}
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            {QUALITY_LABELS.map((l) => <span key={l}>{l}</span>)}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Modelo: <code>{selected.model}</code>
+                          </p>
+                        </div>
+                      ) : PROVIDER_MODELS[selected.provider].length > 0 ? (
                         <select
                           className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                           value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
@@ -599,24 +634,26 @@ export default function Agents() {
                       Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Base URL {selected.provider === "manus" ? "(obrigatório)" : "(opcional)"}</Label>
-                      <Input
-                        placeholder={PROVIDER_BASE_PLACEHOLDER[selected.provider]}
-                        value={selected.base_url ?? ""}
-                        onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
-                      />
+                  {uiMode === "advanced" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Base URL {selected.provider === "manus" ? "(obrigatório)" : "(opcional)"}</Label>
+                        <Input
+                          placeholder={PROVIDER_BASE_PLACEHOLDER[selected.provider]}
+                          value={selected.base_url ?? ""}
+                          onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Temperatura</Label>
+                        <Input
+                          type="number" step="0.1" min="0" max="2"
+                          value={selected.temperature}
+                          onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label>Temperatura</Label>
-                      <Input
-                        type="number" step="0.1" min="0" max="2"
-                        value={selected.temperature}
-                        onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
-                      />
-                    </div>
-                  </div>
+                  )}
                   {PROVIDERS_NEEDING_EMBEDDING_KEY.includes(selected.provider) && (
                     <div className="rounded-md border bg-muted/30 p-3 space-y-2">
                       <Label className="text-xs">
@@ -638,6 +675,7 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              {uiMode === "advanced" && (<>
               <AccordionItem value="advanced" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
@@ -733,6 +771,7 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              </>)}
               <AccordionItem value="kb" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
@@ -848,20 +887,18 @@ export default function Agents() {
                     <FlaskConical className="h-4 w-4" /> Testar agente
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-3 pb-4">
-                  <Textarea
-                    rows={2}
-                    placeholder="Pergunte algo..."
-                    value={testInput}
-                    onChange={(e) => setTestInput(e.target.value)}
+                <AccordionContent className="pb-4">
+                  <TestLab
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    onPatchToPrompt={(patch) => {
+                      setSelected({
+                        ...selected,
+                        system_prompt: `${selected.system_prompt}\n\n## Patch do Test Lab\n${patch}`,
+                      });
+                      toast.success("Patch anexado ao prompt. Lembre de salvar.");
+                    }}
                   />
-                  <Button onClick={test} disabled={testing} size="sm">
-                    {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Enviar
-                  </Button>
-                  {testOutput && (
-                    <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{testOutput}</div>
-                  )}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
