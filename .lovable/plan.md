@@ -30,9 +30,9 @@ Tabela `agent_personas` criada (id, agent_id nullable = global, clinic_id, name,
 
 ---
 
-### Fase 12 — Co-piloto avançado
+### Fase 12 — Co-piloto avançado ✅ (v1)
 
-Diff visual verde/vermelho no `system_prompt`. Edição por seção via marcadores `<!-- §SEÇÃO:tom -->`. Botão "Aplicar e testar agora". A/B lado a lado reusando `ai_agent_prompt_history`.
+Diff visual verde/vermelho linha-a-linha do `system_prompt` (componente `PromptDiff` com modos Diff/Novo/Atual e contagem +N/−N). Tools mostram badges com prefixo `+` (verde) ou `−` (vermelho) destacando entradas adicionadas/removidas. Numéricos (`temperature`, `rag_top_k`, `debounce_seconds`) mostram `valor_atual → novo_valor` inline. **Pendente para 12b**: edição por seção via marcadores `<!-- §SEÇÃO:... -->` e A/B lado a lado reusando `ai_agent_prompt_history`.
 
 ---
 
