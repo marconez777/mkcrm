@@ -5,12 +5,11 @@
 // the follow-up message via scheduled_messages (or inserts an internal note if
 // no message text is configured). Idempotent: writes last_followup_at and skips
 // rows already followed-up within the same window.
-import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  const auth = await requireUser(req);
-  if (auth instanceof Response) return auth;
+  // Tick público — chamado por pg_cron (sem Authorization Bearer). verify_jwt=false em config.toml.
   const supabase = sb();
   const startedAt = Date.now();
 
