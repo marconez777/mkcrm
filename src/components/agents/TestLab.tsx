@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
@@ -59,10 +59,23 @@ const GOAL_OPTS = [
 ];
 
 export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
-  // free chat
+  // free chat (multi-turn)
+  type ChatMsg = { role: "user" | "assistant"; content: string };
+  const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [chatOutput, setChatOutput] = useState("");
   const [chatting, setChatting] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // reset history when switching agent
+    setChatHistory([]);
+    setChatError(null);
+  }, [agentId]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [chatHistory, chatting]);
 
   // scenarios
   const [niche, setNiche] = useState("other");
@@ -75,30 +88,57 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, EvalResult>>({});
 
+  const extractEdgeError = async (error: any, data: any): Promise<string> => {
+    // supabase-js v2: error.context é a Response do edge
+    try {
+      const ctx = error?.context;
+      if (ctx && typeof ctx.json === "function") {
+        const body = await ctx.json();
+        if (body?.error) return String(body.error);
+        if (body?.message) return String(body.message);
+      }
+    } catch { /* ignore */ }
+    if (data?.error) return String(data.error);
+    if (data?.message) return String(data.message);
+    return parseBuilderError(error).message || error?.message || "Erro desconhecido.";
+  };
+
   const invokeBuilder = async (action: string, payload: any) => {
     if (!clinicId) { toast.error("Clínica não identificada."); return null; }
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: { action, clinic_id: clinicId, payload },
     });
-    if (error) { toast.error(parseBuilderError(error).message); return null; }
+    if (error) { toast.error(await extractEdgeError(error, data)); return null; }
     if (!(data as any)?.ok) { toast.error((data as any)?.message ?? "Falha no Construtor."); return null; }
     return data as any;
   };
 
   // ----- free chat -----
   const runChat = async () => {
-    if (!chatInput.trim()) return;
+    const text = chatInput.trim();
+    if (!text || chatting) return;
+    const next: ChatMsg[] = [...chatHistory, { role: "user", content: text }];
+    setChatHistory(next);
+    setChatInput("");
+    setChatError(null);
     setChatting(true);
-    setChatOutput("");
     const { data, error } = await supabase.functions.invoke("ai-chat", {
-      body: { agent_id: agentId, messages: [{ role: "user", content: chatInput }] },
+      body: { agent_id: agentId, messages: next },
     });
     setChatting(false);
     if (error || (data as any)?.error) {
-      setChatOutput("Erro: " + (error?.message ?? (data as any)?.error));
+      const msg = await extractEdgeError(error, data);
+      setChatError(msg);
       return;
     }
-    setChatOutput((data as any)?.content ?? "(vazio)");
+    const content = (data as any)?.content ?? "(resposta vazia)";
+    setChatHistory((h) => [...h, { role: "assistant", content }]);
+  };
+
+  const clearChat = () => {
+    setChatHistory([]);
+    setChatError(null);
+    setChatInput("");
   };
 
   // ----- scenarios -----
@@ -164,13 +204,90 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
       </TabsList>
 
       {/* Chat livre */}
-      <TabsContent value="chat" className="space-y-3 pt-3">
-        <Textarea rows={2} placeholder="Pergunte algo..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
-        <Button onClick={runChat} disabled={chatting} size="sm">
-          {chatting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-          Enviar
-        </Button>
-        {chatOutput && <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{chatOutput}</div>}
+      <TabsContent value="chat" className="pt-3">
+        <div className="flex flex-col rounded-lg border bg-card">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-3 py-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {chatHistory.length === 0 ? "Inicie uma conversa com o agente" : `${chatHistory.length} ${chatHistory.length === 1 ? "mensagem" : "mensagens"}`}
+            </span>
+            {chatHistory.length > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearChat} disabled={chatting}>
+                <Trash2 className="mr-1 h-3 w-3" /> Limpar
+              </Button>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div ref={scrollRef} className="max-h-[420px] min-h-[160px] space-y-3 overflow-y-auto p-3">
+            {chatHistory.length === 0 && !chatting && (
+              <div className="flex h-full items-center justify-center py-8 text-center text-xs text-muted-foreground">
+                Digite uma mensagem abaixo para testar como o agente responde.
+              </div>
+            )}
+            {chatHistory.map((m, i) => (
+              <div key={i} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {m.role === "user" ? <UserIcon className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                </div>
+                <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {chatting && (
+              <div className="flex gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+                <div className="rounded-2xl rounded-tl-sm bg-muted px-3 py-2">
+                  <div className="flex gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Error banner */}
+          {chatError && (
+            <div className="mx-3 mb-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <div className="flex-1">
+                <div className="font-medium">Não foi possível enviar</div>
+                <div className="opacity-90">{chatError}</div>
+              </div>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-destructive hover:text-destructive" onClick={() => setChatError(null)}>
+                fechar
+              </Button>
+            </div>
+          )}
+
+          {/* Composer */}
+          <div className="border-t p-2">
+            <div className="flex items-end gap-2">
+              <Textarea
+                rows={2}
+                placeholder="Digite uma mensagem... (Enter envia, Shift+Enter quebra linha)"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    runChat();
+                  }
+                }}
+                className="min-h-[44px] resize-none"
+                disabled={chatting}
+              />
+              <Button onClick={runChat} disabled={chatting || !chatInput.trim()} size="icon" className="h-10 w-10 shrink-0">
+                {chatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </div>
       </TabsContent>
 
       {/* Cenários */}

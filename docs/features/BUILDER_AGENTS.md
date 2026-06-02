@@ -252,7 +252,7 @@ Três ferramentas:
 **Pegadinhas:**
 - Cada avaliação consome **N×2 chamadas** ao provedor (N turnos × agente+lead) + 1 chamada para avaliar. Monitorar custo.
 - O regex de encerramento é PT-BR. Se trocar idioma do agente, a simulação roda até `max_turns`.
-- `ai-chat` aceita agente com `enabled=false` (não filtra por isso na ação de teste), então dá para rodar o Test Lab logo após criar o agente. Já o agendamento/auto-reply em conversas reais respeita `enabled`.
+- `ai-chat` ignora `enabled=false` quando a chamada **não tem `lead_id`** (caminho do Test Lab), então dá para testar logo após criar o agente, mesmo desativado/rascunho. Em conversas reais (`lead_id` presente), o check `enabled` continua valendo e retorna 400 com mensagem PT-BR. O Test Lab (`src/components/agents/TestLab.tsx`) extrai `error.context.json()` da resposta do edge para exibir a mensagem real em um banner de erro dedicado, em vez do genérico "non-2xx status code".
 
 ---
 

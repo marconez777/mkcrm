@@ -1,43 +1,48 @@
-## Objetivo
+# Corrigir erro do Test Lab e melhorar o UI
 
-Hoje, na seção **Documentos** do agente (`/ai/agents`), só é possível ver o título e excluir. Vou adicionar a capacidade de **abrir um documento e editar seu conteúdo** (título + texto), salvando de volta em `ai_documents`.
+## Causa do erro
 
-## Mudanças
+O agente recém-criado fica `enabled=false` (precisa ser publicado/ativado depois). O edge `ai-chat` faz:
 
-### 1. `src/pages/Agents.tsx` — seção "Documentos"
+```ts
+if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
+```
 
-- Cada linha da lista ganha um botão **"Abrir"** (ícone de lápis/olho) ao lado do botão de excluir.
-- Ao clicar, abre um `Dialog` com:
-  - Campo **Título** (`Input`)
-  - Campo **Conteúdo** (`Textarea` grande, ~60vh, monospace para legibilidade)
-  - Badge indicando se é documento `padrão` do sistema (apenas informativo — pode editar mesmo assim, igual ao excluir).
-  - Botões **Cancelar** e **Salvar alterações**.
-- Ao salvar:
-  - `UPDATE ai_documents SET title, content WHERE id`.
-  - Mostra aviso curto: *"Conteúdo atualizado. Re-indexe para refletir nas buscas."* + botão **Re-indexar agora** que chama a edge function `ai-ingest-document` (ou um fluxo equivalente) para regerar os chunks/embeddings desse doc.
-  - Recarrega a lista.
+Isso bloqueia **qualquer** chamada, inclusive o Test Lab (que não passa `lead_id`). O `supabase.functions.invoke` no front engole o body e devolve só "Edge Function returned a non-2xx status code", por isso o usuário vê a mensagem genérica.
 
-### 2. Re-indexação dos chunks (opcional mas recomendado)
+## O que vou fazer
 
-Quando o conteúdo muda, os `ai_chunks` antigos ficam desatualizados. Duas opções:
+### 1. Backend: `supabase/functions/ai-chat/index.ts`
+- Permitir execução em modo "teste": quando **não há `lead_id`** (chamada do Test Lab), ignorar o check `enabled` (o `draft_mode` já é tratado dessa forma e só bloqueia quando há `lead_id`).
+- Mantém o bloqueio em produção (com `lead_id`) intacto.
 
-- **A (simples, recomendado):** ao salvar, deletar `ai_chunks WHERE document_id = X` e chamar uma função que re-gera embeddings do novo conteúdo. Posso reutilizar a lógica de `ai-ingest-document` extraindo `ingestChunks` ou criando uma nova função `ai-reingest-document` que recebe `document_id`.
-- **B (mínimo):** só atualizar `title`/`content` e deixar um botão manual "Re-indexar" para o usuário disparar.
+### 2. Frontend: `src/components/agents/TestLab.tsx` — extrair erro real
+- Trocar o tratamento atual por leitura do body de erro do edge (`error.context.json()` quando disponível) e mostrar a mensagem PT-BR vinda do backend, usando `parseBuilderError` como fallback.
+- Aplicar nas 3 abas (chat livre, gerar cenários, avaliar) — hoje só "Chat livre" mostra erro de forma confusa.
 
-Sugiro **A automático** — usuário não precisa lembrar.
+### 3. UI do "Testar agente" — refinamento da aba Chat livre
 
-### 3. Carregamento do conteúdo
+Hoje é só um `Textarea` + `Button` + bloco de output. Vou transformar em mini-chat com:
 
-A query atual de `docs` não traz `content` (só `title, source, source_type, created_at, metadata`). Ao abrir o dialog, faço um fetch pontual `select content` por id (evita carregar conteúdo grande de todos os docs na lista).
+- **Histórico de mensagens** em bolhas (`user` à direita primary, `assistant` à esquerda muted), com markdown via `ReactMarkdown` (já é padrão no projeto).
+- **Composer fixo embaixo** com `Textarea` (Enter envia, Shift+Enter quebra linha) e botão Enviar/Loader.
+- **Indicador de "digitando..."** enquanto a resposta carrega.
+- **Botão "Limpar conversa"** no header da aba.
+- **Banner de erro** dedicado (vermelho suave com ícone) em vez de prefixo "Erro:" no output.
+- Estado preservado durante a sessão do componente (só reseta ao trocar de agente ou clicar Limpar).
+- Mantém envio do histórico completo no `messages` para o `ai-chat` (multi-turn já é suportado).
+
+Tokens semânticos (`bg-primary`, `bg-muted`, `text-destructive` etc.) — sem cores hardcoded.
+
+### 4. Documentação
+- Atualizar `docs/features/BUILDER_AGENTS.md`: deixar claro que o Test Lab funciona com agente em rascunho/desativado, e que `enabled` controla só o atendimento real de leads.
 
 ## Fora de escopo
-
-- Editor rico (markdown/WYSIWYG) — fica `Textarea` simples por enquanto.
-- Histórico de versões do documento (diferente do manual do Builder, que tem versionamento próprio).
-- Edição de `metadata` (nicho, source) — só título + conteúdo.
+- Streaming de tokens no Test Lab (continua blocking — já é assim em produção).
+- Persistir o histórico de teste (segue só em memória do componente).
+- Mudanças nas abas Cenários/Avaliação além da correção do erro.
 
 ## Arquivos afetados
-
-- `src/pages/Agents.tsx` (UI do dialog + handlers)
-- `supabase/functions/ai-reingest-document/index.ts` (nova edge function, se formos pela opção A)
-- `docs/features/BUILDER_AGENTS.md` (nota curta sobre editar docs)
+- `supabase/functions/ai-chat/index.ts` (edit)
+- `src/components/agents/TestLab.tsx` (edit — refactor da aba Chat livre)
+- `docs/features/BUILDER_AGENTS.md` (edit)

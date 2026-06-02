@@ -400,11 +400,12 @@ Deno.serve(async (req) => {
 
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agentRow) return json({ error: "agent not found" }, 404);
-    if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
+    // `enabled=false` só bloqueia atendimento real (com lead_id). Test Lab segue funcionando.
+    if (!agentRow.enabled && lead_id) return json({ error: "Agente desativado. Ative-o para atender leads." }, 400);
     if (agentRow.draft_mode && lead_id) {
       return json({ error: "Agente em modo rascunho: só responde no Test Lab. Publique para atender leads." }, 423);
     }
-    if (!agentRow.api_key) return json({ error: "Agente sem API key configurada" }, 400);
+    if (!agentRow.api_key) return json({ error: "Agente sem chave de API configurada. Edite o agente e cole a chave no passo de provedor." }, 400);
     const agent = agentRow as Agent & any;
 
     await assertSpendAllowed(agent.clinic_id ?? null);
