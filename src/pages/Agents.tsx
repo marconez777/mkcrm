@@ -1141,6 +1141,65 @@ export default function Agents() {
           </div>
         )}
       </main>
+
+      <Dialog open={!!editingDoc} onOpenChange={(o) => !o && !savingDoc && setEditingDoc(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Editar documento
+              {editingDoc?.source_type === "system_default" && (
+                <Badge variant="secondary" className="text-[10px]">padrão</Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Edite o título e o conteúdo. Ao salvar com re-indexação, os embeddings são recriados — pode levar alguns segundos.
+            </DialogDescription>
+          </DialogHeader>
+          {editingDoc?.loading ? (
+            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Carregando conteúdo…
+            </div>
+          ) : editingDoc ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Título</Label>
+                <Input
+                  value={editingDoc.title}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, title: e.target.value })}
+                  disabled={savingDoc}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Conteúdo</Label>
+                <Textarea
+                  value={editingDoc.content}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, content: e.target.value })}
+                  className="font-mono text-xs min-h-[55vh]"
+                  disabled={savingDoc}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {editingDoc.content.length} caracteres · {editingDoc.content.split("\n").length} linhas
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditingDoc(null)} disabled={savingDoc}>
+              Cancelar
+            </Button>
+            <Button variant="secondary" onClick={() => saveDoc(false)} disabled={savingDoc || editingDoc?.loading}>
+              {savingDoc ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+              Salvar sem re-indexar
+            </Button>
+            <Button onClick={() => saveDoc(true)} disabled={savingDoc || editingDoc?.loading}>
+              {savingDoc ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Salvar e re-indexar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
