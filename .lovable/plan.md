@@ -36,9 +36,9 @@ Diff visual verde/vermelho linha-a-linha do `system_prompt` (componente `PromptD
 
 ---
 
-### Fase 13 — Diagnóstico "Alfred"
+### Fase 13 — Diagnóstico "Alfred" ✅ (Test Lab)
 
-Tabela `ai_chat_traces` (PII mascarada antes de gravar). Painel "Por que disse isso?" em cada bolha do agente. Amostragem inicial: **só Test Lab** (produção fica para depois, decidido por `clinic_settings.ai_trace_sampling`).
+Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]/[email]`) com RLS de leitura para membros da clínica e escrita exclusiva via service role. `ai-chat` agora grava 1 linha por turno quando `lead_id` está ausente (Test Lab) e devolve um objeto `trace` na resposta (modelo, latência, tokens, kb_hits, tool_calls, prompt usado). UI: cada bolha do agente no Test Lab ganhou botão **"Por que disse isso?"** com latência, KB e tools resumidos; abre um diálogo (`AlfredDialog`) com trechos da base, argumentos das ferramentas, status ok/erro e excerto do system prompt. Produção fica para depois via `clinic_settings.ai_trace_sampling`.
 
 ---
 

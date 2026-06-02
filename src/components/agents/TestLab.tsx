@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
 import type { Persona } from "@/components/agents/PersonasPanel";
+import { AlfredDialog, type AlfredTrace } from "@/components/agents/AlfredDialog";
 
 interface Props {
   agentId: string;
@@ -61,11 +62,13 @@ const GOAL_OPTS = [
 
 export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   // free chat (multi-turn)
-  type ChatMsg = { role: "user" | "assistant"; content: string };
+  type ChatMsg = { role: "user" | "assistant"; content: string; trace?: AlfredTrace | null };
   const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [alfredOpen, setAlfredOpen] = useState(false);
+  const [alfredTrace, setAlfredTrace] = useState<AlfredTrace | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Fase 10 — Lead simulado (persistido por agente no localStorage)
@@ -208,7 +211,8 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
       return;
     }
     const content = (data as any)?.content ?? "(resposta vazia)";
-    setChatHistory((h) => [...h, { role: "assistant", content }]);
+    const trace = (data as any)?.trace ?? null;
+    setChatHistory((h) => [...h, { role: "assistant", content, trace }]);
   };
 
   const clearChat = () => {
@@ -272,6 +276,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   };
 
   return (
+    <>
     <Tabs defaultValue="chat" className="w-full">
       <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="chat"><MessageSquare className="mr-1 h-3.5 w-3.5" /> Chat livre</TabsTrigger>
@@ -419,8 +424,29 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
                 <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                   {m.role === "user" ? <UserIcon className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                 </div>
-                <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
-                  {m.content}
+                <div className="flex max-w-[80%] flex-col gap-1">
+                  <div className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
+                    {m.content}
+                  </div>
+                  {m.role === "assistant" && m.trace && (
+                    <button
+                      type="button"
+                      onClick={() => { setAlfredTrace(m.trace ?? null); setAlfredOpen(true); }}
+                      className="flex items-center gap-1 self-start text-[10px] text-muted-foreground hover:text-primary"
+                    >
+                      <Info className="h-3 w-3" />
+                      Por que disse isso?
+                      {typeof m.trace.latency_ms === "number" && (
+                        <span className="opacity-70">· {m.trace.latency_ms}ms</span>
+                      )}
+                      {(m.trace.kb_hits?.length ?? 0) > 0 && (
+                        <span className="opacity-70">· {m.trace.kb_hits!.length} KB</span>
+                      )}
+                      {(m.trace.tool_calls?.length ?? 0) > 0 && (
+                        <span className="opacity-70">· {m.trace.tool_calls!.length} tools</span>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -613,5 +639,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
         )}
       </TabsContent>
     </Tabs>
+    <AlfredDialog open={alfredOpen} onOpenChange={setAlfredOpen} trace={alfredTrace} />
+    </>
   );
 }

@@ -676,7 +676,63 @@ Deno.serve(async (req) => {
       replied: !!finalContent, status: "success", error: "turn:summary",
     });
 
-    return json({ ok: true, content: finalContent, thread_id: threadId, tools_used: usedTools, sources });
+    // Fase 13 — Trace "Alfred" (Test Lab apenas por enquanto)
+    const maskPII = (s: string | null | undefined): string => {
+      if (!s) return "";
+      return s
+        .replace(/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/gi, "[email]")
+        .replace(/\+?\d[\d\s().-]{7,}\d/g, "[telefone]");
+    };
+    const traceBody = {
+      clinic_id: agentRow.clinic_id,
+      agent_id,
+      source: "test_lab" as const,
+      lead_id: null,
+      persona_id: null,
+      user_message: maskPII(lastUser?.content ?? "").slice(0, 4000),
+      agent_message: maskPII(finalContent).slice(0, 8000),
+      system_prompt_excerpt: maskPII(sysContent).slice(0, 4000),
+      kb_hits: sources.slice(0, 12),
+      tool_calls: usedTools.slice(0, 20).map((t) => ({
+        name: t.name,
+        args: t.args,
+        ok: !t.result?.error,
+        error: t.result?.error ?? null,
+      })),
+      model: agent.model,
+      tokens_in: totalIn,
+      tokens_out: totalOut,
+      latency_ms: Date.now() - startedAt,
+    };
+    let traceId: string | null = null;
+    if (!lead_id) {
+      try {
+        const { data: traceRow } = await supabase.from("ai_chat_traces").insert(traceBody).select("id").single();
+        traceId = traceRow?.id ?? null;
+      } catch (e) {
+        console.error("ai_chat_traces insert failed", e);
+      }
+    }
+
+    return json({
+      ok: true,
+      content: finalContent,
+      thread_id: threadId,
+      tools_used: usedTools,
+      sources,
+      trace: !lead_id
+        ? {
+            id: traceId,
+            model: agent.model,
+            tokens_in: totalIn,
+            tokens_out: totalOut,
+            latency_ms: Date.now() - startedAt,
+            kb_hits: sources,
+            tool_calls: traceBody.tool_calls,
+            system_prompt_excerpt: traceBody.system_prompt_excerpt,
+          }
+        : undefined,
+    });
   } catch (e) {
     if (e instanceof SpendLimitExceeded) return json(e.body, 402);
     console.error("ai-chat", e);
