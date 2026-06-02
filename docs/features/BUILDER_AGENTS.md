@@ -1,7 +1,7 @@
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.
-> **Última atualização:** 2026-06-02
+> **Última atualização:** 2026-06-02 (revisão pós-criação real de agente no passo 5)
 > **Fonte da verdade no código:**
 > - Edge: `supabase/functions/ai-builder/index.ts`
 > - System prompt do Builder: `supabase/functions/_shared/builder-system-prompt.ts`
