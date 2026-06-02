@@ -183,6 +183,18 @@ export default function AgentWizard() {
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<ProviderError | null>(null);
 
+  // interview (step 4)
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [interviewError, setInterviewError] = useState<ProviderError | null>(null);
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  // prompt (step 5)
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptError, setPromptError] = useState<ProviderError | null>(null);
+  const [bundle, setBundle] = useState<GeneratedPromptBundle | null>(null);
+  const [refinement, setRefinement] = useState("");
+
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
   const canManage =
