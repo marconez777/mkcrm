@@ -276,6 +276,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   };
 
   return (
+    <>
     <Tabs defaultValue="chat" className="w-full">
       <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="chat"><MessageSquare className="mr-1 h-3.5 w-3.5" /> Chat livre</TabsTrigger>
@@ -638,5 +639,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
         )}
       </TabsContent>
     </Tabs>
+    <AlfredDialog open={alfredOpen} onOpenChange={setAlfredOpen} trace={alfredTrace} />
+    </>
   );
 }
