@@ -168,6 +168,62 @@ export type Database = {
           },
         ]
       }
+      agent_personas: {
+        Row: {
+          agent_id: string | null
+          channel: string
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          custom_fields: Json
+          id: string
+          name: string
+          opening_message: string | null
+          persona_text: string | null
+          phone: string | null
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          channel?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          id?: string
+          name: string
+          opening_message?: string | null
+          persona_text?: string | null
+          phone?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          channel?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          id?: string
+          name?: string
+          opening_message?: string | null
+          persona_text?: string | null
+          phone?: string | null
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_personas_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_prompt_versions: {
         Row: {
           agent_id: string
