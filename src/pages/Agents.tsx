@@ -586,7 +586,23 @@ export default function Agents() {
                     </div>
                     <div>
                       <Label>Modelo</Label>
-                      {PROVIDER_MODELS[selected.provider].length > 0 ? (
+                      {uiMode === "simple" && QUALITY_LADDER[selected.provider]?.length > 0 ? (
+                        <div className="space-y-1 pt-1">
+                          <Slider
+                            min={0}
+                            max={2}
+                            step={1}
+                            value={[qualityForModel(selected.provider, selected.model)]}
+                            onValueChange={([v]) => setSelected({ ...selected, model: modelForQuality(selected.provider, v) })}
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            {QUALITY_LABELS.map((l) => <span key={l}>{l}</span>)}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Modelo: <code>{selected.model}</code>
+                          </p>
+                        </div>
+                      ) : PROVIDER_MODELS[selected.provider].length > 0 ? (
                         <select
                           className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                           value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
