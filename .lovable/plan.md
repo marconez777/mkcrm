@@ -1,37 +1,76 @@
-## Causa raiz
+## Problema
 
-As automações de email têm **dois caminhos paralelos** enfileirando o mesmo email:
+No passo 5 do wizard `/ai/agents/new`, ao clicar **"Concluir esta fase"** o sistema só faz `persist({ step: 5 })` e exibe o toast "Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.". Ou seja, **o agente nunca é criado** em `ai_agents` — fica preso para sempre como rascunho em `ai_agent_drafts`. Por isso o usuário não vê o agente no `/ai/agents` depois.
 
-1. **Trigger no banco** (`trg_email_on_lead_created` e `trg_email_on_stage_change` na tabela `leads`) — enfileira com `related_lead_table = 'auto_<automation_id>'` e delays **não cumulativos** (todos os steps com mesmo `delay_days`).
-2. **Edge function** `email-automations-tick` (cron 5 min) — enfileira com `related_lead_table = 'automation_<automation_id>'` e delays **cumulativos**.
+Trecho atual (`src/pages/ai/AgentWizard.tsx` ~593):
 
-O índice único de dedup em `email_queue` inclui `related_lead_table` na chave, então os dois jobs convivem (prefixos diferentes = chaves diferentes) e ambos são enviados — gerando os duplicados que você vê (4 min ou 24 h de diferença) e estourando o rate limit do Resend (5 req/s) com erro `Too many requests`.
+```ts
+onClick={async () => {
+  await persist({ step: 5 });
+  toast.success("Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.");
+}}
+```
 
-Confirmado em produção: para `allmorais88@gmail.com` / template `pare-de-trocar-de-remedio` existem 2 jobs em `email_queue`, um com prefixo `auto_` e outro com `automation_`, ambos enviados.
+## Solução
 
-## Correção
+Transformar a finalização em **criação real do agente**, e levar o usuário direto para a página dele.
 
-A fonte da verdade é a edge function `email-automations-tick` (mais nova, tem dedup por `email_automation_enrollments`, suporta segmentos, multi-trigger e delays cumulativos). Os triggers no banco são legado e devem ser removidos.
+### 1. Adicionar campo "Nome do agente" no passo 5
 
-### 1. Migration
+- Input simples acima do botão "Concluir", com valor sugerido `"<GOAL_LABEL> — <NICHE_LABEL>"` (ex.: *"SDR — Clínica"*).
+- Validação: 2-80 caracteres. Bloqueia "Concluir" se vazio.
+- Estado guardado no draft (`settings.agent_name`) para sobreviver a refresh.
 
-- `DROP TRIGGER trg_email_on_lead_created ON public.leads`
-- `DROP TRIGGER trg_email_on_stage_change ON public.leads`
-- `DROP FUNCTION public.tg_email_on_lead_created()`
-- `DROP FUNCTION public.tg_email_on_stage_change()`
-- Limpeza one-shot: `UPDATE email_queue SET status='cancelled' WHERE status='pending' AND related_lead_table LIKE 'auto\_%'` (hoje retorna 0, mas fica como guarda).
+### 2. Trocar o handler do botão por uma função `finishAndCreateAgent()`
 
-### 2. Validação pós-deploy
+Fluxo:
 
-- Após 1 ciclo do cron (5 min), conferir que novos leads/mudanças de etapa geram **apenas** registros com prefixo `automation_` em `email_queue` e em `email_logs`.
-- Re-rodar a query de duplicados (`GROUP BY recipient_email, template_slug HAVING COUNT(*) > 1`) e confirmar que não há novos duplicados após a migration.
+1. Valida `bundle.system_prompt`, `apiKey`, `model`, `provider` e `agentName`.
+2. Faz `INSERT` em `public.ai_agents` com:
+   - `clinic_id`, `name`, `role = goal` (sdr/classifier/...), `niche`, `niche_other`
+   - `provider`, `api_key`, `base_url`, `model`
+   - `system_prompt = bundle.system_prompt`
+   - `temperature = bundle.suggested_temperature`
+   - `max_iterations = bundle.suggested_max_iterations`
+   - `rag_top_k = bundle.suggested_top_k`
+   - `tools = bundle.suggested_tools` (filtradas contra a whitelist em `_shared/agent-flags.ts`)
+   - `enabled = false` (o usuário ativa depois de testar)
+   - `draft_mode = true`
+   - `description` curta baseada em nicho/objetivo (auto)
+3. Em sucesso:
+   - `DELETE` do registro em `ai_agent_drafts` daquele `(clinic_id, user_id)`.
+   - Toast "Agente criado".
+   - `nav(\`/ai/agents/${insertedId}\`)`.
+4. Em erro: toast com a mensagem do Supabase (`unique_violation` etc.) e mantém o draft intacto.
 
-### Fora de escopo
+### 3. Whitelist de tools
 
-- Não vou tocar na fila atual de jobs `automation_*` que já estão enfileirados — eles seguem o fluxo normal.
-- Não vou alterar o índice de dedup (continua útil para diferenciar contextos legítimos como `campaign_*`).
-- Erros antigos de "Too many requests" nos `email_logs` históricos ficam como estão (são fato histórico).
+Hoje `bundle.suggested_tools` vem direto do LLM. Antes de gravar em `ai_agents.tools`, intersectar com a lista conhecida (`SILENT_TOOLS` + tools "non-silent" usadas no projeto). Isso evita gravar tools inexistentes que travariam o `ai-chat`. A lista vive em `supabase/functions/_shared/agent-flags.ts`; vou espelhar um array mínimo de tools válidas no frontend (`src/lib/agent-tools.ts`, novo) para evitar import de pasta `supabase/`.
 
-## Entregáveis
+### 4. Texto auxiliar e copy
 
-- 1 migration removendo os 2 triggers e as 2 funções, com o cancel defensivo.
+- Substituir a linha "As próximas etapas (base de conhecimento, configurações, testes) chegam nas próximas fases…" por "Depois de criado, você pode adicionar base de conhecimento, rodar testes e ativar o agente na página dele."
+- Trocar o label do botão de **"Concluir esta fase"** para **"Criar agente"** com `<Sparkles>`.
+
+### 5. Atualizar docs
+
+- `docs/features/BUILDER_AGENTS.md`: ajustar Fase 2 indicando que o wizard agora cria o agente no passo 5 (e não apenas salva o rascunho).
+
+## Fora de escopo
+
+- Editar `ai-builder` (edge): nenhuma mudança no backend, criação é via SDK supabase do frontend (já tem RLS de membership em `ai_agents`).
+- Não toco em `BuilderSetupCard`, `TestLab`, `KbAssistant` — eles continuam funcionando na página `/ai/agents/:id` depois que o agente passa a existir.
+- Não migro o draft para "concluído" — apaga após sucesso, simples e idempotente.
+
+## Detalhes técnicos
+
+- **RLS:** owner/admin já podem INSERT em `ai_agents` (verificado pela existência do `BuilderSetupCard` que também insere). Se aparecer erro de RLS, criar policy correspondente vira nova migration; vou validar no primeiro `insert` retornado.
+- **Unique constraint:** `ai_agents_clinic_system_key_uidx` é parcial em `system_key NOT NULL` — não bloqueia múltiplos agentes sem `system_key`.
+- **Defaults:** colunas como `silent`, `is_system`, `use_hybrid_search`, etc. ficam nos defaults da tabela; só seto o que vem do wizard.
+- **Tipo:** `role` é text livre (sem CHECK); ok mandar `goal` direto.
+
+## Arquivos tocados
+
+- `src/pages/ai/AgentWizard.tsx` — input de nome, função `finishAndCreateAgent`, novo botão, copy.
+- `src/lib/agent-tools.ts` (novo) — whitelist mínima de tools válidas.
+- `docs/features/BUILDER_AGENTS.md` — nota da Fase 2.
