@@ -42,17 +42,24 @@ Deno.serve(async (req) => {
     if (!agent.api_key && !agent.embedding_api_key) return json({ error: "Agente sem API key para embeddings" }, 400);
 
     const resp = await fetch(v.url.toString(), {
-      headers: { "User-Agent": "Mozilla/5.0 LovableBot/1.0" },
-      redirect: "error",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; LovableBot/1.0; +https://lovable.dev)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+      },
+      redirect: "follow",
     });
-    if (!resp.ok) return json({ error: `fetch failed ${resp.status}` }, 400);
+    if (!resp.ok) return json({ error: `fetch falhou (${resp.status})` }, 400);
+    // Revalida o host final após redirects para evitar SSRF
+    const finalUrl = new URL(resp.url);
+    if (PRIVATE_HOST_RE.test(finalUrl.hostname)) return json({ error: "Redirecionou para host bloqueado" }, 400);
     const ctype = resp.headers.get("content-type") || "";
     let text: string;
     if (ctype.includes("html")) text = htmlToText(await resp.text());
     else if (ctype.includes("text") || ctype.includes("json")) text = await resp.text();
-    else return json({ error: `unsupported content-type ${ctype}` }, 400);
+    else return json({ error: `tipo de conteúdo não suportado: ${ctype}` }, 400);
 
-    if (text.length < 50) return json({ error: "extracted text too short" }, 400);
+    if (text.length < 50) return json({ error: `Texto extraído muito curto (${text.length} chars). A página pode ser renderizada por JavaScript ou estar bloqueando bots.` }, 400);
     const title = customTitle || url;
 
     const { data: doc, error: docErr } = await supabase
