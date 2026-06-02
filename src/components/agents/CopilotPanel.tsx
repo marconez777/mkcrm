@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Sparkles, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { PromptDiff } from "@/components/agents/PromptDiff";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 type Patch = {
@@ -137,22 +138,39 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
 
   function renderValue(key: keyof Patch, val: unknown) {
     if (key === "system_prompt" && typeof val === "string") {
-      return (
-        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
-          {val}
-        </pre>
-      );
+      const current = String(agentSnapshot.system_prompt ?? "");
+      return <PromptDiff oldText={current} newText={val} />;
     }
     if (key === "tools" && Array.isArray(val)) {
+      const current = Array.isArray(agentSnapshot.tools) ? (agentSnapshot.tools as unknown[]).map(String) : [];
+      const next = val.map(String);
+      const added = next.filter((t) => !current.includes(t));
+      const removed = current.filter((t) => !next.includes(t));
+      const kept = next.filter((t) => current.includes(t));
       return (
         <div className="mt-1 flex flex-wrap gap-1">
-          {val.length === 0 && <span className="text-xs text-muted-foreground">(nenhuma)</span>}
-          {val.map((t) => (
-            <Badge key={String(t)} variant="secondary" className="text-[10px]">
-              {String(t)}
-            </Badge>
+          {next.length === 0 && removed.length === 0 && (
+            <span className="text-xs text-muted-foreground">(nenhuma)</span>
+          )}
+          {kept.map((t) => (
+            <Badge key={`k-${t}`} variant="secondary" className="text-[10px]">{t}</Badge>
+          ))}
+          {added.map((t) => (
+            <Badge key={`a-${t}`} className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 text-[10px]">+ {t}</Badge>
+          ))}
+          {removed.map((t) => (
+            <Badge key={`r-${t}`} className="bg-destructive/15 text-destructive line-through text-[10px]">− {t}</Badge>
           ))}
         </div>
+      );
+    }
+    if ((key === "temperature" || key === "rag_top_k" || key === "debounce_seconds") && agentSnapshot[key] !== undefined) {
+      return (
+        <span className="font-mono text-xs">
+          <span className="text-destructive line-through">{String(agentSnapshot[key])}</span>
+          <span className="mx-1 text-muted-foreground">→</span>
+          <span className="text-emerald-700 dark:text-emerald-400">{String(val)}</span>
+        </span>
       );
     }
     return <span className="font-mono text-xs">{String(val)}</span>;
