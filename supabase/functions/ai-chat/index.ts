@@ -799,6 +799,7 @@ Deno.serve(async (req) => {
             kb_hits: sources,
             tool_calls: traceBody.tool_calls,
             system_prompt_excerpt: traceBody.system_prompt_excerpt,
+            stage: stageMeta,
           }
         : undefined,
     });
