@@ -219,7 +219,7 @@ export default function AgentWizard() {
       if (data) {
         const d = data as DraftRow;
         setDraft(d);
-        setStep(Math.min(3, Math.max(1, d.step)) as Step);
+        setStep(Math.min(5, Math.max(1, d.step)) as Step);
         setNiche(d.niche ?? "");
         setNicheOther(d.niche_other ?? "");
         setGoal(d.goal ?? "");
@@ -229,6 +229,21 @@ export default function AgentWizard() {
         setBaseUrl(d.base_url ?? "");
         if (d.model) setModel(d.model);
         setVerifiedAt(d.provider_verified_at ?? null);
+        setAnswers((d.interview_answers as Record<string, string>) ?? {});
+        if (d.generated_prompt) {
+          setBundle({
+            system_prompt: d.generated_prompt,
+            suggested_tools: ((d.settings as Record<string, unknown>)?.suggested_tools as string[]) ?? [],
+            suggested_temperature:
+              ((d.settings as Record<string, unknown>)?.suggested_temperature as number) ?? 0.4,
+            suggested_top_k:
+              ((d.settings as Record<string, unknown>)?.suggested_top_k as number) ?? 6,
+            suggested_max_iterations:
+              ((d.settings as Record<string, unknown>)?.suggested_max_iterations as number) ?? 6,
+            rationale: ((d.settings as Record<string, unknown>)?.rationale as string) ?? "",
+            evals: (d.settings as Record<string, unknown>)?.evals as { context_clause_present?: boolean } | undefined,
+          });
+        }
       }
       setHydrating(false);
     })();
