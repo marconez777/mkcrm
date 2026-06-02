@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     if (cleaned.length < 50) return json({ error: "extracted text too short" }, 400);
 
     const docTitle = title || `PDF (${cleaned.slice(0, 40)}…)`;
-    const friendly = await cleanForKnowledge(cleaned, { title: docTitle });
+    const friendly = await cleanForKnowledge(agent as Agent, cleaned, { title: docTitle });
 
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")

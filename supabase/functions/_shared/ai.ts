@@ -400,10 +400,10 @@ export function chunkText(text: string, size = 800, overlap = 100): string[] {
   return out;
 }
 
-// ---------- KNOWLEDGE CLEANUP (Lovable AI) ----------
+// ---------- KNOWLEDGE CLEANUP ----------
 // Reescreve texto bruto extraído de páginas/PDFs em formato amigável para indexação,
-// removendo menus/CTAs/boilerplate e preservando 100% do conteúdo informativo.
-// Em caso de erro (sem chave, 402, 429, timeout), retorna o texto original.
+// usando o MESMO provider/API key configurado no agente (OpenAI, Google, Anthropic, etc).
+// Em caso de erro, retorna o texto original (ingest nunca quebra por causa disso).
 
 const CLEAN_SYSTEM_PROMPT = `Você é um editor de base de conhecimento.
 Receberá texto bruto extraído automaticamente de uma página web ou PDF.
@@ -412,40 +412,30 @@ Sua tarefa é REESCREVER o texto em português claro e bem formatado, para servi
 REGRAS OBRIGATÓRIAS:
 - Remova menus de navegação, breadcrumbs, links de "Agendar Consulta"/CTAs repetidos, números de CRM/RQE soltos, rodapés, copyright, cookies, redes sociais, formulários.
 - Preserve 100% do conteúdo informativo (definições, procedimentos, indicações, contraindicações, FAQ, dados clínicos, preços, horários, etc.). NÃO resuma e NÃO invente nada.
-- Organize em parágrafos com títulos curtos usando markdown (## Seção). Use listas com "-" quando fizer sentido (sintomas, etapas, benefícios).
+- Organize em parágrafos com títulos curtos usando markdown (## Seção). Use listas com "-" quando fizer sentido.
 - Mantenha o idioma original do texto.
 - Se houver perguntas e respostas, formate como "**Pergunta:** ...\\n**Resposta:** ...".
 - Não inclua comentários sobre o processo nem prefixos como "Aqui está...". Retorne apenas o conteúdo limpo.`;
 
-async function callLovableAIClean(rawText: string, meta: { sourceUrl?: string; title?: string }): Promise<string | null> {
-  const key = Deno.env.get("LOVABLE_API_KEY");
-  if (!key) return null;
+async function cleanChunkWithAgent(agent: Agent, raw: string, meta: { sourceUrl?: string; title?: string }): Promise<string | null> {
   const userMsg = [
     meta.title ? `Título: ${meta.title}` : null,
     meta.sourceUrl ? `Fonte: ${meta.sourceUrl}` : null,
     "",
     "TEXTO BRUTO:",
-    rawText,
+    raw,
   ].filter((x) => x !== null).join("\n");
 
   try {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: CLEAN_SYSTEM_PROMPT },
-          { role: "user", content: userMsg },
-        ],
-      }),
-    });
-    if (!r.ok) {
-      console.warn(`[cleanForKnowledge] gateway ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const resp = await chatCompletion(agent, [
+      { role: "system", content: CLEAN_SYSTEM_PROMPT },
+      { role: "user", content: userMsg },
+    ], undefined, { agent_id: agent.id, note: "knowledge_clean" });
+    if (!resp.ok) {
+      console.warn(`[cleanForKnowledge] provider ${resp.status}: ${resp.errorText?.slice(0, 200)}`);
       return null;
     }
-    const data = await r.json();
-    const out = data?.choices?.[0]?.message?.content;
+    const out = resp.choices?.[0]?.message?.content;
     if (typeof out !== "string" || out.trim().length < 20) return null;
     return out.trim();
   } catch (e) {
@@ -455,31 +445,32 @@ async function callLovableAIClean(rawText: string, meta: { sourceUrl?: string; t
 }
 
 /**
- * Limpa texto bruto em formato amigável para a base de conhecimento.
- * Processa em janelas de ~25k chars quando o input é grande.
- * Em caso de falha, retorna o texto original (ingest nunca quebra por causa disso).
+ * Limpa texto bruto em formato amigável para a base de conhecimento usando o
+ * provider/API key do próprio agente. Processa em janelas quando o input é grande.
+ * Em caso de falha, retorna o texto original.
  */
 export async function cleanForKnowledge(
+  agent: Agent,
   rawText: string,
   meta: { sourceUrl?: string; title?: string } = {},
 ): Promise<string> {
   const text = (rawText || "").trim();
   if (text.length < 200) return text;
+  if (!agent.api_key) return text;
 
   const MAX = 25_000;
   if (text.length <= MAX) {
-    const cleaned = await callLovableAIClean(text, meta);
+    const cleaned = await cleanChunkWithAgent(agent, text, meta);
     return cleaned ?? text;
   }
 
-  // Janelas com pequeno overlap para não cortar frases
   const parts: string[] = [];
   const step = MAX - 500;
   for (let i = 0; i < text.length; i += step) parts.push(text.slice(i, i + MAX));
 
   const cleanedParts: string[] = [];
   for (let i = 0; i < parts.length; i++) {
-    const c = await callLovableAIClean(parts[i], {
+    const c = await cleanChunkWithAgent(agent, parts[i], {
       ...meta,
       title: meta.title ? `${meta.title} (parte ${i + 1}/${parts.length})` : undefined,
     });
@@ -487,4 +478,5 @@ export async function cleanForKnowledge(
   }
   return cleanedParts.join("\n\n");
 }
+
 
