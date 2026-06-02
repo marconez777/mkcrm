@@ -196,7 +196,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 - Suporta `refinement` + `previous_prompt`: o usuário diz "deixa mais formal" e o Builder reescreve mantendo a estrutura.
 
 **Pegadinhas:**
-- O Builder é instruído a NÃO inventar tools — só usa as listadas em `_shared/agent-flags.ts` (SILENT_TOOLS) + handfuls específicas. Se vier tool desconhecida, o frontend ignora silenciosamente.
+- O Builder é instruído a NÃO inventar tools — só pode usar as listadas em `_shared/agent-flags.ts` (`SILENT_TOOLS`). Como camada extra de defesa, `AgentWizard.finishAndCreateAgent()` aplica `filterKnownTools()` de `src/lib/agent-tools.ts` antes do `INSERT`, então qualquer tool fora da whitelist é descartada silenciosamente.
 - `previous_prompt` é cortado pelo Builder se vier muito longo (cap implícito no token budget); refinamentos muito agressivos podem perder partes.
 
 ---
