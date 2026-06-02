@@ -44,13 +44,13 @@ Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]
 
 ### Fase 14 — Estágios de conversa (quebrada em 3)
 
-#### 14a — Estágios "read-only" (mínimo viável)
+#### 14a — Estágios "read-only" (mínimo viável) ✅
 **Objetivo:** ter o conceito existindo, sem mexer no fluxo de resposta. Zero risco de quebrar produção.
 
-- **Migration:** `agent_stages` (id, agent_id, clinic_id, order_idx, name, goal, system_prompt_delta text, advance_when text, created_at). GRANTs + RLS + POLICY.
-- **UI:** timeline horizontal arrastável em `Agents.tsx`, CRUD completo (criar/editar/reordenar/excluir).
-- **Sem efeito em `ai-chat` ainda.** Estágios existem como dados, são exibidos no Test Lab como label informativo ("estágio sugerido: Qualificação") mas não alteram a resposta.
-- **Critério de pronto:** usuário cria 3 estágios para seu agente, vê na timeline, edita, exclui. Conversa real continua igual.
+- Migration: `agent_stages` (id, agent_id, clinic_id, order_idx, name, goal, system_prompt_delta, advance_when) + GRANTs + RLS (read: clínica; write: admin) + trigger `set_updated_at`.
+- UI: novo accordion **"Estágios da conversa"** em `Agents.tsx` com timeline horizontal compacta + cards detalhados (nome, objetivo, regra de avanço, delta de prompt), CRUD completo e reordenação ↑/↓.
+- `ai-chat` permanece intocado — estágios são apenas dados nesta sub-fase.
+- Critério atendido: usuário cria/edita/reordena/exclui estágios; conversa real e Test Lab seguem idênticos.
 
 #### 14b — Classificador + injeção de prompt (Test Lab apenas)
 **Objetivo:** começar a usar o estágio sem afetar lead real.

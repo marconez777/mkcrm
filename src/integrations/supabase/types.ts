@@ -265,6 +265,53 @@ export type Database = {
           },
         ]
       }
+      agent_stages: {
+        Row: {
+          advance_when: string | null
+          agent_id: string
+          clinic_id: string
+          created_at: string
+          goal: string | null
+          id: string
+          name: string
+          order_idx: number
+          system_prompt_delta: string | null
+          updated_at: string
+        }
+        Insert: {
+          advance_when?: string | null
+          agent_id: string
+          clinic_id?: string
+          created_at?: string
+          goal?: string | null
+          id?: string
+          name: string
+          order_idx?: number
+          system_prompt_delta?: string | null
+          updated_at?: string
+        }
+        Update: {
+          advance_when?: string | null
+          agent_id?: string
+          clinic_id?: string
+          created_at?: string
+          goal?: string | null
+          id?: string
+          name?: string
+          order_idx?: number
+          system_prompt_delta?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_stages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_traces: {
         Row: {
           agent_id: string | null
