@@ -1,60 +1,83 @@
-# Performance do Kanban com muitos leads
+# Remover Lovable AI Gateway e ampliar provedores por agente
 
-## Causa raiz
+Hoje **dois lugares** ainda usam o Lovable AI Gateway escondido (sem o usuário configurar nada):
 
-Com ~2400 leads em um pipeline, o Kanban renderiza **todos os cards de todas as colunas ao mesmo tempo**. Cada card é um nó com `useSortable` (dnd-kit) + `DropdownMenu` (radix) + handlers. Isso trava a rolagem horizontal/vertical e a digitação na busca, porque qualquer state change re-renderiza milhares de cards.
+1. `supabase/functions/ai-assist/index.ts` — gera **Resumo IA do lead** e **Sugestões de resposta** no Inbox
+2. `supabase/functions/transcribe-audio/index.ts` — transcreve áudios de WhatsApp
 
-## Soluções (por ordem de impacto)
+Todo o resto (agentes do Kanban, auto-reply, análise, ingest, RAG) **já usa** o `provider + api_key` salvo em cada agente. Vamos eliminar o gateway desses dois pontos também e adicionar novos provedores na tela de agentes.
 
-### 1. Virtualizar a lista vertical de cada coluna (maior ganho)
+---
 
-Instalar `@tanstack/react-virtual` (~3KB, padrão no ecossistema).
+## 1. Novos provedores na tela "IA → Provedor & API key"
 
-Em `Column` (`src/pages/Kanban.tsx`), trocar o `map` direto de leads por um `useVirtualizer` ancorado no `div` rolável (`data-kanban-column-body`). Render apenas dos cards visíveis + um overscan de ~6 itens.
+Adicionar ao seletor:
 
-Resultado: uma coluna com 500 leads passa a ter ~15 nós no DOM em vez de 500. O dnd-kit continua funcionando porque os IDs do `SortableContext` continuam sendo a lista completa; só os elementos renderizados é que reduzem.
+| Provedor | Valor interno | Endpoint padrão | Formato |
+|---|---|---|---|
+| OpenAI (já existe) | `openai` | `https://api.openai.com/v1` | OpenAI |
+| Anthropic / Claude (já existe) | `anthropic` | `https://api.anthropic.com/v1` | Anthropic |
+| Google / Gemini (já existe) | `google` | `https://generativelanguage.googleapis.com/v1beta` | Google |
+| **xAI / Grok (novo)** | `xai` | `https://api.x.ai/v1` | OpenAI-compatible |
+| **Manus (novo)** | `manus` | (Base URL obrigatória, definida pelo usuário) | OpenAI-compatible |
 
-Detalhe técnico: usar `estimateSize` dinâmico baseado no modo `compact` (~58px vs ~108px), e `measureElement` para corrigir alturas reais.
+Modelos pré-listados:
+- **Grok:** `grok-2-latest`, `grok-2-mini`, `grok-beta`, `grok-vision-beta`
+- **Manus:** campo livre (digita o nome do modelo) — Manus não tem uma lista pública estável
 
-### 2. Memoizar `LeadCard` e estabilizar props
+Atualizar:
+- `PROVIDER_MODELS` e `PROVIDER_LABEL` em `src/pages/Agents.tsx`
+- Placeholder da API key (`xai-...` para Grok)
+- Migration: trocar o CHECK `ai_agents_provider_chk` para aceitar `('openai','anthropic','google','xai','manus')`
 
-- Envolver `LeadCard` em `React.memo` com comparador que checa só os campos visíveis (`name`, `phone`, `last_message_at`, `last_message_preview`, `unread_count`, `pinned_at`, `stage_id`, `position`, `created_at`, `deal_value` + `compact`).
-- Em `KanbanPage`, criar `onOpenLead`, `onMoveLead`, `onMoveLeadToStage` via `useCallback` para não invalidar o memo.
-- Passar `allStages` (do `Mover para coluna`) como referência estável via `useMemo`.
+## 2. Backend multi-provedor (`supabase/functions/_shared/ai.ts`)
 
-### 3. Pré-agrupar leads por `stage_id` uma única vez
+Adicionar suporte a Grok e Manus. Ambos são **OpenAI-compatible**, então:
 
-Hoje cada `<Column>` faz `leads.filter(l => l.stage_id === s.id).slice().sort(...)` dentro do JSX — N×M por render.
+- Adicionar branches `xai` e `manus` no `chatCompletion` que chamam uma versão de `openaiChat` recebendo o base_url adequado (xAI fixo, Manus exige `base_url` no agente — erro claro se faltar).
+- Atualizar o type `Agent.provider`.
 
-Trocar por um `useMemo` em `KanbanPage` que produz `Map<stage_id, Lead[]>` já ordenado (pinned desc + last_message_at desc). A `Column` passa a receber o array pronto.
+Embeddings de Grok/Manus: **não suportados nativamente** — se o agente usar RAG, ele deve preencher `embedding_api_key` (OpenAI/Google), igual hoje funciona para Anthropic. Mostrar o mesmo bloco de embeddings auxiliares na UI quando provider for `anthropic`, `xai` ou `manus`.
 
-### 4. Aliviar o `DropdownMenu` do card
+## 3. Remover Lovable Gateway de `ai-assist`
 
-- Não mudar a UX, só evitar re-render: o `otherStages` é recomputado por card a cada render. Mover esse cálculo para um `useMemo` no `KanbanPage` (um `Map<excludeStageId, Stage[]>` ou simplesmente passar `allStages` e calcular dentro do submenu só quando aberto).
+O endpoint atende duas operações no Inbox:
 
-### 5. CSS hints para o navegador
+- **`mode: "summary"`** — já busca agente com `role='summary'` da clínica; quando existe, usa o prompt dele. Mas hoje, mesmo quando o agente existe, a chamada ainda vai pro Lovable Gateway com a key da Lovable. Trocar para usar `chatCompletion(agent, ...)` do `_shared/ai.ts` com o `provider + api_key` do próprio agente.
+- **`mode: "suggest"`** — hoje não usa agente nenhum. Passar a buscar um agente da clínica (preferência: `role='assist'`, depois `role='summary'`, depois qualquer `enabled=true`). Se não houver nenhum agente configurado **com api_key**, retornar `400` com mensagem clara: *"Configure um agente de IA com sua API key em IA → Agentes para usar este recurso."* — a UI deve mostrar isso num toast.
 
-Na coluna rolável (`data-kanban-column-body`) e no container horizontal (`.kanban-scroll`), adicionar:
+Remover toda referência a `LOVABLE_API_KEY`, `ai.gateway.lovable.dev` e `normalizeModel` deste arquivo.
 
-```css
-contain: layout paint style;
-content-visibility: auto;
-```
+## 4. Remover Lovable Gateway de `transcribe-audio`
 
-E em `LeadCard`: `contain: layout paint`.
+A transcrição precisa de áudio multimodal. Estratégia:
 
-Isso permite ao Chrome pular layout/paint de cards fora da viewport, mesmo sem virtualização — efeito complementar.
+- Buscar a clínica do `message → lead → clinic_id`.
+- Procurar agente da clínica (mesma ordem: `role='summary'` → qualquer `enabled=true` com api_key).
+- Despachar conforme o provider do agente:
+  - **openai** → `POST {base_url}/audio/transcriptions` (Whisper, multipart com o arquivo de áudio).
+  - **google** → `generateContent` com `inline_data` de áudio (modelo do agente, ou fallback `gemini-2.5-flash`).
+  - **anthropic / xai / manus** → não há transcrição multimodal estável; retornar `400` com mensagem: *"O provedor configurado não suporta transcrição de áudio. Configure um agente OpenAI ou Google."*
+- Se não houver agente com api_key, mesma mensagem de erro que `ai-assist`.
 
-## Fora de escopo
+Remover `LOVABLE_API_KEY` e a URL do gateway.
 
-- Não vou tocar na lógica de drag-and-drop, ordenação, ou no shape dos dados.
-- Não vou paginar a coluna no backend (já carregamos tudo em paged-fetch; o problema é DOM, não rede).
-- Não vou trocar dnd-kit por outra lib.
+## 5. UI — tratamento dos erros novos
 
-## Verificação
+No Inbox, onde hoje chamamos `ai-assist` e `transcribe-audio`, mostrar via `toast.error()` a mensagem retornada pelo backend (já temos esse padrão; só garantir que a mensagem do servidor seja propagada em vez de um genérico).
 
-- Abrir o pipeline "Agendamentos Novo" e rolar verticalmente uma coluna grande (deve ficar fluida a 60fps).
-- Rolar horizontalmente entre as colunas (sem travadas).
-- Digitar na busca (sem lag entre teclas).
-- Arrastar um card para outra coluna (drag continua funcional).
-- Verificar Console: nenhum erro de chave duplicada ou warning do dnd-kit.
+## 6. Verificação
+
+- Recarregar a página de agentes: o seletor mostra 5 provedores; criar agente Grok salva sem erro.
+- Resumo IA no Inbox sem nenhum agente configurado → toast vermelho com instrução clara, sem chamada ao gateway.
+- Com agente OpenAI configurado → resumo funciona usando a key do usuário.
+- Transcrição de áudio com agente OpenAI ou Google → funciona; com Anthropic/Grok → toast de provedor não suportado.
+- `rg -n "LOVABLE_API_KEY\|ai.gateway.lovable" supabase/ src/` retorna **vazio**.
+
+---
+
+### Pontos para você confirmar antes de eu implementar
+
+1. **Manus**: confirma que sua conta Manus expõe uma API OpenAI-compatible com base URL própria? Se for outro formato, me passa um exemplo de request que eu adapto.
+2. **Quando não houver agente configurado** (caso comum agora, já que removemos o fallback), tudo bem o resumo / sugestão / transcrição **falhar com toast** pedindo configuração? Ou prefere esconder os botões enquanto não houver agente?
+3. **Modelos do Grok**: posso fixar a lista acima ou prefere campo livre como no Manus?
