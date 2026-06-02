@@ -161,19 +161,39 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
           },
         },
       });
-      if (error) throw error;
-      if (!data?.ok) {
-        const msg = data?.message || data?.error || "Falha no Co-piloto.";
+
+      // supabase-js esconde o body em respostas não-2xx; tenta extrair manualmente.
+      let resolved: any = data;
+      if (error && !resolved) {
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.json === "function") {
+            resolved = await ctx.json();
+          } else if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            try { resolved = JSON.parse(txt); } catch { resolved = { ok: false, message: txt }; }
+          }
+        } catch {
+          // ignora — cai no else abaixo
+        }
+        if (!resolved) {
+          const msg = error instanceof Error ? error.message : String(error);
+          throw new Error(msg);
+        }
+      }
+
+      if (!resolved?.ok) {
+        const msg = resolved?.message || resolved?.error || "Falha no Co-piloto.";
         toast.error(msg);
         setHistory((h) => [...h, { role: "assistant", content: `⚠️ ${msg}` }]);
         return;
       }
       const prop: Proposal = {
-        message: data.message ?? "",
-        summary: data.summary,
-        rationale: data.rationale,
-        changes: data.changes ?? {},
-        has_changes: !!data.has_changes,
+        message: resolved.message ?? "",
+        summary: resolved.summary,
+        rationale: resolved.rationale,
+        changes: resolved.changes ?? {},
+        has_changes: !!resolved.has_changes,
       };
       setHistory((h) => [...h, { role: "assistant", content: prop.message || "(sem resposta)" }]);
       if (prop.has_changes) setProposal(prop);
@@ -185,6 +205,7 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
       setLoading(false);
     }
   }
+
 
   async function applyPatch() {
     if (!proposal?.has_changes || applying) return;
