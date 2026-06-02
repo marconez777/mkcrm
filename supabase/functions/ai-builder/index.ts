@@ -17,7 +17,8 @@ type Action =
   | "draft_knowledge_base"
   | "audit_kb"
   | "generate_scenarios"
-  | "run_evaluation";
+  | "run_evaluation"
+  | "generate_insights";
 
 interface Body {
   action: Action;
