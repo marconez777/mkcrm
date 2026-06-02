@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
+import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
@@ -40,6 +41,7 @@ type Agent = {
   debounce_seconds?: number;
   is_system?: boolean;
   system_key?: string | null;
+  builder_verified_at?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -232,7 +234,7 @@ export default function Agents() {
       }
       toast.success(`PDF ingerido (${(data as any)?.chunks} chunks, ${(data as any)?.pages} páginas)`);
       const docs = await fetchAllPaged<any>(() => supabase
-        .from("ai_documents").select("id, title, source, created_at")
+        .from("ai_documents").select("id, title, source, source_type, created_at")
         .eq("agent_id", selected.id).order("created_at", { ascending: false }));
       setDocs(docs);
     };
@@ -253,7 +255,7 @@ export default function Agents() {
     toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
     setBatchUrls("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -272,7 +274,7 @@ export default function Agents() {
     toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
     setUrlInput("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -291,7 +293,7 @@ export default function Agents() {
     if (!selected) { setDocs([]); return; }
     fetchAllPaged<any>(() => supabase
       .from("ai_documents")
-      .select("id, title, source, created_at")
+      .select("id, title, source, source_type, created_at")
       .eq("agent_id", selected.id)
       .order("created_at", { ascending: false }))
       .then((data) => setDocs(data));
@@ -380,7 +382,7 @@ export default function Agents() {
     toast.success(`Documento ingerido (${(data as any)?.chunks} chunks)`);
     setDocTitle(""); setDocContent("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -416,15 +418,28 @@ export default function Agents() {
     setSelected({ ...selected, tools: next });
   };
 
+  const builder = agents.find((a) => a.system_key === "builder") ?? null;
+  const regularAgents = agents.filter((a) => a.system_key !== "builder");
+  const clinicId = membership?.clinic_id ?? null;
+
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
       <aside className="w-72 shrink-0 border-r bg-muted/20">
-        <div className="flex items-center justify-between p-4">
+        {canManage && (
+          <BuilderSetupCard
+            builder={builder}
+            clinicId={clinicId}
+            selected={selected?.id === builder?.id}
+            onSelect={() => builder && setSelected(builder)}
+            onVerified={() => load()}
+          />
+        )}
+        <div className="flex items-center justify-between p-4 pt-2">
           <h2 className="text-sm font-semibold">Agentes</h2>
           {canManage && <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>}
         </div>
         <div className="px-2">
-          {agents.map((a) => (
+          {regularAgents.map((a) => (
             <button
               key={a.id}
               onClick={() => setSelected(a)}
@@ -438,7 +453,7 @@ export default function Agents() {
               {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
             </button>
           ))}
-          {agents.length === 0 && (
+          {regularAgents.length === 0 && (
             <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum agente. Crie o primeiro.</p>
           )}
         </div>
@@ -784,7 +799,12 @@ export default function Agents() {
                       <AccordionContent className="space-y-1 pb-3">
                         {docs.map((d) => (
                           <div key={d.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
-                            <span className="truncate">{d.title}</span>
+                            <span className="flex flex-1 items-center gap-2 truncate">
+                              <span className="truncate">{d.title}</span>
+                              {d.source_type === "system_default" && (
+                                <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">padrão</Badge>
+                              )}
+                            </span>
                             <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>

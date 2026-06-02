@@ -234,6 +234,7 @@ export type Database = {
         Row: {
           api_key: string | null
           base_url: string | null
+          builder_verified_at: string | null
           clinic_id: string
           created_at: string
           debounce_seconds: number
@@ -266,6 +267,7 @@ export type Database = {
         Insert: {
           api_key?: string | null
           base_url?: string | null
+          builder_verified_at?: string | null
           clinic_id?: string
           created_at?: string
           debounce_seconds?: number
@@ -298,6 +300,7 @@ export type Database = {
         Update: {
           api_key?: string | null
           base_url?: string | null
+          builder_verified_at?: string | null
           clinic_id?: string
           created_at?: string
           debounce_seconds?: number
@@ -408,6 +411,7 @@ export type Database = {
           id: string
           metadata: Json | null
           source: string | null
+          source_type: string
           title: string
         }
         Insert: {
@@ -419,6 +423,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           source?: string | null
+          source_type?: string
           title: string
         }
         Update: {
@@ -430,6 +435,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           source?: string | null
+          source_type?: string
           title?: string
         }
         Relationships: [
@@ -520,6 +526,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_kb_defaults: {
+        Row: {
+          content: string
+          created_at: string
+          enabled: boolean
+          id: string
+          position: number
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          position?: number
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          position?: number
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       ai_messages: {
         Row: {
@@ -5058,6 +5097,7 @@ export type Database = {
         Returns: {
           api_key: string | null
           base_url: string | null
+          builder_verified_at: string | null
           clinic_id: string
           created_at: string
           debounce_seconds: number
@@ -5118,6 +5158,7 @@ export type Database = {
         Returns: {
           api_key: string | null
           base_url: string | null
+          builder_verified_at: string | null
           clinic_id: string
           created_at: string
           debounce_seconds: number
@@ -5348,6 +5389,14 @@ export type Database = {
       pick_rotation_domain: {
         Args: { _clinic_id: string; _pool: string }
         Returns: string
+      }
+      provision_builder_for_clinic: {
+        Args: { _clinic_id: string }
+        Returns: string
+      }
+      provision_default_kb_for_agent: {
+        Args: { _agent_id: string }
+        Returns: undefined
       }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
