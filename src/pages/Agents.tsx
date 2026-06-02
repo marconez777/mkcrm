@@ -481,7 +481,7 @@ export default function Agents() {
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => (window.location.href = "/ai/agents/new")}
+                onClick={() => navigate("/ai/agents/new")}
                 title="Criar com assistente"
               >
                 <Sparkles className="mr-1 h-3.5 w-3.5" /> Assistente
