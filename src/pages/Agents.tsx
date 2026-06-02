@@ -53,6 +53,8 @@ type Agent = {
   system_key?: string | null;
   builder_verified_at?: string | null;
   draft_mode?: boolean;
+  niche?: string | null;
+  niche_other?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
