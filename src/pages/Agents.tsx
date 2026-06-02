@@ -1091,6 +1091,18 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="stages" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <GitBranch className="h-4 w-4" /> Estágios da conversa
+                    <Badge variant="outline" className="ml-1 text-[10px]">beta</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <StagesPanel agentId={selected.id} clinicId={clinicId} />
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="test" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
