@@ -204,13 +204,90 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
       </TabsList>
 
       {/* Chat livre */}
-      <TabsContent value="chat" className="space-y-3 pt-3">
-        <Textarea rows={2} placeholder="Pergunte algo..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
-        <Button onClick={runChat} disabled={chatting} size="sm">
-          {chatting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-          Enviar
-        </Button>
-        {chatOutput && <div className="rounded border bg-muted/40 p-3 text-sm whitespace-pre-wrap">{chatOutput}</div>}
+      <TabsContent value="chat" className="pt-3">
+        <div className="flex flex-col rounded-lg border bg-card">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-3 py-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {chatHistory.length === 0 ? "Inicie uma conversa com o agente" : `${chatHistory.length} ${chatHistory.length === 1 ? "mensagem" : "mensagens"}`}
+            </span>
+            {chatHistory.length > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearChat} disabled={chatting}>
+                <Trash2 className="mr-1 h-3 w-3" /> Limpar
+              </Button>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div ref={scrollRef} className="max-h-[420px] min-h-[160px] space-y-3 overflow-y-auto p-3">
+            {chatHistory.length === 0 && !chatting && (
+              <div className="flex h-full items-center justify-center py-8 text-center text-xs text-muted-foreground">
+                Digite uma mensagem abaixo para testar como o agente responde.
+              </div>
+            )}
+            {chatHistory.map((m, i) => (
+              <div key={i} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {m.role === "user" ? <UserIcon className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                </div>
+                <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {chatting && (
+              <div className="flex gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Bot className="h-3.5 w-3.5" />
+                </div>
+                <div className="rounded-2xl rounded-tl-sm bg-muted px-3 py-2">
+                  <div className="flex gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Error banner */}
+          {chatError && (
+            <div className="mx-3 mb-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <div className="flex-1">
+                <div className="font-medium">Não foi possível enviar</div>
+                <div className="opacity-90">{chatError}</div>
+              </div>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-destructive hover:text-destructive" onClick={() => setChatError(null)}>
+                fechar
+              </Button>
+            </div>
+          )}
+
+          {/* Composer */}
+          <div className="border-t p-2">
+            <div className="flex items-end gap-2">
+              <Textarea
+                rows={2}
+                placeholder="Digite uma mensagem... (Enter envia, Shift+Enter quebra linha)"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    runChat();
+                  }
+                }}
+                className="min-h-[44px] resize-none"
+                disabled={chatting}
+              />
+              <Button onClick={runChat} disabled={chatting || !chatInput.trim()} size="icon" className="h-10 w-10 shrink-0">
+                {chatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </div>
       </TabsContent>
 
       {/* Cenários */}
