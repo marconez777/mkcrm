@@ -970,7 +970,182 @@ Chame submit_evaluation.`;
   } catch (e) {
     const parsed = parseProviderError(e);
     return { ok: false, ...parsed };
+}
+
+// ---------- Phase 6: Insights ----------
+
+const INSIGHTS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_insights",
+    description: "Resume conversas reais do agente, aponta padrões e gera recomendações de melhoria.",
+    parameters: {
+      type: "object",
+      properties: {
+        summary: { type: "string", description: "Resumo executivo em 2-4 frases, PT-BR." },
+        sentiment: { type: "string", enum: ["positive", "neutral", "negative", "mixed"] },
+        top_objections: { type: "array", items: { type: "string" }, description: "Até 5 objeções recorrentes dos leads." },
+        top_doubts: { type: "array", items: { type: "string" }, description: "Até 5 dúvidas recorrentes." },
+        top_interests: { type: "array", items: { type: "string" }, description: "Até 5 interesses/temas que mais aparecem." },
+        drop_off_reasons: { type: "array", items: { type: "string" }, description: "Motivos pelos quais leads desistem ou somem." },
+        recommendations: {
+          type: "array",
+          description: "3-6 recomendações acionáveis de melhoria para o agente.",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              detail: { type: "string" },
+              area: { type: "string", enum: ["prompt", "kb", "config", "process"] },
+              priority: { type: "string", enum: ["high", "medium", "low"] },
+            },
+            required: ["title", "detail", "area", "priority"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["summary", "sentiment", "top_objections", "top_doubts", "top_interests", "drop_off_reasons", "recommendations"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionGenerateInsights(builder: Agent, payload: Record<string, unknown>) {
+  const agentId = String(payload.agent_id ?? "");
+  if (!agentId) return { ok: false, code: "missing_agent", status: 400, message: "agent_id obrigatório." };
+  const days = Math.max(1, Math.min(90, Number(payload.days ?? 14)));
+
+  const supabase = sb();
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("id, clinic_id, name, system_prompt, role")
+    .eq("id", agentId)
+    .single();
+  if (!agent) return { ok: false, code: "not_found", status: 404, message: "Agente não encontrado." };
+
+  const since = new Date(Date.now() - days * 86400 * 1000).toISOString();
+  const { data: threads } = await supabase
+    .from("ai_threads")
+    .select("id, title, created_at, lead_id")
+    .eq("agent_id", agentId)
+    .gte("updated_at", since)
+    .order("updated_at", { ascending: false })
+    .limit(40);
+
+  const threadIds = (threads ?? []).map((t: any) => t.id);
+  let messages: any[] = [];
+  if (threadIds.length) {
+    const { data: msgs } = await supabase
+      .from("ai_messages")
+      .select("thread_id, role, content, created_at")
+      .in("thread_id", threadIds)
+      .in("role", ["user", "assistant"])
+      .order("created_at", { ascending: true })
+      .limit(600);
+    messages = msgs ?? [];
   }
+
+  if (!messages.length) {
+    return {
+      ok: false,
+      code: "no_data",
+      status: 400,
+      message: `Sem conversas nos últimos ${days} dias para analisar.`,
+    };
+  }
+
+  const byThread = new Map<string, any[]>();
+  for (const m of messages) {
+    const arr = byThread.get(m.thread_id) ?? [];
+    arr.push(m);
+    byThread.set(m.thread_id, arr);
+  }
+
+  const transcripts = Array.from(byThread.entries()).slice(0, 25).map(([tid, arr], idx) => {
+    const head = arr.slice(0, 16);
+    const body = head.map((m) => {
+      const c = String(m.content ?? "").replace(/\s+/g, " ").slice(0, 280);
+      return `${m.role === "user" ? "LEAD" : "AGENTE"}: ${c}`;
+    }).join("\n");
+    return `--- Conversa ${idx + 1} (id=${tid.slice(0, 8)}) ---\n${body}`;
+  }).join("\n\n");
+
+  const userPrompt = `\
+Analise as conversas reais abaixo do agente "${agent.name}" (papel: ${agent.role ?? "agente"}) nos últimos ${days} dias.
+
+System prompt atual (resumo):
+${String(agent.system_prompt ?? "").slice(0, 1200)}
+
+Conversas (${byThread.size} threads, ${messages.length} mensagens analisadas):
+${transcripts}
+
+Regras:
+- Foque em padrões reais, não em casos isolados.
+- "recommendations" devem ser ações concretas (ex: "Adicionar FAQ sobre prazos de entrega" em vez de "melhorar comunicação").
+- Marque area="kb" quando faltar informação, "prompt" quando o tom/regras precisarem mudar, "config" para parâmetros técnicos, "process" para fluxo do negócio.
+- PT-BR. Sem emoji.
+
+Chame submit_insights.`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [
+        { role: "system", content: await buildBuilderSystemPrompt() },
+        { role: "user", content: userPrompt },
+      ],
+      [INSIGHTS_TOOL],
+      { agent_id: builder.id, note: "ai-builder:generate_insights" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_insights");
+    if (!args) return { ok: false, code: "unknown", message: "O Construtor não devolveu insights. Tente novamente." };
+
+    // persiste em ai_insights
+    const periodStart = since;
+    const periodEnd = new Date().toISOString();
+    const { data: inserted } = await supabase
+      .from("ai_insights")
+      .insert({
+        clinic_id: agent.clinic_id,
+        agent_id: agentId,
+        period_start: periodStart,
+        period_end: periodEnd,
+        summary: String(args.summary ?? ""),
+        sentiment: String(args.sentiment ?? "neutral"),
+        top_objections: args.top_objections ?? [],
+        top_doubts: args.top_doubts ?? [],
+        top_interests: args.top_interests ?? [],
+        drop_off_reasons: args.drop_off_reasons ?? [],
+        recommendations: args.recommendations ?? [],
+        raw: {
+          threads_analyzed: byThread.size,
+          messages_analyzed: messages.length,
+          days,
+        },
+      })
+      .select("id, created_at")
+      .single();
+
+    return {
+      ok: true,
+      insight_id: inserted?.id,
+      created_at: inserted?.created_at,
+      summary: args.summary,
+      sentiment: args.sentiment,
+      top_objections: args.top_objections ?? [],
+      top_doubts: args.top_doubts ?? [],
+      top_interests: args.top_interests ?? [],
+      drop_off_reasons: args.drop_off_reasons ?? [],
+      recommendations: args.recommendations ?? [],
+      threads_analyzed: byThread.size,
+      messages_analyzed: messages.length,
+    };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
 }
 
 // ---------- handler ----------
