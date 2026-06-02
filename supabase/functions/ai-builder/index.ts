@@ -1457,10 +1457,14 @@ Deno.serve(async (req) => {
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
       case "copilot_chat": {
-        if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes de usar o Co-piloto." }, 400);
+        if (!builder.api_key) {
+          return json({ ok: false, code: "missing_key", message: "Configure a chave de API do Construtor antes de usar o Co-piloto." }, 200);
+        }
         const result = await actionCopilotChat(builder, body.payload ?? {});
-        return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+        // Sempre 200: erros tratados vão no body (ok:false + message) para o supabase-js entregar o detalhe ao cliente.
+        return json(result, 200);
       }
+
       default:
         return json({ error: `action desconhecida: ${body.action}` }, 400);
     }
