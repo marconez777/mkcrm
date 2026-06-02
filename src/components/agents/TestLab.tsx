@@ -113,7 +113,41 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simLead]);
 
+  // Fase 11 — carregar personas reutilizáveis do agente / clínica
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!clinicId) return;
+      const { data, error } = await supabase
+        .from("agent_personas")
+        .select("*")
+        .or(`agent_id.eq.${agentId},agent_id.is.null`)
+        .order("updated_at", { ascending: false });
+      if (cancelled || error) return;
+      setPersonas((data ?? []) as unknown as Persona[]);
+    })();
+    return () => { cancelled = true; };
+  }, [agentId, clinicId]);
+
+  const loadPersona = (id: string) => {
+    setSelectedPersonaId(id);
+    if (!id) return;
+    const p = personas.find((x) => x.id === id);
+    if (!p) return;
+    setSimLead({
+      name: p.name,
+      phone: p.phone ?? "",
+      channel: (["whatsapp", "instagram", "widget", "sms"].includes(p.channel) ? p.channel : "whatsapp") as SimulatedLead["channel"],
+      pipeline: simLead.pipeline,
+      stage: simLead.stage,
+      notes: p.persona_text ?? "",
+      custom_fields: p.custom_fields ?? {},
+    });
+    if (p.opening_message) {
+      setChatInput(p.opening_message);
+    }
+    toast.success(`Persona "${p.name}" carregada.`);
+  };
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [chatHistory, chatting]);
 
