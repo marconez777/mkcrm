@@ -30,8 +30,27 @@ import { ProviderErrorBanner } from "@/components/agents/ProviderErrorBanner";
 
 // ---------- Tipos / constantes ----------
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4 | 5;
 type Provider = "openai" | "anthropic" | "google" | "xai";
+
+export interface InterviewQuestion {
+  id: string;
+  label: string;
+  hint?: string;
+  placeholder?: string;
+  kind: "dominant_offer" | "tone" | "taboo" | "qualification" | "escalation" | "context" | "custom";
+  required: boolean;
+}
+
+export interface GeneratedPromptBundle {
+  system_prompt: string;
+  suggested_tools: string[];
+  suggested_temperature: number;
+  suggested_top_k: number;
+  suggested_max_iterations: number;
+  rationale: string;
+  evals?: { context_clause_present?: boolean };
+}
 
 interface NicheOption {
   id: string;
@@ -134,6 +153,9 @@ interface DraftRow {
   base_url: string | null;
   model: string | null;
   provider_verified_at: string | null;
+  interview_answers: Record<string, string> | null;
+  generated_prompt: string | null;
+  settings: Record<string, unknown> | null;
 }
 
 // ---------- Página ----------
