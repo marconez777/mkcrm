@@ -571,7 +571,7 @@ export default function AgentWizard() {
         .eq("user_id", userId);
 
       toast.success("Agente criado.");
-      nav(`/ai/agents/${newId}`);
+      nav(`/ai/agents?agent=${newId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao criar agente";
       toast.error(msg);

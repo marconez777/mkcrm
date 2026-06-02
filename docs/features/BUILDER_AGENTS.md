@@ -100,7 +100,7 @@ settings              jsonb default '{}'  -- guarda suggested_tools, temperature
 created_at / updated_at
 ```
 
-Ao concluir o passo 5 do wizard, o frontend faz `INSERT` em `ai_agents` (com `enabled=false`, `draft_mode=true`, `tools` já intersectadas com a whitelist em `src/lib/agent-tools.ts`) e **apaga o rascunho** (`DELETE FROM ai_agent_drafts WHERE clinic_id = $1 AND user_id = $2`). Não há trigger automático; toda a coordenação é cliente-lado em `AgentWizard.finishAndCreateAgent()`.
+Ao concluir o passo 5 do wizard, o frontend faz `INSERT` em `ai_agents` (com `enabled=false`, `draft_mode=true`, `tools` já intersectadas com a whitelist em `src/lib/agent-tools.ts`), **apaga o rascunho** (`DELETE FROM ai_agent_drafts WHERE clinic_id = $1 AND user_id = $2`) e redireciona para `/ai/agents?agent=<id>`. Não existe rota detalhada `/ai/agents/:id` — a edição do agente vive dentro da aba "Agentes" do `AiHub` (`src/pages/Agents.tsx`), que lê `?agent=` da URL para pré-selecionar.
 
 ### 3.3 `public.builder_manual_versions` (Fase 9)
 
@@ -165,7 +165,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 | 2 | Objetivo | `sdr`, `classifier`, `support`, `scheduler`, `custom`. | — |
 | 3 | Conexão | Provider + chave + (base URL) + modelo do **agente final** (pode ser diferente do Builder). Botão "Testar conexão". | `ping` com override |
 | 4 | Entrevista | LLM gera 3-5 perguntas adaptadas a {nicho, objetivo}. Sempre inclui 1 com `kind='dominant_offer'`. | `interview_plan` |
-| 5 | Prompt | LLM gera `system_prompt` final + `suggested_tools` + `temperature`/`top_k`/`max_iterations` + `rationale`. Botão "Refinar" permite iterar mandando feedback livre. Botão **"Criar agente"** insere em `ai_agents` (com `enabled=false`, `draft_mode=true`, tools filtradas pela whitelist em `src/lib/agent-tools.ts`), apaga o rascunho e redireciona para `/ai/agents/:id`. | `generate_system_prompt` |
+| 5 | Prompt | LLM gera `system_prompt` final + `suggested_tools` + `temperature`/`top_k`/`max_iterations` + `rationale`. Botão "Refinar" permite iterar mandando feedback livre. Botão **"Criar agente"** insere em `ai_agents` (com `enabled=false`, `draft_mode=true`, tools filtradas pela whitelist em `src/lib/agent-tools.ts`), apaga o rascunho e redireciona para `/ai/agents?agent=<id>` (a aba "Agentes" do AiHub lê o query param para pré-selecionar). | `generate_system_prompt` |
 
 **Persistência:** cada `setStep` ou avanço chama `persist({...})` que faz upsert em `ai_agent_drafts` com chave `(clinic_id, user_id)`. Permite fechar a aba e retomar.
 

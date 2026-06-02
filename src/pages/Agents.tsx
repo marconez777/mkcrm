@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
@@ -213,6 +213,7 @@ export default function Agents() {
   const [selected, setSelected] = useState<Agent | null>(null);
   const confirm = useConfirm();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { membership, isSuperAdmin } = useAuth();
   const canManage = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin";
   const [docs, setDocs] = useState<any[]>([]);
@@ -326,6 +327,19 @@ export default function Agents() {
     setAgents((data as any) ?? []);
   };
   useEffect(() => { load(); }, []);
+
+  // Pré-seleciona agente quando vier ?agent=<id> na URL (ex.: vindo do wizard)
+  useEffect(() => {
+    const target = searchParams.get("agent");
+    if (!target || agents.length === 0) return;
+    const found = agents.find((a) => a.id === target);
+    if (!found) return;
+    setSelected(found);
+    // Limpa o param para não re-selecionar a cada render
+    const next = new URLSearchParams(searchParams);
+    next.delete("agent");
+    setSearchParams(next, { replace: true });
+  }, [agents, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!selected) { setDocs([]); return; }
