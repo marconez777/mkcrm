@@ -199,12 +199,27 @@ export function StagesPanel({ agentId, clinicId }: Props) {
         <p className="flex items-start gap-1 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3 w-3 shrink-0" />
           Defina as etapas pelas quais a conversa passa (ex.: Abertura → Qualificação → Oferta → Agendamento).
-          Por enquanto os estágios <strong>não alteram</strong> a resposta do agente — servem como mapa do funil.
+          No Test Lab os estágios sempre rodam; em conversas reais só ativam com o toggle abaixo.
         </p>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Novo estágio
         </Button>
       </div>
+
+      <div className={`flex items-center justify-between gap-3 rounded-md border p-3 ${stagesEnabled ? "border-primary/40 bg-primary/5" : "bg-muted/20"}`}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <GitBranch className="h-4 w-4 text-primary" />
+            Usar estágios em conversas reais
+            {stagesEnabled && <Badge className="text-[10px]">ativo</Badge>}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Quando ligado: cada turno passa pelo classificador, o delta do estágio entra no prompt, ferramentas são filtradas por <code>allowed_tools</code> e o follow-up programado dispara em background.
+          </p>
+        </div>
+        <Switch checked={stagesEnabled} disabled={togglingEnabled || stages.length === 0} onCheckedChange={toggleEnabled} />
+      </div>
+
 
       {loading ? (
         <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
