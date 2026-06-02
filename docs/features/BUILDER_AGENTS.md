@@ -252,7 +252,7 @@ Três ferramentas:
 **Pegadinhas:**
 - Cada avaliação consome **N×2 chamadas** ao provedor (N turnos × agente+lead) + 1 chamada para avaliar. Monitorar custo.
 - O regex de encerramento é PT-BR. Se trocar idioma do agente, a simulação roda até `max_turns`.
-- `ai-chat` precisa ter o agente publicado/ativo — testar agente em rascunho exige criar primeiro.
+- `ai-chat` aceita agente com `enabled=false` (não filtra por isso na ação de teste), então dá para rodar o Test Lab logo após criar o agente. Já o agendamento/auto-reply em conversas reais respeita `enabled`.
 
 ---
 
