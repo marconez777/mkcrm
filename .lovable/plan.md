@@ -84,9 +84,13 @@ Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]
 
 ---
 
-### Fase 16 — Aprendizado com produção
+### Fase 16 — Aprendizado com produção ✅
 
-Threads reais classificadas como `good|problem|objection|doubt` viram cenários de eval (PII anonimizada). Co-piloto propõe patches a partir de conversas marcadas `problem`.
+- **Migration:** `lead_thread_classifications` (label `good|problem|objection|doubt`, note, anchor_message_id, promoted_eval_id) com GRANTs + RLS clinic-scoped + trigger `set_updated_at`.
+- **Edge nova `agent-learn-from-thread`:** anonimiza mensagens (regex telefone/e-mail/CPF → `[telefone]/[email]/[cpf]`) e expõe duas ações:
+  - `promote_to_eval`: pega últimas mensagens do lead, cria linha em `agent_evals` com contexto + último turno do lead como prompt e salva `promoted_eval_id` na classificação.
+  - `request_patch`: monta transcript anonimizado + label + nota e chama `ai-builder/copilot_chat` pedindo um patch.
+- **UI (`ThreadLearningPanel`):** novo accordion **"Aprender com produção"** em `Agents.tsx`. Permite marcar conversas recentes do agente (dropdown busca leads via `messages.bot_agent_id`), listar classificações, criar eval ou (quando `problem`) pedir patch ao co-piloto. Reutiliza o pipeline da Fase 15 — patch proposto entra no banner habitual com evals rodando depois do apply.
 
 ---
 

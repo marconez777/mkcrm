@@ -3344,6 +3344,84 @@ export type Database = {
           },
         ]
       }
+      lead_thread_classifications: {
+        Row: {
+          agent_id: string | null
+          anchor_message_id: string | null
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          lead_id: string
+          note: string | null
+          promoted_eval_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          anchor_message_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          lead_id: string
+          note?: string | null
+          promoted_eval_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          anchor_message_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          lead_id?: string
+          note?: string | null
+          promoted_eval_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_thread_classifications_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_thread_classifications_anchor_message_id_fkey"
+            columns: ["anchor_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_thread_classifications_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_thread_classifications_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_thread_classifications_promoted_eval_id_fkey"
+            columns: ["promoted_eval_id"]
+            isOneToOne: false
+            referencedRelation: "agent_evals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ai_summary: string | null
