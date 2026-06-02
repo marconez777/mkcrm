@@ -18,7 +18,8 @@ type Action =
   | "audit_kb"
   | "generate_scenarios"
   | "run_evaluation"
-  | "generate_insights";
+  | "generate_insights"
+  | "copilot_chat";
 
 interface Body {
   action: Action;
