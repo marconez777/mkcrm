@@ -729,7 +729,6 @@ export default function Agents() {
                       onChange={(e) => setSelected({ ...selected, system_prompt: e.target.value })}
                     />
                   </div>
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -845,7 +844,6 @@ export default function Agents() {
                       />
                     </div>
                   )}
-                </AccordionContent>
               </SectionAccordionItem>
 
               {uiMode === "advanced" && (<>
@@ -896,7 +894,6 @@ export default function Agents() {
                     Hybrid = vetor + texto via RRF. HyDE gera resposta hipotética antes de buscar.
                     Reranker re-ordena trechos. Memória guarda fatos entre conversas. Debounce agrupa rajadas de mensagens.
                   </p>
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -945,7 +942,6 @@ export default function Agents() {
                       ))}
                     </div>
                   ))}
-                </AccordionContent>
               </SectionAccordionItem>
 
               </>)}
@@ -1065,7 +1061,6 @@ export default function Agents() {
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1084,7 +1079,6 @@ export default function Agents() {
                       setSelected({ ...selected, ...(patch as Partial<Agent>) });
                     }}
                   />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1096,7 +1090,6 @@ export default function Agents() {
                 subtitle="Crie perfis sintéticos para validar respostas"
               >
                   <PersonasPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1108,7 +1101,6 @@ export default function Agents() {
                 subtitle="Defina etapas que o agente segue ao longo do diálogo"
               >
                   <StagesPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1120,7 +1112,6 @@ export default function Agents() {
                 subtitle="Aprenda padrões a partir de conversas reais"
               >
                   <ThreadLearningPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
               </SectionAccordionItem>
 
 
@@ -1143,7 +1134,6 @@ export default function Agents() {
                       toast.success("Patch anexado ao prompt. Lembre de salvar.");
                     }}
                   />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1154,7 +1144,6 @@ export default function Agents() {
                 subtitle="Orçamento, gasto acumulado e teto mensal"
               >
                   <CostsPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1165,7 +1154,6 @@ export default function Agents() {
                 subtitle="Histórico de quem mudou o quê e quando"
               >
                   <AuditLogPanel agentId={selected.id} />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1186,7 +1174,6 @@ export default function Agents() {
                       toast.success("Texto anexado ao prompt. Lembre de salvar.");
                     }}
                   />
-                </AccordionContent>
               </SectionAccordionItem>
 
               <SectionAccordionItem
@@ -1203,7 +1190,6 @@ export default function Agents() {
                       setSelected({ ...selected, system_prompt: prompt });
                     }}
                   />
-                </AccordionContent>
               </SectionAccordionItem>
             </SectionAccordion>
           </div>
