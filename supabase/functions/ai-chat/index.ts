@@ -767,6 +767,7 @@ Deno.serve(async (req) => {
         ok: !t.result?.error,
         error: t.result?.error ?? null,
       })),
+      stage_meta: stageMeta,
       model: agent.model,
       tokens_in: totalIn,
       tokens_out: totalOut,
