@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
 import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
 import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
+import BuilderManualPanel from "@/components/admin/BuilderManualPanel";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
@@ -163,6 +164,7 @@ export default function Admin() {
         <TabsList>
           <TabsTrigger value="clinics">Clínicas</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
+          <TabsTrigger value="builder-manual">Manual do Builder</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clinics" className="space-y-4">
@@ -326,6 +328,10 @@ export default function Admin() {
           <IntegrationsKeysCard />
           <IntegrationsDomainsTable clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} />
           <IntegrationsQuotaTable />
+        </TabsContent>
+
+        <TabsContent value="builder-manual" className="space-y-4">
+          <BuilderManualPanel />
         </TabsContent>
       </Tabs>
     </div>

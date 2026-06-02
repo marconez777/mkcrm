@@ -1398,6 +1398,42 @@ export type Database = {
           },
         ]
       }
+      builder_manual_versions: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          published_at: string
+          published_by: string | null
+          source: string
+          summary: string | null
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          published_at?: string
+          published_by?: string | null
+          source?: string
+          summary?: string | null
+          version: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          published_at?: string
+          published_by?: string | null
+          source?: string
+          summary?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       campaign_throughput: {
         Row: {
           campaign_id: string
@@ -5442,6 +5478,14 @@ export type Database = {
         Args: { _clinic_id: string; _email: string }
         Returns: string
       }
+      get_active_builder_manual: {
+        Args: never
+        Returns: {
+          content: string
+          published_at: string
+          version: number
+        }[]
+      }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
@@ -5528,6 +5572,10 @@ export type Database = {
         Args: { _agent_id: string }
         Returns: undefined
       }
+      publish_builder_manual: {
+        Args: { _content: string; _summary: string }
+        Returns: number
+      }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
       release_domain_warmup: {
@@ -5594,6 +5642,7 @@ export type Database = {
           name: string
         }[]
       }
+      revert_builder_manual: { Args: { _version: number }; Returns: number }
       seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }

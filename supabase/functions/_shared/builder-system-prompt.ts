@@ -1,10 +1,15 @@
 // System prompt fixo do Construtor de Agentes (Builder).
-// Carregado pela edge function ai-builder. Concatenado com builder-knowledge/best-practices.md
-// (manual de boas práticas) em runtime. Contém as cláusulas A (regra de contexto do lead)
-// e D (multi-nicho) que TODA saída do Builder deve respeitar.
+// Carregado pela edge function ai-builder. Concatenado com o manual de boas práticas
+// que vive em public.builder_manual_versions (fonte canônica desde a Fase 9).
+// Fallback: arquivo ./builder-knowledge/best-practices.md se o DB falhar.
 
-// Lê o manual de boas práticas em runtime (Deno).
-async function loadBestPractices(): Promise<string> {
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+// Cache em memória por instância de edge function. TTL 60s.
+let _manualCache: { content: string; version: number; fetchedAt: number } | null = null;
+const MANUAL_CACHE_TTL_MS = 60_000;
+
+async function loadBestPracticesFromFile(): Promise<string> {
   try {
     const url = new URL("./builder-knowledge/best-practices.md", import.meta.url);
     const text = await Deno.readTextFile(url);
@@ -12,6 +17,32 @@ async function loadBestPractices(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+async function loadBestPractices(): Promise<string> {
+  const now = Date.now();
+  if (_manualCache && now - _manualCache.fetchedAt < MANUAL_CACHE_TTL_MS) {
+    return _manualCache.content;
+  }
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) throw new Error("missing supabase env");
+    const supabase = createClient(url, key, { auth: { persistSession: false } });
+    const { data, error } = await supabase.rpc("get_active_builder_manual");
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row && row.content) {
+      _manualCache = { content: String(row.content).trim(), version: Number(row.version ?? 0), fetchedAt: now };
+      return _manualCache.content;
+    }
+  } catch (e) {
+    console.warn("[builder-system-prompt] DB load failed, falling back to file:", e);
+  }
+  // Fallback final: arquivo em disco
+  const fallback = await loadBestPracticesFromFile();
+  _manualCache = { content: fallback, version: 0, fetchedAt: now };
+  return fallback;
 }
 
 // Cláusula A — toda saída de generate_system_prompt deve conter ESTE bloco literal.
