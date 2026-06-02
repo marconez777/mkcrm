@@ -67,11 +67,48 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   const [chatError, setChatError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Fase 10 — Lead simulado (persistido por agente no localStorage)
+  type SimulatedLead = {
+    name: string;
+    phone: string;
+    channel: "whatsapp" | "instagram" | "widget" | "sms";
+    pipeline: string;
+    stage: string;
+    notes: string;
+    custom_fields: Record<string, string>;
+  };
+  const DEFAULT_LEAD: SimulatedLead = {
+    name: "Maria Silva",
+    phone: "+55 11 90000-0000",
+    channel: "whatsapp",
+    pipeline: "",
+    stage: "",
+    notes: "",
+    custom_fields: {},
+  };
+  const LEAD_KEY = `testlab.simulated_lead.${agentId}`;
+  const [simLead, setSimLead] = useState<SimulatedLead>(DEFAULT_LEAD);
+  const [leadOpen, setLeadOpen] = useState(true);
+  const [customKey, setCustomKey] = useState("");
+  const [customVal, setCustomVal] = useState("");
+
   useEffect(() => {
-    // reset history when switching agent
+    // load per-agent lead profile
+    try {
+      const raw = localStorage.getItem(LEAD_KEY);
+      if (raw) setSimLead({ ...DEFAULT_LEAD, ...JSON.parse(raw) });
+      else setSimLead(DEFAULT_LEAD);
+    } catch { setSimLead(DEFAULT_LEAD); }
+    // reset chat when switching agent
     setChatHistory([]);
     setChatError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
+
+  useEffect(() => {
+    try { localStorage.setItem(LEAD_KEY, JSON.stringify(simLead)); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simLead]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
