@@ -1297,7 +1297,15 @@ ${promptSnippet}
       [COPILOT_PATCH_TOOL],
       { agent_id: builder.id, note: "ai-builder:copilot_chat" },
     );
-    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    if (!resp.ok) {
+      console.error("[copilot_chat] provider error", {
+        status: resp.status,
+        provider: builder.provider,
+        model: builder.model,
+        errorText: (resp.errorText || "").slice(0, 500),
+      });
+      throw new Error(resp.errorText || `provider ${resp.status}`);
+    }
 
     const args = extractToolArguments(resp, "propose_agent_patch") as {
       message?: string;
@@ -1307,7 +1315,20 @@ ${promptSnippet}
     } | null;
 
     if (!args) {
-      return { ok: false, code: "unknown", status: 502, message: "O Co-piloto não devolveu uma resposta válida. Tente reformular." };
+      const rawText = resp?.choices?.[0]?.message?.content ?? "";
+      console.error("[copilot_chat] no tool_call from provider", {
+        provider: builder.provider,
+        model: builder.model,
+        sample: String(rawText).slice(0, 240),
+      });
+      return {
+        ok: false,
+        code: "invalid_response",
+        status: 200,
+        message:
+          "O Co-piloto não devolveu um patch estruturado (o modelo respondeu em texto livre). " +
+          "Tente reformular o pedido de forma mais concreta, ou troque o modelo do Construtor por um que suporte tool calling.",
+      };
     }
 
     // Sanitize patch
@@ -1341,10 +1362,12 @@ ${promptSnippet}
       has_changes: Object.keys(sanitized).length > 0,
     };
   } catch (e) {
+    console.error("[copilot_chat] caught", e);
     const parsed = parseProviderError(e);
     return { ok: false, ...parsed };
   }
 }
+
 
 
 
