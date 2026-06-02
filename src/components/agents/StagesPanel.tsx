@@ -348,6 +348,37 @@ export function StagesPanel({ agentId, clinicId }: Props) {
                 onChange={(e) => setForm({ ...form, advance_when: e.target.value })}
               />
             </div>
+            <div>
+              <Label className="text-xs">Ferramentas permitidas neste estágio (separadas por vírgula)</Label>
+              <Input
+                placeholder="Ex.: search_knowledge_base, set_lead_field, create_task"
+                value={form.allowed_tools}
+                onChange={(e) => setForm({ ...form, allowed_tools: e.target.value })}
+              />
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                Deixe vazio para permitir todas as ferramentas do agente. Só vale quando o toggle "Usar estágios em conversas reais" está ligado (ou no Test Lab).
+              </p>
+            </div>
+            <div className="grid grid-cols-[1fr_2fr] gap-2">
+              <div>
+                <Label className="text-xs">Follow-up após (min)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Ex.: 60"
+                  value={form.follow_up_after_min}
+                  onChange={(e) => setForm({ ...form, follow_up_after_min: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Mensagem de follow-up (opcional)</Label>
+                <Input
+                  placeholder="Vazio = só cria nota interna"
+                  value={form.follow_up_message}
+                  onChange={(e) => setForm({ ...form, follow_up_message: e.target.value })}
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
