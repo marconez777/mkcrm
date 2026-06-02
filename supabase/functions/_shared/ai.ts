@@ -16,9 +16,11 @@ export type LogCtx = {
   note?: string | null;
 };
 
+export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+
 export type Agent = {
   id: string;
-  provider: "openai" | "anthropic" | "google";
+  provider: Provider;
   api_key: string | null;
   base_url: string | null;
   model: string;
