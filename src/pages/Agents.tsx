@@ -1104,6 +1104,20 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="learn" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <GraduationCap className="h-4 w-4" /> Aprender com produção
+                    <Badge variant="outline" className="ml-1 text-[10px]">novo</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <ThreadLearningPanel agentId={selected.id} clinicId={clinicId} />
+                </AccordionContent>
+              </AccordionItem>
+
+
+
               <AccordionItem value="test" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
