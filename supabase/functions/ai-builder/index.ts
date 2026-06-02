@@ -1426,6 +1426,11 @@ Deno.serve(async (req) => {
         const result = await actionGenerateInsights(builder, body.payload ?? {});
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
+      case "copilot_chat": {
+        if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes de usar o Co-piloto." }, 400);
+        const result = await actionCopilotChat(builder, body.payload ?? {});
+        return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+      }
       default:
         return json({ error: `action desconhecida: ${body.action}` }, 400);
     }
