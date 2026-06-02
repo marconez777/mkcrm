@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
