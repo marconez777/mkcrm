@@ -1,35 +1,41 @@
-# Plano para corrigir o erro 502 do Co-piloto
+# Fix — Erro em todas as importações da Base de Conhecimento
 
-## Objetivo
-Fazer o Co-piloto voltar a responder e mostrar mensagens de erro úteis quando houver falha no provedor ou na configuração.
+## Causa-raiz (confirmada nos logs)
 
-## O que vou fazer
-1. Revisar o fluxo de chamada do Co-piloto no frontend e no `ai-builder` para confirmar onde o 502 nasce.
-2. Melhorar o tratamento de erro no frontend para capturar o corpo retornado pela função e exibir a causa real, em vez de apenas `Edge Function returned a non-2xx status code`.
-3. Fortalecer a action `copilot_chat` no backend para:
-   - registrar logs mais claros;
-   - diferenciar melhor falha de provedor, resposta inválida da IA e erro interno;
-   - devolver payload de erro consistente.
-4. Validar a configuração do agente Builder usada pela clínica atual e, se houver incompatibilidade óbvia de provedor/modelo/chave, ajustar a mensagem de diagnóstico para isso.
-5. Testar novamente o fluxo do Co-piloto e confirmar se o erro passou a ser resolvido ou, no mínimo, claramente identificável na UI.
+`ai-ingest-pdf` retornou:
+```
+code: "23502"
+message: 'null value in column "clinic_id" of relation "ai_documents" violates not-null constraint'
+```
 
-## Resultado esperado
-- O usuário consegue usar o Co-piloto sem 502, ou
-- caso o provedor falhe, a tela mostra a razão exata (ex.: chave inválida, modelo inválido, provedor fora do ar, resposta malformada).
+As funções de ingestão inserem em `ai_documents` apenas `{ agent_id, title, content, source, metadata }` — sem `clinic_id`. Uma migration recente tornou `ai_documents.clinic_id` NOT NULL, então todo insert quebra com 500, e o frontend mostra o genérico "Edge Function returned a non-2xx status code".
 
-## Detalhes técnicos
-- Arquivos mais prováveis de ajuste:
-  - `src/components/agents/CopilotPanel.tsx`
-  - `supabase/functions/ai-builder/index.ts`
-  - possivelmente helpers compartilhados em `supabase/functions/_shared/ai.ts`
-- Contexto já confirmado:
-  - o payload do frontend agora bate com `copilot_chat` (`agent_id` + `messages`);
-  - o backend hospedado está saudável;
-  - o Builder da clínica existe e tem chave configurada;
-  - o problema atual parece acontecer na resposta/execução do `ai-builder`, e a UI está escondendo o erro real.
+Afeta: **Importar URL, Importar PDF, Texto manual, Importar lote de URLs, Reingest de documento**.
+
+## Correção
+
+Em cada função, ao carregar o agente já trazer `clinic_id` e propagar para o insert de `ai_documents`.
+
+Arquivos a editar:
+1. `supabase/functions/ai-ingest-document/index.ts` — adicionar lookup do `clinic_id` do agente e incluir no insert.
+2. `supabase/functions/ai-ingest-url/index.ts` — incluir `clinic_id: agent.clinic_id` no insert.
+3. `supabase/functions/ai-ingest-pdf/index.ts` — idem.
+4. `supabase/functions/ai-reingest-document/index.ts` — não insere doc novo, mas vale conferir se `update` precisa do campo (provavelmente não).
+5. `supabase/functions/ai-ingest-urls/index.ts` — conferir e, se inserir docs direto, aplicar o mesmo fix; caso contrário só delega para `ai-ingest-url`.
+
+Validação obrigatória: rejeitar com 400 se `agent.clinic_id` for null (evita 500 silencioso futuro).
+
+## UX (bônus pequeno)
+
+Melhorar a mensagem de erro no `KbAssistant.tsx` e nos botões de import: ler `data.error` quando vier, em vez de só `error.message` do supabase-js. Mesmo padrão já aplicado no `CopilotPanel`.
 
 ## Validação
-- Reproduzir o envio no Co-piloto.
-- Confirmar status e corpo da resposta.
-- Verificar se a UI passa a mostrar o erro correto.
-- Confirmar logs/telemetria do `ai-builder` após a correção.
+
+1. Após editar, deploy automático das 4 funções.
+2. Reproduzir: importar a URL `https://clinicaohrpsiquiatria.com/...` e o PDF do print → ambos devem retornar `{ok:true, document_id, chunks}`.
+3. Conferir nos logs que não aparece mais `23502`.
+
+## Não-objetivos
+
+- Não vou alterar a migration nem tornar `clinic_id` nullable (a constraint é correta para multi-tenancy).
+- Sem mudanças de UI além do refinamento da mensagem de erro.
