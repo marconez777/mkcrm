@@ -73,6 +73,18 @@
     --status-clicked-bg: 262 83% 95%;
     --status-clicked-fg: 262 64% 45%;
 
+    /* Category tab accents (light) */
+    --tab-slate: 215 16% 45%;
+    --tab-primary: 142 71% 42%;
+    --tab-info: 217 91% 55%;
+    --tab-violet: 262 70% 55%;
+    --tab-cyan: 190 80% 42%;
+    --tab-fuchsia: 290 70% 55%;
+    --tab-amber: 38 92% 50%;
+    --tab-emerald: 160 70% 38%;
+    --tab-teal: 175 70% 38%;
+    --tab-destructive: 0 74% 55%;
+
     /* ───────── Marketing site (institucional) ─────────
        Paleta locked: #000000 / #590675 / #1ED400 */
     --site-bg: 0 0% 0%;
