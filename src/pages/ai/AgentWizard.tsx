@@ -1109,15 +1109,10 @@ function Step5({
       )}
 
       {error && (
-        <ProviderErrorBanner
-          error={error}
-          className="text-xs"
-          action={
-            <Button size="sm" variant="outline" onClick={onRegenerate}>
-              Tentar de novo
-            </Button>
-          }
-        />
+        <div className="space-y-2">
+          <ProviderErrorBanner error={error} className="text-xs" />
+          <Button size="sm" variant="outline" onClick={onRegenerate}>Tentar de novo</Button>
+        </div>
       )}
 
       {bundle && !loading && (
