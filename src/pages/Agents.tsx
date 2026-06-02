@@ -10,12 +10,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 import { KbAssistant } from "@/components/agents/KbAssistant";
 import { TestLab } from "@/components/agents/TestLab";
+import { PromptHistory } from "@/components/agents/PromptHistory";
+import { AgentInsights } from "@/components/agents/AgentInsights";
 import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
@@ -327,8 +329,16 @@ export default function Agents() {
     setSelected(((full as any) ?? [])[0] ?? null);
   };
 
-  const save = async () => {
+  const save = async (opts?: { versionSource?: string; versionSummary?: string }) => {
     if (!selected) return;
+    // Snapshot do prompt atual antes do update, para versionar se mudou
+    const { data: existing } = await supabase
+      .from("ai_agents")
+      .select("system_prompt")
+      .eq("id", selected.id)
+      .maybeSingle();
+    const previousPrompt = (existing as any)?.system_prompt ?? "";
+
     const payload: any = {
       name: selected.name,
       description: selected.description,
@@ -358,6 +368,17 @@ export default function Agents() {
       .update(payload)
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
+
+    // Versiona prompt se mudou
+    if (previousPrompt !== selected.system_prompt) {
+      await supabase.from("agent_prompt_versions").insert({
+        agent_id: selected.id,
+        prompt: selected.system_prompt,
+        source: opts?.versionSource ?? "manual",
+        summary: opts?.versionSummary ?? null,
+      });
+    }
+
     toast.success("Agente salvo");
     load();
   };
@@ -519,7 +540,7 @@ export default function Agents() {
                     <Button variant="ghost" size="sm" onClick={() => remove(selected.id)} disabled={!!selected.is_system} title={selected.is_system ? "Agente padrão do sistema não pode ser excluído" : "Excluir agente"}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" onClick={save}>Salvar</Button>
+                    <Button size="sm" onClick={() => save()}>Salvar</Button>
                   </>
                 )}
               </div>
@@ -897,6 +918,44 @@ export default function Agents() {
                         system_prompt: `${selected.system_prompt}\n\n## Patch do Test Lab\n${patch}`,
                       });
                       toast.success("Patch anexado ao prompt. Lembre de salvar.");
+                    }}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="insights" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Lightbulb className="h-4 w-4" /> Insights & recomendações
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <AgentInsights
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    onApplyToPrompt={(text) => {
+                      setSelected({
+                        ...selected,
+                        system_prompt: `${selected.system_prompt}\n\n${text}`,
+                      });
+                      toast.success("Texto anexado ao prompt. Lembre de salvar.");
+                    }}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="history" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <History className="h-4 w-4" /> Histórico de versões
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <PromptHistory
+                    agentId={selected.id}
+                    currentPrompt={selected.system_prompt}
+                    onRevert={(prompt) => {
+                      setSelected({ ...selected, system_prompt: prompt });
                     }}
                   />
                 </AccordionContent>
