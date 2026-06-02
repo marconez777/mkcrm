@@ -29,6 +29,7 @@ type Props = {
   flagship?: boolean;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 };
 
 export function SectionAccordionItem({
