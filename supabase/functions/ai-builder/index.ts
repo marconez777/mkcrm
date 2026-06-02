@@ -971,7 +971,10 @@ Chame submit_evaluation.`;
   } catch (e) {
     const parsed = parseProviderError(e);
     return { ok: false, ...parsed };
+  }
 }
+
+
 
 // ---------- Phase 6: Insights ----------
 
