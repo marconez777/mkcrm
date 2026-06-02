@@ -190,6 +190,20 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     if (!proposal?.has_changes || applying) return;
     setApplying(true);
     try {
+      // baseline: which evals are passing right now?
+      const { data: baselineRows } = await supabase
+        .from("agent_evals")
+        .select("id, last_passed")
+        .eq("agent_id", agentId);
+      const baselinePassedIds = new Set(
+        (baselineRows ?? []).filter((r) => r.last_passed === true).map((r) => r.id as string),
+      );
+      const baselineCount = baselineRows?.length ?? 0;
+
+      // snapshot full agent before update so we can revert
+      const { data: snap } = await supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle();
+      if (snap) setPreviousSnapshot(snap as Record<string, unknown>);
+
       const { error } = await supabase
         .from("ai_agents")
         .update(proposal.changes as never)
@@ -202,12 +216,18 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
         { role: "assistant", content: `✅ Aplicado: ${proposal.summary || Object.keys(proposal.changes).join(", ")}` },
       ]);
       setProposal(null);
+
+      // kick off evals in background (only if there are evals to run)
+      if (baselineCount > 0) {
+        void runEvalsAfterApply(baselinePassedIds);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setApplying(false);
     }
   }
+
 
   function discardPatch() {
     setProposal(null);
