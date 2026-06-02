@@ -337,6 +337,84 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
         </div>
       )}
 
+      {evalRun && (
+        <div
+          className={`rounded-md border p-3 text-sm ${
+            evalRun.status === "running"
+              ? "border-muted bg-muted/30"
+              : evalRun.status === "error"
+                ? "border-destructive/40 bg-destructive/5"
+                : (evalRun.regressed?.length ?? 0) > 0
+                  ? "border-destructive/50 bg-destructive/5"
+                  : "border-emerald-500/40 bg-emerald-500/5"
+          }`}
+        >
+          {evalRun.status === "running" && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Rodando evals para validar o patch…
+            </div>
+          )}
+          {evalRun.status === "error" && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs">
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                Falha ao rodar evals: {evalRun.error}
+              </div>
+              {previousSnapshot && (
+                <Button size="sm" variant="outline" onClick={revertPatch} disabled={reverting}>
+                  {reverting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Undo2 className="mr-1 h-3 w-3" />}
+                  Reverter patch
+                </Button>
+              )}
+            </div>
+          )}
+          {evalRun.status === "done" && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  {(evalRun.regressed?.length ?? 0) > 0 ? (
+                    <>
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      Este patch quebrou {evalRun.regressed!.length} cenário
+                      {evalRun.regressed!.length === 1 ? "" : "s"} ({evalRun.passed}/{evalRun.total} passaram)
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      Todos os evals passaram ({evalRun.passed}/{evalRun.total})
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {(evalRun.regressed?.length ?? 0) > 0 && previousSnapshot && (
+                    <Button size="sm" variant="destructive" onClick={revertPatch} disabled={reverting}>
+                      {reverting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Undo2 className="mr-1 h-3 w-3" />}
+                      Reverter
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setEvalRun(null)}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+              {(evalRun.regressed?.length ?? 0) > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {evalRun.regressed!.slice(0, 5).map((r) => (
+                    <li key={r.id} className="rounded border bg-background p-2 text-xs">
+                      <div className="font-medium">↳ {r.prompt}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{r.response || "(sem resposta)"}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+
+
       <div className="flex gap-2">
         <Textarea
           value={input}
