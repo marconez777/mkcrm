@@ -150,7 +150,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 **Mensagens de erro tratadas** (`parseProviderError`): `missing_key`, `invalid_key`, `no_credit`, `rate_limit`, `model_not_found`, `network`, `provider_down`, `unknown`. O frontend traduz via `parseBuilderError` em `builder-errors.ts` e renderiza em `ProviderErrorBanner.tsx`.
 
 **Pegadinhas:**
-- Trocar provider/modelo/chave **invalida** `provider_verified_at` no frontend (effect em `AgentWizard.tsx` linha ~473).
+- Trocar provider/modelo/chave **invalida** `provider_verified_at` no frontend (effect que escuta `apiKey/provider/model/baseUrl` em `AgentWizard.tsx`).
 - O Builder fica inerte sem chave: toda action retorna 400 "Configure a chave de API do Construtor antes…".
 
 ---
