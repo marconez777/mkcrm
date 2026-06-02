@@ -1197,6 +1197,8 @@ function Step5({
   setRefinement,
   onRegenerate,
   onRefine,
+  agentName,
+  setAgentName,
 }: {
   bundle: GeneratedPromptBundle | null;
   loading: boolean;
@@ -1205,6 +1207,8 @@ function Step5({
   setRefinement: (v: string) => void;
   onRegenerate: () => void;
   onRefine: () => void;
+  agentName: string;
+  setAgentName: (v: string) => void;
 }) {
   return (
     <div className="space-y-4">
