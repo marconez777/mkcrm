@@ -328,6 +328,19 @@ export default function Agents() {
   };
   useEffect(() => { load(); }, []);
 
+  // Pré-seleciona agente quando vier ?agent=<id> na URL (ex.: vindo do wizard)
+  useEffect(() => {
+    const target = searchParams.get("agent");
+    if (!target || agents.length === 0) return;
+    const found = agents.find((a) => a.id === target);
+    if (!found) return;
+    setSelected(found);
+    // Limpa o param para não re-selecionar a cada render
+    const next = new URLSearchParams(searchParams);
+    next.delete("agent");
+    setSearchParams(next, { replace: true });
+  }, [agents, searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!selected) { setDocs([]); return; }
     fetchAllPaged<any>(() => supabase
