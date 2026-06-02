@@ -540,7 +540,7 @@ export default function Agents() {
                     <Button variant="ghost" size="sm" onClick={() => remove(selected.id)} disabled={!!selected.is_system} title={selected.is_system ? "Agente padrão do sistema não pode ser excluído" : "Excluir agente"}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" onClick={save}>Salvar</Button>
+                    <Button size="sm" onClick={() => save()}>Salvar</Button>
                   </>
                 )}
               </div>
