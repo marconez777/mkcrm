@@ -1301,6 +1301,19 @@ function Step5({
               </Button>
             </div>
           </div>
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs">Nome do agente</Label>
+            <Input
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value.slice(0, 80))}
+              placeholder="Ex.: SDR — Clínica do Dr. Ivan"
+              maxLength={80}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aparece na lista de agentes. Você pode renomear depois.
+            </p>
+          </div>
         </>
       )}
 
