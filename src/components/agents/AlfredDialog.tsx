@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Wrench, BookOpen, Cpu, Clock, Coins } from "lucide-react";
+import { Wrench, BookOpen, Cpu, Clock, Coins, GitBranch } from "lucide-react";
 
 export type AlfredTrace = {
   id?: string | null;
@@ -12,6 +12,13 @@ export type AlfredTrace = {
   kb_hits?: Array<{ idx: number; title?: string; snippet: string; score?: number }>;
   tool_calls?: Array<{ name: string; args: unknown; ok?: boolean; error?: string | null }>;
   system_prompt_excerpt?: string;
+  stage?: {
+    stage_id: string | null;
+    name: string | null;
+    reason: string | null;
+    delta_excerpt: string | null;
+    all_stages?: Array<{ id: string; name: string; advance_when: string | null }>;
+  } | null;
 };
 
 interface Props {
