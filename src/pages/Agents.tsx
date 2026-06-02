@@ -194,6 +194,7 @@ export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const { membership, isSuperAdmin } = useAuth();
   const canManage = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin";
   const [docs, setDocs] = useState<any[]>([]);
