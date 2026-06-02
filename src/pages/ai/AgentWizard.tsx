@@ -195,6 +195,8 @@ export default function AgentWizard() {
   const [promptError, setPromptError] = useState<ProviderError | null>(null);
   const [bundle, setBundle] = useState<GeneratedPromptBundle | null>(null);
   const [refinement, setRefinement] = useState("");
+  const [agentName, setAgentName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
