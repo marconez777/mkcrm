@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
 
     const { data: agent } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
     if (!agent) return json({ error: "agent not found" }, 404);
+    if (!agent.clinic_id) return json({ error: "Agente sem clinic_id" }, 400);
     if (!agent.api_key && !agent.embedding_api_key) return json({ error: "Agente sem API key para embeddings" }, 400);
     try { await assertSpendAllowed(agent.clinic_id ?? null); } catch (e) {
       if (e instanceof SpendLimitExceeded) return json(e.body, 402);
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
     const docTitle = title || `PDF (${cleaned.slice(0, 40)}…)`;
     const { data: doc, error: docErr } = await supabase
       .from("ai_documents")
-      .insert({ agent_id, title: docTitle, content: cleaned, source: "pdf", metadata: { pages: pdf.numPages, size: bin.byteLength } })
+      .insert({ agent_id, clinic_id: agent.clinic_id, title: docTitle, content: cleaned, source: "pdf", metadata: { pages: pdf.numPages, size: bin.byteLength } })
       .select("id").single();
     if (docErr) throw docErr;
 
