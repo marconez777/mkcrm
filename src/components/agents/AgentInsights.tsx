@@ -71,7 +71,7 @@ export function AgentInsights({
       .eq("agent_id", agentId)
       .order("created_at", { ascending: false })
       .limit(6);
-    const list = (data as Insight[]) ?? [];
+    const list = ((data as unknown) as Insight[]) ?? [];
     setHistory(list);
     setLatest(list[0] ?? null);
     setLoading(false);
