@@ -585,6 +585,50 @@ export default function Agents() {
                     />
                   </div>
                   <div>
+                    <Label>Nicho do negócio</Label>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        className="h-9 flex-1 rounded-md border bg-background px-2 text-sm"
+                        value={selected.niche ?? ""}
+                        onChange={(e) => setSelected({ ...selected, niche: e.target.value || null })}
+                      >
+                        <option value="">Genérico (sem nicho)</option>
+                        {NICHE_OPTS.map((n) => (
+                          <option key={n.v} value={n.v}>{n.l}</option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        title="Adicionar à base os documentos padrão deste nicho (não duplica nem apaga nada)"
+                        onClick={async () => {
+                          if (!selected) return;
+                          const { error } = await supabase.rpc("reprovision_default_kb_for_agent", { _agent_id: selected.id });
+                          if (error) return toast.error(error.message);
+                          const { data: fresh } = await supabase
+                            .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
+                            .eq("agent_id", selected.id).order("created_at", { ascending: false });
+                          setDocs(fresh ?? []);
+                          toast.success("Documentos padrão do nicho aplicados");
+                        }}
+                      >
+                        Aplicar KB do nicho
+                      </Button>
+                    </div>
+                    {selected.niche === "other" && (
+                      <Input
+                        className="mt-2"
+                        placeholder="Descreva seu nicho (ex.: pet shop, consultoria de RH)"
+                        value={selected.niche_other ?? ""}
+                        onChange={(e) => setSelected({ ...selected, niche_other: e.target.value })}
+                      />
+                    )}
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Define quais scripts padrão entram na base e adapta os textos gerados pelo Construtor.
+                    </p>
+                  </div>
+                  <div>
                     <Label>Descrição</Label>
                     <Input
                       value={selected.description ?? ""}
