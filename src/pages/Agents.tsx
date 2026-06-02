@@ -1040,9 +1040,14 @@ export default function Agents() {
                                 );
                               })()}
                             </span>
-                            <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openDocEditor(d.id, d.title, d.source_type)} title="Abrir e editar">
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)} title="Excluir documento">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         {docs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento ainda.</p>}
