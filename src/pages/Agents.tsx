@@ -518,7 +518,7 @@ export default function Agents() {
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5" />
                 <Input
@@ -526,6 +526,17 @@ export default function Agents() {
                   value={selected.name}
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
+                <AgentHealth agentId={selected.id} />
+                <Badge
+                  variant={selected.draft_mode ? "secondary" : "default"}
+                  className="gap-1 cursor-pointer"
+                  title={selected.draft_mode
+                    ? "Rascunho: o agente só responde no Test Lab. Clique para publicar."
+                    : "Produção: o agente atende leads reais. Clique para voltar para rascunho."}
+                  onClick={() => setSelected({ ...selected, draft_mode: !selected.draft_mode })}
+                >
+                  {selected.draft_mode ? <><Pencil className="h-3 w-3" /> Rascunho</> : <><Rocket className="h-3 w-3" /> Produção</>}
+                </Badge>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -550,6 +561,7 @@ export default function Agents() {
                 )}
               </div>
             </div>
+
 
             <Accordion type="multiple" defaultValue={["general"]} className="space-y-3">
               <AccordionItem value="general" className="rounded-md border bg-card px-4">
