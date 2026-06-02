@@ -1,92 +1,107 @@
 ## Objetivo
 
-Resolver a "cegueira visual" das tabs nos hubs `/ai/*` e `/email/*`: hoje todas têm a mesma forma, tamanho e cor, sem âncora visual. A solução é dar a cada tab uma **identidade própria de categoria** (ícone + cor de acento), mantendo o layout horizontal e o resto do app intacto.
+Repaginar a sidebar mantendo o tema dark e a largura de 240px, mas elevando a hierarquia e a identidade visual. Hoje todos os itens parecem iguais — o ativo só muda de fundo, sem cor de acento nem agrupamento. Vamos para um padrão "premium dark" tipo Linear/Height.
 
 ## Direção visual
 
-Cada tab vira um mini-card com:
+### Header (logo + marca)
+- Logo `mk-logo` num quadrado 36×36 com leve borda `sidebar-border/30` e sombra interna sutil.
+- Título "MK-CRM" + subtítulo "WhatsApp Pipeline" ganha kerning mais apertado e cor `foreground` + `foreground/55`.
+- Divisor hairline (`border-sidebar-border/40`) abaixo do header.
 
-- **Ícone dedicado** (Lucide) à esquerda, dentro de um quadrado arredondado com o tom da categoria.
-- **Label** ao lado, peso `medium`.
-- **Estado inativo**: fundo `card`, borda sutil `border/60`, ícone tingido com a cor da categoria em baixa opacidade — já distingue, sem poluir.
-- **Estado ativo**: borda da cor da categoria, leve tint de fundo (`color/8`), ícone em cor cheia, sombra suave e barrinha inferior de 2px na cor da categoria (ancora a hierarquia).
-- **Hover**: tint mais leve + lift de 1px.
+### Navegação por grupos
+Quebra o menu plano em 3 grupos com label uppercase pequena (`text-[10px] tracking-wider text-sidebar-foreground/40 px-3 mb-1.5`):
 
-Inspirações: Linear (ícone tonal), Vercel (chip pill), Raycast (acento por categoria), Height (barra inferior por seção).
-
-### Paleta por categoria (tokens HSL semânticos, sem hex direto)
-
-Hub IA (`/ai`):
 ```text
-Dashboard       → slate/foreground    LayoutDashboard
-Agentes IA      → primary (verde)      Bot
-Mensagens       → info (azul)          MessageSquare
-Disparo em massa→ violet 262           Megaphone
-Relatórios      → cyan 190             FileBarChart
-Memórias IA     → fuchsia 290          BrainCircuit
-Insights        → amber/warning        Sparkles
-Custos          → emerald escuro 160   Wallet
+TRABALHO
+  Pipeline, Conversas (badge não lidas), Tarefas
+MARKETING
+  IA, Email
+ADMIN
+  Tracking, Tracking Debug, Equipe, Configurações, Super Admin
 ```
 
-Hub Email (`/email`):
+Espaçamento entre grupos: `mt-4` no header do grupo, sem divisor visível.
+
+### Item de navegação
+Cada `NavLink` ganha 3 estados claros:
+
+- **Inativo**: ícone `sidebar-foreground/55`, label `sidebar-foreground/75`, sem fundo.
+- **Hover**: bg `sidebar-accent/40`, ícone e label `sidebar-foreground`, transição 150ms.
+- **Ativo**:
+  - Barra esquerda vertical de 3px na cor da categoria (acento) — posicionada absoluta dentro do item, com `rounded-r-full`.
+  - Fundo `sidebar-accent` com tint da categoria (`[hsl(var(--tab-X)/0.12)]`).
+  - Ícone na cor da categoria (`text-[hsl(var(--tab-X))]`).
+  - Label `font-medium text-sidebar-foreground` (full white).
+  - Glow sutil: `shadow-[inset_0_1px_0_0_hsl(var(--tab-X)/0.15)]`.
+
+Cor por item (reaproveita tokens `--tab-*` já criados):
 ```text
-Dashboard      → slate         LayoutDashboard
-Templates      → primary        FileText
-Automações     → violet 262     Workflow
-Campanhas      → info azul      Send
-Relatórios     → cyan 190       BarChart3
-Segmentos      → fuchsia 290    Users
-Contatos       → teal 175       Contact
-Fila           → amber          ListOrdered
-Logs           → slate          ScrollText
-Descadastros   → destructive    UserMinus
+Pipeline      → primary (verde)
+Conversas     → info (azul)
+Tarefas       → violet
+IA            → primary (verde)  ou amber? → primary
+Email         → cyan
+Tracking      → fuchsia
+Tracking Debug→ fuchsia
+Equipe        → teal
+Configurações → slate
+Super Admin   → destructive
 ```
 
-As cores entram como **novos tokens semânticos** em `src/index.css` (`--tab-violet`, `--tab-cyan`, `--tab-fuchsia`, `--tab-teal`, `--tab-amber`) usando HSL, com versões `light/dark`. Reaproveita `--primary`, `--info`, `--warning`, `--destructive` já existentes onde couber.
+### Badges de contagem
+- Item de Conversas (`/inbox`) recebe badge com não lidas se > 0.
+- Hook: tentar reaproveitar `useUnreadTitle` ou ler de `useCrm`; se custar muito, deixar placeholder e seguir só com o slot visual pronto (sem disparar a query) — investigar no momento da build.
+- Badge: `ml-auto inline-flex min-w-5 px-1.5 rounded-full text-[10px] font-semibold tabular-nums`, fundo `[hsl(var(--tab-info)/0.20)]` + texto `[hsl(var(--tab-info))]` quando ativo; fundo `sidebar-accent/60` + `sidebar-foreground/70` quando inativo.
 
-## Componente compartilhado
+### Footer: status WhatsApp
+Vira um "card de saúde" mais destacado, mas compacto:
 
-Criar `src/components/ui/category-tabs.tsx` (não substitui `ui/tabs.tsx`):
+- Container `rounded-lg bg-sidebar-accent/30 border border-sidebar-border/40 p-2.5`.
+- Linha 1: dot animado (`animate-pulse` só quando warn/down) + label + chevron pequeno.
+- Linha 2 (só se down): "Clique para conectar" em destaque amber.
+- Hover destaca a borda na cor do estado (emerald/amber/destructive).
+- Botão de atalhos vira ícone fantasma ao lado do status, mais discreto.
 
-```ts
-type CategoryTab = {
-  value: string;
-  label: string;
-  icon: LucideIcon;
-  accent: "primary" | "info" | "violet" | "cyan" | "fuchsia"
-        | "amber" | "emerald" | "teal" | "slate" | "destructive";
-  badge?: ReactNode;
-};
+### Footer: perfil
+- Mantém estrutura (Avatar + nome + email + chevron), mas:
+  - Container ganha `bg-sidebar-accent/20` no estado neutro e `bg-sidebar-accent/50` no hover, com transição.
+  - Borda mais sutil (`border-sidebar-border/30`).
+  - Dot de presença muda de tamanho para `h-2 w-2` com `ring-[3px] ring-sidebar`.
+  - Nome em `text-[13px] font-semibold`, email em `text-[11px]`.
 
-<CategoryTabs
-  tabs={tabs}
-  value={current}
-  onChange={(v) => navigate(...)}
-  ariaLabel="Seções de IA"
-/>
-```
-
-Internamente um `<nav role="tablist">` com `<button role="tab">`, mapeando `accent` → classes via objeto (`bg-[hsl(var(--tab-violet)/0.08)]` etc.), sem string concat dinâmica para o Tailwind purgar bem. Suporta wrap em telas menores (`flex-wrap`).
+### Microinterações
+- `transition-all duration-150` em items.
+- Acento e barra esquerda animam via `transition-[background,box-shadow,color]`.
+- `prefers-reduced-motion`: desativa `animate-pulse` do dot.
 
 ## Mudanças por arquivo
 
-1. **`src/index.css`** — adicionar bloco de tokens `--tab-*` (light + dark).
-2. **`src/components/ui/category-tabs.tsx`** — novo componente.
-3. **`src/pages/ai/AiHub.tsx`** — trocar `Tabs/TabsList/TabsTrigger` por `<CategoryTabs>`; manter `TABS[]`, `visible`, `current`, e renderizar a view ativa direto (sem `TabsContent`, já que navegação é por rota).
-4. **`src/pages/email/EmailHub.tsx`** — mesma troca, com as 10 tabs e suas cores.
+1. **`src/components/AppShell.tsx`**
+   - Refatora `navItems` para incluir `group: "work" | "marketing" | "admin"` e `accent: TabAccent` em cada item.
+   - Renderiza nav por grupos (filtra itens visíveis e oculta header de grupo vazio).
+   - Item recebe novo componente interno `<SidebarItem>` com a lógica de estado/cor.
+   - Footer (status + perfil) reorganizado conforme acima.
+   - Sem mudança de rotas, sem mudança de permissões.
 
-Sem alterações de rota, sem mudanças de lógica, sem tocar nas páginas internas.
+2. **`src/index.css`** (se necessário)
+   - Reaproveita tokens `--tab-*` existentes. Pode precisar de um `--sidebar-accent-soft` (slate 222/47/14) se o `sidebar-accent` atual ficar forte demais; decidir no momento da build após inspecionar visualmente.
 
-## Critérios de aceite
-
-- Cada tab é distinguível em < 1s pelo ícone + cor, mesmo desfocando os olhos.
-- Tab ativa tem 3 sinais simultâneos: cor da borda, tint de fundo, barra inferior.
-- Funciona com 8 tabs (IA) e 10 tabs (Email) no viewport atual (1074px) sem cortar.
-- Mantém acessibilidade: `role=tablist/tab`, `aria-selected`, `focus-visible` ring.
-- Zero regressão funcional: clique navega como antes; tab detectada pela rota igual ao código atual.
+3. **Badge de não lidas** (opcional, esforço baixo)
+   - Investigar `src/hooks/useUnreadTitle.ts` para reaproveitar o total. Se exposto, plugar em `Conversas`. Caso contrário, deixar a estrutura pronta sem o número e seguir.
 
 ## Fora de escopo
 
-- Não mexer no `AppShell` (sidebar global).
-- Não criar variante "sidebar vertical" — descartada na sua resposta.
-- Não substituir `ui/tabs.tsx` (continua usado em dialogs/configurações).
+- Não colapsar a sidebar (descartado na pergunta).
+- Não mudar para tema claro (descartado).
+- Não reorganizar rotas/menus além do agrupamento visual.
+- Não mexer no `AiHub`/`EmailHub` (já refeitos).
+- Não criar novo componente `ui/sidebar` shadcn — segue o `aside` artesanal atual, só refinado.
+
+## Critérios de aceite
+
+- Item ativo distinguível à distância: barra colorida + tint + ícone colorido + label branco.
+- Grupos visíveis com labels uppercase, sem poluir.
+- Status do WhatsApp claramente identificável (e em "down" chama atenção).
+- Perfil mais polido, sem mudar fluxo.
+- Zero regressão funcional: todos os links navegam como antes, mesmas permissões.
