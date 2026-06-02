@@ -1,0 +1,2 @@
+ALTER TABLE public.ai_agents DROP CONSTRAINT IF EXISTS ai_agents_provider_chk;
+ALTER TABLE public.ai_agents ADD CONSTRAINT ai_agents_provider_chk CHECK (provider IN ('openai','anthropic','google','xai','manus'));

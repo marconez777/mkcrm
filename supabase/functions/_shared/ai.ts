@@ -16,9 +16,11 @@ export type LogCtx = {
   note?: string | null;
 };
 
+export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+
 export type Agent = {
   id: string;
-  provider: "openai" | "anthropic" | "google";
+  provider: Provider;
   api_key: string | null;
   base_url: string | null;
   model: string;
@@ -77,6 +79,11 @@ export async function chatCompletion(
   let resp: NormalizedResponse;
   try {
     if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
+    else if (agent.provider === "xai") resp = await openaiCompatibleChat(agent, messages, tools, "https://api.x.ai/v1");
+    else if (agent.provider === "manus") {
+      if (!agent.base_url) throw new Error(`Agent ${agent.id} (Manus) requer Base URL configurada`);
+      resp = await openaiCompatibleChat(agent, messages, tools, agent.base_url);
+    }
     else if (agent.provider === "anthropic") resp = await anthropicChat(agent, messages, tools);
     else if (agent.provider === "google") resp = await googleChat(agent, messages, tools);
     else throw new Error(`unknown provider ${agent.provider}`);
@@ -117,6 +124,31 @@ async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   if (!isReasoning) {
     body.temperature = Number(agent.temperature) || 0.7;
   }
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${requireKey(agent)}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
+  const data = await r.json();
+  return { ok: true, status: 200, choices: data.choices ?? [], usage: data.usage };
+}
+
+// xAI (Grok) and Manus expose OpenAI-compatible /chat/completions endpoints.
+async function openaiCompatibleChat(
+  agent: Agent,
+  messages: ChatMessage[],
+  tools: any[] | undefined,
+  defaultBaseUrl: string,
+): Promise<NormalizedResponse> {
+  const base = agent.base_url?.replace(/\/+$/, "") || defaultBaseUrl;
+  const url = `${base}/chat/completions`;
+  const body: Record<string, unknown> = {
+    model: agent.model,
+    messages,
+    tools: tools && tools.length > 0 ? tools : undefined,
+    temperature: Number(agent.temperature) || 0.7,
+  };
   const r = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${requireKey(agent)}`, "Content-Type": "application/json" },
