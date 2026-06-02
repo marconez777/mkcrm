@@ -156,8 +156,8 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
           action: "copilot_chat",
           clinic_id: clinicId,
           payload: {
-            agent: agentSnapshot,
-            history: nextHistory,
+            agent_id: agentId,
+            messages: nextHistory,
           },
         },
       });
