@@ -26,6 +26,22 @@ import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+
+const NICHE_OPTS: { v: string; l: string }[] = [
+  { v: "clinic", l: "Clínica / Saúde" },
+  { v: "dental", l: "Odontologia" },
+  { v: "real_estate", l: "Imobiliária" },
+  { v: "restaurant", l: "Restaurante / Food" },
+  { v: "ecommerce", l: "E-commerce" },
+  { v: "saas", l: "SaaS / Software B2B" },
+  { v: "law", l: "Advocacia" },
+  { v: "education", l: "Educação" },
+  { v: "aesthetics", l: "Estética / Beleza" },
+  { v: "agency", l: "Agência / Serviços B2B" },
+  { v: "local_services", l: "Serviços locais" },
+  { v: "other", l: "Outro" },
+];
+const NICHE_LABEL: Record<string, string> = Object.fromEntries(NICHE_OPTS.map((n) => [n.v, n.l]));
 type Agent = {
   id: string;
   name: string;
