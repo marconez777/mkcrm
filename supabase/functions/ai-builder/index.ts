@@ -15,7 +15,9 @@ type Action =
   | "generate_system_prompt"
   | "suggest_kb_urls"
   | "draft_knowledge_base"
-  | "audit_kb";
+  | "audit_kb"
+  | "generate_scenarios"
+  | "run_evaluation";
 
 interface Body {
   action: Action;
