@@ -540,6 +540,28 @@ export default function AgentWizard() {
                 onTest={testConnection}
               />
             )}
+            {step === 4 && (
+              <Step4
+                questions={questions}
+                answers={answers}
+                setAnswer={(id, v) => setAnswers((a) => ({ ...a, [id]: v }))}
+                loading={interviewLoading}
+                error={interviewError}
+                onReload={loadInterview}
+                onSkipDefaults={skipAllWithDefaults}
+              />
+            )}
+            {step === 5 && (
+              <Step5
+                bundle={bundle}
+                loading={promptLoading}
+                error={promptError}
+                refinement={refinement}
+                setRefinement={setRefinement}
+                onRegenerate={() => generatePrompt()}
+                onRefine={() => generatePrompt(refinement)}
+              />
+            )}
           </div>
 
           <div className="mt-4 flex items-center justify-between">
@@ -550,11 +572,15 @@ export default function AgentWizard() {
             <div className="text-xs text-muted-foreground">
               {saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
             </div>
-            {step < 3 ? (
+            {step < 5 ? (
               <Button
                 onClick={goNext}
                 disabled={
-                  saving || (step === 1 ? !canNextFromStep1 : !canNextFromStep2)
+                  saving ||
+                  (step === 1 && !canNextFromStep1) ||
+                  (step === 2 && !canNextFromStep2) ||
+                  (step === 3 && !canNextFromStep3) ||
+                  (step === 4 && !canNextFromStep4)
                 }
               >
                 Continuar
@@ -562,10 +588,10 @@ export default function AgentWizard() {
               </Button>
             ) : (
               <Button
-                disabled={!canNextFromStep3 || saving}
+                disabled={!canFinish || saving}
                 onClick={async () => {
-                  await persist({ step: 3 });
-                  toast.success("Etapa 3 concluída. Próximas etapas em breve.");
+                  await persist({ step: 5 });
+                  toast.success("Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.");
                 }}
               >
                 Concluir esta fase
@@ -575,8 +601,7 @@ export default function AgentWizard() {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            As próximas etapas (entrevista, prompt, base de conhecimento, testes) chegam nas
-            próximas fases do Construtor.
+            As próximas etapas (base de conhecimento, configurações, testes) chegam nas próximas fases do Construtor.
           </p>
         </div>
       </div>
