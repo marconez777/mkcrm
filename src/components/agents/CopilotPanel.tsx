@@ -41,13 +41,26 @@ const FIELD_LABELS: Record<keyof Patch, string> = {
   tools: "Ferramentas",
 };
 
+type EvalResult = { id: string; passed: boolean; response: string };
+type EvalRun = {
+  status: "running" | "done" | "error";
+  total?: number;
+  passed?: number;
+  regressed?: { id: string; prompt: string; response: string }[];
+  error?: string;
+};
+
 export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Props) {
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [evalRun, setEvalRun] = useState<EvalRun | null>(null);
+  const [previousSnapshot, setPreviousSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [reverting, setReverting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
