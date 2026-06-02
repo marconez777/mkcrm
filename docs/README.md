@@ -65,6 +65,7 @@ docs/
 ├── features/                    Domínios completos (DB + edge + frontend)
 │   ├── BROADCASTS.md
 │   ├── SEQUENCES_AUTOMATIONS.md
+│   ├── BUILDER_AGENTS.md          ⭐ Construtor de Agentes (Builder) — 9 fases
 │   └── FORMS.md
 
 ├── frontend/                    React / Vite
