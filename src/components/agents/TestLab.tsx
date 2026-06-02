@@ -160,7 +160,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
     setChatError(null);
     setChatting(true);
     const { data, error } = await supabase.functions.invoke("ai-chat", {
-      body: { agent_id: agentId, messages: next },
+      body: { agent_id: agentId, messages: next, simulated_lead: simLead },
     });
     setChatting(false);
     if (error || (data as any)?.error) {
