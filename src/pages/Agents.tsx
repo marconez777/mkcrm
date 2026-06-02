@@ -230,6 +230,8 @@ export default function Agents() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [pdfRunning, setPdfRunning] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<{ id: string; title: string; content: string; source_type?: string | null; loading?: boolean } | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
   const [uiMode, setUiMode] = useState<"simple" | "advanced">(
     () => (localStorage.getItem("agents.uiMode") as "simple" | "advanced") || "simple"
   );
