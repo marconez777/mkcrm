@@ -14,6 +14,7 @@ import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, K
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
+import { KbAssistant } from "@/components/agents/KbAssistant";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
