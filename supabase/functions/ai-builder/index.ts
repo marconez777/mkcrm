@@ -12,9 +12,14 @@ type Action = "ping" | "generate_system_prompt";
 
 interface Body {
   action: Action;
-  // ping uses the Builder agent of the user's current clinic
   clinic_id?: string;
   payload?: Record<string, unknown>;
+  // Overrides usados pelo wizard /ai/agents/new para testar a conexão do agente
+  // que está sendo criado (pode ser diferente do Builder da clínica).
+  provider?: string;
+  api_key?: string;
+  base_url?: string | null;
+  model?: string;
 }
 
 async function loadBuilder(clinic_id: string): Promise<Agent | null> {
@@ -52,7 +57,7 @@ function parseProviderError(err: unknown): { code: string; message: string; stat
   return { code: "unknown", status: 500, message: `Erro ao falar com o provedor: ${raw.slice(0, 240)}` };
 }
 
-async function actionPing(builder: Agent) {
+async function actionPing(builder: Agent, persistVerified: boolean) {
   if (!builder.api_key) {
     return { ok: false, code: "missing_key", message: "Adicione uma chave de API ao Construtor antes de testar." };
   }
@@ -70,12 +75,13 @@ async function actionPing(builder: Agent) {
     const latency_ms = Date.now() - started;
     const text = resp?.choices?.[0]?.message?.content ?? "";
 
-    // Persistir verificação OK
-    const supabase = sb();
-    await supabase
-      .from("ai_agents")
-      .update({ builder_verified_at: new Date().toISOString() })
-      .eq("id", builder.id);
+    if (persistVerified) {
+      const supabase = sb();
+      await supabase
+        .from("ai_agents")
+        .update({ builder_verified_at: new Date().toISOString() })
+        .eq("id", builder.id);
+    }
 
     return {
       ok: true,
