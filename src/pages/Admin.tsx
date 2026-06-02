@@ -164,6 +164,7 @@ export default function Admin() {
         <TabsList>
           <TabsTrigger value="clinics">Clínicas</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
+          <TabsTrigger value="builder-manual">Manual do Builder</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clinics" className="space-y-4">
@@ -327,6 +328,10 @@ export default function Admin() {
           <IntegrationsKeysCard />
           <IntegrationsDomainsTable clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} />
           <IntegrationsQuotaTable />
+        </TabsContent>
+
+        <TabsContent value="builder-manual" className="space-y-4">
+          <BuilderManualPanel />
         </TabsContent>
       </Tabs>
     </div>
