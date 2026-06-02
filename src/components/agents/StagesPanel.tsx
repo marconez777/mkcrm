@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Pencil, Trash2, ArrowUp, ArrowDown, GitBranch, Info } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ArrowUp, ArrowDown, GitBranch, Info, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -19,6 +20,9 @@ export type AgentStage = {
   goal: string | null;
   system_prompt_delta: string | null;
   advance_when: string | null;
+  allowed_tools: string[] | null;
+  follow_up_after_min: number | null;
+  follow_up_message: string | null;
 };
 
 interface Props {
@@ -32,9 +36,21 @@ type FormState = {
   goal: string;
   system_prompt_delta: string;
   advance_when: string;
+  allowed_tools: string;
+  follow_up_after_min: string;
+  follow_up_message: string;
 };
 
-const EMPTY: FormState = { id: null, name: "", goal: "", system_prompt_delta: "", advance_when: "" };
+const EMPTY: FormState = {
+  id: null,
+  name: "",
+  goal: "",
+  system_prompt_delta: "",
+  advance_when: "",
+  allowed_tools: "",
+  follow_up_after_min: "",
+  follow_up_message: "",
+};
 
 export function StagesPanel({ agentId, clinicId }: Props) {
   const confirm = useConfirm();
