@@ -6,10 +6,12 @@ async function loadAgent(agent_id: string): Promise<Agent | null> {
   return data as Agent | null;
 }
 
-export async function ingestChunks(agent_id: string, doc_id: string, fullText: string) {
+export async function ingestChunks(agent_id: string, doc_id: string, fullText: string, clinic_id?: string) {
   const agent = await loadAgent(agent_id);
   if (!agent) throw new Error("agent not found");
   if (!agent.api_key && !agent.embedding_api_key) throw new Error("Agente sem API key para embeddings");
+  const cid = clinic_id ?? (agent as any).clinic_id;
+  if (!cid) throw new Error("Agente sem clinic_id");
   const chunks = chunkText(fullText, 800, 100);
   const rows: any[] = [];
   for (let i = 0; i < chunks.length; i += 16) {
@@ -17,7 +19,7 @@ export async function ingestChunks(agent_id: string, doc_id: string, fullText: s
     const vectors = await embed(agent, batch, { agent_id, note: `ingest:doc:${doc_id}` });
     batch.forEach((c, j) => {
       rows.push({
-        document_id: doc_id, agent_id,
+        document_id: doc_id, agent_id, clinic_id: cid,
         chunk_index: i + j, content: c,
         embedding: vectors[j], token_count: Math.ceil(c.length / 4),
       });
