@@ -968,3 +968,240 @@ function Step3({
     </div>
   );
 }
+
+// ---------- Step 4 — Entrevista ----------
+
+function KindBadge({ kind }: { kind: InterviewQuestion["kind"] }) {
+  const map: Record<InterviewQuestion["kind"], { label: string; cls: string }> = {
+    dominant_offer: { label: "Oferta principal", cls: "bg-primary/15 text-primary" },
+    tone: { label: "Tom", cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
+    taboo: { label: "Tabu", cls: "bg-red-500/15 text-red-600 dark:text-red-400" },
+    qualification: { label: "Qualificação", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+    escalation: { label: "Escalação", cls: "bg-purple-500/15 text-purple-600 dark:text-purple-400" },
+    context: { label: "Contexto", cls: "bg-muted text-muted-foreground" },
+    custom: { label: "Customizado", cls: "bg-muted text-muted-foreground" },
+  };
+  const meta = map[kind] ?? map.custom;
+  return <Badge variant="secondary" className={`text-[10px] ${meta.cls}`}>{meta.label}</Badge>;
+}
+
+function Step4({
+  questions,
+  answers,
+  setAnswer,
+  loading,
+  error,
+  onReload,
+  onSkipDefaults,
+}: {
+  questions: InterviewQuestion[];
+  answers: Record<string, string>;
+  setAnswer: (id: string, value: string) => void;
+  loading: boolean;
+  error: ProviderError | null;
+  onReload: () => void;
+  onSkipDefaults: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-semibold">Conte um pouco sobre o seu negócio</h2>
+        <p className="text-xs text-muted-foreground">
+          Perguntas geradas pelo Construtor. Respostas curtas servem — você pode pular e usar padrões.
+        </p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando perguntas adaptadas…
+        </div>
+      )}
+
+      {error && (
+        <ProviderErrorBanner
+          error={error}
+          className="text-xs"
+          action={
+            <Button size="sm" variant="outline" onClick={onReload}>
+              Tentar de novo
+            </Button>
+          }
+        />
+      )}
+
+      {!loading && !error && questions.length === 0 && (
+        <Button variant="outline" onClick={onReload} className="w-full">
+          Gerar perguntas
+        </Button>
+      )}
+
+      {questions.length > 0 && (
+        <>
+          <div className="space-y-3">
+            {questions.map((q) => (
+              <div key={q.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">
+                    {q.label}
+                    {q.required && <span className="ml-1 text-destructive">*</span>}
+                  </Label>
+                  <KindBadge kind={q.kind} />
+                </div>
+                <Input
+                  value={answers[q.id] ?? ""}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  placeholder={q.placeholder ?? q.hint ?? "Resposta curta"}
+                />
+                {q.hint && <p className="text-[11px] text-muted-foreground">{q.hint}</p>}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <button
+              type="button"
+              onClick={onSkipDefaults}
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              Pular tudo com padrões
+            </button>
+            <button
+              type="button"
+              onClick={onReload}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Gerar perguntas de novo
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- Step 5 — Prompt gerado ----------
+
+function Step5({
+  bundle,
+  loading,
+  error,
+  refinement,
+  setRefinement,
+  onRegenerate,
+  onRefine,
+}: {
+  bundle: GeneratedPromptBundle | null;
+  loading: boolean;
+  error: ProviderError | null;
+  refinement: string;
+  setRefinement: (v: string) => void;
+  onRegenerate: () => void;
+  onRefine: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-semibold">Prompt do agente</h2>
+        <p className="text-xs text-muted-foreground">
+          Gerado a partir das suas respostas. Você pode refinar com uma instrução em linguagem natural.
+        </p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando prompt…
+        </div>
+      )}
+
+      {error && (
+        <ProviderErrorBanner
+          error={error}
+          className="text-xs"
+          action={
+            <Button size="sm" variant="outline" onClick={onRegenerate}>
+              Tentar de novo
+            </Button>
+          }
+        />
+      )}
+
+      {bundle && !loading && (
+        <>
+          {bundle.evals?.context_clause_present === false && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5" />
+              <span>
+                A cláusula de contexto foi reinjetada automaticamente — o Construtor não a incluiu.
+              </span>
+            </div>
+          )}
+
+          <div>
+            <Label className="text-xs text-muted-foreground">System prompt</Label>
+            <textarea
+              readOnly
+              value={bundle.system_prompt}
+              className="mt-1 h-64 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-xs"
+            />
+          </div>
+
+          <div className="grid gap-2 text-xs sm:grid-cols-3">
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Temperature</div>
+              <div className="font-medium">{bundle.suggested_temperature}</div>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Top-K</div>
+              <div className="font-medium">{bundle.suggested_top_k}</div>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Max iter.</div>
+              <div className="font-medium">{bundle.suggested_max_iterations}</div>
+            </div>
+          </div>
+
+          {bundle.suggested_tools.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Ferramentas sugeridas</Label>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {bundle.suggested_tools.map((t) => (
+                  <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {bundle.rationale && (
+            <p className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Por que assim: </span>
+              {bundle.rationale}
+            </p>
+          )}
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs">Refinar com uma instrução</Label>
+            <Input
+              value={refinement}
+              onChange={(e) => setRefinement(e.target.value)}
+              placeholder='Ex.: "Mais formal", "Pergunte a cidade antes de oferecer horários"'
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={onRegenerate} disabled={loading}>
+                Gerar do zero
+              </Button>
+              <Button size="sm" onClick={onRefine} disabled={loading || refinement.trim().length < 3}>
+                Aplicar refinamento
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!bundle && !loading && !error && (
+        <Button variant="outline" onClick={onRegenerate} className="w-full">
+          Gerar prompt
+        </Button>
+      )}
+    </div>
+  );
+}
