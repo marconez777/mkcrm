@@ -30,8 +30,27 @@ import { ProviderErrorBanner } from "@/components/agents/ProviderErrorBanner";
 
 // ---------- Tipos / constantes ----------
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4 | 5;
 type Provider = "openai" | "anthropic" | "google" | "xai";
+
+export interface InterviewQuestion {
+  id: string;
+  label: string;
+  hint?: string;
+  placeholder?: string;
+  kind: "dominant_offer" | "tone" | "taboo" | "qualification" | "escalation" | "context" | "custom";
+  required: boolean;
+}
+
+export interface GeneratedPromptBundle {
+  system_prompt: string;
+  suggested_tools: string[];
+  suggested_temperature: number;
+  suggested_top_k: number;
+  suggested_max_iterations: number;
+  rationale: string;
+  evals?: { context_clause_present?: boolean };
+}
 
 interface NicheOption {
   id: string;
@@ -134,6 +153,9 @@ interface DraftRow {
   base_url: string | null;
   model: string | null;
   provider_verified_at: string | null;
+  interview_answers: Record<string, string> | null;
+  generated_prompt: string | null;
+  settings: Record<string, unknown> | null;
 }
 
 // ---------- Página ----------
@@ -161,6 +183,18 @@ export default function AgentWizard() {
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<ProviderError | null>(null);
 
+  // interview (step 4)
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [interviewError, setInterviewError] = useState<ProviderError | null>(null);
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  // prompt (step 5)
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptError, setPromptError] = useState<ProviderError | null>(null);
+  const [bundle, setBundle] = useState<GeneratedPromptBundle | null>(null);
+  const [refinement, setRefinement] = useState("");
+
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
   const canManage =
@@ -185,7 +219,7 @@ export default function AgentWizard() {
       if (data) {
         const d = data as DraftRow;
         setDraft(d);
-        setStep(Math.min(3, Math.max(1, d.step)) as Step);
+        setStep(Math.min(5, Math.max(1, d.step)) as Step);
         setNiche(d.niche ?? "");
         setNicheOther(d.niche_other ?? "");
         setGoal(d.goal ?? "");
@@ -195,6 +229,21 @@ export default function AgentWizard() {
         setBaseUrl(d.base_url ?? "");
         if (d.model) setModel(d.model);
         setVerifiedAt(d.provider_verified_at ?? null);
+        setAnswers((d.interview_answers as Record<string, string>) ?? {});
+        if (d.generated_prompt) {
+          setBundle({
+            system_prompt: d.generated_prompt,
+            suggested_tools: ((d.settings as Record<string, unknown>)?.suggested_tools as string[]) ?? [],
+            suggested_temperature:
+              ((d.settings as Record<string, unknown>)?.suggested_temperature as number) ?? 0.4,
+            suggested_top_k:
+              ((d.settings as Record<string, unknown>)?.suggested_top_k as number) ?? 6,
+            suggested_max_iterations:
+              ((d.settings as Record<string, unknown>)?.suggested_max_iterations as number) ?? 6,
+            rationale: ((d.settings as Record<string, unknown>)?.rationale as string) ?? "",
+            evals: (d.settings as Record<string, unknown>)?.evals as { context_clause_present?: boolean } | undefined,
+          });
+        }
       }
       setHydrating(false);
     })();
@@ -236,7 +285,7 @@ export default function AgentWizard() {
       };
       const { data, error } = await supabase
         .from("ai_agent_drafts")
-        .upsert(payload, { onConflict: "clinic_id,user_id" })
+        .upsert(payload as never, { onConflict: "clinic_id,user_id" })
         .select()
         .maybeSingle();
       if (error) throw error;
@@ -258,12 +307,19 @@ export default function AgentWizard() {
   const isVerified = !!verifiedAt && !testError;
   const canNextFromStep3 = !!apiKey && !!model && isVerified;
 
+  const canNextFromStep4 = questions
+    .filter((q) => q.required)
+    .every((q) => (answers[q.id] ?? "").trim().length > 0);
+  const canFinish = !!bundle?.system_prompt;
+
   // ---------- Ações ----------
 
   async function goNext() {
     const target = (step + 1) as Step;
     setStep(target);
     await persist({ step: target });
+    if (target === 4 && questions.length === 0) await loadInterview();
+    if (target === 5 && !bundle) await generatePrompt();
   }
   async function goPrev() {
     if (step === 1) {
@@ -273,6 +329,106 @@ export default function AgentWizard() {
     const target = (step - 1) as Step;
     setStep(target);
     await persist({ step: target });
+  }
+
+  async function loadInterview() {
+    if (!clinicId) return;
+    setInterviewLoading(true);
+    setInterviewError(null);
+    const { data, error } = await supabase.functions.invoke("ai-builder", {
+      body: {
+        action: "interview_plan",
+        clinic_id: clinicId,
+        payload: { niche, niche_other: nicheOther, goal, goal_other: goalOther },
+      },
+    });
+    setInterviewLoading(false);
+    if (error) {
+      const parsed = parseBuilderError({ message: error.message });
+      setInterviewError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const result = data as { ok?: boolean; questions?: InterviewQuestion[] } & Record<string, unknown>;
+    if (!result?.ok || !result.questions) {
+      const parsed = parseBuilderError(result);
+      setInterviewError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    setQuestions(result.questions);
+  }
+
+  function skipAllWithDefaults() {
+    const defaults: Record<string, string> = {};
+    for (const q of questions) {
+      if (!answers[q.id]) defaults[q.id] = q.placeholder || "(use o padrão)";
+    }
+    setAnswers((a) => ({ ...a, ...defaults }));
+    toast.message("Respostas preenchidas com padrões. Você pode editar antes de avançar.");
+  }
+
+  async function generatePrompt(extraRefinement?: string) {
+    if (!clinicId) return;
+    setPromptLoading(true);
+    setPromptError(null);
+    await persist({ interview_answers: answers });
+    const { data, error } = await supabase.functions.invoke("ai-builder", {
+      body: {
+        action: "generate_system_prompt",
+        clinic_id: clinicId,
+        payload: {
+          niche,
+          niche_other: nicheOther,
+          goal,
+          goal_other: goalOther,
+          answers,
+          refinement: extraRefinement ?? "",
+          previous_prompt: extraRefinement ? bundle?.system_prompt ?? "" : "",
+        },
+      },
+    });
+    setPromptLoading(false);
+    if (error) {
+      const parsed = parseBuilderError({ message: error.message });
+      setPromptError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const result = data as { ok?: boolean } & GeneratedPromptBundle & Record<string, unknown>;
+    if (!result?.ok) {
+      const parsed = parseBuilderError(result);
+      setPromptError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const next: GeneratedPromptBundle = {
+      system_prompt: result.system_prompt,
+      suggested_tools: result.suggested_tools ?? [],
+      suggested_temperature: result.suggested_temperature ?? 0.4,
+      suggested_top_k: result.suggested_top_k ?? 6,
+      suggested_max_iterations: result.suggested_max_iterations ?? 6,
+      rationale: result.rationale ?? "",
+      evals: result.evals,
+    };
+    setBundle(next);
+    setRefinement("");
+    await persist({
+      generated_prompt: next.system_prompt,
+      settings: {
+        suggested_tools: next.suggested_tools,
+        suggested_temperature: next.suggested_temperature,
+        suggested_top_k: next.suggested_top_k,
+        suggested_max_iterations: next.suggested_max_iterations,
+        rationale: next.rationale,
+        evals: next.evals ?? null,
+      },
+    });
+    if (next.evals && next.evals.context_clause_present === false) {
+      toast.warning("Cláusula de contexto foi reinjetada automaticamente.");
+    } else {
+      toast.success("Prompt gerado.");
+    }
   }
 
   async function testConnection() {
@@ -384,6 +540,28 @@ export default function AgentWizard() {
                 onTest={testConnection}
               />
             )}
+            {step === 4 && (
+              <Step4
+                questions={questions}
+                answers={answers}
+                setAnswer={(id, v) => setAnswers((a) => ({ ...a, [id]: v }))}
+                loading={interviewLoading}
+                error={interviewError}
+                onReload={loadInterview}
+                onSkipDefaults={skipAllWithDefaults}
+              />
+            )}
+            {step === 5 && (
+              <Step5
+                bundle={bundle}
+                loading={promptLoading}
+                error={promptError}
+                refinement={refinement}
+                setRefinement={setRefinement}
+                onRegenerate={() => generatePrompt()}
+                onRefine={() => generatePrompt(refinement)}
+              />
+            )}
           </div>
 
           <div className="mt-4 flex items-center justify-between">
@@ -394,11 +572,15 @@ export default function AgentWizard() {
             <div className="text-xs text-muted-foreground">
               {saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
             </div>
-            {step < 3 ? (
+            {step < 5 ? (
               <Button
                 onClick={goNext}
                 disabled={
-                  saving || (step === 1 ? !canNextFromStep1 : !canNextFromStep2)
+                  saving ||
+                  (step === 1 && !canNextFromStep1) ||
+                  (step === 2 && !canNextFromStep2) ||
+                  (step === 3 && !canNextFromStep3) ||
+                  (step === 4 && !canNextFromStep4)
                 }
               >
                 Continuar
@@ -406,10 +588,10 @@ export default function AgentWizard() {
               </Button>
             ) : (
               <Button
-                disabled={!canNextFromStep3 || saving}
+                disabled={!canFinish || saving}
                 onClick={async () => {
-                  await persist({ step: 3 });
-                  toast.success("Etapa 3 concluída. Próximas etapas em breve.");
+                  await persist({ step: 5 });
+                  toast.success("Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.");
                 }}
               >
                 Concluir esta fase
@@ -419,8 +601,7 @@ export default function AgentWizard() {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            As próximas etapas (entrevista, prompt, base de conhecimento, testes) chegam nas
-            próximas fases do Construtor.
+            As próximas etapas (base de conhecimento, configurações, testes) chegam nas próximas fases do Construtor.
           </p>
         </div>
       </div>
@@ -435,6 +616,8 @@ function Stepper({ step }: { step: Step }) {
     { n: 1, label: "Nicho" },
     { n: 2, label: "Objetivo" },
     { n: 3, label: "Conexão" },
+    { n: 4, label: "Entrevista" },
+    { n: 5, label: "Prompt" },
   ];
   return (
     <div className="flex items-center justify-center gap-2">
@@ -782,6 +965,233 @@ function Step3({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- Step 4 — Entrevista ----------
+
+function KindBadge({ kind }: { kind: InterviewQuestion["kind"] }) {
+  const map: Record<InterviewQuestion["kind"], { label: string; cls: string }> = {
+    dominant_offer: { label: "Oferta principal", cls: "bg-primary/15 text-primary" },
+    tone: { label: "Tom", cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
+    taboo: { label: "Tabu", cls: "bg-red-500/15 text-red-600 dark:text-red-400" },
+    qualification: { label: "Qualificação", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+    escalation: { label: "Escalação", cls: "bg-purple-500/15 text-purple-600 dark:text-purple-400" },
+    context: { label: "Contexto", cls: "bg-muted text-muted-foreground" },
+    custom: { label: "Customizado", cls: "bg-muted text-muted-foreground" },
+  };
+  const meta = map[kind] ?? map.custom;
+  return <Badge variant="secondary" className={`text-[10px] ${meta.cls}`}>{meta.label}</Badge>;
+}
+
+function Step4({
+  questions,
+  answers,
+  setAnswer,
+  loading,
+  error,
+  onReload,
+  onSkipDefaults,
+}: {
+  questions: InterviewQuestion[];
+  answers: Record<string, string>;
+  setAnswer: (id: string, value: string) => void;
+  loading: boolean;
+  error: ProviderError | null;
+  onReload: () => void;
+  onSkipDefaults: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-semibold">Conte um pouco sobre o seu negócio</h2>
+        <p className="text-xs text-muted-foreground">
+          Perguntas geradas pelo Construtor. Respostas curtas servem — você pode pular e usar padrões.
+        </p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando perguntas adaptadas…
+        </div>
+      )}
+
+      {error && (
+        <div className="space-y-2">
+          <ProviderErrorBanner error={error} className="text-xs" />
+          <Button size="sm" variant="outline" onClick={onReload}>Tentar de novo</Button>
+        </div>
+      )}
+
+      {!loading && !error && questions.length === 0 && (
+        <Button variant="outline" onClick={onReload} className="w-full">
+          Gerar perguntas
+        </Button>
+      )}
+
+      {questions.length > 0 && (
+        <>
+          <div className="space-y-3">
+            {questions.map((q) => (
+              <div key={q.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm">
+                    {q.label}
+                    {q.required && <span className="ml-1 text-destructive">*</span>}
+                  </Label>
+                  <KindBadge kind={q.kind} />
+                </div>
+                <Input
+                  value={answers[q.id] ?? ""}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  placeholder={q.placeholder ?? q.hint ?? "Resposta curta"}
+                />
+                {q.hint && <p className="text-[11px] text-muted-foreground">{q.hint}</p>}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <button
+              type="button"
+              onClick={onSkipDefaults}
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              Pular tudo com padrões
+            </button>
+            <button
+              type="button"
+              onClick={onReload}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Gerar perguntas de novo
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- Step 5 — Prompt gerado ----------
+
+function Step5({
+  bundle,
+  loading,
+  error,
+  refinement,
+  setRefinement,
+  onRegenerate,
+  onRefine,
+}: {
+  bundle: GeneratedPromptBundle | null;
+  loading: boolean;
+  error: ProviderError | null;
+  refinement: string;
+  setRefinement: (v: string) => void;
+  onRegenerate: () => void;
+  onRefine: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-semibold">Prompt do agente</h2>
+        <p className="text-xs text-muted-foreground">
+          Gerado a partir das suas respostas. Você pode refinar com uma instrução em linguagem natural.
+        </p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando prompt…
+        </div>
+      )}
+
+      {error && (
+        <div className="space-y-2">
+          <ProviderErrorBanner error={error} className="text-xs" />
+          <Button size="sm" variant="outline" onClick={onRegenerate}>Tentar de novo</Button>
+        </div>
+      )}
+
+      {bundle && !loading && (
+        <>
+          {bundle.evals?.context_clause_present === false && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5" />
+              <span>
+                A cláusula de contexto foi reinjetada automaticamente — o Construtor não a incluiu.
+              </span>
+            </div>
+          )}
+
+          <div>
+            <Label className="text-xs text-muted-foreground">System prompt</Label>
+            <textarea
+              readOnly
+              value={bundle.system_prompt}
+              className="mt-1 h-64 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-xs"
+            />
+          </div>
+
+          <div className="grid gap-2 text-xs sm:grid-cols-3">
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Temperature</div>
+              <div className="font-medium">{bundle.suggested_temperature}</div>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Top-K</div>
+              <div className="font-medium">{bundle.suggested_top_k}</div>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">Max iter.</div>
+              <div className="font-medium">{bundle.suggested_max_iterations}</div>
+            </div>
+          </div>
+
+          {bundle.suggested_tools.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Ferramentas sugeridas</Label>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {bundle.suggested_tools.map((t) => (
+                  <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {bundle.rationale && (
+            <p className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Por que assim: </span>
+              {bundle.rationale}
+            </p>
+          )}
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs">Refinar com uma instrução</Label>
+            <Input
+              value={refinement}
+              onChange={(e) => setRefinement(e.target.value)}
+              placeholder='Ex.: "Mais formal", "Pergunte a cidade antes de oferecer horários"'
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={onRegenerate} disabled={loading}>
+                Gerar do zero
+              </Button>
+              <Button size="sm" onClick={onRefine} disabled={loading || refinement.trim().length < 3}>
+                Aplicar refinamento
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!bundle && !loading && !error && (
+        <Button variant="outline" onClick={onRegenerate} className="w-full">
+          Gerar prompt
+        </Button>
+      )}
     </div>
   );
 }
