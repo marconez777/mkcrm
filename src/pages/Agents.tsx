@@ -469,6 +469,52 @@ export default function Agents() {
     setDocs((d) => d.filter((x) => x.id !== id));
   };
 
+  const openDocEditor = async (id: string, title: string, source_type?: string | null) => {
+    setEditingDoc({ id, title, content: "", source_type, loading: true });
+    const { data, error } = await supabase
+      .from("ai_documents")
+      .select("content")
+      .eq("id", id)
+      .single();
+    if (error) {
+      toast.error("Erro ao carregar documento: " + error.message);
+      setEditingDoc(null);
+      return;
+    }
+    setEditingDoc({ id, title, content: (data as any)?.content ?? "", source_type, loading: false });
+  };
+
+  const saveDoc = async (reindex: boolean) => {
+    if (!editingDoc) return;
+    const { id, title, content } = editingDoc;
+    if (!title.trim() || !content.trim()) {
+      toast.error("Título e conteúdo são obrigatórios.");
+      return;
+    }
+    setSavingDoc(true);
+    try {
+      if (reindex) {
+        const { data, error } = await supabase.functions.invoke("ai-reingest-document", {
+          body: { document_id: id, title, content },
+        });
+        if (error || (data as any)?.error) {
+          throw new Error(error?.message ?? (data as any)?.error);
+        }
+        toast.success(`Documento atualizado e re-indexado (${(data as any)?.chunks} chunks).`);
+      } else {
+        const { error } = await supabase.from("ai_documents").update({ title, content }).eq("id", id);
+        if (error) throw error;
+        toast.success("Documento atualizado. Re-indexe para refletir nas buscas.");
+      }
+      setDocs((d) => d.map((x) => (x.id === id ? { ...x, title } : x)));
+      setEditingDoc(null);
+    } catch (e: any) {
+      toast.error("Erro ao salvar: " + (e?.message ?? String(e)));
+    } finally {
+      setSavingDoc(false);
+    }
+  };
+
   const test = async () => {
     if (!selected || !testInput.trim()) return;
     setTesting(true);
