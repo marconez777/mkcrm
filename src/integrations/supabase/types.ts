@@ -269,8 +269,12 @@ export type Database = {
         Row: {
           advance_when: string | null
           agent_id: string
+          allowed_tools: string[]
           clinic_id: string
           created_at: string
+          follow_up_after_min: number | null
+          follow_up_message: string | null
+          follow_up_tool_name: string | null
           goal: string | null
           id: string
           name: string
@@ -281,8 +285,12 @@ export type Database = {
         Insert: {
           advance_when?: string | null
           agent_id: string
+          allowed_tools?: string[]
           clinic_id?: string
           created_at?: string
+          follow_up_after_min?: number | null
+          follow_up_message?: string | null
+          follow_up_tool_name?: string | null
           goal?: string | null
           id?: string
           name: string
@@ -293,8 +301,12 @@ export type Database = {
         Update: {
           advance_when?: string | null
           agent_id?: string
+          allowed_tools?: string[]
           clinic_id?: string
           created_at?: string
+          follow_up_after_min?: number | null
+          follow_up_message?: string | null
+          follow_up_tool_name?: string | null
           goal?: string | null
           id?: string
           name?: string
@@ -473,6 +485,7 @@ export type Database = {
           reranker_provider: string | null
           role: string | null
           silent: boolean
+          stages_enabled: boolean
           system_key: string | null
           system_prompt: string
           temperature: number
@@ -509,6 +522,7 @@ export type Database = {
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
+          stages_enabled?: boolean
           system_key?: string | null
           system_prompt: string
           temperature?: number
@@ -545,6 +559,7 @@ export type Database = {
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
+          stages_enabled?: boolean
           system_key?: string | null
           system_prompt?: string
           temperature?: number
@@ -3032,8 +3047,11 @@ export type Database = {
           auto_reply: boolean
           clinic_id: string
           created_at: string
+          current_stage_id: string | null
+          last_followup_at: string | null
           lead_id: string
           paused_until: string | null
+          stage_entered_at: string | null
           updated_at: string
         }
         Insert: {
@@ -3041,8 +3059,11 @@ export type Database = {
           auto_reply?: boolean
           clinic_id?: string
           created_at?: string
+          current_stage_id?: string | null
+          last_followup_at?: string | null
           lead_id: string
           paused_until?: string | null
+          stage_entered_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -3050,8 +3071,11 @@ export type Database = {
           auto_reply?: boolean
           clinic_id?: string
           created_at?: string
+          current_stage_id?: string | null
+          last_followup_at?: string | null
           lead_id?: string
           paused_until?: string | null
+          stage_entered_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3067,6 +3091,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_settings_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "agent_stages"
             referencedColumns: ["id"]
           },
           {
@@ -5459,6 +5490,7 @@ export type Database = {
           reranker_provider: string | null
           role: string | null
           silent: boolean
+          stages_enabled: boolean
           system_key: string | null
           system_prompt: string
           temperature: number
@@ -5523,6 +5555,7 @@ export type Database = {
           reranker_provider: string | null
           role: string | null
           silent: boolean
+          stages_enabled: boolean
           system_key: string | null
           system_prompt: string
           temperature: number
