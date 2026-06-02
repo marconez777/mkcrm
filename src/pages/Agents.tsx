@@ -26,6 +26,22 @@ import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+
+const NICHE_OPTS: { v: string; l: string }[] = [
+  { v: "clinic", l: "Clínica / Saúde" },
+  { v: "dental", l: "Odontologia" },
+  { v: "real_estate", l: "Imobiliária" },
+  { v: "restaurant", l: "Restaurante / Food" },
+  { v: "ecommerce", l: "E-commerce" },
+  { v: "saas", l: "SaaS / Software B2B" },
+  { v: "law", l: "Advocacia" },
+  { v: "education", l: "Educação" },
+  { v: "aesthetics", l: "Estética / Beleza" },
+  { v: "agency", l: "Agência / Serviços B2B" },
+  { v: "local_services", l: "Serviços locais" },
+  { v: "other", l: "Outro" },
+];
+const NICHE_LABEL: Record<string, string> = Object.fromEntries(NICHE_OPTS.map((n) => [n.v, n.l]));
 type Agent = {
   id: string;
   name: string;
@@ -53,6 +69,8 @@ type Agent = {
   system_key?: string | null;
   builder_verified_at?: string | null;
   draft_mode?: boolean;
+  niche?: string | null;
+  niche_other?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -254,7 +272,7 @@ export default function Agents() {
       }
       toast.success(`PDF ingerido (${(data as any)?.chunks} chunks, ${(data as any)?.pages} páginas)`);
       const docs = await fetchAllPaged<any>(() => supabase
-        .from("ai_documents").select("id, title, source, source_type, created_at")
+        .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
         .eq("agent_id", selected.id).order("created_at", { ascending: false }));
       setDocs(docs);
     };
@@ -275,7 +293,7 @@ export default function Agents() {
     toast.success(`Lote: ${d.succeeded}/${d.processed} ingeridas`);
     setBatchUrls("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -294,12 +312,12 @@ export default function Agents() {
     toast.success(`URL ingerida (${(data as any)?.chunks} chunks)`);
     setUrlInput("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode";
+  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode, niche, niche_other";
 
   const load = async () => {
     // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
@@ -313,7 +331,7 @@ export default function Agents() {
     if (!selected) { setDocs([]); return; }
     fetchAllPaged<any>(() => supabase
       .from("ai_documents")
-      .select("id, title, source, source_type, created_at")
+      .select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id)
       .order("created_at", { ascending: false }))
       .then((data) => setDocs(data));
@@ -365,6 +383,8 @@ export default function Agents() {
       rag_top_k: selected.rag_top_k ?? 5,
       debounce_seconds: selected.debounce_seconds ?? 8,
       draft_mode: selected.draft_mode ?? false,
+      niche: selected.niche ?? null,
+      niche_other: selected.niche_other ?? null,
     };
     // Only update credentials if user typed something (avoids wiping existing keys)
     if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
@@ -422,7 +442,7 @@ export default function Agents() {
     toast.success(`Documento ingerido (${(data as any)?.chunks} chunks)`);
     setDocTitle(""); setDocContent("");
     const docs = await fetchAllPaged<any>(() => supabase
-      .from("ai_documents").select("id, title, source, source_type, created_at")
+      .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
       .eq("agent_id", selected.id).order("created_at", { ascending: false }));
     setDocs(docs);
   };
@@ -579,6 +599,50 @@ export default function Agents() {
                       checked={selected.enabled}
                       onCheckedChange={(v) => setSelected({ ...selected, enabled: v })}
                     />
+                  </div>
+                  <div>
+                    <Label>Nicho do negócio</Label>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        className="h-9 flex-1 rounded-md border bg-background px-2 text-sm"
+                        value={selected.niche ?? ""}
+                        onChange={(e) => setSelected({ ...selected, niche: e.target.value || null })}
+                      >
+                        <option value="">Genérico (sem nicho)</option>
+                        {NICHE_OPTS.map((n) => (
+                          <option key={n.v} value={n.v}>{n.l}</option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        title="Adicionar à base os documentos padrão deste nicho (não duplica nem apaga nada)"
+                        onClick={async () => {
+                          if (!selected) return;
+                          const { error } = await supabase.rpc("reprovision_default_kb_for_agent", { _agent_id: selected.id });
+                          if (error) return toast.error(error.message);
+                          const { data: fresh } = await supabase
+                            .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
+                            .eq("agent_id", selected.id).order("created_at", { ascending: false });
+                          setDocs(fresh ?? []);
+                          toast.success("Documentos padrão do nicho aplicados");
+                        }}
+                      >
+                        Aplicar KB do nicho
+                      </Button>
+                    </div>
+                    {selected.niche === "other" && (
+                      <Input
+                        className="mt-2"
+                        placeholder="Descreva seu nicho (ex.: pet shop, consultoria de RH)"
+                        value={selected.niche_other ?? ""}
+                        onChange={(e) => setSelected({ ...selected, niche_other: e.target.value })}
+                      />
+                    )}
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Define quais scripts padrão entram na base e adapta os textos gerados pelo Construtor.
+                    </p>
                   </div>
                   <div>
                     <Label>Descrição</Label>
@@ -825,7 +889,7 @@ export default function Agents() {
                     clinicId={clinicId}
                     onDocsChanged={async () => {
                       const fresh = await fetchAllPaged<any>(() => supabase
-                        .from("ai_documents").select("id, title, source, source_type, created_at")
+                        .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
                         .eq("agent_id", selected.id).order("created_at", { ascending: false }));
                       setDocs(fresh);
                     }}
@@ -905,9 +969,13 @@ export default function Agents() {
                           <div key={d.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
                             <span className="flex flex-1 items-center gap-2 truncate">
                               <span className="truncate">{d.title}</span>
-                              {d.source_type === "system_default" && (
-                                <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">padrão</Badge>
-                              )}
+                              {d.source_type === "system_default" && (() => {
+                                const n = d.metadata?.niche as string | undefined;
+                                const label = n ? `padrão · ${NICHE_LABEL[n] ?? n}` : "padrão";
+                                return (
+                                  <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">{label}</Badge>
+                                );
+                              })()}
                             </span>
                             <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
                               <Trash2 className="h-3 w-3" />

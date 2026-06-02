@@ -361,6 +361,8 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
+          niche: string | null
+          niche_other: string | null
           planning_mode: boolean
           provider: string
           rag_top_k: number
@@ -395,6 +397,8 @@ export type Database = {
           max_tool_calls?: number
           model?: string
           name: string
+          niche?: string | null
+          niche_other?: string | null
           planning_mode?: boolean
           provider?: string
           rag_top_k?: number
@@ -429,6 +433,8 @@ export type Database = {
           max_tool_calls?: number
           model?: string
           name?: string
+          niche?: string | null
+          niche_other?: string | null
           planning_mode?: boolean
           provider?: string
           rag_top_k?: number
@@ -648,6 +654,7 @@ export type Database = {
           created_at: string
           enabled: boolean
           id: string
+          niche: string | null
           position: number
           slug: string
           title: string
@@ -658,6 +665,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          niche?: string | null
           position?: number
           slug: string
           title: string
@@ -668,6 +676,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          niche?: string | null
           position?: number
           slug?: string
           title?: string
@@ -5227,6 +5236,8 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
+          niche: string | null
+          niche_other: string | null
           planning_mode: boolean
           provider: string
           rag_top_k: number
@@ -5289,6 +5300,8 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
+          niche: string | null
+          niche_other: string | null
           planning_mode: boolean
           provider: string
           rag_top_k: number
@@ -5559,6 +5572,10 @@ export type Database = {
           opened: number
           sent: number
         }[]
+      }
+      reprovision_default_kb_for_agent: {
+        Args: { _agent_id: string }
+        Returns: undefined
       }
       reset_email_send_state: { Args: never; Returns: undefined }
       resolve_email_segment: {
