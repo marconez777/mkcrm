@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       .select("id").single();
     if (docErr) throw docErr;
 
-    const n = await ingestChunks(agent_id, doc.id, content);
+    const n = await ingestChunks(agent_id, doc.id, content, agent.clinic_id);
     return json({ ok: true, document_id: doc.id, chunks: n });
   } catch (e) {
     console.error("ingest-document", e);
