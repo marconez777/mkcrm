@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Sparkles, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { PromptDiff } from "@/components/agents/PromptDiff";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 type Patch = {
@@ -137,11 +138,8 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
 
   function renderValue(key: keyof Patch, val: unknown) {
     if (key === "system_prompt" && typeof val === "string") {
-      return (
-        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs">
-          {val}
-        </pre>
-      );
+      const current = String(agentSnapshot.system_prompt ?? "");
+      return <PromptDiff oldText={current} newText={val} />;
     }
     if (key === "tools" && Array.isArray(val)) {
       return (
