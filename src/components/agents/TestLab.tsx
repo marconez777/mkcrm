@@ -88,12 +88,27 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, EvalResult>>({});
 
+  const extractEdgeError = async (error: any, data: any): Promise<string> => {
+    // supabase-js v2: error.context é a Response do edge
+    try {
+      const ctx = error?.context;
+      if (ctx && typeof ctx.json === "function") {
+        const body = await ctx.json();
+        if (body?.error) return String(body.error);
+        if (body?.message) return String(body.message);
+      }
+    } catch { /* ignore */ }
+    if (data?.error) return String(data.error);
+    if (data?.message) return String(data.message);
+    return parseBuilderError(error).message || error?.message || "Erro desconhecido.";
+  };
+
   const invokeBuilder = async (action: string, payload: any) => {
     if (!clinicId) { toast.error("Clínica não identificada."); return null; }
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: { action, clinic_id: clinicId, payload },
     });
-    if (error) { toast.error(parseBuilderError(error).message); return null; }
+    if (error) { toast.error(await extractEdgeError(error, data)); return null; }
     if (!(data as any)?.ok) { toast.error((data as any)?.message ?? "Falha no Construtor."); return null; }
     return data as any;
   };
