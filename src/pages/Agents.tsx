@@ -21,6 +21,7 @@ import { TestLab } from "@/components/agents/TestLab";
 import { CopilotPanel } from "@/components/agents/CopilotPanel";
 import { PersonasPanel } from "@/components/agents/PersonasPanel";
 import { StagesPanel } from "@/components/agents/StagesPanel";
+import { ThreadLearningPanel } from "@/components/agents/ThreadLearningPanel";
 import { PromptHistory } from "@/components/agents/PromptHistory";
 import { AgentInsights } from "@/components/agents/AgentInsights";
 import { AgentHealth } from "@/components/agents/AgentHealth";
