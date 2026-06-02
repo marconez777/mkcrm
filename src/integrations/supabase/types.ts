@@ -351,6 +351,7 @@ export type Database = {
           created_at: string
           debounce_seconds: number
           description: string | null
+          draft_mode: boolean
           embedding_api_key: string | null
           embedding_model: string | null
           enabled: boolean
@@ -384,6 +385,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           description?: string | null
+          draft_mode?: boolean
           embedding_api_key?: string | null
           embedding_model?: string | null
           enabled?: boolean
@@ -417,6 +419,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           description?: string | null
+          draft_mode?: boolean
           embedding_api_key?: string | null
           embedding_model?: string | null
           enabled?: boolean
@@ -5214,6 +5217,7 @@ export type Database = {
           created_at: string
           debounce_seconds: number
           description: string | null
+          draft_mode: boolean
           embedding_api_key: string | null
           embedding_model: string | null
           enabled: boolean
@@ -5275,6 +5279,7 @@ export type Database = {
           created_at: string
           debounce_seconds: number
           description: string | null
+          draft_mode: boolean
           embedding_api_key: string | null
           embedding_model: string | null
           enabled: boolean

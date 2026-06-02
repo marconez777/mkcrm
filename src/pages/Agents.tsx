@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
@@ -18,6 +18,9 @@ import { KbAssistant } from "@/components/agents/KbAssistant";
 import { TestLab } from "@/components/agents/TestLab";
 import { PromptHistory } from "@/components/agents/PromptHistory";
 import { AgentInsights } from "@/components/agents/AgentInsights";
+import { AgentHealth } from "@/components/agents/AgentHealth";
+import { CostsPanel } from "@/components/agents/CostsPanel";
+import { AuditLogPanel } from "@/components/agents/AuditLogPanel";
 import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
@@ -48,6 +51,7 @@ type Agent = {
   is_system?: boolean;
   system_key?: string | null;
   builder_verified_at?: string | null;
+  draft_mode?: boolean;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -293,7 +297,7 @@ export default function Agents() {
     setDocs(docs);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key";
+  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode";
 
   const load = async () => {
     // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
@@ -358,6 +362,7 @@ export default function Agents() {
       planning_mode: selected.planning_mode ?? false,
       rag_top_k: selected.rag_top_k ?? 5,
       debounce_seconds: selected.debounce_seconds ?? 8,
+      draft_mode: selected.draft_mode ?? false,
     };
     // Only update credentials if user typed something (avoids wiping existing keys)
     if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
@@ -513,7 +518,7 @@ export default function Agents() {
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5" />
                 <Input
@@ -521,6 +526,17 @@ export default function Agents() {
                   value={selected.name}
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
+                <AgentHealth agentId={selected.id} />
+                <Badge
+                  variant={selected.draft_mode ? "secondary" : "default"}
+                  className="gap-1 cursor-pointer"
+                  title={selected.draft_mode
+                    ? "Rascunho: o agente só responde no Test Lab. Clique para publicar."
+                    : "Produção: o agente atende leads reais. Clique para voltar para rascunho."}
+                  onClick={() => setSelected({ ...selected, draft_mode: !selected.draft_mode })}
+                >
+                  {selected.draft_mode ? <><Pencil className="h-3 w-3" /> Rascunho</> : <><Rocket className="h-3 w-3" /> Produção</>}
+                </Badge>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -545,6 +561,7 @@ export default function Agents() {
                 )}
               </div>
             </div>
+
 
             <Accordion type="multiple" defaultValue={["general"]} className="space-y-3">
               <AccordionItem value="general" className="rounded-md border bg-card px-4">
@@ -920,6 +937,28 @@ export default function Agents() {
                       toast.success("Patch anexado ao prompt. Lembre de salvar.");
                     }}
                   />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="costs" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <DollarSign className="h-4 w-4" /> Custos & limites
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <CostsPanel agentId={selected.id} clinicId={clinicId} />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="audit" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <ClipboardList className="h-4 w-4" /> Auditoria de mudanças
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <AuditLogPanel agentId={selected.id} />
                 </AccordionContent>
               </AccordionItem>
 
