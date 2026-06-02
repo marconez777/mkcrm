@@ -414,6 +414,7 @@ src/
     builder-errors.ts                       parseBuilderError() / códigos
     builder-tooltips.ts                     Tooltips "Por que isso importa?"
     quality-ladder.ts                       Slider rápido↔qualidade
+    agent-tools.ts                          Whitelist de tools válidas (filtra sugestões do LLM antes do INSERT em ai_agents)
 
 supabase/
   functions/
