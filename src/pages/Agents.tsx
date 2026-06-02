@@ -359,6 +359,7 @@ export default function Agents() {
       planning_mode: selected.planning_mode ?? false,
       rag_top_k: selected.rag_top_k ?? 5,
       debounce_seconds: selected.debounce_seconds ?? 8,
+      draft_mode: selected.draft_mode ?? false,
     };
     // Only update credentials if user typed something (avoids wiping existing keys)
     if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
