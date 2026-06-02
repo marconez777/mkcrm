@@ -141,6 +141,18 @@
     --status-draft-fg: 215 20% 70%;
     --status-clicked-bg: 262 50% 22%;
     --status-clicked-fg: 262 80% 80%;
+
+    /* Category tab accents (dark) */
+    --tab-slate: 215 20% 70%;
+    --tab-primary: 142 71% 55%;
+    --tab-info: 217 91% 68%;
+    --tab-violet: 262 80% 72%;
+    --tab-cyan: 190 80% 60%;
+    --tab-fuchsia: 290 80% 72%;
+    --tab-amber: 38 92% 65%;
+    --tab-emerald: 160 70% 55%;
+    --tab-teal: 175 70% 55%;
+    --tab-destructive: 0 84% 70%;
   }
 }
 
