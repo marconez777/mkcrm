@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { SectionAccordion, SectionAccordionItem } from "@/components/ui/section-accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode, Users, GitBranch, GraduationCap } from "lucide-react";
@@ -652,14 +653,15 @@ export default function Agents() {
             </div>
 
 
-            <Accordion type="multiple" defaultValue={["general"]} className="space-y-3">
-              <AccordionItem value="general" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <SettingsIcon className="h-4 w-4" /> Geral
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pb-4">
+            <SectionAccordion type="multiple" defaultValue={["general"]} className="space-y-3">
+              <SectionAccordionItem
+                value="general"
+                icon={SettingsIcon}
+                title="Geral"
+                accent="slate"
+                subtitle="Nome, nicho, descrição e prompt do sistema"
+                contentClassName="space-y-4"
+              >
                   <div className="flex items-center justify-between">
                     <Label>Ativo</Label>
                     <Switch
@@ -727,18 +729,17 @@ export default function Agents() {
                       onChange={(e) => setSelected({ ...selected, system_prompt: e.target.value })}
                     />
                   </div>
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="provider" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <KeyRound className="h-4 w-4" /> Provedor & API key
-                    <Badge variant="outline" className="ml-2 text-[10px]">{PROVIDER_LABEL[selected.provider]}</Badge>
-                    
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pb-4">
+              <SectionAccordionItem
+                value="provider"
+                icon={KeyRound}
+                title="Provedor & API key"
+                accent="slate"
+                badge={PROVIDER_LABEL[selected.provider]}
+                subtitle="Modelo, chave de API e ajustes de geração"
+                contentClassName="space-y-4"
+              >
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Provedor</Label>
@@ -843,17 +844,17 @@ export default function Agents() {
                       />
                     </div>
                   )}
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
               {uiMode === "advanced" && (<>
-              <AccordionItem value="advanced" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <SettingsIcon className="h-4 w-4" /> RAG avançado & Agêntico
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-3 pb-4">
+              <SectionAccordionItem
+                value="advanced"
+                icon={SettingsIcon}
+                title="RAG avançado & Agêntico"
+                accent="info"
+                subtitle="Hybrid search, HyDE, memória, reranker"
+                contentClassName="space-y-3"
+              >
                   <div className="grid grid-cols-2 gap-3">
                     <label className="flex items-center justify-between gap-2 text-sm"><span>Hybrid search</span>
                       <Switch checked={selected.use_hybrid_search ?? true} onCheckedChange={(v) => setSelected({ ...selected, use_hybrid_search: v })} /></label>
@@ -893,35 +894,37 @@ export default function Agents() {
                     Hybrid = vetor + texto via RRF. HyDE gera resposta hipotética antes de buscar.
                     Reranker re-ordena trechos. Memória guarda fatos entre conversas. Debounce agrupa rajadas de mensagens.
                   </p>
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="mcp" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Wrench className="h-4 w-4" /> Servidores MCP
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4"><McpServersPanel agentId={selected.id} /></AccordionContent>
-              </AccordionItem>
+              <SectionAccordionItem
+                value="mcp"
+                icon={Wrench}
+                title="Servidores MCP"
+                accent="teal"
+                subtitle="Conectar ferramentas externas via Model Context Protocol"
+              >
+                <McpServersPanel agentId={selected.id} />
+              </SectionAccordionItem>
 
-              <AccordionItem value="evals" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <FlaskConical className="h-4 w-4" /> Evals
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4"><EvalsPanel agentId={selected.id} /></AccordionContent>
-              </AccordionItem>
+              <SectionAccordionItem
+                value="evals"
+                icon={FlaskConical}
+                title="Evals"
+                accent="amber"
+                subtitle="Avaliações automatizadas de qualidade"
+              >
+                <EvalsPanel agentId={selected.id} />
+              </SectionAccordionItem>
 
-              <AccordionItem value="tools" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Wrench className="h-4 w-4" /> Ferramentas
-                    <Badge variant="outline" className="ml-2 text-[10px]">{selected.tools.length}</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pb-4">
+              <SectionAccordionItem
+                value="tools"
+                icon={Wrench}
+                title="Ferramentas"
+                accent="emerald"
+                badge={selected.tools.length}
+                subtitle="Ações que o agente pode executar"
+                contentClassName="space-y-4"
+              >
                   {TOOL_GROUPS.map((g) => (
                     <div key={g.group} className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
@@ -939,18 +942,18 @@ export default function Agents() {
                       ))}
                     </div>
                   ))}
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
               </>)}
-              <AccordionItem value="kb" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <FileText className="h-4 w-4" /> Base de conhecimento
-                    <Badge variant="outline" className="ml-2 text-[10px]">{docs.length}</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-2 pb-4">
+              <SectionAccordionItem
+                value="kb"
+                icon={FileText}
+                title="Base de conhecimento"
+                accent="info"
+                badge={docs.length}
+                subtitle="Documentos, URLs e PDFs que o agente consulta"
+                contentClassName="space-y-2"
+              >
                   <KbAssistant
                     agentId={selected.id}
                     clinicId={clinicId}
@@ -1058,17 +1061,16 @@ export default function Agents() {
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="copilot" className="rounded-md border-2 border-primary/30 bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <MessageSquareCode className="h-4 w-4 text-primary" /> Co-piloto do agente
-                    <Badge variant="secondary" className="ml-1 text-[10px]">novo</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="copilot"
+                icon={MessageSquareCode}
+                title="Co-piloto do agente"
+                accent="primary"
+                flagship
+                subtitle="Peça mudanças em linguagem natural e aplique direto no agente"
+              >
                   <CopilotPanel
                     agentId={selected.id}
                     clinicId={clinicId}
@@ -1077,54 +1079,50 @@ export default function Agents() {
                       setSelected({ ...selected, ...(patch as Partial<Agent>) });
                     }}
                   />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="personas" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Users className="h-4 w-4" /> Personas para teste
-                    <Badge variant="secondary" className="ml-1 text-[10px]">novo</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="personas"
+                icon={Users}
+                title="Personas para teste"
+                accent="violet"
+                flagship
+                subtitle="Crie perfis sintéticos para validar respostas"
+              >
                   <PersonasPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="stages" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <GitBranch className="h-4 w-4" /> Estágios da conversa
-                    <Badge variant="outline" className="ml-1 text-[10px]">beta</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="stages"
+                icon={GitBranch}
+                title="Estágios da conversa"
+                accent="cyan"
+                badge="beta"
+                subtitle="Defina etapas que o agente segue ao longo do diálogo"
+              >
                   <StagesPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="learn" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <GraduationCap className="h-4 w-4" /> Aprender com produção
-                    <Badge variant="outline" className="ml-1 text-[10px]">novo</Badge>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="learn"
+                icon={GraduationCap}
+                title="Aprender com produção"
+                accent="fuchsia"
+                flagship
+                subtitle="Aprenda padrões a partir de conversas reais"
+              >
                   <ThreadLearningPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
 
 
-              <AccordionItem value="test" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <FlaskConical className="h-4 w-4" /> Testar agente
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="test"
+                icon={FlaskConical}
+                title="Testar agente"
+                accent="amber"
+                subtitle="Simule conversas e gere patches de prompt"
+              >
                   <TestLab
                     agentId={selected.id}
                     clinicId={clinicId}
@@ -1136,38 +1134,35 @@ export default function Agents() {
                       toast.success("Patch anexado ao prompt. Lembre de salvar.");
                     }}
                   />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="costs" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <DollarSign className="h-4 w-4" /> Custos & limites
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="costs"
+                icon={DollarSign}
+                title="Custos & limites"
+                accent="emerald"
+                subtitle="Orçamento, gasto acumulado e teto mensal"
+              >
                   <CostsPanel agentId={selected.id} clinicId={clinicId} />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="audit" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <ClipboardList className="h-4 w-4" /> Auditoria de mudanças
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="audit"
+                icon={ClipboardList}
+                title="Auditoria de mudanças"
+                accent="slate"
+                subtitle="Histórico de quem mudou o quê e quando"
+              >
                   <AuditLogPanel agentId={selected.id} />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="insights" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Lightbulb className="h-4 w-4" /> Insights & recomendações
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="insights"
+                icon={Lightbulb}
+                title="Insights & recomendações"
+                accent="fuchsia"
+                subtitle="Sugestões automáticas para evoluir o agente"
+              >
                   <AgentInsights
                     agentId={selected.id}
                     clinicId={clinicId}
@@ -1179,16 +1174,15 @@ export default function Agents() {
                       toast.success("Texto anexado ao prompt. Lembre de salvar.");
                     }}
                   />
-                </AccordionContent>
-              </AccordionItem>
+              </SectionAccordionItem>
 
-              <AccordionItem value="history" className="rounded-md border bg-card px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <History className="h-4 w-4" /> Histórico de versões
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
+              <SectionAccordionItem
+                value="history"
+                icon={History}
+                title="Histórico de versões"
+                accent="slate"
+                subtitle="Restaure prompts antigos com um clique"
+              >
                   <PromptHistory
                     agentId={selected.id}
                     currentPrompt={selected.system_prompt}
@@ -1196,9 +1190,8 @@ export default function Agents() {
                       setSelected({ ...selected, system_prompt: prompt });
                     }}
                   />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              </SectionAccordionItem>
+            </SectionAccordion>
           </div>
         )}
       </main>
