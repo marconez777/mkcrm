@@ -12,12 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 import { KbAssistant } from "@/components/agents/KbAssistant";
 import { TestLab } from "@/components/agents/TestLab";
+import { CopilotPanel } from "@/components/agents/CopilotPanel";
 import { PromptHistory } from "@/components/agents/PromptHistory";
 import { AgentInsights } from "@/components/agents/AgentInsights";
 import { AgentHealth } from "@/components/agents/AgentHealth";
@@ -1054,6 +1055,25 @@ export default function Agents() {
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="copilot" className="rounded-md border-2 border-primary/30 bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <MessageSquareCode className="h-4 w-4 text-primary" /> Co-piloto do agente
+                    <Badge variant="secondary" className="ml-1 text-[10px]">novo</Badge>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <CopilotPanel
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    agentSnapshot={selected as unknown as Record<string, unknown>}
+                    onApplied={(patch) => {
+                      setSelected({ ...selected, ...(patch as Partial<Agent>) });
+                    }}
+                  />
                 </AccordionContent>
               </AccordionItem>
 
