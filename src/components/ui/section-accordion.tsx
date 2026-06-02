@@ -128,7 +128,7 @@ export function SectionAccordionItem({
       </AccordionPrimitive.Header>
 
       <AccordionPrimitive.Content className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-        <div className="border-t border-[hsl(var(--accent)/0.18)] px-4 pb-4 pt-4">{children}</div>
+        <div className={cn("border-t border-[hsl(var(--accent)/0.18)] px-4 pb-4 pt-4", contentClassName)}>{children}</div>
       </AccordionPrimitive.Content>
     </AccordionPrimitive.Item>
   );
