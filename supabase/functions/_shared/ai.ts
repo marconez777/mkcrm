@@ -134,6 +134,31 @@ async function openaiChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   return { ok: true, status: 200, choices: data.choices ?? [], usage: data.usage };
 }
 
+// xAI (Grok) and Manus expose OpenAI-compatible /chat/completions endpoints.
+async function openaiCompatibleChat(
+  agent: Agent,
+  messages: ChatMessage[],
+  tools: any[] | undefined,
+  defaultBaseUrl: string,
+): Promise<NormalizedResponse> {
+  const base = agent.base_url?.replace(/\/+$/, "") || defaultBaseUrl;
+  const url = `${base}/chat/completions`;
+  const body: Record<string, unknown> = {
+    model: agent.model,
+    messages,
+    tools: tools && tools.length > 0 ? tools : undefined,
+    temperature: Number(agent.temperature) || 0.7,
+  };
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${requireKey(agent)}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
+  const data = await r.json();
+  return { ok: true, status: 200, choices: data.choices ?? [], usage: data.usage };
+}
+
 async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
   // Split out system, fold tool messages into user blocks
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
