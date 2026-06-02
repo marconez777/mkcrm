@@ -549,6 +549,7 @@ Deno.serve(async (req) => {
       agentRow.system_prompt +
       planning +
       leadCtx +
+      simulatedLeadCtx +
       ragContext +
       "\n\nQuando usar trechos da base, cite com [1], [2] etc.";
 
