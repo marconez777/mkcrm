@@ -27,6 +27,7 @@ import {
 import { BUILDER_TOOLTIPS, type TooltipKey } from "@/lib/builder-tooltips";
 import { parseBuilderError, type ProviderError } from "@/lib/builder-errors";
 import { ProviderErrorBanner } from "@/components/agents/ProviderErrorBanner";
+import { filterKnownTools } from "@/lib/agent-tools";
 
 // ---------- Tipos / constantes ----------
 
@@ -194,6 +195,8 @@ export default function AgentWizard() {
   const [promptError, setPromptError] = useState<ProviderError | null>(null);
   const [bundle, setBundle] = useState<GeneratedPromptBundle | null>(null);
   const [refinement, setRefinement] = useState("");
+  const [agentName, setAgentName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
@@ -244,6 +247,8 @@ export default function AgentWizard() {
             evals: (d.settings as Record<string, unknown>)?.evals as { context_clause_present?: boolean } | undefined,
           });
         }
+        const savedName = (d.settings as Record<string, unknown>)?.agent_name;
+        if (typeof savedName === "string") setAgentName(savedName);
       }
       setHydrating(false);
     })();
@@ -475,6 +480,106 @@ export default function AgentWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, provider, model, baseUrl]);
 
+  // Sugere nome do agente quando entramos no passo 5 sem nome definido
+  useEffect(() => {
+    if (step !== 5 || agentName.trim().length > 0) return;
+    const goalLabel = GOALS.find((g) => g.id === goal)?.label.split(" ")[0] ?? "Agente";
+    const nicheLabel =
+      niche === "other"
+        ? (nicheOther || "").trim()
+        : NICHES.find((n) => n.id === niche)?.label ?? "";
+    const suggestion = nicheLabel ? `${goalLabel} — ${nicheLabel}` : goalLabel;
+    setAgentName(suggestion.slice(0, 80));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // ---------- Criar agente ----------
+
+  async function finishAndCreateAgent() {
+    if (!clinicId || !userId) return;
+    if (!bundle?.system_prompt) {
+      toast.error("Gere o prompt antes de concluir.");
+      return;
+    }
+    const name = agentName.trim();
+    if (name.length < 2 || name.length > 80) {
+      toast.error("Dê um nome ao agente (2-80 caracteres).");
+      return;
+    }
+    if (!apiKey || !model) {
+      toast.error("Conexão com o provedor está incompleta.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Salva o nome no rascunho antes de criar (sobrevive a falhas)
+      await persist({
+        settings: {
+          ...((draft?.settings as Record<string, unknown>) ?? {}),
+          suggested_tools: bundle.suggested_tools,
+          suggested_temperature: bundle.suggested_temperature,
+          suggested_top_k: bundle.suggested_top_k,
+          suggested_max_iterations: bundle.suggested_max_iterations,
+          rationale: bundle.rationale,
+          evals: bundle.evals ?? null,
+          agent_name: name,
+        },
+      });
+
+      const nicheLabel =
+        niche === "other"
+          ? nicheOther.trim()
+          : NICHES.find((n) => n.id === niche)?.label ?? "";
+      const goalLabel = GOALS.find((g) => g.id === goal)?.label ?? "";
+      const description = [goalLabel, nicheLabel].filter(Boolean).join(" · ");
+      const tools = filterKnownTools(bundle.suggested_tools);
+
+      const { data, error } = await supabase
+        .from("ai_agents")
+        .insert({
+          clinic_id: clinicId,
+          name,
+          description: description || null,
+          role: goal || null,
+          niche: niche || null,
+          niche_other: nicheOther || null,
+          provider,
+          api_key: apiKey,
+          base_url: baseUrl || null,
+          model,
+          system_prompt: bundle.system_prompt,
+          temperature: bundle.suggested_temperature,
+          max_iterations: bundle.suggested_max_iterations,
+          rag_top_k: bundle.suggested_top_k,
+          tools,
+          enabled: false,
+          draft_mode: true,
+          builder_verified_at: verifiedAt,
+        } as never)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      const newId = (data as { id: string }).id;
+
+      // Limpa o rascunho — agente já existe
+      await supabase
+        .from("ai_agent_drafts")
+        .delete()
+        .eq("clinic_id", clinicId)
+        .eq("user_id", userId);
+
+      toast.success("Agente criado.");
+      nav(`/ai/agents/${newId}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao criar agente";
+      toast.error(msg);
+    } finally {
+      setCreating(false);
+    }
+  }
+
   // ---------- Render ----------
 
   const providerInfo = useMemo(
@@ -560,17 +665,19 @@ export default function AgentWizard() {
                 setRefinement={setRefinement}
                 onRegenerate={() => generatePrompt()}
                 onRefine={() => generatePrompt(refinement)}
+                agentName={agentName}
+                setAgentName={setAgentName}
               />
             )}
           </div>
 
           <div className="mt-4 flex items-center justify-between">
-            <Button variant="ghost" onClick={goPrev} disabled={saving}>
+            <Button variant="ghost" onClick={goPrev} disabled={saving || creating}>
               <ArrowLeft className="mr-1 h-4 w-4" />
               {step === 1 ? "Cancelar" : "Voltar"}
             </Button>
             <div className="text-xs text-muted-foreground">
-              {saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
+              {creating ? "Criando agente…" : saving ? "Salvando…" : draft ? "Progresso salvo" : ""}
             </div>
             {step < 5 ? (
               <Button
@@ -588,20 +695,26 @@ export default function AgentWizard() {
               </Button>
             ) : (
               <Button
-                disabled={!canFinish || saving}
-                onClick={async () => {
-                  await persist({ step: 5 });
-                  toast.success("Prompt salvo no rascunho. Próximas etapas (KB, testes) chegam em breve.");
-                }}
+                disabled={
+                  !canFinish ||
+                  saving ||
+                  creating ||
+                  agentName.trim().length < 2
+                }
+                onClick={finishAndCreateAgent}
               >
-                Concluir esta fase
-                <Check className="ml-1 h-4 w-4" />
+                {creating ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-4 w-4" />
+                )}
+                Criar agente
               </Button>
             )}
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            As próximas etapas (base de conhecimento, configurações, testes) chegam nas próximas fases do Construtor.
+            Depois de criado, você pode adicionar base de conhecimento, rodar testes e ativar o agente na página dele.
           </p>
         </div>
       </div>
@@ -1084,6 +1197,8 @@ function Step5({
   setRefinement,
   onRegenerate,
   onRefine,
+  agentName,
+  setAgentName,
 }: {
   bundle: GeneratedPromptBundle | null;
   loading: boolean;
@@ -1092,6 +1207,8 @@ function Step5({
   setRefinement: (v: string) => void;
   onRegenerate: () => void;
   onRefine: () => void;
+  agentName: string;
+  setAgentName: (v: string) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -1183,6 +1300,19 @@ function Step5({
                 Aplicar refinamento
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs">Nome do agente</Label>
+            <Input
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value.slice(0, 80))}
+              placeholder="Ex.: SDR — Clínica do Dr. Ivan"
+              maxLength={80}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aparece na lista de agentes. Você pode renomear depois.
+            </p>
           </div>
         </>
       )}
