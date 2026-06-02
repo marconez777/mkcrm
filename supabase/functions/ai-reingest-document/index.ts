@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       const vectors = await embed(agent as Agent, batch, { agent_id: doc.agent_id, note: `reingest:doc:${document_id}` });
       batch.forEach((c, j) => {
         rows.push({
-          document_id, agent_id: doc.agent_id,
+          document_id, agent_id: doc.agent_id, clinic_id: (agent as any).clinic_id,
           chunk_index: i + j, content: c,
           embedding: vectors[j], token_count: Math.ceil(c.length / 4),
         });
