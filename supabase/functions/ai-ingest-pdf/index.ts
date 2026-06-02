@@ -1,5 +1,5 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
-import { chunkText, embed, type Agent } from "../_shared/ai.ts";
+import { chunkText, cleanForKnowledge, embed, type Agent } from "../_shared/ai.ts";
 import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
 import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
 
