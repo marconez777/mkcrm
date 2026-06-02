@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Sparkles, Check, X } from "lucide-react";
+import { Loader2, Send, Sparkles, Check, X, AlertTriangle, Undo2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PromptDiff } from "@/components/agents/PromptDiff";
 
@@ -41,13 +41,26 @@ const FIELD_LABELS: Record<keyof Patch, string> = {
   tools: "Ferramentas",
 };
 
+type EvalResult = { id: string; passed: boolean; response: string };
+type EvalRun = {
+  status: "running" | "done" | "error";
+  total?: number;
+  passed?: number;
+  regressed?: { id: string; prompt: string; response: string }[];
+  error?: string;
+};
+
 export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Props) {
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [evalRun, setEvalRun] = useState<EvalRun | null>(null);
+  const [previousSnapshot, setPreviousSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [reverting, setReverting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -58,7 +71,72 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     setHistory([]);
     setProposal(null);
     setInput("");
+    setEvalRun(null);
+    setPreviousSnapshot(null);
   }, [agentId]);
+
+  async function runEvalsAfterApply(baselinePassedIds: Set<string>) {
+    setEvalRun({ status: "running" });
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-eval-run", {
+        body: { agent_id: agentId },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Falha ao rodar evals.");
+      const results: EvalResult[] = data.results ?? [];
+      // fetch prompts for regressed evals
+      const regressedIds = results.filter((r) => baselinePassedIds.has(r.id) && !r.passed).map((r) => r.id);
+      let regressed: { id: string; prompt: string; response: string }[] = [];
+      if (regressedIds.length > 0) {
+        const { data: rows } = await supabase
+          .from("agent_evals")
+          .select("id, prompt")
+          .in("id", regressedIds);
+        regressed = (rows ?? []).map((row) => ({
+          id: row.id,
+          prompt: row.prompt,
+          response: results.find((r) => r.id === row.id)?.response ?? "",
+        }));
+      }
+      setEvalRun({
+        status: "done",
+        total: data.total ?? results.length,
+        passed: data.passed ?? results.filter((r) => r.passed).length,
+        regressed,
+      });
+    } catch (e) {
+      setEvalRun({ status: "error", error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function revertPatch() {
+    if (!previousSnapshot || reverting) return;
+    setReverting(true);
+    try {
+      // only revert fields that were in the patch
+      const fields: Record<string, unknown> = {};
+      for (const k of Object.keys(proposal?.changes ?? evalRun ?? {})) {
+        if (k in previousSnapshot) fields[k] = previousSnapshot[k];
+      }
+      // fallback: if proposal cleared, revert all patchable fields we tracked
+      const patchKeys: (keyof Patch)[] = ["system_prompt", "temperature", "draft_mode", "rag_top_k", "debounce_seconds", "tools"];
+      for (const k of patchKeys) {
+        if (previousSnapshot[k] !== undefined) fields[k] = previousSnapshot[k];
+      }
+      const { error } = await supabase.from("ai_agents").update(fields as never).eq("id", agentId);
+      if (error) throw error;
+      toast.success("Patch revertido.");
+      onApplied(fields as Patch);
+      setHistory((h) => [...h, { role: "assistant", content: "↩️ Patch revertido para o estado anterior." }]);
+      setEvalRun(null);
+      setPreviousSnapshot(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReverting(false);
+    }
+  }
+
 
   async function send() {
     const text = input.trim();
@@ -112,6 +190,20 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     if (!proposal?.has_changes || applying) return;
     setApplying(true);
     try {
+      // baseline: which evals are passing right now?
+      const { data: baselineRows } = await supabase
+        .from("agent_evals")
+        .select("id, last_passed")
+        .eq("agent_id", agentId);
+      const baselinePassedIds = new Set(
+        (baselineRows ?? []).filter((r) => r.last_passed === true).map((r) => r.id as string),
+      );
+      const baselineCount = baselineRows?.length ?? 0;
+
+      // snapshot full agent before update so we can revert
+      const { data: snap } = await supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle();
+      if (snap) setPreviousSnapshot(snap as Record<string, unknown>);
+
       const { error } = await supabase
         .from("ai_agents")
         .update(proposal.changes as never)
@@ -124,12 +216,18 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
         { role: "assistant", content: `✅ Aplicado: ${proposal.summary || Object.keys(proposal.changes).join(", ")}` },
       ]);
       setProposal(null);
+
+      // kick off evals in background (only if there are evals to run)
+      if (baselineCount > 0) {
+        void runEvalsAfterApply(baselinePassedIds);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setApplying(false);
     }
   }
+
 
   function discardPatch() {
     setProposal(null);
@@ -238,6 +336,84 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
           )}
         </div>
       )}
+
+      {evalRun && (
+        <div
+          className={`rounded-md border p-3 text-sm ${
+            evalRun.status === "running"
+              ? "border-muted bg-muted/30"
+              : evalRun.status === "error"
+                ? "border-destructive/40 bg-destructive/5"
+                : (evalRun.regressed?.length ?? 0) > 0
+                  ? "border-destructive/50 bg-destructive/5"
+                  : "border-emerald-500/40 bg-emerald-500/5"
+          }`}
+        >
+          {evalRun.status === "running" && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Rodando evals para validar o patch…
+            </div>
+          )}
+          {evalRun.status === "error" && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs">
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                Falha ao rodar evals: {evalRun.error}
+              </div>
+              {previousSnapshot && (
+                <Button size="sm" variant="outline" onClick={revertPatch} disabled={reverting}>
+                  {reverting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Undo2 className="mr-1 h-3 w-3" />}
+                  Reverter patch
+                </Button>
+              )}
+            </div>
+          )}
+          {evalRun.status === "done" && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  {(evalRun.regressed?.length ?? 0) > 0 ? (
+                    <>
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      Este patch quebrou {evalRun.regressed!.length} cenário
+                      {evalRun.regressed!.length === 1 ? "" : "s"} ({evalRun.passed}/{evalRun.total} passaram)
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      Todos os evals passaram ({evalRun.passed}/{evalRun.total})
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {(evalRun.regressed?.length ?? 0) > 0 && previousSnapshot && (
+                    <Button size="sm" variant="destructive" onClick={revertPatch} disabled={reverting}>
+                      {reverting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Undo2 className="mr-1 h-3 w-3" />}
+                      Reverter
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setEvalRun(null)}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+              {(evalRun.regressed?.length ?? 0) > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {evalRun.regressed!.slice(0, 5).map((r) => (
+                    <li key={r.id} className="rounded border bg-background p-2 text-xs">
+                      <div className="font-medium">↳ {r.prompt}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{r.response || "(sem resposta)"}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+
 
       <div className="flex gap-2">
         <Textarea
