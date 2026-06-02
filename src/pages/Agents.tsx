@@ -922,6 +922,44 @@ export default function Agents() {
                   />
                 </AccordionContent>
               </AccordionItem>
+
+              <AccordionItem value="insights" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Lightbulb className="h-4 w-4" /> Insights & recomendações
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <AgentInsights
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    onApplyToPrompt={(text) => {
+                      setSelected({
+                        ...selected,
+                        system_prompt: `${selected.system_prompt}\n\n${text}`,
+                      });
+                      toast.success("Texto anexado ao prompt. Lembre de salvar.");
+                    }}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="history" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <History className="h-4 w-4" /> Histórico de versões
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <PromptHistory
+                    agentId={selected.id}
+                    currentPrompt={selected.system_prompt}
+                    onRevert={(prompt) => {
+                      setSelected({ ...selected, system_prompt: prompt });
+                    }}
+                  />
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
           </div>
         )}
