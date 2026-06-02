@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
+import type { Persona } from "@/components/agents/PersonasPanel";
 
 interface Props {
   agentId: string;
@@ -91,6 +92,8 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   const [leadOpen, setLeadOpen] = useState(true);
   const [customKey, setCustomKey] = useState("");
   const [customVal, setCustomVal] = useState("");
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>("");
 
   useEffect(() => {
     // load per-agent lead profile
@@ -109,6 +112,42 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
     try { localStorage.setItem(LEAD_KEY, JSON.stringify(simLead)); } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simLead]);
+
+  // Fase 11 — carregar personas reutilizáveis do agente / clínica
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!clinicId) return;
+      const { data, error } = await supabase
+        .from("agent_personas")
+        .select("*")
+        .or(`agent_id.eq.${agentId},agent_id.is.null`)
+        .order("updated_at", { ascending: false });
+      if (cancelled || error) return;
+      setPersonas((data ?? []) as unknown as Persona[]);
+    })();
+    return () => { cancelled = true; };
+  }, [agentId, clinicId]);
+
+  const loadPersona = (id: string) => {
+    setSelectedPersonaId(id);
+    if (!id) return;
+    const p = personas.find((x) => x.id === id);
+    if (!p) return;
+    setSimLead({
+      name: p.name,
+      phone: p.phone ?? "",
+      channel: (["whatsapp", "instagram", "widget", "sms"].includes(p.channel) ? p.channel : "whatsapp") as SimulatedLead["channel"],
+      pipeline: simLead.pipeline,
+      stage: simLead.stage,
+      notes: p.persona_text ?? "",
+      custom_fields: p.custom_fields ?? {},
+    });
+    if (p.opening_message) {
+      setChatInput(p.opening_message);
+    }
+    toast.success(`Persona "${p.name}" carregada.`);
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -260,6 +299,32 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
               <p className="text-[11px] text-muted-foreground">
                 Esses dados são enviados ao agente como contexto, simulando um lead real chegando pelo WhatsApp. O agente NÃO deve pedir o que já está aqui.
               </p>
+              {personas.length > 0 && (
+                <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-2 py-1.5">
+                  <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground shrink-0">Persona:</span>
+                  <Select value={selectedPersonaId} onValueChange={loadPersona}>
+                    <SelectTrigger className="h-7 flex-1 text-xs">
+                      <SelectValue placeholder="carregar persona salva…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {personas.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name}{p.agent_id === null ? " · global" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPersonaId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => setSelectedPersonaId("")}
+                    >limpar</Button>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Input className="h-8" placeholder="Nome" value={simLead.name} onChange={(e) => setSimLead({ ...simLead, name: e.target.value })} />
                 <Input className="h-8" placeholder="Telefone" value={simLead.phone} onChange={(e) => setSimLead({ ...simLead, phone: e.target.value })} />
