@@ -115,18 +115,30 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
 
   // ----- free chat -----
   const runChat = async () => {
-    if (!chatInput.trim()) return;
+    const text = chatInput.trim();
+    if (!text || chatting) return;
+    const next: ChatMsg[] = [...chatHistory, { role: "user", content: text }];
+    setChatHistory(next);
+    setChatInput("");
+    setChatError(null);
     setChatting(true);
-    setChatOutput("");
     const { data, error } = await supabase.functions.invoke("ai-chat", {
-      body: { agent_id: agentId, messages: [{ role: "user", content: chatInput }] },
+      body: { agent_id: agentId, messages: next },
     });
     setChatting(false);
     if (error || (data as any)?.error) {
-      setChatOutput("Erro: " + (error?.message ?? (data as any)?.error));
+      const msg = await extractEdgeError(error, data);
+      setChatError(msg);
       return;
     }
-    setChatOutput((data as any)?.content ?? "(vazio)");
+    const content = (data as any)?.content ?? "(resposta vazia)";
+    setChatHistory((h) => [...h, { role: "assistant", content }]);
+  };
+
+  const clearChat = () => {
+    setChatHistory([]);
+    setChatError(null);
+    setChatInput("");
   };
 
   // ----- scenarios -----
