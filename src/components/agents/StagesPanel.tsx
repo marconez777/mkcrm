@@ -261,6 +261,20 @@ export function StagesPanel({ agentId, clinicId }: Props) {
                       <span className="font-medium">avança quando:</span> {s.advance_when}
                     </p>
                   )}
+                  {(s.allowed_tools?.length ?? 0) > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                      <span className="text-muted-foreground">tools permitidas:</span>
+                      {s.allowed_tools!.map((t) => (
+                        <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {s.follow_up_after_min != null && s.follow_up_after_min > 0 && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                      <Bell className="h-3 w-3" /> Follow-up em {s.follow_up_after_min} min
+                      {s.follow_up_message ? ` — "${s.follow_up_message.slice(0, 60)}${s.follow_up_message.length > 60 ? "…" : ""}"` : " (nota interna)"}
+                    </p>
+                  )}
                   {s.system_prompt_delta && (
                     <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-1.5 text-[10px]">
                       {s.system_prompt_delta}
