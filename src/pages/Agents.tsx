@@ -14,6 +14,7 @@ import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, K
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
+import { KbAssistant } from "@/components/agents/KbAssistant";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
@@ -740,6 +741,16 @@ export default function Agents() {
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-2 pb-4">
+                  <KbAssistant
+                    agentId={selected.id}
+                    clinicId={clinicId}
+                    onDocsChanged={async () => {
+                      const fresh = await fetchAllPaged<any>(() => supabase
+                        .from("ai_documents").select("id, title, source, source_type, created_at")
+                        .eq("agent_id", selected.id).order("created_at", { ascending: false }));
+                      setDocs(fresh);
+                    }}
+                  />
                   <Accordion type="multiple" className="space-y-2">
                     <AccordionItem value="text" className="rounded border bg-muted/20 px-3">
                       <AccordionTrigger className="py-2 text-sm hover:no-underline">Texto manual</AccordionTrigger>
