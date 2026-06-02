@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, Sparkles, Check, X } from "lucide-react";
+import { Loader2, Send, Sparkles, Check, X, AlertTriangle, Undo2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PromptDiff } from "@/components/agents/PromptDiff";
 
