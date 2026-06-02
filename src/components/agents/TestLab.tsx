@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info, GitBranch } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
