@@ -93,6 +93,9 @@ export function StagesPanel({ agentId, clinicId }: Props) {
       goal: s.goal ?? "",
       system_prompt_delta: s.system_prompt_delta ?? "",
       advance_when: s.advance_when ?? "",
+      allowed_tools: (s.allowed_tools ?? []).join(", "),
+      follow_up_after_min: s.follow_up_after_min != null ? String(s.follow_up_after_min) : "",
+      follow_up_message: s.follow_up_message ?? "",
     });
     setDialogOpen(true);
   }
@@ -103,12 +106,22 @@ export function StagesPanel({ agentId, clinicId }: Props) {
       return;
     }
     setSaving(true);
+    const allowed = form.allowed_tools
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const followAfter = form.follow_up_after_min.trim()
+      ? Math.max(0, Number(form.follow_up_after_min)) || null
+      : null;
     const payload = {
       agent_id: agentId,
       name: form.name.trim(),
       goal: form.goal.trim() || null,
       system_prompt_delta: form.system_prompt_delta.trim() || null,
       advance_when: form.advance_when.trim() || null,
+      allowed_tools: allowed,
+      follow_up_after_min: followAfter,
+      follow_up_message: form.follow_up_message.trim() || null,
     };
     const res = form.id
       ? await supabase.from("agent_stages").update(payload).eq("id", form.id)
