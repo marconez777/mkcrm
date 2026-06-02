@@ -77,9 +77,10 @@ Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]
 
 ---
 
-### Fase 15 — Evals contínuos & regression banner
+### Fase 15 — Evals contínuos & regression banner ✅
 
-Patch do co-piloto dispara `ai-eval-run` em background. Banner "esse patch quebrou X cenários" com reverter em 1 clique (snapshot já existe em `ai_agent_prompt_history`).
+`CopilotPanel.applyPatch` agora: (1) lê baseline `agent_evals.last_passed` antes do update, (2) snapshota o agente completo (`previousSnapshot`) para reverter, (3) aplica o patch, (4) dispara `ai-eval-run` em background. Banner mostra `running → done`. Se algum eval que passava antes falhou, aparece "Este patch quebrou N cenário(s)" com lista (prompt + trecho da resposta) e botão **Reverter** que volta `system_prompt`, `temperature`, `tools`, etc. ao snapshot anterior em 1 clique. Sem nada quando o agente não tem evals.
+
 
 ---
 
