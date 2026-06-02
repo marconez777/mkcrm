@@ -634,24 +634,26 @@ export default function Agents() {
                       Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Base URL {selected.provider === "manus" ? "(obrigatório)" : "(opcional)"}</Label>
-                      <Input
-                        placeholder={PROVIDER_BASE_PLACEHOLDER[selected.provider]}
-                        value={selected.base_url ?? ""}
-                        onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
-                      />
+                  {uiMode === "advanced" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Base URL {selected.provider === "manus" ? "(obrigatório)" : "(opcional)"}</Label>
+                        <Input
+                          placeholder={PROVIDER_BASE_PLACEHOLDER[selected.provider]}
+                          value={selected.base_url ?? ""}
+                          onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Temperatura</Label>
+                        <Input
+                          type="number" step="0.1" min="0" max="2"
+                          value={selected.temperature}
+                          onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label>Temperatura</Label>
-                      <Input
-                        type="number" step="0.1" min="0" max="2"
-                        value={selected.temperature}
-                        onChange={(e) => setSelected({ ...selected, temperature: Number(e.target.value) })}
-                      />
-                    </div>
-                  </div>
+                  )}
                   {PROVIDERS_NEEDING_EMBEDDING_KEY.includes(selected.provider) && (
                     <div className="rounded-md border bg-muted/30 p-3 space-y-2">
                       <Label className="text-xs">
