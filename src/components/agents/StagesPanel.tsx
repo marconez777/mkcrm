@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Pencil, Trash2, ArrowUp, ArrowDown, GitBranch, Info } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ArrowUp, ArrowDown, GitBranch, Info, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -19,6 +20,9 @@ export type AgentStage = {
   goal: string | null;
   system_prompt_delta: string | null;
   advance_when: string | null;
+  allowed_tools: string[] | null;
+  follow_up_after_min: number | null;
+  follow_up_message: string | null;
 };
 
 interface Props {
@@ -32,9 +36,21 @@ type FormState = {
   goal: string;
   system_prompt_delta: string;
   advance_when: string;
+  allowed_tools: string;
+  follow_up_after_min: string;
+  follow_up_message: string;
 };
 
-const EMPTY: FormState = { id: null, name: "", goal: "", system_prompt_delta: "", advance_when: "" };
+const EMPTY: FormState = {
+  id: null,
+  name: "",
+  goal: "",
+  system_prompt_delta: "",
+  advance_when: "",
+  allowed_tools: "",
+  follow_up_after_min: "",
+  follow_up_message: "",
+};
 
 export function StagesPanel({ agentId, clinicId }: Props) {
   const confirm = useConfirm();
@@ -43,21 +59,42 @@ export function StagesPanel({ agentId, clinicId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [stagesEnabled, setStagesEnabled] = useState(false);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
 
   async function load() {
     if (!clinicId) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("agent_stages")
-      .select("*")
-      .eq("agent_id", agentId)
-      .order("order_idx", { ascending: true });
+    const [stagesRes, agentRes] = await Promise.all([
+      supabase
+        .from("agent_stages")
+        .select("*")
+        .eq("agent_id", agentId)
+        .order("order_idx", { ascending: true }),
+      supabase.from("ai_agents").select("stages_enabled").eq("id", agentId).maybeSingle(),
+    ]);
     setLoading(false);
+    if (stagesRes.error) {
+      toast.error(stagesRes.error.message);
+      return;
+    }
+    setStages((stagesRes.data ?? []) as AgentStage[]);
+    setStagesEnabled(!!(agentRes.data as any)?.stages_enabled);
+  }
+
+  async function toggleEnabled(next: boolean) {
+    setTogglingEnabled(true);
+    const { error } = await supabase
+      .from("ai_agents")
+      .update({ stages_enabled: next })
+      .eq("id", agentId);
+    setTogglingEnabled(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    setStages((data ?? []) as AgentStage[]);
+    setStagesEnabled(next);
+    toast.success(next ? "Estágios ativados para leads reais." : "Estágios desligados (Test Lab segue funcionando).");
   }
 
   useEffect(() => {
@@ -77,6 +114,9 @@ export function StagesPanel({ agentId, clinicId }: Props) {
       goal: s.goal ?? "",
       system_prompt_delta: s.system_prompt_delta ?? "",
       advance_when: s.advance_when ?? "",
+      allowed_tools: (s.allowed_tools ?? []).join(", "),
+      follow_up_after_min: s.follow_up_after_min != null ? String(s.follow_up_after_min) : "",
+      follow_up_message: s.follow_up_message ?? "",
     });
     setDialogOpen(true);
   }
@@ -87,12 +127,22 @@ export function StagesPanel({ agentId, clinicId }: Props) {
       return;
     }
     setSaving(true);
+    const allowed = form.allowed_tools
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const followAfter = form.follow_up_after_min.trim()
+      ? Math.max(0, Number(form.follow_up_after_min)) || null
+      : null;
     const payload = {
       agent_id: agentId,
       name: form.name.trim(),
       goal: form.goal.trim() || null,
       system_prompt_delta: form.system_prompt_delta.trim() || null,
       advance_when: form.advance_when.trim() || null,
+      allowed_tools: allowed,
+      follow_up_after_min: followAfter,
+      follow_up_message: form.follow_up_message.trim() || null,
     };
     const res = form.id
       ? await supabase.from("agent_stages").update(payload).eq("id", form.id)
@@ -149,12 +199,27 @@ export function StagesPanel({ agentId, clinicId }: Props) {
         <p className="flex items-start gap-1 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3 w-3 shrink-0" />
           Defina as etapas pelas quais a conversa passa (ex.: Abertura → Qualificação → Oferta → Agendamento).
-          Por enquanto os estágios <strong>não alteram</strong> a resposta do agente — servem como mapa do funil.
+          No Test Lab os estágios sempre rodam; em conversas reais só ativam com o toggle abaixo.
         </p>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Novo estágio
         </Button>
       </div>
+
+      <div className={`flex items-center justify-between gap-3 rounded-md border p-3 ${stagesEnabled ? "border-primary/40 bg-primary/5" : "bg-muted/20"}`}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <GitBranch className="h-4 w-4 text-primary" />
+            Usar estágios em conversas reais
+            {stagesEnabled && <Badge className="text-[10px]">ativo</Badge>}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Quando ligado: cada turno passa pelo classificador, o delta do estágio entra no prompt, ferramentas são filtradas por <code>allowed_tools</code> e o follow-up programado dispara em background.
+          </p>
+        </div>
+        <Switch checked={stagesEnabled} disabled={togglingEnabled || stages.length === 0} onCheckedChange={toggleEnabled} />
+      </div>
+
 
       {loading ? (
         <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
@@ -194,6 +259,20 @@ export function StagesPanel({ agentId, clinicId }: Props) {
                   {s.advance_when && (
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       <span className="font-medium">avança quando:</span> {s.advance_when}
+                    </p>
+                  )}
+                  {(s.allowed_tools?.length ?? 0) > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                      <span className="text-muted-foreground">tools permitidas:</span>
+                      {s.allowed_tools!.map((t) => (
+                        <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {s.follow_up_after_min != null && s.follow_up_after_min > 0 && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                      <Bell className="h-3 w-3" /> Follow-up em {s.follow_up_after_min} min
+                      {s.follow_up_message ? ` — "${s.follow_up_message.slice(0, 60)}${s.follow_up_message.length > 60 ? "…" : ""}"` : " (nota interna)"}
                     </p>
                   )}
                   {s.system_prompt_delta && (
@@ -268,6 +347,37 @@ export function StagesPanel({ agentId, clinicId }: Props) {
                 value={form.advance_when}
                 onChange={(e) => setForm({ ...form, advance_when: e.target.value })}
               />
+            </div>
+            <div>
+              <Label className="text-xs">Ferramentas permitidas neste estágio (separadas por vírgula)</Label>
+              <Input
+                placeholder="Ex.: search_knowledge_base, set_lead_field, create_task"
+                value={form.allowed_tools}
+                onChange={(e) => setForm({ ...form, allowed_tools: e.target.value })}
+              />
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                Deixe vazio para permitir todas as ferramentas do agente. Só vale quando o toggle "Usar estágios em conversas reais" está ligado (ou no Test Lab).
+              </p>
+            </div>
+            <div className="grid grid-cols-[1fr_2fr] gap-2">
+              <div>
+                <Label className="text-xs">Follow-up após (min)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Ex.: 60"
+                  value={form.follow_up_after_min}
+                  onChange={(e) => setForm({ ...form, follow_up_after_min: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Mensagem de follow-up (opcional)</Label>
+                <Input
+                  placeholder="Vazio = só cria nota interna"
+                  value={form.follow_up_message}
+                  onChange={(e) => setForm({ ...form, follow_up_message: e.target.value })}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

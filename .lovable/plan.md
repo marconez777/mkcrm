@@ -61,14 +61,17 @@ Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]
 - **Critério atendido:** com 3 estágios criados, a mensagem do lead muda o badge do agente em tempo real; clicar "Por que disse isso?" mostra qual delta entrou no prompt.
 
 
-#### 14c — Ativação em produção + tools por estágio + follow-up
+#### 14c — Ativação em produção + tools por estágio + follow-up ✅
 **Objetivo:** finalmente expor para lead real, mas com guardrails.
 
-- **Migration adicional:** `agent_stages` ganha `allowed_tools text[]`, `follow_up_after_min int`, `follow_up_message text`.
-- **Edge:** classificador roda **antes** do `pg_advisory_xact_lock(lead_id)` (pegadinha #21 já documentada). Tools filtradas por `allowed_tools ∩ KNOWN_AGENT_TOOLS`.
-- **Cron:** job `agent_followups_tick` (a cada 5min) com `pg_cron.unschedule` defensivo (pegadinha #35). Dispara `follow_up_message` se `last_inbound_at` antigo no estágio.
-- **Ativação:** toggle por agente em `Agents.tsx` ("Usar estágios em conversas reais") — default off mesmo após deploy.
-- **Critério de pronto:** clínica liga o toggle num agente de teste, lead real flui pelos estágios, follow-up dispara, dá para desligar a qualquer momento sem perder dados.
+- **Migration:** `agent_stages` ganhou `allowed_tools text[]`, `follow_up_after_min int`, `follow_up_message text`, `follow_up_tool_name text`. `ai_agents` ganhou `stages_enabled boolean default false`. `lead_ai_settings` ganhou `current_stage_id`, `stage_entered_at`, `last_followup_at` + índice parcial.
+- **Edge (`ai-chat`):** classificador agora roda também quando `lead_id` está presente E `agentRow.stages_enabled = true`. Após escolher o estágio, filtra `tools` por `allowed_tools` (se não vazio) e persiste `current_stage_id` em `lead_ai_settings` via upsert; quando o estágio muda, reseta `stage_entered_at` e zera `last_followup_at`.
+- **Edge nova (`agent-followups-tick`):** lê `lead_ai_settings` com `current_stage_id`, ignora leads pausados/com `auto_reply=false`, dispara `scheduled_messages` (ou `lead_internal_notes` se mensagem vazia) quando o lead está no estágio há mais que `follow_up_after_min`, e marca `last_followup_at` para idempotência.
+- **Cron:** job `agent_followups_tick` rodando a cada 5 min via `pg_cron` + `pg_net`, com `cron.unschedule` defensivo antes do agendamento.
+- **UI:** `StagesPanel` ganhou toggle **"Usar estágios em conversas reais"** (default off, desabilitado quando não há estágios) e o dialog inclui `allowed_tools` (CSV), `follow_up_after_min` e `follow_up_message`. Cards mostram as tools permitidas e a janela de follow-up.
+- **Critério atendido:** com toggle off, conversa real ignora estágios (compatível com tudo que existia). Com toggle on, classifier roda, prompt ganha delta, tools são filtradas e follow-up dispara em background a partir do tick.
+
+
 
 **Por que 3 sub-fases:** se 14b falhar, produção segue intocada (flag off). Se 14c falhar, o toggle por agente permite rollback imediato. Sem migrations destrutivas em nenhuma das três.
 

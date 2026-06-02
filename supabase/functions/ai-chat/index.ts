@@ -545,21 +545,25 @@ Deno.serve(async (req) => {
       ? "\n\nAntes de responder, pense em passos: (1) o que o usuário quer? (2) que ferramentas ou trechos da base ajudam? (3) execute. (4) revise e responda objetivamente."
       : "";
 
-    // Fase 14b — Classificador de estágios (Test Lab apenas: lead_id ausente).
-    // Em produção, estágios ficam dormentes até a fase 14c (toggle por agente).
+    // Fase 14b/14c — Classificador de estágios.
+    // Test Lab (lead_id ausente): SEMPRE ativo se existem estágios.
+    // Produção (lead_id presente): só ativo quando agentRow.stages_enabled = true.
     let stageCtx = "";
     let stageMeta: {
       stage_id: string | null;
       name: string | null;
       reason: string | null;
       delta_excerpt: string | null;
+      allowed_tools: string[];
       all_stages: Array<{ id: string; name: string; advance_when: string | null }>;
     } | null = null;
-    if (!lead_id) {
+    let chosenStage: any = null;
+    const stagesActive = !lead_id || !!agentRow.stages_enabled;
+    if (stagesActive) {
       try {
         const { data: stageRows } = await supabase
           .from("agent_stages")
-          .select("id, name, goal, system_prompt_delta, advance_when, order_idx")
+          .select("id, name, goal, system_prompt_delta, advance_when, order_idx, allowed_tools")
           .eq("agent_id", agent_id)
           .order("order_idx", { ascending: true });
         const stages = stageRows ?? [];
@@ -580,7 +584,7 @@ Deno.serve(async (req) => {
             { ...agent, max_iterations: 1 } as any,
             classifierMsgs,
             undefined,
-            { agent_id, lead_id: null, thread_id, note: "stage:classify" },
+            { agent_id, lead_id, thread_id, note: "stage:classify" },
           );
           let chosenIdx = 1;
           let reason = "(primeiro estágio por padrão)";
@@ -593,19 +597,50 @@ Deno.serve(async (req) => {
               if (typeof parsed.reason === "string") reason = parsed.reason.slice(0, 240);
             } catch { /* fallback */ }
           }
-          const chosen: any = stages[chosenIdx - 1];
-          const delta = String(chosen?.system_prompt_delta ?? "").trim();
-          stageCtx = `\n\n## Estágio atual da conversa: "${chosen.name}" (${chosenIdx}/${stages.length})\n` +
-            (chosen.goal ? `Objetivo deste estágio: ${chosen.goal}\n` : "") +
+          chosenStage = stages[chosenIdx - 1];
+          const delta = String(chosenStage?.system_prompt_delta ?? "").trim();
+          const allowedTools: string[] = Array.isArray(chosenStage?.allowed_tools) ? chosenStage.allowed_tools : [];
+          stageCtx = `\n\n## Estágio atual da conversa: "${chosenStage.name}" (${chosenIdx}/${stages.length})\n` +
+            (chosenStage.goal ? `Objetivo deste estágio: ${chosenStage.goal}\n` : "") +
             (delta ? `\n${delta}\n` : "") +
-            `\nFoque NESTE estágio. Avance só quando: ${chosen.advance_when || "(critério não definido)"}.`;
+            `\nFoque NESTE estágio. Avance só quando: ${chosenStage.advance_when || "(critério não definido)"}.`;
           stageMeta = {
-            stage_id: chosen.id,
-            name: chosen.name,
+            stage_id: chosenStage.id,
+            name: chosenStage.name,
             reason,
             delta_excerpt: delta ? delta.slice(0, 600) : null,
+            allowed_tools: allowedTools,
             all_stages: stages.map((s: any) => ({ id: s.id, name: s.name, advance_when: s.advance_when ?? null })),
           };
+
+          // Filter tools per stage when allowed_tools is non-empty
+          if (allowedTools.length > 0) {
+            const allow = new Set(allowedTools);
+            for (let i = tools.length - 1; i >= 0; i--) {
+              const tname = (tools[i] as any)?.function?.name;
+              if (tname && !allow.has(tname)) tools.splice(i, 1);
+            }
+          }
+
+          // Persist stage for production lead so the follow-up tick knows where it stands
+          if (lead_id && agentRow.stages_enabled) {
+            try {
+              const { data: prev } = await supabase
+                .from("lead_ai_settings")
+                .select("current_stage_id")
+                .eq("lead_id", lead_id)
+                .maybeSingle();
+              const stageChanged = prev?.current_stage_id !== chosenStage.id;
+              await supabase.from("lead_ai_settings").upsert({
+                lead_id,
+                agent_id,
+                current_stage_id: chosenStage.id,
+                ...(stageChanged ? { stage_entered_at: new Date().toISOString(), last_followup_at: null } : {}),
+              }, { onConflict: "lead_id" });
+            } catch (e) {
+              console.error("[stages] persist current_stage failed", e);
+            }
+          }
         }
       } catch (e) {
         console.error("[stages] classifier failed", e);
