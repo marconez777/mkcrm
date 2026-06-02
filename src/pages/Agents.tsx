@@ -501,7 +501,15 @@ export default function Agents() {
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={toggleMode}
+                  title="Alternar entre modo Simples (essencial) e Avançado (tudo)"
+                >
+                  {uiMode === "simple" ? "Modo: Simples" : "Modo: Avançado"}
+                </Button>
                 {canManage && (
                   <>
                     <Button variant="outline" size="sm" onClick={runBulk} disabled={bulkRunning} title="Rodar este agente em todos os leads ativos">
