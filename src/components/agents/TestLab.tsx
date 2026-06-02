@@ -148,6 +148,8 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
     }
     toast.success(`Persona "${p.name}" carregada.`);
   };
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [chatHistory, chatting]);
 
