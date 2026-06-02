@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info, GitBranch } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
@@ -425,6 +425,12 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
                   {m.role === "user" ? <UserIcon className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                 </div>
                 <div className="flex max-w-[80%] flex-col gap-1">
+                  {m.role === "assistant" && m.trace?.stage?.name && (
+                    <Badge variant="outline" className="self-start gap-1 border-primary/40 bg-primary/5 text-[10px] text-primary">
+                      <GitBranch className="h-3 w-3" />
+                      {m.trace.stage.name}
+                    </Badge>
+                  )}
                   <div className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
                     {m.content}
                   </div>

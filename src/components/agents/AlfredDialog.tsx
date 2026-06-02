@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Wrench, BookOpen, Cpu, Clock, Coins } from "lucide-react";
+import { Wrench, BookOpen, Cpu, Clock, Coins, GitBranch } from "lucide-react";
 
 export type AlfredTrace = {
   id?: string | null;
@@ -12,6 +12,13 @@ export type AlfredTrace = {
   kb_hits?: Array<{ idx: number; title?: string; snippet: string; score?: number }>;
   tool_calls?: Array<{ name: string; args: unknown; ok?: boolean; error?: string | null }>;
   system_prompt_excerpt?: string;
+  stage?: {
+    stage_id: string | null;
+    name: string | null;
+    reason: string | null;
+    delta_excerpt: string | null;
+    all_stages?: Array<{ id: string; name: string; advance_when: string | null }>;
+  } | null;
 };
 
 interface Props {
@@ -48,6 +55,36 @@ export function AlfredDialog({ open, onOpenChange, trace }: Props) {
                   in {trace.tokens_in ?? 0} · out {trace.tokens_out ?? 0}
                 </Badge>
               </div>
+
+              {trace.stage && (
+                <section className="rounded-md border border-primary/30 bg-primary/5 p-2">
+                  <h4 className="mb-1 flex items-center gap-1 text-xs font-semibold text-primary">
+                    <GitBranch className="h-3.5 w-3.5" /> Estágio detectado: {trace.stage.name ?? "—"}
+                  </h4>
+                  {trace.stage.reason && (
+                    <p className="text-[11px] text-muted-foreground">Motivo: {trace.stage.reason}</p>
+                  )}
+                  {trace.stage.delta_excerpt && (
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-background/60 p-1.5 text-[10px]">
+                      {trace.stage.delta_excerpt}
+                    </pre>
+                  )}
+                  {trace.stage.all_stages && trace.stage.all_stages.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {trace.stage.all_stages.map((s) => (
+                        <Badge
+                          key={s.id}
+                          variant={s.id === trace.stage?.stage_id ? "default" : "outline"}
+                          className="text-[10px]"
+                        >
+                          {s.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
 
               <section>
                 <h4 className="mb-1 flex items-center gap-1 text-xs font-semibold">

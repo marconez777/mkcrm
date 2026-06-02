@@ -577,6 +577,7 @@ export type Database = {
           model: string | null
           persona_id: string | null
           source: string
+          stage_meta: Json | null
           system_prompt_excerpt: string | null
           tokens_in: number | null
           tokens_out: number | null
@@ -595,6 +596,7 @@ export type Database = {
           model?: string | null
           persona_id?: string | null
           source?: string
+          stage_meta?: Json | null
           system_prompt_excerpt?: string | null
           tokens_in?: number | null
           tokens_out?: number | null
@@ -613,6 +615,7 @@ export type Database = {
           model?: string | null
           persona_id?: string | null
           source?: string
+          stage_meta?: Json | null
           system_prompt_excerpt?: string | null
           tokens_in?: number | null
           tokens_out?: number | null

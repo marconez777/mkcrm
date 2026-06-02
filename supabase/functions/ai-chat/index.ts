@@ -545,11 +545,79 @@ Deno.serve(async (req) => {
       ? "\n\nAntes de responder, pense em passos: (1) o que o usuário quer? (2) que ferramentas ou trechos da base ajudam? (3) execute. (4) revise e responda objetivamente."
       : "";
 
+    // Fase 14b — Classificador de estágios (Test Lab apenas: lead_id ausente).
+    // Em produção, estágios ficam dormentes até a fase 14c (toggle por agente).
+    let stageCtx = "";
+    let stageMeta: {
+      stage_id: string | null;
+      name: string | null;
+      reason: string | null;
+      delta_excerpt: string | null;
+      all_stages: Array<{ id: string; name: string; advance_when: string | null }>;
+    } | null = null;
+    if (!lead_id) {
+      try {
+        const { data: stageRows } = await supabase
+          .from("agent_stages")
+          .select("id, name, goal, system_prompt_delta, advance_when, order_idx")
+          .eq("agent_id", agent_id)
+          .order("order_idx", { ascending: true });
+        const stages = stageRows ?? [];
+        if (stages.length > 0) {
+          const tail = incoming.slice(-12).map((m: any) => {
+            const who = m.role === "user" ? "lead" : m.role === "assistant" ? "agente" : m.role;
+            return `[${who}] ${String(m.content ?? "").slice(0, 400)}`;
+          }).join("\n");
+          const stageList = stages.map((s: any, i: number) =>
+            `${i + 1}. ${s.name}${s.goal ? ` — objetivo: ${s.goal}` : ""}${s.advance_when ? ` — avança quando: ${s.advance_when}` : ""}`,
+          ).join("\n");
+          const classifierMsgs: ChatMessage[] = [
+            { role: "system", content:
+              `Você é um classificador de estágio de conversa de vendas. Dada a lista de estágios numerados e o histórico recente, escolha o ESTÁGIO ATUAL (o primeiro estágio cujo "avança quando" ainda NÃO foi satisfeito). Responda APENAS um JSON: {"stage_index": <1-${stages.length}>, "reason": "<1 frase curta>"}. Sem markdown, sem texto extra.` },
+            { role: "user", content: `Estágios:\n${stageList}\n\nHistórico (mais recente por último):\n${tail || "(vazio — primeira mensagem)"}` },
+          ];
+          const cls = await chatCompletion(
+            { ...agent, max_iterations: 1 } as any,
+            classifierMsgs,
+            undefined,
+            { agent_id, lead_id: null, thread_id, note: "stage:classify" },
+          );
+          let chosenIdx = 1;
+          let reason = "(primeiro estágio por padrão)";
+          if (cls.ok) {
+            const raw = cls.choices?.[0]?.message?.content ?? "";
+            try {
+              const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+              const n = Number(parsed.stage_index);
+              if (n >= 1 && n <= stages.length) chosenIdx = n;
+              if (typeof parsed.reason === "string") reason = parsed.reason.slice(0, 240);
+            } catch { /* fallback */ }
+          }
+          const chosen: any = stages[chosenIdx - 1];
+          const delta = String(chosen?.system_prompt_delta ?? "").trim();
+          stageCtx = `\n\n## Estágio atual da conversa: "${chosen.name}" (${chosenIdx}/${stages.length})\n` +
+            (chosen.goal ? `Objetivo deste estágio: ${chosen.goal}\n` : "") +
+            (delta ? `\n${delta}\n` : "") +
+            `\nFoque NESTE estágio. Avance só quando: ${chosen.advance_when || "(critério não definido)"}.`;
+          stageMeta = {
+            stage_id: chosen.id,
+            name: chosen.name,
+            reason,
+            delta_excerpt: delta ? delta.slice(0, 600) : null,
+            all_stages: stages.map((s: any) => ({ id: s.id, name: s.name, advance_when: s.advance_when ?? null })),
+          };
+        }
+      } catch (e) {
+        console.error("[stages] classifier failed", e);
+      }
+    }
+
     const sysContent =
       agentRow.system_prompt +
       planning +
       leadCtx +
       simulatedLeadCtx +
+      stageCtx +
       ragContext +
       "\n\nQuando usar trechos da base, cite com [1], [2] etc.";
 
@@ -699,6 +767,7 @@ Deno.serve(async (req) => {
         ok: !t.result?.error,
         error: t.result?.error ?? null,
       })),
+      stage_meta: stageMeta,
       model: agent.model,
       tokens_in: totalIn,
       tokens_out: totalOut,
@@ -730,6 +799,7 @@ Deno.serve(async (req) => {
             kb_hits: sources,
             tool_calls: traceBody.tool_calls,
             system_prompt_excerpt: traceBody.system_prompt_excerpt,
+            stage: stageMeta,
           }
         : undefined,
     });
