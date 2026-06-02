@@ -230,6 +230,77 @@ export type Database = {
           },
         ]
       }
+      ai_agent_drafts: {
+        Row: {
+          api_key: string | null
+          base_url: string | null
+          clinic_id: string
+          created_at: string
+          generated_prompt: string | null
+          goal: string | null
+          goal_other: string | null
+          id: string
+          interview_answers: Json
+          model: string | null
+          niche: string | null
+          niche_other: string | null
+          provider: string | null
+          provider_verified_at: string | null
+          settings: Json
+          step: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key?: string | null
+          base_url?: string | null
+          clinic_id: string
+          created_at?: string
+          generated_prompt?: string | null
+          goal?: string | null
+          goal_other?: string | null
+          id?: string
+          interview_answers?: Json
+          model?: string | null
+          niche?: string | null
+          niche_other?: string | null
+          provider?: string | null
+          provider_verified_at?: string | null
+          settings?: Json
+          step?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string | null
+          base_url?: string | null
+          clinic_id?: string
+          created_at?: string
+          generated_prompt?: string | null
+          goal?: string | null
+          goal_other?: string | null
+          id?: string
+          interview_answers?: Json
+          model?: string | null
+          niche?: string | null
+          niche_other?: string | null
+          provider?: string | null
+          provider_verified_at?: string | null
+          settings?: Json
+          step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_drafts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
           api_key: string | null
