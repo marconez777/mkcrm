@@ -42,6 +42,7 @@ export function SectionAccordionItem({
   flagship,
   children,
   className,
+  contentClassName,
 }: Props) {
   const accentVar = ACCENT_VAR[accent];
   return (
