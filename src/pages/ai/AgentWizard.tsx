@@ -492,7 +492,7 @@ export default function AgentWizard() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="min-h-screen bg-muted/30 px-4 py-8">
+      <div className="h-full overflow-auto bg-muted/30 px-4 py-8">
         <div className="mx-auto max-w-2xl">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
