@@ -940,6 +940,28 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="costs" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <DollarSign className="h-4 w-4" /> Custos & limites
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <CostsPanel agentId={selected.id} clinicId={clinicId} />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="audit" className="rounded-md border bg-card px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <ClipboardList className="h-4 w-4" /> Auditoria de mudanças
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <AuditLogPanel agentId={selected.id} />
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="insights" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
