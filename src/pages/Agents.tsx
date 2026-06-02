@@ -969,9 +969,13 @@ export default function Agents() {
                           <div key={d.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
                             <span className="flex flex-1 items-center gap-2 truncate">
                               <span className="truncate">{d.title}</span>
-                              {d.source_type === "system_default" && (
-                                <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">padrão</Badge>
-                              )}
+                              {d.source_type === "system_default" && (() => {
+                                const n = d.metadata?.niche as string | undefined;
+                                const label = n ? `padrão · ${NICHE_LABEL[n] ?? n}` : "padrão";
+                                return (
+                                  <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">{label}</Badge>
+                                );
+                              })()}
                             </span>
                             <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
                               <Trash2 className="h-3 w-3" />
