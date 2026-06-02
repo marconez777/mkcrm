@@ -165,7 +165,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 | 2 | Objetivo | `sdr`, `classifier`, `support`, `scheduler`, `custom`. | — |
 | 3 | Conexão | Provider + chave + (base URL) + modelo do **agente final** (pode ser diferente do Builder). Botão "Testar conexão". | `ping` com override |
 | 4 | Entrevista | LLM gera 3-5 perguntas adaptadas a {nicho, objetivo}. Sempre inclui 1 com `kind='dominant_offer'`. | `interview_plan` |
-| 5 | Prompt | LLM gera `system_prompt` final + `suggested_tools` + `temperature`/`top_k`/`max_iterations` + `rationale`. Botão "Refinar" permite iterar mandando feedback livre. | `generate_system_prompt` |
+| 5 | Prompt | LLM gera `system_prompt` final + `suggested_tools` + `temperature`/`top_k`/`max_iterations` + `rationale`. Botão "Refinar" permite iterar mandando feedback livre. Botão **"Criar agente"** insere em `ai_agents` (com `enabled=false`, `draft_mode=true`, tools filtradas pela whitelist em `src/lib/agent-tools.ts`), apaga o rascunho e redireciona para `/ai/agents/:id`. | `generate_system_prompt` |
 
 **Persistência:** cada `setStep` ou avanço chama `persist({...})` que faz upsert em `ai_agent_drafts` com chave `(clinic_id, user_id)`. Permite fechar a aba e retomar.
 
