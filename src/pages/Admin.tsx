@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
 import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
 import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
+import BuilderManualPanel from "@/components/admin/BuilderManualPanel";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
