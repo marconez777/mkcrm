@@ -59,10 +59,23 @@ const GOAL_OPTS = [
 ];
 
 export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
-  // free chat
+  // free chat (multi-turn)
+  type ChatMsg = { role: "user" | "assistant"; content: string };
+  const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [chatOutput, setChatOutput] = useState("");
   const [chatting, setChatting] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // reset history when switching agent
+    setChatHistory([]);
+    setChatError(null);
+  }, [agentId]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [chatHistory, chatting]);
 
   // scenarios
   const [niche, setNiche] = useState("other");
