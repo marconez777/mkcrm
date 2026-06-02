@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone, Users, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
 import type { Persona } from "@/components/agents/PersonasPanel";
+import { AlfredDialog, type AlfredTrace } from "@/components/agents/AlfredDialog";
 
 interface Props {
   agentId: string;
@@ -61,11 +62,13 @@ const GOAL_OPTS = [
 
 export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   // free chat (multi-turn)
-  type ChatMsg = { role: "user" | "assistant"; content: string };
+  type ChatMsg = { role: "user" | "assistant"; content: string; trace?: AlfredTrace | null };
   const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [alfredOpen, setAlfredOpen] = useState(false);
+  const [alfredTrace, setAlfredTrace] = useState<AlfredTrace | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Fase 10 — Lead simulado (persistido por agente no localStorage)
@@ -208,7 +211,8 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
       return;
     }
     const content = (data as any)?.content ?? "(resposta vazia)";
-    setChatHistory((h) => [...h, { role: "assistant", content }]);
+    const trace = (data as any)?.trace ?? null;
+    setChatHistory((h) => [...h, { role: "assistant", content, trace }]);
   };
 
   const clearChat = () => {
