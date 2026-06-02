@@ -111,8 +111,10 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     if (!proposal?.has_changes || applying) return;
     setApplying(true);
     try {
-      const updates: Record<string, unknown> = { ...proposal.changes };
-      const { error } = await supabase.from("ai_agents").update(updates).eq("id", agentId);
+      const { error } = await supabase
+        .from("ai_agents")
+        .update(proposal.changes as never)
+        .eq("id", agentId);
       if (error) throw error;
       toast.success("Patch aplicado ao agente.");
       onApplied(proposal.changes);
