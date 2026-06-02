@@ -616,6 +616,8 @@ function Stepper({ step }: { step: Step }) {
     { n: 1, label: "Nicho" },
     { n: 2, label: "Objetivo" },
     { n: 3, label: "Conexão" },
+    { n: 4, label: "Entrevista" },
+    { n: 5, label: "Prompt" },
   ];
   return (
     <div className="flex items-center justify-center gap-2">
