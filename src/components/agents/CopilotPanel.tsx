@@ -71,7 +71,72 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     setHistory([]);
     setProposal(null);
     setInput("");
+    setEvalRun(null);
+    setPreviousSnapshot(null);
   }, [agentId]);
+
+  async function runEvalsAfterApply(baselinePassedIds: Set<string>) {
+    setEvalRun({ status: "running" });
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-eval-run", {
+        body: { agent_id: agentId },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Falha ao rodar evals.");
+      const results: EvalResult[] = data.results ?? [];
+      // fetch prompts for regressed evals
+      const regressedIds = results.filter((r) => baselinePassedIds.has(r.id) && !r.passed).map((r) => r.id);
+      let regressed: { id: string; prompt: string; response: string }[] = [];
+      if (regressedIds.length > 0) {
+        const { data: rows } = await supabase
+          .from("agent_evals")
+          .select("id, prompt")
+          .in("id", regressedIds);
+        regressed = (rows ?? []).map((row) => ({
+          id: row.id,
+          prompt: row.prompt,
+          response: results.find((r) => r.id === row.id)?.response ?? "",
+        }));
+      }
+      setEvalRun({
+        status: "done",
+        total: data.total ?? results.length,
+        passed: data.passed ?? results.filter((r) => r.passed).length,
+        regressed,
+      });
+    } catch (e) {
+      setEvalRun({ status: "error", error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function revertPatch() {
+    if (!previousSnapshot || reverting) return;
+    setReverting(true);
+    try {
+      // only revert fields that were in the patch
+      const fields: Record<string, unknown> = {};
+      for (const k of Object.keys(proposal?.changes ?? evalRun ?? {})) {
+        if (k in previousSnapshot) fields[k] = previousSnapshot[k];
+      }
+      // fallback: if proposal cleared, revert all patchable fields we tracked
+      const patchKeys: (keyof Patch)[] = ["system_prompt", "temperature", "draft_mode", "rag_top_k", "debounce_seconds", "tools"];
+      for (const k of patchKeys) {
+        if (previousSnapshot[k] !== undefined) fields[k] = previousSnapshot[k];
+      }
+      const { error } = await supabase.from("ai_agents").update(fields as never).eq("id", agentId);
+      if (error) throw error;
+      toast.success("Patch revertido.");
+      onApplied(fields as Patch);
+      setHistory((h) => [...h, { role: "assistant", content: "↩️ Patch revertido para o estado anterior." }]);
+      setEvalRun(null);
+      setPreviousSnapshot(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReverting(false);
+    }
+  }
+
 
   async function send() {
     const text = input.trim();
