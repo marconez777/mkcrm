@@ -48,6 +48,7 @@ type Agent = {
   is_system?: boolean;
   system_key?: string | null;
   builder_verified_at?: string | null;
+  draft_mode?: boolean;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
