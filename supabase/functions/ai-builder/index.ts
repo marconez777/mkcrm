@@ -386,6 +386,331 @@ Chame a tool submit_agent_prompt com o resultado.`;
   }
 }
 
+// ---------- Phase 4: KB assistant ----------
+
+const PRIVATE_HOST_RE = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|::1$|0\.0\.0\.0$)/i;
+
+function validateHttpUrl(raw: string): URL | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    if (PRIVATE_HOST_RE.test(u.hostname)) return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchHtml(url: URL, timeoutMs = 12000): Promise<string> {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url.toString(), {
+      redirect: "follow",
+      signal: ctrl.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; LovableBuilder/1.0)" },
+    });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    return await res.text();
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+function extractLinks(html: string, base: URL): Array<{ url: string; text: string }> {
+  const out: Array<{ url: string; text: string }> = [];
+  const seen = new Set<string>();
+  const re = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const rawHref = m[1].trim();
+    if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:") || rawHref.startsWith("javascript:")) continue;
+    let abs: URL;
+    try { abs = new URL(rawHref, base); } catch { continue; }
+    if (abs.hostname !== base.hostname) continue;
+    if (!/^https?:$/.test(abs.protocol)) continue;
+    if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|zip|rar|mp4|mp3|css|js|ico|woff2?)(\?.*)?$/i.test(abs.pathname)) continue;
+    abs.hash = "";
+    const key = abs.toString();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+    out.push({ url: key, text });
+    if (out.length >= 80) break;
+  }
+  return out;
+}
+
+const SUGGEST_URLS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_kb_url_suggestions",
+    description: "Recomenda quais URLs do site valem ser ingeridas na base de conhecimento do agente, em ordem de utilidade.",
+    parameters: {
+      type: "object",
+      properties: {
+        suggestions: {
+          type: "array",
+          minItems: 1,
+          maxItems: 15,
+          items: {
+            type: "object",
+            properties: {
+              url: { type: "string" },
+              title: { type: "string", description: "Título sugerido para o documento (PT-BR, curto)." },
+              reason: { type: "string", description: "Por que esta URL é útil para o agente (1 frase, PT-BR)." },
+              recommended: { type: "boolean", description: "true se deve vir marcada por padrão." },
+            },
+            required: ["url", "title", "reason", "recommended"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["suggestions"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionSuggestKbUrls(builder: Agent, payload: Record<string, unknown>) {
+  const rawUrl = String(payload.url ?? "").trim();
+  const v = validateHttpUrl(rawUrl);
+  if (!v) return { ok: false, code: "invalid_url", status: 400, message: "URL inválida ou bloqueada." };
+
+  const niche = String(payload.niche ?? "other");
+  const goal = String(payload.goal ?? "sdr");
+  const dominantOffer = String(payload.dominant_offer ?? "").trim();
+  const nicheName = NICHE_LABEL[niche] ?? niche;
+  const goalName = GOAL_LABEL[goal] ?? goal;
+
+  let html = "";
+  try {
+    html = await fetchHtml(v);
+  } catch (e) {
+    return { ok: false, code: "fetch_failed", status: 502, message: `Não consegui acessar o site: ${(e as Error).message}` };
+  }
+  const links = extractLinks(html, v);
+  if (links.length === 0) {
+    return { ok: false, code: "no_links", status: 200, message: "Não encontrei links navegáveis nessa página. Tente a home do site." };
+  }
+
+  const linksBlock = links.map((l, i) => `${i + 1}. ${l.url}${l.text ? `  — "${l.text}"` : ""}`).join("\n");
+  const system = await buildBuilderSystemPrompt();
+  const userPrompt = `\
+Você está montando a base de conhecimento de um agente de IA.
+
+Site: ${v.origin}
+Nicho: ${nicheName}
+Objetivo do agente: ${goalName}
+${dominantOffer ? `Oferta principal: ${dominantOffer}` : ""}
+
+Abaixo estão links encontrados na página inicial. Selecione APENAS os mais úteis para o agente responder leads (páginas de serviços/produtos, preços, FAQ, sobre, processo, contato/agendamento). IGNORE: blog antigo, posts soltos, política/privacidade/termos, login, carrinho, paginação, tags, categorias vazias.
+
+Devolva no MÁXIMO 15. Marque recommended=true só nas 3-6 mais importantes.
+
+Links:
+${linksBlock}
+
+Chame submit_kb_url_suggestions.`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [SUGGEST_URLS_TOOL],
+      { agent_id: builder.id, note: "ai-builder:suggest_kb_urls" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_kb_url_suggestions");
+    if (!args?.suggestions?.length) {
+      return { ok: false, code: "unknown", message: "O Construtor não devolveu sugestões. Tente novamente." };
+    }
+    // sanity: keep only same-host suggestions
+    const filtered = (args.suggestions as any[])
+      .filter((s) => {
+        try { return new URL(s.url).hostname === v.hostname; } catch { return false; }
+      })
+      .slice(0, 15);
+    return { ok: true, base_url: v.origin, found: links.length, suggestions: filtered };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
+const DRAFT_KB_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_kb_draft",
+    description: "Transforma um texto bruto em um documento de base de conhecimento limpo e estruturado.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Título curto em PT-BR (até 80 chars)." },
+        content: { type: "string", description: "Conteúdo em Markdown leve, com seções (##) e bullets quando fizer sentido. Sem floreios, sem repetições." },
+        summary: { type: "string", description: "Resumo de 1-2 frases do que o documento cobre." },
+      },
+      required: ["title", "content", "summary"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionDraftKnowledgeBase(builder: Agent, payload: Record<string, unknown>) {
+  const raw = String(payload.text ?? "").trim();
+  if (raw.length < 30) return { ok: false, code: "too_short", status: 400, message: "Cole um texto com pelo menos algumas linhas." };
+  if (raw.length > 80_000) return { ok: false, code: "too_long", status: 400, message: "Texto muito longo. Divida em partes menores." };
+
+  const titleHint = String(payload.title_hint ?? "").trim();
+  const niche = String(payload.niche ?? "other");
+  const goal = String(payload.goal ?? "sdr");
+  const nicheName = NICHE_LABEL[niche] ?? niche;
+  const goalName = GOAL_LABEL[goal] ?? goal;
+
+  const system = await buildBuilderSystemPrompt();
+  const userPrompt = `\
+Limpe e estruture o texto abaixo para virar UM documento da base de conhecimento de um agente de IA.
+
+Nicho: ${nicheName}
+Objetivo do agente: ${goalName}
+${titleHint ? `Sugestão de título do usuário: ${titleHint}` : ""}
+
+Regras:
+- PT-BR, frases curtas, sem floreios de marketing.
+- Remova navegação, menus, cookies, repetições, "leia mais", botões.
+- Agrupe em seções com ## quando fizer sentido (Serviços, Preços, FAQ, Horários, etc).
+- Mantenha fatos úteis para responder leads (o que oferece, como funciona, valores, prazos, contatos, diferenciais).
+- NÃO invente informação que não esteja no texto.
+
+Texto bruto:
+---
+${raw}
+---
+
+Chame submit_kb_draft.`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [DRAFT_KB_TOOL],
+      { agent_id: builder.id, note: "ai-builder:draft_knowledge_base" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_kb_draft");
+    if (!args?.title || !args?.content) {
+      return { ok: false, code: "unknown", message: "O Construtor não devolveu um documento válido. Tente novamente." };
+    }
+    return {
+      ok: true,
+      title: String(args.title).slice(0, 120),
+      content: String(args.content),
+      summary: String(args.summary ?? ""),
+    };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
+const AUDIT_KB_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "submit_kb_audit",
+    description: "Aponta lacunas na base de conhecimento do agente, adaptado ao nicho e à oferta principal.",
+    parameters: {
+      type: "object",
+      properties: {
+        overall: { type: "string", enum: ["solid", "ok", "weak"], description: "Avaliação geral da base." },
+        coverage_note: { type: "string", description: "1-2 frases resumindo o que está coberto e o que falta." },
+        gaps: {
+          type: "array",
+          maxItems: 8,
+          items: {
+            type: "object",
+            properties: {
+              topic: { type: "string", description: "Tópico ausente ou fraco (PT-BR, curto)." },
+              why: { type: "string", description: "Por que esse tópico importa para esse agente (1 frase)." },
+              severity: { type: "string", enum: ["high", "medium", "low"] },
+              suggestion: { type: "string", description: "Como o usuário pode preencher (ex: 'cole o texto da página X', 'descreva seu processo de agendamento')." },
+            },
+            required: ["topic", "why", "severity", "suggestion"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["overall", "coverage_note", "gaps"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionAuditKb(builder: Agent, payload: Record<string, unknown>) {
+  const agentId = String(payload.agent_id ?? "").trim();
+  if (!agentId) return { ok: false, code: "missing_agent", status: 400, message: "agent_id obrigatório." };
+
+  const supabase = sb();
+  const { data: docs } = await supabase
+    .from("ai_documents")
+    .select("id, title, source, source_type, content")
+    .eq("agent_id", agentId)
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  const docsList = (docs ?? []).map((d: any) => {
+    const snippet = String(d.content ?? "").replace(/\s+/g, " ").slice(0, 240);
+    return `- [${d.source_type === "system_default" ? "padrão" : "user"}] ${d.title}${snippet ? ` — ${snippet}…` : ""}`;
+  }).join("\n") || "(base vazia)";
+
+  const niche = String(payload.niche ?? "other");
+  const goal = String(payload.goal ?? "sdr");
+  const dominantOffer = String(payload.dominant_offer ?? "").trim();
+  const nicheName = NICHE_LABEL[niche] ?? niche;
+  const goalName = GOAL_LABEL[goal] ?? goal;
+
+  const system = await buildBuilderSystemPrompt();
+  const userPrompt = `\
+Audite a base de conhecimento abaixo e aponte LACUNAS específicas e acionáveis para esse agente.
+
+Nicho: ${nicheName}
+Objetivo: ${goalName}
+${dominantOffer ? `Oferta principal: ${dominantOffer}` : ""}
+
+Documentos atuais:
+${docsList}
+
+Regras:
+- Aponte no máximo 8 lacunas, ordenadas por severidade (high → low).
+- Se o agente é SDR/Agendador e não há nada sobre a oferta principal, isso é high.
+- Considere coberto o que já está em documentos "padrão" — só aponte se mesmo assim falta algo específico do negócio.
+- NÃO invente que algo falta se já está nos snippets.
+- Linguagem neutra ao nicho.
+
+Chame submit_kb_audit.`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [AUDIT_KB_TOOL],
+      { agent_id: builder.id, note: "ai-builder:audit_kb" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+    const args = extractToolArguments(resp, "submit_kb_audit");
+    if (!args) return { ok: false, code: "unknown", message: "O Construtor não devolveu uma auditoria. Tente novamente." };
+    return {
+      ok: true,
+      overall: args.overall ?? "ok",
+      coverage_note: args.coverage_note ?? "",
+      gaps: Array.isArray(args.gaps) ? args.gaps.slice(0, 8) : [],
+      docs_count: docs?.length ?? 0,
+    };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
 // ---------- handler ----------
 
 Deno.serve(async (req) => {
