@@ -1,48 +1,98 @@
-# Corrigir erro do Test Lab e melhorar o UI
 
-## Causa do erro
+## Estratégia: base sólida → camadas finas → estágios em 3 sub-fases
 
-O agente recém-criado fica `enabled=false` (precisa ser publicado/ativado depois). O edge `ai-chat` faz:
+Mantemos as Fases 10-13 e 15-16 como antes (já alinhadas com a doc atual do Builder). A grande mudança: **Fase 14 (Estágios)** vira **14a/14b/14c**, cada uma deployável e testável isoladamente, sem deixar o sistema em estado intermediário quebrado.
 
-```ts
-if (!agentRow.enabled) return json({ error: "agent disabled" }, 400);
-```
+Cada fase abaixo segue 3 portões fixos:
+1. **Migration + GRANTs + RLS** (quando há tabela nova) revisada antes de qualquer código de UI.
+2. **Edge change isolada** atrás de feature flag (`clinic_settings.feature_flags`) — em produção fica off até validar.
+3. **UI atrás da mesma flag**, com Test Lab como bancada — só promovemos para conversa real depois de aprovar.
 
-Isso bloqueia **qualquer** chamada, inclusive o Test Lab (que não passa `lead_id`). O `supabase.functions.invoke` no front engole o body e devolve só "Edge Function returned a non-2xx status code", por isso o usuário vê a mensagem genérica.
+---
 
-## O que vou fazer
+### Fase 10 — Lead simulado + Co-piloto v1 ✅ (primeira a entregar)
 
-### 1. Backend: `supabase/functions/ai-chat/index.ts`
-- Permitir execução em modo "teste": quando **não há `lead_id`** (chamada do Test Lab), ignorar o check `enabled` (o `draft_mode` já é tratado dessa forma e só bloqueia quando há `lead_id`).
-- Mantém o bloqueio em produção (com `lead_id`) intacto.
+**Migration:** nenhuma (só leitura/escrita em tabelas já existentes).
+**Edge:**
+- `ai-chat`: aceitar `simulated_lead` no body **só quando `lead_id` ausente** (preserva check de `enabled` em produção). Injeta system message extra com nome/telefone/canal/campos.
+- `ai-builder`: nova action `copilot_chat` com tool `propose_agent_patch`. Patch passa por `ensureContextClause()` (se mexer em `system_prompt`) e `filterKnownTools()` (se mexer em `tools`) antes de retornar.
+**UI:**
+- `TestLab.tsx`: painel "Simular lead WhatsApp" (nome, telefone, canal, campos custom, histórico inicial) + chat estilo WhatsApp com split por `\n\n`.
+- `Agents.tsx`: novo card "Co-piloto" abaixo do TestLab, com cartão de patch (Aplicar/Descartar). Aplicar faz `UPDATE ai_agents` — trigger já snapshota em `ai_agent_prompt_history` com `change_note = "co-piloto: <summary>"`.
+**Doc:** corrigir `/ai/agents/:id` → `/ai/agents?agent=<id>` em `BUILDER_AGENTS.md`. Adicionar Fase 10.
+**Critério de pronto:** lead simulado responde sem pedir nome/telefone; "respostas mais curtas" via co-piloto vira patch aplicável em 1 clique.
 
-### 2. Frontend: `src/components/agents/TestLab.tsx` — extrair erro real
-- Trocar o tratamento atual por leitura do body de erro do edge (`error.context.json()` quando disponível) e mostrar a mensagem PT-BR vinda do backend, usando `parseBuilderError` como fallback.
-- Aplicar nas 3 abas (chat livre, gerar cenários, avaliar) — hoje só "Chat livre" mostra erro de forma confusa.
+---
 
-### 3. UI do "Testar agente" — refinamento da aba Chat livre
+### Fase 11 — Personas & cenários compartilhados
 
-Hoje é só um `Textarea` + `Button` + bloco de output. Vou transformar em mini-chat com:
+Tabela `agent_personas` (id, agent_id, clinic_id, name, phone, channel, persona_text, custom_fields jsonb, opening_message, tags[], created_by) — CREATE + GRANT + RLS + POLICY no mesmo migration. Cenários da Fase 5 ganham `persona_id` opcional. Test Lab vira dropdown "carregar persona". Link público de teste fica para o fim (subfase 11b).
 
-- **Histórico de mensagens** em bolhas (`user` à direita primary, `assistant` à esquerda muted), com markdown via `ReactMarkdown` (já é padrão no projeto).
-- **Composer fixo embaixo** com `Textarea` (Enter envia, Shift+Enter quebra linha) e botão Enviar/Loader.
-- **Indicador de "digitando..."** enquanto a resposta carrega.
-- **Botão "Limpar conversa"** no header da aba.
-- **Banner de erro** dedicado (vermelho suave com ícone) em vez de prefixo "Erro:" no output.
-- Estado preservado durante a sessão do componente (só reseta ao trocar de agente ou clicar Limpar).
-- Mantém envio do histórico completo no `messages` para o `ai-chat` (multi-turn já é suportado).
+---
 
-Tokens semânticos (`bg-primary`, `bg-muted`, `text-destructive` etc.) — sem cores hardcoded.
+### Fase 12 — Co-piloto avançado
 
-### 4. Documentação
-- Atualizar `docs/features/BUILDER_AGENTS.md`: deixar claro que o Test Lab funciona com agente em rascunho/desativado, e que `enabled` controla só o atendimento real de leads.
+Diff visual verde/vermelho no `system_prompt`. Edição por seção via marcadores `<!-- §SEÇÃO:tom -->`. Botão "Aplicar e testar agora". A/B lado a lado reusando `ai_agent_prompt_history`.
 
-## Fora de escopo
-- Streaming de tokens no Test Lab (continua blocking — já é assim em produção).
-- Persistir o histórico de teste (segue só em memória do componente).
-- Mudanças nas abas Cenários/Avaliação além da correção do erro.
+---
 
-## Arquivos afetados
-- `supabase/functions/ai-chat/index.ts` (edit)
-- `src/components/agents/TestLab.tsx` (edit — refactor da aba Chat livre)
-- `docs/features/BUILDER_AGENTS.md` (edit)
+### Fase 13 — Diagnóstico "Alfred"
+
+Tabela `ai_chat_traces` (PII mascarada antes de gravar). Painel "Por que disse isso?" em cada bolha do agente. Amostragem inicial: **só Test Lab** (produção fica para depois, decidido por `clinic_settings.ai_trace_sampling`).
+
+---
+
+### Fase 14 — Estágios de conversa (quebrada em 3)
+
+#### 14a — Estágios "read-only" (mínimo viável)
+**Objetivo:** ter o conceito existindo, sem mexer no fluxo de resposta. Zero risco de quebrar produção.
+
+- **Migration:** `agent_stages` (id, agent_id, clinic_id, order_idx, name, goal, system_prompt_delta text, advance_when text, created_at). GRANTs + RLS + POLICY.
+- **UI:** timeline horizontal arrastável em `Agents.tsx`, CRUD completo (criar/editar/reordenar/excluir).
+- **Sem efeito em `ai-chat` ainda.** Estágios existem como dados, são exibidos no Test Lab como label informativo ("estágio sugerido: Qualificação") mas não alteram a resposta.
+- **Critério de pronto:** usuário cria 3 estágios para seu agente, vê na timeline, edita, exclui. Conversa real continua igual.
+
+#### 14b — Classificador + injeção de prompt (Test Lab apenas)
+**Objetivo:** começar a usar o estágio sem afetar lead real.
+
+- **Edge:** `ai-chat` ganha classifier leve (chamada extra cap 200 tokens) que detecta estágio atual baseado no histórico + `advance_when`. Injeta `system_prompt_delta` do estágio detectado.
+- **Feature flag:** `clinic_settings.feature_flags.stages_classifier` — default **off**. Test Lab força on; produção fica off.
+- **UI:** Test Lab mostra estágio atual em tempo real (badge no topo da bolha do agente) + trace mostra qual delta foi injetado.
+- **Critério de pronto:** no Test Lab, lead "oi tudo bem?" entra em "Abertura"; lead "qual o preço?" pula para "Oferta"; cada resposta usa delta certo. Produção segue sem mudança.
+
+#### 14c — Ativação em produção + tools por estágio + follow-up
+**Objetivo:** finalmente expor para lead real, mas com guardrails.
+
+- **Migration adicional:** `agent_stages` ganha `allowed_tools text[]`, `follow_up_after_min int`, `follow_up_message text`.
+- **Edge:** classificador roda **antes** do `pg_advisory_xact_lock(lead_id)` (pegadinha #21 já documentada). Tools filtradas por `allowed_tools ∩ KNOWN_AGENT_TOOLS`.
+- **Cron:** job `agent_followups_tick` (a cada 5min) com `pg_cron.unschedule` defensivo (pegadinha #35). Dispara `follow_up_message` se `last_inbound_at` antigo no estágio.
+- **Ativação:** toggle por agente em `Agents.tsx` ("Usar estágios em conversas reais") — default off mesmo após deploy.
+- **Critério de pronto:** clínica liga o toggle num agente de teste, lead real flui pelos estágios, follow-up dispara, dá para desligar a qualquer momento sem perder dados.
+
+**Por que 3 sub-fases:** se 14b falhar, produção segue intocada (flag off). Se 14c falhar, o toggle por agente permite rollback imediato. Sem migrations destrutivas em nenhuma das três.
+
+---
+
+### Fase 15 — Evals contínuos & regression banner
+
+Patch do co-piloto dispara `ai-eval-run` em background. Banner "esse patch quebrou X cenários" com reverter em 1 clique (snapshot já existe em `ai_agent_prompt_history`).
+
+---
+
+### Fase 16 — Aprendizado com produção
+
+Threads reais classificadas como `good|problem|objection|doubt` viram cenários de eval (PII anonimizada). Co-piloto propõe patches a partir de conversas marcadas `problem`.
+
+---
+
+## Vamos começar pela Fase 10?
+
+Confirme e eu já abro a migration mínima (só ajuste de `clinic_settings.feature_flags` se necessário, sem tabela nova) e implemento na seguinte ordem:
+
+1. `ai-chat`: aceitar `simulated_lead`.
+2. `ai-builder`: action `copilot_chat`.
+3. `TestLab.tsx`: painel de lead simulado + chat WhatsApp-like.
+4. `Agents.tsx`: card co-piloto + apply-patch.
+5. `BUILDER_AGENTS.md`: corrigir rota e documentar Fase 10.
+
+Se quiser, posso ainda **adiar o co-piloto** dentro da Fase 10 e entregar primeiro só o lead simulado (sub-fase 10a), depois o co-piloto (10b) — mesma lógica do 14a/b/c. Diz aí qual cadência prefere.

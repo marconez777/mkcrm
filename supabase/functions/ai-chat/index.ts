@@ -395,7 +395,14 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { agent_id, messages: incomingRaw = [], lead_id = null, thread_id = null, persist = false } = await req.json();
+    const {
+      agent_id,
+      messages: incomingRaw = [],
+      lead_id = null,
+      thread_id = null,
+      persist = false,
+      simulated_lead = null,
+    } = await req.json();
     if (!agent_id) return json({ error: "agent_id required" }, 400);
 
     const { data: agentRow } = await supabase.from("ai_agents").select("*").eq("id", agent_id).single();
@@ -407,6 +414,35 @@ Deno.serve(async (req) => {
     }
     if (!agentRow.api_key) return json({ error: "Agente sem chave de API configurada. Edite o agente e cole a chave no passo de provedor." }, 400);
     const agent = agentRow as Agent & any;
+
+    // Fase 10 — Lead simulado (Test Lab apenas: só vale quando lead_id está ausente)
+    let simulatedLeadCtx = "";
+    if (!lead_id && simulated_lead && typeof simulated_lead === "object") {
+      const sl = simulated_lead as Record<string, any>;
+      const name = String(sl.name ?? "").trim();
+      const phone = String(sl.phone ?? "").trim();
+      const channel = String(sl.channel ?? "whatsapp").trim();
+      const pipeline = String(sl.pipeline ?? "").trim();
+      const stage = String(sl.stage ?? "").trim();
+      const customFields = sl.custom_fields && typeof sl.custom_fields === "object" ? sl.custom_fields : null;
+      const notes = String(sl.notes ?? "").trim();
+      const parts: string[] = [];
+      if (name) parts.push(`nome=${name}`);
+      if (phone) parts.push(`telefone=${phone}`);
+      if (channel) parts.push(`canal=${channel}`);
+      if (pipeline) parts.push(`funil=${pipeline}`);
+      if (stage) parts.push(`etapa=${stage}`);
+      if (customFields && Object.keys(customFields).length) parts.push(`campos=${JSON.stringify(customFields)}`);
+      if (notes) parts.push(`observacoes=${notes}`);
+      if (parts.length) {
+        simulatedLeadCtx =
+          `\n\n## Contexto do lead (simulação Test Lab)\n` +
+          parts.map((p) => `- ${p}`).join("\n") +
+          `\n\nIMPORTANTE: estes dados já chegaram com o lead (vindo do WhatsApp/canal). ` +
+          `NÃO peça nome, telefone ou dados que já estão acima. ` +
+          `Responda em estilo ping-pong: mensagens curtas, 1 pergunta de cada vez, sem floreios.`;
+      }
+    }
 
     await assertSpendAllowed(agent.clinic_id ?? null);
 
@@ -513,6 +549,7 @@ Deno.serve(async (req) => {
       agentRow.system_prompt +
       planning +
       leadCtx +
+      simulatedLeadCtx +
       ragContext +
       "\n\nQuando usar trechos da base, cite com [1], [2] etc.";
 

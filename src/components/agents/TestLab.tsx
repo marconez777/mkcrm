@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon } from "lucide-react";
+import { Loader2, Send, Sparkles, Play, MessageSquare, Beaker, ClipboardCheck, ArrowRight, AlertCircle, Trash2, Bot, User as UserIcon, ChevronDown, ChevronUp, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseBuilderError } from "@/lib/builder-errors";
@@ -67,11 +67,48 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   const [chatError, setChatError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Fase 10 — Lead simulado (persistido por agente no localStorage)
+  type SimulatedLead = {
+    name: string;
+    phone: string;
+    channel: "whatsapp" | "instagram" | "widget" | "sms";
+    pipeline: string;
+    stage: string;
+    notes: string;
+    custom_fields: Record<string, string>;
+  };
+  const DEFAULT_LEAD: SimulatedLead = {
+    name: "Maria Silva",
+    phone: "+55 11 90000-0000",
+    channel: "whatsapp",
+    pipeline: "",
+    stage: "",
+    notes: "",
+    custom_fields: {},
+  };
+  const LEAD_KEY = `testlab.simulated_lead.${agentId}`;
+  const [simLead, setSimLead] = useState<SimulatedLead>(DEFAULT_LEAD);
+  const [leadOpen, setLeadOpen] = useState(true);
+  const [customKey, setCustomKey] = useState("");
+  const [customVal, setCustomVal] = useState("");
+
   useEffect(() => {
-    // reset history when switching agent
+    // load per-agent lead profile
+    try {
+      const raw = localStorage.getItem(LEAD_KEY);
+      if (raw) setSimLead({ ...DEFAULT_LEAD, ...JSON.parse(raw) });
+      else setSimLead(DEFAULT_LEAD);
+    } catch { setSimLead(DEFAULT_LEAD); }
+    // reset chat when switching agent
     setChatHistory([]);
     setChatError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
+
+  useEffect(() => {
+    try { localStorage.setItem(LEAD_KEY, JSON.stringify(simLead)); } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simLead]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -123,7 +160,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
     setChatError(null);
     setChatting(true);
     const { data, error } = await supabase.functions.invoke("ai-chat", {
-      body: { agent_id: agentId, messages: next },
+      body: { agent_id: agentId, messages: next, simulated_lead: simLead },
     });
     setChatting(false);
     if (error || (data as any)?.error) {
@@ -204,7 +241,93 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
       </TabsList>
 
       {/* Chat livre */}
-      <TabsContent value="chat" className="pt-3">
+      <TabsContent value="chat" className="space-y-2 pt-3">
+        {/* Painel: lead simulado */}
+        <div className="rounded-lg border bg-card">
+          <button
+            type="button"
+            onClick={() => setLeadOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-3 py-2 text-left"
+          >
+            <span className="flex items-center gap-2 text-xs font-semibold">
+              <Phone className="h-3.5 w-3.5 text-emerald-600" />
+              Lead simulado · {simLead.name || "(sem nome)"} · {simLead.channel}
+            </span>
+            {leadOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+          </button>
+          {leadOpen && (
+            <div className="space-y-2 border-t px-3 py-3">
+              <p className="text-[11px] text-muted-foreground">
+                Esses dados são enviados ao agente como contexto, simulando um lead real chegando pelo WhatsApp. O agente NÃO deve pedir o que já está aqui.
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Input className="h-8" placeholder="Nome" value={simLead.name} onChange={(e) => setSimLead({ ...simLead, name: e.target.value })} />
+                <Input className="h-8" placeholder="Telefone" value={simLead.phone} onChange={(e) => setSimLead({ ...simLead, phone: e.target.value })} />
+                <Select value={simLead.channel} onValueChange={(v) => setSimLead({ ...simLead, channel: v as SimulatedLead["channel"] })}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="widget">Widget do site</SelectItem>
+                    <SelectItem value="sms">SMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input className="h-8" placeholder="Funil (opcional)" value={simLead.pipeline} onChange={(e) => setSimLead({ ...simLead, pipeline: e.target.value })} />
+                <Input className="h-8" placeholder="Etapa atual (opcional)" value={simLead.stage} onChange={(e) => setSimLead({ ...simLead, stage: e.target.value })} />
+              </div>
+              <Textarea
+                rows={2}
+                placeholder="Observações sobre o lead (ex.: 'chegou via campanha de Black Friday', 'já comprou antes')"
+                value={simLead.notes}
+                onChange={(e) => setSimLead({ ...simLead, notes: e.target.value })}
+                className="min-h-[44px] text-xs"
+              />
+              {/* Custom fields */}
+              <div className="space-y-1">
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(simLead.custom_fields).map(([k, v]) => (
+                    <Badge key={k} variant="outline" className="gap-1 text-[10px]">
+                      <span className="font-semibold">{k}:</span> {v}
+                      <button
+                        type="button"
+                        className="ml-1 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          const next = { ...simLead.custom_fields };
+                          delete next[k];
+                          setSimLead({ ...simLead, custom_fields: next });
+                        }}
+                      >×</button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input className="h-7 text-xs" placeholder="campo" value={customKey} onChange={(e) => setCustomKey(e.target.value)} />
+                  <Input className="h-7 text-xs" placeholder="valor" value={customVal} onChange={(e) => setCustomVal(e.target.value)} />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => {
+                      const k = customKey.trim();
+                      const v = customVal.trim();
+                      if (!k || !v) return;
+                      setSimLead({ ...simLead, custom_fields: { ...simLead.custom_fields, [k]: v } });
+                      setCustomKey(""); setCustomVal("");
+                    }}
+                  >+ campo</Button>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] text-muted-foreground" onClick={() => setSimLead(DEFAULT_LEAD)}>
+                  resetar para padrão
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col rounded-lg border bg-card">
           {/* Header */}
           <div className="flex items-center justify-between border-b px-3 py-2">
@@ -217,6 +340,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
               </Button>
             )}
           </div>
+
 
           {/* Messages */}
           <div ref={scrollRef} className="max-h-[420px] min-h-[160px] space-y-3 overflow-y-auto p-3">

@@ -18,7 +18,8 @@ type Action =
   | "audit_kb"
   | "generate_scenarios"
   | "run_evaluation"
-  | "generate_insights";
+  | "generate_insights"
+  | "copilot_chat";
 
 interface Body {
   action: Action;
@@ -970,7 +971,10 @@ Chame submit_evaluation.`;
   } catch (e) {
     const parsed = parseProviderError(e);
     return { ok: false, ...parsed };
+  }
 }
+
+
 
 // ---------- Phase 6: Insights ----------
 
@@ -1146,7 +1150,205 @@ Chame submit_insights.`;
     return { ok: false, ...parsed };
   }
 }
+
+
+
+
+
+// ---------- Fase 10: Co-piloto de configuração ----------
+
+// Espelha src/lib/agent-tools.ts — manter em sincronia.
+const KNOWN_AGENT_TOOLS_EDGE = new Set<string>([
+  "move_lead_stage", "add_lead_note", "set_lead_field", "update_custom_field",
+  "assign_attendant", "remember_fact", "transfer_to_human", "create_task",
+  "schedule_message", "get_lead_history", "add_lead_tag", "remove_lead_tag",
+  "get_lead_state", "search_knowledge_base", "generate_insight_report",
+]);
+
+function filterKnownToolsEdge(tools: unknown): string[] {
+  if (!Array.isArray(tools)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of tools) {
+    if (typeof t !== "string") continue;
+    const name = t.trim();
+    if (!name || seen.has(name) || !KNOWN_AGENT_TOOLS_EDGE.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
 }
+
+const COPILOT_PATCH_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "propose_agent_patch",
+    description:
+      "Proponha alterações concretas no agente do usuário. Só inclua campos que devem MUDAR. " +
+      "Se a conversa for só dúvida/explicação, retorne 'changes' vazio e use 'message' para responder.",
+    parameters: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          description: "Resposta curta em PT-BR para o usuário (1-3 frases). Sempre obrigatória.",
+        },
+        summary: {
+          type: "string",
+          description:
+            "Frase única descrevendo o patch (ex.: 'respostas mais curtas e sem pedir nome/telefone'). " +
+            "Vazia se changes estiver vazio.",
+        },
+        rationale: {
+          type: "string",
+          description: "Por que esse patch resolve o pedido do usuário. 1-3 frases.",
+        },
+        changes: {
+          type: "object",
+          description:
+            "Campos do agente a alterar. Omita o que não muda. Se não houver mudança, use objeto vazio.",
+          properties: {
+            system_prompt: {
+              type: "string",
+              description:
+                "Novo system_prompt COMPLETO (não diff). Mantenha as seções existentes e a cláusula 'Use o contexto do lead antes de perguntar'.",
+            },
+            temperature: { type: "number", minimum: 0, maximum: 1 },
+            draft_mode: { type: "boolean" },
+            rag_top_k: { type: "integer", minimum: 1, maximum: 20 },
+            debounce_seconds: { type: "integer", minimum: 0, maximum: 600 },
+            tools: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Lista COMPLETA de tools desejadas (não delta). Use APENAS nomes da whitelist: " +
+                "move_lead_stage, add_lead_note, set_lead_field, update_custom_field, assign_attendant, " +
+                "remember_fact, transfer_to_human, create_task, schedule_message, get_lead_history, " +
+                "add_lead_tag, remove_lead_tag, get_lead_state, search_knowledge_base, generate_insight_report.",
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ["message", "changes"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function actionCopilotChat(builder: Agent, payload: Record<string, unknown>) {
+  const agentId = String(payload.agent_id ?? "");
+  if (!agentId) return { ok: false, code: "missing_agent", status: 400, message: "agent_id obrigatório." };
+
+  const supabase = sb();
+  const { data: agent } = await supabase
+    .from("ai_agents")
+    .select("id, clinic_id, name, niche, role, provider, model, system_prompt, temperature, draft_mode, enabled, rag_top_k, debounce_seconds, tools")
+    .eq("id", agentId)
+    .single();
+  if (!agent) return { ok: false, code: "not_found", status: 404, message: "Agente não encontrado." };
+
+  const history = Array.isArray(payload.messages) ? (payload.messages as Array<{ role: string; content: string }>) : [];
+  const cleanHistory = history
+    .filter((m) => m && typeof m.content === "string" && (m.role === "user" || m.role === "assistant"))
+    .slice(-12)
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content.slice(0, 4000) }));
+  if (cleanHistory.length === 0) {
+    return { ok: false, code: "missing_messages", status: 400, message: "Envie ao menos uma mensagem do usuário." };
+  }
+
+  const promptSnippet = (agent.system_prompt ?? "").slice(0, 4000);
+  const currentTools = Array.isArray(agent.tools) ? agent.tools.join(", ") : "(nenhuma)";
+
+  const system = await buildBuilderSystemPrompt();
+  const copilotIntro = `\
+
+Você está no modo CO-PILOTO de configuração: o usuário conversa com você para AJUSTAR um agente já existente.
+
+# Agente atual
+- Nome: ${agent.name ?? "(sem nome)"}
+- Nicho: ${agent.niche ?? "outro"} · Papel: ${agent.role ?? "custom"}
+- Provedor/modelo: ${agent.provider ?? "?"} / ${agent.model ?? "?"}
+- temperature: ${agent.temperature ?? "?"} · draft_mode: ${agent.draft_mode ?? false} · enabled: ${agent.enabled ?? false}
+- rag_top_k: ${agent.rag_top_k ?? "?"} · debounce_seconds: ${agent.debounce_seconds ?? "?"}
+- tools ativas: ${currentTools}
+
+# System prompt atual (primeiros 4000 chars)
+---
+${promptSnippet}
+---
+
+# Regras
+- Sempre chame a tool 'propose_agent_patch'.
+- Se o usuário pediu uma MUDANÇA concreta, devolva 'changes' com os campos a alterar e 'summary' não vazio.
+- Se for apenas dúvida/conversa, devolva 'changes' vazio e responda no campo 'message'.
+- Ao mexer em 'system_prompt', devolva o prompt COMPLETO reescrito (não diff). Preserve a cláusula obrigatória 'Use o contexto do lead antes de perguntar'.
+- Ao mexer em 'tools', devolva a lista COMPLETA desejada com nomes da whitelist.
+- Seja conciso: 'message' tem 1-3 frases em PT-BR.
+`;
+
+  try {
+    const resp = await chatCompletion(
+      builder,
+      [
+        { role: "system", content: system + copilotIntro },
+        ...cleanHistory,
+      ],
+      [COPILOT_PATCH_TOOL],
+      { agent_id: builder.id, note: "ai-builder:copilot_chat" },
+    );
+    if (!resp.ok) throw new Error(resp.errorText || `provider ${resp.status}`);
+
+    const args = extractToolArguments(resp, "propose_agent_patch") as {
+      message?: string;
+      summary?: string;
+      rationale?: string;
+      changes?: Record<string, unknown>;
+    } | null;
+
+    if (!args) {
+      return { ok: false, code: "unknown", status: 502, message: "O Co-piloto não devolveu uma resposta válida. Tente reformular." };
+    }
+
+    // Sanitize patch
+    const rawChanges = (args.changes ?? {}) as Record<string, unknown>;
+    const sanitized: Record<string, unknown> = {};
+    if (typeof rawChanges.system_prompt === "string" && rawChanges.system_prompt.trim().length > 20) {
+      sanitized.system_prompt = ensureContextClause(rawChanges.system_prompt);
+    }
+    if (typeof rawChanges.temperature === "number" && rawChanges.temperature >= 0 && rawChanges.temperature <= 1) {
+      sanitized.temperature = Number(rawChanges.temperature);
+    }
+    if (typeof rawChanges.draft_mode === "boolean") sanitized.draft_mode = rawChanges.draft_mode;
+    if (Number.isFinite(rawChanges.rag_top_k as number)) {
+      const n = Math.max(1, Math.min(20, Math.round(Number(rawChanges.rag_top_k))));
+      sanitized.rag_top_k = n;
+    }
+    if (Number.isFinite(rawChanges.debounce_seconds as number)) {
+      const n = Math.max(0, Math.min(600, Math.round(Number(rawChanges.debounce_seconds))));
+      sanitized.debounce_seconds = n;
+    }
+    if (Array.isArray(rawChanges.tools)) {
+      sanitized.tools = filterKnownToolsEdge(rawChanges.tools);
+    }
+
+    return {
+      ok: true,
+      message: String(args.message ?? "").trim() || "Pronto.",
+      summary: String(args.summary ?? "").trim(),
+      rationale: String(args.rationale ?? "").trim(),
+      changes: sanitized,
+      has_changes: Object.keys(sanitized).length > 0,
+    };
+  } catch (e) {
+    const parsed = parseProviderError(e);
+    return { ok: false, ...parsed };
+  }
+}
+
+
+
+
 
 // ---------- handler ----------
 
@@ -1229,6 +1431,11 @@ Deno.serve(async (req) => {
       case "generate_insights": {
         if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes." }, 400);
         const result = await actionGenerateInsights(builder, body.payload ?? {});
+        return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+      }
+      case "copilot_chat": {
+        if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes de usar o Co-piloto." }, 400);
+        const result = await actionCopilotChat(builder, body.payload ?? {});
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
       default:
