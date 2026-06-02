@@ -1,3 +1,7 @@
+> ⚠️ A partir da Fase 9, a fonte canônica do manual é a tabela `public.builder_manual_versions`.
+> Este arquivo permanece apenas como fallback (caso o DB falhe) e referência git. Edite o manual
+> pela aba **Manual do Builder** em /admin.
+
 # Manual de boas práticas do Construtor de Agentes
 
 > Este arquivo é o **cérebro** do Construtor de Agentes (`ai-builder`). Tudo que está aqui é
