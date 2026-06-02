@@ -799,7 +799,12 @@ export default function Agents() {
                       <AccordionContent className="space-y-1 pb-3">
                         {docs.map((d) => (
                           <div key={d.id} className="flex items-center justify-between rounded border bg-background px-3 py-2 text-sm">
-                            <span className="truncate">{d.title}</span>
+                            <span className="flex flex-1 items-center gap-2 truncate">
+                              <span className="truncate">{d.title}</span>
+                              {d.source_type === "system_default" && (
+                                <Badge variant="secondary" className="text-[10px]" title="Documento padrão do sistema. Você pode editar ou excluir.">padrão</Badge>
+                              )}
+                            </span>
                             <Button variant="ghost" size="sm" onClick={() => removeDoc(d.id)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
