@@ -779,7 +779,6 @@ Deno.serve(async (req) => {
         const result = await actionAuditKb(builder, body.payload ?? {});
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
-      }
       default:
         return json({ error: `action desconhecida: ${body.action}` }, 400);
     }
