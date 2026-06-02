@@ -166,7 +166,19 @@ Deno.serve(async (req) => {
   try {
     switch (body.action) {
       case "ping": {
-        const result = await actionPing(builder);
+        // Wizard override: testa com provider/api_key/model fornecidos sem
+        // persistir o resultado no Builder da clínica.
+        const hasOverride = !!(body.api_key && body.provider && body.model);
+        const target: Agent = hasOverride
+          ? {
+              ...builder,
+              provider: body.provider!,
+              api_key: body.api_key!,
+              base_url: body.base_url ?? null,
+              model: body.model!,
+            }
+          : builder;
+        const result = await actionPing(target, !hasOverride);
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
       case "generate_system_prompt": {
