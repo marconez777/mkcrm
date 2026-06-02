@@ -480,6 +480,106 @@ export default function AgentWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, provider, model, baseUrl]);
 
+  // Sugere nome do agente quando entramos no passo 5 sem nome definido
+  useEffect(() => {
+    if (step !== 5 || agentName.trim().length > 0) return;
+    const goalLabel = GOALS.find((g) => g.id === goal)?.label.split(" ")[0] ?? "Agente";
+    const nicheLabel =
+      niche === "other"
+        ? (nicheOther || "").trim()
+        : NICHES.find((n) => n.id === niche)?.label ?? "";
+    const suggestion = nicheLabel ? `${goalLabel} — ${nicheLabel}` : goalLabel;
+    setAgentName(suggestion.slice(0, 80));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // ---------- Criar agente ----------
+
+  async function finishAndCreateAgent() {
+    if (!clinicId || !userId) return;
+    if (!bundle?.system_prompt) {
+      toast.error("Gere o prompt antes de concluir.");
+      return;
+    }
+    const name = agentName.trim();
+    if (name.length < 2 || name.length > 80) {
+      toast.error("Dê um nome ao agente (2-80 caracteres).");
+      return;
+    }
+    if (!apiKey || !model) {
+      toast.error("Conexão com o provedor está incompleta.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Salva o nome no rascunho antes de criar (sobrevive a falhas)
+      await persist({
+        settings: {
+          ...((draft?.settings as Record<string, unknown>) ?? {}),
+          suggested_tools: bundle.suggested_tools,
+          suggested_temperature: bundle.suggested_temperature,
+          suggested_top_k: bundle.suggested_top_k,
+          suggested_max_iterations: bundle.suggested_max_iterations,
+          rationale: bundle.rationale,
+          evals: bundle.evals ?? null,
+          agent_name: name,
+        },
+      });
+
+      const nicheLabel =
+        niche === "other"
+          ? nicheOther.trim()
+          : NICHES.find((n) => n.id === niche)?.label ?? "";
+      const goalLabel = GOALS.find((g) => g.id === goal)?.label ?? "";
+      const description = [goalLabel, nicheLabel].filter(Boolean).join(" · ");
+      const tools = filterKnownTools(bundle.suggested_tools);
+
+      const { data, error } = await supabase
+        .from("ai_agents")
+        .insert({
+          clinic_id: clinicId,
+          name,
+          description: description || null,
+          role: goal || null,
+          niche: niche || null,
+          niche_other: nicheOther || null,
+          provider,
+          api_key: apiKey,
+          base_url: baseUrl || null,
+          model,
+          system_prompt: bundle.system_prompt,
+          temperature: bundle.suggested_temperature,
+          max_iterations: bundle.suggested_max_iterations,
+          rag_top_k: bundle.suggested_top_k,
+          tools,
+          enabled: false,
+          draft_mode: true,
+          builder_verified_at: verifiedAt,
+        } as never)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      const newId = (data as { id: string }).id;
+
+      // Limpa o rascunho — agente já existe
+      await supabase
+        .from("ai_agent_drafts")
+        .delete()
+        .eq("clinic_id", clinicId)
+        .eq("user_id", userId);
+
+      toast.success("Agente criado.");
+      nav(`/ai/agents/${newId}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao criar agente";
+      toast.error(msg);
+    } finally {
+      setCreating(false);
+    }
+  }
+
   // ---------- Render ----------
 
   const providerInfo = useMemo(
