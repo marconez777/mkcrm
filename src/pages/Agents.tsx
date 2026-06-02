@@ -527,7 +527,7 @@ export default function Agents() {
                         value={selected.provider}
                         onChange={(e) => {
                           const p = e.target.value as Provider;
-                          setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] });
+                          setSelected({ ...selected, provider: p, model: PROVIDER_MODELS[p][0] ?? "" });
                         }}
                       >
                         {(Object.keys(PROVIDER_MODELS) as Provider[]).map((p) => (
@@ -537,35 +537,43 @@ export default function Agents() {
                     </div>
                     <div>
                       <Label>Modelo</Label>
-                      <select
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
-                        onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                      >
-                        <option value="" disabled>Selecione um modelo</option>
-                        {PROVIDER_MODELS[selected.provider].map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
+                      {PROVIDER_MODELS[selected.provider].length > 0 ? (
+                        <select
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
+                          onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                        >
+                          <option value="" disabled>Selecione um modelo</option>
+                          {PROVIDER_MODELS[selected.provider].map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          placeholder="Nome do modelo (ex: manus-pro)"
+                          value={selected.model ?? ""}
+                          onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                        />
+                      )}
                     </div>
                   </div>
                   <div>
                     <Label>API Key</Label>
                     <Input
                       type="password"
-                      placeholder={selected.provider === "openai" ? "sk-..." : selected.provider === "anthropic" ? "sk-ant-..." : "AIza..."}
+                      placeholder={PROVIDER_KEY_PLACEHOLDER[selected.provider]}
                       value={selected.api_key ?? ""}
                       onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Armazenada no banco. Usada para chat e (quando suportado) embeddings.
+                      Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Base URL (opcional)</Label>
+                      <Label>Base URL {selected.provider === "manus" ? "(obrigatório)" : "(opcional)"}</Label>
                       <Input
-                        placeholder={selected.provider === "openai" ? "https://api.openai.com/v1" : ""}
+                        placeholder={PROVIDER_BASE_PLACEHOLDER[selected.provider]}
                         value={selected.base_url ?? ""}
                         onChange={(e) => setSelected({ ...selected, base_url: e.target.value })}
                       />
@@ -579,12 +587,14 @@ export default function Agents() {
                       />
                     </div>
                   </div>
-                  {selected.provider === "anthropic" && (
+                  {PROVIDERS_NEEDING_EMBEDDING_KEY.includes(selected.provider) && (
                     <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                      <Label className="text-xs">Embeddings (Anthropic não fornece — use OpenAI)</Label>
+                      <Label className="text-xs">
+                        Embeddings ({PROVIDER_LABEL[selected.provider]} não fornece — use OpenAI ou Google)
+                      </Label>
                       <Input
                         type="password"
-                        placeholder="OpenAI key para embeddings (sk-...)"
+                        placeholder="API key para embeddings (sk-... ou AIza...)"
                         value={selected.embedding_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
                       />
