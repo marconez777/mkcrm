@@ -1,7 +1,7 @@
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.
-> **Última atualização:** 2026-06-02
+> **Última atualização:** 2026-06-02 (revisão pós-criação real de agente no passo 5)
 > **Fonte da verdade no código:**
 > - Edge: `supabase/functions/ai-builder/index.ts`
 > - System prompt do Builder: `supabase/functions/_shared/builder-system-prompt.ts`
@@ -100,7 +100,7 @@ settings              jsonb default '{}'  -- guarda suggested_tools, temperature
 created_at / updated_at
 ```
 
-Ao concluir, o draft alimenta a criação do agente final em `ai_agents` (não há trigger automático — é o frontend que faz o INSERT depois do passo 5).
+Ao concluir o passo 5 do wizard, o frontend faz `INSERT` em `ai_agents` (com `enabled=false`, `draft_mode=true`, `tools` já intersectadas com a whitelist em `src/lib/agent-tools.ts`) e **apaga o rascunho** (`DELETE FROM ai_agent_drafts WHERE clinic_id = $1 AND user_id = $2`). Não há trigger automático; toda a coordenação é cliente-lado em `AgentWizard.finishAndCreateAgent()`.
 
 ### 3.3 `public.builder_manual_versions` (Fase 9)
 
@@ -150,7 +150,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 **Mensagens de erro tratadas** (`parseProviderError`): `missing_key`, `invalid_key`, `no_credit`, `rate_limit`, `model_not_found`, `network`, `provider_down`, `unknown`. O frontend traduz via `parseBuilderError` em `builder-errors.ts` e renderiza em `ProviderErrorBanner.tsx`.
 
 **Pegadinhas:**
-- Trocar provider/modelo/chave **invalida** `provider_verified_at` no frontend (effect em `AgentWizard.tsx` linha ~473).
+- Trocar provider/modelo/chave **invalida** `provider_verified_at` no frontend (effect que escuta `apiKey/provider/model/baseUrl` em `AgentWizard.tsx`).
 - O Builder fica inerte sem chave: toda action retorna 400 "Configure a chave de API do Construtor antes…".
 
 ---
@@ -175,8 +175,10 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 
 **Pegadinhas:**
 - Passo 3 valida com `ping` antes de habilitar "Continuar"; isso evita descobrir chave errada só no passo 5.
-- A chave do agente final é gravada em `ai_agent_drafts.api_key` em texto cru (RLS protege). Quando o agente é criado, ela é movida para `ai_agents.api_key`.
-- Trocar nicho/objetivo nos passos 1-2 **não** invalida o prompt gerado — se quiser regenerar, use o botão "Regenerar" no passo 5.
+- A chave do agente final é gravada em `ai_agent_drafts.api_key` em texto cru (RLS protege). Quando o agente é criado, ela é movida para `ai_agents.api_key` e o rascunho é apagado.
+- Trocar nicho/objetivo nos passos 1-2 **não** invalida o prompt gerado — se quiser regenerar, use "Gerar do zero" no passo 5.
+- O agente é criado com `enabled=false` + `draft_mode=true`. Ele **não responde leads reais** até o usuário ativar manualmente em `/ai/agents/:id` (toggle "Ativo"). Test Lab e KB Assistant funcionam mesmo com o agente desativado.
+- O nome do agente é editável no passo 5; o wizard sugere automaticamente `"<GOAL> — <NICHO>"` se o campo estiver vazio.
 
 ---
 
@@ -194,7 +196,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 - Suporta `refinement` + `previous_prompt`: o usuário diz "deixa mais formal" e o Builder reescreve mantendo a estrutura.
 
 **Pegadinhas:**
-- O Builder é instruído a NÃO inventar tools — só usa as listadas em `_shared/agent-flags.ts` (SILENT_TOOLS) + handfuls específicas. Se vier tool desconhecida, o frontend ignora silenciosamente.
+- O Builder é instruído a NÃO inventar tools — só pode usar as listadas em `_shared/agent-flags.ts` (`SILENT_TOOLS`). Como camada extra de defesa, `AgentWizard.finishAndCreateAgent()` aplica `filterKnownTools()` de `src/lib/agent-tools.ts` antes do `INSERT`, então qualquer tool fora da whitelist é descartada silenciosamente.
 - `previous_prompt` é cortado pelo Builder se vier muito longo (cap implícito no token budget); refinamentos muito agressivos podem perder partes.
 
 ---
@@ -250,7 +252,7 @@ Três ferramentas:
 **Pegadinhas:**
 - Cada avaliação consome **N×2 chamadas** ao provedor (N turnos × agente+lead) + 1 chamada para avaliar. Monitorar custo.
 - O regex de encerramento é PT-BR. Se trocar idioma do agente, a simulação roda até `max_turns`.
-- `ai-chat` precisa ter o agente publicado/ativo — testar agente em rascunho exige criar primeiro.
+- `ai-chat` aceita agente com `enabled=false` (não filtra por isso na ação de teste), então dá para rodar o Test Lab logo após criar o agente. Já o agendamento/auto-reply em conversas reais respeita `enabled`.
 
 ---
 
@@ -373,6 +375,8 @@ Para adicionar um nicho novo:
 8. **Insights podem repetir** se chamado várias vezes na mesma janela. Não há dedup por período — a UI mostra a mais recente mas todas ficam em `ai_insights`.
 9. **Hot reload de prompt de agente final ↔ cache** — se o agente final ficou com prompt antigo na memória da edge `ai-chat`, esperar TTL ou forçar redeploy.
 10. **Quality Ladder** (`src/lib/quality-ladder.ts`) traduz slider 0..2 → modelo concreto por provider. Adicionar provider novo exige atualizar o mapa e a UI.
+11. **Agente nasce desativado.** `finishAndCreateAgent()` grava `enabled=false`. Se o usuário esperar respostas em conversas reais sem ativar, vai parecer "agente quebrado". A página `/ai/agents/:id` precisa deixar o toggle "Ativo" bem visível.
+12. **Whitelist de tools dessincronizada.** Se alguém adiciona uma tool no `ai-chat` mas esquece de incluir em `SILENT_TOOLS` (`_shared/agent-flags.ts`) **e** em `KNOWN_AGENT_TOOLS` (`src/lib/agent-tools.ts`), o Builder até pode sugerir, mas o filtro do wizard apaga antes do INSERT — agente acaba sem aquela tool. Manter os dois arquivos em sincronia.
 
 ---
 
@@ -410,6 +414,7 @@ src/
     builder-errors.ts                       parseBuilderError() / códigos
     builder-tooltips.ts                     Tooltips "Por que isso importa?"
     quality-ladder.ts                       Slider rápido↔qualidade
+    agent-tools.ts                          Whitelist de tools válidas (filtra sugestões do LLM antes do INSERT em ai_agents)
 
 supabase/
   functions/
