@@ -79,6 +79,11 @@ export async function chatCompletion(
   let resp: NormalizedResponse;
   try {
     if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
+    else if (agent.provider === "xai") resp = await openaiCompatibleChat(agent, messages, tools, "https://api.x.ai/v1");
+    else if (agent.provider === "manus") {
+      if (!agent.base_url) throw new Error(`Agent ${agent.id} (Manus) requer Base URL configurada`);
+      resp = await openaiCompatibleChat(agent, messages, tools, agent.base_url);
+    }
     else if (agent.provider === "anthropic") resp = await anthropicChat(agent, messages, tools);
     else if (agent.provider === "google") resp = await googleChat(agent, messages, tools);
     else throw new Error(`unknown provider ${agent.provider}`);
