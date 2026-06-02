@@ -423,8 +423,29 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
                 <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                   {m.role === "user" ? <UserIcon className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                 </div>
-                <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
-                  {m.content}
+                <div className="flex max-w-[80%] flex-col gap-1">
+                  <div className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm"}`}>
+                    {m.content}
+                  </div>
+                  {m.role === "assistant" && m.trace && (
+                    <button
+                      type="button"
+                      onClick={() => { setAlfredTrace(m.trace ?? null); setAlfredOpen(true); }}
+                      className="flex items-center gap-1 self-start text-[10px] text-muted-foreground hover:text-primary"
+                    >
+                      <Info className="h-3 w-3" />
+                      Por que disse isso?
+                      {typeof m.trace.latency_ms === "number" && (
+                        <span className="opacity-70">· {m.trace.latency_ms}ms</span>
+                      )}
+                      {(m.trace.kb_hits?.length ?? 0) > 0 && (
+                        <span className="opacity-70">· {m.trace.kb_hits!.length} KB</span>
+                      )}
+                      {(m.trace.tool_calls?.length ?? 0) > 0 && (
+                        <span className="opacity-70">· {m.trace.tool_calls!.length} tools</span>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
