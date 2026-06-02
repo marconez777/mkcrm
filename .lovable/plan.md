@@ -52,13 +52,14 @@ Tabela `ai_chat_traces` criada (PII mascarada: telefones/e-mails → `[telefone]
 - `ai-chat` permanece intocado — estágios são apenas dados nesta sub-fase.
 - Critério atendido: usuário cria/edita/reordena/exclui estágios; conversa real e Test Lab seguem idênticos.
 
-#### 14b — Classificador + injeção de prompt (Test Lab apenas)
+#### 14b — Classificador + injeção de prompt (Test Lab apenas) ✅
 **Objetivo:** começar a usar o estágio sem afetar lead real.
 
-- **Edge:** `ai-chat` ganha classifier leve (chamada extra cap 200 tokens) que detecta estágio atual baseado no histórico + `advance_when`. Injeta `system_prompt_delta` do estágio detectado.
-- **Feature flag:** `clinic_settings.feature_flags.stages_classifier` — default **off**. Test Lab força on; produção fica off.
-- **UI:** Test Lab mostra estágio atual em tempo real (badge no topo da bolha do agente) + trace mostra qual delta foi injetado.
-- **Critério de pronto:** no Test Lab, lead "oi tudo bem?" entra em "Abertura"; lead "qual o preço?" pula para "Oferta"; cada resposta usa delta certo. Produção segue sem mudança.
+- **Migration:** `ai_chat_traces` ganhou coluna `stage_meta jsonb` (stage_id, name, motivo, delta, lista de estágios).
+- **Edge (`ai-chat`):** quando `lead_id` é nulo (Test Lab) e existem estágios para o agente, dispara classificador leve (1 chamada extra, `max_iterations: 1`) que recebe lista numerada + últimas 12 mensagens e devolve `{stage_index, reason}`. Estágio escolhido injeta `system_prompt_delta` no `sysContent`. Produção (`lead_id` presente) NÃO roda o classificador — estágios ficam dormentes até a 14c.
+- **UI:** cada bolha do agente no Test Lab mostra badge "Estágio: Abertura" no topo. AlfredDialog ganhou seção **"Estágio detectado"** com motivo do classificador, excerto do delta injetado e linha de badges com o estágio atual destacado.
+- **Critério atendido:** com 3 estágios criados, a mensagem do lead muda o badge do agente em tempo real; clicar "Por que disse isso?" mostra qual delta entrou no prompt.
+
 
 #### 14c — Ativação em produção + tools por estágio + follow-up
 **Objetivo:** finalmente expor para lead real, mas com guardrails.
