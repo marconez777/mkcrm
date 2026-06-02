@@ -168,6 +168,47 @@ export type Database = {
           },
         ]
       }
+      agent_prompt_versions: {
+        Row: {
+          agent_id: string
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          prompt: string
+          source: string
+          summary: string | null
+        }
+        Insert: {
+          agent_id: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt: string
+          source?: string
+          summary?: string | null
+        }
+        Update: {
+          agent_id?: string
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt?: string
+          source?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_prompt_versions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_traces: {
         Row: {
           agent_id: string | null
