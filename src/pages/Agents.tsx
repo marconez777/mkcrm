@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
+import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
 
 type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
 type Agent = {
@@ -40,6 +41,7 @@ type Agent = {
   debounce_seconds?: number;
   is_system?: boolean;
   system_key?: string | null;
+  builder_verified_at?: string | null;
 };
 
 const PROVIDER_MODELS: Record<Provider, string[]> = {
@@ -416,15 +418,28 @@ export default function Agents() {
     setSelected({ ...selected, tools: next });
   };
 
+  const builder = agents.find((a) => a.system_key === "builder") ?? null;
+  const regularAgents = agents.filter((a) => a.system_key !== "builder");
+  const clinicId = membership?.clinic_id ?? null;
+
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
       <aside className="w-72 shrink-0 border-r bg-muted/20">
-        <div className="flex items-center justify-between p-4">
+        {canManage && (
+          <BuilderSetupCard
+            builder={builder}
+            clinicId={clinicId}
+            selected={selected?.id === builder?.id}
+            onSelect={() => builder && setSelected(builder)}
+            onVerified={() => load()}
+          />
+        )}
+        <div className="flex items-center justify-between p-4 pt-2">
           <h2 className="text-sm font-semibold">Agentes</h2>
           {canManage && <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>}
         </div>
         <div className="px-2">
-          {agents.map((a) => (
+          {regularAgents.map((a) => (
             <button
               key={a.id}
               onClick={() => setSelected(a)}
@@ -438,7 +453,7 @@ export default function Agents() {
               {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
             </button>
           ))}
-          {agents.length === 0 && (
+          {regularAgents.length === 0 && (
             <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum agente. Crie o primeiro.</p>
           )}
         </div>
