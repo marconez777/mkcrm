@@ -140,7 +140,7 @@ interface DraftRow {
 
 export default function AgentWizard() {
   const nav = useNavigate();
-  const { membership, loading } = useAuth();
+  const { membership, user, loading } = useAuth();
   const [draft, setDraft] = useState<DraftRow | null>(null);
   const [hydrating, setHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
