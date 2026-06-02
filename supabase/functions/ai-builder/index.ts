@@ -763,6 +763,7 @@ Deno.serve(async (req) => {
         }
         const result = await actionGenerateSystemPrompt(builder, body.payload ?? {});
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
+      }
       case "suggest_kb_urls": {
         if (!builder.api_key) return json({ error: "Configure a chave de API do Construtor antes." }, 400);
         const result = await actionSuggestKbUrls(builder, body.payload ?? {});
