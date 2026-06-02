@@ -329,8 +329,16 @@ export default function Agents() {
     setSelected(((full as any) ?? [])[0] ?? null);
   };
 
-  const save = async () => {
+  const save = async (opts?: { versionSource?: string; versionSummary?: string }) => {
     if (!selected) return;
+    // Snapshot do prompt atual antes do update, para versionar se mudou
+    const { data: existing } = await supabase
+      .from("ai_agents")
+      .select("system_prompt")
+      .eq("id", selected.id)
+      .maybeSingle();
+    const previousPrompt = (existing as any)?.system_prompt ?? "";
+
     const payload: any = {
       name: selected.name,
       description: selected.description,
@@ -360,6 +368,17 @@ export default function Agents() {
       .update(payload)
       .eq("id", selected.id);
     if (error) return toast.error(error.message);
+
+    // Versiona prompt se mudou
+    if (previousPrompt !== selected.system_prompt) {
+      await supabase.from("agent_prompt_versions").insert({
+        agent_id: selected.id,
+        prompt: selected.system_prompt,
+        source: opts?.versionSource ?? "manual",
+        summary: opts?.versionSummary ?? null,
+      });
+    }
+
     toast.success("Agente salvo");
     load();
   };
