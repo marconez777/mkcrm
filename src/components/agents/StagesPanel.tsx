@@ -59,21 +59,42 @@ export function StagesPanel({ agentId, clinicId }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [stagesEnabled, setStagesEnabled] = useState(false);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
 
   async function load() {
     if (!clinicId) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("agent_stages")
-      .select("*")
-      .eq("agent_id", agentId)
-      .order("order_idx", { ascending: true });
+    const [stagesRes, agentRes] = await Promise.all([
+      supabase
+        .from("agent_stages")
+        .select("*")
+        .eq("agent_id", agentId)
+        .order("order_idx", { ascending: true }),
+      supabase.from("ai_agents").select("stages_enabled").eq("id", agentId).maybeSingle(),
+    ]);
     setLoading(false);
+    if (stagesRes.error) {
+      toast.error(stagesRes.error.message);
+      return;
+    }
+    setStages((stagesRes.data ?? []) as AgentStage[]);
+    setStagesEnabled(!!(agentRes.data as any)?.stages_enabled);
+  }
+
+  async function toggleEnabled(next: boolean) {
+    setTogglingEnabled(true);
+    const { error } = await supabase
+      .from("ai_agents")
+      .update({ stages_enabled: next })
+      .eq("id", agentId);
+    setTogglingEnabled(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    setStages((data ?? []) as AgentStage[]);
+    setStagesEnabled(next);
+    toast.success(next ? "Estágios ativados para leads reais." : "Estágios desligados (Test Lab segue funcionando).");
   }
 
   useEffect(() => {
