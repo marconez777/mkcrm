@@ -93,7 +93,14 @@ export function AgentInsights({
         },
       });
       if (error) throw error;
-      if (!data?.ok) throw new Error(data?.message ?? "Falha ao gerar insights.");
+      if (!data?.ok) {
+        if (data?.code === "no_data") {
+          toast.info(data.message ?? "Sem conversas no período selecionado.");
+        } else {
+          toast.error(data?.message ?? "Falha ao gerar insights.");
+        }
+        return;
+      }
       toast.success(`Insights gerados (${data.threads_analyzed} conversas, ${data.messages_analyzed} mensagens).`);
       await load();
     } catch (e: any) {
