@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
@@ -436,7 +436,21 @@ export default function Agents() {
         )}
         <div className="flex items-center justify-between p-4 pt-2">
           <h2 className="text-sm font-semibold">Agentes</h2>
-          {canManage && <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>}
+          {canManage && (
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => (window.location.href = "/ai/agents/new")}
+                title="Criar com assistente"
+              >
+                <Sparkles className="mr-1 h-3.5 w-3.5" /> Assistente
+              </Button>
+              <Button size="sm" variant="ghost" onClick={create} title="Criar em branco">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
         <div className="px-2">
           {regularAgents.map((a) => (

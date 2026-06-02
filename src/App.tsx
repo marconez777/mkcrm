@@ -11,6 +11,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Kanban from "./pages/Kanban";
 import Inbox from "./pages/Inbox";
 import AiHub from "./pages/ai/AiHub";
+import AgentWizard from "./pages/ai/AgentWizard";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
@@ -73,6 +74,7 @@ const App = () => (
                       <Route path="/inbox/:leadId" element={<FeatureRoute feature="inbox"><Inbox /></FeatureRoute>} />
                       <Route path="/ai" element={<AiHub />} />
                       <Route path="/ai/agents" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
+                      <Route path="/ai/agents/new" element={<FeatureRoute feature="agents"><AgentWizard /></FeatureRoute>} />
                       <Route path="/ai/memories" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/insights" element={<FeatureRoute feature="agents"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />

@@ -12,9 +12,14 @@ type Action = "ping" | "generate_system_prompt";
 
 interface Body {
   action: Action;
-  // ping uses the Builder agent of the user's current clinic
   clinic_id?: string;
   payload?: Record<string, unknown>;
+  // Overrides usados pelo wizard /ai/agents/new para testar a conexão do agente
+  // que está sendo criado (pode ser diferente do Builder da clínica).
+  provider?: string;
+  api_key?: string;
+  base_url?: string | null;
+  model?: string;
 }
 
 async function loadBuilder(clinic_id: string): Promise<Agent | null> {
@@ -52,7 +57,7 @@ function parseProviderError(err: unknown): { code: string; message: string; stat
   return { code: "unknown", status: 500, message: `Erro ao falar com o provedor: ${raw.slice(0, 240)}` };
 }
 
-async function actionPing(builder: Agent) {
+async function actionPing(builder: Agent, persistVerified: boolean) {
   if (!builder.api_key) {
     return { ok: false, code: "missing_key", message: "Adicione uma chave de API ao Construtor antes de testar." };
   }
@@ -70,12 +75,13 @@ async function actionPing(builder: Agent) {
     const latency_ms = Date.now() - started;
     const text = resp?.choices?.[0]?.message?.content ?? "";
 
-    // Persistir verificação OK
-    const supabase = sb();
-    await supabase
-      .from("ai_agents")
-      .update({ builder_verified_at: new Date().toISOString() })
-      .eq("id", builder.id);
+    if (persistVerified) {
+      const supabase = sb();
+      await supabase
+        .from("ai_agents")
+        .update({ builder_verified_at: new Date().toISOString() })
+        .eq("id", builder.id);
+    }
 
     return {
       ok: true,
@@ -160,7 +166,19 @@ Deno.serve(async (req) => {
   try {
     switch (body.action) {
       case "ping": {
-        const result = await actionPing(builder);
+        // Wizard override: testa com provider/api_key/model fornecidos sem
+        // persistir o resultado no Builder da clínica.
+        const hasOverride = !!(body.api_key && body.provider && body.model);
+        const target: Agent = hasOverride
+          ? {
+              ...builder,
+              provider: body.provider!,
+              api_key: body.api_key!,
+              base_url: body.base_url ?? null,
+              model: body.model!,
+            }
+          : builder;
+        const result = await actionPing(target, !hasOverride);
         return json(result, result.ok ? 200 : (result as { status?: number }).status ?? 400);
       }
       case "generate_system_prompt": {
