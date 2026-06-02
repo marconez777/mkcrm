@@ -517,6 +517,78 @@ export type Database = {
           },
         ]
       }
+      ai_chat_traces: {
+        Row: {
+          agent_id: string
+          agent_message: string | null
+          clinic_id: string
+          created_at: string
+          id: string
+          kb_hits: Json
+          latency_ms: number | null
+          lead_id: string | null
+          model: string | null
+          persona_id: string | null
+          source: string
+          system_prompt_excerpt: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          tool_calls: Json
+          user_message: string | null
+        }
+        Insert: {
+          agent_id: string
+          agent_message?: string | null
+          clinic_id: string
+          created_at?: string
+          id?: string
+          kb_hits?: Json
+          latency_ms?: number | null
+          lead_id?: string | null
+          model?: string | null
+          persona_id?: string | null
+          source?: string
+          system_prompt_excerpt?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json
+          user_message?: string | null
+        }
+        Update: {
+          agent_id?: string
+          agent_message?: string | null
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          kb_hits?: Json
+          latency_ms?: number | null
+          lead_id?: string | null
+          model?: string | null
+          persona_id?: string | null
+          source?: string
+          system_prompt_excerpt?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json
+          user_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_chat_traces_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_chat_traces_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "agent_personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_chunks: {
         Row: {
           agent_id: string | null
