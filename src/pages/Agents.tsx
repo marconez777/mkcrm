@@ -771,6 +771,7 @@ export default function Agents() {
                 </AccordionContent>
               </AccordionItem>
 
+              </>)}
               <AccordionItem value="kb" className="rounded-md border bg-card px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <span className="flex items-center gap-2 text-sm font-semibold">
