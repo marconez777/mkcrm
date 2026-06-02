@@ -100,7 +100,7 @@ settings              jsonb default '{}'  -- guarda suggested_tools, temperature
 created_at / updated_at
 ```
 
-Ao concluir, o draft alimenta a criação do agente final em `ai_agents` (não há trigger automático — é o frontend que faz o INSERT depois do passo 5).
+Ao concluir o passo 5 do wizard, o frontend faz `INSERT` em `ai_agents` (com `enabled=false`, `draft_mode=true`, `tools` já intersectadas com a whitelist em `src/lib/agent-tools.ts`) e **apaga o rascunho** (`DELETE FROM ai_agent_drafts WHERE clinic_id = $1 AND user_id = $2`). Não há trigger automático; toda a coordenação é cliente-lado em `AgentWizard.finishAndCreateAgent()`.
 
 ### 3.3 `public.builder_manual_versions` (Fase 9)
 
