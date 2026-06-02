@@ -307,12 +307,19 @@ export default function AgentWizard() {
   const isVerified = !!verifiedAt && !testError;
   const canNextFromStep3 = !!apiKey && !!model && isVerified;
 
+  const canNextFromStep4 = questions
+    .filter((q) => q.required)
+    .every((q) => (answers[q.id] ?? "").trim().length > 0);
+  const canFinish = !!bundle?.system_prompt;
+
   // ---------- Ações ----------
 
   async function goNext() {
     const target = (step + 1) as Step;
     setStep(target);
     await persist({ step: target });
+    if (target === 4 && questions.length === 0) await loadInterview();
+    if (target === 5 && !bundle) await generatePrompt();
   }
   async function goPrev() {
     if (step === 1) {
@@ -322,6 +329,106 @@ export default function AgentWizard() {
     const target = (step - 1) as Step;
     setStep(target);
     await persist({ step: target });
+  }
+
+  async function loadInterview() {
+    if (!clinicId) return;
+    setInterviewLoading(true);
+    setInterviewError(null);
+    const { data, error } = await supabase.functions.invoke("ai-builder", {
+      body: {
+        action: "interview_plan",
+        clinic_id: clinicId,
+        payload: { niche, niche_other: nicheOther, goal, goal_other: goalOther },
+      },
+    });
+    setInterviewLoading(false);
+    if (error) {
+      const parsed = parseBuilderError({ message: error.message });
+      setInterviewError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const result = data as { ok?: boolean; questions?: InterviewQuestion[] } & Record<string, unknown>;
+    if (!result?.ok || !result.questions) {
+      const parsed = parseBuilderError(result);
+      setInterviewError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    setQuestions(result.questions);
+  }
+
+  function skipAllWithDefaults() {
+    const defaults: Record<string, string> = {};
+    for (const q of questions) {
+      if (!answers[q.id]) defaults[q.id] = q.placeholder || "(use o padrão)";
+    }
+    setAnswers((a) => ({ ...a, ...defaults }));
+    toast.message("Respostas preenchidas com padrões. Você pode editar antes de avançar.");
+  }
+
+  async function generatePrompt(extraRefinement?: string) {
+    if (!clinicId) return;
+    setPromptLoading(true);
+    setPromptError(null);
+    await persist({ interview_answers: answers });
+    const { data, error } = await supabase.functions.invoke("ai-builder", {
+      body: {
+        action: "generate_system_prompt",
+        clinic_id: clinicId,
+        payload: {
+          niche,
+          niche_other: nicheOther,
+          goal,
+          goal_other: goalOther,
+          answers,
+          refinement: extraRefinement ?? "",
+          previous_prompt: extraRefinement ? bundle?.system_prompt ?? "" : "",
+        },
+      },
+    });
+    setPromptLoading(false);
+    if (error) {
+      const parsed = parseBuilderError({ message: error.message });
+      setPromptError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const result = data as { ok?: boolean } & GeneratedPromptBundle & Record<string, unknown>;
+    if (!result?.ok) {
+      const parsed = parseBuilderError(result);
+      setPromptError(parsed);
+      toast.error(parsed.title);
+      return;
+    }
+    const next: GeneratedPromptBundle = {
+      system_prompt: result.system_prompt,
+      suggested_tools: result.suggested_tools ?? [],
+      suggested_temperature: result.suggested_temperature ?? 0.4,
+      suggested_top_k: result.suggested_top_k ?? 6,
+      suggested_max_iterations: result.suggested_max_iterations ?? 6,
+      rationale: result.rationale ?? "",
+      evals: result.evals,
+    };
+    setBundle(next);
+    setRefinement("");
+    await persist({
+      generated_prompt: next.system_prompt,
+      settings: {
+        suggested_tools: next.suggested_tools,
+        suggested_temperature: next.suggested_temperature,
+        suggested_top_k: next.suggested_top_k,
+        suggested_max_iterations: next.suggested_max_iterations,
+        rationale: next.rationale,
+        evals: next.evals ?? null,
+      },
+    });
+    if (next.evals && next.evals.context_clause_present === false) {
+      toast.warning("Cláusula de contexto foi reinjetada automaticamente.");
+    } else {
+      toast.success("Prompt gerado.");
+    }
   }
 
   async function testConnection() {
