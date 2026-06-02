@@ -247,6 +247,8 @@ export default function AgentWizard() {
             evals: (d.settings as Record<string, unknown>)?.evals as { context_clause_present?: boolean } | undefined,
           });
         }
+        const savedName = (d.settings as Record<string, unknown>)?.agent_name;
+        if (typeof savedName === "string") setAgentName(savedName);
       }
       setHydrating(false);
     })();
