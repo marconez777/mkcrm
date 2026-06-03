@@ -281,11 +281,12 @@ Site externo carrega `tracking-pixel`/`tracking-config`. Eventos → `tracking-e
 
 ## 9. Autenticação & papéis
 
-- Auth via Supabase (`Auth.tsx`): email/senha + Google OAuth.
-- `clinic_members.role` (`clinic_role` enum): `owner`, `admin`, `professional`.
+- Auth via Supabase (`Auth.tsx`) — chamada direta a `supabase.auth.signInWithPassword` (email/senha) + `resetPasswordForEmail`. Google OAuth não está habilitado neste projeto.
+- `clinic_members.role` (`clinic_role` enum): `owner`, `admin`, `professional`, `viewer`.
 - `user_roles` para super admin (escopo global).
 - Convites: `clinic_invites` + edge `clinic-invite` / `clinic-create-user`.
 - `AppShell` esconde itens da sidebar conforme `hasFeature(...)` + role.
+- `auth_lockouts` é uma tabela presente no schema (5 tentativas / 12h), mas hoje **nenhuma edge function a consulta** — login passa direto pelo Supabase. Ver `architecture/AUTH.md`.
 
 ---
 
