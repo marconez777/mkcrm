@@ -19,16 +19,16 @@
 | Domínio | Funções | Doc |
 |---|---|---|
 | WhatsApp (Evolution API) | `evolution-*` (16, incl. `evolution-fetch-groups`), `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect` | [`WHATSAPP.md`](./WHATSAPP.md) |
-| IA / Agentes / RAG | `ai-*` (10), `agent-run-bulk`, `ai-spend-notify`, `classifier-daily-batch`, `daily-summary` | [`AI.md`](./AI.md) |
+| IA / Agentes / RAG | `ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-eval-run`, `ai-embed`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`, `ai-ingest-document`, `ai-reingest-document`, `ai-builder`, `ai-analyst-run`, `ai-spend-notify`, `agent-run-bulk`, `agent-followups-tick`, `agent-learn-from-thread`, `classifier-daily-batch`, `daily-summary` | [`AI.md`](./AI.md) |
 | Email Marketing (Resend) | `send-email`, `send-email-batch`, `process-email-queue`, `email-automations-tick`, `dispatch-campaign`, `process-scheduled-campaigns`, `resend-webhook`, `backfill-resend-events`, `email-domain-manage`, `email-unsubscribe` | [`EMAIL.md`](./EMAIL.md) |
 | Tracking (Pixel) | `tracking-pixel`, `tracking-event`, `tracking-identify`, `tracking-config` | [`TRACKING.md`](./TRACKING.md) |
-| Broadcasts | `broadcast-tick`, `broadcast-control` | [`BROADCASTS.md`](./BROADCASTS.md) |
-| Sequências / Automações | `sequence-tick`, `sequence-enroll`, `sequence-trigger`, `automations-tick`, `scheduled-dispatcher`, `watch-stale-leads` | [`SEQUENCES_AUTOMATIONS.md`](./SEQUENCES_AUTOMATIONS.md) |
-| Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | — (ver `features/` futuro) |
-| Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | [`FORMS.md`](./FORMS.md) |
-| Autenticação / Clínicas | `auth-login`, `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](./AUTH.md) (em `architecture/`) |
+| Broadcasts | `broadcast-tick`, `broadcast-control` | (sem doc dedicada — ver código + `flows/`) |
+| Sequências / Automações | `sequence-tick`, `sequence-enroll`, `sequence-trigger`, `automations-tick`, `scheduled-dispatcher`, `watch-stale-leads` | (sem doc dedicada — ver `flows/`) |
+| Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | (sem doc dedicada) |
+| Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | (sem doc dedicada — ver `flows/FORMS_TO_LEAD.md`) |
+| Clínicas / Multi-tenant | `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](../architecture/AUTH.md) |
 | Admin (super admin only) | `admin-users-list`, `admin-user-action`, `admin-apply-plan` | [`PLANS_LIMITS.md`](../architecture/PLANS_LIMITS.md) |
-| Helpers compartilhados | `_shared/*.ts` (13 arquivos, inclui `template-vars.ts`) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
+| Helpers compartilhados | `_shared/*.ts` (14 arquivos) + `_shared/builder-knowledge/` (KB do Builder em markdown) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
 
 ## Como chamar uma função
 
