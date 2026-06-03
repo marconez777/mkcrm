@@ -1399,10 +1399,17 @@ function Step4({
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando perguntas adaptadas…
-        </div>
+        <LoadingPanel
+          title="Preparando perguntas personalizadas para seu negócio…"
+          messages={[
+            "Lendo seu nicho e objetivo…",
+            "Selecionando perguntas relevantes…",
+            "Adaptando ao seu segmento…",
+            "Quase pronto…",
+          ]}
+        />
       )}
+
 
       {error && (
         <div className="space-y-2">
