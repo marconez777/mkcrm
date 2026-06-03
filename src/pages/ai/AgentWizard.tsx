@@ -209,10 +209,23 @@ export default function AgentWizard() {
   const [agentName, setAgentName] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Builder configuration guard
+  const [builderStatus, setBuilderStatus] = useState<"checking" | "ok" | "missing">("checking");
+
+  // Success modal post-creation
+  const [successAgentId, setSuccessAgentId] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+
+  // Prompt generation timeout tracking
+  const [promptTimeoutWarning, setPromptTimeoutWarning] = useState(false);
+  const [promptTimedOut, setPromptTimedOut] = useState(false);
+  const promptTimersRef = useRef<{ warn?: number; fail?: number }>({});
+
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
   const canManage =
     membership?.role === "owner" || membership?.role === "admin";
+
 
   // Hidrata draft
   useEffect(() => {
