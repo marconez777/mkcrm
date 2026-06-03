@@ -352,7 +352,7 @@ export default function Admin() {
             </Table>
           </div>
 
-          <ClinicDetailsDialog clinic={details} plans={plans} onClose={() => setDetails(null)} />
+          <ClinicDetailsDialog clinic={details} plans={plans} onClose={() => setDetails(null)} onChanged={load} />
 
           <Dialog open={!!openInvite} onOpenChange={(o) => !o && closeInvite()}>
             <DialogContent>

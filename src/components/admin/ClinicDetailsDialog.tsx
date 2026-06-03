@@ -28,15 +28,18 @@ export default function ClinicDetailsDialog({
   clinic,
   plans,
   onClose,
+  onChanged,
 }: {
   clinic: { id: string; name: string; plan: string; settings: any; status: string; created_at: string } | null;
   plans: Plan[];
   onClose: () => void;
+  onChanged?: () => void;
 }) {
   const [usage, setUsage] = useState<Record<string, any> | null>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [history, setHistory] = useState<LogRow[]>([]);
+  const [currentPlanCode, setCurrentPlanCode] = useState<string>(clinic?.plan ?? "");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [newPlan, setNewPlan] = useState<string>("");
@@ -47,26 +50,43 @@ export default function ClinicDetailsDialog({
   async function loadAll(clinicId: string) {
     setLoading(true);
     try {
-      const [{ data: u }, { data: a }, { data: s }, { data: h }] = await Promise.all([
+      const [uRes, aRes, sRes, hRes, cRes] = await Promise.all([
         supabase.rpc("admin_clinic_usage", { _clinic: clinicId }),
         supabase.from("audit_log").select("*").eq("clinic_id", clinicId).order("created_at", { ascending: false }).limit(15),
         supabase.from("clinic_subscriptions").select("*").eq("clinic_id", clinicId).eq("is_current", true).maybeSingle(),
         supabase.from("plan_change_log")
           .select("id, created_at, from_status, to_status, source, reason, from_plan:plans!plan_change_log_from_plan_id_fkey(code), to_plan:plans!plan_change_log_to_plan_id_fkey(code)")
           .eq("clinic_id", clinicId).order("created_at", { ascending: false }).limit(20),
+        supabase.from("clinics").select("plan").eq("id", clinicId).maybeSingle(),
       ]);
-      setUsage((u as any) ?? {});
-      setAudit((a as any) ?? []);
-      setSub((s as any) ?? null);
-      setHistory((h as any) ?? []);
+
+      const firstError = uRes.error || aRes.error || sRes.error || hRes.error || cRes.error;
+      if (firstError) {
+        const msg = (firstError as any).message ?? String(firstError);
+        const isAuth = /jwt|forbidden|permission|unauthor/i.test(msg);
+        toast.error(isAuth
+          ? "Sua sessão expirou. Faça login novamente para continuar."
+          : `Falha ao carregar dados: ${msg}`);
+      }
+
+      setUsage((uRes.data as any) ?? {});
+      setAudit((aRes.data as any) ?? []);
+      setSub((sRes.data as any) ?? null);
+      setHistory((hRes.data as any) ?? []);
+      if ((cRes.data as any)?.plan) setCurrentPlanCode((cRes.data as any).plan);
     } finally { setLoading(false); }
   }
 
-  useEffect(() => { if (clinic) loadAll(clinic.id); }, [clinic?.id]);
+  useEffect(() => {
+    if (clinic) {
+      setCurrentPlanCode(clinic.plan);
+      loadAll(clinic.id);
+    }
+  }, [clinic?.id]);
 
   if (!clinic) return null;
 
-  const plan = plans.find((p) => p.code === clinic.plan);
+  const plan = plans.find((p) => p.code === currentPlanCode);
   const effective = (k: string) => {
     const ov = clinic.settings?.limits?.[k];
     if (ov !== undefined && ov !== null) return Number(ov);
@@ -78,7 +98,7 @@ export default function ClinicDetailsDialog({
     if (!newPlan) return toast.error("Escolha um plano");
     setBusy(true);
     try {
-      const { error } = await supabase.functions.invoke("admin-apply-plan", {
+      const { data, error } = await supabase.functions.invoke("admin-apply-plan", {
         body: {
           plan_code: newPlan,
           clinic_ids: [clinic!.id],
@@ -90,11 +110,20 @@ export default function ClinicDetailsDialog({
         },
       });
       if (error) throw error;
+      if (data && (data as any).error) throw new Error((data as any).error);
+      if (data && typeof (data as any).applied === "number" && (data as any).applied === 0) {
+        throw new Error("Nenhuma clínica foi atualizada");
+      }
+      setCurrentPlanCode(newPlan);
       toast.success("Plano aplicado");
       setNewPlan(""); setTrialDays(""); setExpiresAt(""); setReason("");
       await loadAll(clinic!.id);
-    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+      onChanged?.();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao aplicar plano");
+    } finally { setBusy(false); }
   }
+
 
   async function revokePlan() {
     if (!confirm("Revogar plano e voltar para Starter (past_due)?")) return;
@@ -106,7 +135,8 @@ export default function ClinicDetailsDialog({
       if (error) throw error;
       toast.success("Plano revogado");
       await loadAll(clinic!.id);
-    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+      onChanged?.();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao revogar plano"); } finally { setBusy(false); }
   }
 
   const fmt = (d: string | null) => d ? new Date(d).toLocaleString("pt-BR") : "—";
@@ -118,7 +148,7 @@ export default function ClinicDetailsDialog({
           <DialogTitle className="flex items-center gap-2">
             {clinic.name}
             <Badge variant={clinic.status === "active" ? "default" : "secondary"}>{clinic.status}</Badge>
-            <Badge variant="outline">{clinic.plan}</Badge>
+            <Badge variant="outline">{currentPlanCode}</Badge>
           </DialogTitle>
         </DialogHeader>
 
@@ -134,7 +164,7 @@ export default function ClinicDetailsDialog({
 
             <TabsContent value="subscription" className="space-y-4">
               <section className="rounded-md border p-3 space-y-1.5 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Plano atual</span><span className="font-medium">{clinic.plan}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Plano atual</span><span className="font-medium">{currentPlanCode}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge variant="outline">{sub?.status ?? "—"}</Badge></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Fonte</span><Badge variant="outline">{sub?.source ?? "—"}</Badge></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Trial até</span><span>{fmt(sub?.trial_ends_at ?? null)}</span></div>
