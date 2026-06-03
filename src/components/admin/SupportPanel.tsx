@@ -52,7 +52,8 @@ export default function SupportPanel() {
       supabase.rpc("support_chat_spent_this_month_usd"),
       supabase.from("support_documents").select("path, updated_at"),
     ]);
-    setCfg(c as Cfg);
+    const cfgRow = c ? { ...(c as any), api_key_set: !!(c as any).api_key } as Cfg : null;
+    setCfg(cfgRow);
     setMonthSpend(Number(spent ?? 0));
     const grouped = new Map<string, { chunks: number; updated_at: string }>();
     for (const r of (d ?? []) as any[]) {
