@@ -146,6 +146,9 @@ Várias colunas/funções tiveram acesso revogado dos roles client-side para red
 | `whatsapp_instances.evolution_api_key`, `webhook_token` | `REVOKE SELECT` de `authenticated` e `anon`. Edge functions usam `service_role`. | 2026-05-27 `5fd7651b` / 2026-05-28 `4cfd67a9` |
 | `form_integrations` tokens | SELECT só para admins da clínica. | 2026-05-28 `4cfd67a9` |
 | `ai_agents.api_key`, `embedding_api_key`, `reranker_api_key` | `REVOKE SELECT` de `authenticated` e `anon`. | 2026-05-28 `b8a57b5c` |
+| `agent_mcp_servers.headers` | `REVOKE SELECT` de `authenticated` e `anon` (pode conter tokens). | 2026-06-03 |
+| `ai_agent_drafts` SELECT | Restrito a `user_id = auth.uid()` (antes: qualquer membro da clínica). | 2026-06-03 |
+| `error_events` INSERT | Restrito a `authenticated` com `auth.uid() IS NOT NULL` (antes: `WITH CHECK (true)`). | 2026-06-03 |
 | RPCs `engagement_broadcasts_summary`, `engagement_sequences_summary`, `engagement_sequence_steps` | `REVOKE EXECUTE FROM PUBLIC, anon`. Acessíveis só por `authenticated`. | 2026-05-30 `ae1f2058` |
 
 **Padrão geral:** segredos e PII de integração nunca devem retornar via Data API; o cliente pede via edge function com `service_role`, que checa `has_clinic_access` antes de devolver mascarado.
