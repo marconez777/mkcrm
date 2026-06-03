@@ -48,6 +48,26 @@ no `tailwind.config.ts`.
 - `chat-bubble-them` — branco / card escuro.
 - `chat-bg` — superfície de fundo do thread.
 
+### Status pills (`--status-*-bg` / `--status-*-fg`)
+
+Pares bg/fg tintados para badges de status, usados por `StatusBadge` e
+tabelas de queue/logs/campaigns:
+`sending`, `scheduled`, `sent`, `paused`, `failed`, `draft`, `clicked`
+(cada um com versão dark em `.dark`).
+
+### Soft surface
+- `--surface-muted` — fundo de seções secundárias (cards aninhados).
+- `--card-radius-lg: 1.25rem` — radius grande para cards "soft".
+- `--shadow-soft` — sombra suave padrão.
+
+### Marketing site (`--site-*`)
+
+Paleta isolada da landing institucional (`components/site/*`) — preto
+puro, verde `#1ED400`, roxo `#590675`. Tokens: `site-bg`, `site-surface`,
+`site-surface-2`, `site-border`, `site-text`, `site-muted`,
+`site-primary` (+ `-foreground`, `-glow`), `site-accent` (+ `-glow`).
+**Nunca** misturar tokens `--site-*` dentro do app autenticado.
+
 ---
 
 ## 2. Raio, espaçamento, tipografia
