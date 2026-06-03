@@ -25,16 +25,13 @@ export default function InvitePage() {
   useEffect(() => {
     (async () => {
       if (!token) { setLoading(false); return; }
-      const { data, error } = await supabase
-        .from("clinic_invites")
-        .select("clinic_id, email, role, expires_at, accepted_at, clinic:clinics(name)")
-        .eq("token", token)
-        .maybeSingle();
-      if (error || !data) { setInvite(null); setLoading(false); return; }
-      const expired = !!data.accepted_at || new Date(data.expires_at) < new Date();
+      const { data, error } = await supabase.rpc("get_invite_by_token", { _token: token });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (error || !row) { setInvite(null); setLoading(false); return; }
+      const expired = !!row.accepted_at || new Date(row.expires_at) < new Date();
       setInvite({
-        clinic_id: data.clinic_id, email: data.email, role: data.role,
-        clinic_name: (data as any).clinic?.name ?? null, expired,
+        clinic_id: row.clinic_id, email: row.email, role: row.role,
+        clinic_name: row.clinic_name ?? null, expired,
       });
       setLoading(false);
     })();
