@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 7/8 (Guia de integração externa)
+
+Releitura de `docs/integracao/*.md` (14) + `docs/integracao/exemplos/*` (6) contra `supabase/functions/{forms-ingest,external-lead-capture,tracking-event,tracking-identify}/index.ts`. Convenções e exemplos copy-paste validados.
+
+### Corrigido — Integração externa
+- `README.md`: tabela de endpoints — `tracking-identify` Auth corrigido de "service" para "`allowed_domains` (ou service role / admin logado)"; carimbo atualizado.
+- `03-tracking-eventos.md`: rate limit do `tracking-event` 120/min → **60/min** (real, `// Tiny in-memory rate limiter: 60 req/min per (ip+clinic)` em `tracking-event/index.ts`).
+- `08-seguranca.md`: tabela CORS atualizada — `forms-ingest` e `tracking-identify` **ecoam Origin + Allow-Credentials + Vary: Origin** (não `*`); rate-limit 120 → 60; adicionada linha para `tracking-identify` (sem rate-limit dedicado).
+- `10-referencia-tecnica.md`: `tracking-identify` Auth corrigido (não é "service role / ⚠ Interno" — é endpoint público autenticado por `allowed_domains`, com fallback service role / admin via `isInternalAuthorized`); limite de eventos 120 → 60.
+
+### Validado sem alteração
+- `01-visao-geral.md`, `02-instalacao-snippets.md`, `04-formularios.md` (schema Zod, headers `x-form-token`, resposta `{ok,status,lead_id,is_new_lead}` confirmados), `05-atribuicao-leads.md`, `06-eventos-customizados.md`, `07-webhooks-api-direta.md` (schema `external-lead-capture` confere com `BodySchema` real, refine `email||phone`), `09-troubleshooting.md`.
+- `11-analise-conflitos-site-or.md`, `12-roadmap-correcao.md`, `13-baseline-fase0.md`: case study ÓR (não revalidado nesta rodada — são snapshots históricos).
+- `exemplos/*.{sh,html,tsx,php,txt,json}`: todos coerentes com endpoints, headers e payloads atuais.
+
+---
+
 ## 2026-06-03 — Auditoria documental Fase 6/8 (fechamento — Known-issues + Roadmap + Conventions + Site)
 
 Releitura dos 11 arquivos restantes da Fase 6 contra schema real, lista de edge functions e `src/**`. Fase 6 concluída.
