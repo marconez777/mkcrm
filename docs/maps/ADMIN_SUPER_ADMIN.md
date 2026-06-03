@@ -54,25 +54,35 @@ Painel `/admin` (super_admin only) para gestão cross-clínica: dashboard global
 | Function | Função |
 |---|---|
 | `admin-users-list/index.ts` | lista usuários (cross-clínica) |
-| `admin-user-action/index.ts` | ban/unban/promote/reset |
-| `admin-apply-plan/index.ts` | atribui plano a clínica |
+| `admin-user-action/index.ts` | ban/unban/promote/reset/delete |
+| `admin-apply-plan/index.ts` | aplica plano a clínica (cria `clinic_subscriptions` manual) |
+| `admin-revoke-plan/index.ts` | revoga assinatura corrente → fallback Starter `past_due` |
+| `admin-invoice/index.ts` | `create` / `mark_paid` / `void` / `delete` de fatura |
+| `cron-expire-manual-grants/index.ts` | cron diário: expira `manual_grant`/`trialing` vencidos |
+| `support-admin-reply/index.ts` | admin assume/libera thread Alfred e envia resposta humana |
+| `support-kb-sync/index.ts` | sincroniza KB do Alfred a partir dos `.md` do repo |
+| `support-kb-status/index.ts` | diff de hashes (in_sync / stale / missing / deleted) |
+| `support-test-connection/index.ts` | sanity check do provedor de IA do Alfred |
 | `integrations-status/index.ts` | status das integrações |
 | `backfill-resend-events/index.ts` | reconciliação histórica de eventos |
 | `email-domain-manage/index.ts` | CRUD domínios |
 
-### Misto (super_admin OU clinic admin)
+### Misto (super_admin OU clinic admin OU usuário autenticado)
 | Function | Notas |
 |---|---|
-| `clinic-invite/index.ts` | convida usuário |
-| `clinic-create-user/index.ts` | cria user direto |
+| `clinic-invite/index.ts` | convida usuário (super_admin ou owner/admin da clínica) |
+| `clinic-create-user/index.ts` | cria user direto (idem) |
 | `evolution-provision/index.ts` | provisiona instância WhatsApp |
 | `evolution-delete-instance/index.ts` | remove instância |
 | `forms-admin/index.ts` | CRUD forms |
 | `dispatch-campaign/index.ts` | dispara campanha (clinic admin no caso normal) |
 | `send-email/index.ts` | envio app email |
-| `tracking-event/index.ts` / `tracking-identify/index.ts` | (super_admin só p/ inspeção; uso normal é público com clinic_id) |
+| `support-chat/index.ts` | chat Alfred — qualquer autenticado; bloqueia com `423` quando thread em takeover humano |
+| `track-event/index.ts` | qualquer autenticado — insere batch em `feature_events` |
+| `log-frontend-error/index.ts` | aceita anônimo (ErrorBoundary global) — insere em `error_events` |
+| `tracking-event/index.ts` / `tracking-identify/index.ts` | público com `clinic_id`; super_admin só p/ inspeção |
 
-Todas verificam `has_role` no início, antes de qualquer side effect.
+Todas as funções "puro super_admin" verificam `has_role`/`is_super_admin` no início, antes de qualquer side effect.
 
 ## 5. Banco de dados
 
