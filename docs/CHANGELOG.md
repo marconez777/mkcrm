@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 5/8 (parcial — Features + Flows)
+
+Releitura linha-a-linha de `docs/features/` e `docs/flows/` contra `supabase/functions/*`, migrations e `src/**`. **Cobertos 6/14 arquivos** nesta rodada; restantes (`features/{BROADCASTS,EMAIL_CAMPAIGNS,ENGAGEMENT,SEQUENCES_AUTOMATIONS,BUILDER_AGENTS}.md` validados sem alteração + `flows/{LEAD_LIFECYCLE,TRACKING_TO_LEAD,EMAIL_CAMPAIGN}.md`) ficam para a próxima rodada.
+
+### Corrigido
+- `docs/features/APPOINTMENT_REMINDERS.md`: rota `/settings/custom-fields` → `/settings/fields` (rota real em `App.tsx`).
+- `docs/flows/AI_AGENT_LOOP.md`:
+  - Tools reescritas para refletir o runtime real (`ai-chat/index.ts` + `src/lib/agent-tools.ts`): 15 tools corretas (`move_lead_stage`, `add_lead_note`, `set_lead_field`, `update_custom_field`, `add/remove_lead_tag`, `assign_attendant`, `remember_fact`, `get_lead_state`, `get_lead_history`, `create_task`, `schedule_message`, `transfer_to_human`, `search_knowledge_base`, `generate_insight_report`). Removidas tools fantasmas (`create_appointment`, `update_lead_stage`, `set_lead_tag`, `send_media`).
+  - Removida referência a `_shared/ai-tools.ts` (não existe).
+  - Custos: `clinic_settings.ai_monthly_budget_usd` → `ai_spend_limits.monthly_cap_usd` (fonte real do spend-guard, retorna HTTP 402).
+  - Atores: `lead_notes`/`wa_messages` → tabelas reais (`messages`, `lead_internal_notes`, `ai_threads`, etc.). Lovable AI Gateway deixou de ser obrigatório no loop principal.
+- `docs/flows/BROADCAST.md` (**reescrito**):
+  - Tabelas: `broadcast_message_variants` (não existe) → `broadcast_message_groups` + `broadcast_message_parts` (reais).
+  - Status de recipient: removidos `claimed`/`skipped_*` (não existem); mantidos `pending`/`sending`/`sent`/`failed`.
+  - Throttle real (`throttle_seconds` por broadcast + jitter ±10% + 1s entre partes do mesmo contato).
+  - Variáveis: só `{{nome}}` (não `{{primeiro_nome}}`/`{{clinica}}`/`{{link_agendamento}}`).
+  - Claim atômico real (`UPDATE … RETURNING` com `parts_sent=?`), não advisory_lock.
+- `docs/flows/INBOUND_WHATSAPP.md` (**reescrito**):
+  - Tabela `wa_messages` → `messages` (channel='whatsapp'). Tabela `wa_messages` não existe.
+  - Webhook `evolution-webhook` é público (autentica por `?token=` na URL), não por `apikey` header.
+  - `clinic_settings.ai_auto_reply_enabled` → `clinics.settings.ai.auto_reply_enabled`.
+  - Documentado anti-loop por `messages.bot_agent_id` e respect a `leads.ai_paused`.
+- `docs/flows/OUTBOUND_WHATSAPP.md`:
+  - Todas as referências `wa_messages` → `messages`.
+  - Removida menção a hook fantasma `useSendMessage` (envio sai direto de `Composer.tsx`).
+  - `clinic_settings.wa_status` → status agregado via `useHealth()`/`evolution-health` (coluna não existe).
+
+### Validado sem alteração
+- `docs/features/BROADCASTS.md`, `EMAIL_CAMPAIGNS.md`, `ENGAGEMENT.md`, `SEQUENCES_AUTOMATIONS.md`, `BUILDER_AGENTS.md`, `FORMS.md` — todos batem com o código atual (foram revisados recentemente e usam nomes corretos).
+
+### Pendente para a próxima rodada (Fase 5 cont.)
+- `docs/flows/LEAD_LIFECYCLE.md`
+- `docs/flows/TRACKING_TO_LEAD.md`
+- `docs/flows/EMAIL_CAMPAIGN.md`
+
 ## 2026-06-03 — Auditoria documental Fase 4/8 (Frontend)
 
 Releitura linha-a-linha de `docs/frontend/` (6 arquivos) contra `src/App.tsx`, `src/pages/**`, `src/components/**`, `src/hooks/**`, `src/lib/**` e `src/index.css`.
