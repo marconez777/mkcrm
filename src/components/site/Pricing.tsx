@@ -186,7 +186,9 @@ export default function Pricing() {
               </ul>
 
               <a
-                href="#contato"
+                href={`https://wa.me/5511991795436?text=${encodeURIComponent(`Quero assinar o plano ${plan.name}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={[
                   "relative mt-10 inline-flex h-12 items-center justify-center rounded-full px-6 site-font-body text-[14px] transition-all",
                   plan.highlight
