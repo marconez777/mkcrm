@@ -1,7 +1,7 @@
 # Fluxo: Tracking → Lead (visitante anônimo vira lead)
 
 > **Quando ler:** antes de mexer no pixel de tracking, na resolução de identidade, ou em atribuição de origem (UTM).
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -9,8 +9,8 @@
 
 - **Site externo** com snippet/pixel mkart
 - **Edge functions** `tracking-config`, `tracking-pixel`, `tracking-event`, `tracking-identify`
-- **Postgres**: `tracking_visitors`, `tracking_sessions`, `tracking_events`, `leads`
-- **Forms** (`forms-ingest`) ou **WhatsApp click-to-chat** com `wa_ref`
+- **Postgres**: `tracking_visitors`, `tracking_sessions`, `tracking_events`, `tracking_lead_sources`, `leads`
+- **Forms** (`forms-ingest`) ou **WhatsApp click-to-chat** com código `ref=xxxxxxxxxx` ou `MK-XXXXXX`
 
 ---
 
@@ -20,15 +20,15 @@
 Site carrega snippet
         │
         ▼
-GET tracking-config?site_id=...   (cacheado 1h)
+GET tracking-config?project_id=...   (cacheado)
         ▼
-recebe { visitor_cookie_name, endpoints }
+recebe { visitor_cookie_name, endpoints, allowed_domains }
         │
         │ se sem cookie:
-        │   gera anonymous_id (uuid)
-        │   set cookie 1ª-party 2 anos
+        │   gera visitor_id (uuid)
+        │   set cookie 1ª-party (~2 anos)
         ▼
-POST tracking-event { type='page_view', anonymous_id, url, utm, referrer }
+POST tracking-event { type='page_view', visitor_id, session_id, url, utm, referrer }
         │
         ▼
 INSERT tracking_visitors (se novo)
@@ -44,31 +44,36 @@ INSERT tracking_events
 Usuário preenche form OU clica botão WhatsApp
         │
         ▼
-forms-ingest OU click-to-chat com wa_ref=<anonymous_id>
+forms-ingest OU click-to-chat com ref=<código curto> embutido na mensagem
         │
         ▼
-POST tracking-identify { anonymous_id, email|phone }
-        │ 1) acha/cria lead via findOrCreateLead
-        │ 2) UPDATE tracking_visitors SET lead_id=...
-        │ 3) UPDATE tracking_sessions de mesmo anonymous_id (histórico)
-        │ 4) INSERT lead_events('tracking_identified', { sessions_count, first_utm })
-        │ 5) seta leads.source / first_utm_* se ainda null (first-touch attribution)
+POST tracking-identify { project_id, visitor_id, lead_id|email|phone }
+        │ valida origem em clinic.settings.tracking.allowed_domains
+        │ resolve lead_id (cria/encontra via dedupe inline)
+        │ UPSERT em tracking_lead_sources (first_touch + last_non_direct)
+        │   onConflict (clinic_id, lead_id, source_type)
+        │ UPDATE tracking_events SET lead_id=... WHERE visitor_id=? AND lead_id IS NULL  (backfill)
+        │ INSERT tracking_events(event_name='lead_identified', event_type='identity')
+        │ email/phone trafegam hasheados (sha256) em event.properties — nunca em claro
 ```
+
+> ⚠️ A função **não** escreve em `lead_events`. A atribuição vive em `tracking_lead_sources`; a timeline visual de tracking continua em `tracking_events`.
 
 ---
 
 ## Estágio 3: WhatsApp click-to-chat
 
 ```text
-CTA no site → link wa.me/55X?text=Quero%20saber%20mais&ref=<anonymous_id>
+CTA no site → link wa.me/55X?text=Quero%20saber%20mais%20(ref=ab12cd34ef)
         │
         ▼
 Usuário envia primeira mensagem (Evolution webhook)
         │
         ▼
 evolution-webhook
-        │ extrai 'ref' do texto se presente (regex)
-        │ se houver ref → POST tracking-identify(anonymous_id=ref, phone=lead.phone)
+        │ extrai código pelo regex TRACKING_CODE_RE:
+        │   /(?:ref=([a-f0-9]{10})|(MK-[A-HJ-NP-Z2-9]{6}))/i
+        │ se houver código → resolve visitor_id e chama tracking-identify
         ▼
 Atribuição completa: lead ↔ jornada de tracking
 ```
@@ -77,21 +82,23 @@ Atribuição completa: lead ↔ jornada de tracking
 
 ## Atribuição (UTM)
 
-- **First touch**: gravado na primeira `tracking_sessions` do visitante.
-- **Last touch**: derivado da sessão mais recente antes do identify.
-- **Multi touch**: timeline completa em `tracking_sessions` por `visitor_id`.
+- **`leads`** carrega apenas um conjunto: `utm_source`, `utm_medium`, `utm_campaign`, `form_source` (preenchidos pelo entrypoint do canal — geralmente reflete o first-touch).
+- **`tracking_lead_sources`** é a fonte canônica de atribuição multi-touch, com linhas por `source_type` (`first_touch`, `last_non_direct`, …) e os campos `source`, `medium`, `campaign`, `channel_group`, IDs de clique (`gclid`, `fbclid`, `gbraid`, `wbraid`, `ttclid`, `msclkid`, `li_fat_id`, `fbp`, `fbc`), etc.
+- **Timeline completa** continua em `tracking_sessions` por `visitor_id`.
 
-Campos em `leads`: `first_utm_source`, `first_utm_medium`, `first_utm_campaign`, `last_utm_*` (se já identificado quando voltar, atualiza last).
+> Não existem colunas `first_utm_*` / `last_utm_*` em `leads`. Quem precisa de last-touch lê de `tracking_lead_sources` ou da última `tracking_sessions`.
 
 ---
 
 ## Pegadinhas
 
-- **Cookie bloqueado** (Safari ITP, ad blocker): `anonymous_id` regenera por visita → cada sessão vira visitor diferente. Identify ainda funciona se preencher form.
-- **wa.me trunca query params longos**: usar `ref` curto (uuid sem hífens, 32 chars).
+- **Cookie bloqueado** (Safari ITP, ad blocker): `visitor_id` regenera por visita → cada sessão vira visitor diferente. Identify ainda funciona se preencher form.
+- **wa.me trunca texto longo**: por isso o ref é curto (`ref=` + 10 chars hex, ou `MK-XXXXXX` base32).
 - **Ref no texto**: alguns usuários apagam antes de enviar. Sem ref, não dá pra ligar à jornada — vira lead "direto".
 - **Cross-device**: identify por email/phone faz merge se mesmo lead já existe. **Não** unimos visitors de devices diferentes automaticamente — só quando ambos identificam pro mesmo lead.
-- **Bot traffic**: hoje não filtramos. Tracking_events infla. TODO.
+- **Privacidade**: `tracking-identify` só recebe email/phone hasheados em SHA-256 (`email_hash`, `phone_hash`) — claro nunca é persistido em `tracking_events`. O lead em si guarda email/phone normalmente.
+- **Origem bloqueada**: `tracking-identify` exige que o host esteja em `clinic.settings.tracking.allowed_domains` (ou auth de membro/super_admin/service_role). Sem whitelist → 403 `origin_not_allowed`.
+- **Bot traffic**: hoje não filtramos. `tracking_events` infla. TODO.
 - **GDPR/LGPD**: snippet respeita `Do-Not-Track` se `clinic_settings.tracking_respect_dnt=true`.
 
 ---
@@ -100,7 +107,7 @@ Campos em `leads`: `first_utm_source`, `first_utm_medium`, `first_utm_campaign`,
 
 - Filtro anti-bot (user-agent + heurística).
 - Server-side tracking opcional (`/cw` endpoint via proxy do cliente).
-- View materializada de atribuição por canal.
+- View materializada de atribuição por canal a partir de `tracking_lead_sources`.
 - Decay de last-touch (janela 30 dias configurável).
 - Merge automático de visitors quando mesmo lead identifica em 2+ devices.
 
@@ -113,5 +120,6 @@ Campos em `leads`: `first_utm_source`, `first_utm_medium`, `first_utm_campaign`,
 - `supabase/functions/tracking-event/index.ts`
 - `supabase/functions/tracking-identify/index.ts`
 - `supabase/functions/forms-ingest/index.ts`
-- `edge-functions/TRACKING.md`
-- `features/FORMS.md`
+- `supabase/functions/evolution-webhook/index.ts` (regex `TRACKING_CODE_RE`)
+- `docs/edge-functions/TRACKING.md`
+- `docs/features/FORMS.md`

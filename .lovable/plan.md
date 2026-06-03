@@ -31,9 +31,9 @@ Achados principais: total 71 (não 70); 5 funções ausentes adicionadas (`ai-bu
 `frontend/{COMPONENTS,DESIGN_SYSTEM,HOOKS_LIB,PAGES,ROUTING,STATE_DATA}.md`.
 Achados principais: rotas `/site`, `/reset-password`, `/ai/agents/new` ausentes em ROUTING/PAGES; `/` é gateada por `RootGate`; pastas `components/agents/*` (15) e `components/site/*` (13) inteiramente ausentes em COMPONENTS; `ui/` real é 55 primitives; `useLeads()` não tem teto de 2000 (usa `fetchAllPaged`); hook `useWhatsappInstances` e 9 módulos `lib/*` (`app-url`, `fetch-all`, `csv`, `diff-lines`, `template-vars`, `quality-ladder`, `agent-tools`, `builder-errors`, `builder-tooltips`) ausentes; tokens `--status-*`, `--surface-*`, `--site-*` em `index.css` agora documentados.
 
-### Fase 5 — Features + Flows (13 arquivos)
+### Fase 5 — Features + Flows (13 arquivos) ✅ concluída 2026-06-03
 `features/*.md` (6) + `flows/*.md` (7).
-Validação cruzada com hooks/edge functions referenciados; corrigir nomes de tabelas/colunas/triggers; alinhar com Plans/Limits e novas feature flags.
+Achados principais (fechamento): `flows/LEAD_LIFECYCLE.md` reescrito — triggers fantasmas removidos (`tg_lead_after_insert`, `tg_pause_ai_on_human_reply` não existem; reais são `trg_enroll_on_stage_change`, `trg_lead_stage_history`, `log_lead_changes_trg`, `trg_stop_sequences_on_reply`); `findOrCreateLead` não existe (dedupe inline); `LeadDetail.tsx` → `LeadDrawer.tsx`; histórico agora em `lead_stage_history`. `flows/TRACKING_TO_LEAD.md` reescrito — `tracking-identify` usa `visitor_id`/`project_id` com email/phone hasheados, grava em `tracking_lead_sources` + `tracking_events('lead_identified')` (não em `lead_events`); regex real é `ref=[a-f0-9]{10}` ou `MK-[base32]{6}`; UTM em `leads` só tem um conjunto (`utm_source/medium/campaign`), multi-touch fica em `tracking_lead_sources`. `flows/EMAIL_CAMPAIGN.md` validado sem alterações.
 
 ### Fase 6 — Integrações + Operações + Known issues + Roadmap + Conventions + Site (16 arquivos)
 `integrations/*.md` (5), `operations/*.md` (5), `known-issues/*.md` (3), `roadmap/*.md` (3), `site/FEATURE_PAGES.md`, `conventions/*.md` (4).
