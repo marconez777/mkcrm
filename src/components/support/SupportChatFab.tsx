@@ -237,6 +237,7 @@ export default function SupportChatFab() {
         <MessageCircle className="h-6 w-6" />
         <span className="absolute -bottom-1 -right-1 text-[9px] font-bold bg-background text-foreground border rounded px-1 py-px shadow">?</span>
       </button>
+    );
   }
 
   // Minimized bar
