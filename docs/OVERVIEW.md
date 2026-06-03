@@ -225,6 +225,9 @@ Cerca de 50 funções em `supabase/functions/`, agrupadas por domínio:
 **Plataforma**
 `clinic-create-user` · `clinic-invite` · `integrations-status`.
 
+**Admin (super admin only — jun/2026)**
+`admin-users-list` (lista cross-tenant paginada) · `admin-user-action` (reset senha, desbloquear, forçar logout, promover/revogar super admin) · `admin-apply-plan` (propaga `plans.features`/`limits` para clínicas). Ver `architecture/PLANS_LIMITS.md`.
+
 **Código compartilhado**: `supabase/functions/_shared/` contém `evolution.ts` (`ingestMessage`, dispatch), `ai.ts` (cliente LLM), `email.ts`, `rag.ts` (busca híbrida), `mcp.ts` (tools), `metrics.ts`, `utils.ts`, `types.ts`.
 
 ---
