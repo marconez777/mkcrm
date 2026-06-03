@@ -1,18 +1,13 @@
-Atualizar os botões de CTA de cada plano em `src/components/site/Pricing.tsx` para apontarem para o WhatsApp do número 11991795436 com mensagem pré-preenchida.
+Atualizar os 3 botões de CTA dos planos em `src/components/site/Pricing.tsx` para usar fundo verde WhatsApp com o ícone do WhatsApp à esquerda do texto.
 
 ## Mudanças
 
-- Substituir o `<a href="#contato">` por um link `https://wa.me/5511991795436?text=...` em cada card de plano.
-- Mensagem dinâmica por plano: `Quero assinar o plano {nome}` (URL-encoded).
-- Abrir em nova aba (`target="_blank"` + `rel="noopener noreferrer"`).
-- Sem outras alterações visuais ou de conteúdo.
+- Remover variação de estilo entre plano destacado e não destacado: todos os botões ficam verdes (`bg-[#25D366]` com hover `brightness-110`), texto branco.
+- Adicionar ícone do WhatsApp (lucide `MessageCircle` substituído pelo SVG oficial inline, ou usar `lucide-react`'s não tem — usar SVG inline simples do WhatsApp) à esquerda do label.
+- Manter href, target e mensagem já existentes.
 
 ## Detalhes técnicos
 
-```tsx
-href={`https://wa.me/5511991795436?text=${encodeURIComponent(`Quero assinar o plano ${plan.name}`)}`}
-target="_blank"
-rel="noopener noreferrer"
-```
-
-Aplicado nos 3 planos (Starter, Pro, Supreme). Adiciono o código do país `55` (Brasil) ao número, padrão exigido pelo `wa.me`.
+- Usar SVG inline do logo WhatsApp (path oficial) com `h-5 w-5 fill-white` para garantir fidelidade visual (lucide não tem ícone WhatsApp dedicado).
+- Classe do botão unificada: `bg-[#25D366] text-white hover:brightness-110` mantendo `h-12 rounded-full px-6`.
+- Sem outras alterações.
