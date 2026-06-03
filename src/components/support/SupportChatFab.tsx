@@ -144,6 +144,14 @@ export default function SupportChatFab() {
             const j = JSON.parse(payload);
             if (evt === "meta") {
               if (j?.thread_id) setThreadId(j.thread_id);
+              if (j?.assistant_message_id) {
+                setMessages((m) => {
+                  const out = [...m];
+                  const last = out[out.length - 1];
+                  if (last?.role === "assistant") out[out.length - 1] = { ...last, id: j.assistant_message_id };
+                  return out;
+                });
+              }
               evt = null;
               continue;
             }
@@ -152,7 +160,8 @@ export default function SupportChatFab() {
               acc += delta;
               setMessages((m) => {
                 const out = [...m];
-                out[out.length - 1] = { role: "assistant", content: acc };
+                const last = out[out.length - 1];
+                out[out.length - 1] = { ...(last ?? {}), role: "assistant", content: acc };
                 return out;
               });
             }
