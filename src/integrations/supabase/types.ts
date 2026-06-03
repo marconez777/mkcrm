@@ -1768,12 +1768,91 @@ export type Database = {
           },
         ]
       }
+      clinic_subscriptions: {
+        Row: {
+          cancel_at: string | null
+          canceled_at: string | null
+          clinic_id: string
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          grant_reason: string | null
+          granted_by: string | null
+          id: string
+          is_current: boolean
+          metadata: Json
+          plan_id: string
+          source: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          canceled_at?: string | null
+          clinic_id: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          grant_reason?: string | null
+          granted_by?: string | null
+          id?: string
+          is_current?: boolean
+          metadata?: Json
+          plan_id: string
+          source?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancel_at?: string | null
+          canceled_at?: string | null
+          clinic_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          grant_reason?: string | null
+          granted_by?: string | null
+          id?: string
+          is_current?: boolean
+          metadata?: Json
+          plan_id?: string
+          source?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_subscriptions_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           created_at: string
           id: string
           name: string
           plan: string
+          plan_id: string | null
           settings: Json
           slug: string
           status: string
@@ -1784,6 +1863,7 @@ export type Database = {
           id?: string
           name: string
           plan?: string
+          plan_id?: string | null
           settings?: Json
           slug: string
           status?: string
@@ -1794,12 +1874,21 @@ export type Database = {
           id?: string
           name?: string
           plan?: string
+          plan_id?: string | null
           settings?: Json
           slug?: string
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clinics_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_access_log: {
         Row: {
@@ -4048,6 +4137,80 @@ export type Database = {
           },
         ]
       }
+      plan_change_log: {
+        Row: {
+          changed_by: string | null
+          clinic_id: string
+          created_at: string
+          from_plan_id: string | null
+          from_status: string | null
+          id: string
+          metadata: Json
+          reason: string | null
+          source: string | null
+          subscription_id: string | null
+          to_plan_id: string | null
+          to_status: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          clinic_id: string
+          created_at?: string
+          from_plan_id?: string | null
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          source?: string | null
+          subscription_id?: string | null
+          to_plan_id?: string | null
+          to_status?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          clinic_id?: string
+          created_at?: string
+          from_plan_id?: string | null
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          source?: string | null
+          subscription_id?: string | null
+          to_plan_id?: string | null
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_change_log_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_change_log_from_plan_id_fkey"
+            columns: ["from_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_change_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_change_log_to_plan_id_fkey"
+            columns: ["to_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           code: string
@@ -4062,6 +4225,9 @@ export type Database = {
           price_monthly_brl: number
           price_yearly_brl: number
           sort_order: number
+          stripe_price_id_monthly: string | null
+          stripe_price_id_yearly: string | null
+          stripe_product_id: string | null
           updated_at: string
         }
         Insert: {
@@ -4077,6 +4243,9 @@ export type Database = {
           price_monthly_brl?: number
           price_yearly_brl?: number
           sort_order?: number
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -4092,6 +4261,9 @@ export type Database = {
           price_monthly_brl?: number
           price_yearly_brl?: number
           sort_order?: number
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -5776,6 +5948,17 @@ export type Database = {
       }
       current_clinic_has_feature: { Args: { _key: string }; Returns: boolean }
       current_clinic_id: { Args: never; Returns: string }
+      current_clinic_plan: {
+        Args: { _clinic: string }
+        Returns: {
+          current_period_end: string
+          plan_code: string
+          plan_id: string
+          source: string
+          status: string
+          trial_ends_at: string
+        }[]
+      }
       current_clinic_role: {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
