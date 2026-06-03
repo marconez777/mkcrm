@@ -128,8 +128,8 @@ export default function SupportPanel() {
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>API Key OpenAI {cfg.api_key && <span className="text-xs text-muted-foreground">(configurada — deixe vazio para manter)</span>}</Label>
-              <Input type="password" placeholder={cfg.api_key ? "•••••••••••• (manter)" : "sk-..."} value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} />
+              <Label>API Key OpenAI {cfg.api_key_set && <span className="text-xs text-muted-foreground">(configurada — deixe vazio para manter)</span>}</Label>
+              <Input type="password" placeholder={cfg.api_key_set ? "•••••••••••• (manter)" : "sk-..."} value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Modelo</Label>
@@ -171,7 +171,7 @@ export default function SupportPanel() {
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Salvar
             </Button>
-            <Button variant="outline" onClick={testConnection} disabled={testing || (!cfg.api_key && !apiKeyInput.trim())}>
+            <Button variant="outline" onClick={testConnection} disabled={testing || (!cfg.api_key_set && !apiKeyInput.trim())}>
               {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
               Testar conexão
             </Button>
@@ -183,7 +183,7 @@ export default function SupportPanel() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Base de Conhecimento</CardTitle>
-            <Button onClick={resyncKB} disabled={syncing || !cfg.api_key} size="sm">
+            <Button onClick={resyncKB} disabled={syncing || !cfg.api_key_set} size="sm">
               {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Re-sincronizar KB
             </Button>
