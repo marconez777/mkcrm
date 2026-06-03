@@ -650,7 +650,10 @@ export default function Agents() {
                     <Button size="sm" onClick={() => save()}>Salvar</Button>
                   </>
                 )}
+              </div>
             </div>
+
+
 
             {!selected.enabled && !selected.is_system && (
               <Alert variant="warning">
