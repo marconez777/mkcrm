@@ -40,9 +40,9 @@ export default function MarketingSite() {
         <Services />
         <Integrations />
 
-        <Testimonials />
+        {/* <Testimonials /> */}
         <Pricing />
-        <Blog />
+        {/* <Blog /> */}
       </main>
 
       <SiteFooter />
