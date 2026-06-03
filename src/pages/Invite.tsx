@@ -19,6 +19,7 @@ export default function InvitePage() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [password, setPassword] = useState("");
+  const acceptingRef = useRef(false);
 
   useEffect(() => { document.title = "Convite — MK CRM"; }, []);
 
