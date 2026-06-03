@@ -53,7 +53,7 @@ Aplicação prática:
 
 - `src/pages/Admin.tsx` — guarda a rota `/admin` inteira (`if (!isSuperAdmin) return <Navigate />`).
 - `useAuth.hasFeature(key)` — super_admin ignora feature flags da clínica (retorna `true` para qualquer chave).
-- Componentes do painel (`UsersPanel`, `PlansPanel`, `AuditPanel`, `IntegrationsKeysCard`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `UsageLimitsPanel`, `DashboardPanel`, `BuilderManualPanel`, `ClinicDetailsDialog`) renderizam apenas dentro de `/admin`.
+- Componentes do painel (`DashboardPanel`, `UsersPanel`, `PlansPanel`, `UsageLimitsPanel`, `AiSpendLimitCard`, `FinancePanel`, `ObservabilityPanel`, `SupportPanel`/`SupportLiveMonitor`/`SupportTelemetry`/`SupportPinsCard`, `AuditPanel`, `IntegrationsKeysCard`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `BuilderManualPanel`, `ClinicDetailsDialog`) renderizam apenas dentro de `/admin`.
 
 ---
 
@@ -61,11 +61,17 @@ Aplicação prática:
 
 | Rota | Guard | Observação |
 |---|---|---|
-| `/admin` | `Admin.tsx` → `isSuperAdmin` | Painel global: clínicas, planos, usuários, integrações, auditoria. |
-| `/admin → Planos` | `PlansPanel` + edge `admin-apply-plan` | CRUD do catálogo `plans` e aplicação a clínicas. |
+| `/admin` | `Admin.tsx` → `isSuperAdmin` | Painel global. |
+| `/admin → Dashboard` | `DashboardPanel` | KPIs cross-tenant (RPCs `admin_overview_metrics`, `admin_top_clinics`, `admin_daily_metrics`). |
+| `/admin → Clínicas` | `ClinicDetailsDialog` + edges `admin-apply-plan`/`admin-revoke-plan` | Aba "Plano & Assinatura" com aplicação/revogação manual. |
+| `/admin → Planos` | `PlansPanel` | CRUD do catálogo `plans`. |
+| `/admin → Uso & Limites` | `UsageLimitsPanel` | Snapshot por clínica × limite. |
+| `/admin → Financeiro` | `FinancePanel` + edge `admin-invoice` | KPIs, gráfico, inadimplentes, distribuição de planos, CRUD de faturas. |
+| `/admin → Observabilidade` | `ObservabilityPanel` | RPCs `admin_feature_usage`, `admin_dead_features`, `admin_error_summary`. |
+| `/admin → Suporte` | `SupportPanel` (+ Monitor/Telemetria/Pins) + edges `support-*` | Chat Alfred ao vivo, takeover humano, pins, status da KB. |
 | `/admin → Usuários` | `UsersPanel` + edges `admin-users-list`/`admin-user-action` | Listar, resetar senha, sign-out, set super_admin, set clinic role, delete user. |
-| `/admin → Integrações` | `integrations-status`, `IntegrationsKeysCard` | Presença de secrets (`RESEND_API_KEY`, etc.) — nunca valores. |
-| `/admin → Auditoria` | `AuditPanel` | Lê `audit_log`/`data_access_log`. |
+| `/admin → Integrações` | `integrations-status`, `IntegrationsKeysCard` | Presença de secrets — nunca valores. |
+| `/admin → Auditoria` | `AuditPanel` | Lê `audit_log`/`data_access_log`/`plan_change_log`. |
 
 Demais rotas autenticadas são abertas a membros da clínica e **não** dependem de super_admin (super_admin tem acesso adicional via RLS bypass).
 
