@@ -92,5 +92,5 @@ evolution-send  (mesma lógica, sem JWT — autorizado por SERVICE_ROLE_KEY)
 - `supabase/functions/evolution-send/index.ts`
 - `supabase/functions/evolution-send-media/index.ts`
 - `supabase/functions/evolution-webhook/index.ts` (ack handling)
-- `src/hooks/useSendMessage.ts`
+- `src/components/inbox/Composer.tsx` (entrypoint do envio manual)
 - `edge-functions/WHATSAPP.md`
