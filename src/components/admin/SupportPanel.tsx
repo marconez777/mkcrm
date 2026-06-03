@@ -231,6 +231,7 @@ export default function SupportPanel() {
         </CardContent>
       </Card>
 
+      <SupportLiveMonitor />
       <SupportTelemetry monthlyCap={cfg.monthly_cap_usd} />
     </div>
   );
