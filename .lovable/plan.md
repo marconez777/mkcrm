@@ -1,72 +1,112 @@
 ## Objetivo
 
-Revisar **um por um** os ~85 arquivos em `docs/` e reescrever/ajustar cada trecho que divergir do código atual (migrations, edge functions, frontend, `supabase/config.toml`, hooks/lib). Sem margem para erro — cada fato citado (nome de tabela, coluna, RPC, edge function, rota, prop, env var, limite) é validado contra a fonte antes de ser mantido ou corrigido.
+Criar uma camada de navegação em `docs/` que funcione como **GPS do código**: ao receber um pedido de edição, eu abro o mapa, encontro a feature, e tenho em uma só tela todos os arquivos (frontend + edge + DB) que preciso tocar — e os que **não** posso tocar sem quebrar invariantes.
 
-## Método por arquivo
+Sem placeholders para features futuras: mapeamos o estado atual. Quando Stripe / planos pagos / limites forem construídos, atualizamos o mapa no mesmo PR.
 
-1. Ler o arquivo inteiro.
-2. Extrair afirmações verificáveis: tabelas, colunas, RPCs, triggers, RLS, edge functions, env vars, rotas, componentes, hooks, limites, fluxos.
-3. Validar contra a fonte (migrations mais recentes, código da função, componente atual). Buscas com `rg`, leitura de arquivos relevantes, `supabase--read_query` quando preciso confirmar schema vivo.
-4. Aplicar edits cirúrgicos (`code--line_replace`) — reescrever inteiro só quando o drift for grande.
-5. Atualizar carimbo `> Última atualização: 2026-06-03` quando o arquivo for tocado.
-6. No fim da fase, anotar no `docs/CHANGELOG.md` o que mudou e dar resumo curto.
+---
 
-Convenções: PT-BR, nomes de produto em inglês (Lovable Cloud, Resend, Evolution API), nunca expor "Supabase" para o usuário final.
+## Estrutura proposta
 
-## Fases (aprovação entre cada uma)
+```text
+docs/
+├── MAP.md                      ← índice mestre (novo)
+└── maps/                       ← novo diretório
+    ├── BUILDER_AGENTS.md       ← feature crítica
+    ├── INBOX_WHATSAPP.md       ← feature crítica
+    ├── EMAIL.md                ← feature crítica
+    ├── KANBAN_LEADS.md
+    ├── AI_RUNTIME.md           ← ai-chat, ai-auto-reply, tools, custos
+    ├── TRACKING_FORMS.md
+    ├── ADMIN_SUPER_ADMIN.md
+    ├── AUTH_MULTI_TENANCY.md
+    └── AUTOMATIONS_SEQUENCES.md
+```
 
-### Fase 1 — Raiz + Arquitetura (12 arquivos)
-`docs/README.md`, `OVERVIEW.md`, `GLOSSARY.md`, `CHANGELOG.md`, `AI.md`, `EMAIL.md`, `TRACKING.md`, `AUDIT_PHASE1.md`, `copilot.md`, e `architecture/{AUTH,FEATURE_FLAGS,MULTI_TENANCY,PLANS_LIMITS,REALTIME,STACK}.md`.
-Foco: índice de docs, stack, multi-tenancy (`current_clinic_id`, `is_super_admin`), plans/limits, feature flags refletindo `src/lib/features.ts`, `src/lib/admin-plans.ts`, `clinics.settings`, edge `admin-apply-plan`.
+`docs/MAP.md` (mestre) terá:
 
-### Fase 2 — Database (4 arquivos) ✅ concluída 2026-06-03
-`database/{SCHEMA,RLS_POLICIES,FUNCTIONS_TRIGGERS,MIGRATIONS}.md`.
-Varredura completa de `supabase/migrations/*.sql` (139) + `pg_catalog`. Achados principais: 12 tabelas ausentes adicionadas, `auth_lockouts` confirmada como inexistente (removida), contagem real 111 relações, RPCs admin reescritas, total de migrations 139.
+- **Tabela de features → link para mapa detalhado + 1 linha de resumo**
+- **Índice reverso por tipo de arquivo**: "se você está editando `_shared/ai.ts`, isto afeta: ai-chat, ai-auto-reply, ai-builder, ai-assist, ai-analyst-run"
+- **Lista de invariantes globais** (RLS sempre, `has_role` para super_admin, cláusula de contexto do lead em prompts, etc.)
+- **Convenção de leitura**: "antes de editar X, leia maps/Y.md primeiro"
 
-### Fase 3 — Edge Functions (6 arquivos) ✅ concluída 2026-06-03
-`edge-functions/{INDEX,AI,EMAIL,TRACKING,WHATSAPP,SHARED_HELPERS}.md`.
-Achados principais: total 71 (não 70); 5 funções ausentes adicionadas (`ai-builder`, `ai-analyst-run`, `ai-reingest-document`, `agent-followups-tick`, `agent-learn-from-thread`); shared 14 módulos (não 13) + `builder-knowledge/`; ghost references removidas (`auth-login`, `BROADCASTS.md`, `SEQUENCES_AUTOMATIONS.md`, `FORMS.md`, `AUTH.md` em `edge-functions/`); bug latente `auth_lockouts` em `admin-*` documentado.
+---
 
-### Fase 4 — Frontend (6 arquivos) ✅ concluída 2026-06-03
-`frontend/{COMPONENTS,DESIGN_SYSTEM,HOOKS_LIB,PAGES,ROUTING,STATE_DATA}.md`.
-Achados principais: rotas `/site`, `/reset-password`, `/ai/agents/new` ausentes em ROUTING/PAGES; `/` é gateada por `RootGate`; pastas `components/agents/*` (15) e `components/site/*` (13) inteiramente ausentes em COMPONENTS; `ui/` real é 55 primitives; `useLeads()` não tem teto de 2000 (usa `fetchAllPaged`); hook `useWhatsappInstances` e 9 módulos `lib/*` (`app-url`, `fetch-all`, `csv`, `diff-lines`, `template-vars`, `quality-ladder`, `agent-tools`, `builder-errors`, `builder-tooltips`) ausentes; tokens `--status-*`, `--surface-*`, `--site-*` em `index.css` agora documentados.
+## Formato de cada mapa de feature
 
-### Fase 5 — Features + Flows (13 arquivos) ✅ concluída 2026-06-03
-`features/*.md` (6) + `flows/*.md` (7).
-Achados principais (fechamento): `flows/LEAD_LIFECYCLE.md` reescrito — triggers fantasmas removidos (`tg_lead_after_insert`, `tg_pause_ai_on_human_reply` não existem; reais são `trg_enroll_on_stage_change`, `trg_lead_stage_history`, `log_lead_changes_trg`, `trg_stop_sequences_on_reply`); `findOrCreateLead` não existe (dedupe inline); `LeadDetail.tsx` → `LeadDrawer.tsx`; histórico agora em `lead_stage_history`. `flows/TRACKING_TO_LEAD.md` reescrito — `tracking-identify` usa `visitor_id`/`project_id` com email/phone hasheados, grava em `tracking_lead_sources` + `tracking_events('lead_identified')` (não em `lead_events`); regex real é `ref=[a-f0-9]{10}` ou `MK-[base32]{6}`; UTM em `leads` só tem um conjunto (`utm_source/medium/campaign`), multi-touch fica em `tracking_lead_sources`. `flows/EMAIL_CAMPAIGN.md` validado sem alterações.
+Template fixo, sempre as mesmas seções, na mesma ordem (para eu escanear rápido):
 
-### Fase 6 — Integrações + Operações + Known issues + Roadmap + Conventions + Site (16 arquivos) ✅ concluída 2026-06-03
-`integrations/*.md` (5) + `operations/*.md` (5) + `known-issues/*` (3) + `roadmap/*` (3) + `conventions/*` (4) + `site/FEATURE_PAGES.md` (1) — **completos**.
-Achados Integrações+Operações: tabela `clinic_settings` **não existe** (tudo em `clinics.settings` JSON); `wa_messages`/`email_events`/`ai_runs`/`ai_tool_calls` **não existem** (reais: `messages`, `email_logs.events[]` + `resend_webhook_events`, `ai_usage`/`ai_usage_daily`/`ai_spend_events`/`ai_chat_traces`); `form_sites`/`forms` **não existem** (reais: `form_definitions`+`form_integrations`+`form_submissions`); `_shared/ai-call.ts`/`_shared/logger.ts` **não existem** (wrapper IA é `_shared/ai.ts` com `retryable`, spend-guard em `_shared/spend-guard.ts`); budget de IA real é `ai_spend_limits.monthly_cap_usd` (402); webhook Evolution autentica por `?token=` na URL; `process-email-queue` roda ~15s.
-Achados fechamento (known-issues + conventions + roadmap + site): `findOrCreateLead` não existe (dedupe inline); trigger `tg_pause_ai_on_human_reply` não existe (anti-loop via `messages.bot_agent_id`); `evolution_message_id` → `messages.external_id`; edge `auth-login` não existe (Auth nativa); `auth_lockouts` dropada em 2026-05-26; CORS de funções públicas deve ecoar `Origin` (vide `CORS_FORMS_INGEST.md`); `ai_monthly_budget_usd` → `ai_spend_limits.monthly_cap_usd`.
+```text
+# Mapa: <Feature>
 
-### Fase 7 — Guia de integração externa (14 .md + 6 exemplos) ✅ concluída 2026-06-03
-`docs/integracao/*.md` + `exemplos/*`.
-Endpoints (`forms-ingest`, `external-lead-capture`, `tracking-*`), schemas Zod reais (`form_key/form_name/source_page/fields/visitor_id/session_id`; `external-lead-capture` com `refine(email||phone)`), headers (`x-form-token`, `x-capture-token`), respostas (`{ok,status,lead_id,is_new_lead}`) e exemplos validados.
-Achados: rate-limit real do `tracking-event` é **60 req/min** por (IP+clinic), não 120 (in-memory por isolate); `tracking-identify` é **público** autenticado por `allowed_domains` (com fallback service role / admin logado), não "service / interno"; `forms-ingest` e `tracking-identify` ecoam `Origin` + `Allow-Credentials` + `Vary: Origin` (não `*`) — ver `known-issues/CORS_FORMS_INGEST.md`. Files 11/12/13 (caso ÓR) preservados como snapshot histórico.
+## 1. O que é (2-3 linhas)
+## 2. Rotas / pontos de entrada do usuário
+## 3. Frontend
+   - Páginas:        src/pages/...        → função
+   - Componentes:    src/components/...   → função
+   - Hooks:          src/hooks/...        → função
+   - Libs/helpers:   src/lib/...          → função
+## 4. Edge functions
+   - supabase/functions/<nome>/index.ts   → o que faz, quem chama
+   - _shared/... usados                   → para que
+## 5. Banco de dados
+   - Tabelas:        nome → colunas-chave
+   - RLS:            política → quem pode o quê
+   - RPCs/funções:   nome → uso
+   - Triggers:       nome → quando dispara
+   - Migrations relevantes (datas)
+## 6. Integrações externas
+## 7. Invariantes / "não toque sem ler"
+   - Regras que, se quebradas, derrubam a feature em produção.
+## 8. Pegadinhas comuns
+## 9. Como adicionar X (receitas)
+   - "Para adicionar uma tool nova ao Builder, edite: 1)... 2)... 3)..."
+```
 
-### Fase 8 — Auditoria final cruzada
-Releitura de **todos** os docs já editados, com checagens automatizadas e manuais:
+A seção **9 (receitas)** é o ganho real: quando você pedir "adicione uma tool nova ao agente", eu abro o mapa e sigo a receita em vez de redescobrir o caminho.
 
-- **Links internos quebrados** (`rg -n "\]\(\.{0,2}/" docs/`) → cada link relativo é resolvido contra o filesystem; quebrados são corrigidos.
-- **Referências a tabelas/colunas/funções inexistentes** → grep cruzado contra `supabase/migrations/` e `types.ts`.
-- **Referências a edge functions inexistentes** → grep cruzado contra `supabase/functions/`.
-- **Rotas/componentes/hooks fantasmas** → grep cruzado contra `src/App.tsx` e `src/**`.
-- **Termos inconsistentes** (ex.: "Supabase" exposto onde deveria ser "Lovable Cloud"; nomes de feature flags divergentes entre docs).
-- **Carimbos de data desatualizados** nos arquivos tocados.
-- **Recontagem final**: somar arquivos por fase e conferir cobertura 100% do `docs/`.
+---
 
-Entregável: relatório com lista de achados + correções aplicadas; `docs/CHANGELOG.md` ganha entrada "Auditoria final 2026-06-03".
+## Cobertura por mapa (resumido)
 
-## Entregáveis por fase
+| Mapa | Cobre | Por que é crítico |
+|---|---|---|
+| `BUILDER_AGENTS.md` | Wizard `/ai/agents/new`, edge `ai-builder` (9 actions), `builder_manual_versions`, Test Lab, KB Assistant, Insights, PromptHistory | Vai crescer muito; tem invariante forte (cláusula de contexto + multi-nicho) |
+| `AI_RUNTIME.md` | `ai-chat`, `ai-auto-reply`, `ai-assist`, tools (`KNOWN_AGENT_TOOLS`), `_shared/ai.ts`, `spend-guard.ts`, `ai-pricing.ts` (+ espelho frontend), tabelas `ai_usage*`, `ai_chat_traces`, `ai_spend_limits` | Núcleo do produto; tocar em uma tool exige sincronizar 3 arquivos |
+| `INBOX_WHATSAPP.md` | `/inbox`, `evolution-send`, `evolution-webhook`, `messages`, `leads.ai_paused`, mídia, agendamento | Muitos pontos de pausa/handoff |
+| `EMAIL.md` | `/email/*`, editor de blocos, campanhas, automações, fila, domínios, Resend, `email_*` tabelas | Subsistema grande e isolado |
+| `KANBAN_LEADS.md` | `/kanban`, pipelines, stages, `stage_ai_defaults`, custom fields, lead drawer | Acoplado a IA via stage defaults |
+| `TRACKING_FORMS.md` | `/tracking`, `forms-ingest`, snippets, atribuição, `docs/integracao/*` | Muitas integrações externas |
+| `ADMIN_SUPER_ADMIN.md` | `/admin`, `has_role`, RLS de super_admin, limites por clínica, builder manual panel | Já existe `SUPER_ADMIN.md` — vira mapa formal |
+| `AUTH_MULTI_TENANCY.md` | `useAuth`, RLS por `clinic_id`, `profiles`, `user_roles`, convites | Invariante de segurança |
+| `AUTOMATIONS_SEQUENCES.md` | `/sequences`, `/automations`, `message_sequence_runs`, lembretes de agendamento | Triggers críticos |
 
-- Edits aplicados.
-- Bullet list curta no chat: arquivos tocados + principais divergências corrigidas.
-- Entrada nova em `docs/CHANGELOG.md`.
+---
 
-## Fora do escopo
+## Manutenção
 
-- Nenhuma mudança em `src/**`, `supabase/functions/**`, migrations. Bugs reais descobertos são sinalizados em nota separada.
-- Sem mexer em `.workspace/skills`, `mem://`, `supabase/config.toml`.
+- **Regra:** todo PR que adicionar/mover arquivo numa feature mapeada **deve** atualizar o mapa correspondente no mesmo PR. Adiciono essa regra em `docs/conventions/COMMIT_PR.md` e referencio em `docs/MAP.md` no topo.
+- **Última atualização** no cabeçalho de cada mapa.
+- **Validação leve:** script opcional (não nesta entrega) que grep nos paths citados nos mapas para detectar arquivos renomeados/deletados.
 
-Pronto para iniciar pela **Fase 1** após aprovação.
+---
+
+## Detalhes técnicos
+
+- Sem código novo, só `.md` em `docs/MAP.md` + `docs/maps/*.md`.
+- Reaproveito conteúdo já existente em `docs/features/*`, `docs/flows/*`, `docs/architecture/SUPER_ADMIN.md`, `docs/edge-functions/INDEX.md` — os mapas são uma **visão consolidada orientada a edição**, não substituem as docs longas (eles linkam para elas).
+- Cabeçalho de cada mapa indica explicitamente: "este arquivo é para localizar o que editar — para entender *por que*, leia `docs/features/<X>.md`".
+- Atualizo `docs/CHANGELOG.md` e `docs/README.md` apontando para `MAP.md` como porta de entrada para edições.
+
+---
+
+## Entrega em duas fases
+
+**Fase 1 (este turno após aprovação):** `MAP.md` mestre + 3 mapas das features mais críticas e que mais vamos editar:
+1. `maps/BUILDER_AGENTS.md`
+2. `maps/AI_RUNTIME.md`
+3. `maps/INBOX_WHATSAPP.md`
+
+**Fase 2 (turno seguinte, se aprovar a Fase 1):** os 6 mapas restantes + atualização de `COMMIT_PR.md` com a regra de manutenção.
+
+Dividir assim evita um PR gigante difícil de revisar e me permite calibrar o formato com você antes de replicar para 9 mapas.
