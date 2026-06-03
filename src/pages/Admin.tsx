@@ -26,6 +26,8 @@ import PlansPanel from "@/components/admin/PlansPanel";
 import UsageLimitsPanel from "@/components/admin/UsageLimitsPanel";
 import AuditPanel from "@/components/admin/AuditPanel";
 import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
+import ObservabilityPanel from "@/components/admin/ObservabilityPanel";
+import FinancePanel from "@/components/admin/FinancePanel";
 import { downloadCsv } from "@/lib/csv";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
@@ -235,6 +237,8 @@ export default function Admin() {
           <TabsTrigger value="users">Usuários</TabsTrigger>
           <TabsTrigger value="plans">Planos</TabsTrigger>
           <TabsTrigger value="limits">Uso & Limites</TabsTrigger>
+          <TabsTrigger value="finance">Financeiro</TabsTrigger>
+          <TabsTrigger value="observability">Observabilidade</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="audit">Auditoria</TabsTrigger>
           <TabsTrigger value="builder-manual">Manual do Builder</TabsTrigger>
@@ -244,6 +248,8 @@ export default function Admin() {
         <TabsContent value="users"><UsersPanel clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} /></TabsContent>
         <TabsContent value="plans"><PlansPanel /></TabsContent>
         <TabsContent value="limits"><UsageLimitsPanel /></TabsContent>
+        <TabsContent value="finance"><FinancePanel /></TabsContent>
+        <TabsContent value="observability"><ObservabilityPanel /></TabsContent>
         <TabsContent value="audit"><AuditPanel clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} /></TabsContent>
 
         <TabsContent value="clinics" className="space-y-3">

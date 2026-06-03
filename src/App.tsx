@@ -32,6 +32,7 @@ import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
 import MarketingSite from "./pages/site/MarketingSite";
 import RootGate from "./components/RootGate";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ErrorBoundary>
         <AuthProvider>
           <DialogsProvider>
           <TitleSync />
@@ -128,6 +130,7 @@ const App = () => (
           </Routes>
           </DialogsProvider>
         </AuthProvider>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
