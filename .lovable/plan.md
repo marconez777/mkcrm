@@ -27,9 +27,9 @@ Varredura completa de `supabase/migrations/*.sql` (139) + `pg_catalog`. Achados 
 `edge-functions/{INDEX,AI,EMAIL,TRACKING,WHATSAPP,SHARED_HELPERS}.md`.
 Achados principais: total 71 (não 70); 5 funções ausentes adicionadas (`ai-builder`, `ai-analyst-run`, `ai-reingest-document`, `agent-followups-tick`, `agent-learn-from-thread`); shared 14 módulos (não 13) + `builder-knowledge/`; ghost references removidas (`auth-login`, `BROADCASTS.md`, `SEQUENCES_AUTOMATIONS.md`, `FORMS.md`, `AUTH.md` em `edge-functions/`); bug latente `auth_lockouts` em `admin-*` documentado.
 
-### Fase 4 — Frontend (6 arquivos)
+### Fase 4 — Frontend (6 arquivos) ✅ concluída 2026-06-03
 `frontend/{COMPONENTS,DESIGN_SYSTEM,HOOKS_LIB,PAGES,ROUTING,STATE_DATA}.md`.
-Validar contra `src/App.tsx`, `src/pages/**`, `src/components/**`, `src/hooks/**`, `src/lib/**`, `tailwind.config.ts`, `src/index.css`. Cobrir Admin v2 (DashboardPanel charts, ClinicDetailsDialog, UsersPanel bulk, AuditPanel filtros, `lib/csv.ts`).
+Achados principais: rotas `/site`, `/reset-password`, `/ai/agents/new` ausentes em ROUTING/PAGES; `/` é gateada por `RootGate`; pastas `components/agents/*` (15) e `components/site/*` (13) inteiramente ausentes em COMPONENTS; `ui/` real é 55 primitives; `useLeads()` não tem teto de 2000 (usa `fetchAllPaged`); hook `useWhatsappInstances` e 9 módulos `lib/*` (`app-url`, `fetch-all`, `csv`, `diff-lines`, `template-vars`, `quality-ladder`, `agent-tools`, `builder-errors`, `builder-tooltips`) ausentes; tokens `--status-*`, `--surface-*`, `--site-*` em `index.css` agora documentados.
 
 ### Fase 5 — Features + Flows (13 arquivos)
 `features/*.md` (6) + `flows/*.md` (7).
