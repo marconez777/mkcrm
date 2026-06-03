@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { parseAssistantContent, highlightElement, type ContentPart } from "@/lib/support-actions";
+import { getRuntimeErrors } from "@/lib/support-runtime-watcher";
 import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -23,12 +24,22 @@ function buildScreenContext(pathname: string) {
   const buttons = Array.from(document.querySelectorAll("button, a[role='button']"))
     .map((el) => (el.textContent ?? "").trim())
     .filter((t) => t && t.length < 40).slice(0, 20);
+  // Recent runtime issues (last 2 min), prioritize current route
+  const errsCurrent = getRuntimeErrors({ sinceMs: 2 * 60_000, route: pathname });
+  const errsAny = getRuntimeErrors({ sinceMs: 2 * 60_000 });
+  const errs = (errsCurrent.length ? errsCurrent : errsAny).map((e) => ({
+    kind: e.kind,
+    message: e.message,
+    status: e.status,
+    url: e.url,
+  }));
   return {
     route: pathname,
     page_title: document.title,
     viewport: { w: window.innerWidth, h: window.innerHeight },
     headings,
     buttons,
+    runtime_errors: errs,
   };
 }
 
