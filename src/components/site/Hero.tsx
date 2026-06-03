@@ -83,37 +83,30 @@ export default function Hero() {
 
           <h1 className="site-font-display mt-6 text-[clamp(44px,7vw,92px)] font-bold leading-[0.95] tracking-tight text-site-text">
             O CRM que <span className="text-site-primary">vende</span>
-            <br className="hidden sm:block" /> pela seu negócio.
+            <br className="hidden sm:block" /> pelo seu negócio.
           </h1>
 
           {/* TODO: copy final */}
           <p className="site-font-body mt-6 max-w-xl text-[clamp(16px,1.4vw,19px)] leading-relaxed text-site-muted">
             Pipeline Kanban, atendimento em WhatsApp, automações e agentes de IA dedicados —
-            tudo em um só lugar, feito para negócios brasileiras que não querem perder lead.
+            tudo em um só lugar, feito para negócios brasileiros que não querem perder lead.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Link
-              to="/auth"
+            <a
+              href="#planos"
               className="site-font-display group inline-flex items-center gap-2 rounded-full bg-site-primary px-6 py-3.5 text-[16px] font-semibold text-site-primary-foreground transition-transform hover:scale-[1.02]"
             >
-              Começar grátis
+              Assinar
               <span className="grid h-7 w-7 place-items-center rounded-full bg-site-primary-foreground/10 transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="h-3.5 w-3.5" />
               </span>
-            </Link>
-            <a
-              href="#features"
-              className="site-font-display inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[16px] font-semibold text-site-text transition-colors hover:border-site-primary/60 hover:text-site-primary"
-            >
-              <Play className="h-4 w-4 fill-current" />
-              Ver demonstração
             </a>
           </div>
 
           <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-white/5 pt-6">
             {[
-              { k: "+1.200", v: "negócios" },
+              { k: "+100", v: "negócios" },
               { k: "98%", v: "uptime" },
               { k: "24/7", v: "suporte" },
             ].map((s) => (
