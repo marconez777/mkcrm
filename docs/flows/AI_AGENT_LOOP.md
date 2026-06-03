@@ -52,17 +52,25 @@ fim
 
 ## Tools disponíveis
 
+Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend por `src/lib/agent-tools.ts` (`KNOWN_AGENT_TOOLS`):
+
 | Tool | Efeito |
 |---|---|
-| `create_appointment` | INSERT em `appointments` (valida conflito de horário) |
-| `update_lead_stage` | Move o lead no Kanban |
-| `add_lead_note` | Anota observação interna |
-| `set_lead_tag` | Adiciona tag |
-| `search_knowledge_base` | Busca semântica em `ai_documents` (embeddings) |
-| `transfer_to_human` | Pausa o agente nesse lead (`leads.ai_paused=true`) |
-| `send_media` | Envia imagem/PDF da KB |
+| `move_lead_stage` | Move o lead para outro estágio do pipeline (por nome). |
+| `add_lead_note` | Anota observação interna em `lead_internal_notes`. |
+| `set_lead_field` | Atualiza um campo nativo do lead (`name`, `email`, `phone`, etc.). |
+| `update_custom_field` | Atualiza chave em `leads.custom_fields`. |
+| `add_lead_tag` / `remove_lead_tag` | Manipula `leads.tags`. |
+| `assign_attendant` | Atribui atendente (por nome). |
+| `remember_fact` | Persiste fato em `agent_memories` para uso futuro do agente. |
+| `get_lead_state` / `get_lead_history` | Lê estado e mensagens recentes do lead. |
+| `create_task` | Cria tarefa vinculada ao lead. |
+| `schedule_message` | Agenda mensagem futura em `scheduled_messages`. |
+| `transfer_to_human` | Pausa o agente nesse lead (`leads.ai_paused=true`) e marca handoff. |
+| `search_knowledge_base` | Busca semântica em `ai_documents` (RAG — ver `_shared/rag.ts`). |
+| `generate_insight_report` | Gera resumo/insight do lead, persistido em `ai_insights`. |
 
-Definições: `supabase/functions/_shared/ai-tools.ts`.
+> Não há tool `create_appointment` nem `send_media` no runtime atual — agendamento é feito por automation `before_appointment` (ver `features/APPOINTMENT_REMINDERS.md`); mídia é responsabilidade do atendente humano.
 
 ---
 
