@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Sparkles, Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
+import mkLogo from "@/assets/mk-logo.png";
 
 const COLS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -38,9 +39,7 @@ export default function SiteFooter() {
         <div className="grid gap-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <Link to="/site" className="flex items-center gap-2 text-site-text">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-site-primary text-site-primary-foreground">
-                <Sparkles className="h-4 w-4" />
-              </span>
+              <img src={mkLogo} alt="MK-CRM" className="h-8 w-8 rounded-lg object-cover" />
               <span className="site-font-display text-base font-semibold">MK-CRM</span>
             </Link>
             {/* TODO: copy final */}
