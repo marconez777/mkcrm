@@ -317,7 +317,7 @@ Três ferramentas:
 
 ### Fase 8 — Costs Panel e Health
 
-- `CostsPanel.tsx`: agrega `ai_runs` filtrando `note LIKE 'ai-builder:%'` vs runs do agente em si.
+- `CostsPanel.tsx`: agrega `ai_usage` filtrando `note LIKE 'ai-builder:%'` vs chamadas do agente em si.
 - `AgentHealth.tsx`: mostra `builder_verified_at`, taxa de erro, latência média p50/p95 das últimas N chamadas.
 
 ---
