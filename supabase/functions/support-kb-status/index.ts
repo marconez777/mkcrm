@@ -1,7 +1,7 @@
 // Diff manifest (.md files bundled with the function) vs support_documents in DB.
 // Returns counts and lists of stale / missing / deleted paths.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { KB_MANIFEST } from "../_shared/support-kb-manifest.ts";
+import { SUPPORT_KB_FILES } from "../_shared/support-kb-manifest.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,8 +36,8 @@ Deno.serve(async (req) => {
     // so we compare whole-file hash stored on first chunk metadata if available;
     // fallback: any chunk hash that doesn't match means stale).
     const manifestMap = new Map<string, string>();
-    for (const f of KB_MANIFEST) {
-      manifestMap.set(f.path, await sha256(f.content));
+    for (const path of Object.keys(SUPPORT_KB_FILES)) {
+      manifestMap.set(path, await sha256(SUPPORT_KB_FILES[path]));
     }
 
     const { data: docs } = await admin
