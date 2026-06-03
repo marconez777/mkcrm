@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 2/8 (Database)
+
+Releitura linha-a-linha de `docs/database/` (4 arquivos) contra `pg_catalog`, `information_schema` e `supabase/migrations/`.
+
+### Corrigido
+- `docs/database/SCHEMA.md`:
+  - Contagem real: **111 relações** em `public` (109 base tables + 2 views: `email_throughput_stats`, `email_system_health`) — antes constava "90 tabelas".
+  - Removida a seção `auth_lockouts` (tabela **não existe** no schema — nota explicativa adicionada apontando para `architecture/AUTH.md`). Phase 1 havia descrito incorretamente como "infraestrutura dormente"; a tabela nunca foi criada.
+  - Adicionadas 12 tabelas que estavam ausentes da documentação: `ai_agent_drafts`, `agent_personas`, `agent_prompt_versions`, `agent_stages`, `ai_kb_defaults`, `ai_chat_traces`, `lead_thread_classifications`, `builder_manual_versions`, `email_metrics_daily`, `resend_webhook_events`, `scheduled_reports`, `scheduled_report_runs`.
+  - Tabela de domínios atualizada (novo domínio "Relatórios agendados (WA)" e "Builder / Lovable Agent").
+- `docs/database/RLS_POLICIES.md`: removida referência a policy de `auth_lockouts`; adicionado `ai_agent_drafts` no padrão user-scoped.
+- `docs/database/FUNCTIONS_TRIGGERS.md`: assinaturas das RPCs admin corrigidas para bater com `pg_proc` — `admin_top_clinics(_limit int DEFAULT 5)` retorna agregação multi-métrica em uma chamada, `admin_clinic_usage(_clinic uuid)` sem intervalo, nova `admin_daily_metrics(_days int DEFAULT 30)`.
+- `docs/database/MIGRATIONS.md`: total atualizado para **139 migrations** (era "~90"); período estendido para 2026-06-03; cronologia ganhou linhas de 2026-06-01/02/03 (painel `/admin` v2, `plans`, novas RPCs admin, hardening webhooks).
+
+### Validado sem alteração
+- Princípios RLS (3 funções helpers canônicas), padrões de policy e endurecimentos 2026-05-27→30.
+- Triggers de domínio (`leads`, `messages`, `clinics`, `email_*`, `ai_agents`, `ai_usage`).
+- Helpers RAG (`match_chunks`, `match_chunks_hybrid`, `match_memories`).
+
+### Achados para fases futuras
+- Tabela `auth_lockouts` aparece em CHANGELOG entrada de 2026-05-20 (`MIGRATIONS.md` linha "auth_lockouts") mas nunca foi criada: registrar em `docs/known-issues/DEBT.md` na Fase 6.
+- Views `email_throughput_stats` e `email_system_health` não têm documentação dedicada de colunas — avaliar criar seção em Fase 5 (Email features).
+
+
+
 ## 2026-06-03 — Auditoria documental Fase 1/8 (Raiz + Arquitetura)
 
 Releitura linha-a-linha de 12 arquivos contra o código atual.
