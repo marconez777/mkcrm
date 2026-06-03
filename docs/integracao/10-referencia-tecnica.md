@@ -19,7 +19,7 @@ https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1
 | `tracking-pixel` | GET | — | ✅ | Serve `tracker.js` parametrizado |
 | `tracking-event` | POST | — | ✅ | Recebe eventos, grava `tracking_visitors`/`sessions`/`events` |
 | `tracking-config` | GET | — | ✅ | Config dinâmica (timeout de sessão, regras de atribuição) |
-| `tracking-identify` | POST | service role | ⚠ Interno | Vincula `visitor_id` ↔ `lead_id`, backfill de eventos |
+| `tracking-identify` | POST | `allowed_domains` ou service role ou admin logado | ✅ | Vincula `visitor_id` ↔ `lead_id`, backfill de eventos |
 | `forms-snippet` | GET | — | ✅ | Serve `forms.js` parametrizado |
 | `forms-ingest` | POST | token público | ✅ | Recebe form submission, cria lead |
 | `forms-admin` | * | JWT | ⚠ Painel | CRUD de integrações e form_definitions |
@@ -190,7 +190,7 @@ Campos relevantes para integração:
 | Payload external-lead-capture | 64 KB |
 | `properties` por evento | 8 KB |
 | `extra` em external-lead-capture | 8 KB |
-| Eventos/min (tracking) por IP+clinic | 120 |
+| Eventos/min (tracking) por IP+clinic | 60 (in-memory por isolate) |
 | Forms-ingest req/min | sem limite (TODO) |
 | Token público — chars | 32 |
 | Token privado — chars | 64+ |

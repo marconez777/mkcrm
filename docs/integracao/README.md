@@ -1,7 +1,7 @@
 # Integração CRM ↔ Sites externos
 
 > **Para quem é isto:** times de marketing/dev que vão instalar tracking, formulários e webhooks de um site externo (WordPress, Wix, Webflow, Next.js, HTML puro, etc.) no MK-CRM.
-> **Última atualização:** 2026-05-26
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -67,7 +67,7 @@ Base: `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1`
 |---|---|---|---|
 | `/tracking-pixel` | GET | — | Serve o JS do tracker |
 | `/tracking-event` | POST | — | Recebe eventos (page_view, custom, etc.) |
-| `/tracking-identify` | POST | service | Vincula visitor → lead |
+| `/tracking-identify` | POST | `allowed_domains` (ou service role / admin logado) | Vincula visitor → lead |
 | `/forms-snippet` | GET | — | Serve o JS de captura de form |
 | `/forms-ingest` | POST | token público | Recebe submissão de form |
 | `/forms-plugin-zip` | GET | — | Gera o plugin WordPress |
