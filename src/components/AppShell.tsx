@@ -354,6 +354,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         })()}
       </aside>
       <main className="flex-1 overflow-hidden">{children}</main>
+      <SupportChatFab />
     </div>
   );
 }
