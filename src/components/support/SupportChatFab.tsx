@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { MessageCircle, X, Minus, Send, Loader2, RotateCcw } from "lucide-react";
+import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { parseAssistantContent, highlightElement, type ContentPart } from "@/lib/support-actions";
+import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type FabState = "closed" | "minimized" | "open";
@@ -32,6 +34,7 @@ function buildScreenContext(pathname: string) {
 
 export default function SupportChatFab() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const [state, setState] = useState<FabState>("closed");
   const [enabled, setEnabled] = useState(false);
