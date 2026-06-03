@@ -46,6 +46,16 @@
 - Mudou um invariante (regra de RLS, anti-loop, dedupe, etc.) → atualizar §7 do mapa relevante + §"Invariantes globais" de `docs/MAP.md` se for cross-feature.
 - Criou feature nova sem mapa → criar `docs/maps/<NOME>.md` seguindo o template fixo de 9 seções (ver mapas existentes).
 
+### Documentação de suporte (`docs/support/`)
+
+- **Todo PR que altera texto visível, label de botão, fluxo de tela, mensagem de erro, ou adiciona/remove uma rota DEVE atualizar o arquivo correspondente em `docs/support/`** no mesmo PR. Essa KB treina o agente de IA de suporte ao cliente — desatualizada, ela faz o agente mentir.
+- Checklist:
+  - Mexeu numa **rota/página** → atualizar `docs/support/pages/<rota>.md` (template em `docs/support/_templates/page.md`).
+  - Mexeu num **fluxo transversal** (criar agente, conectar WhatsApp, importar leads, etc.) → atualizar `docs/support/journeys/<tema>.md` (template em `_templates/journey.md`).
+  - Mudou **mensagem de erro** ou comportamento de recuperação → atualizar `docs/support/troubleshooting/<área>.md`.
+  - Novo conceito de usuário → adicionar em `docs/support/00-conceitos.md`.
+- Sempre em **PT-BR claro**, sem jargão técnico (`RLS`, `RPC`, `edge function`, nomes de tabela).
+
 ---
 
 ## Edge functions
