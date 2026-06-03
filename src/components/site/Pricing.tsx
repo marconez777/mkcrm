@@ -40,7 +40,7 @@ const PLANS = [
       "Até 10.000 e-mails / mês",
       "Até 20 domínios de e-mail",
       "Até 1.000 agentes de IA",
-      "Teto de IA até US$ 200 / mês",
+      
     ],
   },
   {
