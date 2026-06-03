@@ -4958,6 +4958,10 @@ export type Database = {
           created_at: string
           id: string
           latency_ms: number | null
+          pinned_at: string | null
+          pinned_by: string | null
+          pinned_note: string | null
+          pinned_resolved: boolean
           role: string
           runtime_errors: Json | null
           screen_context: Json | null
@@ -4974,6 +4978,10 @@ export type Database = {
           created_at?: string
           id?: string
           latency_ms?: number | null
+          pinned_at?: string | null
+          pinned_by?: string | null
+          pinned_note?: string | null
+          pinned_resolved?: boolean
           role: string
           runtime_errors?: Json | null
           screen_context?: Json | null
@@ -4990,6 +4998,10 @@ export type Database = {
           created_at?: string
           id?: string
           latency_ms?: number | null
+          pinned_at?: string | null
+          pinned_by?: string | null
+          pinned_note?: string | null
+          pinned_resolved?: boolean
           role?: string
           runtime_errors?: Json | null
           screen_context?: Json | null
@@ -5017,6 +5029,8 @@ export type Database = {
           id: string
           last_route: string | null
           resolved: boolean
+          taken_over_at: string | null
+          taken_over_by: string | null
           title: string | null
           updated_at: string
           user_id: string
@@ -5027,6 +5041,8 @@ export type Database = {
           id?: string
           last_route?: string | null
           resolved?: boolean
+          taken_over_at?: string | null
+          taken_over_by?: string | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -5037,6 +5053,8 @@ export type Database = {
           id?: string
           last_route?: string | null
           resolved?: boolean
+          taken_over_at?: string | null
+          taken_over_by?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string
