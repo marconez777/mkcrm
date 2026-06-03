@@ -126,9 +126,16 @@ Convenção: `null` ou chave ausente = **ilimitado**. Zero = bloqueado (use com 
 Detalhes em `database/FUNCTIONS_TRIGGERS.md`. Assinaturas reais (migrations `20260603000729_*` e `20260603004725_*`):
 
 - `admin_overview_metrics()` → KPIs cross-tenant do dashboard (clínicas, usuários, leads, mensagens, custo IA mês).
-- `admin_top_clinics(_limit int DEFAULT 5)` → ranking por uso recente (não aceita métrica como parâmetro — o ranking é fixo no body).
-- `admin_clinic_usage(_clinic uuid)` → snapshot agregado de uma clínica (não aceita janela `_from`/`_to`; a janela é fixa em "mês corrente" / "all-time" dentro da função).
-- `admin_daily_metrics(_days int DEFAULT 30)` → série diária (mensagens, novos leads, custo IA USD) dos últimos N dias para gráficos do `DashboardPanel`.
+- `admin_top_clinics(_limit int DEFAULT 5)` → ranking por uso recente.
+- `admin_clinic_usage(_clinic uuid)` → snapshot agregado de uma clínica (janela fixa "mês corrente" / "all-time").
+- `admin_daily_metrics(_days int DEFAULT 30)` → série diária (mensagens, novos leads, custo IA USD).
+- `current_clinic_plan(_clinic uuid)` → resolve plano corrente via `clinic_subscriptions.is_current`.
+
+**Financeiro / Observabilidade** (companion `BILLING_PLANS.md`):
+
+- `admin_finance_kpis()` / `admin_revenue_timeseries(_days int)` / `admin_overdue_list()` / `admin_plan_distribution()` — alimentam o `FinancePanel`.
+- `admin_feature_usage(_days int)` / `admin_dead_features(_days int)` / `admin_error_summary(_days int)` — alimentam o `ObservabilityPanel`.
+- `mark_overdue_invoices()` — chamada pelo cron SQL diário (03:00 UTC) para mover `open → overdue`.
 
 Todas concedem `EXECUTE` a `authenticated`; o gate `is_super_admin()` é feito **dentro** da função (`RAISE EXCEPTION 'forbidden'` caso contrário).
 
