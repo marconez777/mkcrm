@@ -2,7 +2,7 @@
 
 > **Quando ler:** primeiro contato com o projeto. Para detalhes profundos, siga os links no [`README.md`](./README.md) → `architecture/`, `database/`, `edge-functions/`, `frontend/`, `flows/`, `integrations/`, `operations/`.
 >
-> **Última atualização:** 2026-06-03.
+> **Última atualização:** 2026-06-03 (auditoria documental Fase 1/8).
 
 ---
 
