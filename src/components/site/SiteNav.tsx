@@ -38,12 +38,12 @@ export default function SiteNav() {
           >
             Entrar
           </Link>
-          <Link
-            to="/auth"
+          <a
+            href="#planos"
             className="site-font-display inline-flex items-center gap-2 rounded-full bg-site-primary px-4 py-2 text-[15px] font-semibold text-site-primary-foreground transition-transform hover:scale-[1.02]"
           >
-            Começar grátis
-          </Link>
+            Assinar
+          </a>
         </div>
       </div>
     </header>
