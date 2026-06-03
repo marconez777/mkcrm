@@ -25,7 +25,7 @@ Se o usuário disser que algo não funcionou, peça o print do erro (pode colar)
 type Cfg = {
   id: string;
   enabled: boolean;
-  api_key: string | null;
+  api_key_set: boolean;
   model: string;
   temperature: number;
   monthly_cap_usd: number;
