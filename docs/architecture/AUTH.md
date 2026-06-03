@@ -132,7 +132,7 @@ Detalhes em `architecture/PLANS_LIMITS.md` e `edge-functions/INDEX.md`.
 | Sessão expira sozinha após dormir o PC | Mitigado pelo refresh on `visibilitychange` em `useAuth`. Se voltar: revisar listener. |
 | Super admin não aparece como super admin | Inserir manualmente em `user_roles (user_id, role='super_admin')`. Auto-promote só para `contato@mkart.com.br`. |
 | RPC `accept_clinic_invite` falha com `invite_email_mismatch` | Email do user logado ≠ email do convite. Pedir para deslogar e usar email correto. |
-| "Conta travada" mas usuário não percebe | `auth_lockouts` não é consultada hoje — login simplesmente passa. Se aparecer no painel admin, é resíduo de tentativa antiga e pode ser apagado via action `unlock`. |
+| "Conta travada" mas usuário não percebe | `auth_lockouts` foi dropada — login simplesmente passa. Action `unlock` no painel admin é no-op hoje. |
 
 ---
 
