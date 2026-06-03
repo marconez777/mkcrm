@@ -901,9 +901,67 @@ export default function AgentWizard() {
           </p>
         </div>
       </div>
+      <Dialog
+        open={!!successAgentId}
+        onOpenChange={(open) => {
+          if (!open && successAgentId) {
+            nav(`/ai/agents?agent=${successAgentId}`);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">Agente criado com sucesso!</DialogTitle>
+            <DialogDescription className="text-center">
+              Seu agente está pronto, mas ainda está inativo. Ele não vai responder leads até você ativá-lo. Você pode testá-lo agora no Test Lab sem ativar para leads reais.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button
+              variant="outline"
+              disabled={activating}
+              onClick={() => {
+                if (!successAgentId) return;
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}`);
+              }}
+            >
+              Ver agente sem ativar
+            </Button>
+            <Button
+              disabled={activating}
+              onClick={async () => {
+                if (!successAgentId) return;
+                setActivating(true);
+                const { error } = await supabase
+                  .from("ai_agents")
+                  .update({ enabled: true, draft_mode: false })
+                  .eq("id", successAgentId);
+                setActivating(false);
+                if (error) {
+                  toast.error(error.message);
+                  return;
+                }
+                toast.success("Agente ativado.");
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}`);
+              }}
+            >
+              {activating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Power className="mr-1 h-4 w-4" />}
+              Ativar agente agora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
+
 
 // ---------- Sub-componentes ----------
 
