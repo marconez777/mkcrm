@@ -1,7 +1,7 @@
 # Integração: pg_net + pg_cron
 
 > **Quando ler:** antes de criar/alterar job agendado, ou debugar trigger que dispara edge function via HTTP.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -23,7 +23,7 @@ Ambas habilitadas no schema `extensions` (padrão Supabase).
 | `automations-tick` | a cada 1 min | avalia regras agendadas (before_appointment, no_reply_after) |
 | `email-automations-tick` | a cada 1 min | mesma ideia, lado email |
 | `process-scheduled-campaigns` | a cada 1 min | inicia campanhas com schedule_at vencido |
-| `process-email-queue` | a cada 30 s | drena fila de emails transacionais |
+| `process-email-queue` | a cada ~15 s (cron + self-trigger via R-3) | drena fila de emails transacionais |
 | `evolution-health` | a cada 5 min | confere status de cada instância |
 | `classifier-daily-batch` | diário (03:00 BRT) | classificação IA em lote |
 | `daily-summary` | diário (08:00 BRT) | envia resumo por email para cada user |
@@ -64,15 +64,13 @@ $$;
 
 Configs `app.supabase_url` e `app.service_role_key` são setadas via `ALTER DATABASE ... SET` na migration inicial.
 
-Uso em trigger:
+Uso em trigger (exemplo conceitual — `pg_net` é usado em workers/ticks, **não** em triggers de `leads` neste projeto; o enroll on insert/stage usa `trg_enroll_on_stage_change` puro SQL, sem invocar edge function):
 ```sql
-CREATE TRIGGER tg_lead_after_insert
-AFTER INSERT ON leads
-FOR EACH ROW EXECUTE FUNCTION fn_after_lead_insert();
-
--- dentro de fn_after_lead_insert():
+-- Exemplo de trigger hipotético chamando uma edge function:
 PERFORM invoke_edge_fn('sequence-enroll', jsonb_build_object('lead_id', NEW.id));
 ```
+
+> ⚠️ Não existe trigger `tg_lead_after_insert` no schema atual. Triggers reais em `leads` estão listadas em `docs/flows/LEAD_LIFECYCLE.md` e `docs/database/FUNCTIONS_TRIGGERS.md`.
 
 ---
 

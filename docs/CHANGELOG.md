@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 6/8 (parcial — Integrações + Operações)
+
+Validação linha-a-linha de `docs/integrations/` (5) + `docs/operations/` (5) contra o schema real (`information_schema`, `pg_trigger`), `supabase/functions/**` e `src/**`. Restam para a próxima rodada da Fase 6: `known-issues/*`, `roadmap/*`, `conventions/*` e `site/FEATURE_PAGES.md`.
+
+### Corrigido — Integrações
+- `integrations/EVOLUTION_API.md`: `clinic_settings.wa_*` → `clinics.settings.evolution.*` (não existe tabela `clinic_settings`). Webhook autentica via `?token=` (não header `apikey`).
+- `integrations/EXTERNAL_FORMS.md` (**reescrito**): tabelas reais `form_definitions` + `form_integrations` + `form_submissions` (não existem `form_sites` nem `forms`). Removida referência a `findOrCreateLead` (helper inexistente — dedupe é inline).
+- `integrations/LOVABLE_AI.md`: `_shared/ai-call.ts` → `_shared/ai.ts` (wrapper devolve `retryable`, caller faz backoff); `ai_runs` → `ai_usage` / `ai_usage_daily`; budget em `ai_spend_limits` + `clinics.settings.ai.*` (não em `clinic_settings`). Adicionado `spend-guard.ts`.
+- `integrations/PG_NET_CRON.md`: `process-email-queue` corrigido para ~15s (não 30s). Removido trigger fictício `tg_lead_after_insert` do exemplo, com nota explicando que triggers reais em `leads` estão em `LEAD_LIFECYCLE.md`.
+
+### Corrigido — Operações
+- `operations/BACKUPS_RECOVERY.md`: `wa_messages` → `messages`.
+- `operations/COSTS_LIMITS.md` (**reescrito**): tabela `clinic_settings` substituída por `ai_spend_limits` (com `monthly_cap_usd`) + `clinics.settings.ai.*` JSON; `ai_runs` → `ai_usage`/`ai_spend_events`/`ai_usage_daily`; `ai-tools.ts` → `agent-tools.ts`; throttles do Email atualizados (`BATCH_SIZE=400`, `CONCURRENCY=2` no caminho singular + Batch API quando ≥3 jobs por grupo); removida view inexistente `vw_ai_spend_by_clinic_month` (use `ai_usage_daily`); `wa_max_per_min` → `clinics.settings.whatsapp.*`.
+- `operations/ERROR_HANDLING.md`: tabela de idempotência reescrita — `wa_messages`→`messages(clinic_id, external_id)`, `email_events`→`resend_webhook_events(svix_id)`, `broadcast_recipients`→`broadcast_message_parts`. Removido trigger fictício `tg_suppress_on_bounce`. AI retry: `_shared/ai-call.ts`→`_shared/ai.ts`; spend-guard documentado (402 via `ai_spend_limits.monthly_cap_usd`).
+- `operations/OBSERVABILITY.md`: tabela de trilha reescrita — substituídas `wa_messages`/`email_events`/`ai_runs`/`ai_tool_calls` por nomes reais (`messages`, `email_logs.events[]`, `resend_webhook_events`, `ai_usage`, `ai_usage_daily`, `ai_spend_events`, `ai_chat_traces`, `lead_stage_history`). Removido `_shared/logger.ts` (inexistente). Query de AI loop atualizada para `ai_usage` (colunas `prompt_tokens`/`completion_tokens`).
+- `operations/PERFORMANCE.md`: índices reescritos para o schema real (`messages` + `external_id`, `tracking_events.event_time`). `wa_messages`→`messages`; `wa_settings_cache` removido (não existe).
+
 ## 2026-06-03 — Auditoria documental Fase 5/8 (Features + Flows — concluída)
 
 Releitura linha-a-linha de `docs/features/` e `docs/flows/` contra `supabase/functions/*`, migrations e `src/**`. **Cobertos todos os 14 arquivos**. Esta entrada agrega a rodada inicial (6 arquivos) e o fechamento dos 3 flows restantes (`LEAD_LIFECYCLE`, `TRACKING_TO_LEAD`, `EMAIL_CAMPAIGN`).

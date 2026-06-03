@@ -1,7 +1,7 @@
 # Operações: Observabilidade
 
 > **Quando ler:** antes de debugar bug em produção, ou de adicionar novo log/métrica.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -26,7 +26,7 @@
 - Erros: `console.error('[fn] context', err)` — nunca silenciar.
 - **Nunca** logar `service_role_key`, `apikey` do Evolution, conteúdo de mensagens privadas.
 
-Helper recomendado: `_shared/logger.ts` (se existir) — adiciona `clinic_id`, `request_id`.
+Helper recomendado: prefixo manual `[fn-name]` em cada log (não existe `_shared/logger.ts`).
 
 ---
 
@@ -35,14 +35,19 @@ Helper recomendado: `_shared/logger.ts` (se existir) — adiciona `clinic_id`, `
 | Tabela | Propósito | Retenção sugerida |
 |---|---|---|
 | `lead_events` | timeline do lead | indefinido (negócio) |
-| `wa_messages` | histórico WhatsApp | indefinido |
-| `email_events` | eventos Resend | 180 dias |
-| `ai_runs` / `ai_tool_calls` | rastreio de IA | 90 dias |
+| `lead_stage_history` | histórico de stage por lead | indefinido |
+| `messages` | histórico WhatsApp (channel='whatsapp') | indefinido |
+| `email_logs` (+ `events[]` JSON) | histórico/eventos de email por envio | 180 dias |
+| `resend_webhook_events` | dedup de webhook Resend (svix_id PK) | 30 dias |
+| `ai_usage` / `ai_usage_daily` / `ai_spend_events` | rastreio de IA por chamada e agregado | 90 dias (linha) / indefinido (daily) |
+| `ai_chat_traces` | trace de threads/tool calls do ai-chat | 30 dias |
 | `tracking_events` | eventos web | 90 dias |
 | `cron.job_run_details` | execuções cron | 14 dias (auto Supabase) |
 | `net._http_response` | respostas pg_net | 7 dias (manual cleanup TODO) |
 | `email_operational_alerts` | backlog/stuck/failure-rate na fila de email | 30 dias |
 | `email_health_alerts` | bounce/complaint rate por clínica (auto-pausa) | 90 dias |
+
+> ⚠️ Não existem tabelas `wa_messages`, `email_events` nem `ai_runs`/`ai_tool_calls` neste projeto.
 
 ---
 
@@ -83,8 +88,8 @@ FROM cron.job_run_details
 WHERE status != 'succeeded' AND start_time::date = current_date;
 
 -- AI runs com custo > 0.05 USD (suspeito de loop)
-SELECT id, lead_id, model, tokens_in, tokens_out, cost_usd, status
-FROM ai_runs
+SELECT id, clinic_id, model, prompt_tokens, completion_tokens, cost_usd, created_at
+FROM ai_usage
 WHERE cost_usd > 0.05 AND created_at > now() - interval '7 days'
 ORDER BY cost_usd DESC LIMIT 50;
 ```
@@ -123,6 +128,5 @@ Hoje tudo derivado por query ad-hoc. Sem dashboard.
 
 ## Arquivos-chave
 
-- `supabase/functions/_shared/logger.ts`
-- `operations/ERROR_HANDLING.md`
-- `integrations/PG_NET_CRON.md`
+- `docs/operations/ERROR_HANDLING.md`
+- `docs/integrations/PG_NET_CRON.md`

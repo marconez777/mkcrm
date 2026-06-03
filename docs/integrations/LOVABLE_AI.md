@@ -1,7 +1,7 @@
 # Integração: Lovable AI Gateway
 
 > **Quando ler:** antes de adicionar/trocar modelo de IA, calcular custo, ou debugar erro de API key.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -38,9 +38,9 @@ Endpoint: `https://ai.gateway.lovable.dev/v1/chat/completions` (OpenAI-compatibl
 - **OpenAI:** `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5.2`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro`.
 - **Google Gemini:** `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-flash-image`, `gemini-3-flash-preview`, `gemini-3-pro-image-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite-preview`, `gemini-3.1-flash-image-preview`, `gemini-3.5-flash`.
 
-Para usar um modelo novo basta passar a string em `model:` na chamada — não precisa de provisionamento extra. Atualizar `_shared/ai-pricing.ts` antes (senão o `cost_usd` em `ai_runs` fica zerado para o modelo novo).
+Para usar um modelo novo basta passar a string em `model:` na chamada — não precisa de provisionamento extra. Atualizar `_shared/ai-pricing.ts` antes (senão o custo gravado em `ai_usage` / `ai_spend_events` fica zerado para o modelo novo).
 
-Trocável por clínica em `clinic_settings.ai_model_primary` / `ai_model_fallback`.
+Trocável por clínica em `clinics.settings.ai.model_primary` / `model_fallback` (não há tabela `clinic_settings`).
 
 ---
 
@@ -63,7 +63,7 @@ const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
 });
 ```
 
-Resposta inclui `usage.{prompt_tokens, completion_tokens}` → usado em `ai-pricing.ts` para calcular `cost_usd` e gravar em `ai_runs`.
+Resposta inclui `usage.{prompt_tokens, completion_tokens}` → usado em `ai-pricing.ts` para calcular `cost_usd` e gravar em `ai_usage` (linha por chamada) + agregado diário em `ai_usage_daily`.
 
 ---
 
@@ -77,8 +77,8 @@ Resposta inclui `usage.{prompt_tokens, completion_tokens}` → usado em `ai-pric
 
 ## Rate limits
 
-- 429 ocasional em horário de pico. `_shared/ai-call.ts` faz retry com backoff exponencial (3 tentativas: 500ms, 1.5s, 4s).
-- 402 (payment required) → conta Lovable sem créditos. Trava todos os runs, manda email admin via `ai-spend-notify`.
+- 429 ocasional em horário de pico. O wrapper em `_shared/ai.ts` devolve `{ ok:false, retryable:true, status }`; o caller (`ai-chat`, `ai-auto-reply`, etc.) é quem decide o backoff. Não existe arquivo `_shared/ai-call.ts`.
+- 402 (payment required) → conta Lovable sem créditos OU `ai_spend_limits.monthly_cap_usd` atingido (spend-guard). Trava runs e dispara `ai-spend-notify`.
 
 ---
 
@@ -114,8 +114,9 @@ Ver `flows/AI_AGENT_LOOP.md`.
 
 ## Arquivos-chave
 
-- `supabase/functions/_shared/ai-call.ts` (wrapper com retry)
+- `supabase/functions/_shared/ai.ts` (wrapper HTTP + classificação `retryable`)
+- `supabase/functions/_shared/spend-guard.ts` (consulta `ai_spend_limits`, retorna 402)
 - `supabase/functions/_shared/ai-pricing.ts`
 - `src/lib/ai-pricing.ts`
-- `edge-functions/AI.md`
-- `operations/COSTS_LIMITS.md`
+- `docs/edge-functions/AI.md`
+- `docs/operations/COSTS_LIMITS.md`

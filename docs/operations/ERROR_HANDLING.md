@@ -1,7 +1,7 @@
 # Operações: Error Handling
 
 > **Quando ler:** antes de adicionar try/catch, novo retry, ou padrão de resposta de erro.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -47,7 +47,7 @@ Códigos canônicos:
 
 | Cenário | Estratégia |
 |---|---|
-| AI gateway 429/503 | 3 tentativas backoff: 500ms, 1.5s, 4s (`_shared/ai-call.ts`) |
+| AI gateway 429/503 | wrapper `_shared/ai.ts` marca `retryable=true`; caller (ai-chat / ai-auto-reply) faz backoff próprio. Não existe `_shared/ai-call.ts`. |
 | Resend 5xx | 2 tentativas (1s, 3s) |
 | Evolution send 5xx | 1 retry imediato; depois marca `failed` |
 | Evolution send timeout (>15s) | sem retry — assumir entregue, evitar duplicar |
@@ -62,11 +62,14 @@ Códigos canônicos:
 
 | Tabela | Chave | Protege contra |
 |---|---|---|
-| `wa_messages` | `(clinic_id, evolution_message_id)` | reentrega Evolution |
-| `email_events` | `(svix_id)` | reentrega Resend webhook |
-| `form_submissions` | `(site_id, idempotency_key)` se header presente | duplo submit |
-| `broadcast_recipients` | claim atômico via `UPDATE ... RETURNING` | tick concorrente |
-| `tracking_events` | `(visitor_id, event_id)` | duplo fire do snippet |
+| `messages` | `(clinic_id, external_id)` quando setado | reentrega Evolution |
+| `resend_webhook_events` | `svix_id` (PK) | reentrega Resend webhook |
+| `email_send_dedup` | `(clinic_id, template_slug, email, context)` | duplo envio de email |
+| `form_submissions` | dedupe é inline no handler (não há chave UNIQUE por idempotency-key) | duplo submit (TODO formalizar) |
+| `broadcast_message_parts` | claim atômico via `UPDATE … WHERE parts_sent=? RETURNING` | tick concorrente |
+| `tracking_events` | `(clinic_id, event_id)` | duplo fire do snippet |
+
+> ⚠️ Não existem tabelas `wa_messages` nem `email_events` neste projeto. Histórico WhatsApp vive em `messages`; histórico/eventos de email vivem em `email_logs.events[]` + colunas dedicadas (`delivered_at`, `opened_at`, ...) e a dedup de webhook em `resend_webhook_events`.
 
 ---
 
@@ -80,13 +83,13 @@ Códigos canônicos:
 ### Resend
 - `422 domain_not_verified` → desabilitar domain row, email para admin.
 - `422 invalid_email` → marcar `email_invalid=true` no lead.
-- hard bounce → INSERT `email_unsubscribes` + trigger `tg_suppress_on_bounce` adiciona em `suppressed_emails`.
+- hard bounce / complaint → upsert em `email_unsubscribes` (feito direto pelo `resend-webhook`). Não há trigger separado `tg_suppress_on_bounce`; a tabela `suppressed_emails` cobre o pipeline de emails transacionais via `email_domain--setup_email_infra` (caminho paralelo do auth/transacional).
 - **Auto-pausa por saúde:** `email_logs_bounce_health_trigger` chama `check_clinic_bounce_health` após cada UPDATE de status. Se `bounce_rate > 5%` ou `complaint_rate > 0.3%` (janela das últimas 1000 mensagens), todas as campanhas em `running/sending/scheduled` da clínica são pausadas automaticamente e um registro é gravado em `email_health_alerts` (throttle 10min entre alertas). UI deve mostrar o alerta e exigir ação manual para retomar.
 
 ### Lovable AI
-- `402` → pause clinic AI, email crítico.
-- `429` → backoff (handler em `ai-call.ts`).
-- `tool_use_invalid_args` → log + fallback ("não consegui executar a ação").
+- `402` → spend-guard (`ai_spend_limits.monthly_cap_usd`) ou Lovable AI sem créditos → pausa runs, email crítico via `ai-spend-notify`.
+- `429` → caller faz backoff (wrapper devolve `retryable=true` em `_shared/ai.ts`).
+- `tool_use_invalid_args` → log + fallback ("não consegui executar a ação"). Tools validadas via Zod em `agent-tools.ts`.
 
 ---
 
@@ -121,8 +124,9 @@ Códigos canônicos:
 
 ## Arquivos-chave
 
-- `supabase/functions/_shared/ai-call.ts` (retry IA)
+- `supabase/functions/_shared/ai.ts` (wrapper IA + `retryable`)
+- `supabase/functions/_shared/spend-guard.ts`
 - `supabase/functions/_shared/evolution.ts` (classificação de erro)
 - `src/components/ui/toaster.tsx` + `src/hooks/use-toast.ts`
-- `operations/OBSERVABILITY.md`
-- `conventions/SUPABASE_RULES.md`
+- `docs/operations/OBSERVABILITY.md`
+- `docs/conventions/SUPABASE_RULES.md`
