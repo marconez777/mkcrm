@@ -105,7 +105,7 @@ Fluxo padrão Supabase, **sem** edge function própria:
 6. `src/pages/ResetPassword.tsx` escuta `onAuthStateChange` por `PASSWORD_RECOVERY` (ou sessão ativa) → mostra form de nova senha → chama `supabase.auth.updateUser({ password })` → redireciona para `/`.
 7. Se a página é acessada sem sessão de recovery, mostra "link inválido ou expirado" + botão de volta para `/auth`.
 
-Como `auth_lockouts` não é populada automaticamente, o reset de senha não interage com ela.
+Como `auth_lockouts` não existe mais, o reset de senha não interage com lockout algum.
 
 ---
 
