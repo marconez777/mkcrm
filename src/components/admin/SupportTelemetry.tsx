@@ -87,6 +87,21 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
       setThreads(new Map());
       setNames(new Map());
     }
+
+    // feedback (only for assistant messages with id in our window)
+    const asstIds = list.filter((m) => m.role === "assistant").map((m) => m.id);
+    if (asstIds.length) {
+      const { data: fbs } = await supabase
+        .from("support_feedback")
+        .select("message_id, rating")
+        .in("message_id", asstIds);
+      const fm = new Map<string, number>();
+      (fbs ?? []).forEach((f: any) => fm.set(f.message_id, f.rating));
+      setFeedback(fm);
+    } else {
+      setFeedback(new Map());
+    }
+
     setLoading(false);
   }
 
