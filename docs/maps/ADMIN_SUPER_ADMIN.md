@@ -7,7 +7,9 @@
 
 ## 1. O que é
 
-Painel `/admin` (super_admin only) para gestão cross-clínica: usuários, planos, limites de uso, integrações (Evolution/Resend), domínios, auditoria, dashboard global, manual do Builder, controle de gastos IA.
+Painel `/admin` (super_admin only) para gestão cross-clínica: dashboard global, clínicas, usuários, planos & assinaturas, limites de uso, financeiro (faturas/KPIs), observabilidade (feature_events/error_events), suporte (chat Alfred + monitor ao vivo + KB), integrações (Evolution/Resend), domínios, auditoria, manual do Builder, controle de gastos IA.
+
+> Para o sub-domínio **billing/financeiro/observabilidade** existe um mapa dedicado: [`docs/maps/BILLING_PLANS.md`](./BILLING_PLANS.md). Para **suporte/Alfred**, ver fluxo nos componentes `Support*` e edges `support-*` listados abaixo.
 
 ## 2. Rotas / pontos de entrada
 
@@ -26,10 +28,16 @@ Painel `/admin` (super_admin only) para gestão cross-clínica: usuários, plano
 | `PlansPanel.tsx` | CRUD planos disponíveis |
 | `UsageLimitsPanel.tsx` | Limites por clínica (msgs/mês, IA, email) |
 | `AiSpendLimitCard.tsx` | `ai_spend_limits.monthly_cap_usd` por clínica |
+| `FinancePanel.tsx` | KPIs financeiros, gráfico de receita, inadimplentes, distribuição de planos, CRUD de faturas |
+| `ObservabilityPanel.tsx` | Uso por feature, dead features (>30d sem uso), erros recentes |
+| `SupportPanel.tsx` | Aba Suporte: agrega monitor + telemetria + pins + status KB |
+| `SupportLiveMonitor.tsx` | Conversas Alfred em tempo real (realtime channel) com takeover/pin |
+| `SupportTelemetry.tsx` | Threads históricas + viewer com resposta manual do admin |
+| `SupportPinsCard.tsx` | Mensagens fixadas para revisão posterior |
 | `IntegrationsKeysCard.tsx` | Chaves globais (Evolution, Resend) |
 | `IntegrationsDomainsTable.tsx` | Domínios verificados (cross-clínica) |
 | `IntegrationsQuotaTable.tsx` | Quotas usadas vs disponíveis |
-| `ClinicDetailsDialog.tsx` | Drilldown por clínica |
+| `ClinicDetailsDialog.tsx` | Drilldown por clínica (inclui aba "Plano & Assinatura") |
 | `BuilderManualPanel.tsx` | Editor do manual do Builder (versionado em `builder_manual_versions`) |
 | `AuditPanel.tsx` | Eventos de auditoria |
 
@@ -46,41 +54,58 @@ Painel `/admin` (super_admin only) para gestão cross-clínica: usuários, plano
 | Function | Função |
 |---|---|
 | `admin-users-list/index.ts` | lista usuários (cross-clínica) |
-| `admin-user-action/index.ts` | ban/unban/promote/reset |
-| `admin-apply-plan/index.ts` | atribui plano a clínica |
+| `admin-user-action/index.ts` | ban/unban/promote/reset/delete |
+| `admin-apply-plan/index.ts` | aplica plano a clínica (cria `clinic_subscriptions` manual) |
+| `admin-revoke-plan/index.ts` | revoga assinatura corrente → fallback Starter `past_due` |
+| `admin-invoice/index.ts` | `create` / `mark_paid` / `void` / `delete` de fatura |
+| `cron-expire-manual-grants/index.ts` | cron diário: expira `manual_grant`/`trialing` vencidos |
+| `support-admin-reply/index.ts` | admin assume/libera thread Alfred e envia resposta humana |
+| `support-kb-sync/index.ts` | sincroniza KB do Alfred a partir dos `.md` do repo |
+| `support-kb-status/index.ts` | diff de hashes (in_sync / stale / missing / deleted) |
+| `support-test-connection/index.ts` | sanity check do provedor de IA do Alfred |
 | `integrations-status/index.ts` | status das integrações |
 | `backfill-resend-events/index.ts` | reconciliação histórica de eventos |
 | `email-domain-manage/index.ts` | CRUD domínios |
 
-### Misto (super_admin OU clinic admin)
+### Misto (super_admin OU clinic admin OU usuário autenticado)
 | Function | Notas |
 |---|---|
-| `clinic-invite/index.ts` | convida usuário |
-| `clinic-create-user/index.ts` | cria user direto |
+| `clinic-invite/index.ts` | convida usuário (super_admin ou owner/admin da clínica) |
+| `clinic-create-user/index.ts` | cria user direto (idem) |
 | `evolution-provision/index.ts` | provisiona instância WhatsApp |
 | `evolution-delete-instance/index.ts` | remove instância |
 | `forms-admin/index.ts` | CRUD forms |
 | `dispatch-campaign/index.ts` | dispara campanha (clinic admin no caso normal) |
 | `send-email/index.ts` | envio app email |
-| `tracking-event/index.ts` / `tracking-identify/index.ts` | (super_admin só p/ inspeção; uso normal é público com clinic_id) |
+| `support-chat/index.ts` | chat Alfred — qualquer autenticado; bloqueia com `423` quando thread em takeover humano |
+| `track-event/index.ts` | qualquer autenticado — insere batch em `feature_events` |
+| `log-frontend-error/index.ts` | aceita anônimo (ErrorBoundary global) — insere em `error_events` |
+| `tracking-event/index.ts` / `tracking-identify/index.ts` | público com `clinic_id`; super_admin só p/ inspeção |
 
-Todas verificam `has_role` no início, antes de qualquer side effect.
+Todas as funções "puro super_admin" verificam `has_role`/`is_super_admin` no início, antes de qualquer side effect.
 
 ## 5. Banco de dados
 
 ### Tabelas
 | Tabela | Função |
 |---|---|
-| `user_roles` | `user_id`, `role` (`super_admin`, `admin`, `member`). RLS: read próprio. |
-| `clinics` | tenants. `settings` jsonb com `ai.*`, `email.*`, etc. |
+| `user_roles` | `user_id`, `role` (`super_admin`, `admin`, `member`). RLS: read próprio + super_admin. |
+| `clinics` | tenants. `settings` jsonb com `ai.*`, `email.*`. Coluna `plan_id` FK → `plans(id)`; `plan` text é espelho via trigger. |
 | `clinic_members` | vinculação user ↔ clinic |
-| `plans` | catálogo de planos |
-| `clinic_plans` | plano ativo por clínica |
-| `usage_limits` | limites por clínica (ou herda do plano) |
-| `usage_counters` | contadores correntes |
+| `plans` | catálogo de planos (+ `stripe_*` reservados) |
+| `clinic_subscriptions` | assinatura corrente/histórica por clínica (1 com `is_current=true` por clínica, índice único parcial) |
+| `plan_change_log` | auditoria automática de mudanças de plano (trigger) |
+| `invoices` | faturas manuais (`paid`/`open`/`overdue`/`void`) |
+| `payment_receipts` | comprovantes de pagamento |
+| `feature_events` | telemetria de uso por feature (insert do próprio usuário ou super_admin) |
+| `error_events` | erros de frontend (ErrorBoundary → `log-frontend-error`, aceita anônimo) |
+| `usage_counters` | contadores correntes (espelhos) |
 | `ai_spend_limits` | cap mensal de IA |
 | `audit_log` | eventos sensíveis |
 | `builder_manual_versions` | versionamento do manual do Builder |
+| `support_chat_threads` | threads do Alfred (com `taken_over_by`/`taken_over_at` para handoff humano) |
+| `support_chat_messages` | mensagens do Alfred (com `pinned_*` para revisão posterior) |
+| `support_documents` | KB indexada (com `hash` p/ diff via `support-kb-status`) |
 | `integration_secrets` (ou similar) | chaves globais (criptografadas) |
 
 ### Funções

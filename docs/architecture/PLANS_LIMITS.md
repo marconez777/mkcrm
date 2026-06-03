@@ -2,8 +2,9 @@
 
 > **Quando ler:** ao mexer no painel `/admin` (aba Planos / Uso & Limites), ao adicionar uma nova métrica de uso por clínica, ou ao planejar enforcement de cap em runtime.
 > **Última atualização:** 2026-06-03
+> **Companion:** para o **modelo operacional** (assinaturas, faturas, KPIs financeiros, observabilidade, cron jobs), leia [`docs/maps/BILLING_PLANS.md`](../maps/BILLING_PLANS.md) — este arquivo cobre o **modelo de dados de planos & limites** propriamente dito.
 
-Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos.
+Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos, complementado por um sistema de **assinaturas manuais** (`clinic_subscriptions`) e **faturamento manual** (`invoices`).
 
 ---
 
@@ -23,6 +24,7 @@ Catálogo único de planos comerciais. Migração `20260603000729_*`.
 | `limits` | jsonb | caps numéricos (ver §3) — `null` ou ausente = ilimitado |
 | `sort_order` | int | exibição |
 | `is_active` / `is_public` | bool | default `true` |
+| `stripe_product_id` / `stripe_price_id_monthly` / `stripe_price_id_yearly` | text | **reservados** — integração Stripe futura, hoje sempre `null` |
 | `created_at` / `updated_at` | timestamptz | padrão |
 
 **Seed inicial:** `free`, `starter`, `pro`, `enterprise` (somente `code` + `name`; preços, features e limites são editados via UI).
@@ -68,9 +70,34 @@ ilimitado / sem cap
 
 A mesma lógica vale para `features`. O trigger `clinics_guard_features` continua bloqueando alterações em `settings.features` para não-super-admin — limites também ficam só sob `is_super_admin()` por hora.
 
-**Aplicação em massa:** a edge function `admin-apply-plan` copia `plans.features` + `plans.limits` para um conjunto de clínicas selecionadas (operação destrutiva — sobrescreve overrides).
+**Coluna `clinics.plan_id`** (FK → `plans(id)`): adicionada como referência forte ao plano corrente. A coluna textual `clinics.plan` permanece como **espelho** mantido pelo trigger `trg_clinics_sync_plan_text` — nunca escreva direto nela.
+
+**Aplicação:** a edge function `admin-apply-plan` cria uma nova `clinic_subscriptions` (`source='manual'`, `is_current=true`, encerrando a anterior), copia `plans.features` + `plans.limits` para `clinics.settings` e atualiza `clinics.plan_id`. `admin-revoke-plan` encerra a corrente e volta para Starter `past_due`.
 
 ---
+
+## 2a. Assinaturas manuais (`clinic_subscriptions` + `plan_change_log`)
+
+Modelo introduzido junto com Financeiro. Cada clínica tem **no máximo uma** subscription com `is_current=true` (garantido por índice único parcial).
+
+| Coluna chave | Função |
+|---|---|
+| `clinic_id`, `plan_id` | tenant + plano vigente |
+| `status` | `active` / `trialing` / `manual_grant` / `past_due` / `canceled` |
+| `source` | `manual` (hoje único valor real) ou `stripe` (reservado) |
+| `is_current` | flag de corrente (único parcial) |
+| `trial_ends_at`, `cancel_at`, `canceled_at` | janelas |
+| `grant_reason` | livre, mostrado no histórico |
+| `stripe_subscription_id` | reservado |
+
+**Triggers:**
+- `clinic_subscriptions_validate` — restringe `status`/`source` ao enum textual.
+- `clinic_subscriptions_audit` — popula `plan_change_log` (não duplicar inserts).
+- `clinic_subscriptions_sync_clinic_plan` — quando `is_current=true`, sincroniza `clinics.plan_id`.
+
+**Cron** `cron-expire-manual-grants` (diário 03:10 UTC): expira `manual_grant`/`trialing` com `cancel_at`/`trial_ends_at` vencido, marca a row corrente como `canceled` e cria nova subscription Starter `past_due`.
+
+
 
 ## 3. Catálogo de limites (`LIMIT_DEFS`)
 
@@ -99,9 +126,16 @@ Convenção: `null` ou chave ausente = **ilimitado**. Zero = bloqueado (use com 
 Detalhes em `database/FUNCTIONS_TRIGGERS.md`. Assinaturas reais (migrations `20260603000729_*` e `20260603004725_*`):
 
 - `admin_overview_metrics()` → KPIs cross-tenant do dashboard (clínicas, usuários, leads, mensagens, custo IA mês).
-- `admin_top_clinics(_limit int DEFAULT 5)` → ranking por uso recente (não aceita métrica como parâmetro — o ranking é fixo no body).
-- `admin_clinic_usage(_clinic uuid)` → snapshot agregado de uma clínica (não aceita janela `_from`/`_to`; a janela é fixa em "mês corrente" / "all-time" dentro da função).
-- `admin_daily_metrics(_days int DEFAULT 30)` → série diária (mensagens, novos leads, custo IA USD) dos últimos N dias para gráficos do `DashboardPanel`.
+- `admin_top_clinics(_limit int DEFAULT 5)` → ranking por uso recente.
+- `admin_clinic_usage(_clinic uuid)` → snapshot agregado de uma clínica (janela fixa "mês corrente" / "all-time").
+- `admin_daily_metrics(_days int DEFAULT 30)` → série diária (mensagens, novos leads, custo IA USD).
+- `current_clinic_plan(_clinic uuid)` → resolve plano corrente via `clinic_subscriptions.is_current`.
+
+**Financeiro / Observabilidade** (companion `BILLING_PLANS.md`):
+
+- `admin_finance_kpis()` / `admin_revenue_timeseries(_days int)` / `admin_overdue_list()` / `admin_plan_distribution()` — alimentam o `FinancePanel`.
+- `admin_feature_usage(_days int)` / `admin_dead_features(_days int)` / `admin_error_summary(_days int)` — alimentam o `ObservabilityPanel`.
+- `mark_overdue_invoices()` — chamada pelo cron SQL diário (03:00 UTC) para mover `open → overdue`.
 
 Todas concedem `EXECUTE` a `authenticated`; o gate `is_super_admin()` é feito **dentro** da função (`RAISE EXCEPTION 'forbidden'` caso contrário).
 
@@ -130,22 +164,30 @@ Padrão sugerido: helper `_shared/limit-guard.ts` (a criar) que lê `(plans.limi
 
 - **`/admin` → aba Planos** — `src/components/admin/PlansPanel.tsx` (lista de cards + `PlanEditorDialog` com tabs Geral/Recursos/Limites).
 - **`/admin` → aba Uso & Limites** — `src/components/admin/UsageLimitsPanel.tsx` (tabela clínica × limite × uso × % × badge ok/alerta/excedido).
-- **`/admin` → aba Clínicas** — `clinics.plan` agora é um `<Select>` populado por `plans.code` (em vez de input texto livre).
+- **`/admin` → aba Clínicas → Detalhes → "Plano & Assinatura"** — `ClinicDetailsDialog.tsx`: aplicar/revogar plano, definir trial/manual_grant, histórico via `plan_change_log`.
+- **`/admin` → aba Financeiro** — `FinancePanel.tsx` (KPIs, gráfico, inadimplentes, distribuição, CRUD via `admin-invoice`).
+- **`/admin` → aba Observabilidade** — `ObservabilityPanel.tsx`.
 
 ---
 
 ## 7. Pegadinhas
 
-- `plans.code` é único e usado como **chave estrangeira lógica** em `clinics.plan` — renomear quebra associação. Se precisar renomear, faça `UPDATE clinics SET plan = 'novo' WHERE plan = 'antigo'` na mesma migração.
+- `plans.code` é único e usado como **chave estrangeira lógica** em `clinics.plan` (texto-espelho) — renomear quebra associação. Hoje a FK real é `clinics.plan_id`; ainda assim, mantenha o `code` estável.
+- **Nunca escreva em `clinics.plan` diretamente** — mude `clinics.plan_id` (via `admin-apply-plan`) e o trigger `trg_clinics_sync_plan_text` sincroniza.
+- **Apenas uma `clinic_subscriptions` `is_current=true` por clínica** (índice único parcial). `admin-apply-plan` já encerra a anterior antes de inserir; não duplique inserts manuais.
+- `plan_change_log` é populado por trigger — **não** insira manualmente.
 - `admin-apply-plan` **sobrescreve** overrides em `clinics.settings.features|limits` — para preservar override por clínica, faça merge no cliente antes de chamar.
-- `ai_monthly_usd_cap` em `plans.limits` é **apenas referência** — o enforcement real continua em `ai_spend_limits.monthly_cap_usd` por clínica. Mantê-los em sincronia é responsabilidade da UI (futuro: trigger / job).
+- `ai_monthly_usd_cap` em `plans.limits` é **apenas referência** — o enforcement real continua em `ai_spend_limits.monthly_cap_usd` por clínica. Mantê-los em sincronia é responsabilidade da UI.
 - Não exponha `plans` em rotas públicas sem antes filtrar `is_public = true` e remover `limits` sensíveis.
+- Colunas `stripe_*` em `plans`, `clinic_subscriptions` e `invoices` estão **reservadas** — quando integrar Stripe, jamais aplique webhooks em subscriptions com `source='manual'`.
 
 ---
 
 ## 8. Cross-links
 
+- `maps/BILLING_PLANS.md` — **mapa operacional** de planos/financeiro/observabilidade (companion deste arquivo).
 - `architecture/FEATURE_FLAGS.md` — relação `plans.features` ↔ `clinics.settings.features`.
-- `operations/COSTS_LIMITS.md` — caps de email (`quota_daily`, throttle por destinatário) que continuam **fora** de `plans.limits`.
-- `database/SCHEMA.md` — bloco `plans` na lista de tabelas.
-- `edge-functions/INDEX.md` — `admin-users-list`, `admin-user-action`, `admin-apply-plan`.
+- `architecture/SUPER_ADMIN.md` — gate `is_super_admin()`, painéis, RLS.
+- `operations/COSTS_LIMITS.md` — caps de email que continuam **fora** de `plans.limits`.
+- `database/SCHEMA.md` — blocos `plans`, `clinic_subscriptions`, `plan_change_log`, `invoices`, `payment_receipts`.
+- `edge-functions/INDEX.md` — `admin-users-list`, `admin-user-action`, `admin-apply-plan`, `admin-revoke-plan`, `admin-invoice`, `cron-expire-manual-grants`.

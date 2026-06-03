@@ -53,7 +53,7 @@ Aplicação prática:
 
 - `src/pages/Admin.tsx` — guarda a rota `/admin` inteira (`if (!isSuperAdmin) return <Navigate />`).
 - `useAuth.hasFeature(key)` — super_admin ignora feature flags da clínica (retorna `true` para qualquer chave).
-- Componentes do painel (`UsersPanel`, `PlansPanel`, `AuditPanel`, `IntegrationsKeysCard`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `UsageLimitsPanel`, `DashboardPanel`, `BuilderManualPanel`, `ClinicDetailsDialog`) renderizam apenas dentro de `/admin`.
+- Componentes do painel (`DashboardPanel`, `UsersPanel`, `PlansPanel`, `UsageLimitsPanel`, `AiSpendLimitCard`, `FinancePanel`, `ObservabilityPanel`, `SupportPanel`/`SupportLiveMonitor`/`SupportTelemetry`/`SupportPinsCard`, `AuditPanel`, `IntegrationsKeysCard`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `BuilderManualPanel`, `ClinicDetailsDialog`) renderizam apenas dentro de `/admin`.
 
 ---
 
@@ -61,11 +61,17 @@ Aplicação prática:
 
 | Rota | Guard | Observação |
 |---|---|---|
-| `/admin` | `Admin.tsx` → `isSuperAdmin` | Painel global: clínicas, planos, usuários, integrações, auditoria. |
-| `/admin → Planos` | `PlansPanel` + edge `admin-apply-plan` | CRUD do catálogo `plans` e aplicação a clínicas. |
+| `/admin` | `Admin.tsx` → `isSuperAdmin` | Painel global. |
+| `/admin → Dashboard` | `DashboardPanel` | KPIs cross-tenant (RPCs `admin_overview_metrics`, `admin_top_clinics`, `admin_daily_metrics`). |
+| `/admin → Clínicas` | `ClinicDetailsDialog` + edges `admin-apply-plan`/`admin-revoke-plan` | Aba "Plano & Assinatura" com aplicação/revogação manual. |
+| `/admin → Planos` | `PlansPanel` | CRUD do catálogo `plans`. |
+| `/admin → Uso & Limites` | `UsageLimitsPanel` | Snapshot por clínica × limite. |
+| `/admin → Financeiro` | `FinancePanel` + edge `admin-invoice` | KPIs, gráfico, inadimplentes, distribuição de planos, CRUD de faturas. |
+| `/admin → Observabilidade` | `ObservabilityPanel` | RPCs `admin_feature_usage`, `admin_dead_features`, `admin_error_summary`. |
+| `/admin → Suporte` | `SupportPanel` (+ Monitor/Telemetria/Pins) + edges `support-*` | Chat Alfred ao vivo, takeover humano, pins, status da KB. |
 | `/admin → Usuários` | `UsersPanel` + edges `admin-users-list`/`admin-user-action` | Listar, resetar senha, sign-out, set super_admin, set clinic role, delete user. |
-| `/admin → Integrações` | `integrations-status`, `IntegrationsKeysCard` | Presença de secrets (`RESEND_API_KEY`, etc.) — nunca valores. |
-| `/admin → Auditoria` | `AuditPanel` | Lê `audit_log`/`data_access_log`. |
+| `/admin → Integrações` | `integrations-status`, `IntegrationsKeysCard` | Presença de secrets — nunca valores. |
+| `/admin → Auditoria` | `AuditPanel` | Lê `audit_log`/`data_access_log`/`plan_change_log`. |
 
 Demais rotas autenticadas são abertas a membros da clínica e **não** dependem de super_admin (super_admin tem acesso adicional via RLS bypass).
 
@@ -79,7 +85,14 @@ Todas seguem o mesmo padrão: validam Bearer token → resolvem `user_id` → co
 |---|---|---|
 | `admin-users-list` | `from('user_roles').eq('role','super_admin')` | Lista paginada de todos os usuários, com clínica/lockout. |
 | `admin-user-action` | idem | `set_password`, `unlock`, `sign_out`, `set_super_admin`, `set_clinic_role`, `delete_user`. |
-| `admin-apply-plan` | idem | Aplica plano do catálogo a uma clínica. |
+| `admin-apply-plan` | idem | Cria/atualiza `clinic_subscriptions` manual e espelha features/limits em `clinics.settings`. |
+| `admin-revoke-plan` | idem | Encerra subscription corrente → fallback Starter `past_due`. |
+| `admin-invoice` | idem | `create` / `mark_paid` / `void` / `delete` de `invoices`. |
+| `cron-expire-manual-grants` | service_role (cron diário) | Migra `manual_grant`/`trialing` vencidos para Starter. |
+| `support-admin-reply` | `rpc('is_super_admin')` | Takeover / release de thread Alfred + resposta humana. |
+| `support-kb-sync` | `rpc('is_super_admin')` | Re-indexa KB do Alfred a partir dos `.md` empacotados. |
+| `support-kb-status` | `rpc('is_super_admin')` | Diff sha256 (in_sync/stale/missing/deleted). |
+| `support-test-connection` | `rpc('is_super_admin')` | Ping no provedor de IA do Alfred. |
 | `integrations-status` | `rpc('is_super_admin')` | Retorna presença (boolean) de secrets de integração. |
 | `backfill-resend-events` | `rpc('is_super_admin')` | Reprocesso histórico de eventos Resend. |
 | `email-domain-manage` | `rpc('is_super_admin')` | Operações destrutivas/cross-tenant em domínios. |
@@ -95,6 +108,9 @@ Edges com **super_admin OU clinic admin/owner** (autorização mista):
 | `forms-admin` | super_admin ou admin da clínica | Configuração de formulários. |
 | `dispatch-campaign` | super_admin bypassa quota | Disparo manual ignora `ai_spend_limits` global. |
 | `send-email` | super_admin bypassa quota | Envio transacional sem checagem de cota da clínica. |
+| `support-chat` | qualquer autenticado | Chat Alfred; retorna `423` se `support_chat_threads.taken_over_at` está setado. |
+| `track-event` | qualquer autenticado | Insere batch em `feature_events` (server resolve `clinic_id`). |
+| `log-frontend-error` | aceita anônimo | ErrorBoundary global → `error_events`. |
 | `tracking-event`, `tracking-identify` | super_admin pode emitir cross-clinic | Usado em ferramentas internas de debug. |
 
 ---
@@ -116,10 +132,18 @@ Padrão "super_admin only" (sem fallback de tenant):
 | `app_settings` | ALL |
 | `user_roles` | INSERT/UPDATE/DELETE (SELECT: self + super_admin) |
 | `plans` | INSERT/UPDATE/DELETE (SELECT: `authenticated`) |
+| `clinic_subscriptions` | INSERT/UPDATE/DELETE (SELECT: tenant + super_admin) |
+| `plan_change_log` | ALL (somente super_admin lê auditoria de plano) |
+| `invoices` | INSERT/UPDATE/DELETE (SELECT: tenant + super_admin) |
+| `payment_receipts` | idem `invoices` |
+| `feature_events` | INSERT: `clinic_id = current_clinic_id() OR is_super_admin()`; SELECT: super_admin |
+| `error_events` | INSERT: livre (boundary anônimo); SELECT/UPDATE/DELETE: super_admin |
+| `support_chat_threads` / `support_chat_messages` | SELECT pelo owner + super_admin; pin/takeover só super_admin |
+| `support_documents` | ALL super_admin (KB é cross-tenant) |
 | `email_domains` | INSERT/UPDATE/DELETE em escopo global |
 | `data_access_log` | SELECT/INSERT |
 | `audit_log` | SELECT em recortes globais |
-| `clinics` | INSERT/DELETE; UPDATE de `settings.features` (bloqueado por trigger `clinics_guard_features` para não-super) |
+| `clinics` | INSERT/DELETE; UPDATE de `settings.features` (bloqueado por trigger `clinics_guard_features` para não-super); coluna `plan_id` sincronizada por trigger a partir de `clinic_subscriptions.is_current` |
 
 Ver definição-fonte: `database/RLS_POLICIES.md` §§ "Padrão super_admin only" e "Tabelas com policies especiais".
 
