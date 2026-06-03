@@ -194,7 +194,8 @@ Deno.serve(async (req) => {
         await supabase
           .from("leads")
           .update(patch)
-          .eq("phone", phone);
+          .eq("phone", phone)
+          .eq("clinic_id", instance.clinic_id);
       }
     } else if (eventType === "CONNECTION_UPDATE") {
       const state = items[0]?.state ?? body.data?.state;
