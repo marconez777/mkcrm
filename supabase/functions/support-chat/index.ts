@@ -98,6 +98,13 @@ Deno.serve(async (req) => {
       screen_context: ctx ?? {}, runtime_errors: ctx?.runtime_errors ?? null,
     });
 
+    // pre-insert assistant placeholder so we can return its id for feedback
+    const { data: asstRow, error: asstErr } = await admin.from("support_chat_messages").insert({
+      thread_id: threadId, role: "assistant", content: "",
+    }).select("id").single();
+    if (asstErr) throw new Error(asstErr.message);
+    const assistantMessageId = asstRow.id;
+
     // RAG: embed + match
     let ragBlock = "";
     let matches: any[] = [];
