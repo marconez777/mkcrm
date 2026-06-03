@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2, ThumbsUp, ThumbsDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -235,8 +235,8 @@ export default function SupportChatFab() {
         aria-label="Abrir suporte"
       >
         <MessageCircle className="h-6 w-6" />
+        <span className="absolute -bottom-1 -right-1 text-[9px] font-bold bg-background text-foreground border rounded px-1 py-px shadow">?</span>
       </button>
-    );
   }
 
   // Minimized bar
@@ -266,10 +266,13 @@ export default function SupportChatFab() {
           <span className="font-semibold text-sm">Suporte via chat</span>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={exportConversation} title="Exportar (.md)" disabled={!messages.length}>
+            <Download className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetThread} title="Nova conversa">
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("minimized")} title="Minimizar">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("minimized")} title="Minimizar (Esc)">
             <Minus className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("closed")} title="Fechar">
