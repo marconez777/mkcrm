@@ -536,3 +536,13 @@ Use formato:
 ```
 
 Atualizar `Última atualização:` no topo dos arquivos tocados.
+
+
+## 2026-06-03 — Planos manuais, Observabilidade e Financeiro (Fases 1–3)
+
+- **Planos**: reset do catálogo (Starter R$77/470, Pro R$147/997, Supreme R$297/2997) com features/limits vazios para ajuste posterior pela UI. Stripe não integrado (colunas reservadas).
+- **Assinaturas manuais**: novas tabelas `clinic_subscriptions` + `plan_change_log`; super admin libera plano com trial e/ou expiração pelo `ClinicDetailsDialog`.
+- **Observabilidade**: `feature_events` + `error_events`, hook `useTrackFeature`, `ErrorBoundary` global, aba `/admin → Observabilidade`.
+- **Financeiro**: `invoices` + `payment_receipts`, KPIs (MRR/ARR/receita/inadimplência), aba `/admin → Financeiro` com registro manual de pagamentos.
+- **Crons**: `cron-expire-manual-grants` (03:10 UTC) e `mark_overdue_invoices` (03:00 UTC).
+- **Doc**: novo mapa `docs/maps/BILLING_PLANS.md`.
