@@ -123,11 +123,11 @@ BEFORE INSERT — se `NEW.clinic_id IS NULL`, tenta derivar a partir de `agent_i
 - `trg_cancel_pending_on_unsubscribe` AFTER INSERT — chama `cancel_pending_emails_for(clinic_id, email)` para invalidar fila.
 
 ### Em `email_queue`
-- `tg_email_queue_campaign_counters` AFTER INSERT/UPDATE — incrementa `campaign_throughput` quando `sent_at` vai de NULL → preenchido. **Idempotente** (só conta uma vez por linha — adicionado em 2026-05-28).
+- `trg_email_queue_campaign_counters` AFTER INSERT/UPDATE — incrementa `campaign_throughput` quando `sent_at` vai de NULL → preenchido. **Idempotente** (só conta uma vez por linha — adicionado em 2026-05-28).
 - `email_queue_health_trigger` AFTER INSERT (statement-level, a cada ~100 rows) — chama `check_email_operational_health()`.
 
 ### Em `email_logs`
-- `tg_suppress_on_bounce` AFTER INSERT/UPDATE — adicionado em 2026-05-28; gera `email_unsubscribes` (suppression) quando `bounced_at` é preenchido com `bounce_type='hard'` ou `complained_at`.
+- `trg_email_logs_suppress_on_bounce` AFTER INSERT/UPDATE — adicionado em 2026-05-28; gera `email_unsubscribes` (suppression) quando `bounced_at` é preenchido com `bounce_type='hard'` ou `complained_at`.
 - `email_logs_bounce_health_trigger` AFTER INSERT/UPDATE — chama `check_clinic_bounce_health(clinic_id)`.
 
 ### Em `email_domain_warmup`
