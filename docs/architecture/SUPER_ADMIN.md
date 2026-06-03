@@ -132,10 +132,18 @@ Padrão "super_admin only" (sem fallback de tenant):
 | `app_settings` | ALL |
 | `user_roles` | INSERT/UPDATE/DELETE (SELECT: self + super_admin) |
 | `plans` | INSERT/UPDATE/DELETE (SELECT: `authenticated`) |
+| `clinic_subscriptions` | INSERT/UPDATE/DELETE (SELECT: tenant + super_admin) |
+| `plan_change_log` | ALL (somente super_admin lê auditoria de plano) |
+| `invoices` | INSERT/UPDATE/DELETE (SELECT: tenant + super_admin) |
+| `payment_receipts` | idem `invoices` |
+| `feature_events` | INSERT: `clinic_id = current_clinic_id() OR is_super_admin()`; SELECT: super_admin |
+| `error_events` | INSERT: livre (boundary anônimo); SELECT/UPDATE/DELETE: super_admin |
+| `support_chat_threads` / `support_chat_messages` | SELECT pelo owner + super_admin; pin/takeover só super_admin |
+| `support_documents` | ALL super_admin (KB é cross-tenant) |
 | `email_domains` | INSERT/UPDATE/DELETE em escopo global |
 | `data_access_log` | SELECT/INSERT |
 | `audit_log` | SELECT em recortes globais |
-| `clinics` | INSERT/DELETE; UPDATE de `settings.features` (bloqueado por trigger `clinics_guard_features` para não-super) |
+| `clinics` | INSERT/DELETE; UPDATE de `settings.features` (bloqueado por trigger `clinics_guard_features` para não-super); coluna `plan_id` sincronizada por trigger a partir de `clinic_subscriptions.is_current` |
 
 Ver definição-fonte: `database/RLS_POLICIES.md` §§ "Padrão super_admin only" e "Tabelas com policies especiais".
 
