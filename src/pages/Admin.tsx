@@ -165,12 +165,23 @@ export default function Admin() {
         <p className="text-sm text-muted-foreground">Gerenciar clínicas, integrações e cotas</p>
       </div>
 
-      <Tabs defaultValue="clinics" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="dashboard" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="clinics">Clínicas</TabsTrigger>
+          <TabsTrigger value="users">Usuários</TabsTrigger>
+          <TabsTrigger value="plans">Planos</TabsTrigger>
+          <TabsTrigger value="limits">Uso & Limites</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
+          <TabsTrigger value="audit">Auditoria</TabsTrigger>
           <TabsTrigger value="builder-manual">Manual do Builder</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dashboard"><DashboardPanel /></TabsContent>
+        <TabsContent value="users"><UsersPanel /></TabsContent>
+        <TabsContent value="plans"><PlansPanel /></TabsContent>
+        <TabsContent value="limits"><UsageLimitsPanel /></TabsContent>
+        <TabsContent value="audit"><AuditPanel /></TabsContent>
 
         <TabsContent value="clinics" className="space-y-4">
           <div className="flex justify-end">
