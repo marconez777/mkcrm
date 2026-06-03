@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2, ThumbsUp, ThumbsDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +87,41 @@ export default function SupportChatFab() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
+
+  // global shortcut: "?" toggles the chat (ignored while typing). Esc minimizes.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const typing = !!tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+      if (!typing && (e.key === "?" || (e.key === "/" && e.shiftKey))) {
+        e.preventDefault();
+        setState((s) => (s === "open" ? "minimized" : "open"));
+      } else if (e.key === "Escape" && state === "open") {
+        setState("minimized");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state]);
+
+  function exportConversation() {
+    if (!messages.length) return;
+    const lines = messages.map((m) => {
+      const tag = m.role === "user" ? "VOCÊ" : "ALFRED";
+      return `### ${tag}\n${m.content}\n`;
+    });
+    const header = `# Conversa MK-CRM Suporte\n${new Date().toLocaleString("pt-BR")}\nThread: ${threadId ?? "—"}\n\n---\n\n`;
+    const blob = new Blob([header + lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `suporte-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
 
   const hidden = !user || !enabled || HIDDEN_PREFIXES.some((p) => location.pathname.startsWith(p));
   if (hidden) return null;
@@ -200,6 +235,7 @@ export default function SupportChatFab() {
         aria-label="Abrir suporte"
       >
         <MessageCircle className="h-6 w-6" />
+        <span className="absolute -bottom-1 -right-1 text-[9px] font-bold bg-background text-foreground border rounded px-1 py-px shadow">?</span>
       </button>
     );
   }
@@ -231,10 +267,13 @@ export default function SupportChatFab() {
           <span className="font-semibold text-sm">Suporte via chat</span>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={exportConversation} title="Exportar (.md)" disabled={!messages.length}>
+            <Download className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetThread} title="Nova conversa">
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("minimized")} title="Minimizar">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("minimized")} title="Minimizar (Esc)">
             <Minus className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setState("closed")} title="Fechar">
