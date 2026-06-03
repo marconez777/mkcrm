@@ -4849,6 +4849,282 @@ export type Database = {
           },
         ]
       }
+      support_agent_config: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          embedding_model: string
+          enabled: boolean
+          id: string
+          kb_synced_at: string | null
+          max_iterations: number
+          model: string
+          monthly_cap_usd: number
+          provider: string
+          singleton: boolean
+          system_prompt: string
+          temperature: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          embedding_model?: string
+          enabled?: boolean
+          id?: string
+          kb_synced_at?: string | null
+          max_iterations?: number
+          model?: string
+          monthly_cap_usd?: number
+          provider?: string
+          singleton?: boolean
+          system_prompt?: string
+          temperature?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          embedding_model?: string
+          enabled?: boolean
+          id?: string
+          kb_synced_at?: string | null
+          max_iterations?: number
+          model?: string
+          monthly_cap_usd?: number
+          provider?: string
+          singleton?: boolean
+          system_prompt?: string
+          temperature?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      support_chat_events: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          message_id: string | null
+          payload: Json
+          route: string | null
+          thread_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          message_id?: string | null
+          payload?: Json
+          route?: string | null
+          thread_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          message_id?: string | null
+          payload?: Json
+          route?: string | null
+          thread_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_chat_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "support_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_chat_events_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_chat_messages: {
+        Row: {
+          content: string
+          cost_usd: number
+          created_at: string
+          id: string
+          latency_ms: number | null
+          role: string
+          runtime_errors: Json | null
+          screen_context: Json | null
+          thread_id: string
+          tokens_in: number
+          tokens_out: number
+          tool_args: Json | null
+          tool_name: string | null
+          tool_result: Json | null
+        }
+        Insert: {
+          content?: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          latency_ms?: number | null
+          role: string
+          runtime_errors?: Json | null
+          screen_context?: Json | null
+          thread_id: string
+          tokens_in?: number
+          tokens_out?: number
+          tool_args?: Json | null
+          tool_name?: string | null
+          tool_result?: Json | null
+        }
+        Update: {
+          content?: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          latency_ms?: number | null
+          role?: string
+          runtime_errors?: Json | null
+          screen_context?: Json | null
+          thread_id?: string
+          tokens_in?: number
+          tokens_out?: number
+          tool_args?: Json | null
+          tool_name?: string | null
+          tool_result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_chat_threads: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          id: string
+          last_route: string | null
+          resolved: boolean
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          last_route?: string | null
+          resolved?: boolean
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          last_route?: string | null
+          resolved?: boolean
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_chat_threads_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_documents: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          embedding: string | null
+          hash: string
+          id: string
+          metadata: Json
+          path: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          chunk_index?: number
+          content: string
+          created_at?: string
+          embedding?: string | null
+          hash: string
+          id?: string
+          metadata?: Json
+          path: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          embedding?: string | null
+          hash?: string
+          id?: string
+          metadata?: Json
+          path?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      support_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          message_id: string
+          rating: number
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          message_id: string
+          rating: number
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          message_id?: string
+          rating?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_feedback_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "support_chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_assignees: {
         Row: {
           attendant_id: string
@@ -6393,6 +6669,17 @@ export type Database = {
           similarity: number
         }[]
       }
+      match_support_documents: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          chunk_index: number
+          content: string
+          id: string
+          path: string
+          similarity: number
+          title: string
+        }[]
+      }
       pick_ab_winner: { Args: { _campaign_id: string }; Returns: string }
       pick_rotation_domain: {
         Args: { _clinic_id: string; _pool: string }
@@ -6478,6 +6765,7 @@ export type Database = {
       }
       revert_builder_manual: { Args: { _version: number }; Returns: number }
       seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
+      support_chat_spent_this_month_usd: { Args: never; Returns: number }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }
         Returns: boolean
