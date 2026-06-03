@@ -17,6 +17,7 @@ import {
 import mkLogo from "@/assets/mk-logo.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
+import SupportChatFab from "@/components/support/SupportChatFab";
 
 type GroupKey = "work" | "marketing" | "admin";
 
@@ -354,6 +355,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         })()}
       </aside>
       <main className="flex-1 overflow-hidden">{children}</main>
+      <SupportChatFab />
     </div>
   );
 }
