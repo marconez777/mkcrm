@@ -303,7 +303,7 @@ Três ferramentas:
 
 **Pegadinhas:**
 - Sem dados → retorna `code='no_data'` com mensagem "Sem conversas nos últimos N dias".
-- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_runs`.
+- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_usage` / `ai_usage_daily`.
 - Recomendações não viram patch automático no prompt — usuário decide.
 
 ---
