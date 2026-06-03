@@ -1,7 +1,7 @@
 # Integração: Evolution API (WhatsApp)
 
 > **Quando ler:** antes de mexer em qualquer função `evolution-*`, provisionamento de instância, QR code, ou debug de mensagens não entregues.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -23,7 +23,7 @@ Evolution API é um servidor open-source que faz ponte com o WhatsApp Web. Uma *
 | `EVOLUTION_GLOBAL_API_KEY` | edge functions | criar/listar instâncias |
 | `EVOLUTION_WEBHOOK_TOKEN` | edge functions | header extra que o webhook valida |
 
-Por instância (no banco, `clinic_settings`): `wa_instance_name`, `wa_api_key`, `wa_status`, `wa_phone`.
+Por instância (no banco, **`clinics.settings.evolution`** JSON — não existe tabela `clinic_settings`): `instance_name`, `api_key`, `status`, `phone`.
 
 ---
 
@@ -59,7 +59,7 @@ Eventos relevantes:
 - `qr.updated` — QR refresh
 - `contacts.upsert` — atualização de contato (avatar, nome)
 
-Header `apikey` identifica a instância → resolve `clinic_id`.
+O webhook é público e autentica via `?token=` na query string (validado contra `EVOLUTION_WEBHOOK_TOKEN`), não pelo header `apikey`. A instância é resolvida pelo nome no payload.
 
 Ver `flows/INBOUND_WHATSAPP.md`.
 
@@ -69,11 +69,11 @@ Ver `flows/INBOUND_WHATSAPP.md`.
 
 ```text
 1. clinic_create_user OR admin → evolution-provision
-        cria instância no Evolution, salva em clinic_settings
+        cria instância no Evolution, salva em clinics.settings.evolution
 2. UI mostra QR via evolution-qr (polling)
-3. Usuário escaneia → connection.update event → wa_status='connected'
+3. Usuário escaneia → connection.update event → settings.evolution.status='connected'
 4. cron evolution-health a cada 5min confere estado
-5. se desconectar → wa_status='disconnected', UI sugere re-pareamento
+5. se desconectar → status='disconnected', UI sugere re-pareamento
 6. evolution-logout (UI) ou evolution-delete-instance (admin)
 ```
 
