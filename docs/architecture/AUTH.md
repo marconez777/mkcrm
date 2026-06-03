@@ -31,24 +31,11 @@ Cadastro público está **desabilitado** — usuários são criados via convite 
 
 ---
 
-## Tabela `auth_lockouts` (presente, não consumida)
+## Tabela `auth_lockouts` (dropada)
 
-```sql
-auth_lockouts (
-  email text PRIMARY KEY,
-  failed_attempts int NOT NULL DEFAULT 0,
-  locked_until timestamptz,
-  last_attempt_at timestamptz,
-  last_ip text
-)
-```
+A tabela foi criada em `20260519191402_*`, ajustada em `20260525181431_*` e **dropada** em `20260526202203_*` (`DROP TABLE IF EXISTS public.auth_lockouts CASCADE`). O código de `admin-user-action` (action `unlock`) e `admin-users-list` ainda referencia a tabela mas a query retorna vazio — campos `locked`, `locked_until`, `failed_attempts` vêm sempre nulos/zerados. Registrado em `known-issues/DEBT.md`.
 
-Origem: migrações `20260519191402_*` (criação), `20260525181431_*`, `20260526202203_*` (ajustes). Hoje é usada apenas como ponte de **desbloqueio manual** pelo painel `/admin → Usuários`:
-
-- `admin-user-action` action `unlock` → `DELETE FROM auth_lockouts WHERE user_id = ...`.
-- `admin-users-list` faz join para mostrar se o usuário está travado.
-
-Não há gravação automática. Reativar o lockout exigiria criar um wrapper (edge function ou trigger) — está documentado como roadmap em `docs/known-issues/DEBT.md`.
+Reativar lockout exige recriar a tabela + wrapper (edge function ou trigger) — está em `roadmap/`.
 
 ---
 
