@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import mkLogo from "@/assets/mk-logo.png";
 
 const NAV_LINKS = [
   { href: "#sobre", label: "Sobre" },
@@ -15,9 +15,7 @@ export default function SiteNav() {
     <header className="sticky top-0 z-40 border-b border-white/5 bg-site-bg/80 backdrop-blur supports-[backdrop-filter]:bg-site-bg/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/site" className="flex items-center gap-2 text-site-text">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-site-primary text-site-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
+          <img src={mkLogo} alt="MK-CRM" className="h-8 w-8 rounded-lg object-cover" />
           <span className="site-font-display text-base font-semibold tracking-tight">MK-CRM</span>
         </Link>
 
