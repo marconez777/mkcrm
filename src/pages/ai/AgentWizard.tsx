@@ -742,10 +742,34 @@ export default function AgentWizard() {
     [provider]
   );
 
-  if (hydrating) {
+  if (hydrating || builderStatus === "checking") {
     return (
-      <div className="grid min-h-[60vh] place-items-center text-muted-foreground">
+      <div className="grid min-h-[60vh] place-items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
+        {builderStatus === "checking" && <span>Verificando configuração…</span>}
+      </div>
+    );
+  }
+
+  if (builderStatus === "missing") {
+    return (
+      <div className="grid min-h-[60vh] place-items-center px-4">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            <SettingsIcon className="h-6 w-6" />
+          </div>
+          <h1 className="text-xl font-semibold">Configure o Construtor de Agentes primeiro</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Para criar agentes, o administrador da conta precisa configurar a chave de API do Construtor. Isso é feito uma única vez.
+          </p>
+          {canManage ? (
+            <Button className="mt-5" onClick={() => nav("/ai/agents")}>Configurar agora</Button>
+          ) : (
+            <p className="mt-5 text-xs text-muted-foreground">
+              Entre em contato com o administrador da sua conta para fazer essa configuração.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -770,7 +794,7 @@ export default function AgentWizard() {
             {step === 1 && (
               <Step1
                 niche={niche}
-                setNiche={setNiche}
+                setNiche={chooseNiche}
                 nicheOther={nicheOther}
                 setNicheOther={setNicheOther}
               />
@@ -778,11 +802,12 @@ export default function AgentWizard() {
             {step === 2 && (
               <Step2
                 goal={goal}
-                setGoal={setGoal}
+                setGoal={chooseGoal}
                 goalOther={goalOther}
                 setGoalOther={setGoalOther}
               />
             )}
+
             {step === 3 && (
               <Step3
                 provider={provider}
