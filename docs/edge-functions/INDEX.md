@@ -74,12 +74,14 @@ await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/<func>`, {
 Todas verificam `is_super_admin()` **em código** — não confiar só em `verify_jwt`.
 
 ### `admin-users-list`
-`POST` paginado. Retorna lista cross-tenant de usuários a partir de `auth.users` + join com `profiles`, `clinic_members`, `user_roles`, `auth_lockouts`. Body: `{ search?, clinic_id?, role?, status?, page?, page_size? }`. Consumido pela aba **Usuários** do `/admin`.
+`POST` paginado. Retorna lista cross-tenant de usuários a partir de `auth.users` + join com `profiles`, `clinic_members`, `user_roles`. Body: `{ search?, clinic_id?, role?, status?, page?, page_size? }`. Consumido pela aba **Usuários** do `/admin`.
+
+> **Nota técnica:** o código ainda referencia a tabela `auth_lockouts` (campos `locked_until`, `failed_attempts`) — como ela **não existe** no schema (ver `database/SCHEMA.md`), a query retorna `null` e os campos `locked`/`locked_until`/`failed_attempts` vêm sempre vazios/zerados. Reativar lockout exige criar a tabela + edge function wrapper. Registrado em `known-issues/DEBT.md`.
 
 ### `admin-user-action`
 `POST` com `{ user_id, action, payload? }`. Ações suportadas:
 - `set_password` — gera senha ou aceita uma fornecida.
-- `unlock` — apaga linhas de `auth_lockouts`.
+- `unlock` — **no-op efetivo hoje** (tenta `DELETE FROM auth_lockouts WHERE email = ...` mas a tabela não existe).
 - `sign_out` — revoga refresh tokens.
 - `toggle_super_admin` — insere/remove em `user_roles`.
 
