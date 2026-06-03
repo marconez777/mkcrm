@@ -31,10 +31,10 @@ hook simples.
 
 **`useStages()` / `useLeads()`** (`hooks/useCrm.ts`) — wrappers sobre
 `useRealtimeList<T>(table, orderBy, renderKeys)`. Carrega uma vez
-(`limit: 2000` para leads, 500 para stages), assina `postgres_changes`,
+(stages: `limit: 500`; leads: paginação completa via
+`fetchAllPaged` em páginas de 1000), assina `postgres_changes`,
 patcha estado in-place. `renderKeys` filtra updates ruidosos (ex.:
-`updated_at`) para evitar re-render storms. Avisa no console se atingir
-o limit.
+`updated_at`) para evitar re-render storms.
 
 **`usePipelines()`** — lista de pipelines da clínica + helper de
 seleção/persistência da escolha em localStorage.
