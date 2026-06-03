@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,6 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Check,
@@ -17,6 +26,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  Settings as SettingsIcon,
+  Power,
 } from "lucide-react";
 import {
   Tooltip,
@@ -198,15 +209,58 @@ export default function AgentWizard() {
   const [agentName, setAgentName] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Builder configuration guard
+  const [builderStatus, setBuilderStatus] = useState<"checking" | "ok" | "missing">("checking");
+
+  // Success modal post-creation
+  const [successAgentId, setSuccessAgentId] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+
+  // Prompt generation timeout tracking
+  const [promptTimeoutWarning, setPromptTimeoutWarning] = useState(false);
+  const [promptTimedOut, setPromptTimedOut] = useState(false);
+  const promptTimersRef = useRef<{ warn?: number; fail?: number }>({});
+
   const clinicId = membership?.clinic_id ?? null;
   const userId = user?.id ?? null;
   const canManage =
     membership?.role === "owner" || membership?.role === "admin";
 
+
   // Hidrata draft
   useEffect(() => {
     document.title = "Construtor de Agentes — MK CRM";
   }, []);
+
+  // Verifica se Builder está configurado para a clínica antes de renderizar o wizard
+  useEffect(() => {
+    if (loading || !clinicId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ai_agents")
+          .select("id, builder_verified_at")
+          .eq("clinic_id", clinicId)
+          .eq("system_key", "builder")
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          // Não bloquear em caso de erro — apenas logar
+          console.warn("[AgentWizard] builder check failed:", error.message);
+          setBuilderStatus("ok");
+          return;
+        }
+        setBuilderStatus(data && data.builder_verified_at ? "ok" : "missing");
+      } catch (e) {
+        console.warn("[AgentWizard] builder check exception:", e);
+        if (!cancelled) setBuilderStatus("ok");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, clinicId]);
 
   useEffect(() => {
     if (loading || !clinicId || !userId) return;
@@ -221,6 +275,41 @@ export default function AgentWizard() {
       if (cancelled) return;
       if (data) {
         const d = data as DraftRow;
+
+        // Detecta rascunho "órfão" — passo 5 com prompt mas agente já foi criado recentemente
+        if (d.step === 5 && d.generated_prompt) {
+          try {
+            const { data: recentAgent } = await supabase
+              .from("ai_agents")
+              .select("id, name, created_at")
+              .eq("clinic_id", clinicId)
+              .neq("system_key", "builder")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            if (
+              recentAgent &&
+              recentAgent.created_at &&
+              new Date(recentAgent.created_at) > tenMinutesAgo
+            ) {
+              await supabase
+                .from("ai_agent_drafts")
+                .delete()
+                .eq("clinic_id", clinicId)
+                .eq("user_id", userId);
+              if (cancelled) return;
+              toast.message("Rascunho recuperado", {
+                description: `Seu agente "${recentAgent.name}" já foi criado. Redirecionando…`,
+              });
+              nav(`/ai/agents?agent=${recentAgent.id}`);
+              return;
+            }
+          } catch (e) {
+            console.warn("[AgentWizard] orphan draft check failed:", e);
+          }
+        }
+
         setDraft(d);
         setStep(Math.min(5, Math.max(1, d.step)) as Step);
         setNiche(d.niche ?? "");
@@ -255,7 +344,8 @@ export default function AgentWizard() {
     return () => {
       cancelled = true;
     };
-  }, [loading, clinicId, userId]);
+  }, [loading, clinicId, userId, nav]);
+
 
   // Ao trocar provider, sugere modelo default se vazio
   useEffect(() => {
@@ -373,10 +463,31 @@ export default function AgentWizard() {
     toast.message("Respostas preenchidas com padrões. Você pode editar antes de avançar.");
   }
 
+  function clearPromptTimers() {
+    if (promptTimersRef.current.warn) {
+      window.clearTimeout(promptTimersRef.current.warn);
+      promptTimersRef.current.warn = undefined;
+    }
+    if (promptTimersRef.current.fail) {
+      window.clearTimeout(promptTimersRef.current.fail);
+      promptTimersRef.current.fail = undefined;
+    }
+  }
+
   async function generatePrompt(extraRefinement?: string) {
     if (!clinicId) return;
     setPromptLoading(true);
     setPromptError(null);
+    setPromptTimeoutWarning(false);
+    setPromptTimedOut(false);
+    clearPromptTimers();
+    promptTimersRef.current.warn = window.setTimeout(() => {
+      setPromptTimeoutWarning(true);
+      toast.message("A geração está demorando mais que o esperado. Aguarde mais um momento…");
+    }, 30000);
+    promptTimersRef.current.fail = window.setTimeout(() => {
+      setPromptTimedOut(true);
+    }, 60000);
     await persist({ interview_answers: answers });
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: {
@@ -393,6 +504,9 @@ export default function AgentWizard() {
         },
       },
     });
+    clearPromptTimers();
+    setPromptTimeoutWarning(false);
+    setPromptTimedOut(false);
     setPromptLoading(false);
     if (error) {
       const parsed = parseBuilderError({ message: error.message });
@@ -435,6 +549,39 @@ export default function AgentWizard() {
       toast.success("Prompt gerado.");
     }
   }
+
+  // Limpa timers ao desmontar
+  useEffect(() => () => clearPromptTimers(), []);
+
+  // Handlers que invalidam prompt ao trocar nicho/objetivo
+  function chooseNiche(nextId: string) {
+    if (nextId === niche) return;
+    setNiche(nextId);
+    if (bundle || draft?.generated_prompt) {
+      setBundle(null);
+      void persist({
+        niche: nextId,
+        generated_prompt: null,
+        settings: {},
+      });
+      toast.message("Nicho alterado. O prompt será regenerado no passo 5.");
+    }
+  }
+
+  function chooseGoal(nextId: string) {
+    if (nextId === goal) return;
+    setGoal(nextId);
+    if (bundle || draft?.generated_prompt) {
+      setBundle(null);
+      void persist({
+        goal: nextId,
+        generated_prompt: null,
+        settings: {},
+      });
+      toast.message("Objetivo alterado. O prompt será regenerado no passo 5.");
+    }
+  }
+
 
   async function testConnection() {
     if (!clinicId) return;
@@ -563,15 +710,23 @@ export default function AgentWizard() {
       if (error) throw error;
       const newId = (data as { id: string }).id;
 
-      // Limpa o rascunho — agente já existe
-      await supabase
-        .from("ai_agent_drafts")
-        .delete()
-        .eq("clinic_id", clinicId)
-        .eq("user_id", userId);
+      // Limpa o rascunho com retry (até 2 tentativas). Falha silenciosa — o agente já existe.
+      let deleteAttempts = 0;
+      while (deleteAttempts < 2) {
+        const { error: deleteError } = await supabase
+          .from("ai_agent_drafts")
+          .delete()
+          .eq("clinic_id", clinicId)
+          .eq("user_id", userId);
+        if (!deleteError) break;
+        deleteAttempts++;
+        if (deleteAttempts < 2) await new Promise((r) => setTimeout(r, 1000));
+        else console.warn("[AgentWizard] draft cleanup failed:", deleteError.message);
+      }
 
-      toast.success("Agente criado.");
-      nav(`/ai/agents?agent=${newId}`);
+      // Em vez de redirecionar direto, abre modal de sucesso com opções
+      setSuccessAgentId(newId);
+
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao criar agente";
       toast.error(msg);
@@ -587,10 +742,34 @@ export default function AgentWizard() {
     [provider]
   );
 
-  if (hydrating) {
+  if (hydrating || builderStatus === "checking") {
     return (
-      <div className="grid min-h-[60vh] place-items-center text-muted-foreground">
+      <div className="grid min-h-[60vh] place-items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
+        {builderStatus === "checking" && <span>Verificando configuração…</span>}
+      </div>
+    );
+  }
+
+  if (builderStatus === "missing") {
+    return (
+      <div className="grid min-h-[60vh] place-items-center px-4">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            <SettingsIcon className="h-6 w-6" />
+          </div>
+          <h1 className="text-xl font-semibold">Configure o Construtor de Agentes primeiro</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Para criar agentes, o administrador da conta precisa configurar a chave de API do Construtor. Isso é feito uma única vez.
+          </p>
+          {canManage ? (
+            <Button className="mt-5" onClick={() => nav("/ai/agents")}>Configurar agora</Button>
+          ) : (
+            <p className="mt-5 text-xs text-muted-foreground">
+              Entre em contato com o administrador da sua conta para fazer essa configuração.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -615,7 +794,7 @@ export default function AgentWizard() {
             {step === 1 && (
               <Step1
                 niche={niche}
-                setNiche={setNiche}
+                setNiche={chooseNiche}
                 nicheOther={nicheOther}
                 setNicheOther={setNicheOther}
               />
@@ -623,11 +802,12 @@ export default function AgentWizard() {
             {step === 2 && (
               <Step2
                 goal={goal}
-                setGoal={setGoal}
+                setGoal={chooseGoal}
                 goalOther={goalOther}
                 setGoalOther={setGoalOther}
               />
             )}
+
             {step === 3 && (
               <Step3
                 provider={provider}
@@ -667,8 +847,11 @@ export default function AgentWizard() {
                 onRefine={() => generatePrompt(refinement)}
                 agentName={agentName}
                 setAgentName={setAgentName}
+                timeoutWarning={promptTimeoutWarning}
+                timedOut={promptTimedOut}
               />
             )}
+
           </div>
 
           <div className="mt-4 flex items-center justify-between">
@@ -718,11 +901,102 @@ export default function AgentWizard() {
           </p>
         </div>
       </div>
+      <Dialog
+        open={!!successAgentId}
+        onOpenChange={(open) => {
+          if (!open && successAgentId) {
+            nav(`/ai/agents?agent=${successAgentId}`);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">Agente criado com sucesso!</DialogTitle>
+            <DialogDescription className="text-center">
+              Seu agente está pronto, mas ainda está inativo. Ele não vai responder leads até você ativá-lo. Você pode testá-lo agora no Test Lab sem ativar para leads reais.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button
+              variant="outline"
+              disabled={activating}
+              onClick={() => {
+                if (!successAgentId) return;
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}`);
+              }}
+            >
+              Ver agente sem ativar
+            </Button>
+            <Button
+              disabled={activating}
+              onClick={async () => {
+                if (!successAgentId) return;
+                setActivating(true);
+                const { error } = await supabase
+                  .from("ai_agents")
+                  .update({ enabled: true, draft_mode: false })
+                  .eq("id", successAgentId);
+                setActivating(false);
+                if (error) {
+                  toast.error(error.message);
+                  return;
+                }
+                toast.success("Agente ativado.");
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}`);
+              }}
+            >
+              {activating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Power className="mr-1 h-4 w-4" />}
+              Ativar agente agora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
 
+
 // ---------- Sub-componentes ----------
+
+function LoadingPanel({
+  title,
+  messages,
+  footer,
+}: {
+  title: string;
+  messages: string[];
+  footer?: ReactNode;
+}) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (messages.length <= 1) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % messages.length), 5000);
+    return () => window.clearInterval(id);
+  }, [messages.length]);
+  return (
+    <div className="rounded-lg border bg-muted/30 p-5 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {title}
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-full w-1/3 animate-[loading-bar_1.6s_ease-in-out_infinite] rounded-full bg-primary/70" />
+      </div>
+      <p className="mt-3 min-h-[1.25rem] text-xs text-muted-foreground transition-opacity">
+        {messages[idx]}
+      </p>
+      {footer && <div className="mt-3">{footer}</div>}
+      <style>{`@keyframes loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+    </div>
+  );
+}
 
 function Stepper({ step }: { step: Step }) {
   const items = [
@@ -1125,10 +1399,17 @@ function Step4({
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando perguntas adaptadas…
-        </div>
+        <LoadingPanel
+          title="Preparando perguntas personalizadas para seu negócio…"
+          messages={[
+            "Lendo seu nicho e objetivo…",
+            "Selecionando perguntas relevantes…",
+            "Adaptando ao seu segmento…",
+            "Quase pronto…",
+          ]}
+        />
       )}
+
 
       {error && (
         <div className="space-y-2">
@@ -1199,6 +1480,8 @@ function Step5({
   onRefine,
   agentName,
   setAgentName,
+  timeoutWarning,
+  timedOut,
 }: {
   bundle: GeneratedPromptBundle | null;
   loading: boolean;
@@ -1209,6 +1492,8 @@ function Step5({
   onRefine: () => void;
   agentName: string;
   setAgentName: (v: string) => void;
+  timeoutWarning: boolean;
+  timedOut: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -1219,11 +1504,41 @@ function Step5({
         </p>
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando prompt…
-        </div>
+      {loading && !timedOut && (
+        <LoadingPanel
+          title="Gerando seu prompt personalizado…"
+          messages={[
+            "Analisando suas respostas…",
+            "Estruturando o prompt por seções…",
+            "Ajustando tom e objetivo…",
+            "Quase pronto…",
+          ]}
+          footer={
+            <p className="text-[11px] text-muted-foreground">
+              Isso pode levar até 30 segundos. Não feche esta aba.
+              {timeoutWarning && (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">
+                  Está demorando mais que o normal — aguarde um pouco mais.
+                </span>
+              )}
+            </p>
+          }
+        />
       )}
+
+      {timedOut && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Não conseguimos gerar o prompt agora</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>Verifique sua conexão e tente novamente.</span>
+            <Button size="sm" variant="outline" className="self-start" onClick={onRegenerate}>
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
 
       {error && (
         <div className="space-y-2">
@@ -1317,11 +1632,19 @@ function Step5({
         </>
       )}
 
-      {!bundle && !loading && !error && (
-        <Button variant="outline" onClick={onRegenerate} className="w-full">
-          Gerar prompt
-        </Button>
+      {!bundle && !loading && !error && !timedOut && (
+        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+          <p className="text-sm font-medium">Nenhum prompt gerado ainda.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Clique em "Gerar prompt" para começar.
+          </p>
+          <Button className="mt-4" onClick={onRegenerate}>
+            <Sparkles className="mr-1 h-4 w-4" />
+            Gerar prompt
+          </Button>
+        </div>
       )}
+
     </div>
   );
 }

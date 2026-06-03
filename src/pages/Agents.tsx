@@ -13,7 +13,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { SectionAccordion, SectionAccordionItem } from "@/components/ui/section-accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode, Users, GitBranch, GraduationCap } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode, Users, GitBranch, GraduationCap, AlertTriangle, Power } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
@@ -651,6 +652,37 @@ export default function Agents() {
                 )}
               </div>
             </div>
+
+
+
+            {!selected.enabled && !selected.is_system && (
+              <Alert variant="warning">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Este agente está inativo</AlertTitle>
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>Ele não responde leads enquanto estiver inativo. Ative para começar a usar.</span>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="self-start sm:self-auto"
+                      onClick={async () => {
+                        const { error } = await supabase
+                          .from("ai_agents")
+                          .update({ enabled: true, draft_mode: false })
+                          .eq("id", selected.id);
+                        if (error) return toast.error(error.message);
+                        setSelected({ ...selected, enabled: true, draft_mode: false });
+                        toast.success("Agente ativado.");
+                      }}
+                    >
+                      <Power className="mr-1 h-3.5 w-3.5" /> Ativar agente
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
 
 
             <SectionAccordion type="multiple" defaultValue={["general"]} className="space-y-3">
