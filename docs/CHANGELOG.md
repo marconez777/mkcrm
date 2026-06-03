@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 6/8 (fechamento — Known-issues + Roadmap + Conventions + Site)
+
+Releitura dos 11 arquivos restantes da Fase 6 contra schema real, lista de edge functions e `src/**`. Fase 6 concluída.
+
+### Corrigido — Known-issues
+- `known-issues/DEBT.md`: `wa_messages`→`messages` (TD-1, TD-3); `findOrCreateLead` (inexistente) substituído por "dedupe inline nas entrypoints" (TD-1); `clinic_settings` (tabela inexistente) → `clinics.settings` JSON (TD-10, TD-13, TD-14); TD-5 ajustado para `?token=` na URL (não header `apikey`); TD-4 inclui `ai-chat`; TD-12 nota que `ai-eval-run` já existe (falta dataset versionado).
+- `known-issues/PITFALLS.md`: item 14 `evolution_message_id`→`messages.external_id` (UNIQUE `(clinic_id, external_id)`); item 22 trigger `tg_pause_ai_on_human_reply` removido (não existe) — substituído por checagem `leads.ai_paused` + anti-loop via `messages.bot_agent_id`.
+- `known-issues/CORS_FORMS_INGEST.md`: sem alterações (continua válido).
+
+### Corrigido — Conventions
+- `conventions/SECURITY.md`: removida edge function fictícia `auth-login` da lista de públicas; adicionada `forms-plugin-zip`; removida seção "Auth/lockout" (`auth_lockouts` foi dropada em 2026-05-26); nota explícita sobre Auth nativa do Lovable Cloud + referência ao `CORS_FORMS_INGEST.md`.
+- `conventions/SUPABASE_RULES.md`: bloco CORS ganhou exceção explícita para funções públicas chamadas de domínio terceiro (`forms-ingest`, `tracking-*`) — ecoar `Origin` + `Allow-Credentials`, com link para `known-issues/CORS_FORMS_INGEST.md`.
+- `conventions/CODE_STYLE.md` e `COMMIT_PR.md`: apenas carimbo atualizado.
+
+### Corrigido — Roadmap
+- `roadmap/EMAIL.md`: removida menção a "edge `auth-login`" no Fora de Escopo (função não existe); termo "Supabase" substituído por "Lovable Cloud".
+- `roadmap/EMAIL_SCALE.md` e `roadmap/IMPROVEMENTS.md`: sem alterações (Tier 0-4 do EMAIL_SCALE já refletiam o estado atual; IMPROVEMENTS validado item-a-item).
+
+### Corrigido — Site
+- `site/FEATURE_PAGES.md` (feature 14 "Controle de custo de IA"): `ai_monthly_budget_usd` → `ai_spend_limits.monthly_cap_usd`; `ai_runs` → `ai_usage` + `ai_usage_daily` + `ai_spend_events`; documentado `_shared/spend-guard.ts` retornando HTTP 402; `ai-pricing.ts` referenciado dentro do wrapper `_shared/ai.ts`.
+
+---
+
 ## 2026-06-03 — Auditoria documental Fase 6/8 (parcial — Integrações + Operações)
 
 Validação linha-a-linha de `docs/integrations/` (5) + `docs/operations/` (5) contra o schema real (`information_schema`, `pg_trigger`), `supabase/functions/**` e `src/**`. Restam para a próxima rodada da Fase 6: `known-issues/*`, `roadmap/*`, `conventions/*` e `site/FEATURE_PAGES.md`.
