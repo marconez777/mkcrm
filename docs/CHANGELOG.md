@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-06-03 — Admin v2 + catálogo de Planos + redesigns
+
+### Adicionado
+- `docs/architecture/PLANS_LIMITS.md` (**novo**) — modelo da tabela `public.plans`, catálogo `LIMIT_DEFS`, hierarquia override (clínica > plano > ilimitado), enforcement por fases.
+- `docs/database/SCHEMA.md`: bloco da tabela `plans` (jun/2026) + nota em `clinics` sobre `settings.limits` e `plan` como referência lógica para `plans.code`. Contagem subiu para 90 tabelas.
+- `docs/database/RLS_POLICIES.md`: bloco RLS de `plans` (SELECT `authenticated`, write gated por `is_super_admin()`, GRANTS explícitos).
+- `docs/database/FUNCTIONS_TRIGGERS.md`: nova seção "Funções de admin" — `admin_overview_metrics()`, `admin_top_clinics(_metric, _limit)`, `admin_clinic_usage(_clinic, _from, _to)`.
+- `docs/edge-functions/INDEX.md`: 3 edge functions novas (`admin-users-list`, `admin-user-action`, `admin-apply-plan`); linha "Admin" no mapa por domínio; contagem subiu para 70 funções.
+- `docs/frontend/PAGES.md`: nova subseção §2.11 com as 8 abas do `/admin` v2 (Dashboard, Clínicas, Usuários, Planos, Uso & Limites, Integrações, Auditoria, Manual do Builder) e edge functions/RPCs invocadas por cada.
+- `docs/frontend/COMPONENTS.md`: §8 "Admin" reescrita listando `DashboardPanel`, `UsersPanel`, `PlansPanel` + `PlanEditorDialog`, `UsageLimitsPanel`, `AuditPanel` além dos existentes.
+- `docs/frontend/HOOKS_LIB.md`: nova entrada para `src/lib/admin-plans.ts` (`LIMIT_DEFS`, `USAGE_KEY_MAP`).
+- `docs/architecture/FEATURE_FLAGS.md`: nova seção "Defaults via planos" explicando relação `plans.features` ↔ `clinics.settings.features` e a propagação via `admin-apply-plan`.
+- `docs/frontend/DESIGN_SYSTEM.md`: nova §5.1 "Premium dark (AppShell)" + §5.2 "`SectionAccordion`" (props, padrão visual, mapa de accents `slate/info/primary/violet/cyan/fuchsia/teal/emerald/amber`).
+- `docs/features/BUILDER_AGENTS.md`: nova §2.1 "UX da página `/ai/agents`" com o mapa de seções → accents do redesign.
+- `docs/OVERVIEW.md`: bloco "Admin" na lista de edge functions.
+- `docs/README.md`: contagem para 71 arquivos, data 2026-06-03.
+
+### Fora de escopo (mantido como roadmap)
+- Enforcement de limites em runtime — continua documentado como fase 2 em `PLANS_LIMITS.md §5` (helper `_shared/limit-guard.ts` a criar).
+- Cobrança / Stripe — será tratada quando a integração for ativada.
+
+---
+
 ## 2026-05-30 — Auditoria Fase 7 (limpeza fina) — auditoria encerrada
 
 ### Mudado
