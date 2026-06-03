@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import SupportTelemetry from "./SupportTelemetry";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
@@ -222,14 +223,7 @@ export default function SupportPanel() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Performance & Histórico</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            KPIs, gráficos e histórico de conversas chegam no PR 6 (após o chat estar operacional).
-          </p>
-        </CardContent>
-      </Card>
+      <SupportTelemetry monthlyCap={cfg.monthly_cap_usd} />
     </div>
   );
 }
