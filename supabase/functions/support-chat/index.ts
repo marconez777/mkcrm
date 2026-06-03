@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       ctx?.runtime_errors?.network?.length ? `- Requisições falhadas: ${ctx.runtime_errors.network.slice(0, 3).map((n: any) => `${n.status} ${n.url}`).join(" | ")}` : null,
     ].filter(Boolean).join("\n");
 
-    const systemPrompt = `${cfg.system_prompt}\n\n${ctxBlock}${ragBlock}`;
+    const toolsBlock = `\n\n## Ferramentas de UI (use sempre que fizer sentido)\nVocê PODE inserir tokens especiais no meio da resposta. O frontend converte em botões clicáveis. Use exatamente esta sintaxe (em uma linha):\n\n- [[go:/rota|Texto do botão]] — leva o usuário direto para uma página do app. Use a rota exata vinda do contexto da tela ou da KB.\n- [[click:text=Salvar|Destacar botão Salvar]] — destaca um elemento na tela atual. Prefira "text=<texto visível>" para casar com botões/links. Use seletor CSS só se souber a estrutura.\n- [[step:Clique em Configurações]] — um passo de um passo-a-passo. Liste UM passo por linha quando estiver guiando.\n\nRegras:\n- No primeiro passo de um fluxo, sempre que possível combine [[go:...]] + [[click:text=...]] apontando o destino.\n- Nunca invente uma rota; se não souber, pergunte ou use lookup na KB.\n- Quando o usuário disser "feito" / "ok" / "próximo", envie só o próximo passo.\n`;\n    const systemPrompt = `${cfg.system_prompt}${toolsBlock}\n\n${ctxBlock}${ragBlock}`;
 
     // call OpenAI streaming
     const openaiBody = {

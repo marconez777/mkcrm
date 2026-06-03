@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { MessageCircle, X, Minus, Send, Loader2, RotateCcw } from "lucide-react";
+import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { parseAssistantContent, highlightElement, type ContentPart } from "@/lib/support-actions";
+import { toast } from "sonner";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type FabState = "closed" | "minimized" | "open";
@@ -32,6 +34,7 @@ function buildScreenContext(pathname: string) {
 
 export default function SupportChatFab() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const [state, setState] = useState<FabState>("closed");
   const [enabled, setEnabled] = useState(false);
@@ -238,9 +241,18 @@ export default function SupportChatFab() {
               )}
             >
               {m.role === "assistant" ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&>*]:my-1 [&_ol]:my-1 [&_ul]:my-1">
-                  <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
-                </div>
+                <AssistantBubble
+                  content={m.content || "…"}
+                  onAction={(a) => {
+                    if (a.kind === "go") { navigate(a.route); setState("minimized"); }
+                    else if (a.kind === "click") {
+                      const ok = highlightElement(a.selector);
+                      if (!ok) toast.error(`Não achei "${a.selector}" nesta tela`);
+                    } else if (a.kind === "step") {
+                      setInput("feito"); setTimeout(send, 50);
+                    }
+                  }}
+                />
               ) : (
                 m.content
               )}
@@ -270,6 +282,36 @@ export default function SupportChatFab() {
           {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function AssistantBubble({ content, onAction }: { content: string; onAction: (a: any) => void }) {
+  const parts: ContentPart[] = parseAssistantContent(content);
+  return (
+    <div className="space-y-2">
+      {parts.map((p, i) => {
+        if (p.type === "text") {
+          if (!p.text.trim()) return null;
+          return (
+            <div key={i} className="prose prose-sm dark:prose-invert max-w-none [&>*]:my-1 [&_ol]:my-1 [&_ul]:my-1">
+              <ReactMarkdown>{p.text}</ReactMarkdown>
+            </div>
+          );
+        }
+        const a = p.action;
+        const Icon = a.kind === "go" ? ArrowRight : a.kind === "click" ? Target : CheckCircle2;
+        return (
+          <button
+            key={i}
+            onClick={() => onAction(a)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs px-2.5 py-1 transition-colors mr-1.5"
+          >
+            <Icon className="h-3 w-3" />
+            {a.kind === "step" ? `✓ ${a.label}` : a.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
