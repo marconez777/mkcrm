@@ -128,6 +128,9 @@ horizontal (usado pelo `TopScrollbar` do Kanban).
 - **`ai-pricing.ts`** — tabela de preços por modelo + helper
   `computeCost(model, tokens)` espelhando `_shared/ai-pricing.ts` da
   edge. Mantenha os dois em sincronia.
+- **`agent-tools.ts`** — catálogo declarativo de tools (function-calling) disponíveis para os agentes — labels, descrições e schema usado pelo painel `Agents` e pela edge `ai-assist`.
+- **`builder-errors.ts`** — mapeamento de códigos de erro do Builder Agent para mensagens user-friendly.
+- **`builder-tooltips.ts`** — copy compartilhada dos tooltips do Builder Setup.
 
 ### Features
 - **`features.ts`** — `FeatureKey`, catálogo `FEATURES[]`,
