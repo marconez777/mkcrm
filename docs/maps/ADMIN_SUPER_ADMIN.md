@@ -7,7 +7,9 @@
 
 ## 1. O que é
 
-Painel `/admin` (super_admin only) para gestão cross-clínica: usuários, planos, limites de uso, integrações (Evolution/Resend), domínios, auditoria, dashboard global, manual do Builder, controle de gastos IA.
+Painel `/admin` (super_admin only) para gestão cross-clínica: dashboard global, clínicas, usuários, planos & assinaturas, limites de uso, financeiro (faturas/KPIs), observabilidade (feature_events/error_events), suporte (chat Alfred + monitor ao vivo + KB), integrações (Evolution/Resend), domínios, auditoria, manual do Builder, controle de gastos IA.
+
+> Para o sub-domínio **billing/financeiro/observabilidade** existe um mapa dedicado: [`docs/maps/BILLING_PLANS.md`](./BILLING_PLANS.md). Para **suporte/Alfred**, ver fluxo nos componentes `Support*` e edges `support-*` listados abaixo.
 
 ## 2. Rotas / pontos de entrada
 
