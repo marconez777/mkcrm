@@ -2,7 +2,7 @@
 
 > Tokens, tipografia, espaçamento, dark mode e regras visuais.
 >
-> Última atualização: 2026-05-25
+> Última atualização: 2026-06-03
 > Fontes: `src/index.css`, `tailwind.config.ts`, `components/ui/*`.
 
 ---
@@ -92,6 +92,57 @@ quebra contraste em light mode.
 
 Para animações novas, **adicione `@keyframes` em `index.css`** dentro
 de `@layer utilities` e registre em `tailwind.config.ts > theme.extend.animation`.
+
+---
+
+## 5.1 Premium dark (AppShell — jun/2026)
+
+Direção visual aplicada ao **shell** (sidebar + chrome) seguindo o brief "premium dark":
+
+- A sidebar mantém os tokens `sidebar-*` (sempre escura), agora com **grupos visíveis** (separadores + headings discretos) em vez de uma lista plana.
+- Itens de navegação ganham **badges** de categoria/contagem (usam tokens semânticos `secondary`/`muted`/`accent` — nunca cores cruas).
+- Cor de accent por grupo é puxada dos tokens **`--tab-*`** (slate/info/primary/violet/cyan/fuchsia/teal/emerald/amber) reaproveitando os tokens já existentes da paleta de abas. Não foram criados tokens HSL novos.
+
+Regras do §6 continuam valendo — qualquer cor nova vira token em `index.css` antes de ir para componente.
+
+---
+
+## 5.2 `SectionAccordion` (componente)
+
+`src/components/ui/section-accordion.tsx` — wrapper sobre o Radix Accordion usado na página `/ai/agents` para agrupar 12+ seções de configuração por categoria visual.
+
+**Props principais:**
+
+| Prop | Tipo | Notas |
+|---|---|---|
+| `title` | `string` | label do item |
+| `subtitle` | `string?` | descrição curta abaixo do title (ex.: "Hybrid search, HyDE, memória, reranker") |
+| `badge` | `ReactNode?` | badge à direita (ex.: contador, estado) |
+| `accent` | `"slate" \| "info" \| "primary" \| "violet" \| "cyan" \| "fuchsia" \| "teal" \| "emerald" \| "amber"` | mapeia para `--tab-<accent>` via CSS var `--accent` |
+| `flagship` | `boolean` | aplica glow/shadow extra (uso reservado a 1 item por página) |
+
+**Padrão visual:**
+
+- Barra indicadora 3px à esquerda — opacidade plena quando aberto.
+- **Icon plate** com `bg-[hsl(var(--accent)/0.10)]`.
+- **Background** tintado `hsl(var(--accent)/0.04)` quando aberto.
+- **Shadow** colorida com a mesma cor de accent (sutil).
+
+**Mapa de accents na página `/ai/agents`:**
+
+| Accent | Seções |
+|---|---|
+| `slate` | Geral, Provedor, Auditoria, Histórico |
+| `info` | RAG avançado, Base de conhecimento |
+| `primary` (flagship) | Co-piloto |
+| `violet` | Personas |
+| `cyan` | Estágios |
+| `fuchsia` | Aprender, Insights |
+| `teal` | MCP |
+| `emerald` | Ferramentas, Custos |
+| `amber` | Evals, Testar |
+
+Para uso em outras páginas, escolha o accent pela **família semântica** (slate = neutro/admin, info = leitura/dados, primary = ação principal, emerald = ferramentas, amber = teste, etc.). Não invente cores fora do mapa.
 
 ---
 
