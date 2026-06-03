@@ -99,17 +99,20 @@ supabase/
 
 ## 5. Telas (rotas)
 
-Todas as rotas (exceto `/auth`, `/invite/:token`, `/unsubscribe`, `/admin`, `/onboarding`) são envolvidas por `<ProtectedRoute>` + `<AppShell>`. As que dependem de feature flag também usam `<FeatureRoute feature="...">`.
+Todas as rotas (exceto `/auth`, `/reset-password`, `/invite/:token`, `/unsubscribe`, `/admin`, `/onboarding`, `/site`) são envolvidas por `<ProtectedRoute>` + `<AppShell>`. As que dependem de feature flag também usam `<FeatureRoute feature="...">`.
 
 ### Públicas / fora do shell
 
 | Rota | Componente | Função |
 |---|---|---|
-| `/auth` | `Auth.tsx` | Login/cadastro (email + Google) |
+| `/site` | `MarketingSite.tsx` | Landing page institucional (pública, sem auth) |
+| `/auth` | `Auth.tsx` | Login (email/senha) + esqueci-minha-senha |
+| `/reset-password` | `ResetPassword.tsx` | Definir nova senha após recovery |
 | `/invite/:token` | `Invite.tsx` | Aceitar convite para clínica |
 | `/unsubscribe` | `Unsubscribe.tsx` | Descadastro de email (público) |
 | `/onboarding` | `Onboarding.tsx` | Setup inicial da clínica |
-| `/admin` | `Admin.tsx` | Painel **super admin** (clínicas, features, domínios, quotas, keys) |
+| `/` | `RootGate.tsx` | Decide entre `/auth`, `/onboarding`, `/site` ou shell |
+| `/admin` | `Admin.tsx` | Painel **super admin** v2 — 8 abas: Dashboard, Clínicas, Usuários, Planos, Uso & Limites, Integrações, Auditoria, Manual do Builder |
 
 ### App principal
 
