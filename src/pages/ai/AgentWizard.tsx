@@ -972,7 +972,7 @@ function LoadingPanel({
 }: {
   title: string;
   messages: string[];
-  footer?: React.ReactNode;
+  footer?: ReactNode;
 }) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
