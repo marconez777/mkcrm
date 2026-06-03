@@ -710,15 +710,23 @@ export default function AgentWizard() {
       if (error) throw error;
       const newId = (data as { id: string }).id;
 
-      // Limpa o rascunho — agente já existe
-      await supabase
-        .from("ai_agent_drafts")
-        .delete()
-        .eq("clinic_id", clinicId)
-        .eq("user_id", userId);
+      // Limpa o rascunho com retry (até 2 tentativas). Falha silenciosa — o agente já existe.
+      let deleteAttempts = 0;
+      while (deleteAttempts < 2) {
+        const { error: deleteError } = await supabase
+          .from("ai_agent_drafts")
+          .delete()
+          .eq("clinic_id", clinicId)
+          .eq("user_id", userId);
+        if (!deleteError) break;
+        deleteAttempts++;
+        if (deleteAttempts < 2) await new Promise((r) => setTimeout(r, 1000));
+        else console.warn("[AgentWizard] draft cleanup failed:", deleteError.message);
+      }
 
-      toast.success("Agente criado.");
-      nav(`/ai/agents?agent=${newId}`);
+      // Em vez de redirecionar direto, abre modal de sucesso com opções
+      setSuccessAgentId(newId);
+
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao criar agente";
       toast.error(msg);
