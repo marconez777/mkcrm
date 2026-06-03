@@ -18,6 +18,11 @@ import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
 import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
 import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
 import BuilderManualPanel from "@/components/admin/BuilderManualPanel";
+import DashboardPanel from "@/components/admin/DashboardPanel";
+import UsersPanel from "@/components/admin/UsersPanel";
+import PlansPanel from "@/components/admin/PlansPanel";
+import UsageLimitsPanel from "@/components/admin/UsageLimitsPanel";
+import AuditPanel from "@/components/admin/AuditPanel";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 
