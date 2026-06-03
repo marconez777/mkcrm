@@ -16,7 +16,7 @@ const PILLARS = [
   {
     icon: HandCoins,
     title: "Custo justo",
-    body: "Planos pensados para clínicas brasileiras: tudo incluso, sem complemento escondido. Pague pelo que usa em IA e cresça no seu ritmo.",
+    body: "Planos pensados para negócios brasileiras: tudo incluso, sem complemento escondido. Pague pelo que usa em IA e cresça no seu ritmo.",
   },
 ] as const;
 
@@ -59,7 +59,7 @@ export default function About() {
             viewport={viewportOnce}
             variants={fadeUp(0.12, 20)}
           >
-            Nascemos dentro de uma operação real de marketing para clínicas e cada feature foi
+            Nascemos dentro de uma operação real de marketing para negócios e cada feature foi
             forjada resolvendo dor de quem atende paciente todo dia: tempo curto, time enxuto e
             margem que não permite ferramenta cara que ninguém usa.
           </motion.p>

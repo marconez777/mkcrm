@@ -83,13 +83,13 @@ export default function Hero() {
 
           <h1 className="site-font-display mt-6 text-[clamp(44px,7vw,92px)] font-bold leading-[0.95] tracking-tight text-site-text">
             O CRM que <span className="text-site-primary">vende</span>
-            <br className="hidden sm:block" /> pela sua clínica.
+            <br className="hidden sm:block" /> pela sua negócio.
           </h1>
 
           {/* TODO: copy final */}
           <p className="site-font-body mt-6 max-w-xl text-[clamp(16px,1.4vw,19px)] leading-relaxed text-site-muted">
             Pipeline Kanban, atendimento em WhatsApp, automações e agentes de IA dedicados —
-            tudo em um só lugar, feito para clínicas brasileiras que não querem perder lead.
+            tudo em um só lugar, feito para negócios brasileiras que não querem perder lead.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
@@ -113,7 +113,7 @@ export default function Hero() {
 
           <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-white/5 pt-6">
             {[
-              { k: "+1.200", v: "clínicas" },
+              { k: "+1.200", v: "negócios" },
               { k: "98%", v: "uptime" },
               { k: "24/7", v: "suporte" },
             ].map((s) => (

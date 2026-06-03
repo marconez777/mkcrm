@@ -17,7 +17,7 @@ const SERVICES = [
   },
   {
     n: "03",
-    title: "IA aplicada à clínica",
+    title: "IA aplicada à negócio",
     body: "Agente vendedor com RAG sobre sua base, agente classificador que move cards no Kanban e resumo automático de cada conversa — tudo com orçamento mensal controlado.",
     tags: ["RAG", "Move Kanban", "Resumo automático"],
   },
@@ -36,7 +36,7 @@ const SERVICES = [
   {
     n: "06",
     title: "Suporte e evolução contínua",
-    body: "Atendimento humano, roadmap aberto e atualizações constantes para sua clínica nunca parar de crescer.",
+    body: "Atendimento humano, roadmap aberto e atualizações constantes para sua negócio nunca parar de crescer.",
     tags: ["Suporte 24/7", "Roadmap", "SLA"],
   },
 ] as const;
