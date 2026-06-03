@@ -45,11 +45,14 @@ Todas são `SECURITY DEFINER` com `search_path = public` e abrem com `IF NOT pub
 ### `admin_overview_metrics() → jsonb`
 KPIs cross-tenant para a aba **Dashboard** do `/admin`. Retorna um único jsonb com chaves agrupadas: `clinics` (total/active/suspended/new_30d), `users` (total/active_7d/new_month), `whatsapp` (sent/recv/failed nos últimos 30d), `ai` (usd_total, tokens, requests 30d), `email` (sent/opened/clicked 30d), `leads` (new/converted 30d).
 
-### `admin_top_clinics(_metric text, _limit int) → setof record`
-Ranking das top-N clínicas por uma métrica (`messages_30d`, `ai_usd_30d`, `emails_30d`, `leads_30d`). Retorna `(clinic_id uuid, clinic_name text, value numeric)`.
+### `admin_top_clinics(_limit int DEFAULT 5) → setof record`
+Ranking das top clínicas consolidando múltiplas métricas em uma chamada. Retorna `(clinic_id uuid, clinic_name text, messages_30d numeric, ai_usd_30d numeric, emails_30d numeric, leads_30d numeric)`. (Assinatura **não** aceita `_metric` — agregação completa por design para reduzir round-trips.)
 
-### `admin_clinic_usage(_clinic uuid, _from date, _to date) → jsonb`
-Série diária consolidada para uma clínica específica no intervalo (mensagens, IA USD, emails, leads). Consumido pelo drawer de detalhes da aba **Clínicas**.
+### `admin_clinic_usage(_clinic uuid) → jsonb`
+Snapshot consolidado da clínica (não recebe intervalo — usa janelas fixas internas: 30d para volumes, mês corrente para spend). Consumido pelo drawer de detalhes da aba **Clínicas** do `/admin`.
+
+### `admin_daily_metrics(_days int DEFAULT 30) → setof record`
+Série diária global (cross-tenant) com mensagens, IA USD, emails e leads. Alimenta o gráfico de tendência da aba **Dashboard** do `/admin`.
 
 ---
 
