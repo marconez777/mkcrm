@@ -1632,11 +1632,19 @@ function Step5({
         </>
       )}
 
-      {!bundle && !loading && !error && (
-        <Button variant="outline" onClick={onRegenerate} className="w-full">
-          Gerar prompt
-        </Button>
+      {!bundle && !loading && !error && !timedOut && (
+        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+          <p className="text-sm font-medium">Nenhum prompt gerado ainda.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Clique em "Gerar prompt" para começar.
+          </p>
+          <Button className="mt-4" onClick={onRegenerate}>
+            <Sparkles className="mr-1 h-4 w-4" />
+            Gerar prompt
+          </Button>
+        </div>
       )}
+
     </div>
   );
 }
