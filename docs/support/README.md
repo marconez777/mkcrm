@@ -44,10 +44,11 @@ docs/support/
 
 | Fase | Conteúdo | Status |
 |---|---|---|
-| 1 | Esqueleto, conceitos, primeiros-passos, FAQ, templates | ✅ em andamento |
-| 2 | `pages/` — Inbox, Kanban, Lead Drawer, Tasks, Settings, Team, Admin, AI Agents/Wizard, AI Hub | ⏳ |
-| 3 | `pages/` — Email completo, Tracking, Metrics, Automations, Sequences, Broadcasts, Templates, AI Insights/Memories | ⏳ |
-| 4 | `journeys/`, `troubleshooting/`, regra em `COMMIT_PR.md` | ⏳ |
+| 1 | Esqueleto, conceitos, primeiros-passos, FAQ, templates | ✅ |
+| 2 | `pages/` — Inbox, Kanban, Lead Drawer, Tasks, Settings, Team, Admin, AI Agents/Wizard, AI Hub | ✅ |
+| 3 | `pages/` — Email completo, Tracking, Metrics | ✅ |
+| 4 | `pages/` — Automations, Sequences, Broadcasts, Templates, AI Insights, Agent Memories | ✅ |
+| 5 | `journeys/`, `troubleshooting/`, regra em `COMMIT_PR.md` | ⏳ |
 
 ## Regra de manutenção
 
