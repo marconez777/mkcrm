@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     try {
       const qEmb = await embed(cfg.api_key, message);
       const { data: m } = await admin.rpc("match_support_documents", {
-        query_embedding: qEmb as any, match_count: 6,
+        query_embedding: `[${qEmb.join(",")}]` as any, match_count: 6,
       });
       matches = (m ?? []) as any[];
       if (matches.length > 0) {
