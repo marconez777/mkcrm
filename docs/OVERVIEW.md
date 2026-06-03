@@ -135,15 +135,19 @@ Single page `AiHub` que troca de seção:
 | Rota | Conteúdo |
 |---|---|
 | `/ai` ou `/ai/agents` | Lista/editor de **Agentes** (`ai_agents`): prompt, modelo, tools, RAG, memória |
+| `/ai/agents/new` | Wizard de criação (`AgentWizard.tsx`) — fora do hub |
 | `/ai/memories` | `agent_memory` (notas semânticas por agente/lead) |
+| `/ai/insights` | Insights do agente (`AgentInsights.tsx`) |
 | `/ai/usage` ou `/metrics/ai-usage` | Custo/tokens/latência (`ai_usage`) |
-| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
+| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`, `/ai/messages/engagement`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
 | `/ai/reports` | Relatórios agendados (envio periódico em grupos WA) |
 | `/ai/automations` | **Automações** baseadas em gatilho → ação |
 | `/ai/sequences` | **Sequências** (drip) de mensagens |
 | `/ai/templates` | Quick replies / message templates |
 | `/ai/broadcasts` `/ai/broadcasts/:id` | **Disparo em massa** WhatsApp |
-| `/ai/messages` | Submenu (templates, sequences, automations) |
+| `/ai/messages` | Submenu (templates, sequences, automations, engagement) |
+
+Aliases mantidos por compatibilidade: `/agents`, `/agents/memories`, `/automations`, `/sequences`, `/templates` (todos resolvem para `<AiHub />`).
 
 ### Hub de Email (`/email/*`)
 
