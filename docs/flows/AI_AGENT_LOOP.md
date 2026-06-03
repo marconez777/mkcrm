@@ -84,9 +84,9 @@ Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend p
 
 ## Custos e limites
 
-- `clinic_settings.ai_monthly_budget_usd`: hard limit. Quando ultrapassado, `ai-spend-notify` envia email + pausa novos runs (retorna `budget_exceeded`).
-- Cada `ai_runs` registra `cost_usd` calculado em `ai-pricing.ts` (preços por 1M tokens, por modelo).
-- Ver `operations/COSTS_LIMITS.md` para tabela atualizada.
+- **Spend guard** (`_shared/spend-guard.ts`): `ai_spend_limits.monthly_cap_usd` é o limite mensal por clínica (não vive em `clinic_settings.ai_monthly_budget_usd`). Estouro → `ai-chat`/`ai-auto-reply` retornam HTTP **402** (`limit_exceeded`).
+- Cada `ai_runs` registra `cost_usd` calculado em `_shared/ai-pricing.ts` (espelhado em `src/lib/ai-pricing.ts`) — preços por 1M tokens, por modelo/provedor.
+- Visão por clínica: tabela `ai_usage_daily` + RPCs `engagement_*`/`admin_top_clinics`. Ver `operations/COSTS_LIMITS.md` para retenção e tabela atualizada.
 
 ---
 
