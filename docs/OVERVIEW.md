@@ -212,7 +212,7 @@ Funções SQL centrais (em `public`):
 
 ## 7. Edge functions (Deno)
 
-Cerca de 50 funções em `supabase/functions/`, agrupadas por domínio:
+Total **71 edge functions** em `supabase/functions/`, agrupadas por domínio:
 
 **WhatsApp / Evolution**
 `evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `evolution-fetch-groups` · `fetch-wa-avatar` · `transcribe-audio`.
