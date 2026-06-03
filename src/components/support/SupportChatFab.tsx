@@ -53,6 +53,7 @@ export default function SupportChatFab() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [takenOver, setTakenOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -82,6 +83,32 @@ export default function SupportChatFab() {
     supabase.from("support_agent_config").select("enabled").eq("singleton", true).maybeSingle()
       .then(({ data }) => setEnabled(!!data?.enabled));
   }, [user?.id]);
+  // realtime: sync this thread (catches admin messages & takeover state)
+  useEffect(() => {
+    if (!threadId) { setTakenOver(false); return; }
+    // fetch initial takeover state
+    supabase.from("support_chat_threads" as any).select("taken_over_at").eq("id", threadId).maybeSingle()
+      .then(({ data }) => setTakenOver(!!(data as any)?.taken_over_at));
+    const ch = supabase
+      .channel(`fab-thread-${threadId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_chat_messages", filter: `thread_id=eq.${threadId}` }, (payload: any) => {
+        const m = payload.new;
+        if (m.role !== "assistant" && m.role !== "system") return;
+        // append if not already last (avoid duplicating the streaming one)
+        setMessages((prev) => {
+          if (prev.some((x) => (x as any).id === m.id)) return prev;
+          if (m.tool_name === "human" || m.role === "system") {
+            return [...prev, { role: "assistant", content: m.content, id: m.id } as any];
+          }
+          return prev;
+        });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "support_chat_threads", filter: `id=eq.${threadId}` }, (payload: any) => {
+        setTakenOver(!!payload.new?.taken_over_at);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [threadId]);
 
   // autoscroll
   useEffect(() => {
