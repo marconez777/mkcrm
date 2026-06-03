@@ -60,9 +60,10 @@ Quando você rotaciona:
 | Endpoint | `Access-Control-Allow-Origin` |
 |---|---|
 | `tracking-pixel` (GET .js) | `*` |
-| `tracking-event` | `<origin recebido>` (com `Vary: Origin`) |
+| `tracking-event` | `<origin recebido>` (com `Vary: Origin` + `Allow-Credentials`) |
+| `tracking-identify` | `<origin recebido>` (com `Vary: Origin` + `Allow-Credentials`) |
 | `forms-snippet` (GET .js) | `*` |
-| `forms-ingest` | `*` (validação real é via token + allowed_domains) |
+| `forms-ingest` | `<origin recebido>` (com `Vary: Origin` + `Allow-Credentials`; validação real é via token + `allowed_domains`). Ver `known-issues/CORS_FORMS_INGEST.md`. |
 | `external-lead-capture` | `*` (chamado de server, CORS não importa) |
 
 Preflight `OPTIONS` sempre suportado.
@@ -73,7 +74,8 @@ Preflight `OPTIONS` sempre suportado.
 
 | Endpoint | Limite |
 |---|---|
-| `tracking-event` | 120 req/min por (IP + clinic) |
+| `tracking-event` | 60 req/min por (IP + clinic) — in-memory por isolate |
+| `tracking-identify` | Sem rate-limit dedicado (protegido por `allowed_domains`) |
 | `forms-ingest` | Sem limite hoje (TODO: adicionar) |
 | `external-lead-capture` | Sem limite hoje |
 

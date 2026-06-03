@@ -106,7 +106,7 @@ Isso reduz ruído em métricas. Se você precisa rastrear um headless legítimo,
 
 | Limite | Valor |
 |---|---|
-| Eventos por minuto por (IP + clinic) | 120 |
+| Eventos por minuto por (IP + clinic) | 60 |
 | Tamanho do payload | 64 KB |
 | Tamanho de `properties` por evento | 8 KB |
 
