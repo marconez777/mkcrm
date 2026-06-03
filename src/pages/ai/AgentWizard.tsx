@@ -232,6 +232,36 @@ export default function AgentWizard() {
     document.title = "Construtor de Agentes — MK CRM";
   }, []);
 
+  // Verifica se Builder está configurado para a clínica antes de renderizar o wizard
+  useEffect(() => {
+    if (loading || !clinicId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ai_agents")
+          .select("id, builder_verified_at")
+          .eq("clinic_id", clinicId)
+          .eq("system_key", "builder")
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          // Não bloquear em caso de erro — apenas logar
+          console.warn("[AgentWizard] builder check failed:", error.message);
+          setBuilderStatus("ok");
+          return;
+        }
+        setBuilderStatus(data && data.builder_verified_at ? "ok" : "missing");
+      } catch (e) {
+        console.warn("[AgentWizard] builder check exception:", e);
+        if (!cancelled) setBuilderStatus("ok");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, clinicId]);
+
   useEffect(() => {
     if (loading || !clinicId || !userId) return;
     let cancelled = false;
@@ -245,6 +275,41 @@ export default function AgentWizard() {
       if (cancelled) return;
       if (data) {
         const d = data as DraftRow;
+
+        // Detecta rascunho "órfão" — passo 5 com prompt mas agente já foi criado recentemente
+        if (d.step === 5 && d.generated_prompt) {
+          try {
+            const { data: recentAgent } = await supabase
+              .from("ai_agents")
+              .select("id, name, created_at")
+              .eq("clinic_id", clinicId)
+              .neq("system_key", "builder")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            if (
+              recentAgent &&
+              recentAgent.created_at &&
+              new Date(recentAgent.created_at) > tenMinutesAgo
+            ) {
+              await supabase
+                .from("ai_agent_drafts")
+                .delete()
+                .eq("clinic_id", clinicId)
+                .eq("user_id", userId);
+              if (cancelled) return;
+              toast.message("Rascunho recuperado", {
+                description: `Seu agente "${recentAgent.name}" já foi criado. Redirecionando…`,
+              });
+              nav(`/ai/agents?agent=${recentAgent.id}`);
+              return;
+            }
+          } catch (e) {
+            console.warn("[AgentWizard] orphan draft check failed:", e);
+          }
+        }
+
         setDraft(d);
         setStep(Math.min(5, Math.max(1, d.step)) as Step);
         setNiche(d.niche ?? "");
@@ -279,7 +344,8 @@ export default function AgentWizard() {
     return () => {
       cancelled = true;
     };
-  }, [loading, clinicId, userId]);
+  }, [loading, clinicId, userId, nav]);
+
 
   // Ao trocar provider, sugere modelo default se vazio
   useEffect(() => {
