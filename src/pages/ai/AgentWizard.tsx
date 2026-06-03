@@ -965,6 +965,39 @@ export default function AgentWizard() {
 
 // ---------- Sub-componentes ----------
 
+function LoadingPanel({
+  title,
+  messages,
+  footer,
+}: {
+  title: string;
+  messages: string[];
+  footer?: React.ReactNode;
+}) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (messages.length <= 1) return;
+    const id = window.setInterval(() => setIdx((i) => (i + 1) % messages.length), 5000);
+    return () => window.clearInterval(id);
+  }, [messages.length]);
+  return (
+    <div className="rounded-lg border bg-muted/30 p-5 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {title}
+      </div>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-full w-1/3 animate-[loading-bar_1.6s_ease-in-out_infinite] rounded-full bg-primary/70" />
+      </div>
+      <p className="mt-3 min-h-[1.25rem] text-xs text-muted-foreground transition-opacity">
+        {messages[idx]}
+      </p>
+      {footer && <div className="mt-3">{footer}</div>}
+      <style>{`@keyframes loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }`}</style>
+    </div>
+  );
+}
+
 function Stepper({ step }: { step: Step }) {
   const items = [
     { n: 1, label: "Nicho" },
