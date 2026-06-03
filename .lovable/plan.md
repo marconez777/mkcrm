@@ -1,44 +1,85 @@
-# Plano
-
 ## Objetivo
-Corrigir o caso em que o sistema mostra **"Plano aplicado"** mas a clínica continua exibindo dados vazios ou o plano antigo.
+Corrigir o fluxo de `Aplicar plano` no `/admin` para que ele só mostre sucesso quando a clínica for realmente atualizada e o estado visível reflita a mudança.
 
-## O que vou ajustar
+## Diagnóstico
+A falha está concentrada no fluxo descrito em `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md` Fase 2, mas a implementação real em `supabase/functions/admin-apply-plan/index.ts` não garante isso.
 
-### 1. Tornar a autenticação do admin resiliente
-- Tratar corretamente falha de renovação de sessão no `useAuth`.
-- Evitar que a app continue operando silenciosamente como anônima depois de um `refresh_token_not_found`.
-- Quando a sessão expirar de verdade, exibir um estado claro para o usuário em vez de deixar o painel admin carregar dados vazios.
+### Onde a falha acontece
+1. **Backend retorna sucesso sem validar mutações**
+   - `supabase/functions/admin-apply-plan/index.ts`
+   - A função faz `update` em `clinics`, encerra a subscription atual e insere nova `clinic_subscriptions`, mas **ignora os `error`** de cada operação.
+   - Ela retorna `{ ok: true, applied: clinics?.length ?? 0 }`, então `applied` hoje significa apenas “quantas clínicas foram lidas”, não “quantas foram realmente atualizadas”.
 
-### 2. Corrigir o carregamento do modal da clínica
-- Revisar `ClinicDetailsDialog` para não engolir erros das consultas.
-- Separar sucesso parcial de falha real no `loadAll`, principalmente na RPC `admin_clinic_usage`.
-- Mostrar mensagem útil quando a recarga dos dados falhar por permissão/sessão, em vez de limpar a tela e parecer que “não aplicou”.
+2. **Conflito com a regra do banco para alterar `settings.features`**
+   - Existe trigger `guard_clinic_features()` em `clinics`.
+   - Ela só permite mudar `settings.features` quando `public.is_super_admin()` for verdadeiro.
+   - O `admin-apply-plan` usa client com privilégios elevados para gravar, mas dentro do banco `auth.uid()` não representa automaticamente o super admin logado; com isso, o `UPDATE clinics` pode falhar ao trocar `settings.features`.
+   - Como o código não checa o erro do `update`, o usuário recebe toast de sucesso mesmo sem alteração persistida.
 
-### 3. Corrigir o fluxo de “Aplicar plano”
-- Ajustar o `applyPlan()` para não mostrar sucesso prematuramente.
-- Se a edge function aplicar o plano mas a atualização visual falhar, informar isso explicitamente.
-- Recarregar o estado da clínica no pai (`Admin`) para o badge e o “Plano atual” refletirem o novo plano imediatamente.
+3. **A UI lê o espelho legado `clinics.plan`**
+   - `src/components/admin/ClinicDetailsDialog.tsx`
+   - `src/pages/Admin.tsx`
+   - Mesmo quando `plan_id` mudasse, a UI ainda depende de `clinic.plan` e do reload da lista. Se a sincronização `plan_id -> plan` não acontecer, a tela continua mostrando o plano antigo.
 
-### 4. Sincronizar o estado exibido no modal
-- Garantir que o cabeçalho e a seção “Plano atual” não dependam apenas do `clinic` recebido inicialmente.
-- Atualizar o modal com dados frescos após a concessão manual do plano.
-- Evitar o cenário em que o backend atualiza, mas a UI continua mostrando `free` por estado antigo.
+4. **O refresh do modal/lista não reconcilia o objeto da clínica**
+   - O modal recarrega uso, histórico e subscription, mas o objeto `clinic` vindo do pai pode continuar velho.
+   - Isso amplifica a sensação de “deu certo mas não mudou”.
+
+## Implementação
+### 1. Blindar `admin-apply-plan`
+- Validar e tratar erro de **cada** operação:
+  - leitura do plano
+  - leitura das clínicas
+  - `update` em `clinics`
+  - fechamento da subscription atual
+  - criação da nova subscription
+- Retornar erro real se qualquer etapa falhar.
+- Fazer `applied` contar somente updates concluídos de verdade.
+
+### 2. Ajustar a estratégia de gravação do plano
+- Corrigir a compatibilidade com a trigger `guard_clinic_features()`.
+- Opções seguras:
+  - mover a lógica crítica para uma função SQL `SECURITY DEFINER` com validação explícita do super admin, ou
+  - adaptar a edge function para não depender de uma gravação que o trigger rejeita silenciosamente.
+- Garantir também a sincronização consistente entre:
+  - `clinics.plan_id`
+  - `clinics.plan`
+  - `clinic_subscriptions.is_current`
+
+### 3. Corrigir o feedback do frontend
+- Em `ClinicDetailsDialog.tsx`:
+  - só mostrar `Plano aplicado` após confirmação real do backend
+  - tratar payload de erro de forma explícita
+  - recarregar o estado da própria clínica, não apenas uso/histórico
+- Em `Admin.tsx`:
+  - após `onChanged`, reconciliar a clínica aberta no modal com a lista recarregada
+
+### 4. Atualizar a documentação e o mapa
+- `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`
+- `docs/maps/ADMIN_SUPER_ADMIN.md`
+- Registrar que:
+  - `admin-apply-plan` hoje depende de sincronização entre `plan_id` e `plan`
+  - mudanças em `settings.features` passam por guard no banco
+  - sucesso visual deve depender de mutação validada, não apenas de resposta 200
 
 ## Detalhes técnicos
-- Arquivos principais:
-  - `src/hooks/useAuth.tsx`
-  - `src/components/admin/ClinicDetailsDialog.tsx`
-  - `src/pages/Admin.tsx`
-- Evidências já encontradas:
-  - A chamada de aplicação do plano pode concluir com sucesso.
-  - Logo depois, a RPC `admin_clinic_usage(_clinic)` retorna `400`.
-  - Há falha de refresh de sessão (`refresh_token_not_found`) e o cliente passa a consultar como anônimo, retornando dados vazios.
-  - O modal também usa estado local/prop antigo para exibir o plano atual.
+- Evidência atual do problema:
+  - a chamada de rede para `admin-apply-plan` responde `200` com `{ ok: true, applied: 1 }`
+  - mas a clínica consultada continua com `plan = 'free'` e `plan_id = null`
+  - também não há row em `clinic_subscriptions` para essa clínica
+- Isso confirma que o “sucesso” está sendo calculado no backend antes de comprovar persistência real.
+
+```text
+ClinicDetailsDialog
+  -> admin-apply-plan (200 ok/applied:1)
+  -> backend ignora erro de update/insert
+  -> banco continua sem mudança real
+  -> frontend mostra toast de sucesso
+  -> lista/modal seguem com plano antigo
+```
 
 ## Resultado esperado
-Depois da correção:
-- o plano aplicado aparece imediatamente no modal;
-- o painel não fica “em branco” após o toast;
-- se a sessão tiver expirado, isso fica explícito;
-- não haverá mais falso positivo de sucesso visual.
+Depois da correção, o fluxo deve ter este comportamento:
+- falhou qualquer gravação -> erro claro, sem toast de sucesso
+- gravou tudo -> `clinics.plan_id`, `clinics.plan` e `clinic_subscriptions` coerentes
+- modal e lista atualizam imediatamente com o plano novo
