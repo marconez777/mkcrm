@@ -18,12 +18,12 @@
 | **Claim (worker)** | Marcação atômica que reserva um recipient para envio, evita duplicação. |
 | **Freeze de audiência** | Snapshot dos leads no momento da criação do broadcast; novos leads não entram. |
 | **Tick** | Execução periódica de worker (broadcast-tick, sequence-tick, etc.). |
-| **Run (IA)** | Uma execução do agente IA para um lead (1 entrada em `ai_runs`). |
-| **Tool call** | Chamada de função pela IA (ex.: `create_appointment`). |
+| **Run (IA)** | Uma execução do agente IA para um lead (1 linha em `ai_usage` + transcrição em `ai_chat_traces`). |
+| **Tool call** | Chamada de função pela IA (ex.: `create_appointment`) — registrada no array `tool_calls[]` dentro de `ai_chat_traces.turns`. |
 | **Handoff** | Pausar IA e entregar conversa para humano. |
 | **Identify (tracking)** | Vincular `anonymous_id` (visitor) a um `lead_id`. |
 | **Snippet** | JS embedável (`forms-snippet`, `tracking`) que vai no `<head>` do site externo. |
-| **Site (forms)** | Domínio externo cadastrado em `form_sites`, identificado por `site_id`. |
+| **Site (forms)** | Domínio externo cadastrado em `form_integrations` (`form_definitions` define o schema; **não existe** tabela `form_sites`). |
 | **Webhook (Evolution/Resend)** | Endpoint nosso que recebe eventos do provedor. |
 | **Gateway (Lovable AI)** | `https://ai.gateway.lovable.dev` — proxy gerenciado para modelos LLM. |
 | **Connector** | Integração gerenciada Lovable (Resend, etc.) acessada via `connector-gateway`. |
