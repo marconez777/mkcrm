@@ -44,11 +44,15 @@ docs/
 ├── OVERVIEW.md                  Visão geral do produto
 ├── GLOSSARY.md                  Termos do projeto
 ├── CHANGELOG.md                 Mudanças na própria doc
+├── AUDIT_PHASE1.md              Inventário histórico (auditoria 2026-05-30)
+├── copilot.md                   Co-piloto de Agentes (módulo `CopilotPanel` + `ai-builder`)
+├── AI.md · EMAIL.md · TRACKING.md   Stubs de redirecionamento (mantidos por links antigos)
 ├── architecture/                Decisões transversais
 │   ├── STACK.md
 │   ├── MULTI_TENANCY.md
 │   ├── AUTH.md
 │   ├── FEATURE_FLAGS.md
+│   ├── PLANS_LIMITS.md            ⭐ catálogo `public.plans` + limites por clínica (jun/2026)
 │   └── REALTIME.md
 ├── database/                    Tudo do Postgres
 │   ├── SCHEMA.md
@@ -66,8 +70,10 @@ docs/
 │   ├── BROADCASTS.md
 │   ├── SEQUENCES_AUTOMATIONS.md
 │   ├── BUILDER_AGENTS.md          ⭐ Construtor de Agentes (Builder) — 9 fases
+│   ├── EMAIL_CAMPAIGNS.md         Campanhas de email (multi-segmento, A/B, rotação, warmup)
+│   ├── ENGAGEMENT.md              RPCs `engagement_*` + aba `/ai/engagement`
+│   ├── APPOINTMENT_REMINDERS.md   Lembretes de consulta
 │   └── FORMS.md
-
 ├── frontend/                    React / Vite
 │   ├── ROUTING.md
 │   ├── PAGES.md
@@ -91,18 +97,8 @@ docs/
 │   └── EXTERNAL_FORMS.md
 ├── integracao/                  ⭐ Guia completo p/ integradores externos (PT)
 │   ├── README.md                  índice + decision tree
-│   ├── 01-visao-geral.md
-│   ├── 02-instalacao-snippets.md
-│   ├── 03-tracking-eventos.md
-│   ├── 04-formularios.md
-│   ├── 05-atribuicao-leads.md
-│   ├── 06-eventos-customizados.md
-│   ├── 07-webhooks-api-direta.md
-│   ├── 08-seguranca.md
-│   ├── 09-troubleshooting.md
-│   ├── 10-referencia-tecnica.md
-│   └── exemplos/                  snippets copy-paste por stack
-
+│   ├── 01-visao-geral.md … 13-baseline-fase0.md
+│   └── exemplos/                  snippets copy-paste por stack (6 arquivos)
 ├── operations/                  Confiabilidade, custos, observabilidade
 │   ├── COSTS_LIMITS.md
 │   ├── OBSERVABILITY.md
@@ -111,9 +107,14 @@ docs/
 │   └── PERFORMANCE.md
 ├── known-issues/                Onde a IA costuma errar
 │   ├── PITFALLS.md
-│   └── DEBT.md
+│   ├── DEBT.md
+│   └── CORS_FORMS_INGEST.md
 ├── roadmap/
+│   ├── EMAIL.md
+│   ├── EMAIL_SCALE.md
 │   └── IMPROVEMENTS.md
+├── site/
+│   └── FEATURE_PAGES.md
 └── conventions/                 Regras inegociáveis
     ├── CODE_STYLE.md
     ├── SUPABASE_RULES.md
