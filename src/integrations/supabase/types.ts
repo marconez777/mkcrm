@@ -3221,6 +3221,97 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_brl: number
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          description: string | null
+          due_date: string | null
+          id: string
+          issued_at: string
+          metadata: Json
+          notes: string | null
+          paid_at: string | null
+          payment_method: string | null
+          period_end: string | null
+          period_start: string | null
+          plan_id: string | null
+          status: string
+          stripe_invoice_id: string | null
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_brl?: number
+          clinic_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          issued_at?: string
+          metadata?: Json
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          plan_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_brl?: number
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          issued_at?: string
+          metadata?: Json
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          plan_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
@@ -4065,6 +4156,48 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_receipts: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          file_path: string
+          id: string
+          invoice_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          file_path: string
+          id?: string
+          invoice_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          invoice_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_receipts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_receipts_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -5887,6 +6020,7 @@ export type Database = {
           users: number
         }[]
       }
+      admin_finance_kpis: { Args: never; Returns: Json }
       admin_get_ai_agent: {
         Args: { _id: string }
         Returns: {
@@ -5998,7 +6132,36 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_overdue_list: {
+        Args: never
+        Returns: {
+          amount_brl: number
+          clinic_id: string
+          clinic_name: string
+          days_overdue: number
+          description: string
+          due_date: string
+          invoice_id: string
+        }[]
+      }
       admin_overview_metrics: { Args: never; Returns: Json }
+      admin_plan_distribution: {
+        Args: never
+        Returns: {
+          clinics_count: number
+          plan_code: string
+          plan_name: string
+          price_monthly: number
+        }[]
+      }
+      admin_revenue_timeseries: {
+        Args: { _months?: number }
+        Returns: {
+          invoices_paid: number
+          month: string
+          revenue: number
+        }[]
+      }
       admin_top_clinics: {
         Args: { _limit?: number }
         Returns: {
@@ -6177,6 +6340,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_overdue_invoices: { Args: never; Returns: number }
       match_chunks: {
         Args: {
           match_count?: number
