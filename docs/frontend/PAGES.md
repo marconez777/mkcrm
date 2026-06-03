@@ -3,7 +3,7 @@
 > Catálogo de páginas (`src/pages/**`) com responsabilidade, hooks que
 > consomem e edge functions invocadas.
 >
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 
 ---
 
@@ -15,7 +15,7 @@
 | `Invite.tsx` | `/invite/:token` | Aceita convite, cria conta e vincula `clinic_members`. Usa edge `clinic-invite`. |
 | `Unsubscribe.tsx` | `/unsubscribe` | Página pública de descadastro de email (chama `email-unsubscribe`). |
 | `Onboarding.tsx` | `/onboarding` | Wizard pós-criação de conta: nomeia clínica, conecta WhatsApp (QR), seleciona features iniciais. |
-| `Admin.tsx` | `/admin` | Super Admin: lista de clínicas, toggle de features, AI spend limits, integrações globais, quotas. |
+| `Admin.tsx` | `/admin` | Super Admin v2 (8 abas — ver §2.10). |
 
 ---
 
@@ -132,6 +132,23 @@ tags, custom fields, jornada de tracking, tarefas, agendamentos.
 - **`Metrics.tsx`** — overview operacional (rota não montada hoje; mantida como page para usos pontuais).
 - **`MetricsOps.tsx`** — saúde operacional de email (`email_system_health`, `email_operational_alerts`).
 - **`MetricsAiUsage.tsx`** e **`MetricsEngagement.tsx`** vivem como abas do AiHub (ver §2.3).
+
+### 2.11 Admin v2 (`/admin`)
+**`Admin.tsx`** — shell de abas (super admin only). Cada aba é um componente em `src/components/admin/` (ver `frontend/COMPONENTS.md §8`).
+
+```text
+/admin
+ ├─ Dashboard         (DashboardPanel)         RPCs: admin_overview_metrics, admin_top_clinics
+ ├─ Clínicas          (ClinicsTable existente) edge: clinic-create-user, clinic-invite; RPC: admin_clinic_usage
+ ├─ Usuários          (UsersPanel)             edge: admin-users-list, admin-user-action
+ ├─ Planos            (PlansPanel + PlanEditorDialog)   tabela: plans; edge: admin-apply-plan
+ ├─ Uso & Limites     (UsageLimitsPanel)       LIMIT_DEFS de src/lib/admin-plans.ts
+ ├─ Integrações       (IntegrationsKeysCard / DomainsTable / QuotaTable)   edge: integrations-status
+ ├─ Auditoria         (AuditPanel)             tabela: audit_log
+ └─ Manual do Builder (BuilderManualPanel)     tabela: builder_manual_versions
+```
+
+Ver `architecture/PLANS_LIMITS.md` para o modelo de planos/limites e `architecture/FEATURE_FLAGS.md` para a relação entre `plans.features` e `clinics.settings.features`.
 
 ### 2.11 NotFound / Index
 - **`NotFound.tsx`** — 404 dentro do shell.

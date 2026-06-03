@@ -2,7 +2,7 @@
 
 > Organização dos componentes React em `src/components/**`.
 >
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 
 ---
 
@@ -130,10 +130,18 @@ para blocks de texto rico. Conversão blocks↔html em
 
 ## 8. Admin
 
-`AiSpendLimitCard` (configura limite mensal por clínica),
-`IntegrationsDomainsTable`, `IntegrationsKeysCard`, `IntegrationsQuotaTable`.
-Todos consomem `integrations-status` e tabelas administrativas com RLS
-relaxada para super_admin.
+Painel `/admin` reorganizado em jun/2026 para 8 abas. Cada aba é um componente em `src/components/admin/`:
+
+- **`DashboardPanel`** — KPI cards (clínicas / usuários / IA USD / emails) + tabela "Top clínicas". Consome RPCs `admin_overview_metrics` e `admin_top_clinics`.
+- **`UsersPanel`** — tabela cross-tenant via edge `admin-users-list`. Ações por linha (reset senha, desbloquear, forçar logout, promover/revogar super admin) via `admin-user-action`.
+- **`PlansPanel`** + **`PlanEditorDialog`** — CRUD do catálogo `public.plans`. Editor com tabs **Geral** (código, nome, preços, ordem, ativo/público), **Recursos** (toggles do catálogo `FEATURES`) e **Limites** (`LIMIT_DEFS` em `src/lib/admin-plans.ts`). Botão "Aplicar a clínicas" chama `admin-apply-plan`.
+- **`UsageLimitsPanel`** — tabela clínica × limite × uso × % × badge (ok/alerta/excedido). Lê `clinics.settings.limits` + `plans.limits` (override do plano) e cruza com contadores de uso.
+- **`AuditPanel`** — viewer de `audit_log` com filtros e paginação.
+- **`AiSpendLimitCard`** — configura `ai_spend_limits.monthly_cap_usd` por clínica (continua sendo a fonte de enforcement real para IA; `plans.limits.ai_monthly_usd_cap` é apenas referência).
+- **`IntegrationsKeysCard`**, **`IntegrationsDomainsTable`**, **`IntegrationsQuotaTable`** — aba **Integrações**. Consomem `integrations-status`.
+- **`BuilderManualPanel`** — aba **Manual do Builder** (ver `features/BUILDER_AGENTS.md`).
+
+Todos os panels assumem `is_super_admin()` no backend — chamadas falham com 403 para outros usuários.
 
 ---
 
