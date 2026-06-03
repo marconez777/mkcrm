@@ -5588,6 +5588,15 @@ export type Database = {
       _email_segment_rule_to_sql: { Args: { _rule: Json }; Returns: string }
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
       admin_clinic_usage: { Args: { _clinic: string }; Returns: Json }
+      admin_daily_metrics: {
+        Args: { _days?: number }
+        Returns: {
+          ai_cost_usd: number
+          day: string
+          leads: number
+          messages: number
+        }[]
+      }
       admin_get_ai_agent: {
         Args: { _id: string }
         Returns: {
