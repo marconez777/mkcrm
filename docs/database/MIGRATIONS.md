@@ -1,13 +1,13 @@
 # MIGRATIONS — Histórico e governança
 
-> Última atualização: 2026-05-30
-> Fonte: `supabase/migrations/*.sql` (~100 arquivos).
+> Última atualização: 2026-06-03
+> Fonte: `supabase/migrations/*.sql` (139 arquivos).
 > Cada migration tem timestamp `YYYYMMDDHHMMSS_<uuid>.sql`.
 
 ## Visão geral
 
-- **Total**: ~90 migrations.
-- **Período coberto**: 2026-05-03 → 2026-05-25.
+- **Total**: **139 migrations**.
+- **Período coberto**: 2026-05-03 → 2026-06-03.
 - **Tool**: criadas via `supabase--migration` (Lovable) — nunca editar manualmente após aplicadas.
 - **Princípio**: cada migration é **idempotente quando possível** (uso de `IF NOT EXISTS`, `CREATE OR REPLACE`, `ON CONFLICT DO NOTHING`).
 
