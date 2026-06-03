@@ -28,7 +28,7 @@ Para o motor completo de Automations, ver
 Antes de criar a automation:
 
 1. **Custom field datetime** no lead, ex.: `data_consulta`.
-   - Criar em `/settings/custom-fields` com tipo `datetime`.
+   - Criar em `/settings/fields` com tipo `datetime`.
    - Valor precisa ser **ISO 8601 parseável** por `new Date()`:
      `2026-06-15T14:30:00-03:00` ✅
      `15/06/2026 14:30` ❌

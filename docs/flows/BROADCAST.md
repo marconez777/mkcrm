@@ -1,17 +1,19 @@
 # Fluxo: Broadcast (envio em massa WhatsApp)
 
 > **Quando ler:** antes de mexer no envio em massa do WhatsApp — criação, audiência, throttling, retry.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
+> **Veja também:** `features/BROADCASTS.md` (modelo completo).
 
 ---
 
 ## Atores
 
-- **Frontend** página `Broadcasts` (criação)
-- **Postgres**: `broadcasts`, `broadcast_recipients`, `broadcast_message_variants`
-- **Edge function** `broadcast-control` (start/pause/cancel)
-- **Edge function** `broadcast-tick` (worker, roda via `pg_cron` a cada 1min)
-- **Edge function** `evolution-send` / `evolution-send-media`
+- **Frontend** `src/pages/Broadcasts.tsx` (lista, configuração, audiência, eventos)
+- **Postgres**: `broadcasts`, `broadcast_message_groups`, `broadcast_message_parts`, `broadcast_recipients`, `broadcast_events`
+- **Edge function** `broadcast-control` — actions: `start`, `pause`, `resume`, `cancel`, `delete`, `freeze_audience`, `add_contacts`, `retry_failed`, `test_send_first`
+- **Edge function** `broadcast-tick` — worker, roda via `pg_cron` a **cada 1 min** + auto-trigger encadeado
+- **Edge function** `evolution-send` (apenas texto — não há mídia em broadcast hoje)
+- **RPC** `broadcast_freeze_audience(_broadcast_id, _pipeline_id, _stage_ids, _extra_contacts)`
 
 ---
 
@@ -19,105 +21,118 @@
 
 ```text
 Usuário cria broadcast
-        │ define: audiência (filtro), 1+ variantes de mensagem (A/B),
-        │ schedule_at, throttle (msgs/min), instância
+        │ define: name, whatsapp_instance_id, throttle_seconds,
+        │ send_window ({ start, end, tz, weekdays[] })
         ▼
-broadcast-control('create')
-        │ INSERT broadcasts(status='draft')
-        │ INSERT broadcast_message_variants
-        │ FREEZE audience: INSERT broadcast_recipients (lead_id, variant_id round-robin)
-        │                  status='pending'
-        ▼
-Usuário clica "iniciar"
+Cria 1+ broadcast_message_groups (variações por position)
+   e suas broadcast_message_parts (drip 1s entre partes do mesmo contato)
         │
         ▼
-broadcast-control('start') → UPDATE broadcasts(status='running', started_at)
-        │
+freeze_audience → RPC broadcast_freeze_audience
+        │ snapshot dos leads filtrados → INSERT broadcast_recipients
+        │ (status='pending', parts_sent=0, group_position distribuído)
         ▼
-[loop] broadcast-tick a cada 1min (pg_cron):
-        │ SELECT broadcasts WHERE status='running'
-        │ para cada broadcast:
-        │   1) advisory_lock(broadcast_id)  ← evita 2 ticks concorrentes
-        │   2) calcula budget = throttle_per_min - sent_no_last_60s
-        │   3) SELECT broadcast_recipients WHERE status='pending' LIMIT budget
-        │   4) UPDATE recipients SET status='claimed', claimed_at=now() (atomic)
-        │   5) para cada claim (com jitter aleatório 50-300ms):
-        │        chama evolution-send/-media
-        │        UPDATE status='sent' OU 'failed'
-        │   6) se SUM(pending)=0 → status='done'
-        │   7) release lock
+broadcast-control('start')
+        │ next_send_at = now() para todos pending/sending
+        │ UPDATE broadcasts SET status='running'
+        │ dispara broadcast-tick (fire-and-forget)
+        ▼
+[loop] broadcast-tick (pg_cron 1min + auto-trigger):
+        │ para cada broadcast status='running':
+        │   1) withinWindow(send_window) — fora da janela:
+        │      empurra next_send_at de todos pending p/ próxima abertura
+        │   2) seleciona 1 recipient (pending|sending) com
+        │      next_send_at <= now(), ordenado por next_send_at
+        │   3) claim atômico:
+        │      UPDATE broadcast_recipients
+        │      SET next_send_at = now()+60s
+        │      WHERE id=? AND parts_sent=? AND next_send_at<=now()
+        │      RETURNING id        ← 0 linhas = outro tick pegou, pula
+        │   4) evolution-send(texto interpolado com {{nome}})
+        │      exige resp.key.id|messageId|message.id (200 sem id = falha)
+        │   5) parts_sent++; se acabou as partes → status='sent'
+        │   6) jitter ±10% sobre throttle_seconds → empurra outros pending
+        │   7) re-dispara broadcast-tick (fire-and-forget)
+        │   8) sem mais recipients elegíveis → status='done' + evento 'done'
 ```
 
 ---
 
 ## Estados
 
-| Status broadcast | Significado |
+| Status `broadcasts.status` | Significado |
 |---|---|
-| `draft` | criada, ainda não inicia |
-| `scheduled` | aguardando `schedule_at` |
+| `draft` | criado, ainda não inicia |
 | `running` | em envio |
-| `paused` | pausada manualmente |
-| `done` | sem mais `pending` |
-| `cancelled` | cancelada (`pending` viram `skipped`) |
+| `paused` | pausado manualmente OU automaticamente (`reason='no_instance'`) |
+| `done` | sem mais recipients elegíveis |
+| `cancelled` | cancelado pelo usuário |
+| `failed` | erro fatal |
 
-| Status recipient | Significado |
+| Status `broadcast_recipients.status` | Significado |
 |---|---|
-| `pending` | aguardando claim |
-| `claimed` | tick pegou, vai enviar |
-| `sent` | Evolution OK |
-| `failed` | erro persistente (sem retry automático) |
-| `skipped_unsubscribed` | lead optou-out de marketing |
-| `skipped_invalid_phone` | normalizePhoneBR falhou |
+| `pending` | aguardando próxima janela de envio |
+| `sending` | recebeu pelo menos 1 parte; ainda faltam partes |
+| `sent` | todas as partes do grupo enviadas |
+| `failed` | erro definitivo no envio (não retenta por padrão; `retry_failed` reabre) |
+
+> Não existem hoje os status `claimed`, `skipped_unsubscribed` ou `skipped_invalid_phone` — o claim é refletido no `next_send_at` futuro e opt-out é responsabilidade do filtro de audiência.
 
 ---
 
-## Throttling e jitter
+## Throttling
 
-- `throttle_per_min` por broadcast (default 30, max definido em `clinic_settings.broadcast_max_per_min`).
-- Jitter aleatório entre envios evita padrão "bot".
-- Respeita `business_hours` da clínica — fora dela, tick pula sem alterar status.
-- Múltiplos broadcasts no mesmo clinic competem pelo throttle global do `clinic_settings`.
+- **`throttle_seconds`** por broadcast — intervalo entre **contatos** distintos.
+- Jitter **±10%** aplicado a cada empurrão (`next_send_at = now() + throttle_seconds * (1 ± 10%)`).
+- **Partes do mesmo contato**: intervalo fixo de **1 segundo**.
+- **`send_window`** (`{ start, end, tz, weekdays[] }`) — fora da janela o tick não envia e adia para `nextOpenIso`.
+- **Sem throttle global por instância**: dois broadcasts paralelos na mesma instância somam pressão (ver limitações em `features/BROADCASTS.md §7`).
 
 ---
 
-## A/B (message variants)
+## A/B (grupos de mensagens)
 
-- `broadcast_message_variants` com `weight` (round-robin ponderado na hora do freeze).
-- Após `done`, agregamos `sent_count`, `delivered_count`, `read_count`, `reply_count` por variant — visível na UI.
+- `broadcast_message_groups` com `position`. Cada `recipient.group_position` é fixado no freeze (distribuído round-robin quando há múltiplos grupos).
+- Não há split aleatório com métricas comparativas — distribuição é determinística.
+- Métricas hoje: apenas `broadcasts.totals.sent` (contagem). `delivered`/`read`/`replied` não são correlacionados (faltaria webhook por `key.id`).
 
 ---
 
 ## Personalização
 
-- Variáveis suportadas: `{{nome}}`, `{{primeiro_nome}}`, `{{clinica}}`, `{{link_agendamento}}`.
-- Interpolação acontece **no tick**, não no freeze (permite editar variant antes do start).
+- Variáveis interpoladas pelo tick (não no freeze): `{{nome}}` (case-insensitive), via `recipient.name`.
+- Sem suporte a `{{primeiro_nome}}` / `{{clinica}}` / `{{link_agendamento}}` no broadcast — para isso, usar **Sequences** (ver `features/SEQUENCES_AUTOMATIONS.md`).
 
 ---
 
-## Cancel / pause
+## Pause / Cancel / Retry
 
-- `broadcast-control('pause')`: status → `paused`. Tick ignora.
-- `broadcast-control('cancel')`: status → `cancelled`, `UPDATE recipients SET status='skipped_cancelled' WHERE status='pending'`. Claimed continuam (já estavam enviando).
+- `pause` → `status='paused'`. Tick ignora. Auto-pause acontece quando `whatsapp_instance_id` desaparece (`reason='no_instance'`).
+- `resume` → volta para `running`.
+- `cancel` → `status='cancelled'`. Recipients pendentes ficam como estão (não há `skipped_cancelled`).
+- `retry_failed` → recipients com `status='failed'` voltam para `pending` com `next_send_at=now()`.
 
 ---
 
 ## Pegadinhas
 
-- **Audience freeze**: leads criados depois do freeze **não recebem** (intencional, evita disparar para quem nem opted-in).
-- **Sem retry automático em `failed`**: decisão consciente para não spammar leads cujo número está errado. Reenvio manual = duplicar broadcast com filtro `failed`.
-- **Claim sem ack**: se `evolution-send` der timeout depois do `claim`, o recipient fica `claimed` para sempre. Job `broadcast-tick` no início libera claims órfãos (`claimed_at < now() - 5min` e sem `sent_at`).
-- **Concorrência entre ticks**: pg_cron pode atrasar e disparar 2 ticks juntos. Advisory lock previne race.
-- **Opt-out**: lead com `marketing_opt_out=true` é filtrado no freeze. Se opt-out depois, recipients já criados são marcados `skipped_unsubscribed` no momento do envio.
+- **Audience freeze**: leads criados depois do freeze **não recebem** (intencional, evita disparar para quem nem opted-in). Use `add_contacts` para reforçar.
+- **Sem retry automático em `failed`**: decisão consciente para não spammar números errados. Reenvio = `retry_failed`.
+- **Evolution 200 sem `messageId`** = número não existe no WhatsApp → recipient vira `failed`. Comum em listas frias.
+- **Claim sem ack**: o claim usa `next_send_at = now()+60s`. Se a execução demorar mais que isso, outro tick pode tentar e ser barrado pelo `parts_sent=?` no WHERE — mas em caso patológico (>60s pendurado) pode duplicar parte. Em produção isso é raro.
+- **Concorrência entre ticks**: cron + auto-trigger podem rodar em paralelo; o claim atômico no `UPDATE … RETURNING` previne duplicação.
+- **Opt-out**: hoje depende do filtro aplicado no `broadcast_freeze_audience` (`leads.opt_out_marketing`). Após o freeze, opt-outs subsequentes **não** são respeitados — limitação conhecida.
 
 ---
 
 ## Melhorias sugeridas
 
+- Suporte a mídia (`evolution-send-media`) em broadcasts.
 - Retry com backoff opcional por categoria de erro.
-- Quiet hours por lead (timezone).
+- Quiet hours / janela por lead (timezone do contato, não do broadcast).
 - Limite global cross-broadcast por lead/dia (anti-fadiga).
-- UI de "dry run" mostrando primeiros 5 leads + preview interpolado.
+- A/B real com split aleatório + métricas comparativas (`delivered`/`replied` via webhook Evolution).
+- Lock global por `whatsapp_instance_id` para evitar somar pressão entre broadcasts simultâneos.
 
 ---
 
@@ -125,5 +140,6 @@ broadcast-control('start') → UPDATE broadcasts(status='running', started_at)
 
 - `supabase/functions/broadcast-control/index.ts`
 - `supabase/functions/broadcast-tick/index.ts`
-- `features/BROADCASTS.md`
 - `src/pages/Broadcasts.tsx`
+- `src/lib/broadcast-template.ts` (CSV/XLSX da audiência)
+- `features/BROADCASTS.md` (modelo completo + troubleshooting)

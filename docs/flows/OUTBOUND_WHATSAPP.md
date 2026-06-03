@@ -1,7 +1,7 @@
 # Fluxo: WhatsApp Outbound (mensagem enviada)
 
 > **Quando ler:** antes de mexer em envio manual, envio por agente IA, ou envio em massa (broadcast).
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -10,7 +10,7 @@
 - **Frontend** Inbox (envio manual) **ou** `ai-auto-reply` / `broadcast-tick` / `sequence-tick` (envio automatizado)
 - **Edge function** `evolution-send` (texto) / `evolution-send-media` (mídia)
 - **Evolution API**
-- **Postgres**: `wa_messages`, `lead_events`
+- **Postgres**: `messages`, `lead_events`
 
 ---
 
@@ -20,14 +20,14 @@
 Usuário digita e clica enviar
         │
         ▼
-Frontend (useSendMessage hook)
+Frontend (`Composer.tsx` chama supabase.functions.invoke direto)
         │ supabase.functions.invoke('evolution-send', { lead_id, text })
         ▼
 evolution-send
         │ 1) verifica RLS via JWT (clinic do user = clinic do lead)
         │ 2) busca instance do clinic em clinic_settings
         │ 3) POST Evolution API /message/sendText
-        │ 4) INSERT wa_messages (direction='out', status='sent')
+        │ 4) INSERT messages (direction='out', status='sent')
         │ 5) INSERT lead_events ('message_out')
         ▼
 Realtime ──▶ Inbox mostra mensagem com ✓
@@ -36,7 +36,7 @@ Realtime ──▶ Inbox mostra mensagem com ✓
 (depois) Evolution dispara webhook 'messages.update' com ack 2/3
         │
         ▼
-evolution-webhook → UPDATE wa_messages.status = 'delivered'|'read'
+evolution-webhook → UPDATE messages.status = 'delivered'|'read'
 ```
 
 ---
@@ -70,7 +70,7 @@ evolution-send  (mesma lógica, sem JWT — autorizado por SERVICE_ROLE_KEY)
 ## Pegadinhas
 
 - **Rate limit do Evolution**: ~1 msg/s por instância. Broadcasts respeitam isso via jitter (ver `features/BROADCASTS.md`). Envios manuais não — usuário pode estourar se colar texto longo em N leads rapidamente. Hoje não há throttle no frontend.
-- **Instância desconectada**: `evolution-send` retorna `instance_not_connected`. Frontend mostra toast e marca `clinic_settings.wa_status='disconnected'`. Job `evolution-health` confere a cada 5min.
+- **Instância desconectada**: `evolution-send` retorna erro descritivo. Status agregado vem do `useHealth()` (lê `evolution-health`). Job `evolution-health` confere a cada 5min.
 - **Áudio enviado pelo agente IA**: precisa ser convertido para `ogg/opus` antes (Evolution rejeita mp3). Hoje só texto é gerado pela IA.
 - **Mensagem fora do horário comercial**: broadcasts e sequences respeitam `business_hours`; envio manual **não** (intencional).
 - **Variáveis de template** (`{{nome}}`): resolvidas no chamador (`broadcast-tick` faz replace antes de chamar `evolution-send`). `evolution-send` é "burro" — não interpola.
@@ -92,5 +92,5 @@ evolution-send  (mesma lógica, sem JWT — autorizado por SERVICE_ROLE_KEY)
 - `supabase/functions/evolution-send/index.ts`
 - `supabase/functions/evolution-send-media/index.ts`
 - `supabase/functions/evolution-webhook/index.ts` (ack handling)
-- `src/hooks/useSendMessage.ts`
+- `src/components/inbox/Composer.tsx` (entrypoint do envio manual)
 - `edge-functions/WHATSAPP.md`
