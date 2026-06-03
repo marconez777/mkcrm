@@ -171,7 +171,7 @@ para blocks de texto rico. Conversão blocks↔html em
 
 ---
 
-## 8. Admin
+## 10. Admin
 
 Painel `/admin` reorganizado em jun/2026 para 8 abas. Cada aba é um componente em `src/components/admin/`:
 
@@ -188,14 +188,14 @@ Todos os panels assumem `is_super_admin()` no backend — chamadas falham com 40
 
 ---
 
-## 9. Settings
+## 11. Settings
 
 `WhatsAppQrDialog` — polling de `evolution-qr` até `connected`. Mostra
 QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 10. Convenções
+## 12. Convenções
 
 - **Arquivos `.tsx` com 1 componente padrão por arquivo**, default
   export quando for componente de página/feature; named para utilitários.
@@ -207,7 +207,7 @@ QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 11. Pegadinhas
+## 13. Pegadinhas
 
 - Editar `ui/*` quebra cascata em todo o app — use variantes ou crie um
   wrapper específico.
@@ -219,7 +219,7 @@ QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 12. Melhorias sugeridas
+## 14. Melhorias sugeridas
 
 - Storybook (ou Ladle) para `ui/*` e componentes complexos do inbox/kanban.
 - Extrair `inbox/` para um package independente — hoje há acoplamento
