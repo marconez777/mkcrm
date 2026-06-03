@@ -20,7 +20,7 @@
 Usuário digita e clica enviar
         │
         ▼
-Frontend (useSendMessage hook)
+Frontend (`Composer.tsx` chama supabase.functions.invoke direto)
         │ supabase.functions.invoke('evolution-send', { lead_id, text })
         ▼
 evolution-send
