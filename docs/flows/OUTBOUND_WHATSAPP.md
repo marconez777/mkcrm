@@ -1,7 +1,7 @@
 # Fluxo: WhatsApp Outbound (mensagem enviada)
 
 > **Quando ler:** antes de mexer em envio manual, envio por agente IA, ou envio em massa (broadcast).
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -10,7 +10,7 @@
 - **Frontend** Inbox (envio manual) **ou** `ai-auto-reply` / `broadcast-tick` / `sequence-tick` (envio automatizado)
 - **Edge function** `evolution-send` (texto) / `evolution-send-media` (mídia)
 - **Evolution API**
-- **Postgres**: `wa_messages`, `lead_events`
+- **Postgres**: `messages`, `lead_events`
 
 ---
 
@@ -27,7 +27,7 @@ evolution-send
         │ 1) verifica RLS via JWT (clinic do user = clinic do lead)
         │ 2) busca instance do clinic em clinic_settings
         │ 3) POST Evolution API /message/sendText
-        │ 4) INSERT wa_messages (direction='out', status='sent')
+        │ 4) INSERT messages (direction='out', status='sent')
         │ 5) INSERT lead_events ('message_out')
         ▼
 Realtime ──▶ Inbox mostra mensagem com ✓
@@ -36,7 +36,7 @@ Realtime ──▶ Inbox mostra mensagem com ✓
 (depois) Evolution dispara webhook 'messages.update' com ack 2/3
         │
         ▼
-evolution-webhook → UPDATE wa_messages.status = 'delivered'|'read'
+evolution-webhook → UPDATE messages.status = 'delivered'|'read'
 ```
 
 ---
