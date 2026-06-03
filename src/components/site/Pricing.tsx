@@ -189,9 +189,9 @@ export default function Pricing() {
                 href={`https://wa.me/5511991795436?text=${encodeURIComponent(`Quero assinar o plano ${plan.name}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative mt-10 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 site-font-body text-[14px] text-white transition-all hover:brightness-110"
+                className="relative mt-10 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 site-font-body text-[14px] font-semibold text-black transition-all hover:brightness-110"
               >
-                <svg viewBox="0 0 32 32" aria-hidden className="h-5 w-5 fill-white">
+                <svg viewBox="0 0 32 32" aria-hidden className="h-5 w-5 fill-black">
                   <path d="M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.09-.832-2.335-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.032 1.318-1.06 2.264v.114c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.13-.33.158-.673.158-1.017 0-.058 0-.143-.014-.2-.097-.142-2.405-1.475-2.62-1.475zm-2.72 9.466c-1.793 0-3.55-.495-5.083-1.418L4.4 27l1.795-6.795A10.473 10.473 0 0 1 4.83 14.86c0-5.79 4.72-10.5 10.51-10.5 5.79 0 10.51 4.71 10.51 10.5 0 5.79-4.72 10.5-10.51 10.5h-.04zm0-22.74C9.78 3.93 4.43 9.27 4.43 15.86c0 2.11.56 4.17 1.62 5.98L4 30l8.32-2.16a12.4 12.4 0 0 0 5.95 1.52c6.59 0 11.94-5.35 11.94-11.93C30.21 9.27 24.87 3.93 18.28 3.93h-.02z"/>
                 </svg>
                 {plan.cta}
