@@ -48,6 +48,7 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
   const [messages, setMessages] = useState<Msg[]>([]);
   const [threads, setThreads] = useState<Map<string, ThreadRow>>(new Map());
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [feedback, setFeedback] = useState<Map<string, number>>(new Map()); // message_id -> rating
   const [openThread, setOpenThread] = useState<string | null>(null);
 
   async function load() {
