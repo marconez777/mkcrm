@@ -150,7 +150,7 @@ tags, custom fields, jornada de tracking, tarefas, agendamentos.
 
 Ver `architecture/PLANS_LIMITS.md` para o modelo de planos/limites e `architecture/FEATURE_FLAGS.md` para a relação entre `plans.features` e `clinics.settings.features`.
 
-### 2.11 NotFound / Index
+### 2.12 NotFound / Index
 - **`NotFound.tsx`** — 404 dentro do shell.
 - **`Index.tsx`** — legado, não está roteada (Kanban virou raiz). Manter
   por compat até confirmar que nada importa dela.
