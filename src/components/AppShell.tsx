@@ -17,6 +17,7 @@ import {
 import mkLogo from "@/assets/mk-logo.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
+import SupportChatFab from "@/components/support/SupportChatFab";
 
 type GroupKey = "work" | "marketing" | "admin";
 
