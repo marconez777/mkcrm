@@ -2,7 +2,7 @@
 
 > **Quando ler:** primeiro contato com o projeto. Para detalhes profundos, siga os links no [`README.md`](./README.md) → `architecture/`, `database/`, `edge-functions/`, `frontend/`, `flows/`, `integrations/`, `operations/`.
 >
-> **Última atualização:** 2026-06-03.
+> **Última atualização:** 2026-06-03 (auditoria documental Fase 1/8).
 
 ---
 
@@ -89,9 +89,9 @@ src/
 └── types/
 
 supabase/
-├── functions/             # ~50 edge functions (ver §7)
-│   └── _shared/           # ai, evolution, email, rag, mcp, metrics, utils
-├── migrations/            # 66 migrações SQL (histórico)
+├── functions/             # 71 edge functions (ver §7) + 15 módulos em _shared/
+│   └── _shared/           # ai, evolution, email, rag, mcp, metrics, template-vars, utils...
+├── migrations/            # 139 migrações SQL (histórico)
 └── config.toml
 ```
 
@@ -99,17 +99,20 @@ supabase/
 
 ## 5. Telas (rotas)
 
-Todas as rotas (exceto `/auth`, `/invite/:token`, `/unsubscribe`, `/admin`, `/onboarding`) são envolvidas por `<ProtectedRoute>` + `<AppShell>`. As que dependem de feature flag também usam `<FeatureRoute feature="...">`.
+Todas as rotas (exceto `/auth`, `/reset-password`, `/invite/:token`, `/unsubscribe`, `/admin`, `/onboarding`, `/site`) são envolvidas por `<ProtectedRoute>` + `<AppShell>`. As que dependem de feature flag também usam `<FeatureRoute feature="...">`.
 
 ### Públicas / fora do shell
 
 | Rota | Componente | Função |
 |---|---|---|
-| `/auth` | `Auth.tsx` | Login/cadastro (email + Google) |
+| `/site` | `MarketingSite.tsx` | Landing page institucional (pública, sem auth) |
+| `/auth` | `Auth.tsx` | Login (email/senha) + esqueci-minha-senha |
+| `/reset-password` | `ResetPassword.tsx` | Definir nova senha após recovery |
 | `/invite/:token` | `Invite.tsx` | Aceitar convite para clínica |
 | `/unsubscribe` | `Unsubscribe.tsx` | Descadastro de email (público) |
 | `/onboarding` | `Onboarding.tsx` | Setup inicial da clínica |
-| `/admin` | `Admin.tsx` | Painel **super admin** (clínicas, features, domínios, quotas, keys) |
+| `/` | `RootGate.tsx` | Decide entre `/auth`, `/onboarding`, `/site` ou shell |
+| `/admin` | `Admin.tsx` | Painel **super admin** v2 — 8 abas: Dashboard, Clínicas, Usuários, Planos, Uso & Limites, Integrações, Auditoria, Manual do Builder |
 
 ### App principal
 
@@ -132,15 +135,19 @@ Single page `AiHub` que troca de seção:
 | Rota | Conteúdo |
 |---|---|
 | `/ai` ou `/ai/agents` | Lista/editor de **Agentes** (`ai_agents`): prompt, modelo, tools, RAG, memória |
+| `/ai/agents/new` | Wizard de criação (`AgentWizard.tsx`) — fora do hub |
 | `/ai/memories` | `agent_memory` (notas semânticas por agente/lead) |
+| `/ai/insights` | Insights do agente (`AgentInsights.tsx`) |
 | `/ai/usage` ou `/metrics/ai-usage` | Custo/tokens/latência (`ai_usage`) |
-| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
+| `/ai/engagement` (aliases `/metrics/engagement`, `/metrics`, `/ai/messages/engagement`) | **Engajamento** — RPCs `engagement_*` (taxas de resposta de broadcasts e sequences) |
 | `/ai/reports` | Relatórios agendados (envio periódico em grupos WA) |
 | `/ai/automations` | **Automações** baseadas em gatilho → ação |
 | `/ai/sequences` | **Sequências** (drip) de mensagens |
 | `/ai/templates` | Quick replies / message templates |
 | `/ai/broadcasts` `/ai/broadcasts/:id` | **Disparo em massa** WhatsApp |
-| `/ai/messages` | Submenu (templates, sequences, automations) |
+| `/ai/messages` | Submenu (templates, sequences, automations, engagement) |
+
+Aliases mantidos por compatibilidade: `/agents`, `/agents/memories`, `/automations`, `/sequences`, `/templates` (todos resolvem para `<AiHub />`).
 
 ### Hub de Email (`/email/*`)
 
@@ -205,7 +212,7 @@ Funções SQL centrais (em `public`):
 
 ## 7. Edge functions (Deno)
 
-Cerca de 50 funções em `supabase/functions/`, agrupadas por domínio:
+Total **71 edge functions** em `supabase/functions/`, agrupadas por domínio:
 
 **WhatsApp / Evolution**
 `evolution-webhook` (entrada de mensagens) · `evolution-send` / `evolution-send-media` · `evolution-provision` · `evolution-qr` · `evolution-restart` · `evolution-logout` · `evolution-delete-instance` · `evolution-health` · `evolution-test` · `evolution-sync-lead` · `evolution-collect-leads` · `evolution-backfill-all` · `evolution-delete-lead` · `evolution-delete-message` · `evolution-fetch-groups` · `fetch-wa-avatar` · `transcribe-audio`.
@@ -274,11 +281,12 @@ Site externo carrega `tracking-pixel`/`tracking-config`. Eventos → `tracking-e
 
 ## 9. Autenticação & papéis
 
-- Auth via Supabase (`Auth.tsx`): email/senha + Google OAuth.
-- `clinic_members.role` (`clinic_role` enum): `owner`, `admin`, `professional`.
+- Auth via Supabase (`Auth.tsx`) — chamada direta a `supabase.auth.signInWithPassword` (email/senha) + `resetPasswordForEmail`. Google OAuth não está habilitado neste projeto.
+- `clinic_members.role` (`clinic_role` enum): `owner`, `admin`, `professional`, `viewer`.
 - `user_roles` para super admin (escopo global).
 - Convites: `clinic_invites` + edge `clinic-invite` / `clinic-create-user`.
 - `AppShell` esconde itens da sidebar conforme `hasFeature(...)` + role.
+- `auth_lockouts` é uma tabela presente no schema (5 tentativas / 12h), mas hoje **nenhuma edge function a consulta** — login passa direto pelo Supabase. Ver `architecture/AUTH.md`.
 
 ---
 

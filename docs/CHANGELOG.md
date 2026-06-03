@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 1/8 (Raiz + Arquitetura)
+
+Releitura linha-a-linha de 12 arquivos contra o código atual.
+
+### Corrigido
+- `docs/architecture/AUTH.md` (**rewrite**): edge function `auth-login` **não existe** no projeto — o fluxo real é `supabase.auth.signInWithPassword` direto, sem rate-limit/lockout em runtime. `auth_lockouts` documentada como infraestrutura dormente, consumida apenas pelo painel `/admin → Usuários` via `admin-user-action` action `unlock`. Removidas referências falsas a códigos HTTP, `MAX_ATTEMPTS`, `LOCK_HOURS`.
+- `docs/architecture/PLANS_LIMITS.md`: assinaturas das RPCs corrigidas — `admin_top_clinics(_limit int)` (sem `_metric`), `admin_clinic_usage(_clinic uuid)` (sem janela `_from`/`_to`). Adicionada `admin_daily_metrics(_days int DEFAULT 30)` (migration `20260603004725_*`).
+- `docs/OVERVIEW.md`: contagem real — **71 edge functions** (não "~50"), **139 migrações** (não 66), **15 helpers** em `_shared/` (não 7). Lista de rotas públicas inclui `/site` (`MarketingSite`), `/reset-password` (`ResetPassword`), `RootGate`. Hub de IA documenta `/ai/insights`, `/ai/agents/new` e o alias `/ai/messages/engagement`. Bloco "Autenticação & papéis" corrigido (sem Google OAuth ativo, `auth_lockouts` dormente).
+- `docs/README.md`: contagem real **80 arquivos `.md`** (não 71); árvore atualizada incluindo `copilot.md`, `PLANS_LIMITS.md`, `features/{EMAIL_CAMPAIGNS,ENGAGEMENT,APPOINTMENT_REMINDERS}.md`, `roadmap/{EMAIL,EMAIL_SCALE,IMPROVEMENTS}.md`, `known-issues/CORS_FORMS_INGEST.md`, `site/FEATURE_PAGES.md`.
+- `docs/architecture/STACK.md`: tabela de dependências reflete `package.json` real — `framer-motion@12.40`, `cmdk@1.1`, `vaul@0.9.9`, `embla-carousel-react@8.6` adicionadas.
+- `docs/GLOSSARY.md`: 6 termos novos — *plano (catálogo)*, *limit override*, *spend limit (IA)*, *tombstone (lead)*, *super admin*, *builder (agente)*.
+- `docs/architecture/MULTI_TENANCY.md`: carimbo bumpado após verificação linha-a-linha das funções `current_clinic_id()`, `is_clinic_admin()`, `is_super_admin()`, `has_clinic_access()` contra migrations.
+
+### Mantido sem alteração (validado conforme)
+- `docs/architecture/FEATURE_FLAGS.md` (catálogo bate com `src/lib/features.ts`).
+- `docs/architecture/REALTIME.md` (tabelas da publication conferidas em `pg_publication_tables` via migrations).
+- `docs/AI.md`, `docs/EMAIL.md`, `docs/TRACKING.md` (stubs de redirecionamento).
+- `docs/AUDIT_PHASE1.md` (mantido como baseline histórico encerrado).
+- `docs/copilot.md` (módulo `CopilotPanel`/`ai-builder` confere com código).
+
+### Achados sinalizados (sem alteração de runtime — fora do escopo da auditoria)
+- `auth_lockouts` é populada por nenhum caminho ativo. Reativar lockout exigiria edge function wrapper — registrado para `docs/known-issues/DEBT.md` na Fase 6.
+
+---
+
 ## 2026-06-03 — Admin v2 + catálogo de Planos + redesigns
 
 ### Adicionado

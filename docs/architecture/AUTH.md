@@ -1,7 +1,7 @@
 # Autenticação
 
-> **Quando ler:** ao mexer em login/cadastro, convites, papéis, lockout ou Google OAuth.
-> **Última atualização:** 2026-05-30
+> **Quando ler:** ao mexer em login, reset de senha, convites, papéis ou bloqueio de conta.
+> **Última atualização:** 2026-06-03
 >
 > **Endurecimentos 2026-05-27 a 2026-05-28** (ver `database/RLS_POLICIES.md` §"Endurecimentos recentes"): SELECT de colunas com segredos foi revogado de `authenticated`/`anon` em `whatsapp_instances` (`evolution_api_key`, `webhook_token`), `ai_agents` (`api_key`, `embedding_api_key`, `reranker_api_key`) e tokens de `form_integrations`. `clinic_email_integrations` agora só é legível por admins da clínica. Edge functions usam `service_role` para acessar essas colunas.
 
@@ -9,36 +9,29 @@
 
 ## Fluxo de login (email/senha)
 
-**Não usamos** `supabase.auth.signInWithPassword` direto no frontend. Toda autenticação passa pela edge function **`auth-login`** (`supabase/functions/auth-login/index.ts`), que adiciona rate limit + lockout.
+> **Estado atual:** o login é **direto contra o Supabase** (`supabase.auth.signInWithPassword`). **Não existe** edge function `auth-login` no projeto. A tabela `auth_lockouts` está no schema mas nenhum código a consulta — é infraestrutura dormente, pensada para futura camada de rate-limit/lockout.
 
 ```text
-UI (Auth.tsx)
-   │ POST /functions/v1/auth-login { email, password }
+UI (src/pages/Auth.tsx)
+   │ submit(email, password)
    ▼
-auth-login (Deno)
-   │ 1. Lê auth_lockouts para o email
-   │ 2. Se locked_until > now → 423 com mensagem
-   │ 3. Tenta signInWithPassword via anon client
-   │ 4a. Falhou → incrementa failed_attempts; se ≥5 trava 12h → 401
-   │ 4b. Sucesso → DELETE auth_lockouts; retorna { access_token, refresh_token }
+supabase.auth.signInWithPassword({ email, password })
+   │ erro? → toast.error(error.message)
+   │ ok?   → onAuthStateChange dispara em useAuth → Navigate(to: from)
    ▼
-UI chama supabase.auth.setSession(...) e navega
+useAuth carrega contexto: profile, clinic_members, user_roles
 ```
 
-**Códigos HTTP:**
-- `200` — sucesso (`{ access_token, refresh_token }`)
-- `400` — payload inválido
-- `401` — credenciais inválidas (com `remaining` restantes)
-- `423` — conta travada (`locked_until` ISO)
-- `405` — method not allowed
+Campos relevantes:
+- Email normalizado com `.trim().toLowerCase()` no submit.
+- `password` mínimo 6 chars (validação HTML).
+- Mensagem de erro vem direto do Supabase (sem mapeamento custom).
 
-**Constantes:**
-- `MAX_ATTEMPTS = 5`
-- `LOCK_HOURS = 12`
+Cadastro público está **desabilitado** — usuários são criados via convite (`/team` → `clinic-invite`) ou diretamente por super admin (`clinic-create-user` com service role + `email_confirm: true`).
 
 ---
 
-## Tabela `auth_lockouts`
+## Tabela `auth_lockouts` (presente, não consumida)
 
 ```sql
 auth_lockouts (
@@ -50,7 +43,12 @@ auth_lockouts (
 )
 ```
 
-**Desbloqueio manual:** `DELETE FROM auth_lockouts WHERE email = '...'` (via migração).
+Origem: migrações `20260519191402_*` (criação), `20260525181431_*`, `20260526202203_*` (ajustes). Hoje é usada apenas como ponte de **desbloqueio manual** pelo painel `/admin → Usuários`:
+
+- `admin-user-action` action `unlock` → `DELETE FROM auth_lockouts WHERE user_id = ...`.
+- `admin-users-list` faz join para mostrar se o usuário está travado.
+
+Não há gravação automática. Reativar o lockout exigiria criar um wrapper (edge function ou trigger) — está documentado como roadmap em `docs/known-issues/DEBT.md`.
 
 ---
 
@@ -80,19 +78,19 @@ Fluxo:
 3. Após cadastro/login, página `Invite.tsx` chama RPC `accept_clinic_invite(_token)`.
 4. RPC valida: existe, não expirado, email do user bate, e insere em `clinic_members` + marca `accepted_at`.
 
-**Trigger `handle_new_user()`** também aceita convite pendente automaticamente no momento do signup.
+**Trigger `handle_new_user()`** também aceita convite pendente automaticamente no momento do signup e promove `contato@mkart.com.br` para `super_admin` em `user_roles`.
 
 ---
 
 ## Google OAuth
 
-Não configurado por padrão neste projeto (usuários são internos). Se for adicionar: usar `supabase--configure_social_auth` com `providers: ["google"]` na mesma migration que ativa o botão na UI.
+Não configurado neste projeto. Se for habilitar: chamar `supabase--configure_social_auth` com `providers: ["google"]` na mesma etapa que adicionar o botão na UI (`Auth.tsx`).
 
 ---
 
 ## Auto-confirm de email
 
-**Desligado** por padrão (boa prática Supabase). Para criar usuários sem confirmação manual, usar `clinic-create-user` (edge function) que usa `auth.admin.createUser({ email_confirm: true })` com service role.
+**Desligado** por padrão (boa prática Supabase). Para criar usuários sem confirmação manual, usar `clinic-create-user` (edge function), que chama `auth.admin.createUser({ email_confirm: true })` com service role.
 
 ---
 
@@ -104,17 +102,7 @@ await supabase.auth.signOut();
 
 Limpa sessão local + invalida refresh token no servidor.
 
----
-
-## Pegadinhas
-
-| Sintoma | Causa |
-|---|---|
-| Usuário não consegue logar mesmo com senha certa | Pode estar em lockout. Checar `auth_lockouts`. |
-| Erro genérico "Falha na autenticação" sem detalhe | Edge devolveu erro mas frontend não parseou — ver `Auth.tsx` linhas 33-49, lê `error.context` em vários formatos. |
-| Sessão expira sozinha após dormir o PC | Mitigado pelo refresh on `visibilitychange` em `useAuth`. Se voltar: revisar listener. |
-| Super admin não aparece como super admin | Inserir manualmente em `user_roles (user_id, role)` com `role='super_admin'`. Auto-promote só para `contato@mkart.com.br`. |
-| RPC `accept_clinic_invite` falha com `invite_email_mismatch` | Email do user logado ≠ email do convite. Pedir para deslogar e usar email correto. |
+Super admin tem ação remota equivalente em `admin-user-action` action `sign_out`, que revoga refresh tokens de qualquer usuário (usado pelo painel `/admin`).
 
 ---
 
@@ -123,21 +111,48 @@ Limpa sessão local + invalida refresh token no servidor.
 Fluxo padrão Supabase, **sem** edge function própria:
 
 1. Em `/auth`, usuário clica em "Esqueci minha senha" → modo `forgot` na mesma página (`src/pages/Auth.tsx`).
-2. Submit chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${origin}/reset-password })`.
+2. Submit chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${APP_BASE_URL}/reset-password })`.
 3. UI mostra sempre msg neutra ("Se o email existir, enviamos um link") para não vazar enumeração de emails.
 4. Supabase envia email de recovery (template default ou Lovable Cloud se configurado).
 5. Link leva para `/reset-password` (rota pública em `App.tsx`, fora do `ProtectedRoute`).
 6. `src/pages/ResetPassword.tsx` escuta `onAuthStateChange` por `PASSWORD_RECOVERY` (ou sessão ativa) → mostra form de nova senha → chama `supabase.auth.updateUser({ password })` → redireciona para `/`.
 7. Se a página é acessada sem sessão de recovery, mostra "link inválido ou expirado" + botão de volta para `/auth`.
 
-Não toca em `auth_lockouts` — o lockout é só para login com senha. Reset bem-sucedido **não** limpa lockout automaticamente; se a conta estiver travada, ela continuará travada até `locked_until` expirar (ou deleção manual).
+Como `auth_lockouts` não é populada automaticamente, o reset de senha não interage com ela.
+
+---
+
+## Ações de super admin (`admin-user-action`)
+
+Aceita `{ user_id, action, payload? }`. Toda chamada grava em `audit_log`.
+
+| Action | Efeito |
+|---|---|
+| `set_password` | Gera senha aleatória ou aceita uma fornecida (`auth.admin.updateUserById`). |
+| `unlock` | `DELETE` em `auth_lockouts` para o user. |
+| `sign_out` | Revoga refresh tokens (`auth.admin.signOut`). |
+| `toggle_super_admin` | Insere/remove linha em `user_roles (role='super_admin')`. |
+
+Detalhes em `architecture/PLANS_LIMITS.md` e `edge-functions/INDEX.md`.
+
+---
+
+## Pegadinhas
+
+| Sintoma | Causa |
+|---|---|
+| Erro genérico "Falha na autenticação" | Mensagem do Supabase chega via `error.message`. Sem mapeamento custom — credencial inválida e email não confirmado caem na mesma toast. |
+| Sessão expira sozinha após dormir o PC | Mitigado pelo refresh on `visibilitychange` em `useAuth`. Se voltar: revisar listener. |
+| Super admin não aparece como super admin | Inserir manualmente em `user_roles (user_id, role='super_admin')`. Auto-promote só para `contato@mkart.com.br`. |
+| RPC `accept_clinic_invite` falha com `invite_email_mismatch` | Email do user logado ≠ email do convite. Pedir para deslogar e usar email correto. |
+| "Conta travada" mas usuário não percebe | `auth_lockouts` não é consultada hoje — login simplesmente passa. Se aparecer no painel admin, é resíduo de tentativa antiga e pode ser apagado via action `unlock`. |
 
 ---
 
 ## Melhorias sugeridas (não implementadas)
 
-- 2FA / TOTP
-- Desbloqueio self-service via email após lockout
-- Captcha após 3 tentativas
-- Limpar `auth_lockouts` automaticamente quando o usuário troca a senha via recovery
-
+- Reativar lockout: edge function `auth-login` que envolve `signInWithPassword` + leitura/escrita em `auth_lockouts`.
+- 2FA / TOTP.
+- Captcha após 3 tentativas.
+- Desbloqueio self-service via email após lockout.
+- Mapeamento de erros Supabase → mensagens user-friendly em PT-BR.

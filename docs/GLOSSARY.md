@@ -1,7 +1,7 @@
 # Glossário
 
 > **Quando ler:** quando aparecer um termo que você não conhece. Mantenha aqui apenas termos **deste projeto** (não Postgres/React genérico).
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -37,3 +37,9 @@
 | **Engajamento** | Aba `/ai/engagement` que agrega taxa de resposta de broadcasts e sequences via RPCs `engagement_broadcasts_summary` / `engagement_sequences_summary` / `engagement_sequence_steps`. Depende de `messages.bot_agent_id` e do snapshot `replied_at`/`stage_*_at_send` em `message_sequence_runs`. |
 | **Warmup pool** | Curva diária de envio por domínio em `email_domain_warmup` (`50→100→500→1k→5k→10k→25k→∞`). Opt-in: sem linha = sem cap. |
 | **Rotation domain** | Domínio escolhido por `pick_rotation_domain` em pools agrupados via `email_domains.rotation_pool`/`rotation_weight`. Substitui o domínio do `from_email` por linha, preservando local-part. |
+| **Plano (catálogo)** | Linha em `public.plans` com `code`, `features` jsonb e `limits` jsonb. Aplicada em massa pela edge `admin-apply-plan`. Ver `architecture/PLANS_LIMITS.md`. |
+| **Limit override** | Valor em `clinics.settings.limits.<key>` que **sobrescreve** o default de `plans.limits.<key>` para uma clínica específica. |
+| **Spend limit (IA)** | Cap mensal de USD em `ai_spend_limits.monthly_cap_usd` por clínica, consultado por `_shared/spend-guard.ts` antes de chamadas ao Lovable AI Gateway. |
+| **Tombstone (lead)** | Linha em `deleted_leads(clinic_id, phone, deleted_at)` que impede re-criação de lead por reprocessamento de histórico WhatsApp anterior à deleção. |
+| **Super admin** | Papel **global** em `user_roles (role='super_admin')`. Bypassa todas as feature flags e RLS de `/admin`. `contato@mkart.com.br` é promovido automaticamente por `handle_new_user()`. |
+| **Builder (agente)** | Agente especial em `ai_agents` com `system_key='builder'` usado pelo Co-piloto de Agentes (`CopilotPanel` + `ai-builder`). |
