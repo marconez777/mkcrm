@@ -463,10 +463,31 @@ export default function AgentWizard() {
     toast.message("Respostas preenchidas com padrões. Você pode editar antes de avançar.");
   }
 
+  function clearPromptTimers() {
+    if (promptTimersRef.current.warn) {
+      window.clearTimeout(promptTimersRef.current.warn);
+      promptTimersRef.current.warn = undefined;
+    }
+    if (promptTimersRef.current.fail) {
+      window.clearTimeout(promptTimersRef.current.fail);
+      promptTimersRef.current.fail = undefined;
+    }
+  }
+
   async function generatePrompt(extraRefinement?: string) {
     if (!clinicId) return;
     setPromptLoading(true);
     setPromptError(null);
+    setPromptTimeoutWarning(false);
+    setPromptTimedOut(false);
+    clearPromptTimers();
+    promptTimersRef.current.warn = window.setTimeout(() => {
+      setPromptTimeoutWarning(true);
+      toast.message("A geração está demorando mais que o esperado. Aguarde mais um momento…");
+    }, 30000);
+    promptTimersRef.current.fail = window.setTimeout(() => {
+      setPromptTimedOut(true);
+    }, 60000);
     await persist({ interview_answers: answers });
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: {
@@ -483,6 +504,9 @@ export default function AgentWizard() {
         },
       },
     });
+    clearPromptTimers();
+    setPromptTimeoutWarning(false);
+    setPromptTimedOut(false);
     setPromptLoading(false);
     if (error) {
       const parsed = parseBuilderError({ message: error.message });
@@ -525,6 +549,39 @@ export default function AgentWizard() {
       toast.success("Prompt gerado.");
     }
   }
+
+  // Limpa timers ao desmontar
+  useEffect(() => () => clearPromptTimers(), []);
+
+  // Handlers que invalidam prompt ao trocar nicho/objetivo
+  function chooseNiche(nextId: string) {
+    if (nextId === niche) return;
+    setNiche(nextId);
+    if (bundle || draft?.generated_prompt) {
+      setBundle(null);
+      void persist({
+        niche: nextId,
+        generated_prompt: null,
+        settings: {},
+      });
+      toast.message("Nicho alterado. O prompt será regenerado no passo 5.");
+    }
+  }
+
+  function chooseGoal(nextId: string) {
+    if (nextId === goal) return;
+    setGoal(nextId);
+    if (bundle || draft?.generated_prompt) {
+      setBundle(null);
+      void persist({
+        goal: nextId,
+        generated_prompt: null,
+        settings: {},
+      });
+      toast.message("Objetivo alterado. O prompt será regenerado no passo 5.");
+    }
+  }
+
 
   async function testConnection() {
     if (!clinicId) return;
