@@ -1,193 +1,142 @@
+# Atualização da Documentação — Junho/2026
 
-# Painel Super Admin v2
+Objetivo: alinhar `docs/` ao estado atual do código após as mudanças desta sessão (Admin v2, catálogo `plans`, limites por plano, redesign Agentes/AppShell). Nenhuma mudança em código de runtime — só `docs/*.md`.
 
-Hoje `/admin` tem 3 abas: **Clínicas**, **Integrações**, **Manual do Builder**. A coluna `clinics.plan` existe (texto livre, default `free`) mas não está ligada a limites — quem controla recursos é `clinics.settings.features` (jsonb) + `ai_spend_limits` por clínica. Não existe nenhuma tabela de catálogo de planos nem visão consolidada de usuários/uso.
+Data de bump em todos os arquivos tocados: **2026-06-03**.
 
-A proposta reorganiza o painel em **6 abas** e introduz um catálogo de planos reutilizável.
+---
 
-## Nova navegação
+## Frente 1 — Admin v2 + Catálogo de Planos + Limites
 
-```text
-/admin
- ├─ Dashboard       (visão geral — novo)
- ├─ Clínicas        (existente, enriquecida)
- ├─ Usuários        (novo)
- ├─ Planos          (novo — catálogo configurável)
- ├─ Uso & Limites   (novo)
- ├─ Integrações     (existente)
- └─ Auditoria       (novo)
-```
+### 1.1 Novo arquivo: `docs/architecture/PLANS_LIMITS.md`
+Documento de referência para o modelo de planos/limites. Conteúdo:
+- Modelo da tabela `public.plans` (colunas, defaults, RLS, GRANTS).
+- Relação `plans.features` ↔ `clinics.settings.features` (defaults aplicáveis via `admin-apply-plan`).
+- Tabela completa do `LIMIT_DEFS` (chave, label, unidade, fonte de uso correspondente em `USAGE_KEY_MAP`).
+- Hierarquia de override: `plans.limits` → `clinics.settings.limits` (clínica sobrepõe plano; `null` = ilimitado).
+- Enforcement: nota explícita que **fase 1 só persiste/exibe**; wiring nas edge functions de criação fica como roadmap.
+- Cross-links com `FEATURE_FLAGS.md` e `operations/COSTS_LIMITS.md`.
 
-## 1. Dashboard (novo)
+### 1.2 `docs/database/SCHEMA.md`
+- Adicionar bloco da tabela `plans` (colunas, índices, unique em `code`, seed `free`/`starter`/`pro`/`enterprise`).
+- Adicionar nota em `clinics`: campos `settings.features` e `settings.limits` agora derivam de `plans` (continua jsonb livre).
 
-Cards e mini-gráficos no topo:
+### 1.3 `docs/database/RLS_POLICIES.md`
+- Adicionar bloco `plans`: SELECT para `authenticated`, ALL gated por `is_super_admin()`, GRANTS explícitos.
 
-- **Clínicas:** total / ativas / suspensas / novas nos últimos 30d
-- **Usuários:** total / ativos nos últimos 7d / novos no mês (via `profiles` + `clinic_members` + `last_sign_in_at` quando exposto)
-- **Mensagens WhatsApp (30d):** enviadas / recebidas / falhas (de `messages`)
-- **IA (30d):** custo total USD, tokens, requisições (de `ai_usage_daily`)
-- **Email (30d):** enviados / abertos / cliques (de `email_metrics_daily`)
-- **Leads (30d):** novos / convertidos
-- **Top 5 clínicas por uso** (mensagens + custo IA)
-- **Saúde:** clínicas acima do `ai_spend_limits.monthly_cap_usd` / instâncias WhatsApp desconectadas
+### 1.4 `docs/database/FUNCTIONS_TRIGGERS.md`
+- Documentar 3 RPCs novos (assinatura, retorno, gate `is_super_admin()`):
+  - `admin_overview_metrics()` → jsonb (clinics/users/ai/email)
+  - `admin_top_clinics(_metric text, _limit int)` → setof record
+  - `admin_clinic_usage(_clinic uuid, _from date, _to date)` → jsonb
 
-Tudo agregado via RPCs novos `admin_metrics_*` (security definer, gated por `is_super_admin()`), para não puxar mil linhas pro browser.
+### 1.5 `docs/edge-functions/INDEX.md`
+- Adicionar 3 entradas (path, método, auth, payload, resposta):
+  - `admin-users-list` — paginação cross-tenant em `auth.users` + joins.
+  - `admin-user-action` — `set_password`, `unlock`, `sign_out`, `toggle_super_admin`.
+  - `admin-apply-plan` — copia `features`/`limits` do plano para clínicas selecionadas.
+- Atualizar tabela-índice. Marcar todas como super-admin-only (verificação em código, não só `verify_jwt`).
 
-## 2. Clínicas (enriquecida)
+### 1.6 `docs/frontend/PAGES.md`
+- Reescrever a linha de `Admin.tsx`: deixar de ser one-liner e virar subseção própria com as 8 abas:
+  ```text
+  /admin
+   ├─ Dashboard        (DashboardPanel)
+   ├─ Clínicas         (existente)
+   ├─ Usuários         (UsersPanel)
+   ├─ Planos           (PlansPanel + PlanEditorDialog)
+   ├─ Uso & Limites    (UsageLimitsPanel)
+   ├─ Integrações      (existente)
+   ├─ Auditoria        (AuditPanel)
+   └─ Manual do Builder
+  ```
+- Listar edge functions invocadas por cada aba.
 
-Mantém tudo que já existe (criar, convite, criar usuário, recursos, suspender) e adiciona:
+### 1.7 `docs/frontend/COMPONENTS.md`
+- Seção "Admin" passa a listar: `DashboardPanel`, `UsersPanel`, `PlansPanel`, `PlanEditorDialog` (tabs Geral/Recursos/Limites), `UsageLimitsPanel`, `AuditPanel`, além dos existentes (`AiSpendLimitCard`, `IntegrationsKeysCard`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `BuilderManualPanel`).
 
-- Coluna **Plano** vira `Select` (lista de `plans.code`) em vez de texto solto
-- Coluna **Membros** (count de `clinic_members`)
-- Coluna **Último acesso** (max `last_sign_in_at` dos membros)
-- Coluna **Uso do mês** (mensagens + USD IA)
-- Botão **"Detalhes"** → drawer com timeline de uso, lista de membros, status WhatsApp, gasto IA do mês
+### 1.8 `docs/frontend/HOOKS_LIB.md`
+- Adicionar entrada para `src/lib/admin-plans.ts` (export `LIMIT_DEFS`, `USAGE_KEY_MAP`).
 
-## 3. Usuários (novo)
+### 1.9 `docs/architecture/FEATURE_FLAGS.md`
+- Nova seção "Defaults via planos" explicando: catálogo continua em `src/lib/features.ts`, mas o **valor default por clínica** pode vir de `plans.features` aplicado por `admin-apply-plan`. Override por clínica em `clinics.settings.features` (já documentado) permanece a fonte de verdade em runtime.
 
-Tabela cross-tenant de todos os usuários cadastrados:
+### 1.10 `docs/OVERVIEW.md`
+- Lista de edge functions: adicionar `admin-users-list`, `admin-user-action`, `admin-apply-plan`.
+- Seção "Multi-clínica": citar `plans` como catálogo configurável.
 
-- Colunas: avatar/nome, email, clínica, papel, super admin?, criado em, último login, status (ativo/bloqueado em `auth_lockouts`)
-- Filtros: por clínica, por papel, por status, busca por email/nome
-- Ações por linha:
-  - Mover de clínica / mudar papel
-  - Promover / revogar super admin (`user_roles`)
-  - Resetar senha (gera link mágico via edge `admin-user-reset`)
-  - Desbloquear conta (`DELETE FROM auth_lockouts` via edge)
-  - Forçar logout (revogar refresh tokens)
-- Botão **"Criar usuário"** (reaproveita edge `clinic-create-user`)
+---
 
-Edge function nova `admin-users-list` (paginada, busca em `auth.users` + join com `profiles`, `clinic_members`, `user_roles`, `auth_lockouts`), pois o frontend não pode ler `auth.users`.
+## Frente 2 — Design (Agentes + AppShell premium dark)
 
-## 4. Planos (novo — catálogo)
+### 2.1 `docs/frontend/DESIGN_SYSTEM.md`
+- Nova subseção "Premium dark" descrevendo:
+  - Direção visual aplicada ao AppShell (cor + badges + grupos da sidebar).
+  - Token de accent por categoria (`--tab-*` mapeados em `--accent`).
+- Nova subseção "SectionAccordion" (componente em `src/components/ui/section-accordion.tsx`):
+  - Props (`title`, `subtitle`, `badge`, `accent`, `flagship`).
+  - Padrão visual: barra indicadora 3px à esquerda, icon plate tintada (`0.10`), bg tintado (`0.04`), shadow colorida.
+  - Mapa de accents usado na página Agentes:
+    - slate → Geral, Provedor, Auditoria, Histórico
+    - info → RAG avançado, Base de conhecimento
+    - primary (flagship) → Co-piloto
+    - violet → Personas
+    - cyan → Estágios
+    - fuchsia → Aprender, Insights
+    - teal → MCP
+    - emerald → Ferramentas, Custos
+    - amber → Evals, Testar
 
-Hoje `clinics.plan` é texto livre. Vira FK lógica para uma nova tabela `plans` editável:
+### 2.2 `docs/features/BUILDER_AGENTS.md`
+- Nova seção "UX da página /ai/agents": agrupamento por categoria, accordion único expansível, subtítulos descritivos, accents.
+- Atualizar screenshot/diagrama mental do layout (descrição textual, sem imagem).
 
-```text
-plans
- ├─ code         (free, starter, pro, enterprise) — único
- ├─ name, description, sort_order, is_active, is_public
- ├─ price_monthly_brl, price_yearly_brl
- ├─ features      jsonb  — defaults p/ clinics.settings.features
- └─ limits        jsonb  — caps numéricos (ver §5)
-```
+---
 
-UI: lista de planos + dialog de edição com:
-- Aba **Geral** (código, nome, preços, ordem, ativo)
-- Aba **Recursos** (toggles do mesmo catálogo de `src/lib/features.ts`)
-- Aba **Limites** (campos numéricos — ver §5)
-- Botão **"Aplicar a clínicas neste plano"** → propaga `features`/`limits` para `clinics.settings`
+## Frente 3 — CHANGELOG + housekeeping
 
-## 5. Uso & Limites (novo)
-
-Define caps por plano e mostra consumo por clínica. Limites propostos (todos opcionais, `null` = ilimitado):
-
-| Chave | Unidade |
-|---|---|
-| `max_users` | usuários da clínica |
-| `max_leads` | leads totais |
-| `max_whatsapp_instances` | conexões |
-| `max_messages_month` | mensagens enviadas/mês |
-| `max_broadcasts_month` | broadcasts/mês |
-| `max_emails_month` | emails enviados/mês |
-| `max_email_domains` | domínios |
-| `ai_monthly_usd_cap` | espelha `ai_spend_limits.monthly_cap_usd` |
-| `max_ai_agents` | agentes |
-| `max_kb_documents` | docs em `ai_documents` |
-| `storage_mb` | storage agregado |
-
-A aba mostra tabela: clínica × limite × uso atual × % × badge (ok/alerta/excedido). Override por clínica em `clinics.settings.limits` (sobrepõe o plano).
-
-**Enforcement:** nesta entrega só persiste e exibe. Wiring nos pontos de criação (edge functions / RPCs) entra como passo separado (não nesta tarefa) para não inflar o escopo — fica documentado em `docs/architecture/PLANS_LIMITS.md`.
-
-## 6. Auditoria (novo)
-
-Visualizador da tabela `audit_log` já existente:
-
-- Filtros: clínica, ator, ação, data
-- Paginação server-side
-- Export CSV
-
-## Banco de dados
-
-Migração única:
-
-```sql
--- 1. plans
-create table public.plans (
-  id uuid primary key default gen_random_uuid(),
-  code text unique not null,
-  name text not null,
-  description text,
-  price_monthly_brl numeric(10,2) default 0,
-  price_yearly_brl  numeric(10,2) default 0,
-  features jsonb not null default '{}'::jsonb,
-  limits   jsonb not null default '{}'::jsonb,
-  sort_order int default 0,
-  is_active boolean default true,
-  is_public boolean default true,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-grant select on public.plans to authenticated;
-grant all on public.plans to service_role;
-alter table public.plans enable row level security;
-create policy "plans readable by authenticated" on public.plans for select to authenticated using (true);
-create policy "plans writable by super admin" on public.plans for all to authenticated
-  using (public.is_super_admin()) with check (public.is_super_admin());
-
--- 2. seed básico (free, starter, pro, enterprise)
-insert into public.plans (code, name, sort_order) values
- ('free','Free',1),('starter','Starter',2),('pro','Pro',3),('enterprise','Enterprise',4)
-on conflict (code) do nothing;
-
--- 3. RPCs de métricas (security definer + is_super_admin gate)
-create or replace function public.admin_overview_metrics() returns jsonb ...
-create or replace function public.admin_clinic_usage(_clinic uuid, _from date, _to date) returns jsonb ...
-create or replace function public.admin_top_clinics(_metric text, _limit int) returns setof record ...
-```
-
-(Os triggers que já bloqueiam mudanças em `clinics.settings.features` por não-super-admin continuam valendo.)
-
-## Edge functions novas
-
-- `admin-users-list` — paginação + filtros sobre `auth.users` + joins
-- `admin-user-action` — reset senha, desbloquear, revogar tokens, promover/revogar super admin
-- `admin-apply-plan` — copia `features`/`limits` do plano para clínicas selecionadas
-
-Todas verificam `is_super_admin()` em código (não confiar só em `verify_jwt`).
-
-## Frontend
+### 3.1 `docs/CHANGELOG.md`
+Nova entry no topo:
 
 ```text
-src/pages/Admin.tsx                          (refator: vira shell de 6 abas)
-src/components/admin/
- ├─ DashboardPanel.tsx          (novo)
- ├─ ClinicsTable.tsx            (extrai da Admin atual + enriquece)
- ├─ ClinicDetailsDrawer.tsx     (novo)
- ├─ UsersPanel.tsx              (novo)
- ├─ PlansPanel.tsx              (novo) + PlanEditorDialog
- ├─ UsageLimitsPanel.tsx        (novo)
- ├─ AuditLogPanel.tsx           (novo — reusa AuditLogPanel já em agents? não, escopo global)
- ├─ IntegrationsKeysCard.tsx    (mantém)
- ├─ IntegrationsDomainsTable.tsx(mantém)
- ├─ IntegrationsQuotaTable.tsx  (mantém)
- └─ BuilderManualPanel.tsx      (mantém)
-src/hooks/useAdminMetrics.ts                 (novo, React Query)
-src/lib/admin-plans.ts                       (helpers de merge plan→clinic)
+## 2026-06-03 — Admin v2 + catálogo de Planos + redesigns
+
+### Adicionado
+- docs/architecture/PLANS_LIMITS.md (novo) — modelo plans/limites + override por clínica.
+- docs/database/SCHEMA.md, RLS_POLICIES.md, FUNCTIONS_TRIGGERS.md — tabela `plans`,
+  policies, 3 RPCs `admin_*_metrics`/`admin_top_clinics`/`admin_clinic_usage`.
+- docs/edge-functions/INDEX.md — `admin-users-list`, `admin-user-action`,
+  `admin-apply-plan`.
+- docs/frontend/PAGES.md — Admin.tsx reescrito com 8 abas.
+- docs/frontend/COMPONENTS.md — DashboardPanel/UsersPanel/PlansPanel/
+  UsageLimitsPanel/AuditPanel.
+- docs/frontend/HOOKS_LIB.md — src/lib/admin-plans.ts.
+- docs/architecture/FEATURE_FLAGS.md — relação plans.features ↔ clinic settings.
+- docs/frontend/DESIGN_SYSTEM.md — Premium dark + SectionAccordion + accents.
+- docs/features/BUILDER_AGENTS.md — nova UX da página Agentes.
 ```
 
-Design: mantém o look atual (Card/Table/Tabs/shadcn). Dashboard usa o mesmo padrão de Cards com KPIs do app, sem novos tokens de cor.
+### 3.2 `docs/README.md`
+- Bump da data para 2026-06-03 e atualização do contador de arquivos (novo `PLANS_LIMITS.md`).
 
-## Docs
+### 3.3 `docs/OVERVIEW.md`
+- Bump da data.
 
-- Novo: `docs/architecture/PLANS_LIMITS.md` (modelo, enforcement futuro)
-- Atualiza: `docs/architecture/FEATURE_FLAGS.md` (relação com `plans.features`)
-- Atualiza: `docs/frontend/PAGES.md` (novas abas)
+---
 
-## Fora de escopo nesta entrega
+## Fora de escopo
 
-- Cobrança real / Stripe — só persiste preços
-- Enforcement em runtime dos limites (criação de leads, envio de mensagens, etc.) — entra em fase 2
-- I18n/inglês — admin segue em PT-BR
-- Edição em massa de features por múltiplas clínicas selecionadas (continua 1 a 1)
+- Documentar enforcement de limites em runtime (continua roadmap em `PLANS_LIMITS.md`).
+- Documentação de cobrança / Stripe (será tratada quando a integração for ativada).
+- Tradução para inglês.
+- Imagens/screenshots — só descrição textual.
+
+---
+
+## Ordem de execução sugerida
+
+1. Frente 1 (10 arquivos) — maior gap, base para o resto.
+2. Frente 2 (2 arquivos).
+3. Frente 3 (CHANGELOG + bumps).
+
+Total: **~13 arquivos editados, 1 criado**.
