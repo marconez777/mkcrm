@@ -89,16 +89,23 @@ Todas as funções "puro super_admin" verificam `has_role`/`is_super_admin` no i
 ### Tabelas
 | Tabela | Função |
 |---|---|
-| `user_roles` | `user_id`, `role` (`super_admin`, `admin`, `member`). RLS: read próprio. |
-| `clinics` | tenants. `settings` jsonb com `ai.*`, `email.*`, etc. |
+| `user_roles` | `user_id`, `role` (`super_admin`, `admin`, `member`). RLS: read próprio + super_admin. |
+| `clinics` | tenants. `settings` jsonb com `ai.*`, `email.*`. Coluna `plan_id` FK → `plans(id)`; `plan` text é espelho via trigger. |
 | `clinic_members` | vinculação user ↔ clinic |
-| `plans` | catálogo de planos |
-| `clinic_plans` | plano ativo por clínica |
-| `usage_limits` | limites por clínica (ou herda do plano) |
-| `usage_counters` | contadores correntes |
+| `plans` | catálogo de planos (+ `stripe_*` reservados) |
+| `clinic_subscriptions` | assinatura corrente/histórica por clínica (1 com `is_current=true` por clínica, índice único parcial) |
+| `plan_change_log` | auditoria automática de mudanças de plano (trigger) |
+| `invoices` | faturas manuais (`paid`/`open`/`overdue`/`void`) |
+| `payment_receipts` | comprovantes de pagamento |
+| `feature_events` | telemetria de uso por feature (insert do próprio usuário ou super_admin) |
+| `error_events` | erros de frontend (ErrorBoundary → `log-frontend-error`, aceita anônimo) |
+| `usage_counters` | contadores correntes (espelhos) |
 | `ai_spend_limits` | cap mensal de IA |
 | `audit_log` | eventos sensíveis |
 | `builder_manual_versions` | versionamento do manual do Builder |
+| `support_chat_threads` | threads do Alfred (com `taken_over_by`/`taken_over_at` para handoff humano) |
+| `support_chat_messages` | mensagens do Alfred (com `pinned_*` para revisão posterior) |
+| `support_documents` | KB indexada (com `hash` p/ diff via `support-kb-status`) |
 | `integration_secrets` (ou similar) | chaves globais (criptografadas) |
 
 ### Funções
