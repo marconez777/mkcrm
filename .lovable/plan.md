@@ -40,9 +40,10 @@ Achados principais (fechamento): `flows/LEAD_LIFECYCLE.md` reescrito — trigger
 Achados Integrações+Operações: tabela `clinic_settings` **não existe** (tudo em `clinics.settings` JSON); `wa_messages`/`email_events`/`ai_runs`/`ai_tool_calls` **não existem** (reais: `messages`, `email_logs.events[]` + `resend_webhook_events`, `ai_usage`/`ai_usage_daily`/`ai_spend_events`/`ai_chat_traces`); `form_sites`/`forms` **não existem** (reais: `form_definitions`+`form_integrations`+`form_submissions`); `_shared/ai-call.ts`/`_shared/logger.ts` **não existem** (wrapper IA é `_shared/ai.ts` com `retryable`, spend-guard em `_shared/spend-guard.ts`); budget de IA real é `ai_spend_limits.monthly_cap_usd` (402); webhook Evolution autentica por `?token=` na URL; `process-email-queue` roda ~15s.
 Achados fechamento (known-issues + conventions + roadmap + site): `findOrCreateLead` não existe (dedupe inline); trigger `tg_pause_ai_on_human_reply` não existe (anti-loop via `messages.bot_agent_id`); `evolution_message_id` → `messages.external_id`; edge `auth-login` não existe (Auth nativa); `auth_lockouts` dropada em 2026-05-26; CORS de funções públicas deve ecoar `Origin` (vide `CORS_FORMS_INGEST.md`); `ai_monthly_budget_usd` → `ai_spend_limits.monthly_cap_usd`.
 
-### Fase 7 — Guia de integração externa (14 .md + 6 exemplos)
+### Fase 7 — Guia de integração externa (14 .md + 6 exemplos) ✅ concluída 2026-06-03
 `docs/integracao/*.md` + `exemplos/*`.
-Endpoints (`forms-ingest`, `external-lead-capture`, `tracking-*`), schemas Zod reais, limites; exemplos (curl, GTM, WP, Next.js) coerentes com o estado atual.
+Endpoints (`forms-ingest`, `external-lead-capture`, `tracking-*`), schemas Zod reais (`form_key/form_name/source_page/fields/visitor_id/session_id`; `external-lead-capture` com `refine(email||phone)`), headers (`x-form-token`, `x-capture-token`), respostas (`{ok,status,lead_id,is_new_lead}`) e exemplos validados.
+Achados: rate-limit real do `tracking-event` é **60 req/min** por (IP+clinic), não 120 (in-memory por isolate); `tracking-identify` é **público** autenticado por `allowed_domains` (com fallback service role / admin logado), não "service / interno"; `forms-ingest` e `tracking-identify` ecoam `Origin` + `Allow-Credentials` + `Vary: Origin` (não `*`) — ver `known-issues/CORS_FORMS_INGEST.md`. Files 11/12/13 (caso ÓR) preservados como snapshot histórico.
 
 ### Fase 8 — Auditoria final cruzada
 Releitura de **todos** os docs já editados, com checagens automatizadas e manuais:
