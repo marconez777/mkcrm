@@ -163,7 +163,7 @@ export default function ClinicDetailsDialog({
 
             <TabsContent value="subscription" className="space-y-4">
               <section className="rounded-md border p-3 space-y-1.5 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Plano atual</span><span className="font-medium">{clinic.plan}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Plano atual</span><span className="font-medium">{currentPlanCode}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge variant="outline">{sub?.status ?? "—"}</Badge></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Fonte</span><Badge variant="outline">{sub?.source ?? "—"}</Badge></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Trial até</span><span>{fmt(sub?.trial_ends_at ?? null)}</span></div>
