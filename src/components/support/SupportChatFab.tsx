@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2 } from "lucide-react";
+import { MessageCircle, X, Minus, Send, Loader2, RotateCcw, ArrowRight, Target, CheckCircle2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { parseAssistantContent, highlightElement, type ContentPart } from "@/lib
 import { getRuntimeErrors } from "@/lib/support-runtime-watcher";
 import { toast } from "sonner";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant"; content: string; id?: string; rating?: -1 | 1 | null };
 type FabState = "closed" | "minimized" | "open";
 
 const STORAGE_KEY = "support-chat-state";
@@ -144,6 +144,14 @@ export default function SupportChatFab() {
             const j = JSON.parse(payload);
             if (evt === "meta") {
               if (j?.thread_id) setThreadId(j.thread_id);
+              if (j?.assistant_message_id) {
+                setMessages((m) => {
+                  const out = [...m];
+                  const last = out[out.length - 1];
+                  if (last?.role === "assistant") out[out.length - 1] = { ...last, id: j.assistant_message_id };
+                  return out;
+                });
+              }
               evt = null;
               continue;
             }
@@ -152,7 +160,8 @@ export default function SupportChatFab() {
               acc += delta;
               setMessages((m) => {
                 const out = [...m];
-                out[out.length - 1] = { role: "assistant", content: acc };
+                const last = out[out.length - 1];
+                out[out.length - 1] = { ...(last ?? {}), role: "assistant", content: acc };
                 return out;
               });
             }
@@ -252,18 +261,34 @@ export default function SupportChatFab() {
               )}
             >
               {m.role === "assistant" ? (
-                <AssistantBubble
-                  content={m.content || "…"}
-                  onAction={(a) => {
-                    if (a.kind === "go") { navigate(a.route); setState("minimized"); }
-                    else if (a.kind === "click") {
-                      const ok = highlightElement(a.selector);
-                      if (!ok) toast.error(`Não achei "${a.selector}" nesta tela`);
-                    } else if (a.kind === "step") {
-                      setInput("feito"); setTimeout(send, 50);
-                    }
-                  }}
-                />
+                <div className="space-y-1.5">
+                  <AssistantBubble
+                    content={m.content || "…"}
+                    onAction={(a) => {
+                      if (a.kind === "go") { navigate(a.route); setState("minimized"); }
+                      else if (a.kind === "click") {
+                        const ok = highlightElement(a.selector);
+                        if (!ok) toast.error(`Não achei "${a.selector}" nesta tela`);
+                      } else if (a.kind === "step") {
+                        setInput("feito"); setTimeout(send, 50);
+                      }
+                    }}
+                  />
+                  {m.id && m.content && !(streaming && i === messages.length - 1) && (
+                    <FeedbackBar
+                      messageId={m.id}
+                      rating={m.rating ?? null}
+                      onRate={async (r) => {
+                        setMessages((ms) => ms.map((x, idx) => idx === i ? { ...x, rating: r } : x));
+                        const { error } = await supabase.from("support_feedback").upsert(
+                          { message_id: m.id!, user_id: user!.id, rating: r },
+                          { onConflict: "message_id,user_id" },
+                        );
+                        if (error) toast.error("Não consegui registrar feedback");
+                      }}
+                    />
+                  )}
+                </div>
               ) : (
                 m.content
               )}
@@ -323,6 +348,35 @@ function AssistantBubble({ content, onAction }: { content: string; onAction: (a:
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function FeedbackBar({ messageId, rating, onRate }: { messageId: string; rating: -1 | 1 | null; onRate: (r: -1 | 1) => void }) {
+  return (
+    <div className="flex items-center gap-1 pt-1 -mb-0.5 opacity-70 hover:opacity-100 transition-opacity">
+      <button
+        onClick={() => onRate(1)}
+        className={cn(
+          "p-1 rounded hover:bg-primary/10 transition-colors",
+          rating === 1 && "text-primary bg-primary/15",
+        )}
+        title="Resposta útil"
+        aria-label="Útil"
+      >
+        <ThumbsUp className="h-3 w-3" />
+      </button>
+      <button
+        onClick={() => onRate(-1)}
+        className={cn(
+          "p-1 rounded hover:bg-destructive/10 transition-colors",
+          rating === -1 && "text-destructive bg-destructive/15",
+        )}
+        title="Não foi útil"
+        aria-label="Não útil"
+      >
+        <ThumbsDown className="h-3 w-3" />
+      </button>
     </div>
   );
 }

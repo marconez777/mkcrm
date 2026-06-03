@@ -116,6 +116,13 @@ export default function SupportPanel() {
 
   return (
     <div className="space-y-4">
+      {monthSpend != null && cfg.monthly_cap_usd > 0 && monthSpend / cfg.monthly_cap_usd >= 0.8 && (
+        <div className={`rounded-md border px-3 py-2 text-sm ${overCap ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+          {overCap
+            ? `🚫 Teto mensal atingido ($${monthSpend.toFixed(2)} / $${cfg.monthly_cap_usd}). O chat está bloqueado até você aumentar o teto ou virar o mês.`
+            : `⚠️ Atenção: você já usou ${((monthSpend / cfg.monthly_cap_usd) * 100).toFixed(0)}% do teto mensal ($${monthSpend.toFixed(2)} / $${cfg.monthly_cap_usd}).`}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

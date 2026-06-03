@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Eye, MessageSquare, Coins, Activity } from "lucide-react";
+import { Loader2, Eye, MessageSquare, Coins, Activity, ThumbsUp } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -48,6 +48,7 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
   const [messages, setMessages] = useState<Msg[]>([]);
   const [threads, setThreads] = useState<Map<string, ThreadRow>>(new Map());
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [feedback, setFeedback] = useState<Map<string, number>>(new Map()); // message_id -> rating
   const [openThread, setOpenThread] = useState<string | null>(null);
 
   async function load() {
@@ -86,6 +87,21 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
       setThreads(new Map());
       setNames(new Map());
     }
+
+    // feedback (only for assistant messages with id in our window)
+    const asstIds = list.filter((m) => m.role === "assistant").map((m) => m.id);
+    if (asstIds.length) {
+      const { data: fbs } = await supabase
+        .from("support_feedback")
+        .select("message_id, rating")
+        .in("message_id", asstIds);
+      const fm = new Map<string, number>();
+      (fbs ?? []).forEach((f: any) => fm.set(f.message_id, f.rating));
+      setFeedback(fm);
+    } else {
+      setFeedback(new Map());
+    }
+
     setLoading(false);
   }
 
@@ -158,6 +174,17 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
     return { cost, msgs, tokens, users: users.size };
   }, [messages, threads]);
 
+  const fbStats = useMemo(() => {
+    let up = 0, down = 0;
+    for (const r of feedback.values()) {
+      if (r === 1) up++;
+      else if (r === -1) down++;
+    }
+    const total = up + down;
+    const pct = total > 0 ? (up / total) * 100 : null;
+    return { up, down, total, pct };
+  }, [feedback]);
+
   if (loading) {
     return <div className="p-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
@@ -167,11 +194,17 @@ export default function SupportTelemetry({ monthlyCap }: { monthlyCap: number })
   return (
     <div className="space-y-4">
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi icon={<Coins className="h-4 w-4" />} label="Custo no mês" value={`$${totals.cost.toFixed(4)}`} sub={`${capPct.toFixed(0)}% do teto $${monthlyCap}`} />
         <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Mensagens (mês)" value={String(totals.msgs)} />
         <Kpi icon={<Activity className="h-4 w-4" />} label="Tokens (mês)" value={totals.tokens.toLocaleString("pt-BR")} />
         <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Usuários ativos (mês)" value={String(totals.users)} />
+        <Kpi
+          icon={<ThumbsUp className="h-4 w-4" />}
+          label="Satisfação (30d)"
+          value={fbStats.pct == null ? "—" : `${fbStats.pct.toFixed(0)}%`}
+          sub={`${fbStats.up} 👍 / ${fbStats.down} 👎`}
+        />
       </div>
 
       {/* Daily chart */}

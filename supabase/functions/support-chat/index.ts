@@ -98,6 +98,13 @@ Deno.serve(async (req) => {
       screen_context: ctx ?? {}, runtime_errors: ctx?.runtime_errors ?? null,
     });
 
+    // pre-insert assistant placeholder so we can return its id for feedback
+    const { data: asstRow, error: asstErr } = await admin.from("support_chat_messages").insert({
+      thread_id: threadId, role: "assistant", content: "",
+    }).select("id").single();
+    if (asstErr) throw new Error(asstErr.message);
+    const assistantMessageId = asstRow.id;
+
     // RAG: embed + match
     let ragBlock = "";
     let matches: any[] = [];
@@ -167,7 +174,7 @@ Deno.serve(async (req) => {
     const stream = new ReadableStream({
       async start(controller) {
         // send metadata first as SSE event
-        controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify({ thread_id: threadId, sources })}\n\n`));
+        controller.enqueue(encoder.encode(`event: meta\ndata: ${JSON.stringify({ thread_id: threadId, assistant_message_id: assistantMessageId, sources })}\n\n`));
 
         const reader = upstream.body!.getReader();
         let buf = "";
@@ -202,17 +209,15 @@ Deno.serve(async (req) => {
         } catch (e) {
           console.error("stream error:", e);
         } finally {
-          // persist assistant message
+          // finalize assistant message (placeholder was inserted before stream)
           const c = cost(cfg.model, tokensIn, tokensOut);
-          await admin.from("support_chat_messages").insert({
-            thread_id: threadId,
-            role: "assistant",
+          await admin.from("support_chat_messages").update({
             content: fullText,
             tokens_in: tokensIn,
             tokens_out: tokensOut,
             cost_usd: c,
             tool_result: { sources, model: cfg.model } as any,
-          });
+          }).eq("id", assistantMessageId);
           controller.close();
         }
       },
