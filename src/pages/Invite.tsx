@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +19,7 @@ export default function InvitePage() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [password, setPassword] = useState("");
+  const acceptingRef = useRef(false);
 
   useEffect(() => { document.title = "Convite — MK CRM"; }, []);
 
@@ -40,30 +41,44 @@ export default function InvitePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!invite || !token) return;
+    if (acceptingRef.current) return;
+    acceptingRef.current = true;
     setBusy(true);
     try {
-      if (!session) {
+      let activeSession = session;
+      if (!activeSession) {
         if (mode === "signup") {
           const redirectUrl = `${window.location.origin}/invite/${token}`;
-          const { error } = await supabase.auth.signUp({
+          const { data: signUpData, error } = await supabase.auth.signUp({
             email: invite.email, password,
             options: { emailRedirectTo: redirectUrl },
           });
           if (error) throw error;
-          // try sign-in immediately (auto-confirm may be off)
-          const { error: signInErr } = await supabase.auth.signInWithPassword({ email: invite.email, password });
-          if (signInErr) {
-            toast.success("Conta criada. Verifique seu email para confirmar.");
-            return;
+          activeSession = signUpData.session;
+          if (!activeSession) {
+            const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: invite.email, password });
+            if (signInErr) {
+              toast.success("Conta criada. Verifique seu email para confirmar.");
+              return;
+            }
+            activeSession = signInData.session;
           }
         } else {
-          const { error } = await supabase.auth.signInWithPassword({ email: invite.email, password });
+          const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: invite.email, password });
           if (error) throw error;
+          activeSession = signInData.session;
         }
       }
-      // Accept invite
+      // Accept invite (idempotente do lado do servidor)
       const { error: rpcErr } = await supabase.rpc("accept_clinic_invite", { _token: token });
-      if (rpcErr) throw rpcErr;
+      if (rpcErr) {
+        const code = rpcErr.message || "";
+        if (code.includes("invalid_invite")) throw new Error("Convite inválido.");
+        if (code.includes("expired_invite")) throw new Error("Convite expirado. Peça um novo ao administrador.");
+        if (code.includes("invite_email_mismatch")) throw new Error("Este convite é para outro e‑mail.");
+        if (code.includes("not_authenticated")) throw new Error("Faça login para aceitar o convite.");
+        throw rpcErr;
+      }
       await refreshMembership();
       toast.success(`Bem-vindo(a) à ${invite.clinic_name ?? "clínica"}!`);
       const isManager = invite.role === "owner" || invite.role === "admin";
@@ -72,7 +87,10 @@ export default function InvitePage() {
       nav(isManager && !onboarded ? "/onboarding" : "/", { replace: true });
     } catch (e: any) {
       toast.error(e.message);
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+      acceptingRef.current = false;
+    }
   }
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
