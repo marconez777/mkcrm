@@ -110,10 +110,19 @@ export default function ClinicDetailsDialog({
         },
       });
       if (error) throw error;
-      if (data && (data as any).error) throw new Error((data as any).error);
-      if (data && typeof (data as any).applied === "number" && (data as any).applied === 0) {
-        throw new Error("Nenhuma clínica foi atualizada");
+      const payload: any = data ?? {};
+      if (payload.error) throw new Error(payload.error);
+      if (typeof payload.applied === "number" && payload.applied === 0) {
+        throw new Error(payload.details?.[0]?.message ?? "Nenhuma clínica foi atualizada");
       }
+      if (!payload.ok) throw new Error("Resposta inesperada do servidor");
+
+      // Verifica que persistiu antes de cantar vitória
+      const { data: check } = await supabase.from("clinics").select("plan").eq("id", clinic!.id).maybeSingle();
+      if ((check as any)?.plan !== newPlan) {
+        throw new Error("Plano não foi gravado no banco. Verifique permissões/triggers.");
+      }
+
       setCurrentPlanCode(newPlan);
       toast.success("Plano aplicado");
       setNewPlan(""); setTrialDays(""); setExpiresAt(""); setReason("");
