@@ -1,7 +1,9 @@
 # Fluxo: AI Agent Loop (auto-reply e assist)
 
 > **Quando ler:** antes de adicionar uma tool nova, mudar prompt, mexer no custo/limite, ou debugar resposta estranha do agente.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
+>
+> ⚠️ **Naming**: `ai_runs` / `ai_tool_calls` **não existem** no schema. As tabelas reais de telemetria/custo são `ai_usage` (1 linha por chamada), `ai_usage_daily` (rollup), `ai_spend_events` (eventos de cobrança) e `ai_chat_traces` (transcrições). Onde o diagrama abaixo diz `ai_runs`, leia `ai_usage` + `ai_chat_traces`; onde diz `ai_tool_calls`, leia o array `tool_calls[]` dentro de `ai_chat_traces.turns`. As configurações de IA por clínica vivem em `clinics.settings.ai.*` — **não existe** tabela `clinic_settings`.
 
 ---
 
