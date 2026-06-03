@@ -83,8 +83,11 @@ Deno.serve(async (req) => {
       threadId = t.id;
     } else {
       const { data: t } = await admin.from("support_chat_threads")
-        .select("id, user_id").eq("id", threadId).maybeSingle();
+        .select("id, user_id, taken_over_at").eq("id", threadId).maybeSingle();
       if (!t || t.user_id !== userId) return json({ error: "Thread inválida" }, 403);
+      if (t.taken_over_at) {
+        return json({ error: "Um atendente humano assumiu esta conversa. Aguarde a resposta da equipe pelo próprio chat." }, 423);
+      }
       const { data: msgs } = await admin.from("support_chat_messages")
         .select("role, content").eq("thread_id", threadId)
         .in("role", ["user", "assistant"]).order("created_at", { ascending: true }).limit(20);

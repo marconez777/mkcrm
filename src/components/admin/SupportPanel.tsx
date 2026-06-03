@@ -13,6 +13,7 @@ import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import SupportTelemetry from "./SupportTelemetry";
 import SupportLiveMonitor from "./SupportLiveMonitor";
+import SupportPinsCard from "./SupportPinsCard";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
@@ -46,6 +47,7 @@ export default function SupportPanel() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [monthSpend, setMonthSpend] = useState<number | null>(null);
+  const [kbStatus, setKbStatus] = useState<{ needs_sync: number; status_by_path: Record<string, string>; stale: string[]; missing: string[]; deleted: string[] } | null>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -66,6 +68,13 @@ export default function SupportPanel() {
       } else grouped.set(r.path, { chunks: 1, updated_at: r.updated_at });
     }
     setDocs(Array.from(grouped, ([path, v]) => ({ path, ...v })).sort((a, b) => a.path.localeCompare(b.path)));
+
+    // KB diff (best-effort; ignore failures)
+    try {
+      const { data: st } = await supabase.functions.invoke("support-kb-status", { body: {} });
+      if (st && (st as any).ok) setKbStatus(st as any);
+    } catch { /* ignore */ }
+
     setLoading(false);
   }
 
@@ -202,7 +211,12 @@ export default function SupportPanel() {
           </div>
         </CardHeader>
         <CardContent>
-          {docs.length === 0 ? (
+          {kbStatus && kbStatus.needs_sync > 0 && (
+            <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              ⚠ KB desatualizada: {kbStatus.stale.length} alterado(s), {kbStatus.missing.length} novo(s), {kbStatus.deleted.length} removido(s). Re-sincronize para aplicar.
+            </div>
+          )}
+          {docs.length === 0 && (!kbStatus || kbStatus.needs_sync === 0) ? (
             <div className="text-sm text-muted-foreground py-6 text-center">
               Nenhum documento ingerido. Configure a API key e clique em "Re-sincronizar KB".
             </div>
@@ -212,18 +226,40 @@ export default function SupportPanel() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Arquivo</TableHead>
-                    <TableHead className="w-24 text-right">Chunks</TableHead>
+                    <TableHead className="w-28">Status</TableHead>
+                    <TableHead className="w-20 text-right">Chunks</TableHead>
                     <TableHead className="w-40">Atualizado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {docs.map((d) => (
-                    <TableRow key={d.path}>
-                      <TableCell className="font-mono text-xs">{d.path}</TableCell>
-                      <TableCell className="text-right"><Badge variant="secondary">{d.chunks}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(d.updated_at).toLocaleString("pt-BR")}</TableCell>
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    const rows = [...docs];
+                    // include missing (no docs yet)
+                    if (kbStatus) {
+                      for (const p of kbStatus.missing) {
+                        if (!rows.find((r) => r.path === p)) rows.push({ path: p, chunks: 0, updated_at: "" });
+                      }
+                    }
+                    rows.sort((a, b) => a.path.localeCompare(b.path));
+                    return rows.map((d) => {
+                      const st = kbStatus?.status_by_path[d.path] ?? "in_sync";
+                      const stMeta: Record<string, { label: string; cls: string }> = {
+                        in_sync: { label: "ok", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+                        stale: { label: "desatualizado", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+                        missing: { label: "novo", cls: "bg-primary/15 text-primary" },
+                        deleted: { label: "removido", cls: "bg-destructive/15 text-destructive" },
+                      };
+                      const sm = stMeta[st];
+                      return (
+                        <TableRow key={d.path}>
+                          <TableCell className="font-mono text-xs">{d.path}</TableCell>
+                          <TableCell><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${sm.cls}`}>{sm.label}</span></TableCell>
+                          <TableCell className="text-right"><Badge variant="secondary">{d.chunks}</Badge></TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{d.updated_at ? new Date(d.updated_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })()}
                 </TableBody>
               </Table>
             </div>
@@ -232,6 +268,7 @@ export default function SupportPanel() {
       </Card>
 
       <SupportLiveMonitor />
+      <SupportPinsCard />
       <SupportTelemetry monthlyCap={cfg.monthly_cap_usd} />
     </div>
   );
