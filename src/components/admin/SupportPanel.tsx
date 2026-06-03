@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import SupportTelemetry from "./SupportTelemetry";
+import SupportLiveMonitor from "./SupportLiveMonitor";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
