@@ -2,7 +2,7 @@
 
 > **Para que serve:** localizar com precisão **onde editar** quando uma alteração é pedida. Não é documentação conceitual (para entender *por quê*, leia `docs/features/*` e `docs/flows/*`); é índice operacional de **arquivos + invariantes + receitas**.
 >
-> **Última atualização:** 2026-06-03 (Fase 1 — MAP mestre + 3 mapas críticos)
+> **Última atualização:** 2026-06-03 (Fase 2 — todos os 9 mapas entregues + regra em `COMMIT_PR.md`)
 >
 > **Regra de manutenção:** todo PR que adiciona, move ou remove arquivo em uma feature mapeada **DEVE** atualizar o mapa correspondente no mesmo PR. Mapa desatualizado = mapa que mente.
 
@@ -25,14 +25,14 @@
 | ✅ | [BUILDER_AGENTS](./maps/BUILDER_AGENTS.md) | Wizard `/ai/agents/new`, edge `ai-builder`, manual versionado, Test Lab, KB Assistant, Insights |
 | ✅ | [AI_RUNTIME](./maps/AI_RUNTIME.md) | `ai-chat`, `ai-auto-reply`, `ai-assist`, tools, custos, spend-guard, pricing |
 | ✅ | [INBOX_WHATSAPP](./maps/INBOX_WHATSAPP.md) | `/inbox`, Evolution API, mensagens, mídia, agendamento, pause/handoff |
-| ⏳ | EMAIL | `/email/*`, editor de blocos, campanhas, automações, fila, Resend, domínios |
-| ⏳ | KANBAN_LEADS | `/kanban`, pipelines, stages, custom fields, lead drawer |
-| ⏳ | TRACKING_FORMS | `/tracking`, `forms-ingest`, snippets, atribuição |
-| ⏳ | ADMIN_SUPER_ADMIN | `/admin`, `has_role`, limites por clínica, builder manual panel — ver `architecture/SUPER_ADMIN.md` |
-| ⏳ | AUTH_MULTI_TENANCY | `useAuth`, RLS por `clinic_id`, `profiles`, `user_roles`, convites |
-| ⏳ | AUTOMATIONS_SEQUENCES | `/sequences`, `/automations`, `message_sequence_runs`, lembretes |
+| ✅ | [EMAIL](./maps/EMAIL.md) | `/email/*`, editor de blocos, campanhas, automações, fila pgmq, Resend, domínios |
+| ✅ | [KANBAN_LEADS](./maps/KANBAN_LEADS.md) | `/kanban`, pipelines, stages, custom fields, lead drawer, atribuição |
+| ✅ | [TRACKING_FORMS](./maps/TRACKING_FORMS.md) | `/tracking`, `forms-ingest`, snippets, atribuição UTM, CORS |
+| ✅ | [ADMIN_SUPER_ADMIN](./maps/ADMIN_SUPER_ADMIN.md) | `/admin`, `has_role`, limites por clínica, builder manual panel — ver `architecture/SUPER_ADMIN.md` |
+| ✅ | [AUTH_MULTI_TENANCY](./maps/AUTH_MULTI_TENANCY.md) | `useAuth`, RLS por `clinic_id`, `profiles`, `user_roles`, convites, reset |
+| ✅ | [AUTOMATIONS_SEQUENCES](./maps/AUTOMATIONS_SEQUENCES.md) | `/sequences`, `/automations`, broadcasts, scheduled msgs, lembretes |
 
-`⏳` = a entregar na Fase 2.
+> Regra de manutenção em [`docs/conventions/COMMIT_PR.md`](./conventions/COMMIT_PR.md#mapas-docsmapsmd--regra-de-manutenção).
 
 ---
 

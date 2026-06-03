@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-06-03 — MAP (GPS de edição) Fase 2 — completo
+
+Adicionados os 6 mapas restantes em `docs/maps/`: `EMAIL.md`, `KANBAN_LEADS.md`, `TRACKING_FORMS.md`, `ADMIN_SUPER_ADMIN.md`, `AUTH_MULTI_TENANCY.md`, `AUTOMATIONS_SEQUENCES.md`. Mesmo template fixo de 9 seções. `docs/MAP.md` atualizado (todos ✅). Regra de manutenção formalizada em `docs/conventions/COMMIT_PR.md` (nova subseção "Mapas — regra de manutenção"): todo PR que adiciona/move/remove arquivo numa feature mapeada deve atualizar o mapa correspondente no mesmo PR; mudanças em `_shared/*` atualizam o Índice Reverso de `MAP.md`; mudanças em invariantes atualizam §7 do mapa relevante.
+
+---
+
 ## 2026-06-03 — MAP (GPS de edição) Fase 1
 
 Criado `docs/MAP.md` (índice mestre) + diretório `docs/maps/` com 3 mapas das features mais editadas: `BUILDER_AGENTS.md`, `AI_RUNTIME.md`, `INBOX_WHATSAPP.md`. Cada mapa segue template fixo de 9 seções (o que é, rotas, frontend, edge, DB, integrações, invariantes, pegadinhas, receitas) e é orientado a **localização precisa de edição** — não substitui as docs conceituais em `features/` e `flows/`, complementa-as com índice reverso de impacto e lista de invariantes globais. Fase 2 (6 mapas restantes + regra de manutenção em `COMMIT_PR.md`) virá depois.
