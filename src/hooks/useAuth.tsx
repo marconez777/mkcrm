@@ -43,9 +43,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+    const handleSessionLost = async () => {
+      await supabase.auth.signOut().catch(() => {});
+      setSession(null);
+      setMembership(null);
+      setIsSuperAdmin(false);
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
+        window.location.assign("/auth?reason=expired");
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((e, s) => {
       setSession(s);
       setLoading(false);
+      if (e === "SIGNED_OUT" || !s) {
+        setMembership(null);
+        setIsSuperAdmin(false);
+        return;
+      }
       setTimeout(() => loadCtx(s?.user?.id), 0);
     });
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -56,14 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Renova a sessão sempre que a aba volta a ficar visível ou recupera o foco,
     // evitando "token expired" depois de o computador dormir / aba ficar inativa.
-    const refresh = () => {
-      if (document.visibilityState === "visible") {
-        supabase.auth.getSession().then(({ data: { session: s } }) => {
-          if (!s) return;
-          // se faltam < 5min para expirar, força refresh
-          const expIn = (s.expires_at ?? 0) * 1000 - Date.now();
-          if (expIn < 5 * 60 * 1000) supabase.auth.refreshSession();
-        });
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (!s) return;
+      const expIn = (s.expires_at ?? 0) * 1000 - Date.now();
+      if (expIn < 5 * 60 * 1000) {
+        const { error } = await supabase.auth.refreshSession();
+        if (error) await handleSessionLost();
       }
     };
     document.addEventListener("visibilitychange", refresh);
