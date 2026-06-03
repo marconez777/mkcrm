@@ -1,6 +1,6 @@
 # SCHEMA — Banco de dados Postgres (Supabase)
 
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 > Fontes de verdade: `supabase/migrations/*.sql` e introspecção via `information_schema` / `pg_catalog`.
 > Para regras de acesso veja `RLS_POLICIES.md`; para funções/triggers veja `FUNCTIONS_TRIGGERS.md`.
 
@@ -13,7 +13,7 @@
   - `updated_at timestamptz NOT NULL DEFAULT now()` (mantido por trigger `set_updated_at` — ver `FUNCTIONS_TRIGGERS.md`)
   - `clinic_id uuid NOT NULL` (multi-tenant — ver `architecture/MULTI_TENANCY.md`)
 - Extensões habilitadas: `pgcrypto`, `pg_net`, `pg_cron`, `vector` (pgvector), `pg_trgm`, `unaccent`.
-- **89 tabelas** no schema `public`. **RLS ativado em 100% delas.**
+- **90 tabelas** no schema `public` (+1 em junho/2026: `plans`). **RLS ativado em 100% delas.**
 
 ## Domínios (agrupamento lógico)
 
@@ -21,7 +21,7 @@ As tabelas são agrupadas por domínio funcional. Cada domínio tem sua própria
 
 | Domínio | Tabelas principais |
 |---|---|
-| Tenancy & Identidade | `clinics`, `clinic_members`, `clinic_invites`, `profiles`, `user_roles`, `attendants`, `settings`, `app_settings`, `auth_lockouts`, `audit_log`, `data_access_log` |
+| Tenancy & Identidade | `clinics`, `clinic_members`, `clinic_invites`, `profiles`, `user_roles`, `attendants`, `settings`, `app_settings`, `auth_lockouts`, `audit_log`, `data_access_log`, **`plans`** |
 | Pipelines & Leads | `pipelines`, `pipeline_stages`, `leads`, `lead_events`, `lead_stage_history`, `lead_custom_fields`, `lead_internal_notes`, `lead_tasks`, `lead_ai_settings`, `deleted_leads`, `stage_ai_defaults` |
 | WhatsApp & Mensageria | `whatsapp_instances`, `whatsapp_intents`, `messages`, `message_templates`, `quick_replies`, `scheduled_messages`, `pending_replies`, `webhook_events`, `webhook_dedup` |
 | Tasks (Kanban) | `task_boards`, `task_columns`, `tasks`, `task_assignees`, `task_labels`, `task_label_links`, `task_checklist_items`, `task_attachments` |
@@ -37,8 +37,19 @@ As tabelas são agrupadas por domínio funcional. Cada domínio tem sua própria
 ### `clinics`
 Tenant raiz. Toda outra tabela carrega `clinic_id` apontando aqui.
 - `name text NOT NULL`, `slug text UNIQUE`, `logo_url text`
-- `settings jsonb DEFAULT '{}'` — guarda **feature flags** (`settings.features.*`), quotas (`settings.email.quota_daily`), config de IA, etc. Mudanças em `settings.features` são bloqueadas pelo trigger `clinics_guard_features` exceto para super_admin.
+- `plan text DEFAULT 'free'` — referência lógica para `plans.code` (não é FK estrita; edição via `<Select>` no `/admin` desde jun/2026).
+- `settings jsonb DEFAULT '{}'` — guarda **feature flags** (`settings.features.*`), **limites por clínica** (`settings.limits.*`, override do plano — ver `architecture/PLANS_LIMITS.md`), quotas (`settings.email.quota_daily`), config de IA, etc. Mudanças em `settings.features` são bloqueadas pelo trigger `clinics_guard_features` exceto para super_admin.
 - Trigger `clinics_seed_system_agents` cria agentes de IA padrão ao inserir uma clínica.
+
+### `plans` *(novo — jun/2026)*
+Catálogo configurável de planos comerciais. Substitui o uso de `clinics.plan` como texto livre.
+- `code text UNIQUE NOT NULL`, `name`, `description`
+- `price_monthly_brl`, `price_yearly_brl` numeric(10,2) default 0
+- `features jsonb` — defaults aplicáveis a `clinics.settings.features` via edge `admin-apply-plan`
+- `limits jsonb` — caps numéricos (`max_users`, `max_leads`, `ai_monthly_usd_cap`, …). `null`/ausente = ilimitado.
+- `sort_order int`, `is_active bool`, `is_public bool`
+
+Seed inicial: `free`, `starter`, `pro`, `enterprise`. Documentação completa em `architecture/PLANS_LIMITS.md`.
 
 ### `clinic_members`
 Vínculo `user_id ↔ clinic_id` com `role clinic_role` ∈ `{owner, admin, member}`. Constraint `UNIQUE(user_id)` (um usuário em uma única clínica — ver pitfall em `known-issues/PITFALLS.md`).
