@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-06-03 — Consolidação super_admin
+
+Criado `architecture/SUPER_ADMIN.md` como documento-índice único do papel: definição/armazenamento em `user_roles`, função canônica `is_super_admin()`, verificação no frontend (`useAuth.isSuperAdmin`, guard de `/admin`), inventário de edge functions que exigem o papel (puro: `admin-users-list`, `admin-user-action`, `admin-apply-plan`, `integrations-status`, `backfill-resend-events`, `email-domain-manage`; misto super_admin OU clinic admin: `clinic-invite`, `clinic-create-user`, `evolution-provision`, `evolution-delete-instance`, `forms-admin`, `dispatch-campaign`, `send-email`, `tracking-event`, `tracking-identify`), padrões de RLS (tenant + bypass; super_admin only), pitfalls e queries de auditoria. Não altera código.
+
+---
+
+
+
 ## 2026-06-03 — Auditoria final cruzada (Fase 8)
 
 Releitura automatizada + manual de **todos** os ~85 arquivos em `docs/`. Checagens:
