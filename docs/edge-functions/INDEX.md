@@ -1,7 +1,7 @@
 # Edge Functions — Índice
 
-> Última atualização: 2026-05-30
-> Total: **67 edge functions** em `supabase/functions/` + 13 módulos compartilhados em `_shared/`.
+> Última atualização: 2026-06-03
+> Total: **70 edge functions** em `supabase/functions/` + 13 módulos compartilhados em `_shared/`.
 > Runtime: Deno (Supabase Edge Runtime). Imports preferenciais via `npm:` / `https://esm.sh/`.
 
 ## Convenções
@@ -27,6 +27,7 @@
 | Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | — (ver `features/` futuro) |
 | Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | [`FORMS.md`](./FORMS.md) |
 | Autenticação / Clínicas | `auth-login`, `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](./AUTH.md) (em `architecture/`) |
+| Admin (super admin only) | `admin-users-list`, `admin-user-action`, `admin-apply-plan` | [`PLANS_LIMITS.md`](../architecture/PLANS_LIMITS.md) |
 | Helpers compartilhados | `_shared/*.ts` (13 arquivos, inclui `template-vars.ts`) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
 
 ## Como chamar uma função
@@ -65,3 +66,24 @@ await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/<func>`, {
 - `cron_service_role_key` — usado pelo `invoke_edge_function` (cron → edge). Sem isso, jobs ficam silenciosos.
 - `supabase_url` — fallback se `app.supabase_url` setting não está no postgres.
 - `unsubscribe_hmac_secret` — segredo HMAC para tokens de unsubscribe.
+
+---
+
+## Funções de admin (super admin only)
+
+Todas verificam `is_super_admin()` **em código** — não confiar só em `verify_jwt`.
+
+### `admin-users-list`
+`POST` paginado. Retorna lista cross-tenant de usuários a partir de `auth.users` + join com `profiles`, `clinic_members`, `user_roles`, `auth_lockouts`. Body: `{ search?, clinic_id?, role?, status?, page?, page_size? }`. Consumido pela aba **Usuários** do `/admin`.
+
+### `admin-user-action`
+`POST` com `{ user_id, action, payload? }`. Ações suportadas:
+- `set_password` — gera senha ou aceita uma fornecida.
+- `unlock` — apaga linhas de `auth_lockouts`.
+- `sign_out` — revoga refresh tokens.
+- `toggle_super_admin` — insere/remove em `user_roles`.
+
+Toda chamada grava em `audit_log`.
+
+### `admin-apply-plan`
+`POST { plan_code, clinic_ids: uuid[] }`. Lê `plans` pelo código e propaga `features` + `limits` para `clinics.settings` das clínicas selecionadas. **Sobrescreve** overrides existentes. Ver `architecture/PLANS_LIMITS.md` §2.

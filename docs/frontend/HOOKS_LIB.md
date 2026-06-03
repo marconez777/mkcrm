@@ -2,7 +2,7 @@
 
 > Hooks customizados (`src/hooks/**`) e utilitários (`src/lib/**`).
 >
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 
 ---
 
@@ -125,6 +125,11 @@ horizontal (usado pelo `TopScrollbar` do Kanban).
 - **`features.ts`** — `FeatureKey`, catálogo `FEATURES[]`,
   `isFeatureEnabled(features, key)`. Default-on quando a key não está
   presente. Usado pelo `useAuth.hasFeature`.
+
+### Admin (jun/2026)
+- **`admin-plans.ts`** — definições compartilhadas pelo painel `/admin`:
+  - `LIMIT_DEFS: { key, label, unit }[]` — catálogo de limites numéricos por plano (`max_users`, `max_leads`, `max_whatsapp_instances`, `max_messages_month`, `max_broadcasts_month`, `max_emails_month`, `max_email_domains`, `ai_monthly_usd_cap`, `max_ai_agents`, `max_kb_documents`, `storage_mb`). Renderizado em `PlanEditorDialog` e `UsageLimitsPanel`.
+  - `USAGE_KEY_MAP: Record<limitKey, usageKey>` — mapa do limite para a métrica de uso correspondente (ex.: `max_users → members`). Detalhes do modelo em `architecture/PLANS_LIMITS.md`.
 
 ---
 

@@ -1,6 +1,6 @@
 # FUNCTIONS_TRIGGERS — Funções e Triggers
 
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 > Fonte: `pg_proc` (schema `public`) e `information_schema.triggers`.
 > Funções da extensão `vector` (pgvector) são listadas em `pg_proc` mas omitidas aqui — fazem parte do extension e não devem ser modificadas.
 
@@ -35,6 +35,21 @@ Lê `clinics.settings.features.<key>`. Default true (feature liberada salvo se e
 
 ### `current_clinic_has_feature(_key) → bool`
 Atalho de `clinic_has_feature(current_clinic_id(), _key)`.
+
+---
+
+## Funções de admin (super admin only)
+
+Todas são `SECURITY DEFINER` com `search_path = public` e abrem com `IF NOT public.is_super_admin() THEN RAISE EXCEPTION '...' END IF;`. Introduzidas pela migração de jun/2026 para alimentar o painel `/admin` v2.
+
+### `admin_overview_metrics() → jsonb`
+KPIs cross-tenant para a aba **Dashboard** do `/admin`. Retorna um único jsonb com chaves agrupadas: `clinics` (total/active/suspended/new_30d), `users` (total/active_7d/new_month), `whatsapp` (sent/recv/failed nos últimos 30d), `ai` (usd_total, tokens, requests 30d), `email` (sent/opened/clicked 30d), `leads` (new/converted 30d).
+
+### `admin_top_clinics(_metric text, _limit int) → setof record`
+Ranking das top-N clínicas por uma métrica (`messages_30d`, `ai_usd_30d`, `emails_30d`, `leads_30d`). Retorna `(clinic_id uuid, clinic_name text, value numeric)`.
+
+### `admin_clinic_usage(_clinic uuid, _from date, _to date) → jsonb`
+Série diária consolidada para uma clínica específica no intervalo (mensagens, IA USD, emails, leads). Consumido pelo drawer de detalhes da aba **Clínicas**.
 
 ---
 

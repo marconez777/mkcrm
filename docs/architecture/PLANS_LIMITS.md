@@ -1,0 +1,148 @@
+# Planos & Limites
+
+> **Quando ler:** ao mexer no painel `/admin` (aba Planos / Uso & Limites), ao adicionar uma nova métrica de uso por clínica, ou ao planejar enforcement de cap em runtime.
+> **Última atualização:** 2026-06-03
+
+Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos.
+
+---
+
+## 1. Tabela `public.plans`
+
+Catálogo único de planos comerciais. Migração `20260603000729_*`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | uuid PK | `gen_random_uuid()` |
+| `code` | text **UNIQUE** | `free` / `starter` / `pro` / `enterprise` (livre — qualquer slug serve) |
+| `name` | text | label exibido |
+| `description` | text | opcional |
+| `price_monthly_brl` | numeric(10,2) | default `0` |
+| `price_yearly_brl` | numeric(10,2) | default `0` |
+| `features` | jsonb | defaults para `clinics.settings.features` |
+| `limits` | jsonb | caps numéricos (ver §3) — `null` ou ausente = ilimitado |
+| `sort_order` | int | exibição |
+| `is_active` / `is_public` | bool | default `true` |
+| `created_at` / `updated_at` | timestamptz | padrão |
+
+**Seed inicial:** `free`, `starter`, `pro`, `enterprise` (somente `code` + `name`; preços, features e limites são editados via UI).
+
+**GRANTS:**
+
+```sql
+GRANT SELECT ON public.plans TO authenticated;
+GRANT ALL    ON public.plans TO service_role;
+```
+
+`anon` **não** lê — catálogo público de preços usa rota dedicada quando existir.
+
+**RLS:**
+
+- `SELECT` liberado para `authenticated` (todo membro de clínica enxerga o catálogo).
+- `INSERT / UPDATE / DELETE` gated por `is_super_admin()`.
+
+---
+
+## 2. Relação com `clinics.settings`
+
+`clinics.settings` continua sendo o JSON-bag de configuração por tenant. Os campos que importam aqui:
+
+```jsonc
+{
+  "features": { "broadcasts": false, "metrics_ai": true },  // gates de produto
+  "limits":   { "max_leads": 5000, "ai_monthly_usd_cap": 50 } // caps numéricos
+}
+```
+
+Hierarquia de resolução (do mais específico ao default):
+
+```text
+clinics.settings.limits.<key>     ← override por clínica (super admin)
+        │
+        ▼ (se ausente)
+plans.limits.<key>                ← default vindo do plano
+        │
+        ▼ (se ausente)
+ilimitado / sem cap
+```
+
+A mesma lógica vale para `features`. O trigger `clinics_guard_features` continua bloqueando alterações em `settings.features` para não-super-admin — limites também ficam só sob `is_super_admin()` por hora.
+
+**Aplicação em massa:** a edge function `admin-apply-plan` copia `plans.features` + `plans.limits` para um conjunto de clínicas selecionadas (operação destrutiva — sobrescreve overrides).
+
+---
+
+## 3. Catálogo de limites (`LIMIT_DEFS`)
+
+Definido em `src/lib/admin-plans.ts`. Renderizado tanto no `PlanEditorDialog` (aba Limites) quanto no `UsageLimitsPanel`.
+
+| Chave | Unidade | Fonte de uso (`USAGE_KEY_MAP`) |
+|---|---|---|
+| `max_users` | usuários | `members` (count em `clinic_members`) |
+| `max_leads` | leads | `leads_total` |
+| `max_whatsapp_instances` | conexões | `whatsapp_instances` |
+| `max_messages_month` | msgs | `messages_month` |
+| `max_broadcasts_month` | broadcasts | `broadcasts_month` |
+| `max_emails_month` | e-mails | `emails_month` |
+| `max_email_domains` | domínios | `email_domains` |
+| `ai_monthly_usd_cap` | USD | `ai_usd_month` (espelha `ai_spend_limits.monthly_cap_usd`) |
+| `max_ai_agents` | agentes | `ai_agents` |
+| `max_kb_documents` | docs | `kb_documents` (rows em `ai_documents`) |
+| `storage_mb` | MB | — (agregado ainda não consultado) |
+
+Convenção: `null` ou chave ausente = **ilimitado**. Zero = bloqueado (use com cuidado).
+
+---
+
+## 4. RPCs de suporte (`SECURITY DEFINER`, gated por `is_super_admin()`)
+
+Detalhes em `database/FUNCTIONS_TRIGGERS.md`.
+
+- `admin_overview_metrics()` → KPIs cross-tenant do dashboard.
+- `admin_top_clinics(_metric text, _limit int)` → ranking por uso.
+- `admin_clinic_usage(_clinic uuid, _from date, _to date)` → série temporal por clínica.
+
+---
+
+## 5. Enforcement
+
+**Fase 1 (atual — junho/2026):** o painel apenas **persiste** os limites e os **exibe** lado a lado com o uso atual. Nenhum ponto de criação (edge function / RPC) bloqueia ainda.
+
+**Fase 2 (roadmap):** wiring em pontos críticos:
+
+- `clinic-create-user`, `clinic-invite` → `max_users`
+- import/criação de lead → `max_leads`
+- `evolution-connect` → `max_whatsapp_instances`
+- `evolution-send` / `evolution-send-media` → `max_messages_month`
+- `broadcast-tick` / `broadcast-control` → `max_broadcasts_month`
+- `send-email` / `send-email-batch` → `max_emails_month`
+- `email-domain-manage` → `max_email_domains`
+- `ai-*` (loop principal) → já existe `_shared/spend-guard.ts` para `ai_monthly_usd_cap`; estender para os demais.
+
+Padrão sugerido: helper `_shared/limit-guard.ts` (a criar) que lê `(plans.limits || clinics.settings.limits).<key>`, compara com o uso atual e retorna 402 com payload similar a `SpendLimitExceeded`.
+
+---
+
+## 6. UI
+
+- **`/admin` → aba Planos** — `src/components/admin/PlansPanel.tsx` (lista de cards + `PlanEditorDialog` com tabs Geral/Recursos/Limites).
+- **`/admin` → aba Uso & Limites** — `src/components/admin/UsageLimitsPanel.tsx` (tabela clínica × limite × uso × % × badge ok/alerta/excedido).
+- **`/admin` → aba Clínicas** — `clinics.plan` agora é um `<Select>` populado por `plans.code` (em vez de input texto livre).
+
+---
+
+## 7. Pegadinhas
+
+- `plans.code` é único e usado como **chave estrangeira lógica** em `clinics.plan` — renomear quebra associação. Se precisar renomear, faça `UPDATE clinics SET plan = 'novo' WHERE plan = 'antigo'` na mesma migração.
+- `admin-apply-plan` **sobrescreve** overrides em `clinics.settings.features|limits` — para preservar override por clínica, faça merge no cliente antes de chamar.
+- `ai_monthly_usd_cap` em `plans.limits` é **apenas referência** — o enforcement real continua em `ai_spend_limits.monthly_cap_usd` por clínica. Mantê-los em sincronia é responsabilidade da UI (futuro: trigger / job).
+- Não exponha `plans` em rotas públicas sem antes filtrar `is_public = true` e remover `limits` sensíveis.
+
+---
+
+## 8. Cross-links
+
+- `architecture/FEATURE_FLAGS.md` — relação `plans.features` ↔ `clinics.settings.features`.
+- `operations/COSTS_LIMITS.md` — caps de email (`quota_daily`, throttle por destinatário) que continuam **fora** de `plans.limits`.
+- `database/SCHEMA.md` — bloco `plans` na lista de tabelas.
+- `edge-functions/INDEX.md` — `admin-users-list`, `admin-user-action`, `admin-apply-plan`.

@@ -1,7 +1,7 @@
 # Feature Flags
 
 > **Quando ler:** ao adicionar/ocultar uma funcionalidade do produto por clínica, ou ao criar uma rota nova.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -36,6 +36,18 @@ Flags ficam em `clinics.settings.features` (jsonb), no formato:
 | `broadcasts` | Disparo em massa WhatsApp | |
 
 > Para adicionar uma flag nova: editar `FEATURES` em `src/lib/features.ts`. **Não** é preciso migração — `clinics.settings` é jsonb livre.
+
+### Defaults via planos (catálogo `public.plans`)
+
+Desde junho/2026, cada linha de `public.plans` carrega um `features` jsonb que serve como **valor default** para clínicas naquele plano. A edge function `admin-apply-plan` propaga `plans.features` (e `plans.limits`) para `clinics.settings` em massa.
+
+Importante:
+
+- O **catálogo de chaves** continua sendo `src/lib/features.ts` (a UI de edição do plano renderiza esse catálogo). `plans.features` não introduz nomes novos.
+- A **fonte de verdade em runtime** continua sendo `clinics.settings.features.<key>` — `hasFeature()` / `clinic_has_feature()` não consultam `plans`.
+- Por isso, **mudar `plans.features` não afeta clínicas existentes** até que `admin-apply-plan` rode (ou um super admin edite a clínica). Apenas clínicas criadas após a mudança herdam os novos defaults se o fluxo de criação aplicar o plano.
+
+Ver `architecture/PLANS_LIMITS.md` para o modelo completo e a relação com `clinics.settings.limits`.
 
 > **Não confundir com configurações de domínio.** O módulo de email tem ligas/desligas por clínica que **não são feature flags globais**, e sim colunas de configuração:
 > - `email_campaigns.variant_strategy` (`none|ab|multi`) — ativa A/B por campanha (R-20). Sem catálogo em `features.ts`.

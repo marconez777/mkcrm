@@ -1,6 +1,6 @@
 # RLS_POLICIES — Row Level Security
 
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 > Fonte de verdade: `pg_policies` no schema `public` + `supabase/migrations/*.sql`.
 
 ## Princípios
@@ -62,7 +62,7 @@ USING (public.is_super_admin())
 WITH CHECK (public.is_super_admin());
 ```
 
-Aplicado a: `app_settings`, `user_roles`, `email_domains` (write), `audit_log` (read em alguns casos), `data_access_log`.
+Aplicado a: `app_settings`, `user_roles`, `email_domains` (write), `audit_log` (read em alguns casos), `data_access_log`, `plans` (write — SELECT é aberto a `authenticated`).
 
 ### Padrão "user-scoped" (escopo por `auth.uid()`)
 
@@ -95,6 +95,12 @@ Aplicado a: `profiles` (self-update), `auth_lockouts` (apenas service_role lê),
 ### `clinic_invites`
 - SELECT por `token` (anon permitido) para a página de aceite — implementado via SECURITY DEFINER em `accept_clinic_invite`.
 - INSERT: admin da clínica.
+
+### `plans` *(novo — jun/2026)*
+- SELECT: `authenticated` (qualquer usuário logado lê o catálogo).
+- INSERT/UPDATE/DELETE: gated por `is_super_admin()`.
+- `GRANT SELECT ON public.plans TO authenticated; GRANT ALL ON public.plans TO service_role;`
+- Edição via `/admin` → aba **Planos** (`PlansPanel`). Propagação para clínicas via edge `admin-apply-plan`. Ver `architecture/PLANS_LIMITS.md`.
 
 ### `messages`
 - SELECT/INSERT: tenant scope.

@@ -1,7 +1,7 @@
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.
-> **Última atualização:** 2026-06-02 (revisão pós-criação real de agente no passo 5)
+> **Última atualização:** 2026-06-03 (redesign visual da página `/ai/agents` com `SectionAccordion` por categoria)
 > **Fonte da verdade no código:**
 > - Edge: `supabase/functions/ai-builder/index.ts`
 > - System prompt do Builder: `supabase/functions/_shared/builder-system-prompt.ts`
@@ -62,6 +62,35 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
 ```
 
 Todos os custos do Builder (tokens, runs, latência) são contabilizados via `_shared/ai.ts` → `ai_runs`/`ai_tool_calls` igual qualquer outro agente, com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
+
+---
+
+## 2.1 UX da página `/ai/agents` (redesign jun/2026)
+
+A edição de um agente existente acontece em `src/pages/Agents.tsx`. Em jun/2026 a página foi reorganizada para um **único accordion expansível** agrupado por categoria visual, usando o componente `SectionAccordion` (`src/components/ui/section-accordion.tsx` — ver `frontend/DESIGN_SYSTEM.md §5.2`).
+
+Cada seção tem:
+- **Título** + **subtítulo descritivo** (ex.: "Hybrid search, HyDE, memória, reranker") para identificação rápida sem precisar abrir.
+- **Badge** opcional à direita (estado, contagem, alerta).
+- **Accent** por categoria (cor da barra indicadora, icon plate e shadow).
+
+Mapa de seções → accent na ordem em que aparecem:
+
+| Categoria | Accent | Seções |
+|---|---|---|
+| Configuração base | `slate` | Geral, Provedor |
+| Conhecimento / RAG | `info` | RAG avançado, Base de conhecimento |
+| Co-piloto (flagship) | `primary` | Co-piloto |
+| Comportamento | `violet` / `cyan` | Personas (violet), Estágios (cyan) |
+| Aprendizado | `fuchsia` | Aprender, Insights |
+| Integrações externas | `teal` | MCP |
+| Operação | `emerald` | Ferramentas, Custos |
+| Qualidade | `amber` | Evals, Testar |
+| Histórico / Trilha | `slate` | Auditoria, Histórico |
+
+O **Co-piloto** é o único item marcado como `flagship` (glow extra) — reservado para o recurso "marquee" da página.
+
+> Convenção: ao adicionar uma seção nova, escolha o accent pela família semântica acima. Não invente cores fora do mapa do `SectionAccordion`.
 
 ---
 
