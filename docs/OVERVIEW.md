@@ -89,9 +89,9 @@ src/
 └── types/
 
 supabase/
-├── functions/             # ~50 edge functions (ver §7)
-│   └── _shared/           # ai, evolution, email, rag, mcp, metrics, utils
-├── migrations/            # 66 migrações SQL (histórico)
+├── functions/             # 71 edge functions (ver §7) + 15 módulos em _shared/
+│   └── _shared/           # ai, evolution, email, rag, mcp, metrics, template-vars, utils...
+├── migrations/            # 139 migrações SQL (histórico)
 └── config.toml
 ```
 
