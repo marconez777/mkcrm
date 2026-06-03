@@ -31,6 +31,7 @@
 | ✅ | [ADMIN_SUPER_ADMIN](./maps/ADMIN_SUPER_ADMIN.md) | `/admin`, `has_role`, limites por clínica, builder manual panel — ver `architecture/SUPER_ADMIN.md` |
 | ✅ | [AUTH_MULTI_TENANCY](./maps/AUTH_MULTI_TENANCY.md) | `useAuth`, RLS por `clinic_id`, `profiles`, `user_roles`, convites, reset |
 | ✅ | [AUTOMATIONS_SEQUENCES](./maps/AUTOMATIONS_SEQUENCES.md) | `/sequences`, `/automations`, broadcasts, scheduled msgs, lembretes |
+| ✅ | [features/ADMIN_ACCOUNTS_AND_LIMITS](./features/ADMIN_ACCOUNTS_AND_LIMITS.md) | criação de contas no `/admin` + sistema de planos/limites (fases, enforcement, receitas) |
 
 > Regra de manutenção em [`docs/conventions/COMMIT_PR.md`](./conventions/COMMIT_PR.md#mapas-docsmapsmd--regra-de-manutenção).
 
