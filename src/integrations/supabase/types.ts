@@ -4048,6 +4048,54 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          is_public: boolean
+          limits: Json
+          name: string
+          price_monthly_brl: number
+          price_yearly_brl: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          is_public?: boolean
+          limits?: Json
+          name: string
+          price_monthly_brl?: number
+          price_yearly_brl?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          is_public?: boolean
+          limits?: Json
+          name?: string
+          price_monthly_brl?: number
+          price_yearly_brl?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -5539,6 +5587,7 @@ export type Database = {
       }
       _email_segment_rule_to_sql: { Args: { _rule: Json }; Returns: string }
       accept_clinic_invite: { Args: { _token: string }; Returns: string }
+      admin_clinic_usage: { Args: { _clinic: string }; Returns: Json }
       admin_get_ai_agent: {
         Args: { _id: string }
         Returns: {
@@ -5649,6 +5698,17 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      admin_overview_metrics: { Args: never; Returns: Json }
+      admin_top_clinics: {
+        Args: { _limit?: number }
+        Returns: {
+          ai_cost_usd_30d: number
+          clinic_id: string
+          clinic_name: string
+          leads_30d: number
+          messages_30d: number
+        }[]
       }
       broadcast_freeze_audience: {
         Args: {
