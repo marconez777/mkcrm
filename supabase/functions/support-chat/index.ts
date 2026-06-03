@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
             tokens_in: tokensIn,
             tokens_out: tokensOut,
             cost_usd: c,
-            metadata: { sources, model: cfg.model } as any,
+            tool_result: { sources, model: cfg.model } as any,
           });
           controller.close();
         }
