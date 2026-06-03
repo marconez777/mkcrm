@@ -13,7 +13,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { SectionAccordion, SectionAccordionItem } from "@/components/ui/section-accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode, Users, GitBranch, GraduationCap } from "lucide-react";
+import { Bot, Plus, Trash2, FileText, Send, Loader2, Settings as SettingsIcon, KeyRound, Wrench, FlaskConical, PlayCircle, Sparkles, History, Lightbulb, ShieldCheck, DollarSign, ClipboardList, Rocket, Pencil, RefreshCw, MessageSquareCode, Users, GitBranch, GraduationCap, AlertTriangle, Power } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useConfirm } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/useAuth";
 import { BuilderSetupCard } from "@/components/agents/BuilderSetupCard";
