@@ -28,10 +28,16 @@ Painel `/admin` (super_admin only) para gestão cross-clínica: dashboard global
 | `PlansPanel.tsx` | CRUD planos disponíveis |
 | `UsageLimitsPanel.tsx` | Limites por clínica (msgs/mês, IA, email) |
 | `AiSpendLimitCard.tsx` | `ai_spend_limits.monthly_cap_usd` por clínica |
+| `FinancePanel.tsx` | KPIs financeiros, gráfico de receita, inadimplentes, distribuição de planos, CRUD de faturas |
+| `ObservabilityPanel.tsx` | Uso por feature, dead features (>30d sem uso), erros recentes |
+| `SupportPanel.tsx` | Aba Suporte: agrega monitor + telemetria + pins + status KB |
+| `SupportLiveMonitor.tsx` | Conversas Alfred em tempo real (realtime channel) com takeover/pin |
+| `SupportTelemetry.tsx` | Threads históricas + viewer com resposta manual do admin |
+| `SupportPinsCard.tsx` | Mensagens fixadas para revisão posterior |
 | `IntegrationsKeysCard.tsx` | Chaves globais (Evolution, Resend) |
 | `IntegrationsDomainsTable.tsx` | Domínios verificados (cross-clínica) |
 | `IntegrationsQuotaTable.tsx` | Quotas usadas vs disponíveis |
-| `ClinicDetailsDialog.tsx` | Drilldown por clínica |
+| `ClinicDetailsDialog.tsx` | Drilldown por clínica (inclui aba "Plano & Assinatura") |
 | `BuilderManualPanel.tsx` | Editor do manual do Builder (versionado em `builder_manual_versions`) |
 | `AuditPanel.tsx` | Eventos de auditoria |
 
