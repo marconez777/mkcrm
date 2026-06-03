@@ -1,7 +1,7 @@
 # Operações: Performance
 
 > **Quando ler:** antes de adicionar nova query/listagem, otimizar tela lenta, ou debugar latência alta.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -40,9 +40,9 @@
 
 ### Network
 - TanStack Query com `staleTime` por tipo:
-  - Estáticos (`stages`, `clinic_settings`): 5min.
+  - Estáticos (`stages`, `clinics.settings`): 5min.
   - Listagens (`leads`): 30s + realtime.
-  - Mensagens (`wa_messages`): 0 (sempre fresh; realtime cuida).
+  - Mensagens (`messages`): 0 (sempre fresh; realtime cuida).
 - Sem prefetch automático — adicionar em hover de card do Kanban (futuro).
 
 ---
@@ -51,23 +51,28 @@
 
 ### Índices críticos (não remover)
 
+Padrão geral (nomes exatos podem variar — conferir em `pg_indexes`):
+
 ```sql
--- leads
-CREATE INDEX idx_leads_clinic_phone ON leads(clinic_id, phone);
-CREATE INDEX idx_leads_clinic_stage ON leads(clinic_id, stage_id);
-CREATE INDEX idx_leads_clinic_updated ON leads(clinic_id, updated_at DESC);
+-- leads: lookup por clínica + chave de dedupe / stage / ordenação
+CREATE INDEX … ON leads(clinic_id, phone);
+CREATE INDEX … ON leads(clinic_id, stage_id);
+CREATE INDEX … ON leads(clinic_id, updated_at DESC);
 
--- wa_messages
-CREATE UNIQUE INDEX uq_wa_msg_evolution ON wa_messages(clinic_id, evolution_message_id);
-CREATE INDEX idx_wa_msg_lead_created ON wa_messages(lead_id, created_at DESC);
+-- messages (channel='whatsapp' inclusive): conversa por lead, dedupe por external_id
+CREATE INDEX … ON messages(lead_id, timestamp DESC);
+CREATE UNIQUE INDEX … ON messages(clinic_id, external_id) WHERE external_id IS NOT NULL;
 
--- lead_events
-CREATE INDEX idx_lead_events_lead_created ON lead_events(lead_id, created_at DESC);
-CREATE INDEX idx_lead_events_clinic_event ON lead_events(clinic_id, event, created_at DESC);
+-- lead_events: timeline
+CREATE INDEX … ON lead_events(lead_id, created_at DESC);
+CREATE INDEX … ON lead_events(clinic_id, event, created_at DESC);
 
--- tracking_events
-CREATE INDEX idx_tracking_events_visitor_ts ON tracking_events(visitor_id, created_at DESC);
+-- tracking_events: por visitor e por lead (após identify/backfill)
+CREATE INDEX … ON tracking_events(visitor_id, event_time DESC);
+CREATE INDEX … ON tracking_events(clinic_id, lead_id, event_time DESC);
 ```
+
+> ⚠️ Não existe tabela `wa_messages` neste schema; a coluna correta de id externo em `messages` é `external_id` (não `evolution_message_id`).
 
 ### Queries que escalam mal (vigilância)
 
@@ -90,7 +95,7 @@ CREATE INDEX idx_tracking_events_visitor_ts ON tracking_events(visitor_id, creat
 
 ### Concorrência
 - Cada invocação = 1 isolate Deno. Sem estado compartilhado entre invocações (não confiar em vars top-level para cache).
-- Para cache cross-invocation usar `wa_settings_cache` table ou Redis externo.
+- Para cache cross-invocation, persistir em tabela (ex.: `clinics.settings` lida com cache curto in-process) ou Redis externo. Não existe tabela `wa_settings_cache`.
 
 ### Batch
 - Workers (broadcast/sequence) processam em lotes de 30–50. Aumentar batch reduz overhead mas estoura timeout (max 150s edge functions).
