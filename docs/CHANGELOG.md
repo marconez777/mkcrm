@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-06-03 — Auditoria final cruzada (Fase 8)
+
+Releitura automatizada + manual de **todos** os ~85 arquivos em `docs/`. Checagens:
+
+1. **Links internos** (`rg` em todos os `]( … )` relativos resolvidos contra o filesystem) → **0 quebrados**.
+2. **Edge functions referenciadas** vs `supabase/functions/*` → 1 ghost (`tracking-ingest`) corrigido em `known-issues/CORS_FORMS_INGEST.md` (substituído pelos 4 reais: `tracking-event`, `tracking-identify`, `tracking-config`, `tracking-pixel`).
+3. **Tabelas referenciadas** vs `information_schema.tables` (111 tabelas) → ghosts residuais corrigidos abaixo.
+4. **Triggers** vs `pg_trigger` → 2 nomes errados corrigidos (`tg_suppress_on_bounce` → `trg_email_logs_suppress_on_bounce`; `tg_email_queue_campaign_counters` → `trg_email_queue_campaign_counters`).
+5. **Contagens** confirmadas: 71 edge functions + 14 módulos `_shared/*.ts` + `_shared/builder-knowledge/`; 139 migrations; 111 tabelas em `public`.
+
+### Corrigido — Ghost tables residuais
+- `flows/AI_AGENT_LOOP.md`: nota explícita no topo — `ai_runs`/`ai_tool_calls` **não existem**, tabelas reais são `ai_usage`, `ai_usage_daily`, `ai_spend_events`, `ai_chat_traces`. Configs em `clinics.settings.ai.*` (não `clinic_settings`). Pegadinha "trigger `tg_pause_ai_on_human_reply` seta `leads.ai_paused`" reescrita — trigger não existe; pausa é manual / via tool `pause_ai_for_lead` + checagem `messages.bot_agent_id`.
+- `features/BUILDER_AGENTS.md`: `ai_runs`/`ai_tool_calls` (linhas 64, 306, 320) → `ai_usage`/`ai_usage_daily`/`ai_spend_events` + `ai_chat_traces.turns[].tool_calls`.
+- `GLOSSARY.md`: "Run (IA)" → `ai_usage` + `ai_chat_traces`; "Tool call" → array em `ai_chat_traces.turns`; "Site (forms)" → `form_definitions`+`form_integrations` (não `form_sites`).
+- `architecture/FEATURE_FLAGS.md`, `integrations/EVOLUTION_API.md`, `flows/LEAD_LIFECYCLE.md`, `flows/OUTBOUND_WHATSAPP.md`, `flows/TRACKING_TO_LEAD.md`, `operations/PERFORMANCE.md`: todas as menções restantes a `clinic_settings.*` substituídas por `clinics.settings.*` (JSON) com nota "não existe tabela `clinic_settings`".
+- `architecture/AUTH.md` + `OVERVIEW.md`: `auth_lockouts` **foi dropada em 2026-05-26** (migration `20260526202203_*` — `DROP TABLE IF EXISTS public.auth_lockouts CASCADE`) — `admin-user-action` action `unlock` e `admin-users-list` ainda referenciam mas a query é no-op. AUTH.md tinha seção "tabela presente, não consumida" que contradizia SCHEMA.md/SECURITY.md — reescrita.
+
+### Corrigido — Triggers reais
+- `database/FUNCTIONS_TRIGGERS.md`, `database/MIGRATIONS.md`, `operations/ERROR_HANDLING.md`: nomes corrigidos via `SELECT tgname FROM pg_trigger`. `tg_suppress_on_bounce` → `trg_email_logs_suppress_on_bounce`; prefixo `tg_email_queue_campaign_counters` → `trg_email_queue_campaign_counters`.
+
+### Corrigido — CORS doc
+- `known-issues/CORS_FORMS_INGEST.md`: edge function fantasma `tracking-ingest` substituída pela lista real (`tracking-event`, `tracking-identify`, `tracking-config`, `tracking-pixel`); carimbo atualizado para 2026-06-03.
+
+### Validado sem alteração
+- Stamps en-dash em `features/BROADCASTS.md` (2026-05-25), `FORMS.md` (2026-05-30), `SEQUENCES_AUTOMATIONS.md` (2026-05-30) refletem a data real da última revisão — mantidos.
+- Termos de produto: nenhuma exposição indevida de "Supabase" em texto voltado ao usuário final.
+
+### Cobertura final do `docs/`
+- Fase 1 (raiz + architecture): 12 ✅
+- Fase 2 (database): 4 ✅
+- Fase 3 (edge-functions): 6 ✅
+- Fase 4 (frontend): 6 ✅
+- Fase 5 (features + flows): 13 ✅
+- Fase 6 (integrations + operations + known-issues + roadmap + conventions + site): 16 ✅
+- Fase 7 (integracao): 14 + 6 exemplos ✅
+- Fase 8 (auditoria cruzada): aplicada a todos acima ✅
+
+---
+
 ## 2026-06-03 — Auditoria documental Fase 7/8 (Guia de integração externa)
 
 Releitura de `docs/integracao/*.md` (14) + `docs/integracao/exemplos/*` (6) contra `supabase/functions/{forms-ingest,external-lead-capture,tracking-event,tracking-identify}/index.ts`. Convenções e exemplos copy-paste validados.
