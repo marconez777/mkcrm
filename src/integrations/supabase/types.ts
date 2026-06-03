@@ -6308,6 +6308,17 @@ export type Database = {
           version: number
         }[]
       }
+      get_invite_by_token: {
+        Args: { _token: string }
+        Returns: {
+          accepted_at: string
+          clinic_id: string
+          clinic_name: string
+          email: string
+          expires_at: string
+          role: Database["public"]["Enums"]["clinic_role"]
+        }[]
+      }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
