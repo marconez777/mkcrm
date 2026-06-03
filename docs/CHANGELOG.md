@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-06-03 — MAP (GPS de edição) Fase 1
+
+Criado `docs/MAP.md` (índice mestre) + diretório `docs/maps/` com 3 mapas das features mais editadas: `BUILDER_AGENTS.md`, `AI_RUNTIME.md`, `INBOX_WHATSAPP.md`. Cada mapa segue template fixo de 9 seções (o que é, rotas, frontend, edge, DB, integrações, invariantes, pegadinhas, receitas) e é orientado a **localização precisa de edição** — não substitui as docs conceituais em `features/` e `flows/`, complementa-as com índice reverso de impacto e lista de invariantes globais. Fase 2 (6 mapas restantes + regra de manutenção em `COMMIT_PR.md`) virá depois.
+
+---
+
 ## 2026-06-03 — Consolidação super_admin
 
 Criado `architecture/SUPER_ADMIN.md` como documento-índice único do papel: definição/armazenamento em `user_roles`, função canônica `is_super_admin()`, verificação no frontend (`useAuth.isSuperAdmin`, guard de `/admin`), inventário de edge functions que exigem o papel (puro: `admin-users-list`, `admin-user-action`, `admin-apply-plan`, `integrations-status`, `backfill-resend-events`, `email-domain-manage`; misto super_admin OU clinic admin: `clinic-invite`, `clinic-create-user`, `evolution-provision`, `evolution-delete-instance`, `forms-admin`, `dispatch-campaign`, `send-email`, `tracking-event`, `tracking-identify`), padrões de RLS (tenant + bypass; super_admin only), pitfalls e queries de auditoria. Não altera código.
