@@ -85,7 +85,14 @@ Todas seguem o mesmo padrão: validam Bearer token → resolvem `user_id` → co
 |---|---|---|
 | `admin-users-list` | `from('user_roles').eq('role','super_admin')` | Lista paginada de todos os usuários, com clínica/lockout. |
 | `admin-user-action` | idem | `set_password`, `unlock`, `sign_out`, `set_super_admin`, `set_clinic_role`, `delete_user`. |
-| `admin-apply-plan` | idem | Aplica plano do catálogo a uma clínica. |
+| `admin-apply-plan` | idem | Cria/atualiza `clinic_subscriptions` manual e espelha features/limits em `clinics.settings`. |
+| `admin-revoke-plan` | idem | Encerra subscription corrente → fallback Starter `past_due`. |
+| `admin-invoice` | idem | `create` / `mark_paid` / `void` / `delete` de `invoices`. |
+| `cron-expire-manual-grants` | service_role (cron diário) | Migra `manual_grant`/`trialing` vencidos para Starter. |
+| `support-admin-reply` | `rpc('is_super_admin')` | Takeover / release de thread Alfred + resposta humana. |
+| `support-kb-sync` | `rpc('is_super_admin')` | Re-indexa KB do Alfred a partir dos `.md` empacotados. |
+| `support-kb-status` | `rpc('is_super_admin')` | Diff sha256 (in_sync/stale/missing/deleted). |
+| `support-test-connection` | `rpc('is_super_admin')` | Ping no provedor de IA do Alfred. |
 | `integrations-status` | `rpc('is_super_admin')` | Retorna presença (boolean) de secrets de integração. |
 | `backfill-resend-events` | `rpc('is_super_admin')` | Reprocesso histórico de eventos Resend. |
 | `email-domain-manage` | `rpc('is_super_admin')` | Operações destrutivas/cross-tenant em domínios. |
@@ -101,6 +108,9 @@ Edges com **super_admin OU clinic admin/owner** (autorização mista):
 | `forms-admin` | super_admin ou admin da clínica | Configuração de formulários. |
 | `dispatch-campaign` | super_admin bypassa quota | Disparo manual ignora `ai_spend_limits` global. |
 | `send-email` | super_admin bypassa quota | Envio transacional sem checagem de cota da clínica. |
+| `support-chat` | qualquer autenticado | Chat Alfred; retorna `423` se `support_chat_threads.taken_over_at` está setado. |
+| `track-event` | qualquer autenticado | Insere batch em `feature_events` (server resolve `clinic_id`). |
+| `log-frontend-error` | aceita anônimo | ErrorBoundary global → `error_events`. |
 | `tracking-event`, `tracking-identify` | super_admin pode emitir cross-clinic | Usado em ferramentas internas de debug. |
 
 ---
