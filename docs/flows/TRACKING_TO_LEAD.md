@@ -99,7 +99,7 @@ Atribuição completa: lead ↔ jornada de tracking
 - **Privacidade**: `tracking-identify` só recebe email/phone hasheados em SHA-256 (`email_hash`, `phone_hash`) — claro nunca é persistido em `tracking_events`. O lead em si guarda email/phone normalmente.
 - **Origem bloqueada**: `tracking-identify` exige que o host esteja em `clinic.settings.tracking.allowed_domains` (ou auth de membro/super_admin/service_role). Sem whitelist → 403 `origin_not_allowed`.
 - **Bot traffic**: hoje não filtramos. `tracking_events` infla. TODO.
-- **GDPR/LGPD**: snippet respeita `Do-Not-Track` se `clinic_settings.tracking_respect_dnt=true`.
+- **GDPR/LGPD**: snippet respeita `Do-Not-Track` se `clinics.settings.tracking.respect_dnt=true` (não existe tabela `clinic_settings`).
 
 ---
 
