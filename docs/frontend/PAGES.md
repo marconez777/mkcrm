@@ -11,11 +11,16 @@
 
 | Página | Path | Responsabilidade |
 |---|---|---|
+| `site/MarketingSite.tsx` | `/site` e `/` (sem sessão) | Landing institucional pública. Subcomponentes em `components/site/*` (Hero, Features, Pricing, Testimonials, Integrations, About, Blog, Capabilities, Services, Marquee, SiteNav, SiteFooter). |
 | `Auth.tsx` | `/auth` | Login (email/senha + Google OAuth via Supabase). Sem signup público — só convite. |
+| `ResetPassword.tsx` | `/reset-password` | Fluxo de redefinição de senha (link de recovery do Supabase). |
 | `Invite.tsx` | `/invite/:token` | Aceita convite, cria conta e vincula `clinic_members`. Usa edge `clinic-invite`. |
 | `Unsubscribe.tsx` | `/unsubscribe` | Página pública de descadastro de email (chama `email-unsubscribe`). |
 | `Onboarding.tsx` | `/onboarding` | Wizard pós-criação de conta: nomeia clínica, conecta WhatsApp (QR), seleciona features iniciais. |
-| `Admin.tsx` | `/admin` | Super Admin v2 (8 abas — ver §2.10). |
+| `Admin.tsx` | `/admin` | Super Admin v2 (8 abas — ver §2.11). |
+
+> A rota `/` é gateada por `components/RootGate.tsx`: com sessão → `AppShell + Kanban`; sem sessão → `MarketingSite`. Isso evita rota dedicada para o site institucional para usuários logados.
+
 
 ---
 
@@ -64,7 +69,8 @@ renderizar todas as abas de IA. A ordem das abas (todas dentro de `/ai`):
 > no menu lateral. O sidebar só expõe o item "IA" (sem submenu).
 
 Páginas filhas relevantes:
-- **`Agents.tsx`** — CRUD de agentes IA (modelo, prompt, tools, RAG sources).
+- **`Agents.tsx`** — CRUD de agentes IA (modelo, prompt, tools, RAG sources). Painéis auxiliares em `src/components/agents/*` (ver `frontend/COMPONENTS.md §7`).
+- **`AgentWizard.tsx`** (`/ai/agents/new`) — wizard standalone (dentro do AppShell) para criação guiada de novo agente.
 - **`AgentMemories.tsx`** — memories embarcadas (`agent_memories`).
 - **`AiInsights.tsx`** — `ai-analyst-run` resultados, alertas.
 - **`ScheduledReports.tsx`** — relatórios agendados (`scheduled-report-tick`).
@@ -134,7 +140,7 @@ tags, custom fields, jornada de tracking, tarefas, agendamentos.
 - **`MetricsAiUsage.tsx`** e **`MetricsEngagement.tsx`** vivem como abas do AiHub (ver §2.3).
 
 ### 2.11 Admin v2 (`/admin`)
-**`Admin.tsx`** — shell de abas (super admin only). Cada aba é um componente em `src/components/admin/` (ver `frontend/COMPONENTS.md §8`).
+**`Admin.tsx`** — shell de abas (super admin only). Cada aba é um componente em `src/components/admin/` (ver `frontend/COMPONENTS.md §10`).
 
 ```text
 /admin

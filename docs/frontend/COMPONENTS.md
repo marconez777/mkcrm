@@ -10,17 +10,19 @@
 
 ```text
 src/components/
-├── ui/              shadcn-ui (Radix + Tailwind). NÃO EDITAR sem critério.
+├── ui/              shadcn-ui (Radix + Tailwind) — 55 primitives. NÃO EDITAR sem critério.
 ├── AppShell.tsx     Layout root (sidebar + main).
 ├── CommandPalette.tsx, ShortcutsDialog.tsx
-├── NavLink.tsx, ProtectedRoute.tsx, FeatureRoute.tsx
-├── admin/           Cards/tables do super admin.
-├── email/           Editor blocks→html, wizards, dialogs.
+├── NavLink.tsx, ProtectedRoute.tsx, FeatureRoute.tsx, RootGate.tsx
+├── admin/           Cards/tables do super admin v2 (11 arquivos).
+├── agents/          Painéis da página /ai/agents (15 arquivos).
+├── email/           Editor blocks→html, wizards, dialogs (+ `editor/`, `live/`).
 ├── inbox/           Painéis da conversa (ChatPane, Composer, ContextRail, ...).
 ├── kanban/          Pipeline (PipelineSidebar, StagesManager, dialogs).
-├── lead/            LeadJourney/Timeline e subcomponentes.
+├── lead/            LeadJourney/Timeline e subcomponentes (+ `timeline/`).
 ├── leads/           Cards de atribuição (LeadAttributionCard).
 ├── settings/        WhatsAppQrDialog etc.
+├── site/            Componentes da landing institucional (Hero, Pricing, …).
 └── tasks/           TaskDetailDialog.
 ```
 
@@ -28,7 +30,9 @@ src/components/
 
 ## 2. `ui/` (shadcn-ui)
 
-50+ primitives copiadas do shadcn. **Regras:**
+**55 primitives** (Radix + shadcn) — incluindo extensões internas como
+`category-tabs`, `section-accordion`, `confirm-dialog`, `prompt-dialog`,
+`loading-radial`, `progress-radial`. **Regras:**
 
 - **Não substituir** por bibliotecas alternativas (MUI, Chakra, etc.).
 - **Não remover** primitives mesmo que pareçam não usados — o command
@@ -101,9 +105,48 @@ mensagens. `LeadTimelineTab` — feed unificado, filtrado por
 `TimelineFilters`; cada item é `TimelineItemRow` com `types.ts` para
 tipos discriminados (message / event / form / appointment / scheduled).
 
+`components/leads/LeadAttributionCard` — card de atribuição (UTM / referrer / first/last touch) usado no LeadDrawer.
+
 ---
 
-## 7. Email
+## 7. Agentes IA (`components/agents/`)
+
+Painéis montados dentro de `pages/Agents.tsx` (acessível via `/ai/agents`).
+Cada painel é uma seção do `SectionAccordion` (ver `DESIGN_SYSTEM.md §5.2`):
+
+- **`AgentHealth`** — status agregado do agente (provedor, embeddings, KB).
+- **`AgentInsights`** — métricas e recomendações de qualidade.
+- **`AlfredDialog`** — assistente conversacional "Alfred" para configurar o agente.
+- **`AuditLogPanel`** — log de mudanças no agente (`agent_audit_log`).
+- **`BuilderSetupCard`** — atalhos do Builder Agent (ver `features/BUILDER_AGENTS.md`).
+- **`CopilotPanel`** — chat lado-a-lado para co-pilotar respostas.
+- **`CostsPanel`** — custo por agente (lê `ai_usage_daily` filtrado).
+- **`KbAssistant`** — assistente para indexar/curar a base de conhecimento.
+- **`PersonasPanel`** — CRUD de `agent_personas`.
+- **`PromptDiff`** + **`PromptHistory`** — diff visual entre versões e histórico (`agent_prompt_history`).
+- **`ProviderErrorBanner`** — banner para erros do gateway (rate limit / 402).
+- **`StagesPanel`** — CRUD de `agent_stages` (estágios do funil do agente).
+- **`TestLab`** — playground para rodar prompts com variáveis.
+- **`ThreadLearningPanel`** — aprovação/rejeição de aprendizados extraídos via `agent-learn-from-thread`.
+
+---
+
+## 8. Site institucional (`components/site/`)
+
+Componentes da landing pública (`/site` e `/` sem sessão), todos
+consumidos por `pages/site/MarketingSite.tsx`:
+
+`Hero`, `Features`, `Capabilities`, `Services`, `Pricing`, `Integrations`,
+`Testimonials`, `About`, `Blog`, `Marquee`, `SiteNav`, `SiteFooter`,
+`_anim` (helpers de animação compartilhados — Motion variants).
+
+Paleta dedicada via tokens `--site-*` em `index.css` (preto/verde
+`#1ED400`/roxo `#590675`) — **não** misturar com tokens do app
+(`primary`, `background`, etc.).
+
+---
+
+## 9. Email
 
 ### 7.1 Editor (`components/email/editor/`)
 `Canvas` mostra a árvore de blocks renderizada. `Palette` lista blocks
@@ -128,7 +171,7 @@ para blocks de texto rico. Conversão blocks↔html em
 
 ---
 
-## 8. Admin
+## 10. Admin
 
 Painel `/admin` reorganizado em jun/2026 para 8 abas. Cada aba é um componente em `src/components/admin/`:
 
@@ -145,14 +188,14 @@ Todos os panels assumem `is_super_admin()` no backend — chamadas falham com 40
 
 ---
 
-## 9. Settings
+## 11. Settings
 
 `WhatsAppQrDialog` — polling de `evolution-qr` até `connected`. Mostra
 QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 10. Convenções
+## 12. Convenções
 
 - **Arquivos `.tsx` com 1 componente padrão por arquivo**, default
   export quando for componente de página/feature; named para utilitários.
@@ -164,7 +207,7 @@ QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 11. Pegadinhas
+## 13. Pegadinhas
 
 - Editar `ui/*` quebra cascata em todo o app — use variantes ou crie um
   wrapper específico.
@@ -176,7 +219,7 @@ QR base64 + status. Trigger via `?qr=1` ou clique no status footer.
 
 ---
 
-## 12. Melhorias sugeridas
+## 14. Melhorias sugeridas
 
 - Storybook (ou Ladle) para `ui/*` e componentes complexos do inbox/kanban.
 - Extrair `inbox/` para um package independente — hoje há acoplamento

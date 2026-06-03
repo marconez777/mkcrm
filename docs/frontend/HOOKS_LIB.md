@@ -31,10 +31,10 @@ hook simples.
 
 **`useStages()` / `useLeads()`** (`hooks/useCrm.ts`) — wrappers sobre
 `useRealtimeList<T>(table, orderBy, renderKeys)`. Carrega uma vez
-(`limit: 2000` para leads, 500 para stages), assina `postgres_changes`,
+(stages: `limit: 500`; leads: paginação completa via
+`fetchAllPaged` em páginas de 1000), assina `postgres_changes`,
 patcha estado in-place. `renderKeys` filtra updates ruidosos (ex.:
-`updated_at`) para evitar re-render storms. Avisa no console se atingir
-o limit.
+`updated_at`) para evitar re-render storms.
 
 **`usePipelines()`** — lista de pipelines da clínica + helper de
 seleção/persistência da escolha em localStorage.
@@ -58,6 +58,8 @@ status; expõe `overall: "ok"|"warn"|"down"` para a sidebar.
 
 **`useCountUp()`** — animação de contagem numérica para KPIs (dashboards de IA e Email).
 
+**`useWhatsappInstances()`** — lista `whatsapp_instances` da clínica + status agregado; consumido por `Settings` e `WhatsAppQrDialog`.
+
 ### UI
 
 **`useUnreadTitle()`** — soma `leads.unread_count`, atualiza
@@ -79,8 +81,14 @@ horizontal (usado pelo `TopScrollbar` do Kanban).
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Único util realmente
   usado em todo lugar.
 - **`supabase-env.ts`** — leitura tipada de `import.meta.env.VITE_*`.
+- **`app-url.ts`** — base URL da app (preview/published) para gerar links absolutos (emails, convites).
 - **`phone.ts`** — `normalizePhoneBR(raw)` → string só dígitos com `55`
   prefix quando aplicável. Usar SEMPRE antes de salvar/comparar phones.
+- **`fetch-all.ts`** — `fetchAllPaged<T>(queryFn, pageSize)`: pagina chamadas Supabase para escapar do teto de 1000 rows. Usado por `useCrm` (leads) e exports.
+- **`csv.ts`** — helpers de export CSV (escape, BOM UTF-8) usados em tracking/leads/email logs.
+- **`diff-lines.ts`** — diff linha-a-linha para `PromptDiff` (Agentes IA).
+- **`template-vars.ts`** — render de variáveis `{{...}}` em strings (compartilhado entre templates de WhatsApp e prévia de mensagens).
+- **`quality-ladder.ts`** — escada de qualidade (cores/labels) para scores 0–100 em métricas de IA/email.
 
 ### Leads / pipeline
 - **`delete-lead.ts`** — soft delete (`archived_at`) e hard delete
@@ -120,6 +128,9 @@ horizontal (usado pelo `TopScrollbar` do Kanban).
 - **`ai-pricing.ts`** — tabela de preços por modelo + helper
   `computeCost(model, tokens)` espelhando `_shared/ai-pricing.ts` da
   edge. Mantenha os dois em sincronia.
+- **`agent-tools.ts`** — catálogo declarativo de tools (function-calling) disponíveis para os agentes — labels, descrições e schema usado pelo painel `Agents` e pela edge `ai-assist`.
+- **`builder-errors.ts`** — mapeamento de códigos de erro do Builder Agent para mensagens user-friendly.
+- **`builder-tooltips.ts`** — copy compartilhada dos tooltips do Builder Setup.
 
 ### Features
 - **`features.ts`** — `FeatureKey`, catálogo `FEATURES[]`,

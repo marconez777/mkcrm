@@ -2,7 +2,7 @@
 
 > Mapa de URLs, guards e padrões de navegação.
 >
-> Última atualização: 2026-05-30
+> Última atualização: 2026-06-03
 > Fonte da verdade: `src/App.tsx`.
 
 ---
@@ -16,13 +16,17 @@ Estrutura em **2 níveis** de `<Routes>`:
 
 ```text
 <Routes>
-  /auth, /invite/:token, /unsubscribe, /admin, /onboarding   ← públicas/standalone
+  /site, /, /auth, /reset-password, /invite/:token, /unsubscribe,
+  /admin, /onboarding                                        ← públicas/standalone
   /*  → <ProtectedRoute><AppShell><Routes>{rotas internas}</Routes></AppShell></ProtectedRoute>
 </Routes>
 ```
 
 `AppShell` renderiza a sidebar + topbar e envolve TODAS as rotas internas.
 `/admin` e `/onboarding` são protegidas mas **fora** do shell (telas full-screen).
+A raiz `/` é servida por `<RootGate>` (`src/components/RootGate.tsx`): se
+houver sessão, monta `AppShell + Kanban`; sem sessão, mostra
+`MarketingSite` (mesma página de `/site`).
 
 ---
 
@@ -54,15 +58,18 @@ Estrutura em **2 níveis** de `<Routes>`:
 
 | Path                                         | Page component                         | Guard                              |
 |----------------------------------------------|----------------------------------------|------------------------------------|
+| `/site`                                      | `pages/site/MarketingSite`             | público                            |
+| `/`                                          | `components/RootGate` → `Kanban` ou `MarketingSite` | público / Protected (gate)         |
 | `/auth`                                      | `pages/Auth`                           | público                            |
+| `/reset-password`                            | `pages/ResetPassword`                  | público                            |
 | `/invite/:token`                             | `pages/Invite`                         | público                            |
 | `/unsubscribe`                               | `pages/Unsubscribe`                    | público                            |
 | `/admin`                                     | `pages/Admin`                          | Protected (super_admin no body)    |
 | `/onboarding`                                | `pages/Onboarding`                     | Protected                          |
-| `/`                                          | `pages/Kanban`                         | Protected                          |
 | `/inbox`, `/inbox/:leadId`                   | `pages/Inbox`                          | Feature `inbox`                    |
 | `/ai`                                        | `pages/ai/AiHub`                       | Protected                          |
 | `/ai/agents`, `/agents`                      | `AiHub`                                | Feature `agents`                   |
+| `/ai/agents/new`                             | `pages/ai/AgentWizard`                 | Feature `agents`                   |
 | `/ai/memories`, `/agents/memories`           | `AiHub`                                | Feature `agents`                   |
 | `/ai/insights`                               | `AiHub`                                | Feature `agents`                   |
 | `/ai/usage`, `/metrics/ai-usage`             | `AiHub`                                | Feature `metrics_ai_usage`         |
