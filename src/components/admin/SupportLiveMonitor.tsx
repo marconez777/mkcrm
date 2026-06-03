@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Radio, Pause, Play, User, Bot, Wrench } from "lucide-react";
+import { Loader2, Radio, Pause, Play, User, Bot, Wrench, Pin, Headset } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type LiveMsg = {
@@ -167,7 +168,7 @@ export default function SupportLiveMonitor() {
                 <div
                   key={m.id}
                   className={cn(
-                    "flex items-start gap-2 rounded px-2 py-1.5 border-l-2",
+                    "group flex items-start gap-2 rounded px-2 py-1.5 border-l-2",
                     isUser ? "border-l-primary bg-primary/5" : isAsst ? "border-l-emerald-500 bg-emerald-500/5" : "border-l-amber-500 bg-amber-500/5",
                   )}
                 >
@@ -177,9 +178,37 @@ export default function SupportLiveMonitor() {
                       <span className="uppercase font-semibold">{m.role}</span>
                       <span className="truncate">· {m.user_name ?? "—"}</span>
                       {m.last_route && <span className="truncate">· {m.last_route}</span>}
-                      <span className="ml-auto whitespace-nowrap">
+                      <span className="ml-auto whitespace-nowrap flex items-center gap-1">
                         {format(new Date(m.created_at), "HH:mm:ss", { locale: ptBR })}
                         {totalTok > 0 && ` · ${totalTok}tok · $${Number(m.cost_usd).toFixed(5)}`}
+                        {isAsst && (
+                          <button
+                            onClick={async () => {
+                              const note = prompt("Motivo (opcional):") ?? null;
+                              const { error } = await supabase.from("support_chat_messages" as any).update({
+                                pinned_at: new Date().toISOString(), pinned_note: note, pinned_resolved: false,
+                              } as any).eq("id", m.id);
+                              if (error) toast.error(error.message); else toast.success("Mensagem fixada");
+                            }}
+                            className="ml-1 opacity-0 group-hover:opacity-100 hover:text-amber-500 transition-opacity"
+                            title="Fixar para revisão"
+                          >
+                            <Pin className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={async () => {
+                            if (!confirm("Assumir esta conversa? A IA será silenciada até você liberar.")) return;
+                            const { error } = await supabase.functions.invoke("support-admin-reply", {
+                              body: { action: "takeover", thread_id: m.thread_id },
+                            });
+                            if (error) toast.error(error.message); else toast.success("Conversa assumida. Abra o histórico da thread para responder.");
+                          }}
+                          className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          title="Assumir conversa"
+                        >
+                          <Headset className="h-3 w-3" />
+                        </button>
                       </span>
                     </div>
                     <div className="whitespace-pre-wrap break-words line-clamp-3 text-foreground/80">
