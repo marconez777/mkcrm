@@ -285,3 +285,33 @@ export default function SupportChatFab() {
     </div>
   );
 }
+
+function AssistantBubble({ content, onAction }: { content: string; onAction: (a: any) => void }) {
+  const parts: ContentPart[] = parseAssistantContent(content);
+  return (
+    <div className="space-y-2">
+      {parts.map((p, i) => {
+        if (p.type === "text") {
+          if (!p.text.trim()) return null;
+          return (
+            <div key={i} className="prose prose-sm dark:prose-invert max-w-none [&>*]:my-1 [&_ol]:my-1 [&_ul]:my-1">
+              <ReactMarkdown>{p.text}</ReactMarkdown>
+            </div>
+          );
+        }
+        const a = p.action;
+        const Icon = a.kind === "go" ? ArrowRight : a.kind === "click" ? Target : CheckCircle2;
+        return (
+          <button
+            key={i}
+            onClick={() => onAction(a)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs px-2.5 py-1 transition-colors mr-1.5"
+          >
+            <Icon className="h-3 w-3" />
+            {a.kind === "step" ? `✓ ${a.label}` : a.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
