@@ -1,99 +1,161 @@
-## Causa do erro
+## Objetivo
 
-A função `public.accept_clinic_invite(_token)` falha com `invalid_or_expired_invite` sempre que o convite já foi aceito — mesmo quando quem está chamando é exatamente o usuário que aceitou. Hoje a query é:
+Criar uma base de conhecimento em `docs/support/` cobrindo **interface e usabilidade** de todo o produto, voltada para **admin/operador da clínica**, no formato **híbrido** (por página + jornadas + FAQ). Conteúdo extraído do código (rotas, componentes, hooks, edge functions) e dos docs existentes em `docs/features/`, `docs/maps/` e `docs/flows/`.
 
-```sql
-SELECT * FROM clinic_invites
-WHERE token = _token AND accepted_at IS NULL AND expires_at > now();
+Diferente de `docs/features` (conceitual) e `docs/maps` (onde editar código), `docs/support/` responde **"como o usuário faz X na tela"** — linguagem PT-BR clara, sem jargão técnico de implementação.
+
+## Estrutura proposta
+
+```text
+docs/support/
+├── README.md                    # índice + como o agente deve usar
+├── 00-conceitos.md              # glossário do usuário (lead, pipeline, stage, agente, clínica…)
+├── 01-primeiros-passos.md       # login, onboarding, convites, equipe
+├── pages/                       # 1 arquivo por rota principal
+│   ├── inbox.md
+│   ├── kanban.md
+│   ├── lead-drawer.md
+│   ├── tasks.md
+│   ├── automations.md
+│   ├── sequences.md
+│   ├── broadcasts.md
+│   ├── ai-hub.md
+│   ├── ai-agents.md             # listagem + wizard /ai/agents/new
+│   ├── ai-insights.md
+│   ├── ai-memories.md
+│   ├── email-hub.md             # dashboard, campanhas, automações, templates, contatos, segmentos, fila, logs, relatórios, unsubscribes, domínio
+│   ├── tracking.md              # /tracking + forms + debug + attribution
+│   ├── metrics.md               # Metrics, AI usage, Engagement, Ops, Scheduled reports
+│   ├── settings.md              # Settings + custom-fields + forms
+│   ├── team.md
+│   ├── templates.md
+│   └── admin.md                 # painel super_admin: planos, limites, usuários, financeiro, integrações, auditoria, observabilidade
+├── journeys/                    # fluxos transversais (passo-a-passo)
+│   ├── criar-primeiro-agente-ia.md
+│   ├── conectar-whatsapp.md
+│   ├── importar-leads.md
+│   ├── enviar-campanha-email.md
+│   ├── configurar-dominio-email.md
+│   ├── criar-automacao.md
+│   ├── criar-sequencia.md
+│   ├── publicar-formulario.md
+│   ├── instalar-pixel-tracking.md
+│   ├── convidar-membro-equipe.md
+│   ├── aplicar-plano-cliente.md  # admin
+│   └── pausar-ia-em-lead.md
+├── troubleshooting/
+│   ├── whatsapp.md               # QR não aparece, mensagens não enviam, mídia falha
+│   ├── email.md                  # campanha pausada, bounce, domínio não verifica, fila travada
+│   ├── ia.md                     # erro de provider, quota, agente não responde, custo alto
+│   ├── tracking-formularios.md   # CORS, lead não chega, atribuição errada
+│   ├── auth-convites.md          # convite expirado, login não funciona, role errada
+│   └── limites-planos.md         # bloqueios por limite, como aumentar
+└── faq.md                       # perguntas curtas frequentes
 ```
 
-Cenários reais que disparam o erro indevidamente:
-1. Re‑render após `signUp` + `signInWithPassword` chama a RPC duas vezes — a primeira marca `accepted_at`, a segunda explode.
-2. O usuário reabre o link do convite depois de já tê‑lo aceitado (clica de novo no e‑mail / volta no histórico).
-3. Admin gera mais de um convite para o mesmo e‑mail/clínica (ex.: tokens `aec22...` e `72d1...` no banco). Após aceitar um, o outro continua "ativo" mas qualquer clique mostra erro genérico.
+## Template de cada arquivo `pages/*.md`
 
-O usuário, na prática, já é membro da clínica, mas vê "Convite inválido/expirado" e não é redirecionado.
+Para o agente extrair respostas determinísticas:
 
-## Fases
+```text
+# [Nome da página] — `/rota`
 
-### Fase 1 — Migração: tornar `accept_clinic_invite` idempotente
+## Para que serve
+1-2 linhas em linguagem de usuário.
 
-Reescrever a função para:
+## Quem acessa
+Roles e permissões (owner/admin/operador/super_admin).
 
-1. Validar autenticação.
-2. Buscar o convite por `token` (sem filtrar por `accepted_at IS NULL` ainda).
-3. Se não existir → `invalid_invite`.
-4. Validar e‑mail do usuário vs. e‑mail do convite (`invite_email_mismatch`).
-5. Se `expires_at <= now()` **e** o usuário ainda não é membro da clínica → `expired_invite`.
-6. Se já existe membership em `clinic_members` para `(clinic_id, user_id)` → retornar `clinic_id` (sucesso silencioso).
-7. Caso contrário: `INSERT … ON CONFLICT (user_id) DO NOTHING` em `clinic_members`, marcar `accepted_at = COALESCE(accepted_at, now())`, retornar `clinic_id`.
-8. Marcar como aceitos quaisquer outros convites pendentes do mesmo e‑mail para a mesma clínica (limpa duplicatas tipo `aec22...` + `72d1...`).
+## Layout da tela
+- Cabeçalho: …
+- Barra lateral / filtros: …
+- Conteúdo principal: …
+- Ações primárias: botão X faz Y.
 
-Mantém `SECURITY DEFINER` e `search_path = public`.
+## O que dá para fazer aqui
+Lista de ações com: nome do botão/menu → o que acontece → onde aparece o resultado.
 
-### Fase 2 — Front: `src/pages/Invite.tsx`
+## Campos e seus significados
+Tabela campo → o que é → exemplo → validações visíveis.
 
-- No `handleSubmit`, após `signUp` checar se já existe sessão antes de chamar `signInWithPassword` (evita chamada redundante que dispara re‑render).
-- Guardar uma ref `acceptingRef` para impedir que a RPC seja chamada duas vezes na mesma montagem.
-- Tratar o retorno: se `rpcErr` tiver `message === 'invalid_invite'` mostrar "Convite inválido"; se `expired_invite` mostrar "Convite expirado"; se `invite_email_mismatch` mostrar mensagem específica. Outros erros → toast genérico.
-- Quando `invite.expired === true` na tela inicial, oferecer botão "Ir para o app" se a sessão já estiver presente e o usuário já for membro (consultar `clinic_members` via `current_clinic_id()`), em vez de só "Peça um novo convite".
+## Atalhos e dicas
+Atalhos de teclado, drag-and-drop, multi-seleção.
 
-### Fase 3 — Documentação
+## Erros comuns nesta tela
+Mensagem exibida → causa provável → como resolver (link p/ troubleshooting).
 
-Atualizar `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md` (seção de convites) e `docs/MAP.md` registrando:
-- Função `accept_clinic_invite` agora é idempotente.
-- Convites duplicados para o mesmo `(clinic_id, lower(email))` são auto‑encerrados quando um deles é aceito.
-- Códigos de erro retornados: `not_authenticated`, `invalid_invite`, `expired_invite`, `invite_email_mismatch`.
-
-## Detalhes técnicos
-
-Esboço SQL da nova função:
-
-```sql
-CREATE OR REPLACE FUNCTION public.accept_clinic_invite(_token text)
-RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_invite clinic_invites%ROWTYPE;
-  v_user_email text;
-  v_uid uuid := auth.uid();
-  v_already_member boolean;
-BEGIN
-  IF v_uid IS NULL THEN RAISE EXCEPTION 'not_authenticated'; END IF;
-
-  SELECT * INTO v_invite FROM clinic_invites WHERE token = _token;
-  IF v_invite.id IS NULL THEN RAISE EXCEPTION 'invalid_invite'; END IF;
-
-  SELECT email INTO v_user_email FROM auth.users WHERE id = v_uid;
-  IF lower(v_user_email) <> lower(v_invite.email) THEN
-    RAISE EXCEPTION 'invite_email_mismatch';
-  END IF;
-
-  SELECT EXISTS (
-    SELECT 1 FROM clinic_members
-    WHERE clinic_id = v_invite.clinic_id AND user_id = v_uid
-  ) INTO v_already_member;
-
-  IF NOT v_already_member AND v_invite.expires_at <= now() THEN
-    RAISE EXCEPTION 'expired_invite';
-  END IF;
-
-  INSERT INTO clinic_members (clinic_id, user_id, role)
-  VALUES (v_invite.clinic_id, v_uid, v_invite.role)
-  ON CONFLICT (user_id) DO NOTHING;
-
-  UPDATE clinic_invites
-     SET accepted_at = COALESCE(accepted_at, now())
-   WHERE clinic_id = v_invite.clinic_id
-     AND lower(email) = lower(v_invite.email)
-     AND accepted_at IS NULL;
-
-  RETURN v_invite.clinic_id;
-END $$;
+## Relacionado
+Links para journeys e outras pages.
 ```
 
-## Arquivos afetados
+## Template de cada `journeys/*.md`
 
-- `supabase/migrations/<novo>.sql` — recriação de `accept_clinic_invite`.
-- `src/pages/Invite.tsx` — guard de chamada dupla + mensagens de erro mais finas.
-- `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`, `docs/MAP.md` — atualização.
+```text
+# [Jornada]
+
+## Quando usar
+…
+
+## Pré-requisitos
+…
+
+## Passo a passo
+1. Vá em `/rota` …
+2. Clique em "…"
+3. Preencha … (campos obrigatórios em negrito)
+4. Confirme em "…"
+
+## Como saber que deu certo
+Sinais visuais (toast, badge, item na lista…).
+
+## Se algo der errado
+Link para troubleshooting.
+```
+
+## Fonte por arquivo
+
+Cada doc é gerada cruzando:
+
+- **Rotas** em `src/App.tsx`
+- **Páginas** em `src/pages/**`
+- **Componentes** da feature (`src/components/<area>/*`)
+- **Hooks** relevantes (para entender o que cada botão chama)
+- **Docs existentes**: `docs/features/*`, `docs/maps/*`, `docs/flows/*`, `docs/integracao/*`
+- **Mensagens de erro PT-BR** já no código (busca por `toast(`, `setError(`, mensagens em forms)
+
+Sem inventar comportamento — só descrever o que existe.
+
+## Como o agente vai consumir
+
+Adiciono em `docs/support/README.md` uma seção **"Como usar esta KB"** com:
+- Instrução de priorizar `pages/<rota>.md` quando o usuário citar uma tela
+- Usar `journeys/*` para perguntas "como eu faço X"
+- Cair em `troubleshooting/*` para mensagens de erro
+- `faq.md` para perguntas curtas
+- Glossário em `00-conceitos.md` para vocabulário
+
+Ingestão automática no `ai_documents` fica **fora desta entrega** (você pediu só markdown em `docs/support/`). Posso adicionar depois se quiser.
+
+## Entrega em fases
+
+Volume grande (~35 arquivos). Sugiro entregar em 4 fases para revisão incremental:
+
+| Fase | Entrega |
+|---|---|
+| 1 | `README.md`, `00-conceitos.md`, `01-primeiros-passos.md`, `faq.md` (esqueleto) + templates |
+| 2 | `pages/` — Inbox, Kanban, Lead Drawer, Tasks, Settings, Team, Admin, AI Agents/Wizard, AI Hub |
+| 3 | `pages/` — Email (todas), Tracking, Metrics, Automations, Sequences, Broadcasts, Templates, AI Insights/Memories |
+| 4 | `journeys/` (12 jornadas) + `troubleshooting/` (6 áreas) + revisão final do `README.md` + atualizar `docs/MAP.md` referenciando `docs/support/` |
+
+Cada fase fecha com commit próprio e você pode pedir ajustes antes de eu seguir.
+
+## Manutenção
+
+Adicionar regra em `docs/conventions/COMMIT_PR.md`: PR que muda texto visível, label de botão, ou adiciona/remove rota **deve** atualizar o `docs/support/pages/<rota>.md` correspondente — mesmo padrão dos mapas. Atualizo essa convenção na Fase 4.
+
+## Fora de escopo (confirme se quer incluir)
+
+- Ingestão automática em `ai_documents` (criar agente "suporte" + edge function de sync)
+- Screenshots/GIFs das telas
+- Versão para cliente final (não-operador)
+- Tradução EN
