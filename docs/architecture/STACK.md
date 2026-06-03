@@ -23,9 +23,13 @@
 | DnD-kit | 6.3.1 | Kanban + Tasks board |
 | date-fns | 3.6.0 | Não usar moment |
 | Sonner | 1.7.4 | Toasts |
-| Recharts | 2.15.4 | Gráficos |
+| Recharts | 2.15.4 | Gráficos (dashboard admin, métricas de email/IA) |
 | xlsx | 0.18.5 | Import/export Excel |
 | dompurify | 3.4.3 | Sanitização HTML do editor de email |
+| framer-motion | 12.40.0 | Animações (site institucional + transições do shell) |
+| cmdk | 1.1.1 | Command Palette (⌘K) |
+| vaul | 0.9.9 | Drawers (mobile) |
+| embla-carousel-react | 8.6.0 | Carrosséis no site |
 
 **Path alias:** `@/` → `src/` (definido em `vite.config.ts` + `tsconfig.json`).
 
