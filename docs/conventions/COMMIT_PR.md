@@ -38,6 +38,14 @@
 - Renovar `Última atualização: YYYY-MM-DD` no topo do arquivo modificado.
 - Se a área não tem doc ainda, criar pelo menos um stub.
 
+### Mapas (`docs/maps/*.md`) — regra de manutenção
+
+- **Todo PR que adicionar, mover ou remover arquivo em uma feature mapeada DEVE atualizar o mapa correspondente no mesmo PR.** Mapa desatualizado = mapa que mente.
+- Verificar antes de commitar: a feature tocada tem mapa em `docs/MAP.md`? Se sim, abrir `docs/maps/<FEATURE>.md` e ajustar §3 (frontend), §4 (edges), §5 (DB), e §9 (receitas) se aplicável.
+- Mudou um arquivo `_shared/*` ou helper global → atualizar o **Índice reverso** em `docs/MAP.md`.
+- Mudou um invariante (regra de RLS, anti-loop, dedupe, etc.) → atualizar §7 do mapa relevante + §"Invariantes globais" de `docs/MAP.md` se for cross-feature.
+- Criou feature nova sem mapa → criar `docs/maps/<NOME>.md` seguindo o template fixo de 9 seções (ver mapas existentes).
+
 ---
 
 ## Edge functions
