@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-03 — Endurecimento de segurança (scan)
+
+Correções aplicadas a partir do scanner de segurança:
+
+- **`ai_agent_drafts`**: policy de SELECT trocada de "Users see drafts in their clinic" para `user_id = auth.uid()` — drafts agora são estritamente per-user (era leak cross-user dentro da mesma clínica).
+- **`ai_agents`**: `REVOKE SELECT` em `api_key`, `embedding_api_key`, `reranker_api_key` de `authenticated` e `anon`. Frontend (`AgentHealth.tsx`) deixou de ler `api_key`; check de provedor passou a usar `builder_verified_at`.
+- **`whatsapp_instances`**: `REVOKE SELECT` em `evolution_api_key`, `webhook_token` de `authenticated` e `anon` (reforço — já documentado em `RLS_POLICIES.md`).
+- **`agent_mcp_servers`**: `REVOKE SELECT` em `headers` (pode conter tokens de auth para servidores MCP) de `authenticated` e `anon`.
+- **`error_events`**: policy de INSERT trocada de `WITH CHECK (true)` para `TO authenticated WITH CHECK (auth.uid() IS NOT NULL)` — anon não pode mais poluir a tabela.
+
+Padrão consolidado: colunas de credencial em tabelas multi-tenant são protegidas por `REVOKE SELECT` em nível de coluna; edge functions com `service_role` continuam tendo acesso. Ver `database/RLS_POLICIES.md` (seção "Endurecimentos recentes").
+
+---
+
 ## 2026-06-03 — MAP (GPS de edição) Fase 2 — completo
 
 Adicionados os 6 mapas restantes em `docs/maps/`: `EMAIL.md`, `KANBAN_LEADS.md`, `TRACKING_FORMS.md`, `ADMIN_SUPER_ADMIN.md`, `AUTH_MULTI_TENANCY.md`, `AUTOMATIONS_SEQUENCES.md`. Mesmo template fixo de 9 seções. `docs/MAP.md` atualizado (todos ✅). Regra de manutenção formalizada em `docs/conventions/COMMIT_PR.md` (nova subseção "Mapas — regra de manutenção"): todo PR que adiciona/move/remove arquivo numa feature mapeada deve atualizar o mapa correspondente no mesmo PR; mudanças em `_shared/*` atualizam o Índice Reverso de `MAP.md`; mudanças em invariantes atualizam §7 do mapa relevante.
