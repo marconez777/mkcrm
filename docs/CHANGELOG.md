@@ -5,9 +5,25 @@
 
 ---
 
-## 2026-06-03 — Auditoria documental Fase 5/8 (parcial — Features + Flows)
+## 2026-06-03 — Auditoria documental Fase 5/8 (Features + Flows — concluída)
 
-Releitura linha-a-linha de `docs/features/` e `docs/flows/` contra `supabase/functions/*`, migrations e `src/**`. **Cobertos 6/14 arquivos** nesta rodada; restantes (`features/{BROADCASTS,EMAIL_CAMPAIGNS,ENGAGEMENT,SEQUENCES_AUTOMATIONS,BUILDER_AGENTS}.md` validados sem alteração + `flows/{LEAD_LIFECYCLE,TRACKING_TO_LEAD,EMAIL_CAMPAIGN}.md`) ficam para a próxima rodada.
+Releitura linha-a-linha de `docs/features/` e `docs/flows/` contra `supabase/functions/*`, migrations e `src/**`. **Cobertos todos os 14 arquivos**. Esta entrada agrega a rodada inicial (6 arquivos) e o fechamento dos 3 flows restantes (`LEAD_LIFECYCLE`, `TRACKING_TO_LEAD`, `EMAIL_CAMPAIGN`).
+
+### Corrigido (fechamento — 3 flows finais)
+- `docs/flows/LEAD_LIFECYCLE.md` (**reescrito**):
+  - Triggers fantasmas removidos: `tg_lead_after_insert` e `tg_pause_ai_on_human_reply` **não existem**. Triggers reais documentados a partir do `pg_trigger`: `trg_enroll_on_stage_change` (cobre INSERT + stage_id UPDATE), `trg_lead_stage_history` → tabela dedicada `lead_stage_history`, `log_lead_changes_trg`, `leads_stage_changed`, `trg_leads_sync_pipeline`. Pausa de IA por humano = `trg_stop_sequences_on_reply` em `messages` + `bot_agent_id`.
+  - `findOrCreateLead`/`_shared/lead.ts` removido — helper **não existe**; dedupe é inline em cada entrypoint.
+  - `src/pages/LeadDetail.tsx` → `src/pages/LeadDrawer.tsx` (nome real do arquivo).
+  - "Histórico derivado de `lead_events`" → tabela dedicada `lead_stage_history`.
+- `docs/flows/TRACKING_TO_LEAD.md` (**reescrito**):
+  - Payload do `tracking-identify` corrigido: `{ project_id, visitor_id, lead_id|email|phone }`, não `anonymous_id`. Email/phone trafegam **hasheados** (sha256).
+  - Função grava em `tracking_lead_sources` (first_touch + last_non_direct) e em `tracking_events('lead_identified')` — **não** em `lead_events`.
+  - Validação de origem via `clinic.settings.tracking.allowed_domains` documentada (403 `origin_not_allowed`).
+  - Click-to-chat: regex real `TRACKING_CODE_RE = /(?:ref=([a-f0-9]{10})|(MK-[A-HJ-NP-Z2-9]{6}))/i` (10 chars hex ou base32, **não** UUID de 32 chars).
+  - Colunas UTM em `leads`: existem apenas `utm_source/utm_medium/utm_campaign` + `form_source` — removidas referências fantasmas a `first_utm_*` / `last_utm_*`. Multi-touch oficial vive em `tracking_lead_sources`.
+- `docs/flows/EMAIL_CAMPAIGN.md`: validado contra `dispatch-campaign`, `process-email-queue`, `send-email-batch`, `resend-webhook`, tabelas (`email_queue`, `email_logs`, `email_send_dedup`, `email_unsubscribes`, `email_domain_warmup`, `email_recipient_throttle`, `email_send_state`, `resend_webhook_events`) — **sem alteração**, documento já estava sincronizado com o código (última edição em 2026-05-27).
+
+### Corrigido (rodada inicial — 6 arquivos)
 
 ### Corrigido
 - `docs/features/APPOINTMENT_REMINDERS.md`: rota `/settings/custom-fields` → `/settings/fields` (rota real em `App.tsx`).
