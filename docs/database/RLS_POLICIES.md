@@ -71,7 +71,7 @@ USING (user_id = auth.uid())
 WITH CHECK (user_id = auth.uid());
 ```
 
-Aplicado a: `profiles` (self-update), `auth_lockouts` (apenas service_role lê), `agent_evals` (rater_id).
+Aplicado a: `profiles` (self-update), `agent_evals` (rater_id), `ai_agent_drafts` (`user_id`).
 
 ### Padrão "public read" (raros — somente onde realmente necessário)
 

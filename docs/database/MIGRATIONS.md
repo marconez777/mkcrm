@@ -1,13 +1,13 @@
 # MIGRATIONS — Histórico e governança
 
-> Última atualização: 2026-05-30
-> Fonte: `supabase/migrations/*.sql` (~100 arquivos).
+> Última atualização: 2026-06-03
+> Fonte: `supabase/migrations/*.sql` (139 arquivos).
 > Cada migration tem timestamp `YYYYMMDDHHMMSS_<uuid>.sql`.
 
 ## Visão geral
 
-- **Total**: ~90 migrations.
-- **Período coberto**: 2026-05-03 → 2026-05-25.
+- **Total**: **139 migrations**.
+- **Período coberto**: 2026-05-03 → 2026-06-03.
 - **Tool**: criadas via `supabase--migration` (Lovable) — nunca editar manualmente após aplicadas.
 - **Princípio**: cada migration é **idempotente quando possível** (uso de `IF NOT EXISTS`, `CREATE OR REPLACE`, `ON CONFLICT DO NOTHING`).
 
@@ -27,6 +27,8 @@
 | 2026-05-27 | RPC `report_campaign_stats`, `email_campaigns`/`campaign_throughput` no realtime, hardening RLS `clinic_email_integrations`, revoke `whatsapp_instances` secrets para `authenticated` |
 | 2026-05-28 | Revoke `whatsapp_instances`/`form_integrations`/`ai_agents` secrets para `anon`, trigger idempotente `tg_email_queue_campaign_counters`, índices `email_segment_contacts`/`leads`, trigger `tg_suppress_on_bounce`, novo `trigger_type='pipeline_enter'` em `message_sequences` |
 | 2026-05-30 | `message_sequence_runs` ganha `replied_at`/`stage_id_at_send`/`stage_position_at_send`, revoke EXECUTE das RPCs `engagement_*` para `PUBLIC/anon`, `email_campaigns.segment_ids uuid[]` (multi-segmento) + backfill |
+| 2026-06-01 → 06-02 | Painel `/admin` v2: catálogo `plans`, RPCs `admin_overview_metrics`, `admin_top_clinics(_limit)`, `admin_clinic_usage(_clinic)`, `admin_daily_metrics(_days)`, edge `admin-apply-plan` (propaga features/limits do plano para `clinics.settings`) |
+| 2026-06-03 | Hardening security: edges `evolution-webhook` e `resend-webhook` (validação reforçada) |
 
 ## Como criar uma nova migration
 

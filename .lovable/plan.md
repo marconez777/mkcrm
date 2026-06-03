@@ -19,9 +19,9 @@ Convenções: PT-BR, nomes de produto em inglês (Lovable Cloud, Resend, Evoluti
 `docs/README.md`, `OVERVIEW.md`, `GLOSSARY.md`, `CHANGELOG.md`, `AI.md`, `EMAIL.md`, `TRACKING.md`, `AUDIT_PHASE1.md`, `copilot.md`, e `architecture/{AUTH,FEATURE_FLAGS,MULTI_TENANCY,PLANS_LIMITS,REALTIME,STACK}.md`.
 Foco: índice de docs, stack, multi-tenancy (`current_clinic_id`, `is_super_admin`), plans/limits, feature flags refletindo `src/lib/features.ts`, `src/lib/admin-plans.ts`, `clinics.settings`, edge `admin-apply-plan`.
 
-### Fase 2 — Database (4 arquivos)
+### Fase 2 — Database (4 arquivos) ✅ concluída 2026-06-03
 `database/{SCHEMA,RLS_POLICIES,FUNCTIONS_TRIGGERS,MIGRATIONS}.md`.
-Varredura completa de `supabase/migrations/*.sql` (incl. `admin_daily_metrics` e ajustes de junho/2026) e `src/integrations/supabase/types.ts`.
+Varredura completa de `supabase/migrations/*.sql` (139) + `pg_catalog`. Achados principais: 12 tabelas ausentes adicionadas, `auth_lockouts` confirmada como inexistente (removida), contagem real 111 relações, RPCs admin reescritas, total de migrations 139.
 
 ### Fase 3 — Edge Functions (6 arquivos)
 `edge-functions/{INDEX,AI,EMAIL,TRACKING,WHATSAPP,SHARED_HELPERS}.md`.
