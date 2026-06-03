@@ -81,8 +81,14 @@ horizontal (usado pelo `TopScrollbar` do Kanban).
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge). Único util realmente
   usado em todo lugar.
 - **`supabase-env.ts`** — leitura tipada de `import.meta.env.VITE_*`.
+- **`app-url.ts`** — base URL da app (preview/published) para gerar links absolutos (emails, convites).
 - **`phone.ts`** — `normalizePhoneBR(raw)` → string só dígitos com `55`
   prefix quando aplicável. Usar SEMPRE antes de salvar/comparar phones.
+- **`fetch-all.ts`** — `fetchAllPaged<T>(queryFn, pageSize)`: pagina chamadas Supabase para escapar do teto de 1000 rows. Usado por `useCrm` (leads) e exports.
+- **`csv.ts`** — helpers de export CSV (escape, BOM UTF-8) usados em tracking/leads/email logs.
+- **`diff-lines.ts`** — diff linha-a-linha para `PromptDiff` (Agentes IA).
+- **`template-vars.ts`** — render de variáveis `{{...}}` em strings (compartilhado entre templates de WhatsApp e prévia de mensagens).
+- **`quality-ladder.ts`** — escada de qualidade (cores/labels) para scores 0–100 em métricas de IA/email.
 
 ### Leads / pipeline
 - **`delete-lead.ts`** — soft delete (`archived_at`) e hard delete
