@@ -135,7 +135,8 @@ export default function ClinicDetailsDialog({
       if (error) throw error;
       toast.success("Plano revogado");
       await loadAll(clinic!.id);
-    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+      onChanged?.();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao revogar plano"); } finally { setBusy(false); }
   }
 
   const fmt = (d: string | null) => d ? new Date(d).toLocaleString("pt-BR") : "—";
