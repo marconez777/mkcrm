@@ -147,7 +147,7 @@ export default function ClinicDetailsDialog({
           <DialogTitle className="flex items-center gap-2">
             {clinic.name}
             <Badge variant={clinic.status === "active" ? "default" : "secondary"}>{clinic.status}</Badge>
-            <Badge variant="outline">{clinic.plan}</Badge>
+            <Badge variant="outline">{currentPlanCode}</Badge>
           </DialogTitle>
         </DialogHeader>
 
