@@ -19,7 +19,7 @@ import Blog from "@/components/site/Blog";
 export default function MarketingSite() {
   useEffect(() => {
     const prev = document.title;
-    document.title = "MK-CRM · CRM com WhatsApp, Kanban e IA para clínicas";
+    document.title = "MK-CRM · CRM com WhatsApp, Kanban e IA para negócios";
     return () => {
       document.title = prev;
     };

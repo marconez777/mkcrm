@@ -6,7 +6,7 @@ const POSTS = [
   {
     tag: "Guia",
     icon: BookOpen,
-    title: "Como montar um funil de vendas para clínicas em 7 passos",
+    title: "Como montar um funil de vendas para negócios em 7 passos",
     read: "8 min de leitura",
   },
   {
@@ -79,7 +79,7 @@ export default function Blog() {
               viewport={viewportOnce}
               variants={fadeUp(0.16, 16)}
             >
-              Guias práticos, tutoriais e novidades para sua clínica vender mais e operar melhor.
+              Guias práticos, tutoriais e novidades para sua negócio vender mais e operar melhor.
             </motion.p>
           </div>
           <motion.a

@@ -46,7 +46,7 @@ export default function SiteFooter() {
             {/* TODO: copy final */}
             <p className="site-font-body mt-4 max-w-sm text-[15px] leading-relaxed text-site-muted">
               CRM com pipeline Kanban, atendimento via WhatsApp e inteligência artificial dedicada
-              para clínicas que querem crescer sem perder o toque humano.
+              para negócios que querem crescer sem perder o toque humano.
             </p>
           </div>
 
@@ -86,7 +86,7 @@ export default function SiteFooter() {
 
         <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-white/5 pt-6 text-site-muted md:flex-row md:items-center">
           <p className="site-font-body text-[15px]">© {new Date().getFullYear()} MK-CRM. Todos os direitos reservados.</p>
-          <p className="site-font-body text-[15px]">Feito com cuidado para clínicas brasileiras.</p>
+          <p className="site-font-body text-[15px]">Feito com cuidado para negócios brasileiras.</p>
         </div>
       </div>
     </footer>

@@ -7,7 +7,7 @@ const TESTIMONIALS = [
     quote:
       "Em 30 dias dobramos a taxa de resposta no WhatsApp. O Kanban deixou a operação visível pra todo mundo.",
     name: "Dra. Marina Alves",
-    role: "Diretora · Clínica Vitalis",
+    role: "Diretora · Vitalis",
     metric: "+112% leads respondidos",
   },
   {
@@ -65,7 +65,7 @@ export default function Testimonials() {
             viewport={viewportOnce}
             variants={fadeUp(0.08, 28)}
           >
-            Clínicas que vendem mais
+            Negócios que vendem mais
             <br />
             com o{" "}
             <span

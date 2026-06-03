@@ -68,7 +68,7 @@ export default function Integrations() {
             >
               tudo
             </span>{" "}
-            que sua clínica já usa.
+            que sua negócio já usa.
           </motion.h2>
           <motion.p
             className="site-font-body mt-5 text-[17px] leading-relaxed text-site-muted"

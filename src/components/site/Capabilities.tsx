@@ -64,7 +64,7 @@ const ITEMS = [
   {
     icon: SlidersHorizontal,
     title: "Campos personalizados",
-    body: "Adapte o cadastro de lead à realidade da sua clínica sem mexer em código.",
+    body: "Adapte o cadastro de lead à realidade da sua negócio sem mexer em código.",
   },
   {
     icon: LineChart,
@@ -74,7 +74,7 @@ const ITEMS = [
   {
     icon: Wallet,
     title: "Custo de IA sob controle",
-    body: "Orçamento mensal por clínica, alerta automático e pausa segura ao estourar o limite.",
+    body: "Orçamento mensal por negócio, alerta automático e pausa segura ao estourar o limite.",
   },
 ] as const;
 
@@ -133,7 +133,7 @@ export default function Capabilities() {
             viewport={viewportOnce}
             variants={fadeUp(0.16, 16)}
           >
-            Cada recurso pensado para clínicas que vivem de relacionamento — todos incluídos desde o plano de entrada.
+            Cada recurso pensado para negócios que vivem de relacionamento — todos incluídos desde o plano de entrada.
           </motion.p>
         </div>
 
