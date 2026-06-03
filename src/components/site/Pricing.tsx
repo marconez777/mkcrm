@@ -121,7 +121,7 @@ export default function Pricing() {
             viewport={viewportOnce}
             variants={fadeUp(0.16, 16)}
           >
-            Comece grátis por 14 dias. Sem cartão de crédito, sem fidelidade, cancela quando quiser.
+            Mensal ou anual, com desconto significativo no plano anual. Sem fidelidade, cancela quando quiser.
           </motion.p>
         </div>
 
