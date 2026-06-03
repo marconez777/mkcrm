@@ -2,8 +2,9 @@
 
 > **Quando ler:** ao mexer no painel `/admin` (aba Planos / Uso & Limites), ao adicionar uma nova métrica de uso por clínica, ou ao planejar enforcement de cap em runtime.
 > **Última atualização:** 2026-06-03
+> **Companion:** para o **modelo operacional** (assinaturas, faturas, KPIs financeiros, observabilidade, cron jobs), leia [`docs/maps/BILLING_PLANS.md`](../maps/BILLING_PLANS.md) — este arquivo cobre o **modelo de dados de planos & limites** propriamente dito.
 
-Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos.
+Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos, complementado por um sistema de **assinaturas manuais** (`clinic_subscriptions`) e **faturamento manual** (`invoices`).
 
 ---
 
