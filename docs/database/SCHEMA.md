@@ -21,16 +21,18 @@ As tabelas são agrupadas por domínio funcional. Cada domínio tem sua própria
 
 | Domínio | Tabelas principais |
 |---|---|
-| Tenancy & Identidade | `clinics`, `clinic_members`, `clinic_invites`, `profiles`, `user_roles`, `attendants`, `settings`, `app_settings`, `auth_lockouts`, `audit_log`, `data_access_log`, **`plans`** |
-| Pipelines & Leads | `pipelines`, `pipeline_stages`, `leads`, `lead_events`, `lead_stage_history`, `lead_custom_fields`, `lead_internal_notes`, `lead_tasks`, `lead_ai_settings`, `deleted_leads`, `stage_ai_defaults` |
+| Tenancy & Identidade | `clinics`, `clinic_members`, `clinic_invites`, `profiles`, `user_roles`, `attendants`, `settings`, `app_settings`, `audit_log`, `data_access_log`, **`plans`** |
+| Pipelines & Leads | `pipelines`, `pipeline_stages`, `leads`, `lead_events`, `lead_stage_history`, `lead_custom_fields`, `lead_internal_notes`, `lead_tasks`, `lead_ai_settings`, `lead_thread_classifications`, `deleted_leads`, `stage_ai_defaults` |
 | WhatsApp & Mensageria | `whatsapp_instances`, `whatsapp_intents`, `messages`, `message_templates`, `quick_replies`, `scheduled_messages`, `pending_replies`, `webhook_events`, `webhook_dedup` |
+| Relatórios agendados (WA) | `scheduled_reports`, `scheduled_report_runs` |
 | Tasks (Kanban) | `task_boards`, `task_columns`, `tasks`, `task_assignees`, `task_labels`, `task_label_links`, `task_checklist_items`, `task_attachments` |
-| Email Marketing | `email_templates`, `email_template_folders`, `email_queue`, `email_logs`, `email_campaigns`, `email_campaign_variants`, `email_automations`, `email_automation_enrollments`, `email_segments`, `email_segment_contacts`, `email_unsubscribes`, `email_send_state`, `email_send_dedup`, `email_domains`, `email_domain_warmup`, `email_recipient_throttle`, `email_health_alerts`, `email_operational_alerts`, `campaign_throughput`, `clinic_email_integrations` |
+| Email Marketing | `email_templates`, `email_template_folders`, `email_queue`, `email_logs`, `email_campaigns`, `email_campaign_variants`, `email_automations`, `email_automation_enrollments`, `email_segments`, `email_segment_contacts`, `email_unsubscribes`, `email_send_state`, `email_send_dedup`, `email_domains`, `email_domain_warmup`, `email_recipient_throttle`, `email_health_alerts`, `email_operational_alerts`, `email_metrics_daily`, `campaign_throughput`, `clinic_email_integrations`, `resend_webhook_events` |
 | Sequências / Automações | `message_sequences`, `message_sequence_steps`, `message_sequence_enrollments`, `message_sequence_runs`, `automations`, `automation_runs` |
 | Broadcasts | `broadcasts`, `broadcast_recipients`, `broadcast_message_groups`, `broadcast_message_parts`, `broadcast_events` |
 | Forms públicos | `form_definitions`, `form_submissions`, `form_integrations` |
 | Tracking | `tracking_events`, `tracking_sessions`, `tracking_visitors`, `tracking_identity_links`, `tracking_lead_sources`, `traffic_source_rules` |
-| IA (Agentes / RAG / Observabilidade) | `ai_agents`, `ai_threads`, `ai_messages`, `ai_documents`, `ai_chunks`, `ai_insights`, `ai_usage`, `ai_usage_daily`, `ai_spend_events`, `ai_spend_limits`, `ai_spend_notifications_sent`, `agent_traces`, `agent_evals`, `agent_memory`, `agent_mcp_servers`, `rag_cache`, `embedding_cache`, `lead_reply_counters` |
+| IA (Agentes / RAG / Observabilidade) | `ai_agents`, `ai_agent_drafts`, `agent_personas`, `agent_prompt_versions`, `agent_stages`, `ai_threads`, `ai_messages`, `ai_documents`, `ai_chunks`, `ai_kb_defaults`, `ai_insights`, `ai_usage`, `ai_usage_daily`, `ai_spend_events`, `ai_spend_limits`, `ai_spend_notifications_sent`, `agent_traces`, `ai_chat_traces`, `agent_evals`, `agent_memory`, `agent_mcp_servers`, `rag_cache`, `embedding_cache`, `lead_reply_counters` |
+| Builder / Lovable Agent | `builder_manual_versions` |
 
 ## Tenancy & Identidade
 
