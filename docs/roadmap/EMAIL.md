@@ -51,8 +51,8 @@ Hoje a workspace **não tem domínio de email configurado**. Pra mandar de `nore
 
 ### Fora de escopo
 
-- Mudar Site URL/Allowlist no Supabase (já está OK).
-- Mudar a edge `auth-login`.
+- Mudar Site URL/Allowlist no Lovable Cloud (já está OK).
+- Auth nativa (`supabase.auth.*`) — não há edge function de login custom.
 - Email marketing — só auth.
 
 ### Notas técnicas

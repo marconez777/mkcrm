@@ -1,7 +1,7 @@
 # Convenções — Segurança
 
 > **Quando ler:** antes de criar tabelas, edge functions públicas ou fluxos de auth/admin.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -78,16 +78,12 @@ SET search_path = public
 
 Quando `verify_jwt = false` em `config.toml`:
 - Validar **manualmente** payload, origem, rate limit.
-- Para webhooks externos: validar assinatura HMAC ou token compartilhado.
-- Logar IP em `audit_log` ou tabela dedicada para forense.
+- Para webhooks externos: validar assinatura HMAC ou token compartilhado (`evolution-webhook` autentica via `?token=` na URL).
+- CORS: ecoar `Origin` quando há credenciais — ver `known-issues/CORS_FORMS_INGEST.md`.
 
-Funções públicas atuais: `tracking-pixel`, `tracking-event`, `tracking-identify`, `tracking-config`, `evolution-webhook`, `resend-webhook`, `email-unsubscribe`, `forms-ingest`, `forms-snippet`, `wa-redirect`, `external-lead-capture`, `auth-login`.
+Funções públicas atuais: `tracking-pixel`, `tracking-event`, `tracking-identify`, `tracking-config`, `evolution-webhook`, `resend-webhook`, `email-unsubscribe`, `forms-ingest`, `forms-snippet`, `forms-plugin-zip`, `wa-redirect`, `external-lead-capture`.
 
----
-
-## Auth / lockout
-
-`auth-login` implementa rate limit: 5 tentativas → bloqueio de 12h em `auth_lockouts`. Ver `architecture/AUTH.md`.
+> Auth nativa do Supabase (`supabase.auth.signInWithPassword`) é usada diretamente — não existe edge function `auth-login`. Rate limit / lockout custom (`auth_lockouts`) foi removido em 2026-05-26; hoje depende do rate limit nativo do Auth.
 
 ---
 

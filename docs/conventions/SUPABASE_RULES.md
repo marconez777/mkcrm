@@ -1,7 +1,7 @@
 # Convenções — Supabase / Lovable Cloud
 
 > **Quando ler:** antes de qualquer mudança que toque banco, edge function, auth ou storage.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -40,7 +40,7 @@ Sempre via `supabase--migration` (ferramenta) — nunca via SQL manual no painel
 
 - Deploy é **automático** ao salvar `index.ts`. Não peça ao usuário para fazer deploy.
 - Auto-restart também é automático após `code--exec` install. Não chamar `restart_dev_server` para isso.
-- Cada função tem CORS headers no topo (padrão do projeto):
+- Cada função tem CORS headers no topo. Padrão para funções autenticadas (mesma origem):
   ```ts
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -48,6 +48,7 @@ Sempre via `supabase--migration` (ferramenta) — nunca via SQL manual no painel
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
   ```
+- **Funções públicas chamadas de domínio terceiro** (`forms-ingest`, `tracking-*`): NÃO usar `*` — ecoar `req.headers.get("origin")` + `Allow-Credentials: true`. Ver `known-issues/CORS_FORMS_INGEST.md`.
 - Funções públicas (sem JWT): tracking-*, webhooks, pixel. Configurar `verify_jwt = false` em `supabase/config.toml`.
 - Secrets: nunca commitar. Verificar com `secrets--fetch_secrets`. Se faltar, pedir ao usuário com `secrets--add_secret`.
 

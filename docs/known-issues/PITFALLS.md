@@ -1,7 +1,7 @@
 # Pegadinhas (Pitfalls)
 
 > **Quando ler:** **SEMPRE antes** de mexer em qualquer coisa. Esta é a lista de erros que a IA (e humanos) já cometeu múltiplas vezes neste projeto.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -68,9 +68,9 @@
 
 ## WhatsApp / Evolution
 
-### 14. Esquecer `evolution_message_id` UNIQUE
+### 14. Esquecer `messages.external_id` UNIQUE
 **Sintoma:** mesma msg aparece 3× no Inbox (reentrega Evolution).
-**Faça:** sempre UPSERT com chave única.
+**Faça:** sempre UPSERT em `messages` com chave única `(clinic_id, external_id)`. `evolution_message_id` **não existe** — a coluna real é `external_id`.
 
 ### 15. Enviar mp3 como áudio
 **Sintoma:** Evolution retorna 200, WhatsApp descarta silenciosamente.
@@ -106,7 +106,7 @@
 
 ### 22. Esquecer pause flag `leads.ai_paused`
 **Sintoma:** humano respondeu, IA respondeu por cima.
-**Faça:** trigger `tg_pause_ai_on_human_reply`. Verificar antes de cada run.
+**Faça:** `ai-auto-reply` checa `leads.ai_paused` no início e ignora mensagens onde `messages.bot_agent_id IS NOT NULL` (anti-loop bot↔bot). Não existe trigger `tg_pause_ai_on_human_reply` — pausa é manual ou via tool da IA (`pause_ai_for_lead`).
 
 ---
 
