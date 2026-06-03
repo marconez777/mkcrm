@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 4/8 (Frontend)
+
+Releitura linha-a-linha de `docs/frontend/` (6 arquivos) contra `src/App.tsx`, `src/pages/**`, `src/components/**`, `src/hooks/**`, `src/lib/**` e `src/index.css`.
+
+### Corrigido
+- `docs/frontend/ROUTING.md`:
+  - Tabela de rotas: adicionadas `/site` (`MarketingSite`), `/reset-password` (`ResetPassword`) e `/ai/agents/new` (`AgentWizard`) — ausentes.
+  - Raiz `/` agora documentada como `RootGate` (gate de sessão entre `Kanban` e `MarketingSite`), não `Kanban` direto.
+  - Bloco de rotas standalone do topo refletindo `/site` + `/reset-password`.
+  - Carimbo bumpado para 2026-06-03.
+- `docs/frontend/PAGES.md`:
+  - Tabela standalone: adicionadas `MarketingSite` e `ResetPassword`. Nota sobre `RootGate` em `/`.
+  - Seção 2.3 (IA): adicionada `AgentWizard.tsx` (`/ai/agents/new`) como página filha do AppShell.
+  - Referência `frontend/COMPONENTS.md §8` → `§10` (renumeração).
+- `docs/frontend/COMPONENTS.md`:
+  - Estrutura: adicionadas pastas `agents/` (15 arquivos) e `site/` (13 arquivos) que estavam ausentes; mencionados `RootGate.tsx` e `leads/`.
+  - `ui/` agora declara **55 primitives** (era "50+"), com destaque para extensões internas (`category-tabs`, `section-accordion`, `confirm-dialog`, `prompt-dialog`, `loading-radial`, `progress-radial`).
+  - Nova **§7 Agentes IA** documentando os 15 painéis de `components/agents/*`.
+  - Nova **§8 Site institucional** documentando os 13 componentes de `components/site/*` + paleta `--site-*`.
+  - Renumeradas as seções Admin/Settings/Convenções/Pegadinhas/Melhorias (8→10, 9→11, 10→12, 11→13, 12→14).
+- `docs/frontend/DESIGN_SYSTEM.md`:
+  - Documentados tokens ausentes em `src/index.css`: par `--status-*-bg`/`--status-*-fg` (7 status), `--surface-muted`, `--card-radius-lg`, `--shadow-soft`, e toda a paleta `--site-*` da landing institucional.
+- `docs/frontend/HOOKS_LIB.md`:
+  - `useLeads()`: corrigida a descrição — usa `fetchAllPaged` em páginas de 1000 (sem teto de 2000); aviso de "limit" no console foi removido pois não existe no código atual.
+  - Adicionado hook ausente: `useWhatsappInstances`.
+  - Adicionados módulos `lib/*` ausentes: `app-url`, `fetch-all`, `csv`, `diff-lines`, `template-vars`, `quality-ladder`, `agent-tools`, `builder-errors`, `builder-tooltips`.
+
+### Validado sem alteração
+- `docs/frontend/STATE_DATA.md`: leituras, mutações, realtime e padrões de form ainda batem com o código.
+- `DESIGN_SYSTEM.md §5.1/§5.2` (Premium dark + `SectionAccordion`): tokens `--tab-*` e mapa de accents da página `/ai/agents` conferem com `index.css` e `pages/Agents.tsx`.
+
+### Achados sinalizados (escopo de outras fases)
+- `pages/Index.tsx` continua não roteada (legado) — manter ou remover é decisão de produto; registrar em `DEBT.md` (Fase 6).
+- `AiHub` e `EmailHub` continuam concentrando ~15/11 rotas via switch interno — sugestão de refactor para `<Route>` reais permanece em §5 de cada doc.
+- Vários painéis de `components/agents/*` dependem de tabelas e edges documentadas em outras fases (Fase 2/3) — sem novas dependências introduzidas.
+
+
+
 ## 2026-06-03 — Auditoria documental Fase 3/8 (Edge Functions)
 
 Releitura linha-a-linha de `docs/edge-functions/` (6 arquivos) contra `supabase/functions/*` (71 funções) e `_shared/*`.
