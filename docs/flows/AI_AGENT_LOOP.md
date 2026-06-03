@@ -7,10 +7,10 @@
 
 ## Atores
 
-- **Edge function** `ai-auto-reply` (gatilho por mensagem inbound) ou `ai-assist` (gatilho manual do usuário no Inbox)
-- **Lovable AI Gateway** (Gemini/GPT)
-- **Postgres**: `ai_runs`, `ai_messages`, `ai_tool_calls`, `lead_notes`, `appointments`, `wa_messages`
-- **Edge function** `evolution-send` (efetua a resposta)
+- **Edge function** `ai-auto-reply` (gatilho por mensagem inbound) ou `ai-assist` (gatilho manual do usuário no Inbox); ambas roteiam para `ai-chat` que carrega tools e provedor
+- **Provedor LLM da clínica** (OpenAI / Anthropic / Google / xAI / OpenAI-compatible) — chave gerenciada por `ai_agents.api_key` (criptografada). Não há mais dependência obrigatória do Lovable AI Gateway no loop principal
+- **Postgres**: `ai_runs`, `ai_messages`, `ai_tool_calls`, `ai_threads`, `ai_insights`, `agent_memories`, `lead_internal_notes`, `scheduled_messages`, `lead_tasks`, `messages`
+- **Edge function** `evolution-send` (efetua a resposta no WhatsApp)
 
 ---
 
