@@ -140,7 +140,7 @@ tags, custom fields, jornada de tracking, tarefas, agendamentos.
 - **`MetricsAiUsage.tsx`** e **`MetricsEngagement.tsx`** vivem como abas do AiHub (ver §2.3).
 
 ### 2.11 Admin v2 (`/admin`)
-**`Admin.tsx`** — shell de abas (super admin only). Cada aba é um componente em `src/components/admin/` (ver `frontend/COMPONENTS.md §8`).
+**`Admin.tsx`** — shell de abas (super admin only). Cada aba é um componente em `src/components/admin/` (ver `frontend/COMPONENTS.md §10`).
 
 ```text
 /admin
