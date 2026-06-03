@@ -847,8 +847,11 @@ export default function AgentWizard() {
                 onRefine={() => generatePrompt(refinement)}
                 agentName={agentName}
                 setAgentName={setAgentName}
+                timeoutWarning={promptTimeoutWarning}
+                timedOut={promptTimedOut}
               />
             )}
+
           </div>
 
           <div className="mt-4 flex items-center justify-between">
