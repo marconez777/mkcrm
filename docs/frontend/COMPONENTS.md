@@ -10,17 +10,19 @@
 
 ```text
 src/components/
-├── ui/              shadcn-ui (Radix + Tailwind). NÃO EDITAR sem critério.
+├── ui/              shadcn-ui (Radix + Tailwind) — 55 primitives. NÃO EDITAR sem critério.
 ├── AppShell.tsx     Layout root (sidebar + main).
 ├── CommandPalette.tsx, ShortcutsDialog.tsx
-├── NavLink.tsx, ProtectedRoute.tsx, FeatureRoute.tsx
-├── admin/           Cards/tables do super admin.
-├── email/           Editor blocks→html, wizards, dialogs.
+├── NavLink.tsx, ProtectedRoute.tsx, FeatureRoute.tsx, RootGate.tsx
+├── admin/           Cards/tables do super admin v2 (11 arquivos).
+├── agents/          Painéis da página /ai/agents (15 arquivos).
+├── email/           Editor blocks→html, wizards, dialogs (+ `editor/`, `live/`).
 ├── inbox/           Painéis da conversa (ChatPane, Composer, ContextRail, ...).
 ├── kanban/          Pipeline (PipelineSidebar, StagesManager, dialogs).
-├── lead/            LeadJourney/Timeline e subcomponentes.
+├── lead/            LeadJourney/Timeline e subcomponentes (+ `timeline/`).
 ├── leads/           Cards de atribuição (LeadAttributionCard).
 ├── settings/        WhatsAppQrDialog etc.
+├── site/            Componentes da landing institucional (Hero, Pricing, …).
 └── tasks/           TaskDetailDialog.
 ```
 
