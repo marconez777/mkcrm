@@ -13,7 +13,7 @@
   - `updated_at timestamptz NOT NULL DEFAULT now()` (mantido por trigger `set_updated_at` — ver `FUNCTIONS_TRIGGERS.md`)
   - `clinic_id uuid NOT NULL` (multi-tenant — ver `architecture/MULTI_TENANCY.md`)
 - Extensões habilitadas: `pgcrypto`, `pg_net`, `pg_cron`, `vector` (pgvector), `pg_trgm`, `unaccent`.
-- **90 tabelas** no schema `public` (+1 em junho/2026: `plans`). **RLS ativado em 100% delas.**
+- **111 relações** no schema `public` (109 base tables + 2 views: `email_throughput_stats`, `email_system_health`). **RLS ativado em 100% das base tables.**
 
 ## Domínios (agrupamento lógico)
 
