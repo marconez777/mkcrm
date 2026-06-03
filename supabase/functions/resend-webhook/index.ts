@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "invalid signature" }, { status: 401 });
       }
     } else {
-      console.warn("RESEND_WEBHOOK_SECRET not set — accepting webhook without signature");
-      event = JSON.parse(rawBody);
+      console.error("resend-webhook rejected: RESEND_WEBHOOK_SECRET is not configured");
+      return jsonResponse({ error: "webhook secret not configured" }, { status: 401 });
     }
 
     const resendId = event?.data?.email_id;
