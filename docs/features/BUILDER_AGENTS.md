@@ -61,7 +61,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
    ai_insights             ← insights persistidos
 ```
 
-Todos os custos do Builder (tokens, runs, latência) são contabilizados via `_shared/ai.ts` → `ai_runs`/`ai_tool_calls` igual qualquer outro agente, com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
+Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabelas `ai_usage` / `ai_usage_daily` / `ai_spend_events` (não existem `ai_runs`/`ai_tool_calls`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
 
 ---
 
