@@ -1,7 +1,7 @@
 # Multi-tenancy
 
 > **Quando ler:** antes de criar qualquer tabela, edge function ou RLS policy. **Esta é a regra mais importante do projeto.**
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03 (auditoria documental Fase 1/8 — conteúdo confirmado linha-a-linha contra `current_clinic_id()`, `is_clinic_admin()`, `is_super_admin()`, `has_clinic_access()`, `clinic_has_feature()` e trigger `assert_clinic_id_not_null`).
 
 ---
 
