@@ -2,7 +2,7 @@
 
 > **Quando ler:** antes de criar qualquer página `/features/<slug>` no site institucional. Cada bloco abaixo é a fonte da copy. Atualizar aqui primeiro, depois espelhar na página.
 >
-> **Última atualização:** 2026-05-31
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -336,12 +336,12 @@
 - **hero_title:** IA com orçamento que você define
 - **hero_subtitle:** Limite mensal por clínica, alerta automático e pausa segura ao estourar.
 - **bullets:**
-  - `ai_monthly_budget_usd` por clínica.
-  - Custo por turno gravado em `ai_usage` (input/output tokens × pricing por modelo).
-  - Alerta de email via `ai-spend-notify`.
-  - Pausa automática de runs novos quando estoura.
+  - `ai_spend_limits.monthly_cap_usd` por clínica.
+  - Custo por turno gravado em `ai_usage` + `ai_usage_daily` (input/output tokens × pricing por modelo).
+  - Eventos de spend em `ai_spend_events`; alerta de email via `ai-spend-notify`.
+  - Pausa automática (HTTP 402 do spend-guard) quando estoura o cap mensal.
   - Dashboard de custo por modelo, agente e dia.
-- **como_funciona:** Cada chamada ao Lovable AI Gateway retorna `usage`. `ai-pricing.ts` calcula custo e grava em `ai_runs`/`ai_usage`. Cron diário soma e compara com `ai_monthly_budget_usd`.
+- **como_funciona:** Cada chamada ao Lovable AI Gateway passa por `_shared/spend-guard.ts` que confere `ai_spend_limits.monthly_cap_usd` contra `ai_usage_daily` agregado do mês. `_shared/ai.ts` grava `usage` (tokens × pricing) em `ai_usage` e dispara `ai-spend-notify` ao cruzar threshold.
 - **diferenciais:** Você sabe **antes do mês fechar** quanto a IA já custou e tem freio automático.
 - **prints_sugeridos:** `/metrics/ai-usage`, `/admin` (limite).
 - **faq:**

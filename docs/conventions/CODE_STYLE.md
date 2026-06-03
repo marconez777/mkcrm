@@ -1,7 +1,7 @@
 # Convenções — Código
 
 > **Quando ler:** antes de criar componentes, hooks ou helpers.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 

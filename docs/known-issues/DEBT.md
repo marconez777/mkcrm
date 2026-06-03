@@ -1,7 +1,7 @@
 # Dívida Técnica (Technical Debt)
 
 > **Quando ler:** ao priorizar refactor; ao tomar decisão que vai aumentar/diminuir dívida.
-> **Última atualização:** 2026-05-30
+> **Última atualização:** 2026-06-03
 
 Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impacto × frequência.
 
@@ -11,28 +11,28 @@ Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impa
 
 ### TD-1. Sem merge de leads duplicados (UI)
 - **Onde:** `leads`, `flows/LEAD_LIFECYCLE.md`.
-- **Problema:** duplicatas só são evitadas na origem (`findOrCreateLead`). Se passou, fica para sempre.
+- **Problema:** dedupe só acontece inline nas entrypoints (`evolution-webhook`, `forms-ingest`, `external-lead-capture`) por `(clinic_id, phone)` ou `(clinic_id, email)` normalizado. Se duplicou, fica para sempre.
 - **Impacto:** dados sujos, IA respondendo conversa errada.
-- **Solução:** UI de merge + função `merge_leads(src_id, dst_id)` que migra `wa_messages`, `lead_events`, `appointments`, `tags`.
+- **Solução:** UI de merge + função `merge_leads(src_id, dst_id)` que migra `messages`, `lead_events`, `appointments`, `tags`.
 
 ### TD-2. Kanban renderiza todos os cards
 - **Onde:** `src/pages/Kanban.tsx`.
 - **Problema:** >2k leads → trava UI no drag.
 - **Solução:** `@tanstack/react-virtual` por coluna.
 
-### TD-3. Sem retry classificado para `wa_messages` failed
-- **Onde:** `evolution-send` + workers.
+### TD-3. Sem retry classificado para `messages` failed
+- **Onde:** `evolution-send` / `evolution-send-media`.
 - **Problema:** falha = morte. UI obriga reenvio manual.
 - **Solução:** dead-letter queue + UI "reenviar selecionados".
 
 ### TD-4. AI sem streaming
-- **Onde:** `ai-auto-reply`, `ai-assist`.
+- **Onde:** `ai-auto-reply`, `ai-assist`, `ai-chat`.
 - **Problema:** UX trava 3–8s aguardando.
 - **Solução:** SSE no gateway → Realtime channel → frontend incremental.
 
 ### TD-5. Sem validação HMAC do webhook Evolution
 - **Onde:** `evolution-webhook`.
-- **Problema:** auth só por header `apikey` (vaza fácil em log).
+- **Problema:** auth só por `?token=` na URL (vaza fácil em log/referer).
 - **Solução:** assinatura HMAC no payload (Evolution suporta?), ou IP allowlist.
 
 ---
@@ -56,24 +56,24 @@ Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impa
 - **Solução:** honeypot field + opcional reCAPTCHA invisível.
 
 ### TD-10. Edge functions sem cache cross-invocation
-- Cada call re-busca `clinic_settings`.
-- **Solução:** tabela cache TTL ou Upstash Redis.
+- Cada call re-busca `clinics.settings` (JSON). Cache in-memory por isolate em `send-email` ajuda, mas é por-isolate.
+- **Solução:** cache compartilhado (tabela TTL ou Upstash Redis).
 
 ### TD-11. `evolution-send` e `evolution-send-media` duplicados
 - Lógica 80% igual.
 - **Solução:** mesclar com discriminador `type`.
 
 ### TD-12. Sem A/B de prompts IA
-- Hoje muda manual sem comparativo.
-- **Solução:** `ai-eval-run` com dataset versionado + UI compare.
+- Hoje muda manual sem comparativo. `ai-eval-run` existe mas sem dataset versionado.
+- **Solução:** dataset versionado + UI compare.
 
-### TD-13. `clinic_settings` é um "deus tabela"
-- 60+ colunas. Difícil migrar.
-- **Solução:** quebrar em `clinic_ai_settings`, `clinic_wa_settings`, `clinic_email_settings`.
+### TD-13. `clinics.settings` JSON cresceu demais
+- JSON único agrega ai/wa/email/tracking/branding. Difícil tipar e migrar.
+- **Solução:** subkeys bem definidos (já parcial) ou quebrar em `clinic_ai_settings`, `clinic_wa_settings`, `clinic_email_settings` quando crescer mais.
 
 ### TD-14. Sem timezone por clínica
 - Hoje tudo BRT. Multi-país impossível.
-- **Solução:** `clinic_settings.timezone`; converter em queries de horário comercial.
+- **Solução:** `clinics.settings.timezone`; converter em queries de horário comercial.
 
 ---
 

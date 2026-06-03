@@ -1,7 +1,7 @@
 # Convenções — Migrações & PRs
 
 > **Quando ler:** ao criar migração SQL ou agrupar mudanças.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
