@@ -11,7 +11,7 @@ import { parseAssistantContent, highlightElement, type ContentPart } from "@/lib
 import { getRuntimeErrors } from "@/lib/support-runtime-watcher";
 import { toast } from "sonner";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant"; content: string; id?: string; rating?: -1 | 1 | null };
 type FabState = "closed" | "minimized" | "open";
 
 const STORAGE_KEY = "support-chat-state";
