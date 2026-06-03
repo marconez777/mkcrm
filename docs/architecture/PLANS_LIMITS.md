@@ -70,9 +70,34 @@ ilimitado / sem cap
 
 A mesma lógica vale para `features`. O trigger `clinics_guard_features` continua bloqueando alterações em `settings.features` para não-super-admin — limites também ficam só sob `is_super_admin()` por hora.
 
-**Aplicação em massa:** a edge function `admin-apply-plan` copia `plans.features` + `plans.limits` para um conjunto de clínicas selecionadas (operação destrutiva — sobrescreve overrides).
+**Coluna `clinics.plan_id`** (FK → `plans(id)`): adicionada como referência forte ao plano corrente. A coluna textual `clinics.plan` permanece como **espelho** mantido pelo trigger `trg_clinics_sync_plan_text` — nunca escreva direto nela.
+
+**Aplicação:** a edge function `admin-apply-plan` cria uma nova `clinic_subscriptions` (`source='manual'`, `is_current=true`, encerrando a anterior), copia `plans.features` + `plans.limits` para `clinics.settings` e atualiza `clinics.plan_id`. `admin-revoke-plan` encerra a corrente e volta para Starter `past_due`.
 
 ---
+
+## 2a. Assinaturas manuais (`clinic_subscriptions` + `plan_change_log`)
+
+Modelo introduzido junto com Financeiro. Cada clínica tem **no máximo uma** subscription com `is_current=true` (garantido por índice único parcial).
+
+| Coluna chave | Função |
+|---|---|
+| `clinic_id`, `plan_id` | tenant + plano vigente |
+| `status` | `active` / `trialing` / `manual_grant` / `past_due` / `canceled` |
+| `source` | `manual` (hoje único valor real) ou `stripe` (reservado) |
+| `is_current` | flag de corrente (único parcial) |
+| `trial_ends_at`, `cancel_at`, `canceled_at` | janelas |
+| `grant_reason` | livre, mostrado no histórico |
+| `stripe_subscription_id` | reservado |
+
+**Triggers:**
+- `clinic_subscriptions_validate` — restringe `status`/`source` ao enum textual.
+- `clinic_subscriptions_audit` — popula `plan_change_log` (não duplicar inserts).
+- `clinic_subscriptions_sync_clinic_plan` — quando `is_current=true`, sincroniza `clinics.plan_id`.
+
+**Cron** `cron-expire-manual-grants` (diário 03:10 UTC): expira `manual_grant`/`trialing` com `cancel_at`/`trial_ends_at` vencido, marca a row corrente como `canceled` e cria nova subscription Starter `past_due`.
+
+
 
 ## 3. Catálogo de limites (`LIMIT_DEFS`)
 
