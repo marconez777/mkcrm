@@ -2938,6 +2938,97 @@ export type Database = {
         }
         Relationships: []
       }
+      error_events: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          error_message: string
+          error_stack: string | null
+          function_name: string | null
+          id: string
+          metadata: Json
+          route: string | null
+          severity: string
+          surface: string
+          user_id: string | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          error_message: string
+          error_stack?: string | null
+          function_name?: string | null
+          id?: string
+          metadata?: Json
+          route?: string | null
+          severity?: string
+          surface: string
+          user_id?: string | null
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          error_message?: string
+          error_stack?: string | null
+          function_name?: string | null
+          id?: string
+          metadata?: Json
+          route?: string | null
+          severity?: string
+          surface?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "error_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_events: {
+        Row: {
+          action: string
+          clinic_id: string | null
+          created_at: string
+          entity_id: string | null
+          feature: string
+          id: string
+          metadata: Json
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          clinic_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          feature: string
+          id?: string
+          metadata?: Json
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          clinic_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          feature?: string
+          id?: string
+          metadata?: Json
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_definitions: {
         Row: {
           active: boolean
@@ -5767,6 +5858,33 @@ export type Database = {
           day: string
           leads: number
           messages: number
+        }[]
+      }
+      admin_dead_features: {
+        Args: { _days?: number }
+        Returns: {
+          feature: string
+          last_event: string
+          total_events: number
+        }[]
+      }
+      admin_error_summary: {
+        Args: { _days?: number }
+        Returns: {
+          count: number
+          day: string
+          severity: string
+          surface: string
+        }[]
+      }
+      admin_feature_usage: {
+        Args: { _days?: number }
+        Returns: {
+          clinics: number
+          day: string
+          events: number
+          feature: string
+          users: number
         }[]
       }
       admin_get_ai_agent: {
