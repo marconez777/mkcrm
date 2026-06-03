@@ -1480,6 +1480,8 @@ function Step5({
   onRefine,
   agentName,
   setAgentName,
+  timeoutWarning,
+  timedOut,
 }: {
   bundle: GeneratedPromptBundle | null;
   loading: boolean;
@@ -1490,6 +1492,8 @@ function Step5({
   onRefine: () => void;
   agentName: string;
   setAgentName: (v: string) => void;
+  timeoutWarning: boolean;
+  timedOut: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -1500,11 +1504,41 @@ function Step5({
         </p>
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando prompt…
-        </div>
+      {loading && !timedOut && (
+        <LoadingPanel
+          title="Gerando seu prompt personalizado…"
+          messages={[
+            "Analisando suas respostas…",
+            "Estruturando o prompt por seções…",
+            "Ajustando tom e objetivo…",
+            "Quase pronto…",
+          ]}
+          footer={
+            <p className="text-[11px] text-muted-foreground">
+              Isso pode levar até 30 segundos. Não feche esta aba.
+              {timeoutWarning && (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">
+                  Está demorando mais que o normal — aguarde um pouco mais.
+                </span>
+              )}
+            </p>
+          }
+        />
       )}
+
+      {timedOut && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Não conseguimos gerar o prompt agora</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>Verifique sua conexão e tente novamente.</span>
+            <Button size="sm" variant="outline" className="self-start" onClick={onRegenerate}>
+              Tentar novamente
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
 
       {error && (
         <div className="space-y-2">
