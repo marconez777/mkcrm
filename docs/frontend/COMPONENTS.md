@@ -30,7 +30,9 @@ src/components/
 
 ## 2. `ui/` (shadcn-ui)
 
-50+ primitives copiadas do shadcn. **Regras:**
+**55 primitives** (Radix + shadcn) — incluindo extensões internas como
+`category-tabs`, `section-accordion`, `confirm-dialog`, `prompt-dialog`,
+`loading-radial`, `progress-radial`. **Regras:**
 
 - **Não substituir** por bibliotecas alternativas (MUI, Chakra, etc.).
 - **Não remover** primitives mesmo que pareçam não usados — o command
