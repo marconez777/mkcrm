@@ -105,9 +105,48 @@ mensagens. `LeadTimelineTab` — feed unificado, filtrado por
 `TimelineFilters`; cada item é `TimelineItemRow` com `types.ts` para
 tipos discriminados (message / event / form / appointment / scheduled).
 
+`components/leads/LeadAttributionCard` — card de atribuição (UTM / referrer / first/last touch) usado no LeadDrawer.
+
 ---
 
-## 7. Email
+## 7. Agentes IA (`components/agents/`)
+
+Painéis montados dentro de `pages/Agents.tsx` (acessível via `/ai/agents`).
+Cada painel é uma seção do `SectionAccordion` (ver `DESIGN_SYSTEM.md §5.2`):
+
+- **`AgentHealth`** — status agregado do agente (provedor, embeddings, KB).
+- **`AgentInsights`** — métricas e recomendações de qualidade.
+- **`AlfredDialog`** — assistente conversacional "Alfred" para configurar o agente.
+- **`AuditLogPanel`** — log de mudanças no agente (`agent_audit_log`).
+- **`BuilderSetupCard`** — atalhos do Builder Agent (ver `features/BUILDER_AGENTS.md`).
+- **`CopilotPanel`** — chat lado-a-lado para co-pilotar respostas.
+- **`CostsPanel`** — custo por agente (lê `ai_usage_daily` filtrado).
+- **`KbAssistant`** — assistente para indexar/curar a base de conhecimento.
+- **`PersonasPanel`** — CRUD de `agent_personas`.
+- **`PromptDiff`** + **`PromptHistory`** — diff visual entre versões e histórico (`agent_prompt_history`).
+- **`ProviderErrorBanner`** — banner para erros do gateway (rate limit / 402).
+- **`StagesPanel`** — CRUD de `agent_stages` (estágios do funil do agente).
+- **`TestLab`** — playground para rodar prompts com variáveis.
+- **`ThreadLearningPanel`** — aprovação/rejeição de aprendizados extraídos via `agent-learn-from-thread`.
+
+---
+
+## 8. Site institucional (`components/site/`)
+
+Componentes da landing pública (`/site` e `/` sem sessão), todos
+consumidos por `pages/site/MarketingSite.tsx`:
+
+`Hero`, `Features`, `Capabilities`, `Services`, `Pricing`, `Integrations`,
+`Testimonials`, `About`, `Blog`, `Marquee`, `SiteNav`, `SiteFooter`,
+`_anim` (helpers de animação compartilhados — Motion variants).
+
+Paleta dedicada via tokens `--site-*` em `index.css` (preto/verde
+`#1ED400`/roxo `#590675`) — **não** misturar com tokens do app
+(`primary`, `background`, etc.).
+
+---
+
+## 9. Email
 
 ### 7.1 Editor (`components/email/editor/`)
 `Canvas` mostra a árvore de blocks renderizada. `Palette` lista blocks
