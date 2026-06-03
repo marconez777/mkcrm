@@ -103,11 +103,11 @@ Deno.serve(async (req) => {
 
       // Auditoria
       await admin.from("audit_log").insert({
-        actor_id: userData.user.id,
+        actor_user_id: userData.user.id,
         clinic_id: c.id,
         action: "plan.apply",
         entity: "clinic_subscriptions",
-        metadata: { plan_code: plan.code, status, trial_ends_at: trialEndsAt, cancel_at: expiresAt, grant_reason: grantReason },
+        diff: { plan_code: plan.code, status, trial_ends_at: trialEndsAt, cancel_at: expiresAt, grant_reason: grantReason },
       });
 
       applied += 1;
