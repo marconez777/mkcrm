@@ -13,7 +13,7 @@ export function AgentHealth({ agentId }: { agentId: string }) {
     (async () => {
       setChecks(null);
       const [agentRes, docsRes, tracesRes, evalsRes] = await Promise.all([
-        supabase.from("ai_agents").select("draft_mode, enabled, api_key, builder_verified_at, system_prompt").eq("id", agentId).maybeSingle(),
+        supabase.from("ai_agents").select("draft_mode, enabled, builder_verified_at, system_prompt").eq("id", agentId).maybeSingle(),
         supabase.from("ai_documents").select("id", { count: "exact", head: true }).eq("agent_id", agentId),
         supabase.from("agent_traces")
           .select("id, error, created_at")
@@ -36,7 +36,7 @@ export function AgentHealth({ agentId }: { agentId: string }) {
         : false;
 
       const list: Check[] = [
-        { label: "Provedor", ok: !!a.api_key, detail: a.api_key ? "Chave configurada" : "Sem chave de API" },
+        { label: "Provedor", ok: !!a.builder_verified_at, detail: a.builder_verified_at ? "Chave configurada" : "Sem chave de API" },
         { label: "Conexão verificada", ok: verified, warn: !verified, detail: a.builder_verified_at ? `Último ping: ${new Date(a.builder_verified_at).toLocaleDateString("pt-BR")}` : "Nunca testada" },
         { label: "Base de conhecimento", ok: docsCount > 0, warn: docsCount === 0, detail: `${docsCount} documento(s)` },
         { label: "Erros (24h)", ok: errors === 0, warn: errors > 0 && errors < 5, detail: `${errors} erro(s) em ${traces.length} execuções` },
