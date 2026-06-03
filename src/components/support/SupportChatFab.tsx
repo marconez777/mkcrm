@@ -309,6 +309,13 @@ export default function SupportChatFab() {
         </div>
       </header>
 
+      {takenOver && (
+        <div className="bg-emerald-500/10 border-b border-emerald-500/30 px-3 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+          🎧 Você está falando com a equipe de suporte humano.
+        </div>
+      )}
+
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 && (
           <div className="text-sm text-muted-foreground py-8 text-center">
