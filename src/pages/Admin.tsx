@@ -28,6 +28,7 @@ import AuditPanel from "@/components/admin/AuditPanel";
 import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
 import ObservabilityPanel from "@/components/admin/ObservabilityPanel";
 import FinancePanel from "@/components/admin/FinancePanel";
+import SupportPanel from "@/components/admin/SupportPanel";
 import { downloadCsv } from "@/lib/csv";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
@@ -241,6 +242,7 @@ export default function Admin() {
           <TabsTrigger value="observability">Observabilidade</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="audit">Auditoria</TabsTrigger>
+          <TabsTrigger value="support">Suporte IA</TabsTrigger>
           <TabsTrigger value="builder-manual">Manual do Builder</TabsTrigger>
         </TabsList>
 
@@ -251,6 +253,7 @@ export default function Admin() {
         <TabsContent value="finance"><FinancePanel /></TabsContent>
         <TabsContent value="observability"><ObservabilityPanel /></TabsContent>
         <TabsContent value="audit"><AuditPanel clinics={clinics.map((c) => ({ id: c.id, name: c.name }))} /></TabsContent>
+        <TabsContent value="support"><SupportPanel /></TabsContent>
 
         <TabsContent value="clinics" className="space-y-3">
           {/* Toolbar */}
