@@ -142,7 +142,7 @@ CREATE INDEX … ON tracking_events(clinic_id, lead_id, event_time DESC);
 - View materializada para dashboards (`mv_clinic_daily_stats`, refresh nightly).
 - Migrar imagens hero para AVIF/WebP.
 - Habilitar `pg_stat_statements` em prod.
-- Cache de `clinic_settings` em edge functions (KV layer).
+- Cache de `clinics.settings` em edge functions (KV layer).
 
 ---
 
