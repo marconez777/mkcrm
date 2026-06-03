@@ -1,7 +1,7 @@
 # Edge Functions — Índice
 
 > Última atualização: 2026-06-03
-> Total: **70 edge functions** em `supabase/functions/` + 13 módulos compartilhados em `_shared/`.
+> Total: **71 edge functions** em `supabase/functions/` + 14 módulos compartilhados (`_shared/*.ts`) + 1 diretório de KB (`_shared/builder-knowledge/`).
 > Runtime: Deno (Supabase Edge Runtime). Imports preferenciais via `npm:` / `https://esm.sh/`.
 
 ## Convenções
