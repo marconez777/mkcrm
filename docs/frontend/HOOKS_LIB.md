@@ -58,6 +58,8 @@ status; expõe `overall: "ok"|"warn"|"down"` para a sidebar.
 
 **`useCountUp()`** — animação de contagem numérica para KPIs (dashboards de IA e Email).
 
+**`useWhatsappInstances()`** — lista `whatsapp_instances` da clínica + status agregado; consumido por `Settings` e `WhatsAppQrDialog`.
+
 ### UI
 
 **`useUnreadTitle()`** — soma `leads.unread_count`, atualiza
