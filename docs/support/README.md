@@ -48,10 +48,10 @@ docs/support/
 | 2 | `pages/` — Inbox, Kanban, Lead Drawer, Tasks, Settings, Team, Admin, AI Agents/Wizard, AI Hub | ✅ |
 | 3 | `pages/` — Email completo, Tracking, Metrics | ✅ |
 | 4 | `pages/` — Automations, Sequences, Broadcasts, Templates, AI Insights, Agent Memories | ✅ |
-| 5 | `journeys/`, `troubleshooting/`, regra em `COMMIT_PR.md` | ⏳ |
+| 5 | `journeys/` (12), `troubleshooting/` (6), regra em `COMMIT_PR.md`, referência em `docs/MAP.md` | ✅ |
 
 ## Regra de manutenção
 
-PR que altera **texto visível, label de botão, fluxo de tela, ou adiciona/remove uma rota** DEVE atualizar o `docs/support/pages/<rota>.md` correspondente no mesmo PR. KB desatualizada = agente que mente para o cliente.
+PR que altera **texto visível, label de botão, fluxo de tela, ou adiciona/remove uma rota** DEVE atualizar o `docs/support/pages/<rota>.md` correspondente no mesmo PR. Mesma regra vale para `journeys/` e `troubleshooting/` quando o fluxo ou a mensagem de erro mudar.
 
-(A regra formal será adicionada em `docs/conventions/COMMIT_PR.md` na Fase 4.)
+Regra formal em [`docs/conventions/COMMIT_PR.md`](../conventions/COMMIT_PR.md#documentação-de-suporte-docssupport).
