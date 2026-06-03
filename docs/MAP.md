@@ -96,3 +96,4 @@ Quebrar qualquer um destes derruba feature em produção ou abre falha de segura
 - `docs/OVERVIEW.md` — visão de alto nível do produto.
 - `docs/known-issues/PITFALLS.md` — armadilhas conhecidas, leia antes de duvidar do código.
 - `docs/conventions/*` — code style, commits, segurança, regras Supabase.
+- `docs/support/` — **KB de interface e usabilidade** para treinar o agente de IA de suporte ao cliente (PT-BR, sem jargão técnico). Estrutura: `pages/` (1 por rota), `journeys/` (fluxos transversais), `troubleshooting/` (erros comuns), `00-conceitos.md`, `faq.md`. Regra de manutenção: PR que muda UI/erro atualiza o arquivo correspondente — ver `conventions/COMMIT_PR.md`.
