@@ -116,7 +116,7 @@ Aceita `{ user_id, action, payload? }`. Toda chamada grava em `audit_log`.
 | Action | Efeito |
 |---|---|
 | `set_password` | Gera senha aleatória ou aceita uma fornecida (`auth.admin.updateUserById`). |
-| `unlock` | `DELETE` em `auth_lockouts` para o user. |
+| `unlock` | Tenta `DELETE` em `auth_lockouts` (tabela dropada) — **no-op efetivo hoje**. |
 | `sign_out` | Revoga refresh tokens (`auth.admin.signOut`). |
 | `toggle_super_admin` | Insere/remove linha em `user_roles (role='super_admin')`. |
 
