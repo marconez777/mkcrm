@@ -79,7 +79,7 @@ export default function Blog() {
               viewport={viewportOnce}
               variants={fadeUp(0.16, 16)}
             >
-              Guias práticos, tutoriais e novidades para sua negócio vender mais e operar melhor.
+              Guias práticos, tutoriais e novidades para seu negócio vender mais e operar melhor.
             </motion.p>
           </div>
           <motion.a

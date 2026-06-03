@@ -83,7 +83,7 @@ export default function Hero() {
 
           <h1 className="site-font-display mt-6 text-[clamp(44px,7vw,92px)] font-bold leading-[0.95] tracking-tight text-site-text">
             O CRM que <span className="text-site-primary">vende</span>
-            <br className="hidden sm:block" /> pela sua negócio.
+            <br className="hidden sm:block" /> pela seu negócio.
           </h1>
 
           {/* TODO: copy final */}
