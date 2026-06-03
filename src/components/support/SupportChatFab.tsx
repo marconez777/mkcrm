@@ -241,9 +241,18 @@ export default function SupportChatFab() {
               )}
             >
               {m.role === "assistant" ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&>*]:my-1 [&_ol]:my-1 [&_ul]:my-1">
-                  <ReactMarkdown>{m.content || "…"}</ReactMarkdown>
-                </div>
+                <AssistantBubble
+                  content={m.content || "…"}
+                  onAction={(a) => {
+                    if (a.kind === "go") { navigate(a.route); setState("minimized"); }
+                    else if (a.kind === "click") {
+                      const ok = highlightElement(a.selector);
+                      if (!ok) toast.error(`Não achei "${a.selector}" nesta tela`);
+                    } else if (a.kind === "step") {
+                      setInput("feito"); setTimeout(send, 50);
+                    }
+                  }}
+                />
               ) : (
                 m.content
               )}
