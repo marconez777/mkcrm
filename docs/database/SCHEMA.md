@@ -347,6 +347,50 @@ Caches de resultados de RAG e embeddings. Limpos por `cleanup_agent_caches()`.
 ### `lead_reply_counters`
 Janela horária (`hour_bucket`) usada para rate-limit de auto-reply por lead.
 
+### `ai_agent_drafts`
+Estado de progresso do **wizard de criação de agente** (`/agents/new`). Campos: `user_id`, `step int`, `niche`/`niche_other`, `goal`/`goal_other`, `provider`, `api_key`, `base_url`, `model`, `provider_verified_at`, `interview_answers jsonb`, `generated_prompt`, `settings jsonb`. Persiste o rascunho entre sessões.
+
+### `agent_personas`
+Personas (clientes-teste) associadas a um agente para playground e simulação. Campos: `agent_id`, `name`, `phone`, `channel`, `persona_text`, `custom_fields jsonb`, `opening_message`, `tags text[]`, `created_by`.
+
+### `agent_prompt_versions`
+Histórico de versões do `system_prompt` de cada agente. Campos: `agent_id`, `prompt text`, `source text` (manual/auto/import), `summary`, `created_by`.
+
+### `agent_stages`
+Estágios sequenciais opcionais de um agente (fluxo de qualificação multi-etapa). Campos: `agent_id`, `order_idx`, `name`, `goal`, `system_prompt_delta`, `advance_when`, `allowed_tools text[]`, `follow_up_after_min`, `follow_up_message`, `follow_up_tool_name`.
+
+### `ai_kb_defaults`
+Documentos de KB padrão (globais, sem `clinic_id`) usados para popular novas KBs. Campos: `slug UNIQUE`, `title`, `content`, `position`, `enabled`, `niche`.
+
+### `ai_chat_traces`
+Trace simplificado de cada turno do agente no **chat playground** (`/agents/[id]/chat`). Campos: `agent_id`, `source`, `lead_id`, `persona_id`, `user_message`, `agent_message`, `system_prompt_excerpt`, `kb_hits jsonb`, `tool_calls jsonb`, `model`, `tokens_in`, `tokens_out`, `latency_ms`, `stage_meta jsonb`. Diferente de `agent_traces` (estruturado, full) e `ai_usage` (cost).
+
+### `lead_thread_classifications`
+Rótulos manuais aplicados pelo atendente a uma thread (`label`, `note`, `anchor_message_id`). Suporta promoção a `agent_evals` via `promoted_eval_id`.
+
+## Builder / Lovable Agent
+
+### `builder_manual_versions`
+Versões do "manual" interno usado pelo agente Lovable (instruções de plataforma). Campos: `version int`, `content text`, `summary`, `source`, `published_at`, `published_by`, `is_active bool`. Função `get_active_builder_manual()` retorna a versão ativa.
+
+## Email — agregações & webhooks adicionais
+
+### `email_metrics_daily`
+Materialização diária por `(clinic_id, day, template_slug)`: `sent`, `delivered`, `opened`, `clicked`, `bounced`, `complained`, `failed`. Alimenta dashboards históricos sem varrer `email_logs` inteiro.
+
+### `resend_webhook_events`
+Idempotência de webhook Resend: `svix_id` (UNIQUE no provedor), `event_type`, `resend_id`, `received_at`. Edge `resend-webhook` faz upsert antes de processar para garantir entrega exactly-once.
+
+## Relatórios agendados (WhatsApp)
+
+### `scheduled_reports`
+Relatórios recorrentes enviados para um grupo de WhatsApp. Campos: `instance_id`, `group_jid`, `group_name`, `send_time text` (HH:MM), `tz`, `weekdays int[]`, `metrics jsonb`, `enabled bool`, `last_sent_at`, `last_status`, `last_error`.
+
+### `scheduled_report_runs`
+Histórico de execuções: `report_id`, `status`, `message_preview`, `metrics jsonb`, `error`.
+
+
+
 ## Indices relevantes
 
 - `ai_chunks` — IVFFlat/HNSW em `embedding`, GIN em `tsv`.
