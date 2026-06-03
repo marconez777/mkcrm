@@ -94,13 +94,16 @@ Convenção: `null` ou chave ausente = **ilimitado**. Zero = bloqueado (use com 
 
 ---
 
-## 4. RPCs de suporte (`SECURITY DEFINER`, gated por `is_super_admin()`)
+## 4. RPCs de suporte (`SECURITY DEFINER`, gated por `is_super_admin()` em código)
 
-Detalhes em `database/FUNCTIONS_TRIGGERS.md`.
+Detalhes em `database/FUNCTIONS_TRIGGERS.md`. Assinaturas reais (migrations `20260603000729_*` e `20260603004725_*`):
 
-- `admin_overview_metrics()` → KPIs cross-tenant do dashboard.
-- `admin_top_clinics(_metric text, _limit int)` → ranking por uso.
-- `admin_clinic_usage(_clinic uuid, _from date, _to date)` → série temporal por clínica.
+- `admin_overview_metrics()` → KPIs cross-tenant do dashboard (clínicas, usuários, leads, mensagens, custo IA mês).
+- `admin_top_clinics(_limit int DEFAULT 5)` → ranking por uso recente (não aceita métrica como parâmetro — o ranking é fixo no body).
+- `admin_clinic_usage(_clinic uuid)` → snapshot agregado de uma clínica (não aceita janela `_from`/`_to`; a janela é fixa em "mês corrente" / "all-time" dentro da função).
+- `admin_daily_metrics(_days int DEFAULT 30)` → série diária (mensagens, novos leads, custo IA USD) dos últimos N dias para gráficos do `DashboardPanel`.
+
+Todas concedem `EXECUTE` a `authenticated`; o gate `is_super_admin()` é feito **dentro** da função (`RAISE EXCEPTION 'forbidden'` caso contrário).
 
 ---
 
