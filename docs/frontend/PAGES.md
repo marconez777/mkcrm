@@ -69,7 +69,8 @@ renderizar todas as abas de IA. A ordem das abas (todas dentro de `/ai`):
 > no menu lateral. O sidebar só expõe o item "IA" (sem submenu).
 
 Páginas filhas relevantes:
-- **`Agents.tsx`** — CRUD de agentes IA (modelo, prompt, tools, RAG sources).
+- **`Agents.tsx`** — CRUD de agentes IA (modelo, prompt, tools, RAG sources). Painéis auxiliares em `src/components/agents/*` (ver `frontend/COMPONENTS.md §7`).
+- **`AgentWizard.tsx`** (`/ai/agents/new`) — wizard standalone (dentro do AppShell) para criação guiada de novo agente.
 - **`AgentMemories.tsx`** — memories embarcadas (`agent_memories`).
 - **`AiInsights.tsx`** — `ai-analyst-run` resultados, alertas.
 - **`ScheduledReports.tsx`** — relatórios agendados (`scheduled-report-tick`).
