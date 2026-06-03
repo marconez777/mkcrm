@@ -1,7 +1,7 @@
 # Operações: Backups e Recovery
 
 > **Quando ler:** antes de fazer migration destrutiva, restore após incidente, ou planejar disaster recovery.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
@@ -75,7 +75,7 @@ Operações que **exigem** o checklist:
 
 ### Banco com 100% disco
 - `supabase--db_health` mostra `data_disk_pct > 95`.
-- Curto prazo: `VACUUM FULL` em tabelas grandes (`tracking_events`, `wa_messages`).
+- Curto prazo: `VACUUM FULL` em tabelas grandes (`tracking_events`, `messages`).
 - Médio: aumentar tamanho do disco (Settings → Compute).
 - Longo: arquivamento de eventos antigos (job mensal).
 
