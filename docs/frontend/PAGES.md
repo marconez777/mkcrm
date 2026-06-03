@@ -11,11 +11,16 @@
 
 | Página | Path | Responsabilidade |
 |---|---|---|
+| `site/MarketingSite.tsx` | `/site` e `/` (sem sessão) | Landing institucional pública. Subcomponentes em `components/site/*` (Hero, Features, Pricing, Testimonials, Integrations, About, Blog, Capabilities, Services, Marquee, SiteNav, SiteFooter). |
 | `Auth.tsx` | `/auth` | Login (email/senha + Google OAuth via Supabase). Sem signup público — só convite. |
+| `ResetPassword.tsx` | `/reset-password` | Fluxo de redefinição de senha (link de recovery do Supabase). |
 | `Invite.tsx` | `/invite/:token` | Aceita convite, cria conta e vincula `clinic_members`. Usa edge `clinic-invite`. |
 | `Unsubscribe.tsx` | `/unsubscribe` | Página pública de descadastro de email (chama `email-unsubscribe`). |
 | `Onboarding.tsx` | `/onboarding` | Wizard pós-criação de conta: nomeia clínica, conecta WhatsApp (QR), seleciona features iniciais. |
-| `Admin.tsx` | `/admin` | Super Admin v2 (8 abas — ver §2.10). |
+| `Admin.tsx` | `/admin` | Super Admin v2 (8 abas — ver §2.11). |
+
+> A rota `/` é gateada por `components/RootGate.tsx`: com sessão → `AppShell + Kanban`; sem sessão → `MarketingSite`. Isso evita rota dedicada para o site institucional para usuários logados.
+
 
 ---
 
