@@ -88,6 +88,41 @@ export default function SupportChatFab() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
 
+  // global shortcut: "?" toggles the chat (ignored while typing). Esc minimizes.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const typing = !!tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+      if (!typing && (e.key === "?" || (e.key === "/" && e.shiftKey))) {
+        e.preventDefault();
+        setState((s) => (s === "open" ? "minimized" : "open"));
+      } else if (e.key === "Escape" && state === "open") {
+        setState("minimized");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state]);
+
+  function exportConversation() {
+    if (!messages.length) return;
+    const lines = messages.map((m) => {
+      const tag = m.role === "user" ? "VOCÊ" : "ALFRED";
+      return `### ${tag}\n${m.content}\n`;
+    });
+    const header = `# Conversa MK-CRM Suporte\n${new Date().toLocaleString("pt-BR")}\nThread: ${threadId ?? "—"}\n\n---\n\n`;
+    const blob = new Blob([header + lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `suporte-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+
   const hidden = !user || !enabled || HIDDEN_PREFIXES.some((p) => location.pathname.startsWith(p));
   if (hidden) return null;
 
