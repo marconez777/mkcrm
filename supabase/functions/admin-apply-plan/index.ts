@@ -30,6 +30,10 @@ Deno.serve(async (req) => {
     const clinicIds = (body.clinic_ids as string[]) ?? [];
     const overwriteFeatures = body.overwrite_features !== false;
     const overwriteLimits = body.overwrite_limits !== false;
+    const trialDays = Number.isFinite(body.trial_days) ? Number(body.trial_days) : null;
+    const expiresAt = body.expires_at ? new Date(body.expires_at).toISOString() : null;
+    const grantReason = (body.grant_reason as string) ?? null;
+    const status = (body.status as string) ?? (trialDays && trialDays > 0 ? "trialing" : "manual_grant");
 
     if (!planCode || clinicIds.length === 0) {
       return new Response(JSON.stringify({ error: "plan_code e clinic_ids obrigatórios" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -40,12 +44,36 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Plano não encontrado" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const trialEndsAt = trialDays && trialDays > 0
+      ? new Date(Date.now() + trialDays * 86400000).toISOString()
+      : null;
+
     const { data: clinics } = await admin.from("clinics").select("id, settings").in("id", clinicIds);
     for (const c of clinics ?? []) {
       const settings: any = c.settings ?? {};
       if (overwriteFeatures) settings.features = plan.features ?? {};
       if (overwriteLimits) settings.limits = plan.limits ?? {};
-      await admin.from("clinics").update({ plan: planCode, settings }).eq("id", c.id);
+      await admin.from("clinics").update({ plan_id: plan.id, settings }).eq("id", c.id);
+
+      // Encerra subscription corrente
+      await admin
+        .from("clinic_subscriptions")
+        .update({ is_current: false, canceled_at: new Date().toISOString() })
+        .eq("clinic_id", c.id)
+        .eq("is_current", true);
+
+      // Cria nova subscription manual
+      await admin.from("clinic_subscriptions").insert({
+        clinic_id: c.id,
+        plan_id: plan.id,
+        status,
+        source: "manual",
+        trial_ends_at: trialEndsAt,
+        cancel_at: expiresAt,
+        granted_by: userData.user.id,
+        grant_reason: grantReason,
+        is_current: true,
+      });
     }
 
     return new Response(JSON.stringify({ ok: true, applied: clinics?.length ?? 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
