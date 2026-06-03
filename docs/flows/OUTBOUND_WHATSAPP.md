@@ -70,7 +70,7 @@ evolution-send  (mesma lógica, sem JWT — autorizado por SERVICE_ROLE_KEY)
 ## Pegadinhas
 
 - **Rate limit do Evolution**: ~1 msg/s por instância. Broadcasts respeitam isso via jitter (ver `features/BROADCASTS.md`). Envios manuais não — usuário pode estourar se colar texto longo em N leads rapidamente. Hoje não há throttle no frontend.
-- **Instância desconectada**: `evolution-send` retorna `instance_not_connected`. Frontend mostra toast e marca `clinic_settings.wa_status='disconnected'`. Job `evolution-health` confere a cada 5min.
+- **Instância desconectada**: `evolution-send` retorna erro descritivo. Status agregado vem do `useHealth()` (lê `evolution-health`). Job `evolution-health` confere a cada 5min.
 - **Áudio enviado pelo agente IA**: precisa ser convertido para `ogg/opus` antes (Evolution rejeita mp3). Hoje só texto é gerado pela IA.
 - **Mensagem fora do horário comercial**: broadcasts e sequences respeitam `business_hours`; envio manual **não** (intencional).
 - **Variáveis de template** (`{{nome}}`): resolvidas no chamador (`broadcast-tick` faz replace antes de chamar `evolution-send`). `evolution-send` é "burro" — não interpola.
