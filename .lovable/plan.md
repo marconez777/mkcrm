@@ -1,85 +1,99 @@
-## Objetivo
-Corrigir o fluxo de `Aplicar plano` no `/admin` para que ele só mostre sucesso quando a clínica for realmente atualizada e o estado visível reflita a mudança.
+## Causa do erro
 
-## Diagnóstico
-A falha está concentrada no fluxo descrito em `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md` Fase 2, mas a implementação real em `supabase/functions/admin-apply-plan/index.ts` não garante isso.
+A função `public.accept_clinic_invite(_token)` falha com `invalid_or_expired_invite` sempre que o convite já foi aceito — mesmo quando quem está chamando é exatamente o usuário que aceitou. Hoje a query é:
 
-### Onde a falha acontece
-1. **Backend retorna sucesso sem validar mutações**
-   - `supabase/functions/admin-apply-plan/index.ts`
-   - A função faz `update` em `clinics`, encerra a subscription atual e insere nova `clinic_subscriptions`, mas **ignora os `error`** de cada operação.
-   - Ela retorna `{ ok: true, applied: clinics?.length ?? 0 }`, então `applied` hoje significa apenas “quantas clínicas foram lidas”, não “quantas foram realmente atualizadas”.
-
-2. **Conflito com a regra do banco para alterar `settings.features`**
-   - Existe trigger `guard_clinic_features()` em `clinics`.
-   - Ela só permite mudar `settings.features` quando `public.is_super_admin()` for verdadeiro.
-   - O `admin-apply-plan` usa client com privilégios elevados para gravar, mas dentro do banco `auth.uid()` não representa automaticamente o super admin logado; com isso, o `UPDATE clinics` pode falhar ao trocar `settings.features`.
-   - Como o código não checa o erro do `update`, o usuário recebe toast de sucesso mesmo sem alteração persistida.
-
-3. **A UI lê o espelho legado `clinics.plan`**
-   - `src/components/admin/ClinicDetailsDialog.tsx`
-   - `src/pages/Admin.tsx`
-   - Mesmo quando `plan_id` mudasse, a UI ainda depende de `clinic.plan` e do reload da lista. Se a sincronização `plan_id -> plan` não acontecer, a tela continua mostrando o plano antigo.
-
-4. **O refresh do modal/lista não reconcilia o objeto da clínica**
-   - O modal recarrega uso, histórico e subscription, mas o objeto `clinic` vindo do pai pode continuar velho.
-   - Isso amplifica a sensação de “deu certo mas não mudou”.
-
-## Implementação
-### 1. Blindar `admin-apply-plan`
-- Validar e tratar erro de **cada** operação:
-  - leitura do plano
-  - leitura das clínicas
-  - `update` em `clinics`
-  - fechamento da subscription atual
-  - criação da nova subscription
-- Retornar erro real se qualquer etapa falhar.
-- Fazer `applied` contar somente updates concluídos de verdade.
-
-### 2. Ajustar a estratégia de gravação do plano
-- Corrigir a compatibilidade com a trigger `guard_clinic_features()`.
-- Opções seguras:
-  - mover a lógica crítica para uma função SQL `SECURITY DEFINER` com validação explícita do super admin, ou
-  - adaptar a edge function para não depender de uma gravação que o trigger rejeita silenciosamente.
-- Garantir também a sincronização consistente entre:
-  - `clinics.plan_id`
-  - `clinics.plan`
-  - `clinic_subscriptions.is_current`
-
-### 3. Corrigir o feedback do frontend
-- Em `ClinicDetailsDialog.tsx`:
-  - só mostrar `Plano aplicado` após confirmação real do backend
-  - tratar payload de erro de forma explícita
-  - recarregar o estado da própria clínica, não apenas uso/histórico
-- Em `Admin.tsx`:
-  - após `onChanged`, reconciliar a clínica aberta no modal com a lista recarregada
-
-### 4. Atualizar a documentação e o mapa
-- `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`
-- `docs/maps/ADMIN_SUPER_ADMIN.md`
-- Registrar que:
-  - `admin-apply-plan` hoje depende de sincronização entre `plan_id` e `plan`
-  - mudanças em `settings.features` passam por guard no banco
-  - sucesso visual deve depender de mutação validada, não apenas de resposta 200
-
-## Detalhes técnicos
-- Evidência atual do problema:
-  - a chamada de rede para `admin-apply-plan` responde `200` com `{ ok: true, applied: 1 }`
-  - mas a clínica consultada continua com `plan = 'free'` e `plan_id = null`
-  - também não há row em `clinic_subscriptions` para essa clínica
-- Isso confirma que o “sucesso” está sendo calculado no backend antes de comprovar persistência real.
-
-```text
-ClinicDetailsDialog
-  -> admin-apply-plan (200 ok/applied:1)
-  -> backend ignora erro de update/insert
-  -> banco continua sem mudança real
-  -> frontend mostra toast de sucesso
-  -> lista/modal seguem com plano antigo
+```sql
+SELECT * FROM clinic_invites
+WHERE token = _token AND accepted_at IS NULL AND expires_at > now();
 ```
 
-## Resultado esperado
-Depois da correção, o fluxo deve ter este comportamento:
-- falhou qualquer gravação -> erro claro, sem toast de sucesso
-- gravou tudo -> `clinics.plan_id`, `clinics.plan` e `clinic_subscriptions` coerentes
-- modal e lista atualizam imediatamente com o plano novo
+Cenários reais que disparam o erro indevidamente:
+1. Re‑render após `signUp` + `signInWithPassword` chama a RPC duas vezes — a primeira marca `accepted_at`, a segunda explode.
+2. O usuário reabre o link do convite depois de já tê‑lo aceitado (clica de novo no e‑mail / volta no histórico).
+3. Admin gera mais de um convite para o mesmo e‑mail/clínica (ex.: tokens `aec22...` e `72d1...` no banco). Após aceitar um, o outro continua "ativo" mas qualquer clique mostra erro genérico.
+
+O usuário, na prática, já é membro da clínica, mas vê "Convite inválido/expirado" e não é redirecionado.
+
+## Fases
+
+### Fase 1 — Migração: tornar `accept_clinic_invite` idempotente
+
+Reescrever a função para:
+
+1. Validar autenticação.
+2. Buscar o convite por `token` (sem filtrar por `accepted_at IS NULL` ainda).
+3. Se não existir → `invalid_invite`.
+4. Validar e‑mail do usuário vs. e‑mail do convite (`invite_email_mismatch`).
+5. Se `expires_at <= now()` **e** o usuário ainda não é membro da clínica → `expired_invite`.
+6. Se já existe membership em `clinic_members` para `(clinic_id, user_id)` → retornar `clinic_id` (sucesso silencioso).
+7. Caso contrário: `INSERT … ON CONFLICT (user_id) DO NOTHING` em `clinic_members`, marcar `accepted_at = COALESCE(accepted_at, now())`, retornar `clinic_id`.
+8. Marcar como aceitos quaisquer outros convites pendentes do mesmo e‑mail para a mesma clínica (limpa duplicatas tipo `aec22...` + `72d1...`).
+
+Mantém `SECURITY DEFINER` e `search_path = public`.
+
+### Fase 2 — Front: `src/pages/Invite.tsx`
+
+- No `handleSubmit`, após `signUp` checar se já existe sessão antes de chamar `signInWithPassword` (evita chamada redundante que dispara re‑render).
+- Guardar uma ref `acceptingRef` para impedir que a RPC seja chamada duas vezes na mesma montagem.
+- Tratar o retorno: se `rpcErr` tiver `message === 'invalid_invite'` mostrar "Convite inválido"; se `expired_invite` mostrar "Convite expirado"; se `invite_email_mismatch` mostrar mensagem específica. Outros erros → toast genérico.
+- Quando `invite.expired === true` na tela inicial, oferecer botão "Ir para o app" se a sessão já estiver presente e o usuário já for membro (consultar `clinic_members` via `current_clinic_id()`), em vez de só "Peça um novo convite".
+
+### Fase 3 — Documentação
+
+Atualizar `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md` (seção de convites) e `docs/MAP.md` registrando:
+- Função `accept_clinic_invite` agora é idempotente.
+- Convites duplicados para o mesmo `(clinic_id, lower(email))` são auto‑encerrados quando um deles é aceito.
+- Códigos de erro retornados: `not_authenticated`, `invalid_invite`, `expired_invite`, `invite_email_mismatch`.
+
+## Detalhes técnicos
+
+Esboço SQL da nova função:
+
+```sql
+CREATE OR REPLACE FUNCTION public.accept_clinic_invite(_token text)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_invite clinic_invites%ROWTYPE;
+  v_user_email text;
+  v_uid uuid := auth.uid();
+  v_already_member boolean;
+BEGIN
+  IF v_uid IS NULL THEN RAISE EXCEPTION 'not_authenticated'; END IF;
+
+  SELECT * INTO v_invite FROM clinic_invites WHERE token = _token;
+  IF v_invite.id IS NULL THEN RAISE EXCEPTION 'invalid_invite'; END IF;
+
+  SELECT email INTO v_user_email FROM auth.users WHERE id = v_uid;
+  IF lower(v_user_email) <> lower(v_invite.email) THEN
+    RAISE EXCEPTION 'invite_email_mismatch';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM clinic_members
+    WHERE clinic_id = v_invite.clinic_id AND user_id = v_uid
+  ) INTO v_already_member;
+
+  IF NOT v_already_member AND v_invite.expires_at <= now() THEN
+    RAISE EXCEPTION 'expired_invite';
+  END IF;
+
+  INSERT INTO clinic_members (clinic_id, user_id, role)
+  VALUES (v_invite.clinic_id, v_uid, v_invite.role)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  UPDATE clinic_invites
+     SET accepted_at = COALESCE(accepted_at, now())
+   WHERE clinic_id = v_invite.clinic_id
+     AND lower(email) = lower(v_invite.email)
+     AND accepted_at IS NULL;
+
+  RETURN v_invite.clinic_id;
+END $$;
+```
+
+## Arquivos afetados
+
+- `supabase/migrations/<novo>.sql` — recriação de `accept_clinic_invite`.
+- `src/pages/Invite.tsx` — guard de chamada dupla + mensagens de erro mais finas.
+- `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`, `docs/MAP.md` — atualização.
