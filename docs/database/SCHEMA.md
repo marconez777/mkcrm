@@ -72,8 +72,8 @@ Atendentes da clínica (podem ou não ter `user_id` em auth). Usados para atribu
 - `settings`: configurações por clínica (chave/valor JSON).
 - `app_settings`: chave/valor global (somente super_admin). Usado para `cron_service_role_key`, `supabase_url`, `unsubscribe_hmac_secret`.
 
-### `auth_lockouts`
-Lockout de login (12h após N tentativas). Campos: `email`, `attempts`, `locked_until`. Gerenciado pela edge function `auth-login`.
+> **Nota:** uma tabela `auth_lockouts` foi planejada (lockout de login após N tentativas) mas **não existe atualmente** no schema. A autenticação usa `supabase.auth.signInWithPassword` direto, sem lockout customizado — ver `architecture/AUTH.md`.
+
 
 ### `audit_log` / `data_access_log`
 Trilha de auditoria de ações sensíveis e acessos a dados (PII).
