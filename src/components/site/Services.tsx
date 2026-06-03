@@ -36,7 +36,7 @@ const SERVICES = [
   {
     n: "06",
     title: "Suporte e evolução contínua",
-    body: "Atendimento humano, roadmap aberto e atualizações constantes para sua negócio nunca parar de crescer.",
+    body: "Atendimento humano, roadmap aberto e atualizações constantes para seu negócio nunca parar de crescer.",
     tags: ["Suporte 24/7", "Roadmap", "SLA"],
   },
 ] as const;

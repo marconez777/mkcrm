@@ -64,7 +64,7 @@ const ITEMS = [
   {
     icon: SlidersHorizontal,
     title: "Campos personalizados",
-    body: "Adapte o cadastro de lead à realidade da sua negócio sem mexer em código.",
+    body: "Adapte o cadastro de lead à realidade da seu negócio sem mexer em código.",
   },
   {
     icon: LineChart,

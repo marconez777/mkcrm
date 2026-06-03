@@ -8,7 +8,7 @@ const PLANS = [
     price: "R$ 77",
     period: "/mês",
     note: "ou R$ 470/ano (≈ R$ 39/mês)",
-    desc: "Para quem está começando a estruturar o atendimento da negócio com CRM e IA.",
+    desc: "Para quem está começando a estruturar o atendimento do negócio com CRM e IA.",
     cta: "Começar agora",
     highlight: false,
     badge: null as string | null,
