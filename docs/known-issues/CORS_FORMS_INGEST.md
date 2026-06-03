@@ -1,9 +1,9 @@
 # CORS no `forms-ingest` (e qualquer edge function chamada por snippet em site externo)
 
-> Última atualização: 2026‑05‑26
+> Última atualização: 2026-06-03
 > Sintoma reincidente — sempre revisitar esta nota antes de mexer no CORS do
-> `forms-ingest`, `tracking-ingest`, ou qualquer função pública servida via JS
-> snippet em domínio de terceiro.
+> `forms-ingest`, `tracking-event`, `tracking-identify`, `tracking-config`, `tracking-pixel`
+> ou qualquer função pública servida via JS snippet em domínio de terceiro.
 
 ## Sintoma
 
@@ -81,8 +81,9 @@ A correção fica 100% no servidor (edge function).
 
 ## Funções afetadas / a auditar
 
-- `supabase/functions/forms-ingest/index.ts` — **corrigido em 2026‑05‑26**.
-- `supabase/functions/tracking-ingest/index.ts` — auditar próximo bug similar.
+- `supabase/functions/forms-ingest/index.ts` — **corrigido em 2026-05-26**.
+- `supabase/functions/tracking-event/index.ts`, `tracking-identify/index.ts`,
+  `tracking-config/index.ts`, `tracking-pixel/index.ts` — auditar mesmo padrão.
 - Qualquer função futura servida via `forms-snippet` ou `tracking-snippet`.
 
 ## Como reproduzir / validar

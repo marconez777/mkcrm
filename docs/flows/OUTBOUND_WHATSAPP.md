@@ -25,7 +25,7 @@ Frontend (`Composer.tsx` chama supabase.functions.invoke direto)
         ▼
 evolution-send
         │ 1) verifica RLS via JWT (clinic do user = clinic do lead)
-        │ 2) busca instance do clinic em clinic_settings
+        │ 2) busca instance do clinic em whatsapp_instances (+ clinics.settings.evolution)
         │ 3) POST Evolution API /message/sendText
         │ 4) INSERT messages (direction='out', status='sent')
         │ 5) INSERT lead_events ('message_out')

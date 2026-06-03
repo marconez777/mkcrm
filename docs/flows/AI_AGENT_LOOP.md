@@ -1,7 +1,9 @@
 # Fluxo: AI Agent Loop (auto-reply e assist)
 
 > **Quando ler:** antes de adicionar uma tool nova, mudar prompt, mexer no custo/limite, ou debugar resposta estranha do agente.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
+>
+> ⚠️ **Naming**: `ai_runs` / `ai_tool_calls` **não existem** no schema. As tabelas reais de telemetria/custo são `ai_usage` (1 linha por chamada), `ai_usage_daily` (rollup), `ai_spend_events` (eventos de cobrança) e `ai_chat_traces` (transcrições). Onde o diagrama abaixo diz `ai_runs`, leia `ai_usage` + `ai_chat_traces`; onde diz `ai_tool_calls`, leia o array `tool_calls[]` dentro de `ai_chat_traces.turns`. As configurações de IA por clínica vivem em `clinics.settings.ai.*` — **não existe** tabela `clinic_settings`.
 
 ---
 
@@ -76,7 +78,7 @@ Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend p
 
 ## Pause / handoff
 
-- Qualquer humano respondendo manualmente no Inbox → trigger `tg_pause_ai_on_human_reply` seta `leads.ai_paused=true`.
+- Humano respondendo manualmente no Inbox → o frontend/`ai-auto-reply` checa `messages.bot_agent_id IS NULL` (resposta humana) e a tool `pause_ai_for_lead` seta `leads.ai_paused=true`. **Não existe** trigger `tg_pause_ai_on_human_reply` — pausa é manual ou via tool. Em paralelo, `trg_stop_sequences_on_reply` em `messages` interrompe sequences ativas.
 - Tool `transfer_to_human` faz o mesmo.
 - Retomada: botão "retomar IA" no Inbox seta `ai_paused=false` e dispara `ai-auto-reply` com a última msg do lead.
 

@@ -11,7 +11,7 @@ Evolution API é um servidor open-source que faz ponte com o WhatsApp Web. Uma *
 
 - Endpoint base: definido em `EVOLUTION_BASE_URL` (env secret)
 - Auth global: header `apikey: ${EVOLUTION_GLOBAL_API_KEY}` (cria/lista instâncias)
-- Auth por instância: cada instância tem sua própria `apikey` (gerada pelo Evolution no create) — guardada em `clinic_settings.wa_api_key`
+- Auth por instância: cada instância tem sua própria `apikey` (gerada pelo Evolution no create) — guardada em `whatsapp_instances.evolution_api_key` (e refletida em `clinics.settings.evolution.api_key`)
 
 ---
 

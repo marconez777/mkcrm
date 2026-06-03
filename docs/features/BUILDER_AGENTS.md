@@ -61,7 +61,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
    ai_insights             ← insights persistidos
 ```
 
-Todos os custos do Builder (tokens, runs, latência) são contabilizados via `_shared/ai.ts` → `ai_runs`/`ai_tool_calls` igual qualquer outro agente, com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
+Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabelas `ai_usage` / `ai_usage_daily` / `ai_spend_events` (não existem `ai_runs`/`ai_tool_calls`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
 
 ---
 
@@ -303,7 +303,7 @@ Três ferramentas:
 
 **Pegadinhas:**
 - Sem dados → retorna `code='no_data'` com mensagem "Sem conversas nos últimos N dias".
-- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_runs`.
+- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_usage` / `ai_usage_daily`.
 - Recomendações não viram patch automático no prompt — usuário decide.
 
 ---
@@ -317,7 +317,7 @@ Três ferramentas:
 
 ### Fase 8 — Costs Panel e Health
 
-- `CostsPanel.tsx`: agrega `ai_runs` filtrando `note LIKE 'ai-builder:%'` vs runs do agente em si.
+- `CostsPanel.tsx`: agrega `ai_usage` filtrando `note LIKE 'ai-builder:%'` vs chamadas do agente em si.
 - `AgentHealth.tsx`: mostra `builder_verified_at`, taxa de erro, latência média p50/p95 das últimas N chamadas.
 
 ---

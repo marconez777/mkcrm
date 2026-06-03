@@ -83,7 +83,7 @@ Códigos canônicos:
 ### Resend
 - `422 domain_not_verified` → desabilitar domain row, email para admin.
 - `422 invalid_email` → marcar `email_invalid=true` no lead.
-- hard bounce / complaint → upsert em `email_unsubscribes` (feito direto pelo `resend-webhook`). Não há trigger separado `tg_suppress_on_bounce`; a tabela `suppressed_emails` cobre o pipeline de emails transacionais via `email_domain--setup_email_infra` (caminho paralelo do auth/transacional).
+- hard bounce / complaint → upsert em `email_unsubscribes` (feito direto pelo `resend-webhook` e também pelo trigger `trg_email_logs_suppress_on_bounce` em `email_logs`). A tabela `suppressed_emails` cobre o pipeline de emails transacionais via `email_domain--setup_email_infra` (caminho paralelo do auth/transacional).
 - **Auto-pausa por saúde:** `email_logs_bounce_health_trigger` chama `check_clinic_bounce_health` após cada UPDATE de status. Se `bounce_rate > 5%` ou `complaint_rate > 0.3%` (janela das últimas 1000 mensagens), todas as campanhas em `running/sending/scheduled` da clínica são pausadas automaticamente e um registro é gravado em `email_health_alerts` (throttle 10min entre alertas). UI deve mostrar o alerta e exigir ação manual para retomar.
 
 ### Lovable AI

@@ -9,7 +9,7 @@
 
 ## Fluxo de login (email/senha)
 
-> **Estado atual:** o login é **direto contra o Supabase** (`supabase.auth.signInWithPassword`). **Não existe** edge function `auth-login` no projeto. A tabela `auth_lockouts` está no schema mas nenhum código a consulta — é infraestrutura dormente, pensada para futura camada de rate-limit/lockout.
+> **Estado atual:** o login é **direto contra o Supabase** (`supabase.auth.signInWithPassword`). **Não existe** edge function `auth-login` no projeto. A tabela `auth_lockouts` **foi dropada em 2026-05-26** (migration `20260526202203_*`) — qualquer código que ainda a referencia retorna vazio/no-op.
 
 ```text
 UI (src/pages/Auth.tsx)
@@ -31,24 +31,11 @@ Cadastro público está **desabilitado** — usuários são criados via convite 
 
 ---
 
-## Tabela `auth_lockouts` (presente, não consumida)
+## Tabela `auth_lockouts` (dropada)
 
-```sql
-auth_lockouts (
-  email text PRIMARY KEY,
-  failed_attempts int NOT NULL DEFAULT 0,
-  locked_until timestamptz,
-  last_attempt_at timestamptz,
-  last_ip text
-)
-```
+A tabela foi criada em `20260519191402_*`, ajustada em `20260525181431_*` e **dropada** em `20260526202203_*` (`DROP TABLE IF EXISTS public.auth_lockouts CASCADE`). O código de `admin-user-action` (action `unlock`) e `admin-users-list` ainda referencia a tabela mas a query retorna vazio — campos `locked`, `locked_until`, `failed_attempts` vêm sempre nulos/zerados. Registrado em `known-issues/DEBT.md`.
 
-Origem: migrações `20260519191402_*` (criação), `20260525181431_*`, `20260526202203_*` (ajustes). Hoje é usada apenas como ponte de **desbloqueio manual** pelo painel `/admin → Usuários`:
-
-- `admin-user-action` action `unlock` → `DELETE FROM auth_lockouts WHERE user_id = ...`.
-- `admin-users-list` faz join para mostrar se o usuário está travado.
-
-Não há gravação automática. Reativar o lockout exigiria criar um wrapper (edge function ou trigger) — está documentado como roadmap em `docs/known-issues/DEBT.md`.
+Reativar lockout exige recriar a tabela + wrapper (edge function ou trigger) — está em `roadmap/`.
 
 ---
 
@@ -118,7 +105,7 @@ Fluxo padrão Supabase, **sem** edge function própria:
 6. `src/pages/ResetPassword.tsx` escuta `onAuthStateChange` por `PASSWORD_RECOVERY` (ou sessão ativa) → mostra form de nova senha → chama `supabase.auth.updateUser({ password })` → redireciona para `/`.
 7. Se a página é acessada sem sessão de recovery, mostra "link inválido ou expirado" + botão de volta para `/auth`.
 
-Como `auth_lockouts` não é populada automaticamente, o reset de senha não interage com ela.
+Como `auth_lockouts` não existe mais, o reset de senha não interage com lockout algum.
 
 ---
 
@@ -129,7 +116,7 @@ Aceita `{ user_id, action, payload? }`. Toda chamada grava em `audit_log`.
 | Action | Efeito |
 |---|---|
 | `set_password` | Gera senha aleatória ou aceita uma fornecida (`auth.admin.updateUserById`). |
-| `unlock` | `DELETE` em `auth_lockouts` para o user. |
+| `unlock` | Tenta `DELETE` em `auth_lockouts` (tabela dropada) — **no-op efetivo hoje**. |
 | `sign_out` | Revoga refresh tokens (`auth.admin.signOut`). |
 | `toggle_super_admin` | Insere/remove linha em `user_roles (role='super_admin')`. |
 
@@ -145,13 +132,13 @@ Detalhes em `architecture/PLANS_LIMITS.md` e `edge-functions/INDEX.md`.
 | Sessão expira sozinha após dormir o PC | Mitigado pelo refresh on `visibilitychange` em `useAuth`. Se voltar: revisar listener. |
 | Super admin não aparece como super admin | Inserir manualmente em `user_roles (user_id, role='super_admin')`. Auto-promote só para `contato@mkart.com.br`. |
 | RPC `accept_clinic_invite` falha com `invite_email_mismatch` | Email do user logado ≠ email do convite. Pedir para deslogar e usar email correto. |
-| "Conta travada" mas usuário não percebe | `auth_lockouts` não é consultada hoje — login simplesmente passa. Se aparecer no painel admin, é resíduo de tentativa antiga e pode ser apagado via action `unlock`. |
+| "Conta travada" mas usuário não percebe | `auth_lockouts` foi dropada — login simplesmente passa. Action `unlock` no painel admin é no-op hoje. |
 
 ---
 
 ## Melhorias sugeridas (não implementadas)
 
-- Reativar lockout: edge function `auth-login` que envolve `signInWithPassword` + leitura/escrita em `auth_lockouts`.
+- Reativar lockout: recriar tabela `auth_lockouts` + edge function `auth-login` que envolve `signInWithPassword` + leitura/escrita.
 - 2FA / TOTP.
 - Captcha após 3 tentativas.
 - Desbloqueio self-service via email após lockout.

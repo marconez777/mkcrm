@@ -102,7 +102,7 @@ Ver `features/SEQUENCES_AUTOMATIONS.md` para detalhe dos gatilhos.
 ## Atribuição de responsável
 
 - Default: nenhum (`assigned_to=null`).
-- Regras em `clinic_settings.assignment_strategy`: `round_robin` | `least_loaded` | `manual`.
+- Regras em `clinics.settings.assignment_strategy`: `round_robin` | `least_loaded` | `manual` (não existe tabela `clinic_settings`).
 - Frontend Kanban tem dropdown manual em cada card.
 
 ---
