@@ -138,7 +138,7 @@ Detalhes em `architecture/PLANS_LIMITS.md` e `edge-functions/INDEX.md`.
 
 ## Melhorias sugeridas (não implementadas)
 
-- Reativar lockout: edge function `auth-login` que envolve `signInWithPassword` + leitura/escrita em `auth_lockouts`.
+- Reativar lockout: recriar tabela `auth_lockouts` + edge function `auth-login` que envolve `signInWithPassword` + leitura/escrita.
 - 2FA / TOTP.
 - Captcha após 3 tentativas.
 - Desbloqueio self-service via email após lockout.
