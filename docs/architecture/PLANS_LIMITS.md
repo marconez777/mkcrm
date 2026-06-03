@@ -24,6 +24,7 @@ Catálogo único de planos comerciais. Migração `20260603000729_*`.
 | `limits` | jsonb | caps numéricos (ver §3) — `null` ou ausente = ilimitado |
 | `sort_order` | int | exibição |
 | `is_active` / `is_public` | bool | default `true` |
+| `stripe_product_id` / `stripe_price_id_monthly` / `stripe_price_id_yearly` | text | **reservados** — integração Stripe futura, hoje sempre `null` |
 | `created_at` / `updated_at` | timestamptz | padrão |
 
 **Seed inicial:** `free`, `starter`, `pro`, `enterprise` (somente `code` + `name`; preços, features e limites são editados via UI).
