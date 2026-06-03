@@ -26,9 +26,9 @@ Características-chave:
 
 ### Componentes
 
-- **10 edge functions** Deno: `ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-eval-run`, `ai-embed`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`, `ai-ingest-document`, `agent-run-bulk` — + a cron `scheduled-dispatcher` (compartilhada com agendamento de mensagens).
-- **4 módulos compartilhados** em `supabase/functions/_shared/`: `ai.ts`, `rag.ts`, `mcp.ts`, `utils.ts` (+ `metrics.ts`).
-- **10 tabelas Postgres** (`ai_agents`, `ai_documents`, `ai_chunks`, `ai_threads`, `ai_messages`, `ai_usage`, `agent_memory`, `agent_traces`, `agent_evals`, `agent_mcp_servers`) + 3 auxiliares (`lead_ai_settings`, `stage_ai_defaults`, `pending_replies`).
+- **18 edge functions** Deno do domínio IA/Agentes: `ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-eval-run`, `ai-embed`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`, `ai-ingest-document`, `ai-reingest-document`, `ai-builder` (wizard `/ai/agents/new` + copilot), `ai-analyst-run` (análise em lote → `agent_memory` + `ai_insights`), `ai-spend-notify`, `agent-run-bulk`, `agent-followups-tick` (cron 5 min — follow-ups por stage), `agent-learn-from-thread` (promove threads a `agent_evals` / pede patch ao Builder), `classifier-daily-batch`, `daily-summary` — + a cron `scheduled-dispatcher` (compartilhada com agendamento de mensagens).
+- **9 módulos compartilhados** em `supabase/functions/_shared/`: `ai.ts`, `rag.ts`, `mcp.ts`, `utils.ts`, `metrics.ts`, `ai-pricing.ts`, `agent-flags.ts`, `spend-guard.ts`, `builder-system-prompt.ts` (+ KB em `builder-knowledge/`).
+- **Tabelas Postgres** do domínio (ver `database/SCHEMA.md` para colunas): `ai_agents`, `ai_agent_drafts`, `agent_personas`, `agent_prompt_versions`, `agent_stages`, `ai_documents`, `ai_chunks`, `ai_kb_defaults`, `ai_threads`, `ai_messages`, `ai_usage`, `ai_usage_daily`, `agent_memory`, `agent_traces`, `ai_chat_traces`, `agent_evals`, `agent_mcp_servers`, `ai_insights`, `ai_spend_limits`, `ai_spend_events`, `ai_spend_notifications_sent`, `lead_thread_classifications` + auxiliares `lead_ai_settings`, `stage_ai_defaults`, `pending_replies`, `lead_reply_counters`, `rag_cache`, `embedding_cache`.
 - **5 telas** sob `/ai`: Dashboard, Agentes, Memórias, Mensagens (sub-abas Sequências / Automações / Templates), Custos.
 
 ---

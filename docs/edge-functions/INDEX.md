@@ -1,7 +1,7 @@
 # Edge Functions — Índice
 
 > Última atualização: 2026-06-03
-> Total: **70 edge functions** em `supabase/functions/` + 13 módulos compartilhados em `_shared/`.
+> Total: **71 edge functions** em `supabase/functions/` + 14 módulos compartilhados (`_shared/*.ts`) + 1 diretório de KB (`_shared/builder-knowledge/`).
 > Runtime: Deno (Supabase Edge Runtime). Imports preferenciais via `npm:` / `https://esm.sh/`.
 
 ## Convenções
@@ -19,16 +19,16 @@
 | Domínio | Funções | Doc |
 |---|---|---|
 | WhatsApp (Evolution API) | `evolution-*` (16, incl. `evolution-fetch-groups`), `fetch-wa-avatar`, `transcribe-audio`, `wa-redirect` | [`WHATSAPP.md`](./WHATSAPP.md) |
-| IA / Agentes / RAG | `ai-*` (10), `agent-run-bulk`, `ai-spend-notify`, `classifier-daily-batch`, `daily-summary` | [`AI.md`](./AI.md) |
+| IA / Agentes / RAG | `ai-chat`, `ai-auto-reply`, `ai-assist`, `ai-eval-run`, `ai-embed`, `ai-ingest-pdf`, `ai-ingest-url`, `ai-ingest-urls`, `ai-ingest-document`, `ai-reingest-document`, `ai-builder`, `ai-analyst-run`, `ai-spend-notify`, `agent-run-bulk`, `agent-followups-tick`, `agent-learn-from-thread`, `classifier-daily-batch`, `daily-summary` | [`AI.md`](./AI.md) |
 | Email Marketing (Resend) | `send-email`, `send-email-batch`, `process-email-queue`, `email-automations-tick`, `dispatch-campaign`, `process-scheduled-campaigns`, `resend-webhook`, `backfill-resend-events`, `email-domain-manage`, `email-unsubscribe` | [`EMAIL.md`](./EMAIL.md) |
 | Tracking (Pixel) | `tracking-pixel`, `tracking-event`, `tracking-identify`, `tracking-config` | [`TRACKING.md`](./TRACKING.md) |
-| Broadcasts | `broadcast-tick`, `broadcast-control` | [`BROADCASTS.md`](./BROADCASTS.md) |
-| Sequências / Automações | `sequence-tick`, `sequence-enroll`, `sequence-trigger`, `automations-tick`, `scheduled-dispatcher`, `watch-stale-leads` | [`SEQUENCES_AUTOMATIONS.md`](./SEQUENCES_AUTOMATIONS.md) |
-| Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | — (ver `features/` futuro) |
-| Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | [`FORMS.md`](./FORMS.md) |
-| Autenticação / Clínicas | `auth-login`, `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](./AUTH.md) (em `architecture/`) |
+| Broadcasts | `broadcast-tick`, `broadcast-control` | (sem doc dedicada — ver código + `flows/`) |
+| Sequências / Automações | `sequence-tick`, `sequence-enroll`, `sequence-trigger`, `automations-tick`, `scheduled-dispatcher`, `watch-stale-leads` | (sem doc dedicada — ver `flows/`) |
+| Relatórios agendados (WhatsApp) | `scheduled-report-tick` (cron 1 min — envia métricas para grupos WA) | (sem doc dedicada) |
+| Formulários públicos | `forms-ingest`, `forms-admin`, `forms-snippet`, `forms-plugin-zip`, `external-lead-capture` | (sem doc dedicada — ver `flows/FORMS_TO_LEAD.md`) |
+| Clínicas / Multi-tenant | `clinic-create-user`, `clinic-invite`, `integrations-status` | [`AUTH.md`](../architecture/AUTH.md) |
 | Admin (super admin only) | `admin-users-list`, `admin-user-action`, `admin-apply-plan` | [`PLANS_LIMITS.md`](../architecture/PLANS_LIMITS.md) |
-| Helpers compartilhados | `_shared/*.ts` (13 arquivos, inclui `template-vars.ts`) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
+| Helpers compartilhados | `_shared/*.ts` (14 arquivos) + `_shared/builder-knowledge/` (KB do Builder em markdown) | [`SHARED_HELPERS.md`](./SHARED_HELPERS.md) |
 
 ## Como chamar uma função
 
@@ -74,12 +74,14 @@ await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/<func>`, {
 Todas verificam `is_super_admin()` **em código** — não confiar só em `verify_jwt`.
 
 ### `admin-users-list`
-`POST` paginado. Retorna lista cross-tenant de usuários a partir de `auth.users` + join com `profiles`, `clinic_members`, `user_roles`, `auth_lockouts`. Body: `{ search?, clinic_id?, role?, status?, page?, page_size? }`. Consumido pela aba **Usuários** do `/admin`.
+`POST` paginado. Retorna lista cross-tenant de usuários a partir de `auth.users` + join com `profiles`, `clinic_members`, `user_roles`. Body: `{ search?, clinic_id?, role?, status?, page?, page_size? }`. Consumido pela aba **Usuários** do `/admin`.
+
+> **Nota técnica:** o código ainda referencia a tabela `auth_lockouts` (campos `locked_until`, `failed_attempts`) — como ela **não existe** no schema (ver `database/SCHEMA.md`), a query retorna `null` e os campos `locked`/`locked_until`/`failed_attempts` vêm sempre vazios/zerados. Reativar lockout exige criar a tabela + edge function wrapper. Registrado em `known-issues/DEBT.md`.
 
 ### `admin-user-action`
 `POST` com `{ user_id, action, payload? }`. Ações suportadas:
 - `set_password` — gera senha ou aceita uma fornecida.
-- `unlock` — apaga linhas de `auth_lockouts`.
+- `unlock` — **no-op efetivo hoje** (tenta `DELETE FROM auth_lockouts WHERE email = ...` mas a tabela não existe).
 - `sign_out` — revoga refresh tokens.
 - `toggle_super_admin` — insere/remove em `user_roles`.
 

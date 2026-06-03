@@ -23,9 +23,9 @@ Foco: índice de docs, stack, multi-tenancy (`current_clinic_id`, `is_super_admi
 `database/{SCHEMA,RLS_POLICIES,FUNCTIONS_TRIGGERS,MIGRATIONS}.md`.
 Varredura completa de `supabase/migrations/*.sql` (139) + `pg_catalog`. Achados principais: 12 tabelas ausentes adicionadas, `auth_lockouts` confirmada como inexistente (removida), contagem real 111 relações, RPCs admin reescritas, total de migrations 139.
 
-### Fase 3 — Edge Functions (6 arquivos)
+### Fase 3 — Edge Functions (6 arquivos) ✅ concluída 2026-06-03
 `edge-functions/{INDEX,AI,EMAIL,TRACKING,WHATSAPP,SHARED_HELPERS}.md`.
-Cada função listada existe em `supabase/functions/`; descrições batem com `index.ts`; novos endpoints admin e correções de segurança (`evolution-webhook` cross-clinic guard, `resend-webhook` rejeição sem secret) refletidos.
+Achados principais: total 71 (não 70); 5 funções ausentes adicionadas (`ai-builder`, `ai-analyst-run`, `ai-reingest-document`, `agent-followups-tick`, `agent-learn-from-thread`); shared 14 módulos (não 13) + `builder-knowledge/`; ghost references removidas (`auth-login`, `BROADCASTS.md`, `SEQUENCES_AUTOMATIONS.md`, `FORMS.md`, `AUTH.md` em `edge-functions/`); bug latente `auth_lockouts` em `admin-*` documentado.
 
 ### Fase 4 — Frontend (6 arquivos)
 `frontend/{COMPONENTS,DESIGN_SYSTEM,HOOKS_LIB,PAGES,ROUTING,STATE_DATA}.md`.

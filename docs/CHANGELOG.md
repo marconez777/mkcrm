@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-06-03 — Auditoria documental Fase 3/8 (Edge Functions)
+
+Releitura linha-a-linha de `docs/edge-functions/` (6 arquivos) contra `supabase/functions/*` (71 funções) e `_shared/*`.
+
+### Corrigido
+- `docs/edge-functions/INDEX.md`:
+  - Total: 70 → **71 edge functions**; shared: 13 → **14 módulos `.ts` + diretório `_shared/builder-knowledge/`**.
+  - Mapa por domínio: domínio IA expandido para listar nominalmente as 18 funções (`ai-builder`, `ai-analyst-run`, `ai-reingest-document`, `agent-followups-tick`, `agent-learn-from-thread` estavam ausentes).
+  - Removida referência a `auth-login` (não existe — ver Fase 1).
+  - Removidos links quebrados para `BROADCASTS.md`, `SEQUENCES_AUTOMATIONS.md`, `FORMS.md`, `AUTH.md` dentro de `edge-functions/` (apontavam para arquivos inexistentes); `AUTH.md` agora aponta para `architecture/AUTH.md`.
+  - Linha "Autenticação / Clínicas" renomeada para "Clínicas / Multi-tenant" (sem `auth-login`).
+  - `admin-users-list` / `admin-user-action`: notas explicativas adicionadas sobre o **bug latente** — o código faz `SELECT/DELETE` em `auth_lockouts`, mas a tabela não existe; as queries retornam null e os campos `locked`/`locked_until`/`failed_attempts` vêm sempre zerados (degradação graciosa via `?? []`); ação `unlock` é no-op efetivo.
+- `docs/edge-functions/AI.md`:
+  - Contagem real: **18 edge functions** do domínio (era "10"), **9 módulos compartilhados** (era "4"); lista de tabelas Postgres expandida com os 12 itens descobertos na Fase 2 (`ai_agent_drafts`, `agent_personas`, `agent_prompt_versions`, `agent_stages`, `ai_kb_defaults`, `ai_chat_traces`, `lead_thread_classifications`, etc.).
+- `docs/edge-functions/SHARED_HELPERS.md`:
+  - Carimbo bumpado para 2026-06-03. **14 módulos** (não 13); adicionado `builder-system-prompt.ts` e o diretório `builder-knowledge/` (KB do Builder em markdown). Coluna `LOC` removida (desatualizada e de baixo valor — varia a cada commit).
+
+### Validado sem alteração de conteúdo
+- `docs/edge-functions/WHATSAPP.md`: "19 funções: 16 evolution-* + fetch-wa-avatar + transcribe-audio + wa-redirect" — bate com `ls supabase/functions/`.
+- `docs/edge-functions/TRACKING.md`: 4 funções (`tracking-pixel/event/identify/config`) — conferido.
+- `docs/edge-functions/EMAIL.md`: lista de funções de email confere; o resto do arquivo é predominantemente documentação de UI (será revisitado na Fase 5).
+
+### Achados sinalizados (escopo de outras fases)
+- **Bug runtime**: `admin-users-list` e `admin-user-action` consultam `auth_lockouts` (não existe). Funcionam graças a fallback `?? []`. Registrar em `docs/known-issues/DEBT.md` na Fase 6 com prioridade média (UI de "usuário bloqueado" no `/admin` é morta).
+- `EMAIL.md` em `edge-functions/` é primariamente UI — considerar mover para `features/EMAIL_*` na Fase 5.
+- Faltam docs dedicados para Broadcasts, Sequências, Forms (referências quebradas removidas, mas conteúdo dedicado pode ser desejável — avaliar em `roadmap/IMPROVEMENTS.md`).
+
+
+
 ## 2026-06-03 — Auditoria documental Fase 2/8 (Database)
 
 Releitura linha-a-linha de `docs/database/` (4 arquivos) contra `pg_catalog`, `information_schema` e `supabase/migrations/`.

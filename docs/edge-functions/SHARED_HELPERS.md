@@ -1,26 +1,28 @@
 # SHARED_HELPERS — `supabase/functions/_shared/`
 
-> Última atualização: 2026-05-30
-> 13 módulos, ~1.9k linhas. Reutilizados por TODAS as edge functions.
+> Última atualização: 2026-06-03
+> **14 módulos `.ts` + 1 diretório de KB (`builder-knowledge/`)** — reutilizados por TODAS as edge functions.
 > Regra: lógica usada por ≥2 funções vai para cá. Nunca duplique CORS, RPC de spend-guard, helpers do Evolution etc.
 
 ## Visão geral
 
-| Arquivo | LOC | Propósito |
-|---|---|---|
-| `utils.ts` | 136 | Hashing, dedup, timeouts, semáforo, cache de embeddings, dedup de webhooks |
-| `evolution.ts` | 499 | Cliente Evolution API + CORS + auth + ingestão de mensagens |
-| `ai.ts` | 369 | Cliente multi-provider (OpenAI/Anthropic/Google) chat + embeddings + auto-log |
-| `rag.ts` | 254 | Query rewrite, HyDE, busca híbrida (RRF), reranker, memórias |
-| `email.ts` | 39 | CORS de email + render de template `{{var}}` + sanitize tags + detector de contexto interno |
-| `spend-guard.ts` | 64 | Gate de gasto de IA por clínica (RPC `check_ai_spend_status`) |
-| `metrics.ts` | 56 | `logUsage(ctx, model, tokens, cost, ...)` → grava em `ai_usage` |
-| `ai-pricing.ts` | 54 | Tabela de preços por modelo (USD/1M tokens in/out) |
-| `agent-flags.ts` | 26 | `SILENT_TOOLS` + `isSilentByTools()` (auto-reply vs ferramentas mudas) |
-| `mcp.ts` | 110 | Cliente MCP (Model Context Protocol) para tools externas |
-| `attribution.ts` | 207 | UTM → canal (normaliza `traffic_source_rules`) |
-| `template-vars.ts` | — | Resolução de variáveis `{{...}}` em templates de mensagem (lead, custom_fields, clínica) compartilhada por broadcast/sequence/scheduled-dispatcher |
-| `types.ts` | 31 | Tipos compartilhados (mensagens, leads, intents) |
+| Arquivo | Propósito |
+|---|---|
+| `utils.ts` | Hashing, dedup, timeouts, semáforo, cache de embeddings, dedup de webhooks |
+| `evolution.ts` | Cliente Evolution API + CORS + auth + ingestão de mensagens |
+| `ai.ts` | Cliente multi-provider (OpenAI/Anthropic/Google) chat + embeddings + auto-log |
+| `rag.ts` | Query rewrite, HyDE, busca híbrida (RRF), reranker, memórias |
+| `email.ts` | CORS de email + render de template `{{var}}` + sanitize tags + detector de contexto interno |
+| `spend-guard.ts` | Gate de gasto de IA por clínica (RPC `check_ai_spend_status`) |
+| `metrics.ts` | `logUsage(ctx, model, tokens, cost, ...)` → grava em `ai_usage` |
+| `ai-pricing.ts` | Tabela de preços por modelo (USD/1M tokens in/out) |
+| `agent-flags.ts` | `SILENT_TOOLS` + `isSilentByTools()` (auto-reply vs ferramentas mudas) |
+| `mcp.ts` | Cliente MCP (Model Context Protocol) para tools externas |
+| `attribution.ts` | UTM → canal (normaliza `traffic_source_rules`) |
+| `template-vars.ts` | Resolução de variáveis `{{...}}` em templates de mensagem (lead, custom_fields, clínica) compartilhada por broadcast/sequence/scheduled-dispatcher |
+| `builder-system-prompt.ts` | System prompt do **ai-builder** (copilot do `/ai/agents/new`) + `LEAD_CONTEXT_CLAUSE` injetada/validada em system prompts gerados |
+| `types.ts` | Tipos compartilhados (mensagens, leads, intents) |
+| `builder-knowledge/` *(dir)* | Coleção de markdowns (`best-practices.md`, ...) carregada pelo `ai-builder` como base de conhecimento do construtor de agentes |
 
 ---
 
