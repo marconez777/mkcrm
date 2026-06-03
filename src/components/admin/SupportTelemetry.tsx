@@ -5,7 +5,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Eye, MessageSquare, Coins, Activity, ThumbsUp } from "lucide-react";
+import { Loader2, Eye, MessageSquare, Coins, Activity, ThumbsUp, Pin, Headset, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -300,41 +302,141 @@ function Kpi({ icon, label, value, sub }: { icon: React.ReactNode; label: string
 }
 
 function ThreadViewer({ threadId, onClose }: { threadId: string | null; onClose: () => void }) {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [msgs, setMsgs] = useState<(Msg & { pinned_at?: string | null; pinned_note?: string | null; tool_name?: string | null })[]>([]);
   const [loading, setLoading] = useState(false);
+  const [thread, setThread] = useState<{ taken_over_at: string | null } | null>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
+  async function load() {
     if (!threadId) return;
     setLoading(true);
-    supabase
-      .from("support_chat_messages")
-      .select("id, thread_id, role, content, tokens_in, tokens_out, cost_usd, created_at")
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        setMsgs((data ?? []) as Msg[]);
-        setLoading(false);
-      });
+    const [{ data: m }, { data: t }] = await Promise.all([
+      supabase
+        .from("support_chat_messages" as any)
+        .select("id, thread_id, role, content, tokens_in, tokens_out, cost_usd, created_at, pinned_at, pinned_note, tool_name")
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("support_chat_threads" as any)
+        .select("taken_over_at")
+        .eq("id", threadId)
+        .maybeSingle(),
+    ]);
+    setMsgs((m ?? []) as any);
+    setThread((t ?? null) as any);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [threadId]);
+
+  // realtime: stay in sync while viewing
+  useEffect(() => {
+    if (!threadId) return;
+    const ch = supabase
+      .channel(`admin-thread-${threadId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_chat_messages", filter: `thread_id=eq.${threadId}` }, () => load())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "support_chat_threads", filter: `id=eq.${threadId}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [threadId]);
+
+  async function togglePin(m: any) {
+    const isPinned = !!m.pinned_at;
+    if (isPinned) {
+      await supabase.from("support_chat_messages" as any).update({ pinned_at: null, pinned_by: null, pinned_note: null, pinned_resolved: false } as any).eq("id", m.id);
+    } else {
+      const note = prompt("Motivo (opcional):") ?? null;
+      await supabase.from("support_chat_messages" as any).update({ pinned_at: new Date().toISOString(), pinned_note: note, pinned_resolved: false } as any).eq("id", m.id);
+    }
+    load();
+  }
+
+  async function takeover() {
+    const { error } = await supabase.functions.invoke("support-admin-reply", { body: { action: "takeover", thread_id: threadId } });
+    if (error) toast.error(error.message); else { toast.success("Conversa assumida"); load(); }
+  }
+  async function release() {
+    const { error } = await supabase.functions.invoke("support-admin-reply", { body: { action: "release", thread_id: threadId } });
+    if (error) toast.error(error.message); else { toast.success("Devolvido para a IA"); load(); }
+  }
+  async function sendReply() {
+    const content = reply.trim();
+    if (!content) return;
+    setSending(true);
+    const { error } = await supabase.functions.invoke("support-admin-reply", {
+      body: { action: "reply", thread_id: threadId, content },
+    });
+    setSending(false);
+    if (error) toast.error(error.message);
+    else { setReply(""); load(); }
+  }
+
+  const inTakeover = !!thread?.taken_over_at;
 
   return (
     <Dialog open={!!threadId} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Histórico da conversa</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>Histórico da conversa</DialogTitle>
+            {inTakeover ? (
+              <Button size="sm" variant="outline" onClick={release}>Devolver pra IA</Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={takeover}><Headset className="h-3.5 w-3.5 mr-1" />Assumir</Button>
+            )}
+          </div>
         </DialogHeader>
+        {inTakeover && (
+          <div className="rounded-md bg-primary/10 border border-primary/30 px-3 py-2 text-xs">
+            🎧 Você está respondendo manualmente. A IA está silenciada nesta conversa.
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto space-y-3 pr-2">
           {loading && <Loader2 className="h-4 w-4 animate-spin mx-auto" />}
-          {msgs.map((m) => (
-            <div key={m.id} className={`rounded-lg p-3 text-sm ${m.role === "user" ? "bg-primary/10 ml-8" : m.role === "assistant" ? "bg-muted mr-8" : "bg-amber-500/10 text-xs"}`}>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                <span className="uppercase font-semibold">{m.role}</span>
-                <span>{format(new Date(m.created_at), "dd/MM HH:mm:ss", { locale: ptBR })} · {m.tokens_in}/{m.tokens_out} tok · ${Number(m.cost_usd).toFixed(5)}</span>
+          {msgs.map((m) => {
+            const isHuman = m.tool_name === "human";
+            return (
+              <div key={m.id} className={`group relative rounded-lg p-3 text-sm ${m.role === "user" ? "bg-primary/10 ml-8" : m.role === "assistant" ? (isHuman ? "bg-emerald-500/10 border border-emerald-500/30 mr-8" : "bg-muted mr-8") : "bg-amber-500/10 text-xs"}`}>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                  <span className="uppercase font-semibold">{isHuman ? "🎧 humano" : m.role}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{format(new Date(m.created_at), "dd/MM HH:mm:ss", { locale: ptBR })} · {m.tokens_in}/{m.tokens_out} tok · ${Number(m.cost_usd).toFixed(5)}</span>
+                    {m.role === "assistant" && !isHuman && (
+                      <button
+                        onClick={() => togglePin(m)}
+                        className={`opacity-${m.pinned_at ? "100" : "0"} group-hover:opacity-100 transition-opacity hover:text-amber-500`}
+                        title={m.pinned_at ? "Desfixar" : "Fixar para revisão"}
+                      >
+                        <Pin className={`h-3 w-3 ${m.pinned_at ? "fill-amber-500 text-amber-500" : ""}`} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {m.pinned_note && (
+                  <div className="text-[11px] italic text-amber-600 dark:text-amber-400 mb-1">📌 "{m.pinned_note}"</div>
+                )}
+                <div className="whitespace-pre-wrap break-words">{m.content || <span className="italic opacity-50">(vazio)</span>}</div>
               </div>
-              <div className="whitespace-pre-wrap break-words">{m.content || <span className="italic opacity-50">(vazio)</span>}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+        {inTakeover && (
+          <div className="border-t pt-2 flex gap-2">
+            <Textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Digite sua resposta como suporte humano…"
+              rows={2}
+              className="resize-none text-sm"
+              disabled={sending}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendReply(); } }}
+            />
+            <Button onClick={sendReply} disabled={sending || !reply.trim()} size="icon" className="shrink-0">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
