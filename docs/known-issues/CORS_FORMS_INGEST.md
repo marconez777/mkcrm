@@ -81,8 +81,9 @@ A correção fica 100% no servidor (edge function).
 
 ## Funções afetadas / a auditar
 
-- `supabase/functions/forms-ingest/index.ts` — **corrigido em 2026‑05‑26**.
-- `supabase/functions/tracking-ingest/index.ts` — auditar próximo bug similar.
+- `supabase/functions/forms-ingest/index.ts` — **corrigido em 2026-05-26**.
+- `supabase/functions/tracking-event/index.ts`, `tracking-identify/index.ts`,
+  `tracking-config/index.ts`, `tracking-pixel/index.ts` — auditar mesmo padrão.
 - Qualquer função futura servida via `forms-snippet` ou `tracking-snippet`.
 
 ## Como reproduzir / validar
