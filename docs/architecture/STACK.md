@@ -1,7 +1,7 @@
 # Stack & Build
 
 > **Quando ler:** ao avaliar dependências, configurar build/deploy, debugar problemas de build, ou pensar em upgrade de framework.
-> **Última atualização:** 2026-05-25
+> **Última atualização:** 2026-06-03
 
 ---
 
