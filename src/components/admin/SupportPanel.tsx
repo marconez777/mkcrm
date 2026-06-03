@@ -13,6 +13,7 @@ import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import SupportTelemetry from "./SupportTelemetry";
 import SupportLiveMonitor from "./SupportLiveMonitor";
+import SupportPinsCard from "./SupportPinsCard";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
@@ -46,6 +47,7 @@ export default function SupportPanel() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [monthSpend, setMonthSpend] = useState<number | null>(null);
+  const [kbStatus, setKbStatus] = useState<{ needs_sync: number; status_by_path: Record<string, string>; stale: string[]; missing: string[]; deleted: string[] } | null>(null);
 
   async function loadAll() {
     setLoading(true);
@@ -66,6 +68,13 @@ export default function SupportPanel() {
       } else grouped.set(r.path, { chunks: 1, updated_at: r.updated_at });
     }
     setDocs(Array.from(grouped, ([path, v]) => ({ path, ...v })).sort((a, b) => a.path.localeCompare(b.path)));
+
+    // KB diff (best-effort; ignore failures)
+    try {
+      const { data: st } = await supabase.functions.invoke("support-kb-status", { body: {} });
+      if (st && (st as any).ok) setKbStatus(st as any);
+    } catch { /* ignore */ }
+
     setLoading(false);
   }
 
