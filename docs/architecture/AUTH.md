@@ -9,7 +9,7 @@
 
 ## Fluxo de login (email/senha)
 
-> **Estado atual:** o login é **direto contra o Supabase** (`supabase.auth.signInWithPassword`). **Não existe** edge function `auth-login` no projeto. A tabela `auth_lockouts` está no schema mas nenhum código a consulta — é infraestrutura dormente, pensada para futura camada de rate-limit/lockout.
+> **Estado atual:** o login é **direto contra o Supabase** (`supabase.auth.signInWithPassword`). **Não existe** edge function `auth-login` no projeto. A tabela `auth_lockouts` **foi dropada em 2026-05-26** (migration `20260526202203_*`) — qualquer código que ainda a referencia retorna vazio/no-op.
 
 ```text
 UI (src/pages/Auth.tsx)
