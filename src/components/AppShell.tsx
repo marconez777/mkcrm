@@ -233,9 +233,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             if (!list.length) return null;
             return (
               <div key={gk} className={idx === 0 ? "mt-1" : "mt-4"}>
-                <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/40">
-                  {GROUP_LABELS[gk]}
-                </div>
+
                 <div>
                   {list.map((it) => (
                     <SidebarItem
