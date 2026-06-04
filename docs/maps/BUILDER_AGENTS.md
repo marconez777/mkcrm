@@ -66,7 +66,9 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 
 ### Compartilhado
 - `_shared/builder-system-prompt.ts` — `CORE_RULES`, `LEAD_CONTEXT_CLAUSE`, `MULTI_NICHE_CLAUSE`, `buildBuilderSystemPrompt()` (carrega manual de `builder_manual_versions` com cache 60s + fallback em arquivo).
-- `_shared/builder-knowledge/best-practices.md` — fallback do manual.
+- `_shared/builder-knowledge/best-practices.md` — fallback do manual genérico.
+- `_shared/builder-knowledge/niches/<slug>.md` — **12 KBs de nicho** (clinic, dental, aesthetics, real_estate, restaurant, ecommerce, saas, law, education, agency, local_services, other). Estáticos, versionados via git.
+- `_shared/builder-knowledge/niche-loader.ts` — `loadNicheKb(slug)` + `nicheKbBlock(slug, label)`, cache em memória sem TTL, injetado no system prompt de 6 actions (ver §4).
 - `_shared/ai.ts` — wrapper LLM (todos os providers).
 - `_shared/spend-guard.ts` — bloqueia 402 quando excede.
 - `_shared/rag.ts` — busca semântica para `audit_kb` e `draft_knowledge_base`.
