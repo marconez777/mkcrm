@@ -151,12 +151,13 @@ export default function DashboardPanel() {
     (async () => {
       setLoading(true);
       try {
-        const [{ data: ov }, { data: t }, { data: d }, { data: fk }] = await Promise.all([
+        const [{ data: ov }, { data: t }, { data: d }, finRes] = await Promise.all([
           supabase.rpc("admin_overview_metrics"),
           supabase.rpc("admin_top_clinics", { _limit: 8 }),
           supabase.rpc("admin_daily_metrics", { _days: range }),
-          supabase.rpc("admin_finance_kpis").then((r) => r).catch(() => ({ data: null })),
+          Promise.resolve(supabase.rpc("admin_finance_kpis")).then((r) => r, () => ({ data: null as any })),
         ]);
+        const fk = (finRes as any)?.data ?? null;
         if (!mounted) return;
         setData(ov as any);
         setFin((fk as any) ?? null);
