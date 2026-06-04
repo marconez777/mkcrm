@@ -66,6 +66,7 @@ function useTheme() {
 export default function AdminShell() {
   const { isSuperAdmin, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { dark, toggle } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
