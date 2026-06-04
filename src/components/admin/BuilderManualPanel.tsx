@@ -9,8 +9,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, History, RotateCcw, Eye, Save } from "lucide-react";
+import { Loader2, History, RotateCcw, Eye, Save, FileText, GitBranch, Clock } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { AdminCard } from "@/layouts/AdminShell";
+import { cn } from "@/lib/utils";
 
 type Version = {
   id: string;
