@@ -50,6 +50,7 @@ export default function AdminClinics() {
   const [fPlan, setFPlan] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPlan, setBulkPlan] = useState<string>("");
+  const [view, setView] = useState<"table" | "grid">("table");
 
   async function load() {
     try {
