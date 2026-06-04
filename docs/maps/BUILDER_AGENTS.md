@@ -66,7 +66,9 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 
 ### Compartilhado
 - `_shared/builder-system-prompt.ts` — `CORE_RULES`, `LEAD_CONTEXT_CLAUSE`, `MULTI_NICHE_CLAUSE`, `buildBuilderSystemPrompt()` (carrega manual de `builder_manual_versions` com cache 60s + fallback em arquivo).
-- `_shared/builder-knowledge/best-practices.md` — fallback do manual.
+- `_shared/builder-knowledge/best-practices.md` — fallback do manual genérico.
+- `_shared/builder-knowledge/niches/<slug>.md` — **12 KBs de nicho** (clinic, dental, aesthetics, real_estate, restaurant, ecommerce, saas, law, education, agency, local_services, other). Estáticos, versionados via git.
+- `_shared/builder-knowledge/niche-loader.ts` — `loadNicheKb(slug)` + `nicheKbBlock(slug, label)`, cache em memória sem TTL, injetado no system prompt de 6 actions (ver §4).
 - `_shared/ai.ts` — wrapper LLM (todos os providers).
 - `_shared/spend-guard.ts` — bloqueia 402 quando excede.
 - `_shared/rag.ts` — busca semântica para `audit_kb` e `draft_knowledge_base`.
@@ -111,11 +113,12 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 1. **`LEAD_CONTEXT_CLAUSE` literal em todo `system_prompt` gerado.** Há eval automático que reinjeta se faltar. Se mudar o texto da cláusula em `_shared/builder-system-prompt.ts`, todos os agentes antigos continuam válidos (a checagem é por presença, não match exato — mas mudanças semânticas precisam de migração).
 2. **Multi-nicho.** Nunca assumir "clínica" em qualquer texto gerado pelo Builder. Usar "seu negócio / seus clientes / seu produto".
 3. **Manual do Builder ≠ KB do agente final.** `builder_manual_versions` é **só** para o Builder. Não copiar para `ai_documents`.
-4. **`KNOWN_AGENT_TOOLS` (frontend) deve espelhar tools registradas em `ai-chat/index.ts`.** Tool sugerida pelo LLM que não está na whitelist é descartada por `filterKnownTools()`.
-5. **Chave do provider é da clínica.** Zero markup, zero intermediário. Builder não escolhe chave global.
-6. **PT-BR + frases curtas.** Regra do `CORE_RULES`. Não traduzir para inglês "porque o modelo entende melhor".
-7. **`system_key='builder'` é único por clínica.** Não criar dois Builders.
-8. **Painel admin do manual** (`BuilderManualPanel`) só para `super_admin` via `has_role`. RLS de `builder_manual_versions` deve refletir isso.
+4. **KBs de nicho são fonte de verdade do vocabulário/oferta por vertical.** Vivem em `_shared/builder-knowledge/niches/*.md` (12 arquivos, git-versionados). São injetados no system prompt das actions `interview_plan`, `generate_system_prompt`, `draft_knowledge_base`, `audit_kb`, `generate_scenarios` e `copilot_chat`. **Não** popular `other.md` com nicho específico — ele é o fallback genérico. Para adicionar nicho novo: criar `.md` + adicionar slug em `KNOWN_NICHES` (loader), `NICHE_LABEL` e `DOMINANT_OFFER_HINT` (`ai-builder/index.ts`), e na lista do `AgentWizard.tsx`.
+5. **`KNOWN_AGENT_TOOLS` (frontend) deve espelhar tools registradas em `ai-chat/index.ts`.** Tool sugerida pelo LLM que não está na whitelist é descartada por `filterKnownTools()`.
+6. **Chave do provider é da clínica.** Zero markup, zero intermediário. Builder não escolhe chave global.
+7. **PT-BR + frases curtas.** Regra do `CORE_RULES`. Não traduzir para inglês "porque o modelo entende melhor".
+8. **`system_key='builder'` é único por clínica.** Não criar dois Builders.
+9. **Painel admin do manual** (`BuilderManualPanel`) só para `super_admin` via `has_role`. RLS de `builder_manual_versions` deve refletir isso.
 
 ## 8. Pegadinhas
 

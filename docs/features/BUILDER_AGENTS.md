@@ -375,10 +375,33 @@ DOMINANT_OFFER_HINT: 1 frase por nicho ("Qual carro-chefe?" adaptado)
 
 Toda chamada ao LLM **enriquece** o user prompt com `nicheName` + `goalName` + (quando relevante) `dominant_offer`. O system prompt do Builder reforça: "NÃO use 'paciente/clínica/Dr.' se o nicho não for saúde".
 
+### 6.1 KBs de nicho (estáticos, em disco)
+
+Além dos hints, cada nicho tem um **KB próprio** em `supabase/functions/_shared/builder-knowledge/niches/<slug>.md` (12 arquivos: clinic, dental, aesthetics, real_estate, restaurant, ecommerce, saas, law, education, agency, local_services, other).
+
+Cada `.md` segue um esquema fixo: Vocabulário do nicho, Ofertas típicas, Perguntas obrigatórias de qualificação, Objeções + resposta-modelo, Sinais de lead quente/frio, Métricas que importam, Tools recomendadas, Armadilhas comuns, Exemplo de abertura, Exemplo de qualificação.
+
+O loader `_shared/builder-knowledge/niche-loader.ts` lê o arquivo correspondente, faz cache em memória por instância da edge function (sem TTL — conteúdo é estático) e devolve o bloco já formatado via `nicheKbBlock(slug, label)`. O bloco é anexado ao **system prompt** das actions:
+
+- `interview_plan` — usa "Perguntas obrigatórias de qualificação".
+- `generate_system_prompt` — usa "Vocabulário", "Exemplo de abertura", "Armadilhas comuns".
+- `draft_knowledge_base` — usa "Ofertas típicas", "Objeções", "Métricas".
+- `audit_kb` — compara KB do cliente com "Sinais de lead quente/frio" + "Métricas".
+- `generate_scenarios` — varia cenários a partir de "Exemplo de qualificação" + "Objeções".
+- `copilot_chat` — herda o KB do `agent.niche` do agente em edição.
+
+Actions sem KB: `ping`, `suggest_kb_urls`, `run_evaluation`, `generate_insights`.
+
+Diferença vs. manual do Builder: `builder_manual_versions` (DB) governa **como o Builder se comporta** (regras transversais). KBs de nicho governam **o que o Builder sabe sobre cada vertical** (vocabulário, oferta, scripts). São camadas distintas.
+
 Para adicionar um nicho novo:
-1. Adicionar entrada em `NICHE_LABEL` e `DOMINANT_OFFER_HINT`.
-2. Adicionar em `src/pages/ai/AgentWizard.tsx` (lista de nichos do passo 1).
-3. (Opcional) Documentar exemplos do nicho em `builder_manual_versions` (publicar nova versão pelo admin).
+1. Criar `supabase/functions/_shared/builder-knowledge/niches/<slug>.md` seguindo o esquema acima.
+2. Adicionar `<slug>` em `KNOWN_NICHES` no `niche-loader.ts`.
+3. Adicionar entrada em `NICHE_LABEL` e `DOMINANT_OFFER_HINT` (`ai-builder/index.ts`).
+4. Adicionar em `src/pages/ai/AgentWizard.tsx` (lista de nichos do passo 1).
+5. (Opcional) Adicionar exemplos transversais em `builder_manual_versions` via admin.
+
+`other.md` é genérico proposital — não popular com nicho específico, ele é o fallback quando o usuário não tem vertical clara.
 
 ---
 
