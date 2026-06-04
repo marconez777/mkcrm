@@ -1,6 +1,6 @@
 # Configurações — Domínio de Email
 
-**Rota:** `/settings/email-domain`  
+**Rota:** `/settings/email`  
 **Arquivo:** `src/pages/email/SettingsEmailDomain.tsx`  
 **Título da página:** `"Email — Configurações"`  
 **Feature flag:** `email_marketing` (verificada via `hasFeature("email_marketing")`)
