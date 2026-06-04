@@ -78,7 +78,7 @@ export default function AdminShell() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        (document.getElementById("admin-search") as HTMLInputElement)?.focus();
+        setPaletteOpen((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
