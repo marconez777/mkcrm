@@ -87,6 +87,7 @@ function useTheme() {
 }
 
 export default function AdminShell() {
+  useBrandingSync();
   const { isSuperAdmin, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
