@@ -17,7 +17,11 @@ import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
 
 import Tasks from "./pages/Tasks";
-import Admin from "./pages/Admin";
+import AdminShell from "./layouts/AdminShell";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminClinics from "./pages/admin/AdminClinics";
+import AdminUsers from "./pages/admin/AdminUsers";
+import { AdminPlans, AdminUsage, AdminFinance, AdminObservability, AdminSupport, AdminAudit, AdminBuilderManual, AdminIntegrations } from "./pages/admin/AdminPanels";
 import Team from "./pages/Team";
 import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
