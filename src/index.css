@@ -196,8 +196,25 @@
     --tab-emerald: 160 70% 55%;
     --tab-teal: 175 70% 55%;
     --tab-destructive: 0 84% 70%;
+
+    /* Admin dark overrides */
+    --admin-bg: 224 30% 7%;
+    --admin-surface: 224 30% 10%;
+    --admin-surface-2: 224 30% 12%;
+    --admin-surface-elev: 224 30% 13%;
+    --admin-border: 224 22% 18%;
+    --admin-border-strong: 224 22% 24%;
+    --admin-text: 210 20% 96%;
+    --admin-text-muted: 220 14% 64%;
+    --admin-text-subtle: 220 10% 50%;
+    --admin-primary-soft: 217 50% 18%;
+    --admin-accent-soft: 262 40% 20%;
+    --admin-positive-soft: 152 40% 16%;
+    --admin-negative-soft: 0 50% 22%;
+    --admin-warning-soft: 38 60% 18%;
+    --admin-shadow-card: 0 1px 2px hsl(0 0% 0% / 0.3), 0 4px 16px hsl(0 0% 0% / 0.25);
+    --admin-shadow-elev: 0 8px 32px hsl(0 0% 0% / 0.45);
   }
-}
 
 @layer base {
   * { @apply border-border; }
