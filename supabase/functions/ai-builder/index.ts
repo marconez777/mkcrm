@@ -8,6 +8,7 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, type Agent } from "../_shared/ai.ts";
 import { buildBuilderSystemPrompt, LEAD_CONTEXT_CLAUSE } from "../_shared/builder-system-prompt.ts";
+import { nicheKbBlock } from "../_shared/builder-knowledge/niche-loader.ts";
 
 type Action =
   | "ping"
