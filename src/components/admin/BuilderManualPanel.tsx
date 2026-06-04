@@ -127,7 +127,22 @@ export default function BuilderManualPanel() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="space-y-5">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <ManualKpi icon={GitBranch} tone="primary" label="Versão ativa" value={active ? `v${active.version}` : "—"} />
+        <ManualKpi icon={History} tone="accent" label="Total versões" value={String(versions.length)} />
+        <ManualKpi icon={FileText} tone="positive" label="Tamanho ativo" value={active ? `${active.content.length.toLocaleString("pt-BR")} c` : "—"} />
+        <ManualKpi
+          icon={Clock}
+          tone={dirty ? "warning" : "primary"}
+          label="Última publicação"
+          value={active ? new Date(active.published_at).toLocaleDateString("pt-BR") : "—"}
+          hint={dirty ? "rascunho não publicado" : undefined}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
