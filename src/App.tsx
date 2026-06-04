@@ -16,12 +16,24 @@ import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
 
+import { lazy, Suspense } from "react";
 import Tasks from "./pages/Tasks";
 import AdminShell from "./layouts/AdminShell";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminClinics from "./pages/admin/AdminClinics";
-import AdminUsers from "./pages/admin/AdminUsers";
-import { AdminPlans, AdminUsage, AdminFinance, AdminObservability, AdminSupport, AdminAudit, AdminBuilderManual, AdminIntegrations } from "./pages/admin/AdminPanels";
+
+// Code-split admin pages (Fase 10): reduz o bundle inicial fora da área administrativa.
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminClinics = lazy(() => import("./pages/admin/AdminClinics"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminBranding = lazy(() => import("./pages/admin/AdminBranding"));
+const AdminPlans = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminPlans })));
+const AdminUsage = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminUsage })));
+const AdminFinance = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminFinance })));
+const AdminObservability = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminObservability })));
+const AdminSupport = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminSupport })));
+const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAudit })));
+const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
+const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
+
 import Team from "./pages/Team";
 import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
@@ -39,7 +51,30 @@ import RootGate from "./components/RootGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: { retry: 0 },
+  },
+});
+
+const AdminFallback = () => (
+  <div className="p-8 space-y-3 animate-pulse">
+    <div className="h-7 w-48 rounded bg-admin-surface-2" />
+    <div className="h-4 w-72 rounded bg-admin-surface-2" />
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-24 rounded-xl bg-admin-surface-2" />
+      ))}
+    </div>
+    <div className="h-72 rounded-xl bg-admin-surface-2 mt-4" />
+  </div>
+);
 
 import { useUnreadTitle } from "./hooks/useUnreadTitle";
 import ShortcutsDialog from "./components/ShortcutsDialog";
