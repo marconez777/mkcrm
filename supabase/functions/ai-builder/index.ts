@@ -205,6 +205,7 @@ async function actionInterviewPlan(builder: Agent, payload: Record<string, unkno
   const dominantHint = DOMINANT_OFFER_HINT[niche] ?? DOMINANT_OFFER_HINT.other;
 
   const system = await buildBuilderSystemPrompt();
+  const nicheKb = await nicheKbBlock(niche, nicheName);
   const userPrompt = `\
 Gere o plano de entrevista para um agente NOVO.
 
@@ -224,7 +225,7 @@ Chame a tool submit_interview_plan com o resultado.`;
     const resp = await chatCompletion(
       builder,
       [
-        { role: "system", content: system },
+        { role: "system", content: system + nicheKb },
         { role: "user", content: userPrompt },
       ],
       [INTERVIEW_TOOL],
@@ -332,6 +333,7 @@ async function actionGenerateSystemPrompt(builder: Agent, payload: Record<string
     : "";
 
   const system = await buildBuilderSystemPrompt();
+  const nicheKb = await nicheKbBlock(niche, nicheName);
   const userPrompt = `\
 Gere o system_prompt FINAL do agente.
 
