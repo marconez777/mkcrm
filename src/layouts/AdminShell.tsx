@@ -3,13 +3,35 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, Gauge, DollarSign,
   Activity, LifeBuoy, Plug, ShieldCheck, BookOpen, ChevronLeft, ChevronRight,
-  Search, Bell, Sun, Moon, Command,
+  Search, Bell, Sun, Moon, Command, Palette,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
+import { supabase } from "@/integrations/supabase/client";
+
+function useBrandingSync() {
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "platform_branding")
+        .maybeSingle();
+      if (!data?.value) return;
+      try {
+        const b = JSON.parse(data.value);
+        const root = document.documentElement;
+        if (b.primary) root.style.setProperty("--admin-primary", b.primary);
+        if (b.accent) root.style.setProperty("--admin-accent", b.accent);
+        if (b.positive) root.style.setProperty("--admin-positive", b.positive);
+        if (b.negative) root.style.setProperty("--admin-negative", b.negative);
+      } catch {}
+    })();
+  }, []);
+}
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
@@ -49,6 +71,7 @@ const NAV: NavGroup[] = [
       { to: "/admin/integrations", label: "Integrações", icon: Plug },
       { to: "/admin/audit", label: "Auditoria", icon: ShieldCheck },
       { to: "/admin/builder-manual", label: "Manual do Builder", icon: BookOpen },
+      { to: "/admin/branding", label: "Whitelabel", icon: Palette },
     ],
   },
 ];
@@ -64,6 +87,7 @@ function useTheme() {
 }
 
 export default function AdminShell() {
+  useBrandingSync();
   const { isSuperAdmin, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
