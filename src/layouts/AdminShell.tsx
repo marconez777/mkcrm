@@ -8,8 +8,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
