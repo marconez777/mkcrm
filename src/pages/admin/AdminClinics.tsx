@@ -469,3 +469,23 @@ export default function AdminClinics() {
     </>
   );
 }
+
+function KpiStat({ icon: Icon, tone, label, value }: { icon: any; tone: "primary" | "positive" | "warning" | "accent"; label: string; value: number }) {
+  const toneCls: Record<string, string> = {
+    primary: "text-admin-primary bg-admin-primary-soft",
+    positive: "text-admin-positive bg-admin-positive-soft",
+    warning: "text-admin-warning bg-admin-warning-soft",
+    accent: "text-admin-accent bg-admin-accent-soft",
+  };
+  return (
+    <AdminCard className="p-4 flex items-center gap-3">
+      <span className={cn("inline-flex h-9 w-9 items-center justify-center rounded-md", toneCls[tone])}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-admin-text-subtle font-medium">{label}</div>
+        <div className="text-xl font-semibold text-admin-text tabular-nums leading-tight">{value.toLocaleString("pt-BR")}</div>
+      </div>
+    </AdminCard>
+  );
+}
