@@ -98,6 +98,49 @@
     --site-primary-glow: 105 100% 55%;
     --site-accent: 285 94% 24%;          /* #590675 */
     --site-accent-glow: 285 90% 45%;
+
+    /* ───────── Admin (super_admin whitelabel) ───────── */
+    --admin-bg: 220 24% 97%;
+    --admin-surface: 0 0% 100%;
+    --admin-surface-2: 220 24% 99%;
+    --admin-surface-elev: 0 0% 100%;
+    --admin-border: 220 16% 90%;
+    --admin-border-strong: 220 14% 82%;
+    --admin-text: 222 47% 11%;
+    --admin-text-muted: 220 10% 46%;
+    --admin-text-subtle: 220 10% 60%;
+
+    --admin-sidebar-bg: 224 47% 9%;
+    --admin-sidebar-surface: 224 40% 12%;
+    --admin-sidebar-border: 224 30% 18%;
+    --admin-sidebar-text: 220 16% 78%;
+    --admin-sidebar-text-active: 0 0% 100%;
+    --admin-sidebar-muted: 220 10% 56%;
+    --admin-sidebar-active-bg: 224 40% 16%;
+
+    --admin-primary: 217 91% 60%;
+    --admin-primary-foreground: 0 0% 100%;
+    --admin-primary-soft: 217 91% 96%;
+    --admin-accent: 262 83% 62%;
+    --admin-accent-soft: 262 83% 96%;
+
+    --admin-positive: 152 65% 42%;
+    --admin-positive-soft: 152 60% 94%;
+    --admin-negative: 0 74% 56%;
+    --admin-negative-soft: 0 80% 96%;
+    --admin-warning: 38 92% 50%;
+    --admin-warning-soft: 38 92% 94%;
+
+    --admin-chart-1: 217 91% 60%;
+    --admin-chart-2: 262 83% 62%;
+    --admin-chart-3: 152 65% 45%;
+    --admin-chart-4: 38 92% 55%;
+    --admin-chart-5: 190 80% 48%;
+    --admin-chart-6: 340 78% 60%;
+
+    --admin-radius: 0.875rem;
+    --admin-shadow-card: 0 1px 2px hsl(220 30% 12% / 0.04), 0 4px 16px hsl(220 30% 12% / 0.04);
+    --admin-shadow-elev: 0 8px 32px hsl(220 30% 12% / 0.08);
   }
 
   .dark {
