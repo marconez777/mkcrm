@@ -39,7 +39,7 @@ const PLANS = [
       "Até 20.000 leads",
       "Até 10.000 e-mails / mês",
       "Até 20 domínios de e-mail",
-      "Até 1.000 agentes de IA",
+      "Até 100 agentes de IA",
       
     ],
   },
