@@ -1,85 +1,76 @@
-# Integração dos KBs de nicho no Builder
+## Problema
 
-Os 12 arquivos do zip estão completos e seguem a spec (`clinic, dental, aesthetics, real_estate, restaurant, ecommerce, saas, law, education, agency, local_services, other`). Vou commitá-los no repo e fazer o Builder usá-los em runtime — **arquivos no edge function**, sem nova tabela.
+O usuário perguntou "como configuro o tracking?" e o agente respondeu **"Acesse a tela de Tracking → copie o snippet"**. Está errado: a tela `/tracking` é só dashboard. O snippet (pixel) está em **Configurações → Integração do Site** (`/settings/integration`), na mesma página dos formulários.
 
-## 1. Onde colocar os arquivos
+A causa raiz é a KB (`supabase/functions/_shared/support-kb/`): vários arquivos descrevem o snippet e a rota de debug em locais que não existem na UI atual.
 
-Extrair os 12 `.md` para:
+## Bugs já identificados na KB
 
-```text
-supabase/functions/_shared/builder-knowledge/niches/
-  clinic.md
-  dental.md
-  aesthetics.md
-  real_estate.md
-  restaurant.md
-  ecommerce.md
-  saas.md
-  law.md
-  education.md
-  agency.md
-  local_services.md
-  other.md
-```
+| Arquivo | Problema | Correto |
+|---|---|---|
+| `pages/tracking.md` (§ "Como instalar…") | Diz para instalar pelo `/tracking` | `/settings/integration` (aba **Integração do Site**) |
+| `journeys/instalar-pixel-tracking.md` | "Vá em Tracking (`/tracking`)" | "Vá em Configurações → Integração do Site (`/settings/integration`)" |
+| `journeys/instalar-pixel-tracking.md` | Rota debug `/tracking/debug` | `/tracking-debug` |
+| `troubleshooting/tracking-formularios.md` | Duas menções a `/tracking/debug` | `/tracking-debug` |
+| `journeys/publicar-formulario.md` | Menciona `/tracking/debug` e snippet "no site" sem citar onde pegar | `/tracking-debug` + apontar `/settings/integration` |
+| `01-primeiros-passos.md` | Tabela diz `/tracking` = "Pixels, formulários, atribuição" | Pixels e formulários estão em `/settings/integration`; `/tracking` é dashboard/atribuição |
 
-Convive com o `best-practices.md` (manual genérico, fallback do DB). Os KBs de nicho **não** vão para `builder_manual_versions` — são estáticos, versionados via git.
+A página `pages/settings.md` já está correta (aponta `/settings/integration`), então a KB tem informação conflitante e o RAG escolheu o trecho errado.
 
-## 2. Loader novo
+## Plano de ação
 
-Criar `supabase/functions/_shared/builder-knowledge/niche-loader.ts`:
+### 1. Corrigir os 6 arquivos da KB acima
+- Reescrever a seção "Como instalar o script de tracking" de `pages/tracking.md` deixando claro: o snippet **NÃO** está nesta tela — está em `/settings/integration`. Manter apenas referência cruzada + o que o usuário pode fazer aqui (visualizar, filtrar, configurar buckets de fechamento, debug).
+- Reescrever `journeys/instalar-pixel-tracking.md` com o caminho real: Configurações → Integração do Site → copiar snippet (que já inclui pixel + forms-snippet juntos).
+- Corrigir todas as referências `/tracking/debug` → `/tracking-debug`.
+- Ajustar `01-primeiros-passos.md` para descrever `/tracking` como "Painel de visitas e atribuição" e adicionar linha "Configurações → Integração do Site" para instalação.
+- Ajustar `publicar-formulario.md` apontando que o snippet de formulários também sai de `/settings/integration` (mesmo SDK).
 
-- `loadNicheKb(slug: string): Promise<string>` — lê `./niches/<slug>.md` via `Deno.readTextFile(new URL(...))`.
-- Cache em memória por instância (Map<slug, content>), sem TTL (conteúdo é estático).
-- Fallback: se slug inválido ou arquivo ausente, retorna `""` (Builder segue com prompt sem KB de nicho — não quebra).
-- Sanity: trunca para ~8 KB no caso bizarro de alguém colocar arquivo gigante.
+### 2. Auditar o restante da KB
+Varrer todas as menções a rotas (`/...`) em `support-kb/**.md` e cruzar com as rotas reais de `src/App.tsx`. Corrigir qualquer outra divergência encontrada (exemplo já visto: a aba "Integração do Site" é descrita corretamente em `pages/settings.md`, mas vou rechecar nomes de menus/botões nas demais jornadas: WhatsApp, e-mail, importações, agentes IA, equipe).
 
-## 3. Onde injetar no `ai-builder/index.ts`
+### 3. Regenerar o manifest auto-gerado
+`supabase/functions/_shared/support-kb-manifest.ts` é um snapshot dos `.md`. Rodar `node scripts/gen-support-kb-manifest.mjs` para sincronizar.
 
-Em cada action que já recebe `niche`, montar um bloco extra no system prompt antes do `chatCompletion`:
+### 4. Forçar resync da KB indexada
+A KB fica indexada (embeddings) na tabela do `support-kb-sync`. Após mudar os arquivos, instruir o usuário a rodar **"Ressincronizar KB"** no painel admin do suporte (`/admin` → Suporte), ou disparar via edge function. Vou deixar a etapa documentada e adicionar uma nota no `README.md` da KB.
 
-```text
---- Conhecimento do nicho: {NICHE_LABEL[slug]} ---
-{conteúdo do .md}
----
-```
+### 5. Reforçar o prompt do agente
+Acrescentar no `DEFAULT_SUPPORT_SYSTEM_PROMPT` (e na seed da migration) duas regras curtas:
+- "Sempre que mencionar uma rota do app, use exatamente o caminho da KB. Nunca invente — se a KB não tiver, peça desculpa e ofereça abrir um chamado."
+- "Antes de instruir a copiar pixel/snippet/script de instalação, confirme que está apontando para `/settings/integration` (não `/tracking`)."
 
-Actions afetadas (todas que já têm `niche` no payload):
+### 6. Guardrail automatizado (teste)
+Criar `supabase/functions/_shared/support-kb/kb-routes.test.ts` (Deno test) que:
+- Lê todos os `.md` da KB.
+- Extrai todas as rotas no formato `` `/...` ``.
+- Compara contra a lista de rotas reais (lida estaticamente de `src/App.tsx` ou hardcoded). 
+- Falha o teste se houver rota da KB que não existe no app.
 
-| Action | Por quê |
-|---|---|
-| `interview_plan` | Usa "Perguntas obrigatórias de qualificação" para sugerir as 3-5 perguntas |
-| `generate_system_prompt` | Usa "Vocabulário", "Exemplo de abertura", "Armadilhas comuns" |
-| `draft_knowledge_base` | Usa "Ofertas típicas", "Objeções + resposta-modelo", "Métricas" |
-| `audit_kb` | Compara KB do cliente com "Sinais de lead quente/frio" e "Métricas" |
-| `generate_scenarios` | Usa "Exemplo de qualificação" + "Objeções" para variar cenários |
-| `copilot_chat` | Se o agente em edição tem nicho conhecido, anexa o KB ao contexto |
+Isso evita regressão futura: qualquer rota inválida na KB quebra o teste.
 
-Actions **não** afetadas: `ping`, `suggest_kb_urls` (URLs externas), `run_evaluation` (avalia output, não gera), `generate_insights` (lê conversas reais).
+### 7. Smoke test do agente de ponta a ponta
+Após corrigir, rodar mentalmente (script simples) os 5 cenários mais comuns que um usuário pergunta para o suporte e validar que a KB tem resposta consistente:
+1. "Como configuro o tracking?"
+2. "Como conecto WhatsApp?"
+3. "Como crio um agente de IA?"
+4. "Como importo minha base de leads?"
+5. "Como envio campanha de e-mail?"
 
-## 4. Manter intacto
+Para cada um, conferir: existe journey/page, rotas batem, botões/menus descritos batem com o código.
 
-- `NICHE_LABEL` e `DOMINANT_OFFER_HINT` continuam — agora são complementares ao KB, não substituídos.
-- `CORE_RULES`, `LEAD_CONTEXT_CLAUSE`, `MULTI_NICHE_CLAUSE` ficam como estão.
-- `best-practices.md` (manual genérico do Builder) **não muda** — é outro nível (regras de como o Builder se comporta, não conhecimento do negócio do cliente).
-- Sem migration, sem mudança de schema, sem mudança de UI.
+## Detalhes técnicos
 
-## 5. Documentação a atualizar
+- KB lives in `supabase/functions/_shared/support-kb/` (markdown) + manifest TS auto-gerado.
+- Edge function `support-chat/index.ts` injeta system prompt + tools block (`[[go:/rota|...]]`, `[[click:text=...]]`, `[[step:...]]`) + RAG.
+- Default prompt em `supabase/functions/_shared/support-prompt.ts` (também espelhado em migration seed — preciso atualizar ambos).
+- Re-sync KB: edge function `support-kb-sync`.
+- Após mudanças nas edge functions, deploy automático via Lovable Cloud.
 
-- `docs/features/BUILDER_AGENTS.md` — nova seção "KBs de nicho": o que são, onde vivem, como são injetados, como adicionar um novo nicho (passos: criar `.md` → adicionar entry em `NICHE_LABEL` + `DOMINANT_OFFER_HINT` → deploy).
-- `docs/maps/BUILDER_AGENTS.md` §3 (Compartilhado) e §4 — listar `niches/*.md` e o `niche-loader.ts`; §7 (invariantes) — adicionar "KBs de nicho são fonte de verdade do vocabulário/oferta por vertical; o `other.md` é genérico proposital, não popular com nicho específico".
-- `docs/copilot.md` — menção curta de que o copilot herda KB de nicho do agente em edição.
+## Entregáveis
 
-## 6. Verificação
-
-Após implementar:
-
-1. `rg "loadNicheKb" supabase/functions/ai-builder/index.ts` — confirma uso em 6 actions.
-2. Listar `supabase/functions/_shared/builder-knowledge/niches/` — 12 arquivos.
-3. Teste manual: rodar `interview_plan` com `niche=saas` e conferir nos logs do edge function que o bloco "Conhecimento do nicho: SaaS / Software B2B" aparece no system prompt.
-
-## Fora do escopo
-
-- Editor de KB de nicho na UI (continua git-only).
-- Versionamento em DB (não justifica — são estáticos).
-- Tradução / outros idiomas.
-- KB por sub-nicho (ex: "clinic > dermatologia") — se precisar no futuro, refina via DB.
+- 6 arquivos `.md` da KB corrigidos + qualquer divergência adicional encontrada na auditoria.
+- `support-kb-manifest.ts` regenerado.
+- `support-prompt.ts` + migration seed com regras anti-alucinação reforçadas.
+- Teste Deno `kb-routes.test.ts` rodando e passando.
+- Mensagem final para o usuário com checklist do que mudou + instrução para clicar em "Ressincronizar KB" no admin.
