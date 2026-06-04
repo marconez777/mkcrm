@@ -41,9 +41,9 @@ Após entrar, a barra lateral mostra (depende do plano):
 | **Tarefas** | `/tasks` | To-dos da equipe |
 | **IA** | `/ai` | Agentes, mensagens, automações, métricas |
 | **E-mail** | `/email` | Campanhas, automações, templates, contatos |
-| **Rastreamento** | `/tracking` | Pixels, formulários, atribuição |
+| **Rastreamento** | `/tracking` | Painel de visitas, eventos e atribuição (somente leitura) |
 | **Equipe** | `/team` | Membros e convites |
-| **Configurações** | `/settings` | Preferências da clínica |
+| **Configurações** | `/settings` | Preferências da clínica, WhatsApp, **Integração do Site** (pixel + formulários em `/settings/integration`), e-mail, campos |
 
 ## 5. Conectar o WhatsApp
 
