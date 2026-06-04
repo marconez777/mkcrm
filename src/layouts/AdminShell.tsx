@@ -202,6 +202,13 @@ export default function AdminShell() {
           <Outlet />
         </main>
       </div>
+
+      <AdminCommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onToggleTheme={toggle}
+        isDark={dark}
+      />
     </div>
   );
 }
