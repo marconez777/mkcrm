@@ -8,8 +8,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
@@ -66,6 +66,7 @@ function useTheme() {
 export default function AdminShell() {
   const { isSuperAdmin, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { dark, toggle } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -77,7 +78,7 @@ export default function AdminShell() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        (document.getElementById("admin-search") as HTMLInputElement)?.focus();
+        setPaletteOpen((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -168,18 +169,18 @@ export default function AdminShell() {
             <span className="font-medium">{currentLabel}</span>
           </div>
 
-          {/* Search */}
-          <div className="hidden md:flex flex-1 max-w-md ml-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
-            <Input
-              id="admin-search"
-              placeholder="Buscar clínica, usuário, fatura…"
-              className="pl-9 pr-16 bg-admin-surface-2 border-admin-border h-9 rounded-lg"
-            />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 rounded-md border border-admin-border bg-admin-surface px-1.5 py-0.5 text-[10px] text-admin-text-muted">
+          {/* Search trigger */}
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="hidden md:flex flex-1 max-w-md ml-4 relative items-center h-9 rounded-lg bg-admin-surface-2 border border-admin-border px-3 text-sm text-admin-text-subtle hover:border-admin-primary/40 hover:text-admin-text-muted transition-colors"
+          >
+            <Search className="h-4 w-4 mr-2 shrink-0" />
+            <span className="flex-1 text-left truncate">Buscar clínica, usuário, ações…</span>
+            <kbd className="hidden lg:flex items-center gap-1 rounded-md border border-admin-border bg-admin-surface px-1.5 py-0.5 text-[10px] text-admin-text-muted ml-2">
               <Command className="h-3 w-3" />K
             </kbd>
-          </div>
+          </button>
 
           <div className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={toggle} className="h-9 w-9 text-admin-text-muted hover:text-admin-text">
@@ -201,6 +202,13 @@ export default function AdminShell() {
           <Outlet />
         </main>
       </div>
+
+      <AdminCommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onToggleTheme={toggle}
+        isDark={dark}
+      />
     </div>
   );
 }
