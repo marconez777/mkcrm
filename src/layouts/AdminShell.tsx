@@ -49,6 +49,7 @@ const NAV: NavGroup[] = [
       { to: "/admin/integrations", label: "Integrações", icon: Plug },
       { to: "/admin/audit", label: "Auditoria", icon: ShieldCheck },
       { to: "/admin/builder-manual", label: "Manual do Builder", icon: BookOpen },
+      { to: "/admin/branding", label: "Whitelabel", icon: Palette },
     ],
   },
 ];
