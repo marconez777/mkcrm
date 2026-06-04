@@ -575,6 +575,7 @@ async function actionDraftKnowledgeBase(builder: Agent, payload: Record<string, 
   const goalName = GOAL_LABEL[goal] ?? goal;
 
   const system = await buildBuilderSystemPrompt();
+  const nicheKb = await nicheKbBlock(niche, nicheName);
   const userPrompt = `\
 Limpe e estruture o texto abaixo para virar UM documento da base de conhecimento de um agente de IA.
 
@@ -599,7 +600,7 @@ Chame submit_kb_draft.`;
   try {
     const resp = await chatCompletion(
       builder,
-      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [{ role: "system", content: system + nicheKb }, { role: "user", content: userPrompt }],
       [DRAFT_KB_TOOL],
       { agent_id: builder.id, note: "ai-builder:draft_knowledge_base" },
     );
@@ -676,6 +677,7 @@ async function actionAuditKb(builder: Agent, payload: Record<string, unknown>) {
   const goalName = GOAL_LABEL[goal] ?? goal;
 
   const system = await buildBuilderSystemPrompt();
+  const nicheKb = await nicheKbBlock(niche, nicheName);
   const userPrompt = `\
 Audite a base de conhecimento abaixo e aponte LACUNAS específicas e acionáveis para esse agente.
 
@@ -698,7 +700,7 @@ Chame submit_kb_audit.`;
   try {
     const resp = await chatCompletion(
       builder,
-      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [{ role: "system", content: system + nicheKb }, { role: "user", content: userPrompt }],
       [AUDIT_KB_TOOL],
       { agent_id: builder.id, note: "ai-builder:audit_kb" },
     );
@@ -776,6 +778,7 @@ async function actionGenerateScenarios(builder: Agent, payload: Record<string, u
   const goalName = GOAL_LABEL[goal] ?? goal;
 
   const system = await buildBuilderSystemPrompt();
+  const nicheKb = await nicheKbBlock(niche, nicheName);
   const userPrompt = `\
 Gere 3-5 cenários de teste para o agente abaixo. Cada cenário simula um lead REAL chegando.
 
@@ -798,7 +801,7 @@ Chame submit_scenarios.`;
   try {
     const resp = await chatCompletion(
       builder,
-      [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      [{ role: "system", content: system + nicheKb }, { role: "user", content: userPrompt }],
       [SCENARIOS_TOOL],
       { agent_id: builder.id, note: "ai-builder:generate_scenarios" },
     );
@@ -1264,6 +1267,9 @@ async function actionCopilotChat(builder: Agent, payload: Record<string, unknown
   const currentTools = Array.isArray(agent.tools) ? agent.tools.join(", ") : "(nenhuma)";
 
   const system = await buildBuilderSystemPrompt();
+  const nicheSlug = String(agent.niche ?? "other");
+  const nicheLabel = NICHE_LABEL[nicheSlug] ?? nicheSlug;
+  const nicheKb = await nicheKbBlock(nicheSlug, nicheLabel);
   const copilotIntro = `\
 
 Você está no modo CO-PILOTO de configuração: o usuário conversa com você para AJUSTAR um agente já existente.
@@ -1294,7 +1300,7 @@ ${promptSnippet}
     const resp = await chatCompletion(
       builder,
       [
-        { role: "system", content: system + copilotIntro },
+        { role: "system", content: system + nicheKb + copilotIntro },
         ...cleanHistory,
       ],
       [COPILOT_PATCH_TOOL],
