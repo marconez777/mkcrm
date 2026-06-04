@@ -9,11 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
+import { Loader2, RefreshCw, Plug, Save, RotateCcw, Bot, DollarSign, BookOpen, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import SupportTelemetry from "./SupportTelemetry";
 import SupportLiveMonitor from "./SupportLiveMonitor";
 import SupportPinsCard from "./SupportPinsCard";
+import { AdminCard } from "@/layouts/AdminShell";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
@@ -125,9 +127,41 @@ export default function SupportPanel() {
   const overCap = monthSpend != null && monthSpend >= cfg.monthly_cap_usd;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <SupportKpi
+          icon={cfg.enabled ? CheckCircle2 : XCircle}
+          tone={cfg.enabled ? "positive" : "negative"}
+          label="Status do Alfred"
+          value={cfg.enabled ? "Ativo" : "Desativado"}
+          hint={cfg.api_key_set ? "API key configurada" : "API key ausente"}
+        />
+        <SupportKpi
+          icon={DollarSign}
+          tone={overCap ? "negative" : monthSpend != null && cfg.monthly_cap_usd > 0 && monthSpend / cfg.monthly_cap_usd >= 0.8 ? "warning" : "primary"}
+          label="Gasto no mês"
+          value={`$${(monthSpend ?? 0).toFixed(2)}`}
+          hint={cfg.monthly_cap_usd > 0 ? `${((monthSpend ?? 0) / cfg.monthly_cap_usd * 100).toFixed(0)}% de $${cfg.monthly_cap_usd}` : "sem teto"}
+        />
+        <SupportKpi
+          icon={BookOpen}
+          tone="accent"
+          label="Documentos KB"
+          value={String(docs.length)}
+          hint={cfg.kb_synced_at ? `sync: ${new Date(cfg.kb_synced_at).toLocaleDateString("pt-BR")}` : "nunca sincronizado"}
+        />
+        <SupportKpi
+          icon={AlertTriangle}
+          tone={kbStatus && kbStatus.needs_sync > 0 ? "warning" : "positive"}
+          label="Itens p/ ressincronizar"
+          value={String(kbStatus?.needs_sync ?? 0)}
+          hint={kbStatus ? `${kbStatus.stale.length} alterados · ${kbStatus.missing.length} novos` : "—"}
+        />
+      </div>
+
       {monthSpend != null && cfg.monthly_cap_usd > 0 && monthSpend / cfg.monthly_cap_usd >= 0.8 && (
-        <div className={`rounded-md border px-3 py-2 text-sm ${overCap ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+        <div className={`rounded-md border px-3 py-2 text-sm ${overCap ? "border-admin-negative/40 bg-admin-negative-soft text-admin-negative" : "border-admin-warning/40 bg-admin-warning-soft text-admin-warning"}`}>
           {overCap
             ? `🚫 Teto mensal atingido ($${monthSpend.toFixed(2)} / $${cfg.monthly_cap_usd}). O chat está bloqueado até você aumentar o teto ou virar o mês.`
             : `⚠️ Atenção: você já usou ${((monthSpend / cfg.monthly_cap_usd) * 100).toFixed(0)}% do teto mensal ($${monthSpend.toFixed(2)} / $${cfg.monthly_cap_usd}).`}
@@ -271,5 +305,29 @@ export default function SupportPanel() {
       <SupportPinsCard />
       <SupportTelemetry monthlyCap={cfg.monthly_cap_usd} />
     </div>
+  );
+}
+
+function SupportKpi({ icon: Icon, tone, label, value, hint }: { icon: any; tone: "primary" | "positive" | "negative" | "warning" | "accent"; label: string; value: string; hint?: string }) {
+  const toneCls: Record<string, string> = {
+    primary: "text-admin-primary bg-admin-primary-soft",
+    positive: "text-admin-positive bg-admin-positive-soft",
+    negative: "text-admin-negative bg-admin-negative-soft",
+    warning: "text-admin-warning bg-admin-warning-soft",
+    accent: "text-admin-accent bg-admin-accent-soft",
+  };
+  return (
+    <AdminCard className="p-4">
+      <div className="flex items-center gap-3">
+        <span className={cn("inline-flex h-10 w-10 items-center justify-center rounded-lg", toneCls[tone])}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-wider text-admin-text-subtle font-medium">{label}</div>
+          <div className="text-xl font-semibold text-admin-text leading-tight truncate">{value}</div>
+          {hint && <div className="text-[10px] text-admin-text-subtle mt-0.5 truncate">{hint}</div>}
+        </div>
+      </div>
+    </AdminCard>
   );
 }
