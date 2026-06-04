@@ -361,7 +361,7 @@ Chame a tool submit_agent_prompt com o resultado.`;
     const resp = await chatCompletion(
       builder,
       [
-        { role: "system", content: system },
+        { role: "system", content: system + nicheKb },
         { role: "user", content: userPrompt },
       ],
       [PROMPT_TOOL],
