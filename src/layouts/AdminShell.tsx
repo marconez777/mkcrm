@@ -139,15 +139,15 @@ export default function AdminShell() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-5 scrollbar-thin">
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-2 scrollbar-thin">
           {NAV.map((group) => (
             <div key={group.title}>
               {!collapsed && (
-                <div className="px-3 mb-1.5 text-[10px] font-semibold tracking-wider uppercase text-admin-sidebar-muted">
+                <div className="px-3 mb-0.5 text-[9px] font-semibold tracking-wider uppercase text-admin-sidebar-muted">
                   {group.title}
                 </div>
               )}
-              <div className="space-y-0.5">
+              <div className="space-y-px">
                 {group.items.map((item) => (
                   <NavLink
                     key={item.to}
@@ -156,13 +156,13 @@ export default function AdminShell() {
                     title={collapsed ? item.label : undefined}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] leading-tight transition-colors",
                         "text-admin-sidebar-text hover:text-admin-sidebar-text-active hover:bg-admin-sidebar-surface",
                         isActive && "bg-admin-sidebar-active-bg text-admin-sidebar-text-active font-medium shadow-[inset_3px_0_0_hsl(var(--admin-primary))]"
                       )
                     }
                   >
-                    <item.icon className="h-[18px] w-[18px] shrink-0" />
+                    <item.icon className="h-4 w-4 shrink-0" />
                     {!collapsed && <span className="truncate">{item.label}</span>}
                   </NavLink>
                 ))}
