@@ -9,8 +9,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, History, RotateCcw, Eye, Save } from "lucide-react";
+import { Loader2, History, RotateCcw, Eye, Save, FileText, GitBranch, Clock } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { AdminCard } from "@/layouts/AdminShell";
+import { cn } from "@/lib/utils";
 
 type Version = {
   id: string;
@@ -125,7 +127,22 @@ export default function BuilderManualPanel() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="space-y-5">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <ManualKpi icon={GitBranch} tone="primary" label="Versão ativa" value={active ? `v${active.version}` : "—"} />
+        <ManualKpi icon={History} tone="accent" label="Total versões" value={String(versions.length)} />
+        <ManualKpi icon={FileText} tone="positive" label="Tamanho ativo" value={active ? `${active.content.length.toLocaleString("pt-BR")} c` : "—"} />
+        <ManualKpi
+          icon={Clock}
+          tone={dirty ? "warning" : "primary"}
+          label="Última publicação"
+          value={active ? new Date(active.published_at).toLocaleDateString("pt-BR") : "—"}
+          hint={dirty ? "rascunho não publicado" : undefined}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
@@ -242,6 +259,28 @@ export default function BuilderManualPanel() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
+  );
+}
+
+function ManualKpi({ icon: Icon, tone, label, value, hint }: { icon: any; tone: "primary" | "positive" | "warning" | "accent"; label: string; value: string; hint?: string }) {
+  const toneCls: Record<string, string> = {
+    primary: "text-admin-primary bg-admin-primary-soft",
+    positive: "text-admin-positive bg-admin-positive-soft",
+    warning: "text-admin-warning bg-admin-warning-soft",
+    accent: "text-admin-accent bg-admin-accent-soft",
+  };
+  return (
+    <AdminCard className="p-4 flex items-center gap-3">
+      <span className={cn("inline-flex h-10 w-10 items-center justify-center rounded-lg", toneCls[tone])}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase tracking-wider text-admin-text-subtle font-medium">{label}</div>
+        <div className="text-xl font-semibold text-admin-text leading-tight truncate">{value}</div>
+        {hint && <div className="text-[10px] text-admin-text-subtle mt-0.5 truncate">{hint}</div>}
+      </div>
+    </AdminCard>
   );
 }
