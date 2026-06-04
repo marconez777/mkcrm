@@ -8,7 +8,7 @@ Antes de enviar qualquer campanha. Sem domínio verificado os emails vão para s
 - Domínio próprio (não dá para usar gmail.com, hotmail.com, etc.).
 
 ## Passo a passo
-1. Vá em **Email → Configurações de domínio** (`/settings/email-domain`).
+1. Vá em **Email → Configurações de domínio** (`/settings/email`).
 2. Clique em **Adicionar domínio**.
 3. Digite o domínio (ex.: `mkt.suaclinica.com.br`).
 4. O sistema gera registros DNS: **SPF**, **DKIM**, **MX** (se aplicável).

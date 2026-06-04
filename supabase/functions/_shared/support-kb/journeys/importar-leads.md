@@ -8,7 +8,7 @@ Quando a clínica tem uma base existente fora do CRM e quer trazer para o Kanban
 - Telefones em formato internacional (ex.: `5511999998888`) ou nacional (o sistema normaliza).
 
 ## Passo a passo (CSV)
-1. Vá em **Kanban** (`/kanban`).
+1. Vá em **Kanban** (`/`).
 2. Clique em **Importar** no topo do funil.
 3. Escolha **CSV** e selecione o arquivo.
 4. Mapeie as colunas do CSV para os campos do CRM (nome, telefone, etc.).

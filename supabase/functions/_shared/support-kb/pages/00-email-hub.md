@@ -35,7 +35,7 @@ Navegue para o menu **Email Marketing** na barra lateral principal. O hub é um 
 
 ## Configurações de domínio
 
-Acessível via **Configurações → Domínio de Email** (`/settings/email-domain`). Requer a feature `email_marketing` ativa para exibir conteúdo; caso contrário exibe mensagem: *"O recurso de Email Marketing não está ativo para esta clínica. Peça ao suporte para liberar."*
+Acessível via **Configurações → Domínio de Email** (`/settings/email`). Requer a feature `email_marketing` ativa para exibir conteúdo; caso contrário exibe mensagem: *"O recurso de Email Marketing não está ativo para esta clínica. Peça ao suporte para liberar."*
 
 ---
 

@@ -15,13 +15,14 @@ Para capturar leads do site, landing page ou anúncio direto no CRM.
    - Campos (nome, telefone, email, custom fields)
    - Funil e etapa de destino
    - Mensagem de obrigado / redirect
-4. Salve e copie o **snippet HTML** ou a **URL pública**.
-5. Cole o snippet no site (no `<body>`).
+4. Salve o formulário.
+5. Para instalar a captura no site, vá em **Configurações → Integração do Site** (`/settings/integration`) e copie o snippet (mesmo SDK que carrega o pixel + `forms-snippet`). Cole **antes do `</head>`**.
+6. Confirme que o domínio do site está na lista de **domínios autorizados** da integração.
 
 ## Como saber que deu certo
 - Submeta um teste pelo próprio site.
 - Lead aparece no Kanban na etapa configurada.
-- Veja em `/tracking/debug` o evento `form_submit`.
+- Veja em `/tracking-debug` o evento `form_submit_attempt`.
 
 ## Se algo der errado
 - Erro de CORS → `troubleshooting/tracking-formularios.md`.

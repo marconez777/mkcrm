@@ -14,7 +14,7 @@
 - Super_admin: em `/admin → clínica → Limite de gasto de IA`, aumente o valor.
 
 ## Erro do provedor (OpenAI/Google offline ou quota)
-- Banner vermelho aparece no topo do `/ai/hub`.
+- Banner vermelho aparece no topo do `/ai`.
 - Aguarde alguns minutos. Se persistir, troque temporariamente para outro provedor em **IA → Agentes → editar agente → Chave**.
 
 ## Builder não gera o prompt

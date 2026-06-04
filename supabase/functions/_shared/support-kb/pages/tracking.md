@@ -11,18 +11,24 @@ Painel de rastreamento de visitantes do site da clínica: consolida visitantes �
 
 ## Como instalar o script de tracking
 
-### Snippet de instalação
-Adicione antes do `</head>` do site (substitua `SEU_PROJECT_ID` pelo slug ou UUID da clínica):
+> ⚠️ **O snippet de instalação NÃO está nesta tela.** Esta página (`/tracking`) é apenas o painel/dashboard de visitas e atribuição.
+>
+> Para copiar o código de instalação vá em **Configurações → Integração do Site** (`/settings/integration`). Lá fica o bloco **"Copiar tudo"** com os dois `<script>` (pixel + forms-snippet) na ordem correta.
+
+### Referência rápida do snippet (gerado em `/settings/integration`)
 
 ```html
-<script src="https://<SUPABASE_URL>/functions/v1/tracking-pixel?project_id=SEU_PROJECT_ID" async></script>
+<!-- Tracking pixel — DEVE vir antes do forms-snippet -->
+<script async src="https://<SUPABASE_URL>/functions/v1/tracking-pixel?project_id=<CLINIC_ID>"></script>
+<!-- Captura de formulários -->
+<script async src="https://<SUPABASE_URL>/functions/v1/forms-snippet?token=<TOKEN>"></script>
 ```
 
-> O `project_id` aceita o **slug** ou o **UUID** da clínica (`tracking-event/index.ts:207`).
+- `project_id` aceita **slug** ou **UUID** da clínica (`tracking-event/index.ts:207`).
+- Cole **antes do `</head>`** em todas as páginas.
 
 ### Domínios autorizados
-O envio de eventos só é aceito se o `Origin` da requisição estiver na lista `clinic.settings.tracking.allowed_domains` (`tracking-event/index.ts:225–232`).  
-Configure em **Configurações → Integração do Site** ou direto em `clinics.settings.tracking.allowed_domains` (array de strings, ex: `["minhaclínica.com.br"]`).
+Eventos só são aceitos se o `Origin` da requisição estiver em **domínios autorizados** da integração, configurados em **Configurações → Integração do Site** (`/settings/integration`). Persistido em `clinic_integrations.allowed_domains` e validado em `tracking-event/index.ts:225–232`.
 
 ### Chaves de sessão (localStorage / cookie)
 | Chave | Tipo | Descrição |
@@ -33,6 +39,7 @@ Configure em **Configurações → Integração do Site** ou direto em `clinics.
 | `_mk_sid_sig` | sessionStorage | assinatura de campanha (evita misturar utm_source entre sessões) |
 
 Timeout padrão de sessão: **30 minutos** (configurável em `clinic.settings.tracking.session_timeout_minutes`) (`tracking-config/index.ts:42`).
+
 
 ---
 
