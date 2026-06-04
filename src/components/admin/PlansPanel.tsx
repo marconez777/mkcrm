@@ -118,7 +118,7 @@ export default function PlansPanel() {
             : 0;
           const topFeatures = FEATURES.filter((f) => p.features?.[f.key] !== false).slice(0, 5);
           return (
-            <AdminCard key={p.id} className={cn("p-5 relative transition-all hover:shadow-admin-card-hover", theme.ring, !p.is_active && "opacity-60")}>
+            <AdminCard key={p.id} className={cn("p-5 relative transition-all hover:shadow-lg", theme.ring, !p.is_active && "opacity-60")}>
               {i === plans.length - 1 && p.is_active && (
                 <span className="absolute -top-2 right-4 text-[10px] uppercase tracking-wider font-bold bg-admin-accent text-admin-primary-foreground px-2 py-0.5 rounded">
                   Top tier
