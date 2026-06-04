@@ -10,6 +10,28 @@ import { Navigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import AdminCommandPalette from "@/components/admin/AdminCommandPalette";
+import { supabase } from "@/integrations/supabase/client";
+
+function useBrandingSync() {
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "platform_branding")
+        .maybeSingle();
+      if (!data?.value) return;
+      try {
+        const b = JSON.parse(data.value);
+        const root = document.documentElement;
+        if (b.primary) root.style.setProperty("--admin-primary", b.primary);
+        if (b.accent) root.style.setProperty("--admin-accent", b.accent);
+        if (b.positive) root.style.setProperty("--admin-positive", b.positive);
+        if (b.negative) root.style.setProperty("--admin-negative", b.negative);
+      } catch {}
+    })();
+  }, []);
+}
 
 type NavItem = { to: string; label: string; icon: any; end?: boolean };
 type NavGroup = { title: string; items: NavItem[] };
