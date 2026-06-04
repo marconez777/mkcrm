@@ -10,12 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye, LayoutGrid, List, Building2, CheckCircle2, PauseCircle, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { FEATURES, isFeatureEnabled } from "@/lib/features";
 import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
 import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
+import { cn } from "@/lib/utils";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
@@ -49,6 +50,7 @@ export default function AdminClinics() {
   const [fPlan, setFPlan] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPlan, setBulkPlan] = useState<string>("");
+  const [view, setView] = useState<"table" | "grid">("table");
 
   async function load() {
     try {
@@ -176,6 +178,14 @@ export default function AdminClinics() {
 
   const allChecked = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
 
+  const summary = useMemo(() => {
+    const active = clinics.filter((c) => c.status === "active").length;
+    const suspended = clinics.filter((c) => c.status === "suspended").length;
+    const last30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const newCount = clinics.filter((c) => new Date(c.created_at).getTime() >= last30).length;
+    return { total: clinics.length, active, suspended, newCount };
+  }, [clinics]);
+
   return (
     <>
       <AdminPageHeader
@@ -208,33 +218,48 @@ export default function AdminClinics() {
         }
       />
 
-      <AdminCard className="p-4 mb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
-            <Input className="pl-9 bg-admin-surface-2 border-admin-border" placeholder="Buscar nome ou slug…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      {/* KPI strip */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-4">
+        <KpiStat icon={Building2} tone="primary" label="Total" value={summary.total} />
+        <KpiStat icon={CheckCircle2} tone="positive" label="Ativas" value={summary.active} />
+        <KpiStat icon={PauseCircle} tone="warning" label="Suspensas" value={summary.suspended} />
+        <KpiStat icon={Sparkles} tone="accent" label="Novas (30d)" value={summary.newCount} />
+      </div>
+
+      {/* Sticky filters */}
+      <div className="sticky top-16 z-10 -mx-6 px-6 py-2 bg-admin-bg/95 backdrop-blur mb-4 border-b border-admin-border">
+        <AdminCard className="p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
+              <Input className="pl-9 bg-admin-surface-2 border-admin-border h-9" placeholder="Buscar nome ou slug…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Select value={fStatus} onValueChange={setFStatus}>
+              <SelectTrigger className="w-[140px] h-9 bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos status</SelectItem>
+                <SelectItem value="active">Ativas</SelectItem>
+                <SelectItem value="suspended">Suspensas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={fPlan} onValueChange={setFPlan}>
+              <SelectTrigger className="w-[160px] h-9 bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos planos</SelectItem>
+                {plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-admin-text-muted">{filtered.length} de {clinics.length}</span>
+              <div className="inline-flex rounded-md border border-admin-border bg-admin-surface p-0.5">
+                <button onClick={() => setView("table")} className={cn("h-7 w-7 inline-flex items-center justify-center rounded-sm", view === "table" ? "bg-admin-primary text-admin-primary-foreground" : "text-admin-text-muted hover:text-admin-text")} title="Tabela"><List className="h-3.5 w-3.5" /></button>
+                <button onClick={() => setView("grid")} className={cn("h-7 w-7 inline-flex items-center justify-center rounded-sm", view === "grid" ? "bg-admin-primary text-admin-primary-foreground" : "text-admin-text-muted hover:text-admin-text")} title="Cartões"><LayoutGrid className="h-3.5 w-3.5" /></button>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportCsv} className="border-admin-border h-9"><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>
+            </div>
           </div>
-          <Select value={fStatus} onValueChange={setFStatus}>
-            <SelectTrigger className="w-[140px] bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos status</SelectItem>
-              <SelectItem value="active">Ativas</SelectItem>
-              <SelectItem value="suspended">Suspensas</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={fPlan} onValueChange={setFPlan}>
-            <SelectTrigger className="w-[160px] bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos planos</SelectItem>
-              {plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-admin-text-muted">{filtered.length} de {clinics.length}</span>
-            <Button variant="outline" size="sm" onClick={exportCsv} className="border-admin-border"><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>
-          </div>
-        </div>
-      </AdminCard>
+        </AdminCard>
+      </div>
 
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--admin-radius)] border border-admin-primary/30 bg-admin-primary-soft px-4 py-2.5">
@@ -252,43 +277,105 @@ export default function AdminClinics() {
         </div>
       )}
 
-      <AdminCard>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-admin-border hover:bg-transparent">
-              <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} /></TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Plano</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-admin-text-muted py-6">Nenhuma clínica</TableCell></TableRow>}
-            {filtered.map((c) => (
-              <TableRow key={c.id} className="border-admin-border">
-                <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell className="text-admin-text-muted">{c.slug}</TableCell>
-                <TableCell>
-                  <Badge className={c.status === "active" ? "bg-admin-positive-soft text-admin-positive border-0" : "bg-admin-warning-soft text-admin-warning border-0"}>
-                    {c.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>{c.plan}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button size="sm" variant="outline" onClick={() => setDetails(c)}><Eye className="mr-1 h-3 w-3" />Detalhes</Button>
-                  <Button size="sm" variant="outline" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />{featuresEnabledCount(c)}/{FEATURES.length}</Button>
-                  <Button size="sm" variant="outline" onClick={() => setOpenCreateUser(c)}><UserPlus className="mr-1 h-3 w-3" />Usuário</Button>
-                  <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convite</Button>
-                  <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
-                </TableCell>
+      {view === "table" ? (
+        <AdminCard>
+          <Table>
+            <TableHeader>
+              <TableRow className="border-admin-border hover:bg-transparent">
+                <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} /></TableHead>
+                <TableHead>Clínica</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Recursos</TableHead>
+                <TableHead>Criada</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </AdminCard>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
+              {filtered.map((c) => (
+                <TableRow key={c.id} className="border-admin-border group">
+                  <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-md bg-admin-primary-soft text-admin-primary flex items-center justify-center text-xs font-semibold uppercase shrink-0">
+                        {c.name.slice(0, 2)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-admin-text truncate">{c.name}</div>
+                        <div className="text-[11px] text-admin-text-subtle truncate">/{c.slug}</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1.5 text-xs">
+                      <span className={cn("h-1.5 w-1.5 rounded-full", c.status === "active" ? "bg-admin-positive" : "bg-admin-warning")} />
+                      <span className={c.status === "active" ? "text-admin-positive" : "text-admin-warning"}>{c.status === "active" ? "Ativa" : "Suspensa"}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell><Badge variant="outline" className="border-admin-border text-admin-text-muted font-normal">{c.plan}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-xs text-admin-text-muted">
+                      <div className="h-1 w-12 rounded-full bg-admin-surface-2 overflow-hidden">
+                        <div className="h-full bg-admin-primary" style={{ width: `${(featuresEnabledCount(c) / FEATURES.length) * 100}%` }} />
+                      </div>
+                      <span className="tabular-nums">{featuresEnabledCount(c)}/{FEATURES.length}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-admin-text-muted">{new Date(c.created_at).toLocaleDateString("pt-BR")}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="inline-flex gap-0.5 opacity-70 group-hover:opacity-100 transition">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Detalhes" onClick={() => setDetails(c)}><Eye className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Recursos" onClick={() => openFeaturesDialog(c)}><Sliders className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Criar usuário" onClick={() => setOpenCreateUser(c)}><UserPlus className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Convite" onClick={() => setOpenInvite(c)}><Mail className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </AdminCard>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.length === 0 && <AdminCard className="col-span-full p-10 text-center text-admin-text-muted text-sm">Nenhuma clínica encontrada.</AdminCard>}
+          {filtered.map((c) => (
+            <AdminCard key={c.id} className="p-4 group hover:border-admin-border-strong transition">
+              <div className="flex items-start gap-3">
+                <Checkbox className="mt-1" checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} />
+                <div className="h-9 w-9 rounded-md bg-admin-primary-soft text-admin-primary flex items-center justify-center text-sm font-semibold uppercase shrink-0">
+                  {c.name.slice(0, 2)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-admin-text truncate">{c.name}</div>
+                  <div className="text-[11px] text-admin-text-subtle truncate">/{c.slug}</div>
+                </div>
+                <span className={cn("h-2 w-2 rounded-full shrink-0 mt-1.5", c.status === "active" ? "bg-admin-positive" : "bg-admin-warning")} title={c.status} />
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <Badge variant="outline" className="border-admin-border text-admin-text-muted font-normal">{c.plan}</Badge>
+                <span className="text-[11px] text-admin-text-subtle">desde {new Date(c.created_at).toLocaleDateString("pt-BR")}</span>
+              </div>
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-[11px] text-admin-text-muted mb-1">
+                  <span>Recursos</span>
+                  <span className="tabular-nums">{featuresEnabledCount(c)}/{FEATURES.length}</span>
+                </div>
+                <div className="h-1 rounded-full bg-admin-surface-2 overflow-hidden">
+                  <div className="h-full bg-admin-primary" style={{ width: `${(featuresEnabledCount(c) / FEATURES.length) * 100}%` }} />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1 pt-3 border-t border-admin-border">
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setDetails(c)}><Eye className="mr-1 h-3 w-3" />Detalhes</Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />Recursos</Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convite</Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs ml-auto" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+              </div>
+            </AdminCard>
+          ))}
+        </div>
+      )}
 
       <ClinicDetailsDialog clinic={details} plans={plans} onClose={() => setDetails(null)} onChanged={load} />
 
@@ -380,5 +467,25 @@ export default function AdminClinics() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function KpiStat({ icon: Icon, tone, label, value }: { icon: any; tone: "primary" | "positive" | "warning" | "accent"; label: string; value: number }) {
+  const toneCls: Record<string, string> = {
+    primary: "text-admin-primary bg-admin-primary-soft",
+    positive: "text-admin-positive bg-admin-positive-soft",
+    warning: "text-admin-warning bg-admin-warning-soft",
+    accent: "text-admin-accent bg-admin-accent-soft",
+  };
+  return (
+    <AdminCard className="p-4 flex items-center gap-3">
+      <span className={cn("inline-flex h-9 w-9 items-center justify-center rounded-md", toneCls[tone])}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-admin-text-subtle font-medium">{label}</div>
+        <div className="text-xl font-semibold text-admin-text tabular-nums leading-tight">{value.toLocaleString("pt-BR")}</div>
+      </div>
+    </AdminCard>
   );
 }
