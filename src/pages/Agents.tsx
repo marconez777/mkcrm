@@ -988,6 +988,7 @@ export default function Agents() {
 
               </>)}
               <SectionAccordionItem
+                id="agent-section-kb"
                 value="kb"
                 icon={FileText}
                 title="Base de conhecimento"
@@ -1160,6 +1161,7 @@ export default function Agents() {
 
 
               <SectionAccordionItem
+                id="agent-section-test"
                 value="test"
                 icon={FlaskConical}
                 title="Testar agente"

@@ -30,6 +30,7 @@ type Props = {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  id?: string;
 };
 
 export function SectionAccordionItem({
@@ -43,11 +44,13 @@ export function SectionAccordionItem({
   children,
   className,
   contentClassName,
+  id,
 }: Props) {
   const accentVar = ACCENT_VAR[accent];
   return (
     <AccordionPrimitive.Item
       value={value}
+      id={id}
       style={{ ["--accent" as string]: `var(${accentVar})` } as React.CSSProperties}
       className={cn(
         "group/section relative overflow-hidden rounded-xl border bg-card transition-all duration-200",
