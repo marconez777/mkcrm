@@ -103,17 +103,18 @@ const App = () => (
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/admin" element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="clinics" element={<AdminClinics />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="plans" element={<AdminPlans />} />
-              <Route path="usage" element={<AdminUsage />} />
-              <Route path="finance" element={<AdminFinance />} />
-              <Route path="observability" element={<AdminObservability />} />
-              <Route path="support" element={<AdminSupport />} />
-              <Route path="integrations" element={<AdminIntegrations />} />
-              <Route path="audit" element={<AdminAudit />} />
-              <Route path="builder-manual" element={<AdminBuilderManual />} />
+              <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+              <Route path="clinics" element={<Suspense fallback={<AdminFallback />}><AdminClinics /></Suspense>} />
+              <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
+              <Route path="plans" element={<Suspense fallback={<AdminFallback />}><AdminPlans /></Suspense>} />
+              <Route path="usage" element={<Suspense fallback={<AdminFallback />}><AdminUsage /></Suspense>} />
+              <Route path="finance" element={<Suspense fallback={<AdminFallback />}><AdminFinance /></Suspense>} />
+              <Route path="observability" element={<Suspense fallback={<AdminFallback />}><AdminObservability /></Suspense>} />
+              <Route path="support" element={<Suspense fallback={<AdminFallback />}><AdminSupport /></Suspense>} />
+              <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><AdminIntegrations /></Suspense>} />
+              <Route path="audit" element={<Suspense fallback={<AdminFallback />}><AdminAudit /></Suspense>} />
+              <Route path="builder-manual" element={<Suspense fallback={<AdminFallback />}><AdminBuilderManual /></Suspense>} />
+              <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
             </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
