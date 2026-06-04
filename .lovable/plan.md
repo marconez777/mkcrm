@@ -1,76 +1,108 @@
-## Problema
 
-O usuário perguntou "como configuro o tracking?" e o agente respondeu **"Acesse a tela de Tracking → copie o snippet"**. Está errado: a tela `/tracking` é só dashboard. O snippet (pixel) está em **Configurações → Integração do Site** (`/settings/integration`), na mesma página dos formulários.
+# Plano: Super Admin Premium Whitelabel — 10 Fases
 
-A causa raiz é a KB (`supabase/functions/_shared/support-kb/`): vários arquivos descrevem o snippet e a rota de debug em locais que não existem na UI atual.
+Inspirado nas referências enviadas (Paces/Coderthemes): sidebar densa com agrupamento (MAIN/APPS), topbar com quick-search + comandos, KPIs em cards limpos, tabelas com filtros e bulk actions, gráficos suaves, badges discretas, mini-trends, donuts e progresso linear.
 
-## Bugs já identificados na KB
+Hoje o `/admin` é **uma única página com 10 abas horizontais**, todas dentro de `src/pages/Admin.tsx`. Vamos quebrar em um sub-app com layout próprio, design tokens dedicados e componentes reaproveitáveis.
 
-| Arquivo | Problema | Correto |
-|---|---|---|
-| `pages/tracking.md` (§ "Como instalar…") | Diz para instalar pelo `/tracking` | `/settings/integration` (aba **Integração do Site**) |
-| `journeys/instalar-pixel-tracking.md` | "Vá em Tracking (`/tracking`)" | "Vá em Configurações → Integração do Site (`/settings/integration`)" |
-| `journeys/instalar-pixel-tracking.md` | Rota debug `/tracking/debug` | `/tracking-debug` |
-| `troubleshooting/tracking-formularios.md` | Duas menções a `/tracking/debug` | `/tracking-debug` |
-| `journeys/publicar-formulario.md` | Menciona `/tracking/debug` e snippet "no site" sem citar onde pegar | `/tracking-debug` + apontar `/settings/integration` |
-| `01-primeiros-passos.md` | Tabela diz `/tracking` = "Pixels, formulários, atribuição" | Pixels e formulários estão em `/settings/integration`; `/tracking` é dashboard/atribuição |
+---
 
-A página `pages/settings.md` já está correta (aponta `/settings/integration`), então a KB tem informação conflitante e o RAG escolheu o trecho errado.
+## Fase 1 — Design system whitelabel
 
-## Plano de ação
+- Adicionar tokens `--admin-*` (bg, surface, surface-elevated, border-subtle, kpi-positive/negative, chart-1..6) em `index.css`, herdando do tema. Tudo HSL.
+- Definir tipografia da área admin (display + sans), raio padrão `xl`, sombras `shadow-elevated` e `shadow-card`.
+- Criar `tailwind.config.ts` extensions para `admin` palette, mantendo compatibilidade com light/dark.
+- Whitelabel: ler `clinics.settings.branding` (logo, primary, accent) e aplicar via CSS vars no `<AdminShell>` para que parceiros possam rebrandar sem fork.
 
-### 1. Corrigir os 6 arquivos da KB acima
-- Reescrever a seção "Como instalar o script de tracking" de `pages/tracking.md` deixando claro: o snippet **NÃO** está nesta tela — está em `/settings/integration`. Manter apenas referência cruzada + o que o usuário pode fazer aqui (visualizar, filtrar, configurar buckets de fechamento, debug).
-- Reescrever `journeys/instalar-pixel-tracking.md` com o caminho real: Configurações → Integração do Site → copiar snippet (que já inclui pixel + forms-snippet juntos).
-- Corrigir todas as referências `/tracking/debug` → `/tracking-debug`.
-- Ajustar `01-primeiros-passos.md` para descrever `/tracking` como "Painel de visitas e atribuição" e adicionar linha "Configurações → Integração do Site" para instalação.
-- Ajustar `publicar-formulario.md` apontando que o snippet de formulários também sai de `/settings/integration` (mesmo SDK).
+## Fase 2 — AdminShell (layout dedicado)
 
-### 2. Auditar o restante da KB
-Varrer todas as menções a rotas (`/...`) em `support-kb/**.md` e cruzar com as rotas reais de `src/App.tsx`. Corrigir qualquer outra divergência encontrada (exemplo já visto: a aba "Integração do Site" é descrita corretamente em `pages/settings.md`, mas vou rechecar nomes de menus/botões nas demais jornadas: WhatsApp, e-mail, importações, agentes IA, equipe).
+- Novo `src/layouts/AdminShell.tsx` com:
+  - **Sidebar fixa** agrupada (Visão Geral, Clientes, Receita, Operações, Plataforma, Sistema) usando `NavLink` ativos, colapsável.
+  - **Topbar**: command palette (`⌘K`), seletor de período global (7/30/90/Custom), seletor de clínica (impersonation visual), notificações de alertas críticos, avatar.
+  - **Breadcrumbs** automáticos por rota.
+- Migrar `/admin` para rotas filhas: `/admin`, `/admin/clinics`, `/admin/users`, `/admin/plans`, `/admin/usage`, `/admin/finance`, `/admin/observability`, `/admin/support`, `/admin/integrations`, `/admin/audit`, `/admin/builder-manual`. Cada aba vira página com URL própria (deep-link + back/forward).
 
-### 3. Regenerar o manifest auto-gerado
-`supabase/functions/_shared/support-kb-manifest.ts` é um snapshot dos `.md`. Rodar `node scripts/gen-support-kb-manifest.mjs` para sincronizar.
+## Fase 3 — Dashboard executivo (home `/admin`)
 
-### 4. Forçar resync da KB indexada
-A KB fica indexada (embeddings) na tabela do `support-kb-sync`. Após mudar os arquivos, instruir o usuário a rodar **"Ressincronizar KB"** no painel admin do suporte (`/admin` → Suporte), ou disparar via edge function. Vou deixar a etapa documentada e adicionar uma nota no `README.md` da KB.
+- Reescrever `DashboardPanel` com grid responsivo:
+  - **Hero KPIs** (8 cards): MRR, ARR, Clínicas ativas, Novos signups, Mensagens, Custo IA, E-mails enviados, Churn — cada um com sparkline + delta vs período anterior.
+  - **Gráfico principal** (área): Receita vs Custo IA por dia.
+  - **Heatmap** de atividade por hora/dia da semana (engagement plataforma).
+  - **Top clínicas** (tabela compacta com avatar, plano, MRR, msgs, custo IA, status).
+  - **Saúde do sistema** (mini cards): DB, edge functions, fila de e-mail, Evolution.
+  - **Alertas** (lista priorizada de inadimplência/limites/erros).
+- Recharts já existe — padronizar `ChartContainer` com tooltip estilizado igual à referência.
 
-### 5. Reforçar o prompt do agente
-Acrescentar no `DEFAULT_SUPPORT_SYSTEM_PROMPT` (e na seed da migration) duas regras curtas:
-- "Sempre que mencionar uma rota do app, use exatamente o caminho da KB. Nunca invente — se a KB não tiver, peça desculpa e ofereça abrir um chamado."
-- "Antes de instruir a copiar pixel/snippet/script de instalação, confirme que está apontando para `/settings/integration` (não `/tracking`)."
+## Fase 4 — Clínicas 2.0
 
-### 6. Guardrail automatizado (teste)
-Criar `supabase/functions/_shared/support-kb/kb-routes.test.ts` (Deno test) que:
-- Lê todos os `.md` da KB.
-- Extrai todas as rotas no formato `` `/...` ``.
-- Compara contra a lista de rotas reais (lida estaticamente de `src/App.tsx` ou hardcoded). 
-- Falha o teste se houver rota da KB que não existe no app.
+- Página `/admin/clinics` com:
+  - **Filtros sticky** (status, plano, MRR range, último login, search).
+  - **Tabela densa** com colunas: Clínica (avatar+nome+slug), Plano (badge), MRR, Uso (3 mini-barras: msgs/IA/email), Status, Health (dot), Criada.
+  - **Drawer lateral** (substituir dialog) com abas: Visão, Plano & Assinatura, Uso & Limites, Membros, Auditoria, Features, Branding.
+  - **Bulk actions** mantidas, com toolbar contextual flutuante.
+- Vista alternativa **cards/grid** para visão executiva.
 
-Isso evita regressão futura: qualquer rota inválida na KB quebra o teste.
+## Fase 5 — Receita & Financeiro
 
-### 7. Smoke test do agente de ponta a ponta
-Após corrigir, rodar mentalmente (script simples) os 5 cenários mais comuns que um usuário pergunta para o suporte e validar que a KB tem resposta consistente:
-1. "Como configuro o tracking?"
-2. "Como conecto WhatsApp?"
-3. "Como crio um agente de IA?"
-4. "Como importo minha base de leads?"
-5. "Como envio campanha de e-mail?"
+- `/admin/finance` reformulado:
+  - KPIs: MRR, ARR, LTV médio, Churn rate, ARPU, Inadimplência %.
+  - Gráfico de **MRR waterfall** (new/expansion/contraction/churn) — estilo SaaS metrics.
+  - **Cohort retention** (heatmap) — opcional fase 5b.
+  - Tabela de faturas com filtros + ações inline (marcar paga/anular/reenviar).
+  - Distribuição por plano (donut) + previsão simples (média móvel 3m).
 
-Para cada um, conferir: existe journey/page, rotas batem, botões/menus descritos batem com o código.
+## Fase 6 — Usuários & Acesso
+
+- `/admin/users`: tabela com avatar, clínica, papel, último login (relative time), MFA on/off, status.
+- Detalhe lateral com: sessões ativas, dispositivos, histórico de login, ações sensíveis (reset, force logout, promover, banir).
+- `/admin/team-roles`: editor de papéis customizados (preparar p/ whitelabel).
+
+## Fase 7 — Observabilidade & Suporte
+
+- `/admin/observability`: KPIs + uso por feature (barras + sparkline 30d), dead features, top erros (lista com modal stack), latência p50/p95 das edges.
+- `/admin/support` reorganizado em 3 colunas: Monitor live (esquerda), Thread selecionada (centro), Contexto do lead/clínica (direita) — estilo Inbox.
+- Status da KB com botão **Ressincronizar** destacado.
+
+## Fase 8 — Plataforma (Planos, Limites, Integrações, Builder Manual)
+
+- `/admin/plans`: cards de plano estilo pricing + editor lateral.
+- `/admin/usage`: matriz clínica × limite com heat-coloring e exportar.
+- `/admin/integrations`: 3 cards (Resend, Evolution, Lovable AI) com status, chaves, último ping, botão "Testar conexão".
+- `/admin/builder-manual`: split editor (markdown) + preview render + histórico em timeline.
+
+## Fase 9 — Command Palette & Atalhos
+
+- Extender `CommandPalette` para super_admin: navegar entre abas, abrir clínica por nome, aplicar plano, suspender, ir para fatura.
+- Atalhos: `g d`/`g c`/`g f`/`g u` (Gmail style), `?` para help.
+- Toast/feedback consistente (sonner) + skeleton loaders em todas as tabelas.
+
+## Fase 10 — Performance, Polish & Whitelabel final
+
+- Code-split por rota (`React.lazy` em cada painel) → reduzir bundle inicial do admin.
+- `react-query` (já no projeto) para todas as queries admin com `staleTime` razoável + invalidation por mutation.
+- Virtualização (`@tanstack/react-virtual`) em tabelas >200 linhas.
+- Dark mode polido (paleta admin específica).
+- **Whitelabel**: tela `/admin/branding` (super_admin global) para definir logo/cores padrão da instalação + override por clínica.
+- QA visual: revisar cada rota em desktop/tablet, garantir contraste AA, estados vazios ilustrados, loading skeletons.
+
+---
 
 ## Detalhes técnicos
 
-- KB lives in `supabase/functions/_shared/support-kb/` (markdown) + manifest TS auto-gerado.
-- Edge function `support-chat/index.ts` injeta system prompt + tools block (`[[go:/rota|...]]`, `[[click:text=...]]`, `[[step:...]]`) + RAG.
-- Default prompt em `supabase/functions/_shared/support-prompt.ts` (também espelhado em migration seed — preciso atualizar ambos).
-- Re-sync KB: edge function `support-kb-sync`.
-- Após mudanças nas edge functions, deploy automático via Lovable Cloud.
+- **Sem mudanças de schema** nas fases 1-9. Fase 10 adiciona `platform_branding` (1 linha) e coluna `clinics.settings.branding` (jsonb) se ainda não existir.
+- Componentes novos vão em `src/components/admin/` (subpastas por área: `clinics/`, `finance/`, `shell/`, `charts/`).
+- Hooks de dados em `src/hooks/admin/` (`useAdminMetrics`, `useClinicsList`, etc).
+- Roteamento: adicionar rotas filhas em `src/App.tsx` sob `<ProtectedRoute requireSuperAdmin>`.
+- Sem alterações em edges nesta fase — apenas consumir o que já existe; novos endpoints só se uma fase específica precisar (ex: MRR waterfall pode precisar de `admin-metrics-mrr`).
 
-## Entregáveis
+## Entregáveis por fase
 
-- 6 arquivos `.md` da KB corrigidos + qualquer divergência adicional encontrada na auditoria.
-- `support-kb-manifest.ts` regenerado.
-- `support-prompt.ts` + migration seed com regras anti-alucinação reforçadas.
-- Teste Deno `kb-routes.test.ts` rodando e passando.
-- Mensagem final para o usuário com checklist do que mudou + instrução para clicar em "Ressincronizar KB" no admin.
+Cada fase termina com: (a) PRs pequenos focados, (b) screenshots antes/depois, (c) atualização de `docs/maps/ADMIN_SUPER_ADMIN.md`.
+
+## O que NÃO faz parte
+
+- Não muda regras de negócio (planos, RLS, billing).
+- Não troca stack (continua React+Vite+Tailwind+shadcn+Recharts).
+- Não mexe na área de clínica (operador) — escopo é exclusivo `/admin`.
+
+Posso começar pela **Fase 1 + 2** (design tokens + AdminShell com rotas filhas), que destrava todo o resto. Confirma?
