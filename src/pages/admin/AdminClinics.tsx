@@ -1,0 +1,384 @@
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { fetchAllPaged } from "@/lib/fetch-all";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { FEATURES, isFeatureEnabled } from "@/lib/features";
+import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
+import { downloadCsv } from "@/lib/csv";
+import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
+
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
+type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
+
+function slugify(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
+}
+
+export default function AdminClinics() {
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [openInvite, setOpenInvite] = useState<Clinic | null>(null);
+  const [openCreateUser, setOpenCreateUser] = useState<Clinic | null>(null);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "professional" | "viewer">("owner");
+  const [generatedLink, setGeneratedLink] = useState<{ url: string; expires_at: string } | null>(null);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"owner" | "admin" | "professional" | "viewer">("professional");
+  const [openFeatures, setOpenFeatures] = useState<Clinic | null>(null);
+  const [featuresDraft, setFeaturesDraft] = useState<Record<string, boolean>>({});
+  const [details, setDetails] = useState<Clinic | null>(null);
+  const [search, setSearch] = useState("");
+  const [fStatus, setFStatus] = useState<string>("all");
+  const [fPlan, setFPlan] = useState<string>("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPlan, setBulkPlan] = useState<string>("");
+
+  async function load() {
+    try {
+      const [cs, { data: ps }] = await Promise.all([
+        fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
+        supabase.from("plans").select("code,name,limits").order("sort_order"),
+      ]);
+      setClinics(cs as any);
+      setPlans((ps as any) ?? []);
+    } catch (e: any) { toast.error(e.message); }
+  }
+  useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return clinics.filter((c) => {
+      if (fStatus !== "all" && c.status !== fStatus) return false;
+      if (fPlan !== "all" && c.plan !== fPlan) return false;
+      if (q && !c.name.toLowerCase().includes(q) && !c.slug.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [clinics, search, fStatus, fPlan]);
+
+  async function createClinic(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true);
+    try {
+      const finalSlug = slug || slugify(name);
+      const { error } = await supabase.from("clinics").insert({ name, slug: finalSlug });
+      if (error) throw error;
+      toast.success("Clínica criada");
+      setOpenCreate(false); setName(""); setSlug("");
+      await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+
+  async function generateInvite(e: React.FormEvent) {
+    e.preventDefault(); if (!openInvite) return; setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("clinic-invite", {
+        body: { clinic_id: openInvite.id, email: inviteEmail, role: inviteRole },
+      });
+      if (error) throw error;
+      setGeneratedLink({ url: data.invite_url, expires_at: data.expires_at });
+      toast.success("Convite criado");
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  async function copyLink() {
+    if (!generatedLink) return;
+    try { await navigator.clipboard.writeText(generatedLink.url); toast.success("Link copiado"); }
+    catch { toast.error("Não foi possível copiar"); }
+  }
+  function closeInvite() { setOpenInvite(null); setInviteEmail(""); setInviteRole("owner"); setGeneratedLink(null); }
+
+  async function toggleStatus(c: Clinic) {
+    const next = c.status === "active" ? "suspended" : "active";
+    const { error } = await supabase.from("clinics").update({ status: next }).eq("id", c.id);
+    if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
+  }
+  function featuresEnabledCount(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    return FEATURES.filter((x) => isFeatureEnabled(f, x.key)).length;
+  }
+  function openFeaturesDialog(c: Clinic) {
+    const f = c.settings?.features ?? {};
+    const draft: Record<string, boolean> = {};
+    for (const x of FEATURES) draft[x.key] = isFeatureEnabled(f, x.key);
+    setFeaturesDraft(draft); setOpenFeatures(c);
+  }
+  async function saveFeatures() {
+    if (!openFeatures) return; setBusy(true);
+    try {
+      const nextSettings = { ...(openFeatures.settings ?? {}), features: featuresDraft };
+      const { error } = await supabase.from("clinics").update({ settings: nextSettings }).eq("id", openFeatures.id);
+      if (error) throw error;
+      toast.success("Recursos atualizados");
+      setOpenFeatures(null); await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  function closeCreateUser() { setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional"); }
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault(); if (!openCreateUser) return; setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("clinic-create-user", {
+        body: { clinic_id: openCreateUser.id, email: newUserEmail, password: newUserPassword, full_name: newUserName || null, role: newUserRole },
+      });
+      if (error) throw error;
+      toast.success("Usuário criado"); closeCreateUser();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  function toggleAll(checked: boolean) { setSelected(checked ? new Set(filtered.map((c) => c.id)) : new Set()); }
+  function toggleOne(id: string, checked: boolean) {
+    setSelected((s) => { const n = new Set(s); if (checked) n.add(id); else n.delete(id); return n; });
+  }
+  async function bulkApplyPlan() {
+    if (!bulkPlan || selected.size === 0) return;
+    if (!confirm(`Aplicar plano "${bulkPlan}" em ${selected.size} clínica(s)? Isso sobrescreve features e limites.`)) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.functions.invoke("admin-apply-plan", {
+        body: { plan_code: bulkPlan, clinic_ids: Array.from(selected), overwrite_features: true, overwrite_limits: true },
+      });
+      if (error) throw error;
+      toast.success(`Plano aplicado em ${selected.size} clínica(s)`);
+      setSelected(new Set()); setBulkPlan(""); await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  async function bulkSetStatus(next: "active" | "suspended") {
+    if (selected.size === 0) return;
+    if (!confirm(`Mudar status para "${next}" em ${selected.size} clínica(s)?`)) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("clinics").update({ status: next }).in("id", Array.from(selected));
+      if (error) throw error;
+      toast.success("Status atualizado");
+      setSelected(new Set()); await load();
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  function exportCsv() {
+    const rows = filtered.map((c) => ({
+      id: c.id, name: c.name, slug: c.slug, status: c.status, plan: c.plan,
+      created_at: c.created_at, features_enabled: featuresEnabledCount(c),
+    }));
+    downloadCsv(`clinicas-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
+
+  const allChecked = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+
+  return (
+    <>
+      <AdminPageHeader
+        title="Clínicas"
+        description="Gerencie todas as clínicas da plataforma — planos, status, recursos e convites."
+        actions={
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button className="bg-admin-primary hover:bg-admin-primary/90 text-admin-primary-foreground">
+                <Plus className="mr-1.5 h-4 w-4" />Nova clínica
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Criar clínica</DialogTitle></DialogHeader>
+              <form onSubmit={createClinic} className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Nome</Label>
+                  <Input value={name} onChange={(e) => { setName(e.target.value); if (!slug) setSlug(slugify(e.target.value)); }} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Slug</Label>
+                  <Input value={slug} onChange={(e) => setSlug(slugify(e.target.value))} required />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
+
+      <AdminCard className="p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
+            <Input className="pl-9 bg-admin-surface-2 border-admin-border" placeholder="Buscar nome ou slug…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <Select value={fStatus} onValueChange={setFStatus}>
+            <SelectTrigger className="w-[140px] bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="active">Ativas</SelectItem>
+              <SelectItem value="suspended">Suspensas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={fPlan} onValueChange={setFPlan}>
+            <SelectTrigger className="w-[160px] bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos planos</SelectItem>
+              {plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-admin-text-muted">{filtered.length} de {clinics.length}</span>
+            <Button variant="outline" size="sm" onClick={exportCsv} className="border-admin-border"><Download className="mr-1 h-3.5 w-3.5" />CSV</Button>
+          </div>
+        </div>
+      </AdminCard>
+
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--admin-radius)] border border-admin-primary/30 bg-admin-primary-soft px-4 py-2.5">
+          <span className="text-sm font-medium">{selected.size} selecionada(s)</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Select value={bulkPlan} onValueChange={setBulkPlan}>
+              <SelectTrigger className="w-[180px] h-8"><SelectValue placeholder="Aplicar plano…" /></SelectTrigger>
+              <SelectContent>{plans.map((p) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" disabled={!bulkPlan || busy} onClick={bulkApplyPlan}>Aplicar</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => bulkSetStatus("suspended")}>Suspender</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => bulkSetStatus("active")}>Reativar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Limpar</Button>
+          </div>
+        </div>
+      )}
+
+      <AdminCard>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-admin-border hover:bg-transparent">
+              <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} /></TableHead>
+              <TableHead>Nome</TableHead>
+              <TableHead>Slug</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Plano</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-admin-text-muted py-6">Nenhuma clínica</TableCell></TableRow>}
+            {filtered.map((c) => (
+              <TableRow key={c.id} className="border-admin-border">
+                <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
+                <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell className="text-admin-text-muted">{c.slug}</TableCell>
+                <TableCell>
+                  <Badge className={c.status === "active" ? "bg-admin-positive-soft text-admin-positive border-0" : "bg-admin-warning-soft text-admin-warning border-0"}>
+                    {c.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>{c.plan}</TableCell>
+                <TableCell className="text-right space-x-1">
+                  <Button size="sm" variant="outline" onClick={() => setDetails(c)}><Eye className="mr-1 h-3 w-3" />Detalhes</Button>
+                  <Button size="sm" variant="outline" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />{featuresEnabledCount(c)}/{FEATURES.length}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setOpenCreateUser(c)}><UserPlus className="mr-1 h-3 w-3" />Usuário</Button>
+                  <Button size="sm" variant="outline" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convite</Button>
+                  <Button size="sm" variant="ghost" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </AdminCard>
+
+      <ClinicDetailsDialog clinic={details} plans={plans} onClose={() => setDetails(null)} onChanged={load} />
+
+      <Dialog open={!!openInvite} onOpenChange={(o) => !o && closeInvite()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Gerar convite — {openInvite?.name}</DialogTitle></DialogHeader>
+          {!generatedLink ? (
+            <form onSubmit={generateInvite} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Email do convidado</Label>
+                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required placeholder="pessoa@clinica.com" />
+                <p className="text-xs text-muted-foreground">O convite só pode ser aceito por quem fizer login com este email.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Papel</Label>
+                <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
+                  <option value="owner">Owner (dono da clínica)</option>
+                  <option value="admin">Admin</option>
+                  <option value="professional">Profissional</option>
+                  <option value="viewer">Visualizador</option>
+                </select>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={closeInvite}>Cancelar</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Gerar link</Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Link de convite</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={generatedLink.url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+                  <Button type="button" variant="outline" onClick={copyLink}><Copy className="h-4 w-4" /></Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Envie manualmente para <strong>{inviteEmail}</strong>. Expira em {new Date(generatedLink.expires_at).toLocaleDateString("pt-BR")}.
+                </p>
+              </div>
+              <DialogFooter><Button type="button" onClick={closeInvite}>Concluir</Button></DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!openCreateUser} onOpenChange={(o) => !o && closeCreateUser()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar usuário — {openCreateUser?.name}</DialogTitle></DialogHeader>
+          <form onSubmit={createUser} className="space-y-3">
+            <div className="space-y-1.5"><Label>Nome (opcional)</Label><Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nome completo" /></div>
+            <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} required placeholder="pessoa@clinica.com" /></div>
+            <div className="space-y-1.5"><Label>Senha</Label><Input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" /></div>
+            <div className="space-y-1.5">
+              <Label>Papel</Label>
+              <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)}>
+                <option value="owner">Owner (dono da clínica)</option>
+                <option value="admin">Admin</option>
+                <option value="professional">Profissional</option>
+                <option value="viewer">Visualizador</option>
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeCreateUser}>Cancelar</Button>
+              <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar usuário</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!openFeatures} onOpenChange={(o) => !o && setOpenFeatures(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Recursos — {openFeatures?.name}</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
+            <p className="text-xs text-muted-foreground mb-2">Desligue os recursos que esta clínica não deve ver/usar.</p>
+            {FEATURES.map((f) => (
+              <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">{f.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{f.key}</div>
+                </div>
+                <Switch checked={featuresDraft[f.key] ?? true} onCheckedChange={(v) => setFeaturesDraft((d) => ({ ...d, [f.key]: v }))} />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpenFeatures(null)}>Cancelar</Button>
+            <Button type="button" onClick={saveFeatures} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

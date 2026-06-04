@@ -17,7 +17,11 @@ import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
 
 import Tasks from "./pages/Tasks";
-import Admin from "./pages/Admin";
+import AdminShell from "./layouts/AdminShell";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminClinics from "./pages/admin/AdminClinics";
+import AdminUsers from "./pages/admin/AdminUsers";
+import { AdminPlans, AdminUsage, AdminFinance, AdminObservability, AdminSupport, AdminAudit, AdminBuilderManual, AdminIntegrations } from "./pages/admin/AdminPanels";
 import Team from "./pages/Team";
 import Invite from "./pages/Invite";
 import Onboarding from "./pages/Onboarding";
@@ -63,7 +67,19 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
-            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="clinics" element={<AdminClinics />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="plans" element={<AdminPlans />} />
+              <Route path="usage" element={<AdminUsage />} />
+              <Route path="finance" element={<AdminFinance />} />
+              <Route path="observability" element={<AdminObservability />} />
+              <Route path="support" element={<AdminSupport />} />
+              <Route path="integrations" element={<AdminIntegrations />} />
+              <Route path="audit" element={<AdminAudit />} />
+              <Route path="builder-manual" element={<AdminBuilderManual />} />
+            </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
               path="*"
