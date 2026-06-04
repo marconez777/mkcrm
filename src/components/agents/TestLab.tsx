@@ -15,6 +15,7 @@ import { AlfredDialog, type AlfredTrace } from "@/components/agents/AlfredDialog
 interface Props {
   agentId: string;
   clinicId: string | null;
+  agentNiche?: string | null;
   onPatchToPrompt?: (patch: string) => void;
 }
 
@@ -60,7 +61,7 @@ const GOAL_OPTS = [
   { v: "custom", l: "Customizado" },
 ];
 
-export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
+export function TestLab({ agentId, clinicId, agentNiche, onPatchToPrompt }: Props) {
   // free chat (multi-turn)
   type ChatMsg = { role: "user" | "assistant"; content: string; trace?: AlfredTrace | null };
   const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
@@ -157,7 +158,8 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   }, [chatHistory, chatting]);
 
   // scenarios
-  const [niche, setNiche] = useState("other");
+  const initialNiche = agentNiche && NICHE_OPTS.some((o) => o.v === agentNiche) ? agentNiche : "other";
+  const [niche, setNiche] = useState(initialNiche);
   const [goal, setGoal] = useState("sdr");
   const [dominantOffer, setDominantOffer] = useState("");
   const [genLoading, setGenLoading] = useState(false);
@@ -166,6 +168,7 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   // evaluation
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, EvalResult>>({});
+  const [runAllProgress, setRunAllProgress] = useState<{ current: number; total: number } | null>(null);
 
   const extractEdgeError = async (error: any, data: any): Promise<string> => {
     // supabase-js v2: error.context é a Response do edge
@@ -250,9 +253,12 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
   };
 
   const runAll = async () => {
-    for (const s of scenarios) {
-      await runEval(s);
+    setRunAllProgress({ current: 0, total: scenarios.length });
+    for (let i = 0; i < scenarios.length; i++) {
+      setRunAllProgress({ current: i + 1, total: scenarios.length });
+      await runEval(scenarios[i]);
     }
+    setRunAllProgress(null);
   };
 
   const diffBadge = (d: Scenario["difficulty"]) => {
@@ -530,8 +536,12 @@ export function TestLab({ agentId, clinicId, onPatchToPrompt }: Props) {
             Gerar cenários
           </Button>
           {scenarios.length > 0 && (
-            <Button onClick={runAll} disabled={!!runningId} size="sm" variant="secondary">
-              <Play className="mr-2 h-4 w-4" /> Rodar todos
+            <Button onClick={runAll} disabled={!!runningId || !!runAllProgress} size="sm" variant="secondary">
+              {runAllProgress ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Rodando {runAllProgress.current}/{runAllProgress.total}…</>
+              ) : (
+                <><Play className="mr-2 h-4 w-4" /> Rodar todos</>
+              )}
             </Button>
           )}
         </div>
