@@ -1,95 +1,85 @@
-# PR 9 — Pins, Resposta humana e Saúde da KB
+# Integração dos KBs de nicho no Builder
 
-Três features no agente Alfred, agrupadas em uma única entrega.
+Os 12 arquivos do zip estão completos e seguem a spec (`clinic, dental, aesthetics, real_estate, restaurant, ecommerce, saas, law, education, agency, local_services, other`). Vou commitá-los no repo e fazer o Builder usá-los em runtime — **arquivos no edge function**, sem nova tabela.
 
+## 1. Onde colocar os arquivos
+
+Extrair os 12 `.md` para:
+
+```text
+supabase/functions/_shared/builder-knowledge/niches/
+  clinic.md
+  dental.md
+  aesthetics.md
+  real_estate.md
+  restaurant.md
+  ecommerce.md
+  saas.md
+  law.md
+  education.md
+  agency.md
+  local_services.md
+  other.md
+```
+
+Convive com o `best-practices.md` (manual genérico, fallback do DB). Os KBs de nicho **não** vão para `builder_manual_versions` — são estáticos, versionados via git.
+
+## 2. Loader novo
+
+Criar `supabase/functions/_shared/builder-knowledge/niche-loader.ts`:
+
+- `loadNicheKb(slug: string): Promise<string>` — lê `./niches/<slug>.md` via `Deno.readTextFile(new URL(...))`.
+- Cache em memória por instância (Map<slug, content>), sem TTL (conteúdo é estático).
+- Fallback: se slug inválido ou arquivo ausente, retorna `""` (Builder segue com prompt sem KB de nicho — não quebra).
+- Sanity: trunca para ~8 KB no caso bizarro de alguém colocar arquivo gigante.
+
+## 3. Onde injetar no `ai-builder/index.ts`
+
+Em cada action que já recebe `niche`, montar um bloco extra no system prompt antes do `chatCompletion`:
+
+```text
+--- Conhecimento do nicho: {NICHE_LABEL[slug]} ---
+{conteúdo do .md}
 ---
+```
 
-## 1. Pin de mensagens problemáticas
+Actions afetadas (todas que já têm `niche` no payload):
 
-Para o super admin marcar uma resposta ruim/bug e revisar depois (refinar prompt, melhorar KB, etc.).
+| Action | Por quê |
+|---|---|
+| `interview_plan` | Usa "Perguntas obrigatórias de qualificação" para sugerir as 3-5 perguntas |
+| `generate_system_prompt` | Usa "Vocabulário", "Exemplo de abertura", "Armadilhas comuns" |
+| `draft_knowledge_base` | Usa "Ofertas típicas", "Objeções + resposta-modelo", "Métricas" |
+| `audit_kb` | Compara KB do cliente com "Sinais de lead quente/frio" e "Métricas" |
+| `generate_scenarios` | Usa "Exemplo de qualificação" + "Objeções" para variar cenários |
+| `copilot_chat` | Se o agente em edição tem nicho conhecido, anexa o KB ao contexto |
 
-**Onde marca**
-- No **Monitor ao vivo** e no **viewer de thread** do telemetry: botão de "Fixar" em cada mensagem do assistente.
-- Modal pequeno para anotar o motivo (opcional, 1 linha).
+Actions **não** afetadas: `ping`, `suggest_kb_urls` (URLs externas), `run_evaluation` (avalia output, não gera), `generate_insights` (lê conversas reais).
 
-**Onde revisa**
-- Nova card "Mensagens fixadas para revisão" no painel admin, com: usuário, rota, trecho da resposta, motivo, e link para abrir a thread completa.
-- Botão "Desfixar" e "Marcar como resolvido".
+## 4. Manter intacto
 
-**Banco**
-- Adiciona colunas em `support_chat_messages`: `pinned_at timestamptz`, `pinned_by uuid`, `pinned_note text`, `pinned_resolved boolean`.
-- Apenas super admin pode editar; policy nova com `is_super_admin()`.
+- `NICHE_LABEL` e `DOMINANT_OFFER_HINT` continuam — agora são complementares ao KB, não substituídos.
+- `CORE_RULES`, `LEAD_CONTEXT_CLAUSE`, `MULTI_NICHE_CLAUSE` ficam como estão.
+- `best-practices.md` (manual genérico do Builder) **não muda** — é outro nível (regras de como o Builder se comporta, não conhecimento do negócio do cliente).
+- Sem migration, sem mudança de schema, sem mudança de UI.
 
----
+## 5. Documentação a atualizar
 
-## 2. Resposta humana (takeover do admin)
+- `docs/features/BUILDER_AGENTS.md` — nova seção "KBs de nicho": o que são, onde vivem, como são injetados, como adicionar um novo nicho (passos: criar `.md` → adicionar entry em `NICHE_LABEL` + `DOMINANT_OFFER_HINT` → deploy).
+- `docs/maps/BUILDER_AGENTS.md` §3 (Compartilhado) e §4 — listar `niches/*.md` e o `niche-loader.ts`; §7 (invariantes) — adicionar "KBs de nicho são fonte de verdade do vocabulário/oferta por vertical; o `other.md` é genérico proposital, não popular com nicho específico".
+- `docs/copilot.md` — menção curta de que o copilot herda KB de nicho do agente em edição.
 
-Admin assume a conversa e responde manualmente; a IA fica em silêncio até o admin liberar.
+## 6. Verificação
 
-**Fluxo**
-- No monitor/viewer, cada thread ganha botão **"Assumir conversa"**.
-- Ao assumir: insere `taken_over_by`/`taken_over_at` em `support_chat_threads` e uma mensagem `system` no fim da thread dizendo "Suporte humano entrou na conversa".
-- Enquanto estiver em takeover, o edge function `support-chat` recusa novas chamadas (retorna 423 com mensagem amigável "Um humano está respondendo, aguarde."). O FAB exibe esse estado.
-- Admin envia mensagens via novo edge function `support-admin-reply` → insere registro com `role='assistant'` e flag `tool_name='human'` (não altera o check constraint).
-- Botão **"Devolver pra IA"** limpa o takeover e a IA volta a responder.
+Após implementar:
 
-**No FAB do usuário**
-- Subscription realtime em `support_chat_messages` da thread atual (já tem publicação ligada).
-- Banner discreto no topo do chat: "Você está falando com a equipe de suporte" quando `taken_over_at` está setado.
-- Mensagens com `tool_name='human'` ganham avatar/cor diferenciado.
+1. `rg "loadNicheKb" supabase/functions/ai-builder/index.ts` — confirma uso em 6 actions.
+2. Listar `supabase/functions/_shared/builder-knowledge/niches/` — 12 arquivos.
+3. Teste manual: rodar `interview_plan` com `niche=saas` e conferir nos logs do edge function que o bloco "Conhecimento do nicho: SaaS / Software B2B" aparece no system prompt.
 
-**Banco**
-- Adiciona em `support_chat_threads`: `taken_over_by uuid`, `taken_over_at timestamptz`.
-- Policy de UPDATE em threads: já permite super admin via `is_super_admin()`.
+## Fora do escopo
 
----
-
-## 3. Indicador de saúde da KB
-
-Avisa quando a KB embarcada nas edge functions difere do que está sincronizado no banco.
-
-**Como funciona**
-- O manifesto (`support-kb-manifest.ts`) é gerado no build com `{ path, content }` de cada `.md`.
-- Novo edge function `support-kb-status` (super admin only) que:
-  - Calcula `sha256` de cada arquivo do manifesto.
-  - Lê de `support_documents` o conjunto de hashes únicos por `path` (já existe coluna `hash`).
-  - Retorna: `{ in_sync: number, stale: string[], missing: string[], deleted: string[] }` onde:
-    - `stale` = path existe nos dois mas hash do manifesto não bate.
-    - `missing` = path está no manifesto e não existe no banco.
-    - `deleted` = path está no banco e não no manifesto.
-- O painel admin chama esse endpoint ao carregar.
-- Banner amarelo no card "Base de Conhecimento": "⚠ 3 arquivos mudaram desde a última sync — re-sincronizar".
-- A lista de docs ganha coluna de status (badge "atualizado", "desatualizado", "novo", "removido").
-
----
-
-## Detalhes técnicos
-
-### Migrations (em uma única migration)
-- `ALTER TABLE support_chat_messages ADD COLUMN pinned_at timestamptz, pinned_by uuid REFERENCES auth.users(id) ON DELETE SET NULL, pinned_note text, pinned_resolved boolean NOT NULL DEFAULT false;`
-- `CREATE INDEX support_messages_pinned_idx ON support_chat_messages (pinned_at) WHERE pinned_at IS NOT NULL;`
-- Nova policy `support_messages_super_admin_pin` para `UPDATE` apenas dos campos de pin (super admin).
-- `ALTER TABLE support_chat_threads ADD COLUMN taken_over_by uuid REFERENCES auth.users(id) ON DELETE SET NULL, taken_over_at timestamptz;`
-
-### Edge Functions
-- **`support-admin-reply`** (novo) — valida super admin, insere mensagem `role='assistant'` com `tool_name='human'`, atualiza `updated_at` da thread.
-- **`support-kb-status`** (novo) — calcula diff manifest × DB.
-- **`support-chat`** (edição) — antes de chamar OpenAI, lê `taken_over_at` da thread; se setado, retorna 423.
-
-### Frontend
-- `SupportLiveMonitor.tsx` — botão de pin + botão de takeover por mensagem/thread.
-- `SupportTelemetry.tsx`/`ThreadViewer` — mesmos botões + campo de resposta quando em takeover.
-- Novo `SupportPinsCard.tsx` — lista de pins ativos no painel admin.
-- `SupportPanel.tsx` — banner + coluna de status na tabela de KB; consome `support-kb-status`.
-- `SupportChatFab.tsx` — subscription realtime na thread aberta; banner "humano respondendo"; trata `423` com toast amigável.
-
-### Sem mudança
-- Tipos do Supabase serão regerados após a migration; nenhum arquivo `client.ts`/`types.ts` editado manualmente.
-- Sem rate-limit, sem alteração de pricing/cap.
-
----
-
-## O que entrega
-- Super admin consegue marcar e revisar respostas problemáticas.
-- Super admin pode assumir e responder manualmente qualquer conversa em curso.
-- Super admin vê imediatamente quando a KB do código está fora de sync com o banco.
+- Editor de KB de nicho na UI (continua git-only).
+- Versionamento em DB (não justifica — são estáticos).
+- Tradução / outros idiomas.
+- KB por sub-nicho (ex: "clinic > dermatologia") — se precisar no futuro, refina via DB.
