@@ -9,11 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Plug, Save, RotateCcw } from "lucide-react";
+import { Loader2, RefreshCw, Plug, Save, RotateCcw, Bot, DollarSign, BookOpen, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import SupportTelemetry from "./SupportTelemetry";
 import SupportLiveMonitor from "./SupportLiveMonitor";
 import SupportPinsCard from "./SupportPinsCard";
+import { AdminCard } from "@/layouts/AdminShell";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_PROMPT = `Você é o assistente de suporte do MK-CRM. Responda SEMPRE em PT-BR, direto ao ponto, em passos numerados curtos, como se explicasse para alguém com pouca paciência, zero contexto técnico e dificuldade de atenção. Frases curtas. Um passo por linha. Sem jargão.
 
