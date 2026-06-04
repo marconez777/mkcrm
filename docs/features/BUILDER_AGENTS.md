@@ -205,7 +205,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 **Pegadinhas:**
 - Passo 3 valida com `ping` antes de habilitar "Continuar"; isso evita descobrir chave errada só no passo 5.
 - A chave do agente final é gravada em `ai_agent_drafts.api_key` em texto cru (RLS protege). Quando o agente é criado, ela é movida para `ai_agents.api_key` e o rascunho é apagado.
-- Trocar nicho/objetivo nos passos 1-2 **não** invalida o prompt gerado — se quiser regenerar, use "Gerar do zero" no passo 5.
+- Trocar nicho/objetivo nos passos 1-2 **invalida** o prompt gerado (chama `setBundle(null)` + zera `generated_prompt` no draft). O usuário precisa rodar a entrevista de novo no passo 4.
 - O agente é criado com `enabled=false` + `draft_mode=true`. Ele **não responde leads reais** até o usuário ativar manualmente em `/ai/agents/:id` (toggle "Ativo"). Test Lab e KB Assistant funcionam mesmo com o agente desativado.
 - O nome do agente é editável no passo 5; o wizard sugere automaticamente `"<GOAL> — <NICHO>"` se o campo estiver vazio.
 

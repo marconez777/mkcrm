@@ -338,15 +338,25 @@ export default function Agents() {
   useEffect(() => { load(); }, []);
 
   // Pré-seleciona agente quando vier ?agent=<id> na URL (ex.: vindo do wizard)
+  const [openSections, setOpenSections] = useState<string[]>(["general"]);
   useEffect(() => {
     const target = searchParams.get("agent");
+    const section = searchParams.get("section");
     if (!target || agents.length === 0) return;
     const found = agents.find((a) => a.id === target);
     if (!found) return;
     setSelected(found);
-    // Limpa o param para não re-selecionar a cada render
+    if (section && ["general", "kb", "test", "stages", "costs", "personas"].includes(section)) {
+      setOpenSections((prev) => (prev.includes(section) ? prev : [...prev, section]));
+      // scroll after render
+      setTimeout(() => {
+        document.getElementById(`agent-section-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 250);
+    }
+    // Limpa os params para não re-aplicar a cada render
     const next = new URLSearchParams(searchParams);
     next.delete("agent");
+    next.delete("section");
     setSearchParams(next, { replace: true });
   }, [agents, searchParams, setSearchParams]);
 
@@ -685,7 +695,7 @@ export default function Agents() {
 
 
 
-            <SectionAccordion type="multiple" defaultValue={["general"]} className="space-y-3">
+            <SectionAccordion type="multiple" value={openSections} onValueChange={setOpenSections} className="space-y-3">
               <SectionAccordionItem
                 value="general"
                 icon={SettingsIcon}
@@ -978,6 +988,7 @@ export default function Agents() {
 
               </>)}
               <SectionAccordionItem
+                id="agent-section-kb"
                 value="kb"
                 icon={FileText}
                 title="Base de conhecimento"
@@ -989,6 +1000,7 @@ export default function Agents() {
                   <KbAssistant
                     agentId={selected.id}
                     clinicId={clinicId}
+                    agentNiche={selected.niche}
                     onDocsChanged={async () => {
                       const fresh = await fetchAllPaged<any>(() => supabase
                         .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
@@ -1149,6 +1161,7 @@ export default function Agents() {
 
 
               <SectionAccordionItem
+                id="agent-section-test"
                 value="test"
                 icon={FlaskConical}
                 title="Testar agente"
@@ -1158,6 +1171,7 @@ export default function Agents() {
                   <TestLab
                     agentId={selected.id}
                     clinicId={clinicId}
+                    agentNiche={selected.niche}
                     onPatchToPrompt={(patch) => {
                       setSelected({
                         ...selected,

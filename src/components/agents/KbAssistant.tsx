@@ -14,6 +14,7 @@ import { parseBuilderError } from "@/lib/builder-errors";
 interface Props {
   agentId: string;
   clinicId: string | null;
+  agentNiche?: string | null;
   onDocsChanged: () => void;
 }
 
@@ -43,8 +44,9 @@ const GOAL_OPTS = [
 type UrlSuggestion = { url: string; title: string; reason: string; recommended: boolean };
 type Gap = { topic: string; why: string; severity: "high" | "medium" | "low"; suggestion: string };
 
-export function KbAssistant({ agentId, clinicId, onDocsChanged }: Props) {
-  const [niche, setNiche] = useState("other");
+export function KbAssistant({ agentId, clinicId, agentNiche, onDocsChanged }: Props) {
+  const initialNiche = agentNiche && NICHE_OPTS.some((o) => o.v === agentNiche) ? agentNiche : "other";
+  const [niche, setNiche] = useState(initialNiche);
   const [goal, setGoal] = useState("sdr");
   const [dominantOffer, setDominantOffer] = useState("");
 
