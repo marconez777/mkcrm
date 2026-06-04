@@ -989,6 +989,7 @@ export default function Agents() {
                   <KbAssistant
                     agentId={selected.id}
                     clinicId={clinicId}
+                    agentNiche={selected.niche}
                     onDocsChanged={async () => {
                       const fresh = await fetchAllPaged<any>(() => supabase
                         .from("ai_documents").select("id, title, source, source_type, created_at, metadata")
@@ -1158,6 +1159,7 @@ export default function Agents() {
                   <TestLab
                     agentId={selected.id}
                     clinicId={clinicId}
+                    agentNiche={selected.niche}
                     onPatchToPrompt={(patch) => {
                       setSelected({
                         ...selected,
