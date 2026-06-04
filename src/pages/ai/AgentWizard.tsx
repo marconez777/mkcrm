@@ -28,6 +28,8 @@ import {
   Info,
   Settings as SettingsIcon,
   Power,
+  FileText,
+  FlaskConical,
 } from "lucide-react";
 import {
   Tooltip,
@@ -909,30 +911,60 @@ export default function AgentWizard() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="h-6 w-6" />
             </div>
-            <DialogTitle className="text-center">Agente criado com sucesso!</DialogTitle>
+            <DialogTitle className="text-center">Agente criado!</DialogTitle>
             <DialogDescription className="text-center">
-              Seu agente está pronto, mas ainda está inativo. Ele não vai responder leads até você ativá-lo. Você pode testá-lo agora no Test Lab sem ativar para leads reais.
+              Está inativo — não responde leads até você ativar. Recomendamos completar estes passos antes:
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button
-              variant="outline"
-              disabled={activating}
+
+          <div className="space-y-2 py-2">
+            <button
+              type="button"
               onClick={() => {
                 if (!successAgentId) return;
                 const id = successAgentId;
                 setSuccessAgentId(null);
-                nav(`/ai/agents?agent=${id}`);
+                nav(`/ai/agents?agent=${id}&section=kb`);
               }}
+              className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
             >
-              Ver agente sem ativar
-            </Button>
-            <Button
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-info/15 text-info">
+                <FileText className="h-4 w-4" />
+              </span>
+              <div className="flex-1">
+                <div className="text-sm font-medium">1. Adicionar base de conhecimento</div>
+                <div className="text-xs text-muted-foreground">Cole o site, FAQ ou docs para o agente saber o que dizer.</div>
+              </div>
+              <ArrowRight className="mt-2 h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!successAgentId) return;
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}&section=test`);
+              }}
+              className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
+            >
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <FlaskConical className="h-4 w-4" />
+              </span>
+              <div className="flex-1">
+                <div className="text-sm font-medium">2. Rodar testes no Test Lab</div>
+                <div className="text-xs text-muted-foreground">Veja o agente respondendo cenários simulados sem risco.</div>
+              </div>
+              <ArrowRight className="mt-2 h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
               disabled={activating}
               onClick={async () => {
                 if (!successAgentId) return;
@@ -951,9 +983,32 @@ export default function AgentWizard() {
                 setSuccessAgentId(null);
                 nav(`/ai/agents?agent=${id}`);
               }}
+              className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/5 disabled:opacity-60"
             >
-              {activating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Power className="mr-1 h-4 w-4" />}
-              Ativar agente agora
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                {activating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+              </span>
+              <div className="flex-1">
+                <div className="text-sm font-medium">3. Ativar agora (pular passos acima)</div>
+                <div className="text-xs text-muted-foreground">O agente começa a responder leads reais imediatamente.</div>
+              </div>
+              <ArrowRight className="mt-2 h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          <DialogFooter className="sm:justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={activating}
+              onClick={() => {
+                if (!successAgentId) return;
+                const id = successAgentId;
+                setSuccessAgentId(null);
+                nav(`/ai/agents?agent=${id}`);
+              }}
+            >
+              Ver agente sem fazer nada
             </Button>
           </DialogFooter>
         </DialogContent>
