@@ -69,6 +69,7 @@ const NAV: NavGroup[] = [
     title: "Plataforma",
     items: [
       { to: "/admin/integrations", label: "Integrações", icon: Plug },
+      { to: "/admin/integrations/eduzz", label: "Eduzz", icon: ShoppingCart },
       { to: "/admin/audit", label: "Auditoria", icon: ShieldCheck },
       { to: "/admin/builder-manual", label: "Manual do Builder", icon: BookOpen },
       { to: "/admin/branding", label: "Whitelabel", icon: Palette },
