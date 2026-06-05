@@ -1955,6 +1955,68 @@ export type Database = {
           },
         ]
       }
+      eduzz_purchases: {
+        Row: {
+          cli_email: string | null
+          cli_name: string | null
+          cli_taxnumber: string | null
+          clinic_id: string | null
+          cnt_cod: string | null
+          created_at: string
+          error_msg: string | null
+          fat_cod: string | null
+          fat_status: number | null
+          id: string
+          payload: Json
+          plan_code: string
+          processed_status: string
+          type: string
+          valor: number | null
+        }
+        Insert: {
+          cli_email?: string | null
+          cli_name?: string | null
+          cli_taxnumber?: string | null
+          clinic_id?: string | null
+          cnt_cod?: string | null
+          created_at?: string
+          error_msg?: string | null
+          fat_cod?: string | null
+          fat_status?: number | null
+          id?: string
+          payload?: Json
+          plan_code: string
+          processed_status?: string
+          type: string
+          valor?: number | null
+        }
+        Update: {
+          cli_email?: string | null
+          cli_name?: string | null
+          cli_taxnumber?: string | null
+          clinic_id?: string | null
+          cnt_cod?: string | null
+          created_at?: string
+          error_msg?: string | null
+          fat_cod?: string | null
+          fat_status?: number | null
+          id?: string
+          payload?: Json
+          plan_code?: string
+          processed_status?: string
+          type?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eduzz_purchases_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_automation_enrollments: {
         Row: {
           automation_id: string
