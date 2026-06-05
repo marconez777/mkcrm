@@ -79,3 +79,7 @@ verify_jwt = false
 
 [functions.agent-followups-tick]
 verify_jwt = false
+
+[functions.eduzz-webhook]
+verify_jwt = false
+
