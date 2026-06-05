@@ -18,7 +18,7 @@ import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
 
 function slugify(s: string) {
