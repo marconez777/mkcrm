@@ -18,7 +18,7 @@ import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any> };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
 
 function slugify(s: string) {
@@ -54,11 +54,13 @@ export default function AdminClinics() {
 
   async function load() {
     try {
-      const [cs, { data: ps }] = await Promise.all([
+      const [cs, { data: ps }, subs] = await Promise.all([
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
+        fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
       ]);
-      setClinics(cs as any);
+      const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
+      setClinics((cs as any[]).map((c) => ({ ...c, grant_reason: reasonMap.get(c.id) ?? null })) as any);
       setPlans((ps as any) ?? []);
     } catch (e: any) { toast.error(e.message); }
   }
@@ -286,13 +288,14 @@ export default function AdminClinics() {
                 <TableHead>Clínica</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Plano</TableHead>
+                <TableHead>Motivo</TableHead>
                 <TableHead>Recursos</TableHead>
                 <TableHead>Criada</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
               {filtered.map((c) => (
                 <TableRow key={c.id} className="border-admin-border group">
                   <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
@@ -314,6 +317,7 @@ export default function AdminClinics() {
                     </span>
                   </TableCell>
                   <TableCell><Badge variant="outline" className="border-admin-border text-admin-text-muted font-normal">{c.plan}</Badge></TableCell>
+                  <TableCell className="text-xs text-admin-text-muted max-w-[180px] truncate" title={c.grant_reason ?? ""}>{c.grant_reason || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 text-xs text-admin-text-muted">
                       <div className="h-1 w-12 rounded-full bg-admin-surface-2 overflow-hidden">
