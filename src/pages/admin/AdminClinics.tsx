@@ -54,11 +54,13 @@ export default function AdminClinics() {
 
   async function load() {
     try {
-      const [cs, { data: ps }] = await Promise.all([
+      const [cs, { data: ps }, subs] = await Promise.all([
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
+        fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
       ]);
-      setClinics(cs as any);
+      const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
+      setClinics((cs as any[]).map((c) => ({ ...c, grant_reason: reasonMap.get(c.id) ?? null })) as any);
       setPlans((ps as any) ?? []);
     } catch (e: any) { toast.error(e.message); }
   }
