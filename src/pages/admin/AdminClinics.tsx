@@ -288,13 +288,14 @@ export default function AdminClinics() {
                 <TableHead>Clínica</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Plano</TableHead>
+                <TableHead>Motivo</TableHead>
                 <TableHead>Recursos</TableHead>
                 <TableHead>Criada</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
               {filtered.map((c) => (
                 <TableRow key={c.id} className="border-admin-border group">
                   <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
