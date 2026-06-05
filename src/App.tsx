@@ -25,6 +25,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminClinics = lazy(() => import("./pages/admin/AdminClinics"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminBranding = lazy(() => import("./pages/admin/AdminBranding"));
+const AdminEduzz = lazy(() => import("./pages/admin/AdminEduzz"));
 const AdminPlans = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminPlans })));
 const AdminUsage = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminUsage })));
 const AdminFinance = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminFinance })));
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="audit" element={<Suspense fallback={<AdminFallback />}><AdminAudit /></Suspense>} />
               <Route path="builder-manual" element={<Suspense fallback={<AdminFallback />}><AdminBuilderManual /></Suspense>} />
               <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
+              <Route path="integrations/eduzz" element={<Suspense fallback={<AdminFallback />}><AdminEduzz /></Suspense>} />
             </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
