@@ -317,6 +317,7 @@ export default function AdminClinics() {
                     </span>
                   </TableCell>
                   <TableCell><Badge variant="outline" className="border-admin-border text-admin-text-muted font-normal">{c.plan}</Badge></TableCell>
+                  <TableCell className="text-xs text-admin-text-muted max-w-[180px] truncate" title={c.grant_reason ?? ""}>{c.grant_reason || "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 text-xs text-admin-text-muted">
                       <div className="h-1 w-12 rounded-full bg-admin-surface-2 overflow-hidden">
