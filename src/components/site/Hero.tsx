@@ -63,7 +63,7 @@ export default function Hero() {
         }}
         animate={{ x: [0, 0, 25, 0, 0, 0], y: [0, -20, 0, 20, 0, 0] }}
         transition={{
-          duration: 12,
+          duration: 6,
           times: [0, 0.2, 0.4, 0.6, 0.8, 0.92],
           repeat: Infinity,
           ease: "easeInOut",
@@ -78,7 +78,7 @@ export default function Hero() {
         }}
         animate={{ x: [0, 0, -25, 0, 0, 0], y: [0, 20, 0, -20, 0, 0] }}
         transition={{
-          duration: 12,
+          duration: 6,
           times: [0, 0.2, 0.4, 0.6, 0.8, 0.92],
           repeat: Infinity,
           ease: "easeInOut",
