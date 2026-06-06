@@ -1,78 +1,41 @@
-# Lockout progressivo no login
 
-Recriar do zero o bloqueio por tentativas erradas, agora **só conta erros reais** (sem os bugs que travavam usuário sem motivo) e com **escala progressiva** que zera ao acertar a senha.
+## Objetivo
 
-## Regra de bloqueio
+Substituir todas as ocorrências **visíveis ao usuário** da marca "MK-CRM" por **"Chat Funnel AI"** em todo o projeto.
 
-Contador por **email** (normalizado em lowercase). Cada senha errada incrementa; cada login bem-sucedido **zera tudo**.
+## Arquivos que serão alterados (14)
 
-| Faixa de erros | Ação |
-|---|---|
-| 1–4 erros | nada, só conta |
-| 5º erro | bloqueia por **10 min** |
-| 10º erro (mais 5) | bloqueia por **1 hora** |
-| 13º erro (mais 3) | bloqueia por **12 horas** |
-| Após o bloqueio de 12h expirar | zera o contador e volta para a faixa 1 |
+### Site institucional (textos visíveis)
+- `src/pages/site/MarketingSite.tsx` — `document.title` ("MK-CRM · CRM com WhatsApp…")
+- `src/components/site/SiteNav.tsx` — logo + alt
+- `src/components/site/SiteFooter.tsx` — logo, alt, copyright
+- `src/components/site/Hero.tsx` — alt da escultura 3D ("…inteligência do MK-CRM")
+- `src/components/site/Marquee.tsx` — aria-label "Recursos do MK-CRM"
+- `src/components/site/About.tsx` — badge "Sobre o MK-CRM", aria-label, "Por que MK-CRM"
+- `src/components/site/Features.tsx` — headline "Por que MK-CRM" + aria-label
+- `src/components/site/Capabilities.tsx` — aria-label "Tudo o que vem dentro do MK-CRM"
+- `src/components/site/Testimonials.tsx` — referências de copy (mesmo comentada hoje, vou atualizar)
+- `src/components/site/Blog.tsx` — referências de copy
 
-Bloqueio ativo: qualquer tentativa (mesmo com senha certa) é rejeitada com mensagem "Conta temporariamente bloqueada. Tente novamente em X min." — **a senha correta só desbloqueia depois que o tempo do bloqueio atual passar**, aí o login zera o contador.
+### App autenticado
+- `src/components/AppShell.tsx` — logo da sidebar (texto + alt)
+- `src/components/admin/SupportPanel.tsx` — prompt do assistente ("Você é o assistente de suporte do MK-CRM…")
+- `src/components/support/SupportChatFab.tsx` — header do export de conversa ("Conversa MK-CRM Suporte")
+- `src/pages/SettingsForms.tsx` — label do botão "Baixar mk-crm-forms.zip" → "chat-funnel-ai-forms.zip"
 
-Mensagens de erro continuam neutras (sem dizer "email não existe").
+## NÃO serão alterados (intencional)
 
-## Arquitetura
+Itens técnicos que quebrariam se renomeados — mantidos como estão:
 
-```text
-UI Auth.tsx
-   │ submit
-   ▼
-edge function `auth-login` (verify_jwt=false, service_role)
-   │ 1. lê auth_lockouts pelo email
-   │ 2. se locked_until > now() → retorna 423 + tempo restante
-   │ 3. chama supabase.auth.signInWithPassword (server-side, só pra validar)
-   │ 4a. erro → incrementa failed_attempts, calcula novo locked_until
-   │ 4b. ok  → zera linha, devolve { session } pro cliente
-   ▼
-UI faz supabase.auth.setSession(session) e segue o fluxo normal
-```
+- `src/lib/app-url.ts` — comentário menciona `mkcrm.lovable.app` (URL real de deploy publicado). A URL do Lovable não muda só porque o nome muda.
+- `src/pages/SettingsForms.tsx:624` — identificador `mkcrm` dentro do snippet de integração JS (provável `window.mkcrm` que sites de clientes já usam). Mudar quebraria integrações ativas.
+- Nome do projeto em `package.json`, paths como `src/assets/mk-logo.png`, nomes de arquivos/pastas — são identificadores internos, não afetam UX.
+- Domínios reais (`crm.mkart.com.br`, `mkcrm.lovable.app`).
 
-A senha trafega só do cliente → edge function (HTTPS) → Supabase Auth, igual hoje. Nenhum hash é guardado na nossa tabela.
+## Pontos para confirmar antes de eu executar
 
-## Banco
+1. **Logo (`src/assets/mk-logo.png`)** — fica o mesmo arquivo de imagem ou você vai me passar um logo novo do "Chat Funnel AI"? Por padrão **mantenho o arquivo atual** e só troco o texto/alt ao lado.
+2. **Nome do filename de download** (`mk-crm-forms.zip` → `chat-funnel-ai-forms.zip`) — só muda o label do botão; o arquivo zip real (se gerado em outro lugar) não é tocado.
+3. **Identificador do snippet `mkcrm`** em SettingsForms — confirmo que mantenho? (recomendo manter pra não quebrar quem já instalou).
 
-Migration nova:
-
-- Recriar `public.auth_lockouts`:
-  - `email text primary key` (lowercase)
-  - `failed_attempts int not null default 0`
-  - `locked_until timestamptz null`
-  - `last_failed_at timestamptz null`
-  - `created_at`, `updated_at`
-- RLS ON, **sem policies para authenticated/anon** (tabela é só para service_role). GRANT só para `service_role`.
-- Função auxiliar `public.register_failed_login(_email text)` e `public.clear_lockout(_email text)` em SECURITY DEFINER, chamadas pela edge function via RPC (mantém a lógica de faixas no banco, fácil de auditar).
-- A action `unlock` em `admin-user-action` volta a funcionar (DELETE na linha pelo email do user).
-
-## Edge function `auth-login`
-
-Nova função em `supabase/functions/auth-login/index.ts`:
-
-- CORS + validação Zod `{ email, password }`.
-- Normaliza email.
-- RPC `check_lockout(email)` → se bloqueado, responde 423 com `retry_after_seconds`.
-- Tenta `signInWithPassword` usando client com **anon key** (não service role, pra respeitar o auth normal).
-- Sucesso → RPC `clear_lockout(email)` → retorna `{ session }`.
-- Falha de credencial → RPC `register_failed_login(email)` → retorna 401 neutro. Outros erros (rate limit nativo, etc.) repassa.
-
-## Frontend
-
-`src/pages/Auth.tsx`:
-
-- Trocar `supabase.auth.signInWithPassword` por `supabase.functions.invoke('auth-login', { body: { email, password } })`.
-- Se a resposta vier com `session`, chamar `supabase.auth.setSession({ access_token, refresh_token })` e navegar.
-- Se status 423, mostrar toast "Conta bloqueada por tentativas. Tente novamente em X min" usando `retry_after_seconds`.
-- Demais erros: toast neutro "Email ou senha inválidos".
-
-`docs/architecture/AUTH.md` atualizado: tabela voltou, fluxo agora passa pela edge function, tabela de faixas progressivas.
-
-## Fora do escopo
-
-- CAPTCHA, MFA, alerta de novo login, HIBP — ficam para depois (já listados na avaliação anterior).
-- Não mexe em reset de senha nem em Google OAuth (ainda não configurado).
+Posso seguir com essas premissas, ou você quer ajustar alguma?
