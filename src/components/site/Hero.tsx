@@ -76,7 +76,7 @@ export default function Hero() {
           background:
             "radial-gradient(45% 40% at 80% 70%, hsl(var(--site-primary) / 0.18) 0%, transparent 60%)",
         }}
-        animate={{ x: [0, 0, -25, 0, 0, 0], y: [0, 20, 0, -20, 0, 0] }}
+        animate={{ x: [0, 0, -120, 0, 0, 0], y: [0, 90, 0, -90, 0, 0] }}
         transition={{
           duration: 6,
           times: [0, 0.2, 0.4, 0.6, 0.8, 0.92],
