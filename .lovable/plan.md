@@ -1,83 +1,27 @@
-## Integração Eduzz — webhook por plano
+Adicionar o fundo gradiente (variante demo.tsx — slate-950 com radial roxo/verde) atrás da seção "Sobre o MK-CRM" em `src/components/site/About.tsx`.
 
-Cada produto na Eduzz tem o seu próprio campo "Entrega Customizada". Então vamos gerar **uma URL diferente pra cada plano**. Você cola a URL do Pro no produto Pro da Eduzz, a URL do Supreme no produto Supreme, etc.
+## O que muda
 
----
+- `src/components/site/About.tsx`:
+  - Trocar `bg-site-bg` da `<section>` por classes de fundo escuro + camadas radiais absolutas.
+  - Adicionar dois `<div aria-hidden>` posicionados absolutamente dentro da section com os radial-gradients do snippet.
+  - Garantir `position: relative` e `overflow-hidden` na section para conter as camadas.
+  - Manter todo o conteúdo (pillars, headline, copy) inalterado — apenas o background da seção é afetado.
 
-### Como vai funcionar
+## Detalhes técnicos
 
-URLs assim (uma por plano):
+A section ficará assim (estrutura):
+
+```text
+<section relative overflow-hidden bg-slate-950>
+  <div absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(139,92,246,0.35),transparent)] />
+  <div absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_90%,rgba(34,197,94,0.2),transparent)] />
+  <div relative ...> {/* conteúdo existente */} </div>
+</section>
 ```
-https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/eduzz-webhook/pro
-https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1/eduzz-webhook/supreme
-```
 
-O plano vai no **path** (`/pro`, `/supreme`). Vantagem: zero configuração de produto — você só copia a URL certa pro produto certo na Eduzz.
+Não usamos a versão `fixed inset-0 -z-10` do snippet porque queremos o fundo **somente na seção Sobre**, não no site inteiro. Por isso adapto para `absolute` dentro da própria section.
 
-Fluxo quando alguém compra:
-1. Cliente paga no checkout da Eduzz.
-2. Eduzz manda POST pra URL do plano (ex.: `/pro`) com email, nome, CPF, valor, etc.
-3. Sistema:
-   - Lê o `code` do plano do path (`pro`, `supreme`, ...).
-   - Valida `edz_cli_origin_secret` contra `EDUZZ_ORIGIN_SECRET`.
-   - Confere `fat_status=3` (Paga) e `type=create`.
-   - Procura cliente pelo email:
-     - **Já tem conta** → ativa o plano na clínica existente.
-     - **Email novo** → cria clínica + manda convite por email (clínica já no plano correto).
-   - Se `type=remove` (reembolso/cancelamento/atraso) → volta clínica pra Free.
-4. Registra tudo em `eduzz_purchases`.
-5. Sempre responde HTTP 200.
+Observação: o snippet usa cores hex/rgba diretas (fora do design system de tokens). Como é um efeito decorativo pontual pedido pelo usuário, mantenho os valores do snippet. Se preferir tokenizar (`--site-accent`, `--site-primary`) depois, é só pedir.
 
----
-
-### O que será construído
-
-**1. Migration — 1 tabela**
-- `eduzz_purchases`: `plan_code`, `fat_cod`, `cnt_cod`, `cli_email`, `cli_name`, `cli_taxnumber`, `type`, `fat_status`, `valor`, `clinic_id`, `payload` (jsonb), `processed_status` (`ok`/`ignored`/`error`), `error_msg`. Único `(fat_cod, cnt_cod, type)` → idempotência. RLS só super_admin.
-
-(Não precisa mais de `eduzz_product_plans` — plano vem pela URL.)
-
-**2. Edge function `eduzz-webhook`** (pública, sem JWT)
-- Lê `plan_code` do path (último segmento). Valida que existe em `plans.code` e que `is_public=true` (ou inclui free). Sem match → 200 + log `error:invalid_plan`.
-- Valida `origin_secret` (constant-time). Falhou → 200 + log `error:bad_secret`.
-- Idempotência via unique constraint (`ON CONFLICT DO NOTHING`).
-- Order bump (`edz_order_bump_item=true`) → `ignored:order_bump`.
-- `type=create` + `fat_status=3`:
-  - Email existe → atualiza `clinics.plan_id` + nova `clinic_subscriptions` (`source='eduzz'`, metadata com `fat_cod`).
-  - Email novo → cria auth user + clínica + membership owner + aplica plano. Convite vai por email automaticamente.
-- `type=remove` → aplica `free` na clínica; marca subscription como `canceled`.
-- Sempre 200; erros tratados viram linha em `eduzz_purchases` com motivo.
-
-**3. Helper `_shared/apply-plan.ts`** — extrai lógica de aplicar plano (hoje em `admin-apply-plan`) pra reusar.
-
-**4. Tela `/admin/integrations/eduzz`** (nova entrada no AdminShell)
-- Card **URLs por plano**: lista todos os planos públicos com URL pronta + botão copiar pra cada um.
-  ```
-  Pro      → https://.../eduzz-webhook/pro      [copiar]
-  Supreme  → https://.../eduzz-webhook/supreme  [copiar]
-  ```
-- Card **Origin Secret**: status + botão "Configurar".
-- Card **Compras recebidas** (últimas 100): plano, email, valor, status, data; tooltip com motivo; botão "reprocessar" em erros.
-
-**5. Secret `EDUZZ_ORIGIN_SECRET`** — vou pedir pra você colar (pega em https://orbita.eduzz.com/producer/config-api).
-
----
-
-### O que VOCÊ vai fazer depois
-
-1. Colar a `origin_secret` quando eu pedir.
-2. Abrir a tela `/admin/integrations/eduzz`, copiar a URL de cada plano.
-3. Na Eduzz: pra cada produto (Pro, Supreme...), abrir "Entrega Customizada", colar a URL correspondente, salvar.
-4. Fazer uma venda de teste pra ver chegando na tela de compras.
-
----
-
-### Detalhes técnicos
-- URL final tem o plano no path: `/functions/v1/eduzz-webhook/<plan_code>`.
-- Sem JWT (público — Eduzz não manda auth header).
-- Criação de clínica reusa lógica do `clinic-create-user`.
-
-### Fora do escopo
-- Sincronização contínua de status de contrato (assinaturas) além de create/remove.
-- Validação alternativa via `sid`/`nsid`.
-- Multi-produtor.
+Nenhum arquivo novo, nenhuma dependência nova.
