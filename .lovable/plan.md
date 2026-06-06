@@ -1,27 +1,23 @@
-Adicionar o fundo gradiente (variante demo.tsx — slate-950 com radial roxo/verde) atrás da seção "Sobre o MK-CRM" em `src/components/site/About.tsx`.
+Aplicar o mesmo background da seção "Sobre o MK-CRM" na seção "Tudo o que vem dentro" (`src/components/site/Capabilities.tsx`), girado 90° (vertical em vez de horizontal).
 
 ## O que muda
 
-- `src/components/site/About.tsx`:
-  - Trocar `bg-site-bg` da `<section>` por classes de fundo escuro + camadas radiais absolutas.
-  - Adicionar dois `<div aria-hidden>` posicionados absolutamente dentro da section com os radial-gradients do snippet.
-  - Garantir `position: relative` e `overflow-hidden` na section para conter as camadas.
-  - Manter todo o conteúdo (pillars, headline, copy) inalterado — apenas o background da seção é afetado.
+- `src/components/site/Capabilities.tsx`:
+  - Remover os dois `<AuroraBlob>` decorativos atuais (canto superior-esquerdo e inferior-direito).
+  - Adicionar duas camadas radiais absolutas iguais às do `About.tsx`, mas com o eixo trocado:
+    - Esquerda (no lugar do "topo"): roxo `hsl(var(--site-accent-glow) / 0.45)` — elipse com eixo maior na vertical, posicionada em `-10% 50%`.
+    - Direita (no lugar do "fundo"): verde `hsl(var(--site-primary) / 0.22)` — elipse vertical em `110% 50%` (equivalente a `90% 50%` espelhado, ficando na borda direita).
+  - Manter `bg-site-surface` (fundo levemente diferente do About, preservando contraste entre seções) e o restante do conteúdo intacto.
 
 ## Detalhes técnicos
 
-A section ficará assim (estrutura):
+Sintaxe das camadas (rotação 90°: trocar largura/altura do `ellipse` e mover o foco do eixo Y para o eixo X):
 
 ```text
-<section relative overflow-hidden bg-slate-950>
-  <div absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(139,92,246,0.35),transparent)] />
-  <div absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_90%,rgba(34,197,94,0.2),transparent)] />
-  <div relative ...> {/* conteúdo existente */} </div>
-</section>
+radial-gradient(ellipse 70% 90% at -10% 50%, hsl(var(--site-accent-glow) / 0.45), transparent)
+radial-gradient(ellipse 50% 70% at 110% 50%, hsl(var(--site-primary) / 0.22), transparent)
 ```
 
-Não usamos a versão `fixed inset-0 -z-10` do snippet porque queremos o fundo **somente na seção Sobre**, não no site inteiro. Por isso adapto para `absolute` dentro da própria section.
-
-Observação: o snippet usa cores hex/rgba diretas (fora do design system de tokens). Como é um efeito decorativo pontual pedido pelo usuário, mantenho os valores do snippet. Se preferir tokenizar (`--site-accent`, `--site-primary`) depois, é só pedir.
+Import de `AuroraBlob` continua sendo usado em outras seções? Vou verificar; se este arquivo for o único consumidor da importação, removo o import também. Se for compartilhado, só removo o uso.
 
 Nenhum arquivo novo, nenhuma dependência nova.
