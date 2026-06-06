@@ -54,12 +54,34 @@ export default function Hero() {
       className="relative isolate overflow-hidden bg-site-bg"
     >
       {/* Glow ambiente roxo + verde */}
-      <div
+      <motion.div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(60% 50% at 20% 30%, hsl(var(--site-accent) / 0.55) 0%, transparent 60%), radial-gradient(45% 40% at 80% 70%, hsl(var(--site-primary) / 0.18) 0%, transparent 60%)",
+            "radial-gradient(60% 50% at 20% 30%, hsl(var(--site-accent) / 0.55) 0%, transparent 60%)",
+        }}
+        animate={{ x: [0, 0, 25, 0, 0, 0], y: [0, -20, 0, 20, 0, 0] }}
+        transition={{
+          duration: 12,
+          times: [0, 0.2, 0.4, 0.6, 0.8, 0.92],
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(45% 40% at 80% 70%, hsl(var(--site-primary) / 0.18) 0%, transparent 60%)",
+        }}
+        animate={{ x: [0, 0, -25, 0, 0, 0], y: [0, 20, 0, -20, 0, 0] }}
+        transition={{
+          duration: 12,
+          times: [0, 0.2, 0.4, 0.6, 0.8, 0.92],
+          repeat: Infinity,
+          ease: "easeInOut",
         }}
       />
       {/* Grid sutil */}
