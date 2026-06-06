@@ -137,7 +137,7 @@ export default function SupportChatFab() {
       const tag = m.role === "user" ? "VOCÊ" : "ALFRED";
       return `### ${tag}\n${m.content}\n`;
     });
-    const header = `# Conversa MK-CRM Suporte\n${new Date().toLocaleString("pt-BR")}\nThread: ${threadId ?? "—"}\n\n---\n\n`;
+    const header = `# Conversa Chat Funnel AI Suporte\n${new Date().toLocaleString("pt-BR")}\nThread: ${threadId ?? "—"}\n\n---\n\n`;
     const blob = new Blob([header + lines.join("\n")], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

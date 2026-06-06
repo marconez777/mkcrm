@@ -72,7 +72,7 @@ export default function Testimonials() {
               className="text-site-primary"
               style={{ textShadow: "0 0 22px hsl(var(--site-primary) / 0.35)" }}
             >
-              MK-CRM
+              Chat Funnel AI
             </span>
             .
           </motion.h2>

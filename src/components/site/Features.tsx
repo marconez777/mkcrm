@@ -63,7 +63,7 @@ export default function Features() {
               color: "transparent",
               WebkitTextStroke: "1.5px hsl(var(--site-accent-glow) / 0.55)",
             }}
-            aria-label="Por que MK-CRM"
+            aria-label="Por que Chat Funnel AI"
             initial="hidden"
             whileInView="show"
             viewport={viewportOnce}
@@ -78,7 +78,7 @@ export default function Features() {
                   "0 0 28px hsl(var(--site-accent-glow) / 0.45)",
               }}
             >
-              MK-CRM
+              Chat Funnel AI
             </span>
           </motion.h2>
           <motion.p
@@ -106,7 +106,7 @@ export default function Features() {
               <div className="relative aspect-[5/4] overflow-hidden bg-site-bg">
                 <img
                   src={c.img}
-                  alt={`Mockup do produto MK-CRM mostrando ${c.title}`}
+                  alt={`Mockup do produto Chat Funnel AI mostrando ${c.title}`}
                   loading="lazy"
                   width={1024}
                   height={1024}

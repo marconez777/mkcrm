@@ -29,7 +29,7 @@ function Row() {
 export default function Marquee() {
   return (
     <section
-      aria-label="Recursos do MK-CRM"
+      aria-label="Recursos do Chat Funnel AI"
       className="relative isolate overflow-hidden border-y border-site-primary/40 bg-site-primary py-5"
     >
       <div className="site-marquee-track">

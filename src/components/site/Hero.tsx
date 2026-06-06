@@ -50,7 +50,7 @@ export default function Hero() {
   return (
     <section
       id="hero"
-      aria-label="Apresentação do MK-CRM"
+      aria-label="Apresentação do Chat Funnel AI"
       className="relative isolate overflow-hidden bg-site-bg"
     >
       {/* Glow ambiente roxo + verde */}
@@ -158,7 +158,7 @@ export default function Hero() {
           />
           <motion.img
             src={hero3d}
-            alt="Escultura 3D abstrata representando a inteligência do MK-CRM"
+            alt="Escultura 3D abstrata representando a inteligência do Chat Funnel AI"
             width={1024}
             height={1024}
             className="h-auto w-full select-none drop-shadow-[0_30px_60px_rgba(30,212,0,0.18)]"

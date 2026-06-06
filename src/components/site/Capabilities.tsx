@@ -93,7 +93,7 @@ export default function Capabilities() {
     <section
       ref={sectionRef}
       id="capacidades"
-      aria-label="Tudo o que vem dentro do MK-CRM"
+      aria-label="Tudo o que vem dentro do Chat Funnel AI"
       className="relative overflow-hidden border-t border-white/5 bg-site-surface py-24 sm:py-32"
     >
       <motion.div

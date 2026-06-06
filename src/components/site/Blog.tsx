@@ -12,7 +12,7 @@ const POSTS = [
   {
     tag: "Novidade",
     icon: Sparkles,
-    title: "Agentes de IA chegam ao MK-CRM com orçamento controlado",
+    title: "Agentes de IA chegam ao Chat Funnel AI com orçamento controlado",
     read: "4 min de leitura",
   },
   {

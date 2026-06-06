@@ -317,7 +317,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                   <div className="space-y-2 text-sm">
                     <p className="font-medium">1. Baixe o plugin</p>
                     <a href={PLUGIN_URL} download>
-                      <Button variant="outline"><Download className="mr-2 h-4 w-4" />Baixar mk-crm-forms.zip</Button>
+                      <Button variant="outline"><Download className="mr-2 h-4 w-4" />Baixar chat-funnel-ai-forms.zip</Button>
                     </a>
                     <p className="font-medium pt-2">2. No WordPress</p>
                     <ul className="list-disc pl-5 text-muted-foreground space-y-1">
