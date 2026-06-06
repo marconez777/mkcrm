@@ -31,11 +31,30 @@ export default function AuthPage() {
     if (!email || !password) return;
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
+      const { data, error } = await supabase.functions.invoke("auth-login", {
+        body: { email: email.trim().toLowerCase(), password },
       });
-      if (error) throw error;
+      // supabase.functions.invoke surfaces non-2xx as FunctionsHttpError, but the JSON body
+      // ainda chega no error.context — tentamos ler de ambos.
+      const payload: any = data ?? (await (error as any)?.context?.json?.().catch(() => null));
+
+      if (payload?.error === "locked") {
+        const secs = Number(payload.retry_after_seconds ?? 0);
+        const mins = Math.ceil(secs / 60);
+        const human = mins >= 60 ? `${Math.ceil(mins / 60)} h` : `${mins} min`;
+        toast.error(`Conta bloqueada por excesso de tentativas. Tente novamente em ${human}.`);
+        return;
+      }
+      if (error || !payload?.ok || !payload?.session) {
+        toast.error("Email ou senha inválidos.");
+        return;
+      }
+
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: payload.session.access_token,
+        refresh_token: payload.session.refresh_token,
+      });
+      if (setErr) throw setErr;
       nav(from, { replace: true });
     } catch (err: any) {
       toast.error(err?.message ?? "Falha na autenticação");
