@@ -25,15 +25,23 @@ export default function About() {
     <section
       id="sobre"
       aria-label="Sobre o MK-CRM"
-      className="relative overflow-hidden bg-slate-950 py-24 sm:py-32"
+      className="relative overflow-hidden bg-site-bg py-24 sm:py-32"
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_-10%,rgba(139,92,246,0.35),transparent)]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 70% at 50% -10%, hsl(var(--site-accent-glow) / 0.45), transparent)",
+        }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_90%,rgba(34,197,94,0.2),transparent)]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 50% at 50% 90%, hsl(var(--site-primary) / 0.22), transparent)",
+        }}
       />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid items-end gap-10 md:grid-cols-[1fr_1.1fr]">
