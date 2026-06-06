@@ -1254,6 +1254,33 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_lockouts: {
+        Row: {
+          created_at: string
+          email: string
+          failed_attempts: number
+          last_failed_at: string | null
+          locked_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          failed_attempts?: number
+          last_failed_at?: string | null
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          failed_attempts?: number
+          last_failed_at?: string | null
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       automation_runs: {
         Row: {
           appointment_at: string | null
@@ -6547,6 +6574,14 @@ export type Database = {
       }
       check_ai_spend_status: { Args: { p_clinic_id: string }; Returns: Json }
       check_email_operational_health: { Args: never; Returns: undefined }
+      check_login_lockout: {
+        Args: { _email: string }
+        Returns: {
+          failed_attempts: number
+          locked: boolean
+          retry_after_seconds: number
+        }[]
+      }
       claim_domain_warmup: {
         Args: { _clinic_id: string; _domain: string }
         Returns: {
@@ -6578,6 +6613,7 @@ export type Database = {
       cleanup_agent_caches: { Args: never; Returns: undefined }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
+      clear_login_lockout: { Args: { _email: string }; Returns: undefined }
       clinic_email_quota: { Args: { _clinic_id: string }; Returns: number }
       clinic_has_feature: {
         Args: { _clinic_id: string; _key: string }
@@ -6779,6 +6815,14 @@ export type Database = {
       }
       reactivate_ai_spend: { Args: { p_clinic_id: string }; Returns: Json }
       refresh_email_metrics_daily: { Args: { _days?: number }; Returns: number }
+      register_failed_login: {
+        Args: { _email: string }
+        Returns: {
+          failed_attempts: number
+          locked: boolean
+          retry_after_seconds: number
+        }[]
+      }
       release_domain_warmup: {
         Args: { _clinic_id: string; _domain: string }
         Returns: undefined
