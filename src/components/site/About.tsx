@@ -24,7 +24,7 @@ export default function About() {
   return (
     <section
       id="sobre"
-      aria-label="Sobre o MK-CRM"
+      aria-label="Sobre o Chat Funnel AI"
       className="relative overflow-hidden bg-site-bg py-24 sm:py-32"
     >
       <div
@@ -53,7 +53,7 @@ export default function About() {
           >
             <span className="site-font-body inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-[15px] text-site-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-site-primary" />
-              Sobre o MK-CRM
+              Sobre o Chat Funnel AI
             </span>
             <h2 className="site-font-display mt-6 text-[clamp(32px,4.5vw,56px)] font-bold leading-[1.05] tracking-tight text-site-text">
               Um CRM dedicado a quem

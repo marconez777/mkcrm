@@ -39,8 +39,8 @@ export default function SiteFooter() {
         <div className="grid gap-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <Link to="/site" className="flex items-center gap-2 text-site-text">
-              <img src={mkLogo} alt="MK-CRM" className="h-8 w-8 rounded-lg object-cover" />
-              <span className="site-font-display text-base font-semibold">MK-CRM</span>
+              <img src={mkLogo} alt="Chat Funnel AI" className="h-8 w-8 rounded-lg object-cover" />
+              <span className="site-font-display text-base font-semibold">Chat Funnel AI</span>
             </Link>
             {/* TODO: copy final */}
             <p className="site-font-body mt-4 max-w-sm text-[15px] leading-relaxed text-site-muted">
@@ -84,7 +84,7 @@ export default function SiteFooter() {
         </div>
 
         <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-white/5 pt-6 text-site-muted md:flex-row md:items-center">
-          <p className="site-font-body text-[15px]">© {new Date().getFullYear()} MK-CRM. Todos os direitos reservados.</p>
+          <p className="site-font-body text-[15px]">© {new Date().getFullYear()} Chat Funnel AI. Todos os direitos reservados.</p>
           <p className="site-font-body text-[15px]">Feito com cuidado para negócios brasileiras.</p>
         </div>
       </div>

@@ -14,12 +14,12 @@ import Blog from "@/components/site/Blog";
 
 
 /**
- * Site institucional do MK-CRM (deslogado).
+ * Site institucional do Chat Funnel AI (deslogado).
  */
 export default function MarketingSite() {
   useEffect(() => {
     const prev = document.title;
-    document.title = "MK-CRM · CRM com WhatsApp, Kanban e IA para negócios";
+    document.title = "Chat Funnel AI · CRM com WhatsApp, Kanban e IA para negócios";
     return () => {
       document.title = prev;
     };
