@@ -85,17 +85,21 @@ export default function Capabilities() {
       aria-label="Tudo o que vem dentro do MK-CRM"
       className="relative overflow-hidden border-t border-white/5 bg-site-surface py-24 sm:py-32"
     >
-      <AuroraBlob
-        className="left-[-12%] top-[-15%] h-[480px] w-[480px]"
-        background="radial-gradient(circle at center, hsl(var(--site-accent) / 0.45), transparent 70%)"
-        opacity={0.45}
-        duration={28}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 90% at -10% 50%, hsl(var(--site-accent-glow) / 0.45), transparent)",
+        }}
       />
-      <AuroraBlob
-        className="right-[-10%] bottom-[-10%] h-[420px] w-[420px]"
-        background="radial-gradient(circle at center, hsl(var(--site-accent) / 0.4), transparent 70%)"
-        opacity={0.4}
-        duration={32}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 50% 70% at 110% 50%, hsl(var(--site-primary) / 0.22), transparent)",
+        }}
       />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
