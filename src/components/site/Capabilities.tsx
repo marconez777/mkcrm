@@ -13,7 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { AuroraBlob, fadeUp, viewportOnce } from "./_anim";
+import { fadeUp, viewportOnce } from "./_anim";
 
 const ITEMS = [
   {
