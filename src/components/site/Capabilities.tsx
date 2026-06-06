@@ -12,7 +12,8 @@ import {
   LineChart,
   Wallet,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef } from "react";
 import { fadeUp, viewportOnce } from "./_anim";
 
 const ITEMS = [
