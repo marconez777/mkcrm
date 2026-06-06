@@ -80,28 +80,44 @@ const ITEMS = [
 ] as const;
 
 export default function Capabilities() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const yPurple = useTransform(scrollYProgress, [0, 1], ["-20%", "20%"]);
+  const yGreen = useTransform(scrollYProgress, [0, 1], ["20%", "-20%"]);
+  const scaleBg = useTransform(scrollYProgress, [0, 0.5, 1], [1.15, 1.35, 1.15]);
+
   return (
     <section
+      ref={sectionRef}
       id="capacidades"
       aria-label="Tudo o que vem dentro do MK-CRM"
       className="relative overflow-hidden border-t border-white/5 bg-site-surface py-24 sm:py-32"
     >
-      <div
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute -inset-[20%]"
         style={{
+          y: yPurple,
+          scale: scaleBg,
           background:
             "radial-gradient(ellipse 70% 90% at -10% 50%, hsl(var(--site-accent-glow) / 0.45), transparent)",
         }}
       />
-      <div
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute -inset-[20%]"
         style={{
+          y: yGreen,
+          scale: scaleBg,
           background:
             "radial-gradient(ellipse 50% 70% at 110% 50%, hsl(var(--site-primary) / 0.22), transparent)",
         }}
       />
+
+
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
