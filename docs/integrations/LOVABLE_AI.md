@@ -1,3 +1,11 @@
+---
+title: "Integração: Lovable AI Gateway"
+topic: ai
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Gateway gerenciado pela Lovable que dá acesso a múltiplos modelos (Google Gemini, OpenAI GPT) **sem precisar de API key própria** do provedor. Cobrança vai para a conta Lovable da clínica.
+---
 # Integração: Lovable AI Gateway
 
 > **Quando ler:** antes de adicionar/trocar modelo de IA, calcular custo, ou debugar erro de API key.

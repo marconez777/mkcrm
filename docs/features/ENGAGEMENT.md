@@ -1,3 +1,11 @@
+---
+title: "Feature: Engajamento (respostas a broadcasts e sequências)"
+topic: ai
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: "A feature \\\"Engajamento\\\" mede **taxa de resposta** de mensagens enviadas pela clínica via WhatsApp:"
+---
 # Feature: Engajamento (respostas a broadcasts e sequências)
 
 > **Quando ler:** antes de mexer na aba `Engajamento` em IA, RPCs `engagement_*` ou nas colunas de snapshot em `message_sequence_runs`.

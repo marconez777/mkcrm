@@ -1,3 +1,11 @@
+---
+title: EMAIL
+topic: email
+kind: roadmap
+audience: agent
+updated: 2026-06-07
+summary: 1. O link no email vai para o domínio errado (provavelmente `mkcrm.lovable.app`) porque hoje uso `window.location.origin` como `redirectTo` — depende de onde ela abriu o formulário. 2. O template está em inglês e vem de `no-reply@auth.lovab
+---
 > ⚠️ **Escopo:** este arquivo trata apenas dos **emails de autenticação** (reset de senha, confirmação de cadastro, magic link). Para o módulo de **email marketing** (campanhas, automações, templates) ver `docs/edge-functions/EMAIL.md` e `docs/flows/EMAIL_CAMPAIGN.md`. Para o **roadmap de performance/escala** do módulo de marketing ver `docs/roadmap/EMAIL_SCALE.md`.
 >
 > Última atualização: 2026-05-26.

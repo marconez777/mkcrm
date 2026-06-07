@@ -1,3 +1,11 @@
+---
+title: Convenções — Segurança
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "1. **RLS-first**: toda tabela tem RLS habilitada, sem exceção. 2. **Roles em tabela separada** (`user_roles`, `clinic_members`). Nunca em `profiles`/`clinics`. 3. **Server-side validation** sempre. Nada de admin check via `localStorage`/`se"
+---
 # Convenções — Segurança
 
 > **Quando ler:** antes de criar tabelas, edge functions públicas ou fluxos de auth/admin.

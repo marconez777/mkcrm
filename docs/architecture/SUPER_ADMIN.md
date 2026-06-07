@@ -1,3 +1,11 @@
+---
+title: SUPER_ADMIN — Papel, RLS, Rotas e Edges
+topic: admin
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Consolidação de tudo que o papel `super_admin` representa no sistema: como é armazenado, como é verificado em código (frontend e edge functions), quais rotas e endpoints estão restritos a ele, e quais policies de RLS o tratam como bypass."
+---
 # SUPER_ADMIN — Papel, RLS, Rotas e Edges
 
 > Última atualização: 2026-06-03

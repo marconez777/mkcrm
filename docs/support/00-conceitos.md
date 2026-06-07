@@ -1,3 +1,10 @@
+---
+title: Conceitos — vocabulário do usuário
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # 📘 Conceitos — vocabulário do usuário
 
 > Glossário em linguagem do operador. Quando o agente de suporte usar um termo técnico, deve trocar pela definição daqui.

@@ -1,3 +1,11 @@
+---
+title: Tracking — Documentação técnica
+topic: tracking
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Módulo de analytics first-party do CRM. Substitui (ou complementa) Google Analytics / Meta Pixel com um pixel próprio, sem depender de terceiros, com identificação visitante → lead e backfill histórico de eventos.
+---
 # Tracking — Documentação técnica
 
 Módulo de analytics first-party do CRM. Substitui (ou complementa) Google Analytics / Meta Pixel com um pixel próprio, sem depender de terceiros, com identificação visitante → lead e backfill histórico de eventos.

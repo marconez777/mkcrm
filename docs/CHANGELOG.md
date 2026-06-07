@@ -1,3 +1,11 @@
+---
+title: Changelog da Documentação
+topic: ai
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: "Correções aplicadas a partir do scanner de segurança:"
+---
 # Changelog da Documentação
 
 > Mudanças relevantes da documentação propriamente dita (não do código).

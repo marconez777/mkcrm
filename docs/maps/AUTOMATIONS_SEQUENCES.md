@@ -1,3 +1,11 @@
+---
+title: "Mapa: Automations + Sequences"
+topic: automations
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: "Mensageria automatizada por gatilhos: - **Sequences** — drip de N mensagens espaçadas, iniciado por entrada em stage / tag / evento. - **Automations** — regras `quando X → faça Y` (mover stage, enviar msg, criar task, agendar, etc.). - **Le"
+---
 # Mapa: Automations + Sequences
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/features/SEQUENCES_AUTOMATIONS.md`](../features/SEQUENCES_AUTOMATIONS.md), [`docs/features/APPOINTMENT_REMINDERS.md`](../features/APPOINTMENT_REMINDERS.md), [`docs/features/BROADCASTS.md`](../features/BROADCASTS.md).

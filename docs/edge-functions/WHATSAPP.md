@@ -1,3 +1,11 @@
+---
+title: WHATSAPP — Edge functions Evolution API
+topic: inbox
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Configurada em cada `whatsapp_instances.webhook_token` (gerado em `evolution-provision`). Eventos exigidos pelo Evolution: ver `REQUIRED_EVENTS` em `_shared/evolution.ts` (`MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `CHATS_*`, `CONTACTS_UPSERT`, "
+---
 # WHATSAPP — Edge functions Evolution API
 
 > Última atualização: 2026-05-30

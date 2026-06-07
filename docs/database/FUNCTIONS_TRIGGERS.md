@@ -1,3 +1,11 @@
+---
+title: FUNCTIONS_TRIGGERS — Funções e Triggers
+topic: database
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Todas são `SECURITY DEFINER` com `search_path = public` e abrem com `IF NOT public.is_super_admin() THEN RAISE EXCEPTION '...' END IF;`. Introduzidas pela migração de jun/2026 para alimentar o painel `/admin` v2.
+---
 # FUNCTIONS_TRIGGERS — Funções e Triggers
 
 > Última atualização: 2026-06-03

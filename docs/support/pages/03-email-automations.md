@@ -1,3 +1,11 @@
+---
+title: Automações de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Automações** no Email Hub → `/email/automations`.
+---
 # Automações de Email
 
 **Rota:** `/email/automations`  

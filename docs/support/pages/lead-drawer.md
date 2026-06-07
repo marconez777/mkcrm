@@ -1,3 +1,11 @@
+---
+title: Lead Drawer — painel do lead
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Os controles da aba **Detalhes** são iguais aos do painel lateral do Inbox — ver `pages/inbox.md` (seção "Perfil").
+---
 # 👤 Lead Drawer — painel do lead
 
 ## Para que serve

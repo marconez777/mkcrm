@@ -1,3 +1,11 @@
+---
+title: "Operações: Custos e Limites"
+topic: operations
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Por 1M tokens (snapshot — atualizar conforme Lovable muda):"
+---
 # Operações: Custos e Limites
 
 > **Quando ler:** antes de mexer em pricing de IA, budget de clínica, throttle de envio, ou quando aparecer alerta de gasto.

@@ -1,3 +1,11 @@
+---
+title: 06 — Eventos customizados
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: Disponível assim que o `tracking-pixel` carrega.
+---
 # 06 — Eventos customizados
 
 > Como rastrear eventos sob medida — cliques, milestones, abandonos.

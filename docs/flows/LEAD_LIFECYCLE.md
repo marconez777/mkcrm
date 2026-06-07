@@ -1,3 +1,11 @@
+---
+title: "Fluxo: Lead Lifecycle (do nascimento ao fechamento)"
+topic: kanban
+kind: flow
+audience: agent
+updated: 2026-06-07
+summary: Ver `features/SEQUENCES_AUTOMATIONS.md` para detalhe dos gatilhos.
+---
 # Fluxo: Lead Lifecycle (do nascimento ao fechamento)
 
 > **Quando ler:** antes de mexer em stages, scoring, sequences gatilhadas por estágio, ou regras de qualificação.

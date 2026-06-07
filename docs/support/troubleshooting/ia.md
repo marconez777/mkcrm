@@ -1,3 +1,10 @@
+---
+title: Problemas com IA
+topic: ai
+kind: troubleshooting
+audience: user
+updated: 2026-06-07
+---
 # Problemas com IA
 
 ## Agente não responde no WhatsApp

@@ -1,3 +1,11 @@
+---
+title: Co-piloto de Agentes — Documentação técnica
+topic: ai
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: O **Co-piloto** é um chat dentro da página do agente que permite ao operador conversar em linguagem natural ("aumente a temperatura", "mude o tom para mais formal", "ative a ferramenta de agendamento", "reescreva o prompt para focar em conv
+---
 # Co-piloto de Agentes — Documentação técnica
 
 > Última atualização: 2026-06-02

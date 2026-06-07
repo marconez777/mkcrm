@@ -1,3 +1,11 @@
+---
+title: 01 — Visão geral da arquitetura
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: ➡ [02 — Instalação dos snippets](./02-instalacao-snippets.md)
+---
 # 01 — Visão geral da arquitetura
 
 > **Pré-requisito:** nenhum. Comece por aqui.

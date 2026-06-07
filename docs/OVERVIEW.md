@@ -1,3 +1,11 @@
+---
+title: Visão Geral da Plataforma — CRM mkart
+topic: general
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: "CRM multi-tenant focado em **clínicas / negócios** que atendem leads via **WhatsApp**, com:"
+---
 # Visão Geral da Plataforma — CRM mkart
 
 > **Quando ler:** primeiro contato com o projeto. Para detalhes profundos, siga os links no [`README.md`](./README.md) → `architecture/`, `database/`, `edge-functions/`, `frontend/`, `flows/`, `integrations/`, `operations/`.

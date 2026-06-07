@@ -1,3 +1,10 @@
+---
+title: Configurações — `/settings`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # ⚙️ Configurações — `/settings`
 
 ## Para que serve

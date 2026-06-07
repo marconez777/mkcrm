@@ -1,3 +1,10 @@
+---
+title: Enviar uma campanha de email
+topic: email
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Enviar uma campanha de email
 
 ## Quando usar

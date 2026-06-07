@@ -1,3 +1,10 @@
+---
+title: Pausar a IA em um lead específico
+topic: ai
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Pausar a IA em um lead específico
 
 ## Quando usar

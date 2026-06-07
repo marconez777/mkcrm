@@ -1,3 +1,10 @@
+---
+title: Criar o primeiro agente de IA
+topic: ai
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Criar o primeiro agente de IA
 
 ## Quando usar

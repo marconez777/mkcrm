@@ -1,3 +1,11 @@
+---
+title: Integração CRM ↔ Sites externos
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Base: `https://hrbhmqckzjxjbhpzpqeo.supabase.co/functions/v1`"
+---
 # Integração CRM ↔ Sites externos
 
 > **Para quem é isto:** times de marketing/dev que vão instalar tracking, formulários e webhooks de um site externo (WordPress, Wix, Webflow, Next.js, HTML puro, etc.) no MK-CRM.

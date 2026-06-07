@@ -1,3 +1,11 @@
+---
+title: Frontend — Design System
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Definidos em `src/index.css` no `:root` e `.dark`. Sempre HSL sem unidade (`142 71% 45%`), aplicados em Tailwind via `hsl(var(--token))` no `tailwind.config.ts`."
+---
 # Frontend — Design System
 
 > Tokens, tipografia, espaçamento, dark mode e regras visuais.

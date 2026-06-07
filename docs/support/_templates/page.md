@@ -1,3 +1,10 @@
+---
+title: Nome da página] — `/rota`
+topic: admin
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # [Nome da página] — `/rota`
 
 > Gabarito para `docs/support/pages/*.md`. Copie e preencha. Apague esta linha ao usar.

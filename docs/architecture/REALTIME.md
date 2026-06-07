@@ -1,3 +1,11 @@
+---
+title: Realtime
+topic: email
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Verificadas via `pg_publication_tables`:"
+---
 # Realtime
 
 > **Quando ler:** ao habilitar/subscribir em mudanças ao vivo (inbox, kanban, tarefas, fila de email, campanhas).

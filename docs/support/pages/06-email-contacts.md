@@ -1,3 +1,11 @@
+---
+title: Contatos
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Contatos** no Email Hub → `/email/contacts`.
+---
 # Contatos
 
 **Rota:** `/email/contacts`  

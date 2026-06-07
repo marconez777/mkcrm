@@ -1,3 +1,11 @@
+---
+title: 12. Roadmap de Correção — Integração Clínica ÓR
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: E drena uma fila pré-boot (`window.mkQueue`) caso o site dispare CustomEvents antes do script async carregar.
+---
 # 12. Roadmap de Correção — Integração Clínica ÓR
 
 > Baseado em `11-analise-conflitos-site-or.md`. Sequenciado por **impacto / dependência**, não por dificuldade técnica.

@@ -1,3 +1,11 @@
+---
+title: "Mapa: Construtor de Agentes (Builder)"
+topic: ai
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros agentes** (SDR, classificador, agendador…). Roda como `ai_agents` com `system_key='builder'`, um por clínica. Usa provider/chave próprios da clínica.
+---
 # Mapa: Construtor de Agentes (Builder)
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/features/BUILDER_AGENTS.md`](../features/BUILDER_AGENTS.md).

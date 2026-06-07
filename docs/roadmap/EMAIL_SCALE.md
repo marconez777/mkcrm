@@ -1,3 +1,11 @@
+---
+title: Email Marketing — Roadmap de Escala & Performance
+topic: email
+kind: roadmap
+audience: agent
+updated: 2026-06-07
+summary: A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `email-automations-tick`) foi dimensionada para clínicas de volume médio. Vamos colocar um cliente com **alto volume de contatos e disparos** (campanhas grandes
+---
 # Email Marketing — Roadmap de Escala & Performance
 
 > **Quando ler:** antes de subir cliente de alto volume, ao planejar otimizações da fila/automações/campanhas, ou ao avaliar custo de Postgres no módulo de email.

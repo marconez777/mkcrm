@@ -1,3 +1,11 @@
+---
+title: Campanhas de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Campanhas** no Email Hub → `/email/campaigns`.
+---
 # Campanhas de Email
 
 **Rota:** `/email/campaigns`  

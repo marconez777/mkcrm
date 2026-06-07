@@ -1,3 +1,11 @@
+---
+title: "Operações: Performance"
+topic: inbox
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Padrão geral (nomes exatos podem variar — conferir em `pg_indexes`):"
+---
 # Operações: Performance
 
 > **Quando ler:** antes de adicionar nova query/listagem, otimizar tela lenta, ou debugar latência alta.

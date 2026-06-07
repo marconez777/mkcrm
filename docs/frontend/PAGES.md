@@ -1,3 +1,11 @@
+---
+title: Frontend — Páginas
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: 1. **Dashboard** (`/ai`) — `AiDashboard` 2. **Agentes IA** (`/ai/agents`) — `Agents` 3. **Mensagens** (`/ai/messages`) — `Messages` (Sequences / Automations / Templates) 4. **Disparo em massa** (`/ai/broadcasts`) — `Broadcasts` 5. **Relatór
+---
 # Frontend — Páginas
 
 > Catálogo de páginas (`src/pages/**`) com responsabilidade, hooks que

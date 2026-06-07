@@ -1,3 +1,11 @@
+---
+title: SHARED_HELPERS — `supabase/functions/_shared/`
+topic: inbox
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Constantes/exports principais:"
+---
 # SHARED_HELPERS — `supabase/functions/_shared/`
 
 > Última atualização: 2026-06-03

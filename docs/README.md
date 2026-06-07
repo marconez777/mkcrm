@@ -1,3 +1,11 @@
+---
+title: Documentação — CRM mkart
+topic: ai
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: 1. Leia este `README.md` inteiro (mapa de leitura abaixo). 2. Leia [`OVERVIEW.md`](./OVERVIEW.md) para entender o produto em 10 min. 3. Em dúvida sobre um termo? `GLOSSARY.md`. 4. Vá direto ao(s) arquivo(s) específico(s) da área que você va
+---
 # Documentação — CRM mkart
 
 > **Quem deve ler:** o próprio chat Lovable (em sessões futuras), antes de modificar qualquer parte do sistema. Esta documentação é a **memória externa** do projeto: ler primeiro evita varrer 50+ arquivos.

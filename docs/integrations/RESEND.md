@@ -1,3 +1,11 @@
+---
+title: "Integração: Resend (Email)"
+topic: email
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Resend é o provedor SMTP/API que entrega os emails. Cada clínica configura **um ou mais domínios próprios** em `email_domains` (verificação via Resend). Não existe fallback automático para domínio compartilhado — sem domínio verificado o en
+---
 # Integração: Resend (Email)
 
 > **Quando ler:** antes de mexer em envio de email, verificação de domínio, webhook de eventos, ou tracking de open/click.

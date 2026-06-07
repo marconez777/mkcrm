@@ -1,3 +1,11 @@
+---
+title: Logs de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Logs** no Email Hub → `/email/logs`.
+---
 # Logs de Email
 
 **Rota:** `/email/logs`  

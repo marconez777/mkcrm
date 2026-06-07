@@ -1,3 +1,11 @@
+---
+title: Planos & Limites
+topic: admin
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Modelo introduzido em junho/2026 para transformar `clinics.plan` (texto livre) em um **catálogo configurável** de planos com features e limites numéricos, complementado por um sistema de **assinaturas manuais** (`clinic_subscriptions`) e **
+---
 # Planos & Limites
 
 > **Quando ler:** ao mexer no painel `/admin` (aba Planos / Uso & Limites), ao adicionar uma nova métrica de uso por clínica, ou ao planejar enforcement de cap em runtime.

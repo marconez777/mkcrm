@@ -1,3 +1,10 @@
+---
+title: Tarefas — `/tasks`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # ✅ Tarefas — `/tasks`
 
 ## Para que serve

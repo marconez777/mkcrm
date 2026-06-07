@@ -1,3 +1,11 @@
+---
+title: Módulo de IA — Documentação Técnica
+topic: ai
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "O módulo de IA do CRM permite que cada **clínica** (tenant) crie **agentes** que:"
+---
 # Módulo de IA — Documentação Técnica
 
 > Agentes multi-provider, RAG avançado, ferramentas, MCP, auto-reply com debounce, memória, traces, evals e custos. Documento para desenvolvedores.

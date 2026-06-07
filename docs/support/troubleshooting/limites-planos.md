@@ -1,3 +1,10 @@
+---
+title: Bloqueios por limite de plano
+topic: email
+kind: troubleshooting
+audience: user
+updated: 2026-06-07
+---
 # Bloqueios por limite de plano
 
 ## Como funciona

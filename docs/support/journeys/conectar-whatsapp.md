@@ -1,3 +1,10 @@
+---
+title: Conectar uma conta de WhatsApp
+topic: support
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Conectar uma conta de WhatsApp
 
 ## Quando usar

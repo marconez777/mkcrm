@@ -1,3 +1,11 @@
+---
+title: Suporte — KB de Interface e Usabilidade
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Ordem de prioridade ao responder uma dúvida:"
+---
 # 🆘 Suporte — KB de Interface e Usabilidade
 
 > **Para quê:** base de conhecimento usada para **treinar um agente de IA de suporte** ao cliente (admin/operador de clínica). Diferente de `docs/features/*` (conceitual) e `docs/maps/*` (onde editar código), este diretório responde **"como o usuário faz X na tela"** em PT-BR claro, sem jargão técnico.

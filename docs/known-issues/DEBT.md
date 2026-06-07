@@ -1,3 +1,11 @@
+---
+title: Dívida Técnica (Technical Debt)
+topic: kanban
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Lista honesta de coisas que **funcionam mas não estão certas**. Ordem ≈ impacto × frequência.
+---
 # Dívida Técnica (Technical Debt)
 
 > **Quando ler:** ao priorizar refactor; ao tomar decisão que vai aumentar/diminuir dívida.

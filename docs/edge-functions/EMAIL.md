@@ -1,3 +1,11 @@
+---
+title: Email Marketing — Documentação Detalhada
+topic: email
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "O módulo de Email é um sistema completo de envio transacional + campanhas com:"
+---
 # Email Marketing — Documentação Detalhada
 
 > Referência completa do módulo de Email Marketing do CRM mkart.

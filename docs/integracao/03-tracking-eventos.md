@@ -1,3 +1,11 @@
+---
+title: 03 — Tracking & eventos
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "O `tracking-pixel` envia sozinho:"
+---
 # 03 — Tracking & eventos
 
 > **Pré-requisito:** snippet `tracking-pixel` instalado ([02](./02-instalacao-snippets.md)).

@@ -1,3 +1,11 @@
+---
+title: Multi-tenancy
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Cada **clínica** (`clinics`) é um tenant. Usuários (`auth.users`) pertencem a uma clínica via `clinic_members` (1 user → 1 clínica neste modelo atual; o schema suporta mais mas RLS assume a "ativa"). `user_roles` é separado e armazena papéi
+---
 # Multi-tenancy
 
 > **Quando ler:** antes de criar qualquer tabela, edge function ou RLS policy. **Esta é a regra mais importante do projeto.**

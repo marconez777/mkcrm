@@ -1,3 +1,11 @@
+---
+title: Disparo em massa (Broadcasts) — `/ai/broadcasts`
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Tabela com colunas: - Nome - **Status** (badge colorida): `draft`, `running` (verde), `paused` (amarelo), `done` (azul), `failed` (vermelho), `cancelled` (cinza) - Audiência (na fila) - Enviados - Respostas - Criado em (formato pt-BR) - Açõ"
+---
 # Disparo em massa (Broadcasts) — `/ai/broadcasts`
 
 ## Para que serve

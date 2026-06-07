@@ -1,3 +1,11 @@
+---
+title: RLS_POLICIES — Row Level Security
+topic: database
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "1. **100% das tabelas em `public` têm RLS ativado.** Não existe tabela \\\"aberta\\\". 2. Acesso é sempre derivado de **uma das três** funções `SECURITY DEFINER`: - `current_clinic_id()` — clínica do usuário autenticado (via `clinic_members`). - "
+---
 # RLS_POLICIES — Row Level Security
 
 > Última atualização: 2026-06-03

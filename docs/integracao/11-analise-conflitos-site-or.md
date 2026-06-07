@@ -1,3 +1,11 @@
+---
+title: 11. Análise de Conflitos — Site Clínica ÓR ↔ CRM MK
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "A integração CRM ↔ Site Clínica ÓR está funcionando **apenas para o caminho mais simples**: o snippet `forms-snippet` captura o evento `submit` dos 4 formulários marcados com `data-mk-form` e grava um lead em `forms-ingest`. **Tudo o resto*"
+---
 # 11. Análise de Conflitos — Site Clínica ÓR ↔ CRM MK
 
 > **Data:** 2026-05-26

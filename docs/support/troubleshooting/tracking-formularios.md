@@ -1,3 +1,10 @@
+---
+title: Problemas com Tracking e Formulários
+topic: tracking
+kind: troubleshooting
+audience: user
+updated: 2026-06-07
+---
 # Problemas com Tracking e Formulários
 
 ## Pixel não dispara (nada em `/tracking/debug`)

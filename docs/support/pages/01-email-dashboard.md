@@ -1,3 +1,11 @@
+---
+title: Email Dashboard
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Dashboard** no Email Hub ou navegando direto para `/email`.
+---
 # Email Dashboard
 
 **Rota:** `/email`  

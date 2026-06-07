@@ -1,3 +1,10 @@
+---
+title: Convenções — Migrações & PRs
+topic: conventions
+kind: reference
+audience: agent
+updated: 2026-06-07
+---
 # Convenções — Migrações & PRs
 
 > **Quando ler:** ao criar migração SQL ou agrupar mudanças.

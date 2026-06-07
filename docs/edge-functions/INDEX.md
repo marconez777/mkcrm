@@ -1,3 +1,11 @@
+---
+title: Edge Functions — Índice
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Todas verificam `is_super_admin()` **em código** — não confiar só em `verify_jwt`.
+---
 # Edge Functions — Índice
 
 > Última atualização: 2026-06-03

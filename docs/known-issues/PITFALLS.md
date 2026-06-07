@@ -1,3 +1,10 @@
+---
+title: Pegadinhas (Pitfalls)
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+---
 # Pegadinhas (Pitfalls)
 
 > **Quando ler:** **SEMPRE antes** de mexer em qualquer coisa. Esta é a lista de erros que a IA (e humanos) já cometeu múltiplas vezes neste projeto.

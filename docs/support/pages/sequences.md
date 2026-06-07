@@ -1,3 +1,10 @@
+---
+title: Sequências — `/sequences`
+topic: automations
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # Sequências — `/sequences`
 
 ## Para que serve

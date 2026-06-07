@@ -1,3 +1,10 @@
+---
+title: Memórias dos Agentes — `/ai/memories`
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # Memórias dos Agentes — `/ai/memories`
 
 ## Para que serve

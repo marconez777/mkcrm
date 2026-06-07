@@ -1,3 +1,11 @@
+---
+title: "Mapa: Admin / Super Admin"
+topic: admin
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: "Painel `/admin` (super_admin only) para gestão cross-clínica: dashboard global, clínicas, usuários, planos & assinaturas, limites de uso, financeiro (faturas/KPIs), observabilidade (feature_events/error_events), suporte (chat Alfred + monit"
+---
 # Mapa: Admin / Super Admin
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/architecture/SUPER_ADMIN.md`](../architecture/SUPER_ADMIN.md) (fonte canônica do papel).

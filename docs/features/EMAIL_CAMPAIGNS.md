@@ -1,3 +1,11 @@
+---
+title: "Feature: Email Campaigns (envio em massa por email)"
+topic: email
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: Email Campaigns permite à clínica enviar um template ativo para uma audiência derivada de **um ou mais segmentos** (ou a base inteira). O envio é assíncrono via `email_queue` + Resend, com proteções de cota, warmup, throttle por destinatári
+---
 # Feature: Email Campaigns (envio em massa por email)
 
 > **Quando ler:** antes de criar/editar telas de campanhas, ajustar segmentação, A/B, rotação de domínio, warmup ou throttle.

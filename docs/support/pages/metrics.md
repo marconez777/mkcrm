@@ -1,3 +1,11 @@
+---
+title: Módulo de Métricas — Documentação de Suporte (PT-BR)
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+summary: O módulo de Métricas está **embutido dentro do hub de IA** (`AiHub`). Toda a navegação passa pela barra de abas horizontais no topo da seção `/ai`.
+---
 # Módulo de Métricas — Documentação de Suporte (PT-BR)
 
 > **Versão analisada:** código-fonte em `src/pages/` e `src/pages/ai/AiHub.tsx`

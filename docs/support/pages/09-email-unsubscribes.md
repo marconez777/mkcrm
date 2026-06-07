@@ -1,3 +1,11 @@
+---
+title: Descadastros
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Descadastros** no Email Hub → `/email/unsubscribes`.
+---
 # Descadastros
 
 **Rota:** `/email/unsubscribes`  

@@ -1,3 +1,11 @@
+---
+title: "Integração: Evolution API (WhatsApp)"
+topic: inbox
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Evolution API é um servidor open-source que faz ponte com o WhatsApp Web. Uma **instância** = uma sessão WhatsApp ativa (pareada via QR). No mkart, **1 clínica = 1 instância**.
+---
 # Integração: Evolution API (WhatsApp)
 
 > **Quando ler:** antes de mexer em qualquer função `evolution-*`, provisionamento de instância, QR code, ou debug de mensagens não entregues.

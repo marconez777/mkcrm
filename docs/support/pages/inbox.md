@@ -1,3 +1,11 @@
+---
+title: Inbox — `/inbox`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Botões **Cancelar / Criar** (ou **Criar e enviar** quando há texto).
+---
 # 💬 Inbox — `/inbox`
 
 ## Para que serve

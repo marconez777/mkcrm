@@ -1,3 +1,11 @@
+---
+title: "Mapa: Auth + Multi-Tenancy"
+topic: email
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: Autenticação (email/senha + Google), isolamento por `clinic_id` (multi-tenant), papéis (`super_admin`/`admin`/`member`), convites, onboarding, reset de senha. Toda tabela de domínio é escopada por clínica via RLS.
+---
 # Mapa: Auth + Multi-Tenancy
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/architecture/AUTH.md`](../architecture/AUTH.md) e [`docs/architecture/MULTI_TENANCY.md`](../architecture/MULTI_TENANCY.md).

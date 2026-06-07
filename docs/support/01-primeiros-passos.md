@@ -1,3 +1,11 @@
+---
+title: Primeiros passos
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Se você foi convidado por alguém da equipe:"
+---
 # 🚀 Primeiros passos
 
 > O que fazer logo após criar uma conta ou ser convidado.

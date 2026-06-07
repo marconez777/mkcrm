@@ -1,3 +1,11 @@
+---
+title: Broadcasts (Disparos em massa via WhatsApp)
+topic: automations
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: "O módulo de **Broadcasts** permite a uma clínica disparar uma sequência de mensagens (texto, hoje) para uma audiência **congelada** (snapshot fixo), através de uma **instância Evolution** dedicada, respeitando:"
+---
 # Broadcasts (Disparos em massa via WhatsApp)
 
 > Domínio: envio controlado de campanhas WhatsApp para listas grandes de

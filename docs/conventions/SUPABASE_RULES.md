@@ -1,3 +1,11 @@
+---
+title: Convenções — Supabase / Lovable Cloud
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Estes são auto-gerados ou gerenciados pela plataforma. Editar manualmente quebra o projeto:"
+---
 # Convenções — Supabase / Lovable Cloud
 
 > **Quando ler:** antes de qualquer mudança que toque banco, edge function, auth ou storage.
