@@ -117,6 +117,7 @@ const App = () => (
               <Route path="audit" element={<Suspense fallback={<AdminFallback />}><AdminAudit /></Suspense>} />
               <Route path="builder-manual" element={<Suspense fallback={<AdminFallback />}><AdminBuilderManual /></Suspense>} />
               <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
+              <Route path="docs" element={<Suspense fallback={<AdminFallback />}><AdminDocs /></Suspense>} />
               <Route path="integrations/eduzz" element={<Suspense fallback={<AdminFallback />}><AdminEduzz /></Suspense>} />
             </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
