@@ -4,7 +4,7 @@ topic: general
 kind: reference
 audience: agent
 updated: 2026-06-07
-summary: "1. Criar rotas `/features/<slug>` em `src/pages/site/features/*` usando este doc como copy. 2. Adicionar links no `SiteNav` (dropdown \\\\\\\"Features\\\\\\\") e no `SiteFooter`. 3. Cada página deve ter: hero, bullets, \\\\\\\"como funciona\\\\\\\", screenshot real (c"
+summary: "1. Criar rotas `/features/<slug>` em `src/pages/site/features/*` usando este doc como copy. 2. Adicionar links no `SiteNav` (dropdown \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Features\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\") e no `SiteFooter`. 3. Cada página deve ter: hero, bullets, \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"como funciona\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\", screenshot real (c"
 ---
 # Páginas de feature do site — fonte única
 
