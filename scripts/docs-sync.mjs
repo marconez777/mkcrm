@@ -301,13 +301,17 @@ index.sort((a, b) => a.path.localeCompare(b.path));
 if (!CHECK_ONLY) {
   writeFileSync(join(DOCS, "INDEX.json"), JSON.stringify(index, null, 2) + "\n");
 
-  // bundle p/ o app (inclui conteúdo)
-  const bundle = index.map(entry => ({
-    ...entry,
-    content: readFileSync(join(ROOT, entry.path), "utf8"),
-  }));
+  // Para a tela: índice + mapa { path -> body }. Body é só o corpo (sem frontmatter)
+  // pra render mais limpo. Comprime via remoção de espaços JSON.
   const publicDir = join(ROOT, "public");
-  writeFileSync(join(publicDir, "docs-bundle.json"), JSON.stringify(bundle));
+  const contentMap = {};
+  for (const entry of index) {
+    const raw = readFileSync(join(ROOT, entry.path), "utf8");
+    const { body } = parseFrontmatter(raw);
+    contentMap[entry.path] = body;
+  }
+  writeFileSync(join(publicDir, "docs-index.json"), JSON.stringify(index));
+  writeFileSync(join(publicDir, "docs-content.json"), JSON.stringify(contentMap));
 
   // DRIFT.md
   const lines = [
