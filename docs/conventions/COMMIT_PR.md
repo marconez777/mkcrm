@@ -4,6 +4,7 @@ topic: conventions
 kind: reference
 audience: agent
 updated: 2026-06-07
+summary: "Toda doc em `docs/` tem frontmatter YAML (`title`, `topic`, `kind`, `audience`, `updated`, `summary`, `code_refs`, `related_docs`). Regras:"
 ---
 # Convenções — Migrações & PRs
 
@@ -62,6 +63,19 @@ updated: 2026-06-07
   - Mudou **mensagem de erro** ou comportamento de recuperação → atualizar `docs/support/troubleshooting/<área>.md`.
   - Novo conceito de usuário → adicionar em `docs/support/00-conceitos.md`.
 - Sempre em **PT-BR claro**, sem jargão técnico (`RLS`, `RPC`, `edge function`, nomes de tabela).
+
+### Frontmatter + `docs-sync` (obrigatório)
+
+Toda doc em `docs/` tem frontmatter YAML (`title`, `topic`, `kind`, `audience`, `updated`, `summary`, `code_refs`, `related_docs`). Regras:
+
+- Ao **editar** uma doc, atualize `updated:` para a data de hoje.
+- `code_refs:` em mapas/features deve apontar para path real (`src/...` ou `supabase/functions/.../`). Se um path some, o item vira "drift" no relatório.
+- Ao terminar mudanças (em código ou em docs), rode `node scripts/docs-sync.mjs`. Isso:
+  1. Preenche frontmatter faltante em docs novas.
+  2. Regenera `docs/INDEX.json`, `public/docs-index.json`, `public/docs-content.json`.
+  3. Regenera `docs/DRIFT.md` (revisar!) e `supabase/functions/_shared/support-kb-manifest.ts`.
+- Para o agente Lovable: ler `docs/INDEX.json` **antes** de varrer `docs/` — é mais barato.
+- Tela `/admin/docs` (super_admin) consome esses artefatos para navegação e auditoria.
 
 ---
 

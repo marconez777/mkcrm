@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, Gauge, DollarSign,
   Activity, LifeBuoy, Plug, ShieldCheck, BookOpen, ChevronLeft, ChevronRight,
-  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart,
+  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart, FolderTree,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
@@ -72,6 +72,7 @@ const NAV: NavGroup[] = [
       { to: "/admin/integrations/eduzz", label: "Eduzz", icon: ShoppingCart },
       { to: "/admin/audit", label: "Auditoria", icon: ShieldCheck },
       { to: "/admin/builder-manual", label: "Manual do Builder", icon: BookOpen },
+      { to: "/admin/docs", label: "Documentação", icon: FolderTree },
       { to: "/admin/branding", label: "Whitelabel", icon: Palette },
     ],
   },
