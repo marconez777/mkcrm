@@ -1,6 +1,6 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-07T22:06:04.486Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-07T22:11:02.354Z_
 
 Total de docs: **146** · frontmatter atualizado neste run: **9**
 
@@ -20,6 +20,7 @@ _(nenhum)_
 - `integrations`
 - `builder-manual`
 - `branding`
+- `docs`
 - `integrations/eduzz`
 - `/onboarding`
 - `/metrics/ai-usage`

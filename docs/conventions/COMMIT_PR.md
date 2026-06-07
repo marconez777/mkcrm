@@ -4,6 +4,7 @@ topic: conventions
 kind: reference
 audience: agent
 updated: 2026-06-07
+summary: "Toda doc em `docs/` tem frontmatter YAML (`title`, `topic`, `kind`, `audience`, `updated`, `summary`, `code_refs`, `related_docs`). Regras:"
 ---
 # Convenções — Migrações & PRs
 
