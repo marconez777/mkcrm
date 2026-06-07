@@ -25,6 +25,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminClinics = lazy(() => import("./pages/admin/AdminClinics"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminBranding = lazy(() => import("./pages/admin/AdminBranding"));
+const AdminDocs = lazy(() => import("./pages/admin/AdminDocs"));
 const AdminEduzz = lazy(() => import("./pages/admin/AdminEduzz"));
 const AdminPlans = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminPlans })));
 const AdminUsage = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminUsage })));
