@@ -495,10 +495,12 @@ type LeadRow = {
   extra?: string;
 };
 
+const EMPTY_IDS: string[] = [];
+
 export function AutomationLeadsSheet({
   automationId,
   relatedTable,
-  enrolledLeadIds = [],
+  enrolledLeadIds = EMPTY_IDS,
   sheet,
   onClose,
 }: {
@@ -511,6 +513,10 @@ export function AutomationLeadsSheet({
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [search, setSearch] = useState("");
+
+  // Estabiliza a dep — sem isso, callers que passam `[]` inline criam um array
+  // novo a cada render e disparam loop infinito de fetch ("Carregando..." eterno).
+  const enrolledKey = enrolledLeadIds.join(",");
 
   useEffect(() => {
     if (!sheet || !relatedTable) {
@@ -533,7 +539,8 @@ export function AutomationLeadsSheet({
       }
     })();
     setSearch("");
-  }, [sheet, automationId, relatedTable, enrolledLeadIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet, automationId, relatedTable, enrolledKey]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
