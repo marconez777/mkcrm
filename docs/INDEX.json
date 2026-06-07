@@ -387,7 +387,7 @@
     "kind": "reference",
     "audience": "agent",
     "updated": "2026-06-07",
-    "summary": "1. **100% das tabelas em `public` têm RLS ativado.** Não existe tabela \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"aberta\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\". 2. Acesso é sempre derivado de **uma das três** funções `SECURITY DEFINER`: - `current_clinic_id()` — clínica do usuário autenticado (via `clinic_members`). - ",
+    "summary": "1. **100% das tabelas em `public` têm RLS ativado.** Não existe tabela \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"aberta\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\". 2. Acesso é sempre derivado de **uma das três** funções `SECURITY DEFINER`: - `current_clinic_id()` — clínica do usuário autenticado (via `clinic_members`). - ",
     "headings": [
       "Princípios",
       "Funções helper (definições em `FUNCTIONS_TRIGGERS.md`)",
@@ -727,7 +727,7 @@
     "kind": "feature",
     "audience": "agent",
     "updated": "2026-06-07",
-    "summary": "A feature \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Engajamento\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\" mede **taxa de resposta** de mensagens enviadas pela clínica via WhatsApp:",
+    "summary": "A feature \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Engajamento\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\" mede **taxa de resposta** de mensagens enviadas pela clínica via WhatsApp:",
     "headings": [
       "Visão geral",
       "UI",
@@ -1012,7 +1012,7 @@
     "kind": "reference",
     "audience": "agent",
     "updated": "2026-06-07",
-    "summary": "Detalhe importante: assina `onAuthStateChange`, e também renova a sessão em `visibilitychange` / `focus` / a cada 4min. Isso evita \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"token expired\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\" depois do computador dormir. **Não substituir** por um hook simples.",
+    "summary": "Detalhe importante: assina `onAuthStateChange`, e também renova a sessão em `visibilitychange` / `focus` / a cada 4min. Isso evita \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"token expired\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\" depois do computador dormir. **Não substituir** por um hook simples.",
     "headings": [
       "1. Hooks",
       "2. Lib (utilitários puros)",
@@ -1175,7 +1175,7 @@
     "kind": "reference",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "O `forms-snippet` adiciona **um listener global** em `document.addEventListener(\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"submit\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\", ..., true)`. Quando qualquer `<form>` da página é submetido:",
+    "summary": "O `forms-snippet` adiciona **um listener global** em `document.addEventListener(\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"submit\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\", ..., true)`. Quando qualquer `<form>` da página é submetido:",
     "headings": [
       "Como funciona",
       "Aliases automáticos",
@@ -2100,7 +2100,7 @@
     "kind": "reference",
     "audience": "agent",
     "updated": "2026-06-07",
-    "summary": "1. Criar rotas `/features/<slug>` em `src/pages/site/features/*` usando este doc como copy. 2. Adicionar links no `SiteNav` (dropdown \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Features\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\") e no `SiteFooter`. 3. Cada página deve ter: hero, bullets, \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"como funciona\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\", screenshot real (c",
+    "summary": "1. Criar rotas `/features/<slug>` em `src/pages/site/features/*` usando este doc como copy. 2. Adicionar links no `SiteNav` (dropdown \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Features\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\") e no `SiteFooter`. 3. Cada página deve ter: hero, bullets, \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"como funciona\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\", screenshot real (c",
     "headings": [
       "Como usar este documento",
       "Nome da feature>",
@@ -2748,7 +2748,7 @@
     "kind": "support",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "Nota: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Limites efetivos vêm do plano da clínica; `clinics.settings.limits` sobrepõe por clínica…\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*",
+    "summary": "Nota: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Limites efetivos vêm do plano da clínica; `clinics.settings.limits` sobrepõe por clínica…\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*",
     "headings": [
       "Para que serve",
       "Quem acessa",
@@ -2799,7 +2799,7 @@
     "kind": "support",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "Vazio: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Nenhum agente. Crie o primeiro.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*",
+    "summary": "Vazio: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Nenhum agente. Crie o primeiro.\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*",
     "headings": [
       "Para que serve",
       "Quem acessa",
@@ -3086,7 +3086,7 @@
     "kind": "support",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "Estado vazio: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Nenhum membro\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*.",
+    "summary": "Estado vazio: *\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Nenhum membro\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"*.",
     "headings": [
       "Para que serve",
       "Quem acessa",
