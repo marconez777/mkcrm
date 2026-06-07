@@ -4,7 +4,7 @@ topic: auth
 kind: reference
 audience: agent
 updated: 2026-06-07
-summary: "Detalhe importante: assina `onAuthStateChange`, e também renova a sessão em `visibilitychange` / `focus` / a cada 4min. Isso evita \"token expired\" depois do computador dormir. **Não substituir** por um hook simples."
+summary: "Detalhe importante: assina `onAuthStateChange`, e também renova a sessão em `visibilitychange` / `focus` / a cada 4min. Isso evita \\\"token expired\\\" depois do computador dormir. **Não substituir** por um hook simples."
 ---
 # Frontend — Hooks e Lib
 

@@ -4,7 +4,7 @@ topic: ai
 kind: support
 audience: user
 updated: 2026-06-07
-summary: "Nota: *\"Limites efetivos vêm do plano da clínica; `clinics.settings.limits` sobrepõe por clínica…\"*"
+summary: "Nota: *\\\"Limites efetivos vêm do plano da clínica; `clinics.settings.limits` sobrepõe por clínica…\\\"*"
 ---
 # 🛡️ Admin — `/admin`
 

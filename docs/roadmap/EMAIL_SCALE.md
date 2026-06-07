@@ -4,7 +4,7 @@ topic: email
 kind: roadmap
 audience: agent
 updated: 2026-06-07
-summary: A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `email-automations-tick`) foi dimensionada para clínicas de volume médio. Vamos colocar um cliente com **alto volume de contatos e disparos** (campanhas grandes 
+summary: A pipeline atual (`send-email` + `process-email-queue` + `dispatch-campaign` + `email-automations-tick`) foi dimensionada para clínicas de volume médio. Vamos colocar um cliente com **alto volume de contatos e disparos** (campanhas grandes
 ---
 # Email Marketing — Roadmap de Escala & Performance
 
