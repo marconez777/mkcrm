@@ -52,7 +52,9 @@ function parseFrontmatter(src) {
     let val = mm[2].trim();
     if (val.startsWith("[") && val.endsWith("]")) {
       val = val.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-    } else if (val.startsWith('"') || val.startsWith("'")) {
+    } else if (val.startsWith('"') && val.endsWith('"') && val.length >= 2) {
+      try { val = JSON.parse(val); } catch { val = val.slice(1, -1); }
+    } else if (val.startsWith("'") && val.endsWith("'") && val.length >= 2) {
       val = val.slice(1, -1);
     }
     data[key] = val;
