@@ -1,3 +1,11 @@
+---
+title: Mapa — Billing, Planos & Financeiro
+topic: billing
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: Sistema de planos manuais (sem gateway). Super admin libera planos pelo painel; pagamentos são registrados manualmente como `invoices`. Observabilidade roda em paralelo (`feature_events`, `error_events`). Stripe será integrado depois (colun
+---
 # Mapa — Billing, Planos & Financeiro
 
 > **Quando ler:** ao mexer em catálogo de planos, concessão manual de plano, assinaturas, faturas, KPIs financeiros ou observabilidade.

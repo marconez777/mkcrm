@@ -1,3 +1,11 @@
+---
+title: "Operações: Observabilidade"
+topic: operations
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Helper recomendado: prefixo manual `[fn-name]` em cada log (não existe `_shared/logger.ts`)."
+---
 # Operações: Observabilidade
 
 > **Quando ler:** antes de debugar bug em produção, ou de adicionar novo log/métrica.

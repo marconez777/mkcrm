@@ -1,3 +1,11 @@
+---
+title: "Fluxo: WhatsApp Inbound (mensagem recebida)"
+topic: inbox
+kind: flow
+audience: agent
+updated: 2026-06-07
+summary: "Fonte: `supabase/functions/evolution-webhook/index.ts`."
+---
 # Fluxo: WhatsApp Inbound (mensagem recebida)
 
 > **Quando ler:** antes de mexer em qualquer parte do recebimento de mensagens (webhook Evolution, criação de leads, auto-reply).

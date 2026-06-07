@@ -1,3 +1,10 @@
+---
+title: Aplicar / alterar plano de uma clínica (super_admin)
+topic: admin
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Aplicar / alterar plano de uma clínica (super_admin)
 
 ## Quando usar

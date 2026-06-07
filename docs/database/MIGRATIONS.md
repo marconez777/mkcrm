@@ -1,3 +1,11 @@
+---
+title: MIGRATIONS — Histórico e governança
+topic: database
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Template recomendado:"
+---
 # MIGRATIONS — Histórico e governança
 
 > Última atualização: 2026-06-03

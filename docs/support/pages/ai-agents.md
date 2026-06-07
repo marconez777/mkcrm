@@ -1,3 +1,11 @@
+---
+title: Agentes IA — `/ai/agents` e Wizard `/ai/agents/new`
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Vazio: *\"Nenhum agente. Crie o primeiro.\"*"
+---
 # 🤖 Agentes IA — `/ai/agents` e Wizard `/ai/agents/new`
 
 ## Para que serve

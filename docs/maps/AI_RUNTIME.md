@@ -1,3 +1,11 @@
+---
+title: "Mapa: AI Runtime (agentes em execução)"
+topic: ai
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: "Tudo que executa um agente IA em produção: resposta automática a mensagem inbound, assist manual, classificador, follow-ups, copilot, e a infraestrutura compartilhada (tools, custos, spend-guard, pricing). Não inclui o **Builder** (ver mapa"
+---
 # Mapa: AI Runtime (agentes em execução)
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/edge-functions/AI.md`](../edge-functions/AI.md) e [`docs/flows/AI_AGENT_LOOP.md`](../flows/AI_AGENT_LOOP.md).

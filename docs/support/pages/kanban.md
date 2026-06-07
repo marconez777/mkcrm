@@ -1,3 +1,10 @@
+---
+title: Kanban — `/`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # 🗂️ Kanban — `/`
 
 ## Para que serve

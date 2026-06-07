@@ -1,3 +1,10 @@
+---
+title: Publicar um formulário de captura
+topic: tracking
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Publicar um formulário de captura
 
 ## Quando usar

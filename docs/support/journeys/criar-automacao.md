@@ -1,3 +1,10 @@
+---
+title: Criar uma automação
+topic: ai
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Criar uma automação
 
 ## Quando usar

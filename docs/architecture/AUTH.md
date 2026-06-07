@@ -1,3 +1,11 @@
+---
+title: Autenticação
+topic: ai
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Campos relevantes: - Email normalizado com `.trim().toLowerCase()` no submit. - `password` mínimo 6 chars (validação HTML). - Mensagem de erro vem direto do Supabase (sem mapeamento custom)."
+---
 # Autenticação
 
 > **Quando ler:** ao mexer em login, reset de senha, convites, papéis ou bloqueio de conta.

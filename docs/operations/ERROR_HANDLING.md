@@ -1,3 +1,11 @@
+---
+title: "Operações: Error Handling"
+topic: operations
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "1. **Fail fast no input, fail soft no I/O**: validar payload com Zod e retornar 400. Em chamadas externas, capturar e classificar. 2. **Idempotência > retry cego**: toda operação que pode rodar 2× precisa ter chave UNIQUE ou claim atômico. "
+---
 # Operações: Error Handling
 
 > **Quando ler:** antes de adicionar try/catch, novo retry, ou padrão de resposta de erro.

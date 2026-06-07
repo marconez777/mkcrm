@@ -1,3 +1,11 @@
+---
+title: Construtor de Agentes (Builder)
+topic: ai
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: O **Construtor de Agentes** (apelidado de "Builder") é um **agente de IA dedicado** que ajuda o usuário final — quase sempre não-técnico — a configurar **outros agentes de IA** da clínica (SDR, classificador, agendador, suporte etc.). Não é
+---
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.

@@ -1,3 +1,11 @@
+---
+title: Equipe — `/team`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Estado vazio: *\"Nenhum membro\"*."
+---
 # 👥 Equipe — `/team`
 
 ## Para que serve

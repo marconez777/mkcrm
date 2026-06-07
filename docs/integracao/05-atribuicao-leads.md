@@ -1,3 +1,11 @@
+---
+title: 05 — Atribuição & identidade do lead
+topic: email
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Um mesmo ser humano pode aparecer várias vezes: - 1ª visita: anônimo, só temos `visitor_id`. - 5 visitas depois: preenche um form com email — agora temos `email + visitor_id`. - Semana seguinte: volta em outro navegador, preenche form com p"
+---
 # 05 — Atribuição & identidade do lead
 
 > Como o CRM transforma visitas anônimas em leads identificados, sem duplicar.

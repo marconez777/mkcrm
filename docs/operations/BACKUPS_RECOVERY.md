@@ -1,3 +1,11 @@
+---
+title: "Operações: Backups e Recovery"
+topic: operations
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: 1. Painel Lovable Cloud → Backups → escolher data → "Restore". 2. Aguardar `cloud_status` voltar a `ACTIVE_HEALTHY`. 3. Re-deploy de todas edge functions (geralmente automático, mas confere). 4. Verificar secrets ainda presentes (`fetch_sec
+---
 # Operações: Backups e Recovery
 
 > **Quando ler:** antes de fazer migration destrutiva, restore após incidente, ou planejar disaster recovery.

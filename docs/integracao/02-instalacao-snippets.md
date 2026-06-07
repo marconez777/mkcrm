@@ -1,3 +1,11 @@
+---
+title: 02 — Instalação dos snippets
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Cole **no `<head>` de todas as páginas**:"
+---
 # 02 — Instalação dos snippets
 
 > **Antes de começar:** vá ao CRM → **Configurações → Forms** → escolha sua integração → aba **"Como instalar"**. Os snippets abaixo aparecem lá já com seu **token** e **project_id** preenchidos.

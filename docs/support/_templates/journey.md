@@ -1,3 +1,11 @@
+---
+title: Nome da jornada]
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "1. Vá em **[Menu]** → **[Item]** (`/rota`). 2. Clique em **[Botão]**. 3. Preencha: - **Campo obrigatório** — explicação. - *Campo opcional* — explicação. 4. Clique em **[Confirmar]**. 5. …"
+---
 # [Nome da jornada]
 
 > Gabarito para `docs/support/journeys/*.md`. Apague esta linha ao usar.

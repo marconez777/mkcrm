@@ -1,3 +1,11 @@
+---
+title: "Fluxo: Email Campaign (envio em massa de email)"
+topic: email
+kind: flow
+audience: agent
+updated: 2026-06-07
+summary: Todo `send-email`/`send-email-batch` checa `email_unsubscribes` antes de chamar Resend.
+---
 # Fluxo: Email Campaign (envio em massa de email)
 
 > **Quando ler:** antes de mexer em campanhas de email, fila de processamento, webhook do Resend ou unsubscribe.

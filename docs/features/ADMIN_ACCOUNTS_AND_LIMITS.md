@@ -1,3 +1,11 @@
+---
+title: Contas no Admin & Sistema de Limitação por Conta
+topic: admin
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: "Há **dois eixos** entrelaçados:"
+---
 # Contas no Admin & Sistema de Limitação por Conta
 
 > **Quando ler:** ao mexer em criação/convite de usuários no `/admin`, no catálogo de planos, em overrides de limite por clínica, ou ao implementar enforcement em runtime.

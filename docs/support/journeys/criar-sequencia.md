@@ -1,3 +1,10 @@
+---
+title: Criar uma sequência de mensagens
+topic: automations
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Criar uma sequência de mensagens
 
 ## Quando usar

@@ -1,3 +1,11 @@
+---
+title: Frontend — Estado e Dados
+topic: email
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Regra: **NÃO** duplicar estado entre camadas. Se o dado vem do Supabase, ele vive em TanStack Query OU no realtime hook — não nos dois. Componente deriva o que precisa via selectors."
+---
 # Frontend — Estado e Dados
 
 > Como o frontend obtém, cacheia e propaga dados.

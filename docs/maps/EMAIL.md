@@ -1,3 +1,11 @@
+---
+title: "Mapa: Email (campanhas, automações, transacional)"
+topic: email
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: "Subsistema de email: campanhas em massa, automações (drip / trigger), templates com editor de blocos, fila pgmq, suppression list, unsubscribe, domínios verificados, métricas (open/click/bounce), logs."
+---
 # Mapa: Email (campanhas, automações, transacional)
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/features/EMAIL_CAMPAIGNS.md`](../features/EMAIL_CAMPAIGNS.md), [`docs/edge-functions/EMAIL.md`](../edge-functions/EMAIL.md), [`docs/integrations/RESEND.md`](../integrations/RESEND.md).

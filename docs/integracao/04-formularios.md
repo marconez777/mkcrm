@@ -1,3 +1,11 @@
+---
+title: 04 — Formulários
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "O `forms-snippet` adiciona **um listener global** em `document.addEventListener(\"submit\", ..., true)`. Quando qualquer `<form>` da página é submetido:"
+---
 # 04 — Formulários
 
 > **Pré-requisito:** `forms-snippet` instalado ([02](./02-instalacao-snippets.md)).

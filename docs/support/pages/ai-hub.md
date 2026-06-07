@@ -1,3 +1,10 @@
+---
+title: IA Hub — `/ai`
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # ✨ IA Hub — `/ai`
 
 ## Para que serve

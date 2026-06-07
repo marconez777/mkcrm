@@ -1,3 +1,11 @@
+---
+title: "Auditoria da Documentação — Fase 1: Inventário & Mapa"
+topic: general
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: "Legenda: ✅ ok · 🟡 atualização pontual (acrescentar 1-3 itens) · 🔴 desatualizado (descreve estado antigo) · ➕ falta (existe no código, não há doc) · 🗑️ órfão (não reflete mais nada do código)"
+---
 # Auditoria da Documentação — Fase 1: Inventário & Mapa
 
 > **Gerado:** 2026-05-30

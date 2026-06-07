@@ -1,3 +1,11 @@
+---
+title: SCHEMA — Banco de dados Postgres (Supabase)
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: As tabelas são agrupadas por domínio funcional. Cada domínio tem sua própria seção abaixo com as colunas relevantes (campos padrão omitidos).
+---
 # SCHEMA — Banco de dados Postgres (Supabase)
 
 > Última atualização: 2026-06-03

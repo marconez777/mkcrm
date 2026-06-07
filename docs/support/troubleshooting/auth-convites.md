@@ -1,3 +1,10 @@
+---
+title: Problemas de Login e Convites
+topic: email
+kind: troubleshooting
+audience: user
+updated: 2026-06-07
+---
 # Problemas de Login e Convites
 
 ## "Email ou senha incorretos"

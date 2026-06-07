@@ -1,3 +1,11 @@
+---
+title: Forms (Captura de leads via formulários externos)
+topic: tracking
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: "Três peças cooperam:"
+---
 # Forms (Captura de leads via formulários externos)
 
 > Domínio: receber submissões de formulários em sites externos (WordPress,

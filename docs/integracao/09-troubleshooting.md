@@ -1,3 +1,11 @@
+---
+title: 09 — Troubleshooting
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Cole no DevTools Console do site:"
+---
 # 09 — Troubleshooting
 
 > "Meu lead não chegou" — siga este fluxograma antes de abrir suporte.

@@ -1,3 +1,11 @@
+---
+title: Relatórios de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Relatórios** no Email Hub → `/email/reports`.
+---
 # Relatórios de Email
 
 **Rota:** `/email/reports`  

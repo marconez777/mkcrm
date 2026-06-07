@@ -1,3 +1,10 @@
+---
+title: Convidar um membro para a equipe
+topic: email
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Convidar um membro para a equipe
 
 ## Quando usar

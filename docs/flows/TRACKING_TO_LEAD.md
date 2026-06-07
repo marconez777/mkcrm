@@ -1,3 +1,10 @@
+---
+title: "Fluxo: Tracking → Lead (visitante anônimo vira lead)"
+topic: tracking
+kind: flow
+audience: agent
+updated: 2026-06-07
+---
 # Fluxo: Tracking → Lead (visitante anônimo vira lead)
 
 > **Quando ler:** antes de mexer no pixel de tracking, na resolução de identidade, ou em atribuição de origem (UTM).

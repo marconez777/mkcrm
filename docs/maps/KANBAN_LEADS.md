@@ -1,3 +1,11 @@
+---
+title: "Mapa: Kanban + Leads"
+topic: ai
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline.
+---
 # Mapa: Kanban + Leads
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/flows/LEAD_LIFECYCLE.md`](../flows/LEAD_LIFECYCLE.md).

@@ -1,3 +1,11 @@
+---
+title: Configurações — Domínio de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Se a feature `email_marketing` **não** estiver ativa:"
+---
 # Configurações — Domínio de Email
 
 **Rota:** `/settings/email-domain`  

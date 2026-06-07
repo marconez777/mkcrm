@@ -1,3 +1,11 @@
+---
+title: Segmentos
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Segmentos** no Email Hub → `/email/segments`.
+---
 # Segmentos
 
 **Rota:** `/email/segments`  

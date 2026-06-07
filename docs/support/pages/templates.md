@@ -1,3 +1,10 @@
+---
+title: Templates de mensagem — `/templates`
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # Templates de mensagem — `/templates`
 
 ## Para que serve

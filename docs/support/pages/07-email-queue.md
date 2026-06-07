@@ -1,3 +1,11 @@
+---
+title: Fila de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Aba **Fila** no Email Hub → `/email/queue`.
+---
 # Fila de Email
 
 **Rota:** `/email/queue`  

@@ -1,3 +1,10 @@
+---
+title: Importar leads (CSV ou Kommo)
+topic: email
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Importar leads (CSV ou Kommo)
 
 ## Quando usar

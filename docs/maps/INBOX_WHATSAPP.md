@@ -1,3 +1,11 @@
+---
+title: "Mapa: Inbox + WhatsApp (Evolution API)"
+topic: inbox
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: Inbox unificado de conversas WhatsApp. Recebe via webhook da Evolution API, persiste em `messages`, exibe em `/inbox`, e envia respostas (manuais ou via IA) de volta. Inclui mídia, agendamento, encaminhamento, tarefas vinculadas, campos per
+---
 # Mapa: Inbox + WhatsApp (Evolution API)
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/integrations/EVOLUTION_API.md`](../integrations/EVOLUTION_API.md), [`docs/flows/INBOUND_WHATSAPP.md`](../flows/INBOUND_WHATSAPP.md), [`docs/flows/OUTBOUND_WHATSAPP.md`](../flows/OUTBOUND_WHATSAPP.md).

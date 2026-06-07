@@ -1,3 +1,11 @@
+---
+title: Convenções — Código
+topic: conventions
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: React 18 + Vite 5 + TypeScript 5 + Tailwind v3 + shadcn/ui + React Router v6 + React Query v5 + react-hook-form + zod.
+---
 # Convenções — Código
 
 > **Quando ler:** antes de criar componentes, hooks ou helpers.

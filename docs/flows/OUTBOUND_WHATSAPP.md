@@ -1,3 +1,10 @@
+---
+title: "Fluxo: WhatsApp Outbound (mensagem enviada)"
+topic: ai
+kind: flow
+audience: agent
+updated: 2026-06-07
+---
 # Fluxo: WhatsApp Outbound (mensagem enviada)
 
 > **Quando ler:** antes de mexer em envio manual, envio por agente IA, ou envio em massa (broadcast).

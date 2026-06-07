@@ -1,3 +1,11 @@
+---
+title: "Integração: pg_net + pg_cron"
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Ambas habilitadas no schema `extensions` (padrão Supabase).
+---
 # Integração: pg_net + pg_cron
 
 > **Quando ler:** antes de criar/alterar job agendado, ou debugar trigger que dispara edge function via HTTP.

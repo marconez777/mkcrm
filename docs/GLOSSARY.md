@@ -1,3 +1,10 @@
+---
+title: Glossário
+topic: inbox
+kind: doc
+audience: agent
+updated: 2026-06-07
+---
 # Glossário
 
 > **Quando ler:** quando aparecer um termo que você não conhece. Mantenha aqui apenas termos **deste projeto** (não Postgres/React genérico).

@@ -1,3 +1,10 @@
+---
+title: AI Insights — `/ai/insights`
+topic: ai
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # AI Insights — `/ai/insights`
 
 ## Para que serve

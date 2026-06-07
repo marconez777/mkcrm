@@ -1,3 +1,11 @@
+---
+title: Sequences & Automations
+topic: automations
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: Cron pg_cron a cada minuto. Pega até **50 enrollments** com `status='active'` e `next_run_at <= now()`.
+---
 # Sequences & Automations
 
 > Dois motores complementares de follow‑up automatizado:

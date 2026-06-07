@@ -1,3 +1,11 @@
+---
+title: Lembretes de Consulta (Appointment Reminders)
+topic: automations
+kind: feature
+audience: agent
+updated: 2026-06-07
+summary: Lembretes de consulta **não são uma feature dedicada** — são implementados em cima do motor genérico de **Automations** usando o trigger `before_appointment`. Não há tabela específica de "reminders".
+---
 # Lembretes de Consulta (Appointment Reminders)
 
 > **Quando ler:** ao configurar lembretes automáticos antes de uma consulta

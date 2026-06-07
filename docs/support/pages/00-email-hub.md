@@ -1,3 +1,11 @@
+---
+title: Email Hub — Visão Geral do Módulo
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: Navegue para o menu **Email Marketing** na barra lateral principal. O hub é um contêiner que renderiza as sub-páginas dentro de um sistema de abas (CategoryTabs).
+---
 # Email Hub — Visão Geral do Módulo
 
 **Rota:** `/email` (e todas as sub-rotas `/email/*`)  

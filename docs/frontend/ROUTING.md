@@ -1,3 +1,11 @@
+---
+title: Frontend — Roteamento
+topic: auth
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Estrutura em **2 níveis** de `<Routes>`:"
+---
 # Frontend — Roteamento
 
 > Mapa de URLs, guards e padrões de navegação.

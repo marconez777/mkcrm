@@ -1,3 +1,10 @@
+---
+title: Automações — `/automations`
+topic: automations
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # Automações — `/automations`
 
 ## Para que serve

@@ -1,3 +1,11 @@
+---
+title: Templates de Email
+topic: email
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Aba **Templates** no Email Hub → `/email/templates`. Para criar/editar com o editor visual: botão **Novo template** ou **Editar** em um template existente."
+---
 # Templates de Email
 
 **Rota:** `/email/templates`  

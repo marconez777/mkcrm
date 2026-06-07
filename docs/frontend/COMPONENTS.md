@@ -1,3 +1,11 @@
+---
+title: Frontend — Componentes
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Componentes-chave usados em todo lugar: `Button`, `Input`, `Dialog`, `Drawer`, `Sheet`, `Tabs`, `Card`, `Badge`, `Select`, `Popover`, `Tooltip`, `DropdownMenu`, `Form` (react-hook-form + zodResolver), `Table`, `Skeleton`, `Sonner`, `Calenda"
+---
 # Frontend — Componentes
 
 > Organização dos componentes React em `src/components/**`.

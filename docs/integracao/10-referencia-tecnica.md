@@ -1,3 +1,11 @@
+---
+title: 10 — Referência técnica
+topic: tracking
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Headers obrigatórios: `Content-Type: application/json`, `x-form-token: <TOKEN>` (ou query `?token=`)."
+---
 # 10 — Referência técnica
 
 > Schemas, tabelas, edge functions, limites. Para devs que vão integrar fundo.

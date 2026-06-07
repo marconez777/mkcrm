@@ -1,3 +1,10 @@
+---
+title: Instalar o pixel de tracking
+topic: tracking
+kind: journey
+audience: user
+updated: 2026-06-07
+---
 # Instalar o pixel de tracking
 
 ## Quando usar

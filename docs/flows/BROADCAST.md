@@ -1,3 +1,10 @@
+---
+title: "Fluxo: Broadcast (envio em massa WhatsApp)"
+topic: automations
+kind: flow
+audience: agent
+updated: 2026-06-07
+---
 # Fluxo: Broadcast (envio em massa WhatsApp)
 
 > **Quando ler:** antes de mexer no envio em massa do WhatsApp — criação, audiência, throttling, retry.

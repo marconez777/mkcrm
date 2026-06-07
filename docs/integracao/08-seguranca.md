@@ -1,3 +1,11 @@
+---
+title: 08 — Segurança
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Cada integração tem uma lista de domínios autorizados a usar seu token público. O `forms-ingest` valida o header `Origin` da requisição:"
+---
 # 08 — Segurança
 
 > Como proteger seu pipeline de integração: tokens, CORS, rate-limit, LGPD.

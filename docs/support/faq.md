@@ -1,3 +1,10 @@
+---
+title: FAQ — perguntas frequentes
+topic: support
+kind: support
+audience: user
+updated: 2026-06-07
+---
 # ❓ FAQ — perguntas frequentes
 
 > Respostas curtas. Para detalhes, siga o link.

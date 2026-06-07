@@ -1,3 +1,11 @@
+---
+title: Stack & Build
+topic: architecture
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: Centralizadas em `src/lib/supabase-env.ts`. Use `getFunctionHeaders()` para chamadas raw a edge functions (streaming, downloads).
+---
 # Stack & Build
 
 > **Quando ler:** ao avaliar dependências, configurar build/deploy, debugar problemas de build, ou pensar em upgrade de framework.

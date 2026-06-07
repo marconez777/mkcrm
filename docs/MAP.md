@@ -1,3 +1,11 @@
+---
+title: MAP — GPS de Edição do Código
+topic: general
+kind: doc
+audience: agent
+updated: 2026-06-07
+summary: 1. Recebeu um pedido de edição? Identifique a **feature** (Builder, Inbox, Email…). 2. Abra `docs/maps/<FEATURE>.md`. 3. Leia a seção **7 (Invariantes)** ANTES de editar — coisas que quebram silenciosamente em produção. 4. Use a seção **9 (
+---
 # 🗺️ MAP — GPS de Edição do Código
 
 > **Para que serve:** localizar com precisão **onde editar** quando uma alteração é pedida. Não é documentação conceitual (para entender *por quê*, leia `docs/features/*` e `docs/flows/*`); é índice operacional de **arquivos + invariantes + receitas**.

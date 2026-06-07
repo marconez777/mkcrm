@@ -1,3 +1,11 @@
+---
+title: 13. Baseline Fase 0 — Diagnóstico da integração Clínica ÓR
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: Este documento é o "antes". Toda melhoria da Fase 1+ deve ser medida contra estes números.
+---
 # 13. Baseline Fase 0 — Diagnóstico da integração Clínica ÓR
 
 > **Data do diagnóstico:** 2026-05-26

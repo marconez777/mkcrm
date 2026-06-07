@@ -1,3 +1,11 @@
+---
+title: Páginas de feature do site — fonte única
+topic: general
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "1. Criar rotas `/features/<slug>` em `src/pages/site/features/*` usando este doc como copy. 2. Adicionar links no `SiteNav` (dropdown \"Features\") e no `SiteFooter`. 3. Cada página deve ter: hero, bullets, \"como funciona\", screenshot real (c"
+---
 # Páginas de feature do site — fonte única
 
 > **Quando ler:** antes de criar qualquer página `/features/<slug>` no site institucional. Cada bloco abaixo é a fonte da copy. Atualizar aqui primeiro, depois espelhar na página.

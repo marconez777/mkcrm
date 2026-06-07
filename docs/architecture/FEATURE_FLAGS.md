@@ -1,3 +1,11 @@
+---
+title: Feature Flags
+topic: automations
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Flags ficam em `clinics.settings.features` (jsonb), no formato:"
+---
 # Feature Flags
 
 > **Quando ler:** ao adicionar/ocultar uma funcionalidade do produto por clínica, ou ao criar uma rota nova.

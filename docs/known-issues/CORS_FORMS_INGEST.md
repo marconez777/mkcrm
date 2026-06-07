@@ -1,3 +1,11 @@
+---
+title: CORS no `forms-ingest` (e qualquer edge function chamada por snippet em site externo)
+topic: tracking
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "No console do site externo (ex.: `clinicaohrpsiquiatria.com`):"
+---
 # CORS no `forms-ingest` (e qualquer edge function chamada por snippet em site externo)
 
 > Última atualização: 2026-06-03

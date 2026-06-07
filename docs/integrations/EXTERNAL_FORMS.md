@@ -1,3 +1,11 @@
+---
+title: "Integração: External Forms (snippet + WordPress)"
+topic: tracking
+kind: reference
+audience: agent
+updated: 2026-06-07
+summary: "Sistema que permite **qualquer site externo** (WordPress, Wix, Webflow, HTML cru) capturar leads e enviar para o mkart. Duas formas:"
+---
 # Integração: External Forms (snippet + WordPress)
 
 > **Quando ler:** antes de mexer no snippet JS embedável, no plugin WordPress, ou no `forms-ingest`.

@@ -1,3 +1,10 @@
+---
+title: Problemas com WhatsApp
+topic: support
+kind: troubleshooting
+audience: user
+updated: 2026-06-07
+---
 # Problemas com WhatsApp
 
 ## QR Code não aparece ou expira muito rápido

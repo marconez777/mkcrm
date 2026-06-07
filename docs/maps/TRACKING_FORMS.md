@@ -1,3 +1,11 @@
+---
+title: "Mapa: Tracking + Forms (captura externa)"
+topic: tracking
+kind: map
+audience: agent
+updated: 2026-06-07
+summary: "Sistema de captura de eventos e formulários externos: snippets JS embedáveis em sites de clientes, formulários CF7/Elementor/HTML puro, atribuição UTM, sessões, identify, pixel de fallback. Tudo entra como evento → vira lead → entra no kanb"
+---
 # Mapa: Tracking + Forms (captura externa)
 
 > **Para localizar edições.** Para entender *por quê*, leia [`docs/integracao/README.md`](../integracao/README.md) (visão geral em 11 partes), [`docs/integrations/EXTERNAL_FORMS.md`](../integrations/EXTERNAL_FORMS.md).

@@ -1,3 +1,11 @@
+---
+title: "Fluxo: AI Agent Loop (auto-reply e assist)"
+topic: ai
+kind: flow
+audience: agent
+updated: 2026-06-07
+summary: "Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend por `src/lib/agent-tools.ts` (`KNOWN_AGENT_TOOLS`):"
+---
 # Fluxo: AI Agent Loop (auto-reply e assist)
 
 > **Quando ler:** antes de adicionar uma tool nova, mudar prompt, mexer no custo/limite, ou debugar resposta estranha do agente.

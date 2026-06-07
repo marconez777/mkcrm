@@ -1,3 +1,11 @@
+---
+title: Tracking — `/tracking`
+topic: tracking
+kind: support
+audience: user
+updated: 2026-06-07
+summary: "Timeout padrão de sessão: **30 minutos** (configurável em `clinic.settings.tracking.session_timeout_minutes`) (`tracking-config/index.ts:42`)."
+---
 # 📡 Tracking — `/tracking`
 
 ## Para que serve

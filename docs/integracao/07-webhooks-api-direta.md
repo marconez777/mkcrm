@@ -1,3 +1,11 @@
+---
+title: 07 — Webhooks & API direta
+topic: integracao
+kind: reference
+audience: user
+updated: 2026-06-07
+summary: "Headers: ``` Content-Type: application/json x-capture-token: <TOKEN_PRIVADO> ```"
+---
 # 07 — Webhooks & API direta
 
 > Para integrar **sem JS no browser**: Zapier, n8n, Make, CRMs próprios, chatbots, automações server-to-server.
