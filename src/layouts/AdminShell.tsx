@@ -72,6 +72,7 @@ const NAV: NavGroup[] = [
       { to: "/admin/integrations/eduzz", label: "Eduzz", icon: ShoppingCart },
       { to: "/admin/audit", label: "Auditoria", icon: ShieldCheck },
       { to: "/admin/builder-manual", label: "Manual do Builder", icon: BookOpen },
+      { to: "/admin/docs", label: "Documentação", icon: FolderTree },
       { to: "/admin/branding", label: "Whitelabel", icon: Palette },
     ],
   },
