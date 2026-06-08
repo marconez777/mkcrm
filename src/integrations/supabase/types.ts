@@ -6450,6 +6450,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_last_seen: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          last_seen_at: string
+          user_id: string
+        }[]
+      }
       admin_list_agent_mcp_servers: {
         Args: { _agent_id: string }
         Returns: {
