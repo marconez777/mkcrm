@@ -13,10 +13,16 @@ import {
 
 const POLL_WINDOW_MIN = 10;
 // Após N minutos com conexão "open" porém sem eventos novos do WhatsApp,
-// consideramos a sessão "surda" e tentamos um restart automático.
+// marcamos a instância como possivelmente "surda" (session_stale_since).
+const STALE_DETECT_MIN = 30;
+// Após N minutos sem eventos, tentamos restart do processo Evolution.
 const DEAF_THRESHOLD_MIN = 120;
+// Após N minutos sem eventos, escalamos para LOGOUT (quebra o "open fantasma").
+const AUTO_LOGOUT_THRESHOLD_MIN = 240;
 // Cooldown entre auto-restarts da mesma instância para evitar loop.
 const AUTO_RESTART_COOLDOWN_MIN = 20;
+// Cooldown entre auto-logouts (mais conservador — logout obriga reescanear QR).
+const AUTO_LOGOUT_COOLDOWN_MIN = 60;
 
 function buildWebhookUrl(token: string) {
   const base = Deno.env.get("SUPABASE_URL")!;
