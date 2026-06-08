@@ -54,13 +54,25 @@ export default function AdminClinics() {
 
   async function load() {
     try {
-      const [cs, { data: ps }, subs] = await Promise.all([
+      const [cs, { data: ps }, subs, waInstances] = await Promise.all([
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
         fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
+        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state")),
       ]);
       const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
-      setClinics((cs as any[]).map((c) => ({ ...c, grant_reason: reasonMap.get(c.id) ?? null })) as any);
+      const waMap = new Map<string, { name: string; connection_state: string | null }[]>();
+      for (const w of waInstances as any[]) {
+        if (!w.clinic_id) continue;
+        const arr = waMap.get(w.clinic_id) ?? [];
+        arr.push({ name: w.name, connection_state: w.connection_state });
+        waMap.set(w.clinic_id, arr);
+      }
+      setClinics((cs as any[]).map((c) => ({
+        ...c,
+        grant_reason: reasonMap.get(c.id) ?? null,
+        wa_instances: waMap.get(c.id) ?? [],
+      })) as any);
       setPlans((ps as any) ?? []);
     } catch (e: any) { toast.error(e.message); }
   }
