@@ -105,7 +105,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
     const active = rows.filter((r) => !r.locked).length;
     const locked = rows.filter((r) => r.locked).length;
     const supers = rows.filter((r) => r.is_super_admin).length;
-    const never = rows.filter((r) => !r.last_sign_in_at).length;
+    const never = rows.filter((r) => !(r.last_seen_at ?? r.last_sign_in_at)).length;
     return { total: rows.length, active, locked, supers, never };
   }, [rows]);
 
