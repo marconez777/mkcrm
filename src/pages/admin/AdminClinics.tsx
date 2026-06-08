@@ -339,6 +339,32 @@ export default function AdminClinics() {
                       <span className="tabular-nums">{featuresEnabledCount(c)}/{FEATURES.length}</span>
                     </div>
                   </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const list = c.wa_instances ?? [];
+                      if (list.length === 0) return <span className="text-xs text-admin-text-subtle">—</span>;
+                      const connected = list.filter((i) => i.connection_state === "open");
+                      const connecting = list.filter((i) => i.connection_state === "connecting");
+                      const tone = connected.length > 0
+                        ? "bg-admin-positive"
+                        : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
+                      const label = connected.length > 0
+                        ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
+                        : connecting.length > 0 ? "conectando" : "desconectada";
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 text-xs max-w-[160px]"
+                          title={list.map((i) => `${i.name}: ${i.connection_state ?? "?"}`).join("\n")}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tone)} />
+                          <span className="truncate text-admin-text-muted">{label}</span>
+                          {list.length > 1 && (
+                            <span className="text-[10px] text-admin-text-subtle tabular-nums">({connected.length}/{list.length})</span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="text-xs text-admin-text-muted">{new Date(c.created_at).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex gap-0.5 opacity-70 group-hover:opacity-100 transition">
