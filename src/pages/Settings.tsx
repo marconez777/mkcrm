@@ -63,7 +63,7 @@ export default function SettingsPage() {
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
