@@ -302,6 +302,7 @@ export default function AdminClinics() {
                 <TableHead>Plano</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Recursos</TableHead>
+                <TableHead title="Instâncias de WhatsApp da clínica. Verde = conectada (open), amarelo = conectando, cinza = desconectada.">WhatsApp</TableHead>
                 <TableHead>Criada</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
