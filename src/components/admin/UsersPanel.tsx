@@ -207,7 +207,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
               <TableHead>Clínica</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Último login</TableHead>
+              <TableHead title="Última vez que a sessão do usuário foi renovada (uso real do app, não apenas login com senha).">Última atividade</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
