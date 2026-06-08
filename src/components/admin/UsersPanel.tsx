@@ -127,7 +127,8 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
   function exportCsv() {
     downloadCsv(`usuarios-${new Date().toISOString().slice(0, 10)}.csv`, filtered.map((r) => ({
       id: r.id, email: r.email, full_name: r.full_name, clinic: r.clinic_name, role: r.clinic_role,
-      super_admin: r.is_super_admin, locked: r.locked, last_sign_in_at: r.last_sign_in_at, created_at: r.created_at,
+      super_admin: r.is_super_admin, locked: r.locked,
+      last_seen_at: r.last_seen_at, last_sign_in_at: r.last_sign_in_at, created_at: r.created_at,
     })));
   }
 
