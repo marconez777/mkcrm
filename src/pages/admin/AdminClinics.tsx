@@ -345,16 +345,31 @@ export default function AdminClinics() {
                       if (list.length === 0) return <span className="text-xs text-admin-text-subtle">—</span>;
                       const connected = list.filter((i) => i.connection_state === "open");
                       const connecting = list.filter((i) => i.connection_state === "connecting");
-                      const tone = connected.length > 0
-                        ? "bg-admin-positive"
-                        : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
-                      const label = connected.length > 0
-                        ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
-                        : connecting.length > 0 ? "conectando" : "desconectada";
+                      // ghost = "open" mas sem eventos há ≥4h (sessão fantasma do WhatsApp Web)
+                      const ghost = list.filter((i) => {
+                        if (i.connection_state !== "open") return false;
+                        const t = i.last_inbound_webhook_at ? Date.parse(i.last_inbound_webhook_at) : 0;
+                        return t > 0 && (Date.now() - t) / 60000 >= 240;
+                      });
+                      const tone = ghost.length > 0
+                        ? "bg-admin-negative"
+                        : connected.length > 0
+                          ? "bg-admin-positive"
+                          : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
+                      const label = ghost.length > 0
+                        ? (ghost.length === 1 ? `${ghost[0].name} (expirada)` : `${ghost.length} expirada(s)`)
+                        : connected.length > 0
+                          ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
+                          : connecting.length > 0 ? "conectando" : "desconectada";
+                      const tooltip = list.map((i) => {
+                        const mins = i.last_inbound_webhook_at ? Math.floor((Date.now() - Date.parse(i.last_inbound_webhook_at)) / 60000) : null;
+                        const ageStr = mins === null ? "sem inbound" : mins < 60 ? `${mins}min` : mins < 1440 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`;
+                        return `${i.name}: ${i.connection_state ?? "?"} · último evento ${ageStr}`;
+                      }).join("\n");
                       return (
                         <span
-                          className="inline-flex items-center gap-1.5 text-xs max-w-[160px]"
-                          title={list.map((i) => `${i.name}: ${i.connection_state ?? "?"}`).join("\n")}
+                          className="inline-flex items-center gap-1.5 text-xs max-w-[180px]"
+                          title={tooltip}
                         >
                           <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tone)} />
                           <span className="truncate text-admin-text-muted">{label}</span>
