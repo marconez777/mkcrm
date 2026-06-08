@@ -93,6 +93,7 @@ Ver `flows/INBOUND_WHATSAPP.md`.
 - **QR expira em ~60s**: UI faz polling de 5s; após 3 tentativas, força `restart`.
 - **Webhook não chega**: 95% das vezes é `EVOLUTION_BASE_URL` errado ou Evolution sem internet de saída. Conferir com `evolution-test`.
 - **Mensagem outbound não aparece no celular físico**: Evolution só sincroniza via WhatsApp Web. Se o celular estiver offline >14 dias, sessão expira → re-parear.
+- **Sessão "open fantasma"**: a Evolution pode reportar `state=open` mesmo depois do WhatsApp Web do celular ter expirado o vínculo (visto em "Aparelhos conectados → Última sessão ativa em DD/MM"). Nesse caso `connectionState` segue `open`, webhook segue configurado, mas **nenhum evento chega**. O `evolution-health` agora detecta isso pelo tempo desde o último inbound (`last_inbound_webhook_at`) e escala: marca `session_stale_since` (≥30min) → `restart` (≥120min, registrado como `AUTO_RESTART`) → `logout` forçado (≥240min, registrado como `AUTO_LOGOUT` na `webhook_events`). Após o logout a UI mostra "sessão expirada — reescaneie o QR".
 - **Áudio**: precisa ser `audio/ogg; codecs=opus`. mp3 quebra silenciosamente (Evolution retorna 200 mas WhatsApp descarta).
 - **Grupos**: tecnicamente Evolution suporta, mas a aplicação **ignora** (`remoteJid` ending `@g.us`) — não criamos lead nem persistimos.
 - **Rate limit**: ~1 msg/s por instância antes do WhatsApp começar a derrubar. Acima disso, risco de ban.
