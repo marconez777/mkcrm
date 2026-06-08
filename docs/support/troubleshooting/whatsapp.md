@@ -30,8 +30,15 @@ updated: 2026-06-07
 - **Limite de tamanho:** 16MB para mídia inbound/outbound. Acima disso, falha.
 - Verifique o formato (jpg, png, pdf, mp3, ogg, mp4 são suportados).
 
-## "Sessão travada"
-**Solução:** desconecte a instância e conecte de novo.
+## "Sessão travada" / "Sessão expirada — reescaneie o QR"
+**Causa:** o pareamento do WhatsApp Web morreu do lado do celular (app reinstalado, celular ficou offline por muito tempo, ou o WhatsApp expirou o vínculo do aparelho), mas a Evolution ainda reporta `Connected`. Resultado: a instância aparece como conectada na UI, mas não recebe mais nenhuma mensagem.
+
+**Como o sistema detecta:**
+- ≥ 30min sem nenhum evento inbound → badge âmbar "sem eventos há Nmin — verificando".
+- ≥ 2h → badge vermelho "sessão travada — tentando reiniciar" (auto-restart do processo Evolution).
+- ≥ 4h → auto-logout da instância e badge "sessão expirada — reescaneie o QR".
+
+**Solução:** clique em **Reescanear QR** (ou em **Gerenciar** → escaneie o QR Code novamente pelo WhatsApp do celular em *Aparelhos conectados → Conectar aparelho*). Não adianta apenas "Recuperar" — o problema está na pareação WhatsApp ↔ Evolution, não no processo.
 
 ## IA não responde no WhatsApp
 1. O agente está **ativo** e vinculado à instância correta? Ver `pages/ai-agents.md`.
