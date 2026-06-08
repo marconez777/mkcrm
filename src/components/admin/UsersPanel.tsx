@@ -259,8 +259,12 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
                     )}
                   </span>
                 </TableCell>
-                <TableCell className="text-xs text-admin-text-muted whitespace-nowrap" title={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("pt-BR") : ""}>
-                  {relativeTime(u.last_sign_in_at)}
+                <TableCell className="text-xs text-admin-text-muted whitespace-nowrap" title={(() => {
+                  const seen = u.last_seen_at ? `Última atividade: ${new Date(u.last_seen_at).toLocaleString("pt-BR")}` : "";
+                  const login = u.last_sign_in_at ? `Último login: ${new Date(u.last_sign_in_at).toLocaleString("pt-BR")}` : "";
+                  return [seen, login].filter(Boolean).join("\n");
+                })()}>
+                  {relativeTime(u.last_seen_at ?? u.last_sign_in_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
