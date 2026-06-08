@@ -33,6 +33,8 @@ type Instance = {
   last_reconnect_at: string | null;
   last_backfill_at: string | null;
   last_backfill_imported: number | null;
+  session_stale_since: string | null;
+  last_auto_logout_at: string | null;
 };
 
 type AgentLite = { id: string; name: string };
