@@ -95,7 +95,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
       if (fStatus === "active" && r.locked) return false;
       if (fStatus === "locked" && !r.locked) return false;
       if (fStatus === "super" && !r.is_super_admin) return false;
-      if (fStatus === "never" && r.last_sign_in_at) return false;
+      if (fStatus === "never" && (r.last_seen_at ?? r.last_sign_in_at)) return false;
       if (q && !`${r.email} ${r.full_name ?? ""} ${r.clinic_name ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
