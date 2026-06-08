@@ -39,12 +39,18 @@ Deno.serve(async (req) => {
     const users = list?.users ?? [];
     const ids = users.map((u) => u.id);
 
-    const [{ data: profiles }, { data: members }, { data: roles }, { data: lockouts }] = await Promise.all([
+    const [{ data: profiles }, { data: members }, { data: roles }, { data: lockouts }, { data: lastSeenRows }] = await Promise.all([
       admin.from("profiles").select("user_id, full_name, avatar_url").in("user_id", ids),
       admin.from("clinic_members").select("user_id, clinic_id, role, clinic:clinics(id,name,slug)").in("user_id", ids),
       admin.from("user_roles").select("user_id, role").in("user_id", ids),
       admin.from("auth_lockouts").select("email, locked_until, failed_attempts").in("email", users.map((u) => (u.email ?? "").toLowerCase()).filter(Boolean)),
+      admin.rpc("admin_get_last_seen", { _user_ids: ids }),
     ]);
+
+    // last_seen_at = MAX(auth.sessions.updated_at) — reflects real activity (token refresh), not only password login.
+    const lastSeenMap = new Map<string, string>(
+      ((lastSeenRows ?? []) as any[]).map((r) => [r.user_id, r.last_seen_at])
+    );
 
     const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
     const memberMap = new Map((members ?? []).map((m: any) => [m.user_id, m]));
@@ -67,6 +73,7 @@ Deno.serve(async (req) => {
         email: u.email,
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at,
+        last_seen_at: lastSeenMap.get(u.id) ?? null,
         full_name: prof.full_name ?? u.user_metadata?.full_name ?? null,
         avatar_url: prof.avatar_url ?? null,
         clinic_id: mem?.clinic_id ?? null,

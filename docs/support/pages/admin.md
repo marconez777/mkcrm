@@ -72,7 +72,9 @@ Todos os usuários de todas as clínicas.
 
 **Ações em lote:** **Forçar logout** · **Limpar**.
 
-**Colunas:** ☐ · Usuário (nome + e-mail) · Clínica · Papel (badges) · Último login · Status · Ações ⋯.
+**Colunas:** ☐ · Usuário (nome + e-mail) · Clínica · Papel (badges) · Status · Última atividade · Ações ⋯.
+
+> **Última atividade** vem de `MAX(auth.sessions.updated_at)` — reflete uso real do app (refresh de token a cada ~1h), não apenas login com senha. Fallback para `last_sign_in_at` quando não há sessão registrada.
 
 **Menu ⋯ por usuário:** Redefinir senha · Desbloquear · Forçar logout · Promover super admin · Revogar super admin · Excluir usuário.
 

@@ -17,7 +17,8 @@ import { AdminCard } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
 type Row = {
-  id: string; email: string; full_name: string | null; created_at: string; last_sign_in_at: string | null;
+  id: string; email: string; full_name: string | null; created_at: string;
+  last_sign_in_at: string | null; last_seen_at: string | null;
   clinic_id: string | null; clinic_name: string | null; clinic_role: string | null;
   is_super_admin: boolean; locked: boolean; locked_until: string | null; failed_attempts: number;
 };
@@ -94,7 +95,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
       if (fStatus === "active" && r.locked) return false;
       if (fStatus === "locked" && !r.locked) return false;
       if (fStatus === "super" && !r.is_super_admin) return false;
-      if (fStatus === "never" && r.last_sign_in_at) return false;
+      if (fStatus === "never" && (r.last_seen_at ?? r.last_sign_in_at)) return false;
       if (q && !`${r.email} ${r.full_name ?? ""} ${r.clinic_name ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -104,7 +105,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
     const active = rows.filter((r) => !r.locked).length;
     const locked = rows.filter((r) => r.locked).length;
     const supers = rows.filter((r) => r.is_super_admin).length;
-    const never = rows.filter((r) => !r.last_sign_in_at).length;
+    const never = rows.filter((r) => !(r.last_seen_at ?? r.last_sign_in_at)).length;
     return { total: rows.length, active, locked, supers, never };
   }, [rows]);
 
@@ -126,7 +127,8 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
   function exportCsv() {
     downloadCsv(`usuarios-${new Date().toISOString().slice(0, 10)}.csv`, filtered.map((r) => ({
       id: r.id, email: r.email, full_name: r.full_name, clinic: r.clinic_name, role: r.clinic_role,
-      super_admin: r.is_super_admin, locked: r.locked, last_sign_in_at: r.last_sign_in_at, created_at: r.created_at,
+      super_admin: r.is_super_admin, locked: r.locked,
+      last_seen_at: r.last_seen_at, last_sign_in_at: r.last_sign_in_at, created_at: r.created_at,
     })));
   }
 
@@ -205,7 +207,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
               <TableHead>Clínica</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Último login</TableHead>
+              <TableHead title="Última vez que a sessão do usuário foi renovada (uso real do app, não apenas login com senha).">Última atividade</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -257,8 +259,12 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
                     )}
                   </span>
                 </TableCell>
-                <TableCell className="text-xs text-admin-text-muted whitespace-nowrap" title={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("pt-BR") : ""}>
-                  {relativeTime(u.last_sign_in_at)}
+                <TableCell className="text-xs text-admin-text-muted whitespace-nowrap" title={(() => {
+                  const seen = u.last_seen_at ? `Última atividade: ${new Date(u.last_seen_at).toLocaleString("pt-BR")}` : "";
+                  const login = u.last_sign_in_at ? `Último login: ${new Date(u.last_sign_in_at).toLocaleString("pt-BR")}` : "";
+                  return [seen, login].filter(Boolean).join("\n");
+                })()}>
+                  {relativeTime(u.last_seen_at ?? u.last_sign_in_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
