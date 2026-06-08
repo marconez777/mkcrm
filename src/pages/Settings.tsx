@@ -33,6 +33,8 @@ type Instance = {
   last_reconnect_at: string | null;
   last_backfill_at: string | null;
   last_backfill_imported: number | null;
+  session_stale_since: string | null;
+  last_auto_logout_at: string | null;
 };
 
 type AgentLite = { id: string; name: string };
@@ -61,7 +63,7 @@ export default function SettingsPage() {
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -233,20 +235,38 @@ export default function SettingsPage() {
                   const minutesSinceInbound = inst.last_inbound_webhook_at
                     ? Math.floor((Date.now() - new Date(inst.last_inbound_webhook_at).getTime()) / 60000)
                     : null;
-                  // Sessão "travada": >2h sem QUALQUER evento da Evolution (mensagem, presence, chat, etc).
-                  // Períodos normais de silêncio (ninguém escreve por 30min) NÃO contam mais como travado.
-                  const deaf = open && (minutesSinceInbound === null || minutesSinceInbound >= 120);
+                  const minutesSinceLogout = inst.last_auto_logout_at
+                    ? Math.floor((Date.now() - new Date(inst.last_auto_logout_at).getTime()) / 60000)
+                    : null;
+                  // Escalonamento por janelas (alinhado com evolution-health):
+                  //  30–120min  → "verificando"
+                  //  120–240min → "tentando reiniciar"
+                  //  ≥240min OU logout automático recente → sessão expirada (precisa reescanear QR)
+                  const expired = open && (
+                    (minutesSinceInbound !== null && minutesSinceInbound >= 240) ||
+                    (minutesSinceLogout !== null && minutesSinceLogout < 120) ||
+                    !!inst.session_stale_since && (Date.now() - new Date(inst.session_stale_since).getTime()) / 60000 >= 240
+                  );
+                  const stuck = !expired && open && minutesSinceInbound !== null && minutesSinceInbound >= 120;
+                  const watching = !expired && !stuck && open && minutesSinceInbound !== null && minutesSinceInbound >= 30;
+                  const dotTone = expired ? "bg-red-500/10 text-red-600"
+                    : stuck ? "bg-red-500/10 text-red-600"
+                    : watching ? "bg-amber-500/10 text-amber-600"
+                    : open ? "bg-emerald-500/10 text-emerald-600"
+                    : "bg-muted text-muted-foreground";
                   return (
-                    <div key={inst.id} className="rounded-md border p-3 space-y-2">
+                    <div key={inst.id} className={`rounded-md border p-3 space-y-2 ${expired ? "border-red-300 bg-red-50/30" : ""}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${deaf ? "bg-amber-500/10 text-amber-600" : open ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center ${dotTone}`}>
                           {open ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{inst.name}</span>
                             {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
-                            {deaf && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">sessão travada (sem sinal há 2h+)</span>}
+                            {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão expirada — reescaneie o QR</span>}
+                            {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão travada — tentando reiniciar</span>}
+                            {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">sem eventos há {minutesSinceInbound}min — verificando</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
@@ -255,12 +275,23 @@ export default function SettingsPage() {
                             Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
                             {inst.last_reconnect_at && <> · Última reconexão: {formatRelative(inst.last_reconnect_at)}</>}
                             {inst.last_auto_restart_at && <> · Auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_auto_logout_at && <> · Auto-logout: {formatRelative(inst.last_auto_logout_at)}</>}
                             {inst.last_backfill_at && (
                               <> · Última recuperação: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} msgs)</>
                             )}
                           </div>
+                          {expired && (
+                            <div className="mt-2 text-xs text-red-700">
+                              A sessão WhatsApp Web caiu do lado do celular. Clique em <strong>{open ? "Gerenciar" : "Escanear QR"}</strong> e refaça o pareamento (Aparelhos conectados → Conectar aparelho).
+                            </div>
+                          )}
                         </div>
-                        {deaf && canManage && (
+                        {expired && canManage && (
+                          <Button variant="destructive" size="sm" onClick={() => setQrFor(inst)}>
+                            <QrCode className="mr-2 h-3 w-3" /> Reescanear QR
+                          </Button>
+                        )}
+                        {!expired && stuck && canManage && (
                           <Button variant="default" size="sm" onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
                             <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> Recuperar
                           </Button>

@@ -18,7 +18,7 @@ import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null; wa_instances?: { name: string; connection_state: string | null }[] };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null; wa_instances?: { name: string; connection_state: string | null; session_stale_since: string | null; last_inbound_webhook_at: string | null }[] };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
 
 function slugify(s: string) {
@@ -58,14 +58,14 @@ export default function AdminClinics() {
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
         fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
-        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state")),
+        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state,session_stale_since,last_inbound_webhook_at")),
       ]);
       const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
-      const waMap = new Map<string, { name: string; connection_state: string | null }[]>();
+      const waMap = new Map<string, { name: string; connection_state: string | null; session_stale_since: string | null; last_inbound_webhook_at: string | null }[]>();
       for (const w of waInstances as any[]) {
         if (!w.clinic_id) continue;
         const arr = waMap.get(w.clinic_id) ?? [];
-        arr.push({ name: w.name, connection_state: w.connection_state });
+        arr.push({ name: w.name, connection_state: w.connection_state, session_stale_since: w.session_stale_since, last_inbound_webhook_at: w.last_inbound_webhook_at });
         waMap.set(w.clinic_id, arr);
       }
       setClinics((cs as any[]).map((c) => ({
@@ -345,16 +345,31 @@ export default function AdminClinics() {
                       if (list.length === 0) return <span className="text-xs text-admin-text-subtle">—</span>;
                       const connected = list.filter((i) => i.connection_state === "open");
                       const connecting = list.filter((i) => i.connection_state === "connecting");
-                      const tone = connected.length > 0
-                        ? "bg-admin-positive"
-                        : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
-                      const label = connected.length > 0
-                        ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
-                        : connecting.length > 0 ? "conectando" : "desconectada";
+                      // ghost = "open" mas sem eventos há ≥4h (sessão fantasma do WhatsApp Web)
+                      const ghost = list.filter((i) => {
+                        if (i.connection_state !== "open") return false;
+                        const t = i.last_inbound_webhook_at ? Date.parse(i.last_inbound_webhook_at) : 0;
+                        return t > 0 && (Date.now() - t) / 60000 >= 240;
+                      });
+                      const tone = ghost.length > 0
+                        ? "bg-admin-negative"
+                        : connected.length > 0
+                          ? "bg-admin-positive"
+                          : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
+                      const label = ghost.length > 0
+                        ? (ghost.length === 1 ? `${ghost[0].name} (expirada)` : `${ghost.length} expirada(s)`)
+                        : connected.length > 0
+                          ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
+                          : connecting.length > 0 ? "conectando" : "desconectada";
+                      const tooltip = list.map((i) => {
+                        const mins = i.last_inbound_webhook_at ? Math.floor((Date.now() - Date.parse(i.last_inbound_webhook_at)) / 60000) : null;
+                        const ageStr = mins === null ? "sem inbound" : mins < 60 ? `${mins}min` : mins < 1440 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 1440)}d`;
+                        return `${i.name}: ${i.connection_state ?? "?"} · último evento ${ageStr}`;
+                      }).join("\n");
                       return (
                         <span
-                          className="inline-flex items-center gap-1.5 text-xs max-w-[160px]"
-                          title={list.map((i) => `${i.name}: ${i.connection_state ?? "?"}`).join("\n")}
+                          className="inline-flex items-center gap-1.5 text-xs max-w-[180px]"
+                          title={tooltip}
                         >
                           <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tone)} />
                           <span className="truncate text-admin-text-muted">{label}</span>
