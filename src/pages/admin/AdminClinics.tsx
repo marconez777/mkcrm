@@ -58,14 +58,14 @@ export default function AdminClinics() {
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
         fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
-        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state")),
+        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state,session_stale_since,last_inbound_webhook_at")),
       ]);
       const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
-      const waMap = new Map<string, { name: string; connection_state: string | null }[]>();
+      const waMap = new Map<string, { name: string; connection_state: string | null; session_stale_since: string | null; last_inbound_webhook_at: string | null }[]>();
       for (const w of waInstances as any[]) {
         if (!w.clinic_id) continue;
         const arr = waMap.get(w.clinic_id) ?? [];
-        arr.push({ name: w.name, connection_state: w.connection_state });
+        arr.push({ name: w.name, connection_state: w.connection_state, session_stale_since: w.session_stale_since, last_inbound_webhook_at: w.last_inbound_webhook_at });
         waMap.set(w.clinic_id, arr);
       }
       setClinics((cs as any[]).map((c) => ({
