@@ -17,7 +17,8 @@ import { AdminCard } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
 type Row = {
-  id: string; email: string; full_name: string | null; created_at: string; last_sign_in_at: string | null;
+  id: string; email: string; full_name: string | null; created_at: string;
+  last_sign_in_at: string | null; last_seen_at: string | null;
   clinic_id: string | null; clinic_name: string | null; clinic_role: string | null;
   is_super_admin: boolean; locked: boolean; locked_until: string | null; failed_attempts: number;
 };
