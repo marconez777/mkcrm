@@ -18,7 +18,7 @@ import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
 
-type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null };
+type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null; wa_instances?: { name: string; connection_state: string | null }[] };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
 
 function slugify(s: string) {
@@ -54,13 +54,25 @@ export default function AdminClinics() {
 
   async function load() {
     try {
-      const [cs, { data: ps }, subs] = await Promise.all([
+      const [cs, { data: ps }, subs, waInstances] = await Promise.all([
         fetchAllPaged<any>(() => supabase.from("clinics").select("*").order("created_at", { ascending: false })),
         supabase.from("plans").select("code,name,limits").order("sort_order"),
         fetchAllPaged<any>(() => supabase.from("clinic_subscriptions").select("clinic_id,grant_reason").eq("is_current", true)),
+        fetchAllPaged<any>(() => supabase.from("whatsapp_instances").select("clinic_id,name,connection_state")),
       ]);
       const reasonMap = new Map<string, string | null>((subs as any[]).map((s) => [s.clinic_id, s.grant_reason]));
-      setClinics((cs as any[]).map((c) => ({ ...c, grant_reason: reasonMap.get(c.id) ?? null })) as any);
+      const waMap = new Map<string, { name: string; connection_state: string | null }[]>();
+      for (const w of waInstances as any[]) {
+        if (!w.clinic_id) continue;
+        const arr = waMap.get(w.clinic_id) ?? [];
+        arr.push({ name: w.name, connection_state: w.connection_state });
+        waMap.set(w.clinic_id, arr);
+      }
+      setClinics((cs as any[]).map((c) => ({
+        ...c,
+        grant_reason: reasonMap.get(c.id) ?? null,
+        wa_instances: waMap.get(c.id) ?? [],
+      })) as any);
       setPlans((ps as any) ?? []);
     } catch (e: any) { toast.error(e.message); }
   }
@@ -290,12 +302,13 @@ export default function AdminClinics() {
                 <TableHead>Plano</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Recursos</TableHead>
+                <TableHead title="Instâncias de WhatsApp da clínica. Verde = conectada (open), amarelo = conectando, cinza = desconectada.">WhatsApp</TableHead>
                 <TableHead>Criada</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
               {filtered.map((c) => (
                 <TableRow key={c.id} className="border-admin-border group">
                   <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
@@ -325,6 +338,32 @@ export default function AdminClinics() {
                       </div>
                       <span className="tabular-nums">{featuresEnabledCount(c)}/{FEATURES.length}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const list = c.wa_instances ?? [];
+                      if (list.length === 0) return <span className="text-xs text-admin-text-subtle">—</span>;
+                      const connected = list.filter((i) => i.connection_state === "open");
+                      const connecting = list.filter((i) => i.connection_state === "connecting");
+                      const tone = connected.length > 0
+                        ? "bg-admin-positive"
+                        : connecting.length > 0 ? "bg-admin-warning" : "bg-admin-text-subtle";
+                      const label = connected.length > 0
+                        ? (connected.length === 1 ? connected[0].name : `${connected.length} conectadas`)
+                        : connecting.length > 0 ? "conectando" : "desconectada";
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 text-xs max-w-[160px]"
+                          title={list.map((i) => `${i.name}: ${i.connection_state ?? "?"}`).join("\n")}
+                        >
+                          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", tone)} />
+                          <span className="truncate text-admin-text-muted">{label}</span>
+                          {list.length > 1 && (
+                            <span className="text-[10px] text-admin-text-subtle tabular-nums">({connected.length}/{list.length})</span>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-xs text-admin-text-muted">{new Date(c.created_at).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right">
