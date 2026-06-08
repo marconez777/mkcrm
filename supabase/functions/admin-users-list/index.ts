@@ -39,12 +39,22 @@ Deno.serve(async (req) => {
     const users = list?.users ?? [];
     const ids = users.map((u) => u.id);
 
-    const [{ data: profiles }, { data: members }, { data: roles }, { data: lockouts }] = await Promise.all([
+    const [{ data: profiles }, { data: members }, { data: roles }, { data: lockouts }, sessionsRes] = await Promise.all([
       admin.from("profiles").select("user_id, full_name, avatar_url").in("user_id", ids),
       admin.from("clinic_members").select("user_id, clinic_id, role, clinic:clinics(id,name,slug)").in("user_id", ids),
       admin.from("user_roles").select("user_id, role").in("user_id", ids),
       admin.from("auth_lockouts").select("email, locked_until, failed_attempts").in("email", users.map((u) => (u.email ?? "").toLowerCase()).filter(Boolean)),
+      admin.schema("auth").from("sessions").select("user_id, updated_at").in("user_id", ids).order("updated_at", { ascending: false }),
     ]);
+
+    // Compute MAX(updated_at) per user from auth.sessions (reflects real activity via token refresh)
+    const lastSeenMap = new Map<string, string>();
+    for (const s of (sessionsRes?.data ?? []) as any[]) {
+      const existing = lastSeenMap.get(s.user_id);
+      if (!existing || new Date(s.updated_at) > new Date(existing)) {
+        lastSeenMap.set(s.user_id, s.updated_at);
+      }
+    }
 
     const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
     const memberMap = new Map((members ?? []).map((m: any) => [m.user_id, m]));
