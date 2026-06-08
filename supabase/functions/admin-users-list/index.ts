@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
         email: u.email,
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at,
+        last_seen_at: lastSeenMap.get(u.id) ?? null,
         full_name: prof.full_name ?? u.user_metadata?.full_name ?? null,
         avatar_url: prof.avatar_url ?? null,
         clinic_id: mem?.clinic_id ?? null,
