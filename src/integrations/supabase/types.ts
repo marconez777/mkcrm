@@ -6120,6 +6120,7 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          auto_logout_count: number
           auto_restart_count: number
           clinic_id: string
           connection_state: string | null
@@ -6129,6 +6130,7 @@ export type Database = {
           evolution_url: string
           id: string
           is_default: boolean
+          last_auto_logout_at: string | null
           last_auto_restart_at: string | null
           last_backfill_at: string | null
           last_backfill_imported: number | null
@@ -6137,6 +6139,7 @@ export type Database = {
           last_poll_at: string | null
           last_reconnect_at: string | null
           name: string
+          session_stale_since: string | null
           updated_at: string
           watcher_agent_id: string | null
           watcher_pipeline_id: string | null
@@ -6146,6 +6149,7 @@ export type Database = {
           webhook_token: string
         }
         Insert: {
+          auto_logout_count?: number
           auto_restart_count?: number
           clinic_id?: string
           connection_state?: string | null
@@ -6155,6 +6159,7 @@ export type Database = {
           evolution_url: string
           id?: string
           is_default?: boolean
+          last_auto_logout_at?: string | null
           last_auto_restart_at?: string | null
           last_backfill_at?: string | null
           last_backfill_imported?: number | null
@@ -6163,6 +6168,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name: string
+          session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
           watcher_pipeline_id?: string | null
@@ -6172,6 +6178,7 @@ export type Database = {
           webhook_token?: string
         }
         Update: {
+          auto_logout_count?: number
           auto_restart_count?: number
           clinic_id?: string
           connection_state?: string | null
@@ -6181,6 +6188,7 @@ export type Database = {
           evolution_url?: string
           id?: string
           is_default?: boolean
+          last_auto_logout_at?: string | null
           last_auto_restart_at?: string | null
           last_backfill_at?: string | null
           last_backfill_imported?: number | null
@@ -6189,6 +6197,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name?: string
+          session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
           watcher_pipeline_id?: string | null
