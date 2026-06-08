@@ -159,15 +159,21 @@ async function pollRecentMessages(instance: Instance) {
   return { imported, skipped, pollError };
 }
 
-async function tryAutoRestart(instance: Instance & { last_inbound_webhook_at?: string | null; last_auto_restart_at?: string | null; auto_restart_count?: number | null }): Promise<{ attempted: boolean; reason: string; ok?: boolean; error?: string }> {
+type InstanceWithMeta = Instance & {
+  last_inbound_webhook_at?: string | null;
+  last_auto_restart_at?: string | null;
+  auto_restart_count?: number | null;
+  last_auto_logout_at?: string | null;
+  auto_logout_count?: number | null;
+  session_stale_since?: string | null;
+};
+
+async function tryAutoRestart(instance: InstanceWithMeta, minutesSinceInbound: number): Promise<{ attempted: boolean; reason: string; ok?: boolean; error?: string }> {
   const supabase = sb();
   const now = Date.now();
-  const lastInbound = instance.last_inbound_webhook_at ? new Date(instance.last_inbound_webhook_at).getTime() : 0;
   const lastRestart = instance.last_auto_restart_at ? new Date(instance.last_auto_restart_at).getTime() : 0;
-  const minutesSinceInbound = lastInbound ? (now - lastInbound) / 60000 : Infinity;
   const minutesSinceRestart = lastRestart ? (now - lastRestart) / 60000 : Infinity;
 
-  if (minutesSinceInbound < DEAF_THRESHOLD_MIN) return { attempted: false, reason: "events-recent" };
   if (minutesSinceRestart < AUTO_RESTART_COOLDOWN_MIN) return { attempted: false, reason: "cooldown" };
 
   try {
@@ -205,8 +211,52 @@ async function tryAutoRestart(instance: Instance & { last_inbound_webhook_at?: s
   }
 }
 
+async function tryAutoLogout(instance: InstanceWithMeta, minutesSinceInbound: number): Promise<{ attempted: boolean; reason: string; ok?: boolean; error?: string }> {
+  const supabase = sb();
+  const now = Date.now();
+  const lastLogout = instance.last_auto_logout_at ? new Date(instance.last_auto_logout_at).getTime() : 0;
+  const minutesSinceLogout = lastLogout ? (now - lastLogout) / 60000 : Infinity;
+
+  if (minutesSinceLogout < AUTO_LOGOUT_COOLDOWN_MIN) return { attempted: false, reason: "cooldown" };
+
+  try {
+    const resp = await evoFetch(
+      instance,
+      `/instance/logout/${encodeURIComponent(instance.evolution_instance)}`,
+      { method: "DELETE" },
+    );
+    const ok = resp.ok;
+    const detail = await resp.text().catch(() => "");
+    await supabase
+      .from("whatsapp_instances")
+      .update({
+        last_auto_logout_at: new Date().toISOString(),
+        auto_logout_count: (instance.auto_logout_count ?? 0) + 1,
+      })
+      .eq("id", instance.id);
+    await supabase.from("webhook_events").insert({
+      event_type: "AUTO_LOGOUT",
+      source: "poll",
+      payload: {
+        instance_id: instance.id,
+        reason: "ghost-session",
+        minutes_since_last_inbound: Math.round(minutesSinceInbound),
+        ok,
+        detail: detail.slice(0, 300),
+      },
+      processed_at: new Date().toISOString(),
+      error: ok ? null : `logout ${resp.status}`,
+      clinic_id: instance.clinic_id,
+    });
+    return { attempted: true, reason: "ghost-session", ok, error: ok ? undefined : `logout ${resp.status}` };
+  } catch (e) {
+    return { attempted: true, reason: "ghost-session", ok: false, error: String(e) };
+  }
+}
+
 async function processInstance(instance: Instance) {
   const supabase = sb();
+  const inst = instance as InstanceWithMeta;
   let connectionState = "unknown";
   let connectionError: string | null = null;
   try {
@@ -218,10 +268,33 @@ async function processInstance(instance: Instance) {
   const { webhookOk, lastError: webhookErr } = await ensureWebhook(instance);
   const poll = connectionState === "open" ? await pollRecentMessages(instance) : { skipped: "not-open" };
 
-  // Detecta sessão "surda": conexão aberta mas sem eventos de WhatsApp há muito tempo.
+  // Escalonamento por tempo sem eventos inbound.
   let autoRestart: any = { attempted: false, reason: "skip" };
+  let autoLogout: any = { attempted: false, reason: "skip" };
+  let staleUpdate: { session_stale_since?: string | null } = {};
+
   if (connectionState === "open") {
-    autoRestart = await tryAutoRestart(instance as any);
+    const lastInbound = inst.last_inbound_webhook_at ? new Date(inst.last_inbound_webhook_at).getTime() : 0;
+    const minutesSinceInbound = lastInbound ? (Date.now() - lastInbound) / 60000 : Infinity;
+
+    if (minutesSinceInbound >= STALE_DETECT_MIN) {
+      // marca o início da janela de silêncio se ainda não estiver marcada
+      if (!inst.session_stale_since) {
+        staleUpdate.session_stale_since = new Date().toISOString();
+      }
+    } else {
+      // tráfego voltou — limpa o flag
+      if (inst.session_stale_since) staleUpdate.session_stale_since = null;
+    }
+
+    if (minutesSinceInbound >= AUTO_LOGOUT_THRESHOLD_MIN) {
+      autoLogout = await tryAutoLogout(inst, minutesSinceInbound);
+    } else if (minutesSinceInbound >= DEAF_THRESHOLD_MIN) {
+      autoRestart = await tryAutoRestart(inst, minutesSinceInbound);
+    }
+  } else {
+    // não está open → não faz sentido manter "stale" marcado (UI já mostra desconectada)
+    if (inst.session_stale_since) staleUpdate.session_stale_since = null;
   }
 
   await supabase
@@ -233,10 +306,11 @@ async function processInstance(instance: Instance) {
       webhook_last_error: webhookErr ?? connectionError ?? null,
       webhook_last_set_at: webhookOk ? new Date().toISOString() : undefined,
       last_poll_at: new Date().toISOString(),
+      ...staleUpdate,
     })
     .eq("id", instance.id);
 
-  return { instance_id: instance.id, name: instance.name, connectionState, webhookOk, poll, autoRestart };
+  return { instance_id: instance.id, name: instance.name, connectionState, webhookOk, poll, autoRestart, autoLogout };
 }
 
 Deno.serve(async (req) => {
