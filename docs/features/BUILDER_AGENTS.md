@@ -445,7 +445,7 @@ Para adicionar um nicho novo:
 
 - **Streaming** das respostas do Builder no wizard (hoje é blocking; UX melhoraria muito no passo 5).
 - **Dedup de insights** por janela de tempo + diff entre relatórios consecutivos.
-- **Aplicar `suggested_patch` automaticamente** com confirmação e snapshot em `ai_agent_prompt_history`.
+- **Aplicar `suggested_patch` automaticamente** com confirmação e snapshot em `agent_prompt_versions`.
 - **Evals adicionais** além da cláusula A: detectar uso de "paciente/clínica" em nicho não-saúde, ausência de seção "Quando escalar", temperatura fora do range recomendado.
 - **A/B test de prompts** via `ai_eval_run` — gerar 2 variações no passo 5 e medir em cenários.
 - **Multi-idioma** no manual (pt/en/es) com seleção por clínica.
@@ -485,7 +485,7 @@ src/
 
 supabase/
   functions/
-    ai-builder/index.ts                     9 actions
+    ai-builder/index.ts                     10 actions
     _shared/builder-system-prompt.ts        CORE_RULES + carregamento do manual
     _shared/builder-knowledge/
       best-practices.md                     Fallback do manual (não é fonte canônica)

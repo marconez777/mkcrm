@@ -44,7 +44,7 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 | `AuditLogPanel.tsx` | Auditoria de mudanças no agente |
 | `ProviderErrorBanner.tsx` | Erros de chave/quota do provider da clínica |
 | `StagesPanel.tsx` | Vincula agente a stages (`stage_ai_defaults`) |
-| `CostsPanel.tsx` | Custo do agente (lê `ai_usage_daily`) |
+| `CostsPanel.tsx` | Custo do agente (agrega `ai_usage` por dia) |
 | `AgentHealth.tsx` | Estado/observabilidade do agente |
 | `PersonasPanel.tsx` | Personas configuráveis |
 | `ThreadLearningPanel.tsx` | UI para `agent-learn-from-thread` |
@@ -83,7 +83,7 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 - `_shared/agent-flags.ts` — whitelist de tools (espelhado em `src/lib/agent-tools.ts`).
 
 ### Relacionadas
-- `agent-learn-from-thread` — alimenta `agent_memories` a partir de conversas.
+- `agent-learn-from-thread` — alimenta `agent_memory` a partir de conversas.
 - `ai-ingest-document` / `ai-ingest-pdf` / `ai-ingest-url` / `ai-ingest-urls` / `ai-reingest-document` — população de `ai_documents` (KB).
 - `ai-embed` — embeddings.
 - `ai-eval-run` — avaliação fora do Builder.
