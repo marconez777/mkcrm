@@ -72,7 +72,7 @@ Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend p
 | `update_custom_field` | Atualiza chave em `leads.custom_fields`. |
 | `add_lead_tag` / `remove_lead_tag` | Manipula `leads.tags`. |
 | `assign_attendant` | Atribui atendente (por nome). |
-| `remember_fact` | Persiste fato em `agent_memories` para uso futuro do agente. |
+| `remember_fact` | Persiste fato em `agent_memory` para uso futuro do agente. |
 | `get_lead_state` / `get_lead_history` | Lê estado e mensagens recentes do lead. |
 | `create_task` | Cria tarefa vinculada ao lead. |
 | `schedule_message` | Agenda mensagem futura em `scheduled_messages`. |
