@@ -859,7 +859,8 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
-      content: finalContent,
+      content: displayContent,
+      chunks,
       thread_id: threadId,
       tools_used: usedTools,
       sources,
