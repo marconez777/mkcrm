@@ -12,7 +12,7 @@ import { Navigate } from "react-router-dom";
  * - autenticado → AppShell + Kanban (comportamento atual)
  */
 export default function RootGate() {
-  const { session, loading } = useAuth();
+  const { session, loading, isSuperAdmin, membership } = useAuth();
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -21,6 +21,8 @@ export default function RootGate() {
     );
   }
   if (!session) return <MarketingSite />;
+  // Super admin "puro" (sem clínica) vai direto para o painel da plataforma.
+  if (isSuperAdmin && !membership) return <Navigate to="/admin" replace />;
   return (
     <AppShell>
       <Kanban />
