@@ -6737,6 +6737,7 @@ export type Database = {
         Returns: number
       }
       is_clinic_admin: { Args: { _user_id?: string }; Returns: boolean }
+      is_pure_super_admin: { Args: { _uid: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       lead_matches_segment: {
         Args: { _lead_id: string; _segment_id: string }
