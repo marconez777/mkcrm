@@ -213,6 +213,17 @@ export default function AgentWizard() {
 
   // Builder configuration guard
   const [builderStatus, setBuilderStatus] = useState<"checking" | "ok" | "missing">("checking");
+  const [builderInfo, setBuilderInfo] = useState<{
+    id: string;
+    provider: string;
+    model: string;
+    base_url: string | null;
+    api_key: string | null;
+  } | null>(null);
+
+  // Origem da chave no passo 3: reusar Builder ou usar chave própria
+  const [keySource, setKeySource] = useState<"builder" | "own">("builder");
+
 
   // Success modal post-creation
   const [successAgentId, setSuccessAgentId] = useState<string | null>(null);
