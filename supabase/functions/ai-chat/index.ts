@@ -28,6 +28,18 @@ function stripMarkdown(input: string): string {
   return s;
 }
 
+// Quebra a resposta do agente em mensagens curtas usando o token [[SPLIT]].
+// Também faz fallback: se o texto vier sem marcadores e tiver vários parágrafos
+// longos, divide por blocos vazios (\n\n) para evitar uma única mensagem gigante.
+function splitChunks(text: string): string[] {
+  if (!text) return [];
+  let parts = text.split(/\s*\[\[SPLIT\]\]\s*/i).map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1 && text.length > 350) {
+    parts = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  }
+  return parts.length > 0 ? parts : [text.trim()];
+}
+
 const BUILTIN_TOOLS: Record<string, any> = {
   move_lead_stage: {
     type: "function",
