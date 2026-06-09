@@ -1,64 +1,43 @@
-## Análise da documentação dos agentes de IA
+# Validação final dos docs de Agentes IA + Builder
 
-Verifiquei `docs/features/BUILDER_AGENTS.md`, `docs/flows/AI_AGENT_LOOP.md`, `docs/AI.md`, `docs/support/journeys/criar-primeiro-agente-ia.md` e `docs/support/troubleshooting/ia.md` contra o código real (`supabase/functions/ai-builder`, `ai-chat`, `ai-auto-reply`, `_shared/agent-flags.ts`, `src/lib/agent-tools.ts`, `src/pages/admin/*`, schema do Postgres).
+Comparei `docs/features/BUILDER_AGENTS.md`, `docs/flows/AI_AGENT_LOOP.md`, `docs/maps/AI_RUNTIME.md`, `docs/edge-functions/AI.md`, `docs/AI.md` e `docs/support/journeys/criar-primeiro-agente-ia.md` contra `ai-chat`, `ai-builder`, `ai-auto-reply`, `_shared/agent-flags.ts`, `src/lib/agent-tools.ts`, `src/pages/Agents.tsx`, `src/pages/ai/AgentWizard.tsx`, `src/pages/admin/AdminPanels.tsx` e schema real.
 
-**Resultado:** o grosso está bom. Encontrei 3 pontos de drift que precisam ser corrigidos.
+## ✅ O que está 100% alinhado
 
----
+- 15 tools em `KNOWN_AGENT_TOOLS` ↔ `SILENT_TOOLS` ↔ tools registradas em `ai-chat/index.ts`.
+- 10 actions da edge `ai-builder` (§5 do BUILDER_AGENTS).
+- Tabelas reais: `ai_usage`, `ai_usage_daily` (view), `ai_spend_events`, `ai_chat_traces`, `agent_memory` (singular), `ai_agents`, `ai_agent_drafts`, `builder_manual_versions`, `ai_insights`.
+- Rota de edição do agente (`/ai/agents?agent=<id>`), painel do manual em `src/pages/admin/AdminPanels.tsx`, `/ai/agents/new` no wizard.
+- Stub `docs/AI.md` com summary já reescrito.
+- Frontmatter `updated: 2026-06-09` aplicado.
 
-### Drift 1 — `docs/flows/AI_AGENT_LOOP.md` desatualizado e inconsistente
+## ❌ 3 driftes residuais a corrigir
 
-Problemas concretos:
+### Drift A — `docs/features/BUILDER_AGENTS.md` linha 217
+Pegadinha da Fase 2 ainda diz:
+> "Ele **não responde leads reais** até o usuário ativar manualmente em `/ai/agents/:id` (toggle "Ativo")."
 
-- **Frontmatter quebrado:** `summary:` está com o texto "Registradas em `supabase/functions/ai-chat/index.ts`…" (sobrou de uma seção interna). Deveria ser uma frase descrevendo o loop.
-- **Tabelas fantasmas no corpo:** o aviso ⚠️ no topo diz "`ai_runs` / `ai_tool_calls` não existem", mas o diagrama ASCII e o texto continuam usando `INSERT ai_runs(...)`, `UPDATE ai_runs(...)`, `INSERT ai_tool_calls(...)`. Reescrever para refletir o real: `ai_usage` + `ai_chat_traces.turns[].tool_calls[]`.
-- **Tabela errada:** "Postgres: …, `agent_memories`, …". A tabela real é `agent_memory` (singular) — confirmado no schema.
-- **Tool inexistente:** seção "Pause / handoff" cita `pause_ai_for_lead` como tool. Não existe em `ai-chat/index.ts` nem em `KNOWN_AGENT_TOOLS` / `SILENT_TOOLS`. A pausa é via tool `transfer_to_human` ou via UI manual. Remover menção.
-- **"LLM call via ai_gateway":** o loop atual chama o provedor da clínica direto (`_shared/ai.ts` → `chatCompletion`), sem gateway. Atualizar a label do diagrama.
-- **`clinic_settings.ai_*` no diagrama:** já há nota no aviso, mas o passo 1 do loop ainda diz "carrega `clinic_settings.ai_*`". Trocar por `clinics.settings.ai.*`.
-- Atualizar `updated:` para 2026-06-09 e a "Última atualização" no corpo.
+Rota inexistente. Trocar para `/ai/agents?agent=<id>` (igual ao §3.2 corrigido).
 
-### Drift 2 — `docs/features/BUILDER_AGENTS.md` com 3 imprecisões
+### Drift B — `docs/maps/AI_RUNTIME.md` linhas 63 e 98
+Usa `agent_memories` (plural). Tabela real é `agent_memory` (singular, confirmado no schema). Corrigir:
+- Linha 63: "extrai memórias de conversa para `agent_memories`" → `agent_memory`.
+- Linha 98: linha da tabela `| agent_memories |` → `| agent_memory |`.
 
-- **`ai_usage_daily` existe.** Seção 2 diz "Não existe view/tabela `ai_usage_daily`; agregações diárias são calculadas on-the-fly". Verifiquei no DB: existe como VIEW (`CREATE OR REPLACE VIEW public.ai_usage_daily` em migration `20260518140308`). Reescrever para: agregações usam a view `ai_usage_daily` quando possível; `CostsPanel` faz on-the-fly só para filtros finos.
-- **Caminho errado em §10:** `src/pages/Admin.tsx` não existe. O `BuilderManualPanel` é montado em `src/pages/admin/AdminPanels.tsx`. Corrigir nas duas ocorrências (linha 461 e §9 que diz `/admin` → aba "Manual do Builder").
-- **Rota `/ai/agents/:id` inexistente.** Pegadinha #11 fala "A página `/ai/agents/:id` precisa deixar o toggle 'Ativo' bem visível", mas §3.2 corretamente afirma que não há essa rota — edição vive em `/ai/agents?agent=<id>` dentro de `src/pages/Agents.tsx`. Ajustar pegadinha #11 para usar o caminho real. Mesmo problema na descrição do KbAssistant em §4 ("exibido na página do agente em `/ai/agents/:id`").
-- **Duas datas conflitantes:** frontmatter diz `updated: 2026-06-09`, mas linha 12 diz "Última atualização: 2026-06-03". Alinhar para 2026-06-09.
+### Drift C — `docs/maps/AI_RUNTIME.md` linha 108
+Aviso atual: "Naming antigo em docs deve ser corrigido para `ai_usage` + `ai_chat_traces`."
 
-### Drift 3 — `docs/AI.md` é só um stub de redirect
+Está incompleto. Alinhar com a nota canônica do `AI_AGENT_LOOP.md`: incluir também `ai_usage_daily` (view), `ai_spend_events` e citar que `tool_calls` vivem em `ai_chat_traces.turns[].tool_calls[]`.
 
-O arquivo existe apenas para apontar para `docs/edge-functions/AI.md`. Está OK funcionalmente, mas o `summary:` do frontmatter ("Conteúdo idêntico…") é estranho como descrição. Trocar por algo do tipo: "Stub de redirecionamento — conteúdo real em `edge-functions/AI.md`." Mudança cosmética; pode ser feita junto.
+## Execução
 
----
+1. `code--line_replace` em `docs/features/BUILDER_AGENTS.md` (linha 217).
+2. `code--line_replace` em `docs/maps/AI_RUNTIME.md` (linhas 63, 98, 108).
+3. `node scripts/docs-sync.mjs` para regenerar `INDEX.json`, `public/docs-*.json`, `DRIFT.md`.
 
-### O que NÃO precisa mudar
+Sem mudanças de código de runtime — só 2 arquivos de documentação.
 
-- Lista de 15 tools em `KNOWN_AGENT_TOOLS` bate exatamente com as tools registradas em `ai-chat/index.ts` e com `SILENT_TOOLS` em `_shared/agent-flags.ts`. ✅
-- Catálogo de 10 actions do `ai-builder` em §5 bate com os `case` reais (`ping`, `interview_plan`, `generate_system_prompt`, `suggest_kb_urls`, `draft_knowledge_base`, `audit_kb`, `generate_scenarios`, `run_evaluation`, `generate_insights`, `copilot_chat`). ✅
-- KBs de nicho em §6.1 batem com `_shared/builder-knowledge/niches/` (12 arquivos). ✅
-- Componentes listados em §10 existem todos em `src/components/agents/`. ✅
-- Documentos de suporte (`journeys/criar-primeiro-agente-ia.md`, `troubleshooting/ia.md`) estão coerentes com o fluxo real do wizard e com o spend guard 402.
+## Fora de escopo (mencionar mas não corrigir agora)
 
----
-
-### Plano de execução
-
-1. **Reescrever** `docs/flows/AI_AGENT_LOOP.md`:
-   - Corrigir `summary:` no frontmatter; bumpar `updated:`.
-   - Reescrever diagrama ASCII e seção "Loop" trocando `ai_runs`/`ai_tool_calls` por `ai_usage` + `ai_chat_traces`.
-   - Trocar `agent_memories` → `agent_memory`.
-   - Remover/ajustar menção a `pause_ai_for_lead` (usar `transfer_to_human`).
-   - Trocar "LLM call via ai_gateway" por "LLM call (provedor da clínica via `_shared/ai.ts`)".
-   - Trocar `clinic_settings.ai_*` por `clinics.settings.ai.*`.
-
-2. **Editar** `docs/features/BUILDER_AGENTS.md`:
-   - §2: corrigir afirmação sobre `ai_usage_daily`.
-   - §4 e Pegadinha #11: trocar `/ai/agents/:id` por `/ai/agents?agent=<id>` (página `src/pages/Agents.tsx`).
-   - §9 e §10: trocar `pages/Admin.tsx` por `pages/admin/AdminPanels.tsx`.
-   - Alinhar a data "Última atualização" interna com o frontmatter (2026-06-09).
-
-3. **Ajuste cosmético** em `docs/AI.md`: reescrever `summary:` do frontmatter.
-
-4. **Rodar** `node scripts/docs-sync.mjs` para regenerar `docs/INDEX.json`, `public/docs-index.json`, `public/docs-content.json` e `docs/DRIFT.md`, e checar se algum `code_refs` quebrou.
-
-Nenhuma mudança de código de runtime — só docs.
+- `docs/frontend/PAGES.md:82`, `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`, `docs/maps/BILLING_PLANS.md`, `docs/architecture/SUPER_ADMIN.md`, `docs/maps/ADMIN_SUPER_ADMIN.md` referenciam `src/pages/Admin.tsx` (que não existe — admin vive em `src/pages/admin/*`). Não é doc de agente IA; tratar em outro ciclo se quiser.
+- `docs/CHANGELOG.md` menciona `pause_ai_for_lead` num registro histórico — manter como histórico.
