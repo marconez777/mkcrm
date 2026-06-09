@@ -19,7 +19,7 @@ summary: "Loop de resposta automática (ai-auto-reply) e assistência manual (ai
 
 - **Edge function** `ai-auto-reply` (gatilho por mensagem inbound) ou `ai-assist` (gatilho manual do usuário no Inbox); ambas roteiam para `ai-chat` que carrega tools e provedor
 - **Provedor LLM da clínica** (OpenAI / Anthropic / Google / xAI / OpenAI-compatible) — chave gerenciada por `ai_agents.api_key` (criptografada). Não há mais dependência obrigatória do Lovable AI Gateway no loop principal
-- **Postgres**: `ai_runs`, `ai_messages`, `ai_tool_calls`, `ai_threads`, `ai_insights`, `agent_memories`, `lead_internal_notes`, `scheduled_messages`, `lead_tasks`, `messages`
+- **Postgres**: `ai_usage`, `ai_chat_traces`, `ai_threads`, `ai_messages`, `ai_insights`, `agent_memory`, `lead_internal_notes`, `scheduled_messages`, `lead_tasks`, `messages`
 - **Edge function** `evolution-send` (efetua a resposta no WhatsApp)
 
 ---
@@ -30,29 +30,29 @@ summary: "Loop de resposta automática (ai-auto-reply) e assistência manual (ai
 trigger (inbound msg | usuário pede assist)
         │
         ▼
-ai-auto-reply
-   │ 1) carrega contexto: lead, últimas N msgs, clinic_settings.ai_*,
-   │    knowledge base embeddings (ai-embed) se RAG ativo
+ai-auto-reply  →  ai-chat
+   │ 1) carrega contexto: lead, últimas N msgs, clinics.settings.ai.*,
+   │    knowledge base embeddings (ai-embed/_shared/rag.ts) se RAG ativo
    │ 2) monta system prompt + history
-   │ 3) INSERT ai_runs(status='running', model, lead_id)
+   │ 3) abre transcrição em ai_chat_traces (turns[])
    │
-   ├─────────► [LLM call via ai_gateway]
+   ├─────────► [LLM call — provedor da clínica via _shared/ai.ts]
    │              │
    │              ▼
    │           response: text OU tool_calls[]
    │
    │ se tool_calls:
    │    para cada tool:
-   │       INSERT ai_tool_calls(name, args, status='running')
    │       executa (ver tabela abaixo)
-   │       UPDATE ai_tool_calls SET result, status='ok'|'error'
+   │       append em ai_chat_traces.turns[].tool_calls[] (name, args, result, status)
    │    volta pro LLM com tool_results
-   │    (max N iterações — guard rail)
+   │    (max 6 iterações — guard rail)
    │
    │ se text final:
-   │    UPDATE ai_runs(status='ok', tokens_in, tokens_out, cost_usd)
+   │    INSERT ai_usage (model, tokens_in, tokens_out, cost_usd, note)
+   │    (opcional) INSERT ai_spend_events
    │    chama evolution-send(text)
-   │    INSERT ai_messages (persiste turn)
+   │    persiste turn em ai_messages
    │
    ▼
 fim
