@@ -772,6 +772,7 @@ Deno.serve(async (req) => {
     if (!finalContent && stoppedReason) {
       finalContent = "Desculpe, não consegui finalizar a resposta a tempo. Tente reformular.";
     }
+    finalContent = stripMarkdown(finalContent);
 
     let threadId = thread_id;
     if (persist) {
