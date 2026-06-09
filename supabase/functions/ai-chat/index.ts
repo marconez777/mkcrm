@@ -832,7 +832,7 @@ Deno.serve(async (req) => {
       lead_id: null,
       persona_id: null,
       user_message: maskPII(lastUser?.content ?? "").slice(0, 4000),
-      agent_message: maskPII(finalContent).slice(0, 8000),
+      agent_message: maskPII(displayContent).slice(0, 8000),
       system_prompt_excerpt: maskPII(sysContent).slice(0, 4000),
       kb_hits: sources.slice(0, 12),
       tool_calls: usedTools.slice(0, 20).map((t) => ({
