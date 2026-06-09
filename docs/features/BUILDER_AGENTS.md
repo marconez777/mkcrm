@@ -9,7 +9,7 @@ summary: O **Construtor de Agentes** (apelidado de "Builder") é um **agente de 
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.
-> **Última atualização:** 2026-06-03 (redesign visual da página `/ai/agents` com `SectionAccordion` por categoria)
+> **Última atualização:** 2026-06-09 (correção de drift: `ai_usage_daily` existe como view; caminho do BuilderManualPanel é `src/pages/admin/AdminPanels.tsx`; edição do agente vive em `/ai/agents?agent=<id>`).
 > **Fonte da verdade no código:**
 > - Edge: `supabase/functions/ai-builder/index.ts`
 > - System prompt do Builder: `supabase/functions/_shared/builder-system-prompt.ts`
@@ -69,7 +69,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
    ai_insights             ← insights persistidos
 ```
 
-Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabela `ai_usage` (+ `ai_spend_events`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos. **Não existe** view/tabela `ai_usage_daily`; agregações diárias são calculadas on-the-fly (`group by date_trunc('day', ...)` em `CostsPanel`).
+Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabela `ai_usage` (+ `ai_spend_events`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos. Agregações diárias usam a view `public.ai_usage_daily` (rollup com `tokens_in/out`, `cost_usd`, `calls`); `CostsPanel` consulta direto `ai_usage` quando precisa de filtros finos por `note`.
 
 ---
 
@@ -240,7 +240,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 
 ### Fase 4 — KB Assistant (base de conhecimento assistida)
 
-**Componente:** `src/components/agents/KbAssistant.tsx`, exibido na página do agente em `/ai/agents/:id`.
+**Componente:** `src/components/agents/KbAssistant.tsx`, exibido na página do agente em `/ai/agents?agent=<id>` (renderizada por `src/pages/Agents.tsx`).
 
 Três ferramentas:
 
@@ -332,7 +332,7 @@ Três ferramentas:
 
 ### Fase 9 — Manual de boas práticas versionado
 
-**Painel admin:** `/admin` → aba "Manual do Builder" (`BuilderManualPanel.tsx`).
+**Painel admin:** `/admin` → aba "Manual do Builder", montada em `src/pages/admin/AdminPanels.tsx` via `src/components/admin/BuilderManualPanel.tsx`.
 
 **Funcionalidades:**
 - Listar versões (mais recente primeiro), com `summary`, `source`, autor e data.
@@ -436,7 +436,7 @@ Para adicionar um nicho novo:
 8. **Insights podem repetir** se chamado várias vezes na mesma janela. Não há dedup por período — a UI mostra a mais recente mas todas ficam em `ai_insights`.
 9. **Hot reload de prompt de agente final ↔ cache** — se o agente final ficou com prompt antigo na memória da edge `ai-chat`, esperar TTL ou forçar redeploy.
 10. **Quality Ladder** (`src/lib/quality-ladder.ts`) traduz slider 0..2 → modelo concreto por provider. Adicionar provider novo exige atualizar o mapa e a UI.
-11. **Agente nasce desativado.** `finishAndCreateAgent()` grava `enabled=false`. Se o usuário esperar respostas em conversas reais sem ativar, vai parecer "agente quebrado". A página `/ai/agents/:id` precisa deixar o toggle "Ativo" bem visível.
+11. **Agente nasce desativado.** `finishAndCreateAgent()` grava `enabled=false`. Se o usuário esperar respostas em conversas reais sem ativar, vai parecer "agente quebrado". A aba "Agentes" do AiHub (`/ai/agents?agent=<id>`, `src/pages/Agents.tsx`) precisa deixar o toggle "Ativo" bem visível.
 12. **Whitelist de tools dessincronizada.** Se alguém adiciona uma tool no `ai-chat` mas esquece de incluir em `SILENT_TOOLS` (`_shared/agent-flags.ts`) **e** em `KNOWN_AGENT_TOOLS` (`src/lib/agent-tools.ts`), o Builder até pode sugerir, mas o filtro do wizard apaga antes do INSERT — agente acaba sem aquela tool. Manter os dois arquivos em sincronia.
 
 ---
@@ -458,7 +458,7 @@ Para adicionar um nicho novo:
 ```text
 src/
   pages/ai/AgentWizard.tsx                  Wizard 5 passos + persistência em draft
-  pages/Admin.tsx                           Aba "Manual do Builder"
+  pages/admin/AdminPanels.tsx              Aba "Manual do Builder" (monta BuilderManualPanel)
   components/
     agents/
       BuilderSetupCard.tsx                  Setup do provider/chave do Builder
