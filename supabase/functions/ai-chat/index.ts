@@ -7,6 +7,26 @@ import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.t
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
+import { NO_MARKDOWN_CLAUSE } from "../_shared/builder-system-prompt.ts";
+
+// Remove formatação Markdown (** __ * _ ` #) preservando quebras de linha e listas com "- ".
+// Aplicado à resposta do agente para garantir texto puro compatível com WhatsApp,
+// independente do que o modelo tenha gerado.
+function stripMarkdown(input: string): string {
+  if (!input) return input;
+  let s = input;
+  s = s.replace(/```+[a-zA-Z0-9_-]*\n?/g, "");
+  s = s.replace(/`+/g, "");
+  s = s.replace(/\*\*(.+?)\*\*/gs, "$1");
+  s = s.replace(/__(.+?)__/gs, "$1");
+  s = s.replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  s = s.replace(/(^|[\s(])_(?!\s)([^_\n]+?)_(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^(\s*)\*\s+/gm, "$1- ");
+  s = s.replace(/\*/g, "");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s;
+}
 
 const BUILTIN_TOOLS: Record<string, any> = {
   move_lead_stage: {
@@ -654,7 +674,8 @@ Deno.serve(async (req) => {
       simulatedLeadCtx +
       stageCtx +
       ragContext +
-      "\n\nQuando usar trechos da base, cite com [1], [2] etc.";
+      "\n\nQuando usar trechos da base, cite com [1], [2] etc." +
+      "\n\n" + NO_MARKDOWN_CLAUSE;
 
     const sysPrompt: ChatMessage = { role: "system", content: sysContent };
     const conv: ChatMessage[] = [sysPrompt, ...incoming];
@@ -751,6 +772,7 @@ Deno.serve(async (req) => {
     if (!finalContent && stoppedReason) {
       finalContent = "Desculpe, não consegui finalizar a resposta a tempo. Tente reformular.";
     }
+    finalContent = stripMarkdown(finalContent);
 
     let threadId = thread_id;
     if (persist) {
