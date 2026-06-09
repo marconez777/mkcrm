@@ -436,7 +436,7 @@ Para adicionar um nicho novo:
 8. **Insights podem repetir** se chamado várias vezes na mesma janela. Não há dedup por período — a UI mostra a mais recente mas todas ficam em `ai_insights`.
 9. **Hot reload de prompt de agente final ↔ cache** — se o agente final ficou com prompt antigo na memória da edge `ai-chat`, esperar TTL ou forçar redeploy.
 10. **Quality Ladder** (`src/lib/quality-ladder.ts`) traduz slider 0..2 → modelo concreto por provider. Adicionar provider novo exige atualizar o mapa e a UI.
-11. **Agente nasce desativado.** `finishAndCreateAgent()` grava `enabled=false`. Se o usuário esperar respostas em conversas reais sem ativar, vai parecer "agente quebrado". A página `/ai/agents/:id` precisa deixar o toggle "Ativo" bem visível.
+11. **Agente nasce desativado.** `finishAndCreateAgent()` grava `enabled=false`. Se o usuário esperar respostas em conversas reais sem ativar, vai parecer "agente quebrado". A aba "Agentes" do AiHub (`/ai/agents?agent=<id>`, `src/pages/Agents.tsx`) precisa deixar o toggle "Ativo" bem visível.
 12. **Whitelist de tools dessincronizada.** Se alguém adiciona uma tool no `ai-chat` mas esquece de incluir em `SILENT_TOOLS` (`_shared/agent-flags.ts`) **e** em `KNOWN_AGENT_TOOLS` (`src/lib/agent-tools.ts`), o Builder até pode sugerir, mas o filtro do wizard apaga antes do INSERT — agente acaba sem aquela tool. Manter os dois arquivos em sincronia.
 
 ---
