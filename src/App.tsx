@@ -36,6 +36,7 @@ const AdminSupport = lazy(() => import("./pages/admin/AdminPanels").then((m) => 
 const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAudit })));
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
 import Team from "./pages/Team";
 import Invite from "./pages/Invite";
