@@ -3,6 +3,7 @@ import MarketingSite from "@/pages/site/MarketingSite";
 import AppShell from "@/components/AppShell";
 import Kanban from "@/pages/Kanban";
 import { Loader2 } from "lucide-react";
+import { Navigate } from "react-router-dom";
 
 /**
  * Decide o que servir em "/":
