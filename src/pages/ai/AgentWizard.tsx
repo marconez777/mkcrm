@@ -735,10 +735,10 @@ export default function AgentWizard() {
           role: goal || null,
           niche: niche || null,
           niche_other: nicheOther || null,
-          provider,
-          api_key: apiKey,
-          base_url: baseUrl || null,
-          model,
+          provider: effectiveProvider,
+          api_key: effectiveApiKey,
+          base_url: effectiveBaseUrl,
+          model: effectiveModel,
           system_prompt: bundle.system_prompt,
           temperature: bundle.suggested_temperature,
           max_iterations: bundle.suggested_max_iterations,
@@ -746,8 +746,9 @@ export default function AgentWizard() {
           tools,
           enabled: false,
           draft_mode: true,
-          builder_verified_at: verifiedAt,
+          builder_verified_at: useBuilder ? new Date().toISOString() : verifiedAt,
         } as never)
+
         .select("id")
         .single();
 
