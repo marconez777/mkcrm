@@ -7,7 +7,7 @@ import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.t
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
-import { NO_MARKDOWN_CLAUSE } from "../_shared/builder-system-prompt.ts";
+import { NO_MARKDOWN_CLAUSE, SHORT_MESSAGE_CLAUSE } from "../_shared/builder-system-prompt.ts";
 
 // Remove formatação Markdown (** __ * _ ` #) preservando quebras de linha e listas com "- ".
 // Aplicado à resposta do agente para garantir texto puro compatível com WhatsApp,
@@ -26,6 +26,18 @@ function stripMarkdown(input: string): string {
   s = s.replace(/\*/g, "");
   s = s.replace(/\n{3,}/g, "\n\n");
   return s;
+}
+
+// Quebra a resposta do agente em mensagens curtas usando o token [[SPLIT]].
+// Também faz fallback: se o texto vier sem marcadores e tiver vários parágrafos
+// longos, divide por blocos vazios (\n\n) para evitar uma única mensagem gigante.
+function splitChunks(text: string): string[] {
+  if (!text) return [];
+  let parts = text.split(/\s*\[\[SPLIT\]\]\s*/i).map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1 && text.length > 350) {
+    parts = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  }
+  return parts.length > 0 ? parts : [text.trim()];
 }
 
 const BUILTIN_TOOLS: Record<string, any> = {
@@ -675,7 +687,8 @@ Deno.serve(async (req) => {
       stageCtx +
       ragContext +
       "\n\nQuando usar trechos da base, cite com [1], [2] etc." +
-      "\n\n" + NO_MARKDOWN_CLAUSE;
+      "\n\n" + NO_MARKDOWN_CLAUSE +
+      "\n\n" + SHORT_MESSAGE_CLAUSE;
 
     const sysPrompt: ChatMessage = { role: "system", content: sysContent };
     const conv: ChatMessage[] = [sysPrompt, ...incoming];
@@ -773,6 +786,10 @@ Deno.serve(async (req) => {
       finalContent = "Desculpe, não consegui finalizar a resposta a tempo. Tente reformular.";
     }
     finalContent = stripMarkdown(finalContent);
+    const chunks = splitChunks(finalContent);
+    // Versão "limpa" para persistência/exibição: junta as partes com linha em branco,
+    // sem o token [[SPLIT]] cru aparecendo para o usuário.
+    const displayContent = chunks.join("\n\n");
 
     let threadId = thread_id;
     if (persist) {
@@ -785,7 +802,7 @@ Deno.serve(async (req) => {
       if (threadId) {
         const rows = incoming.filter((m: any) => m.role === "user").slice(-1)
           .map((m: any) => ({ thread_id: threadId, role: "user", content: m.content }));
-        rows.push({ thread_id: threadId, role: "assistant", content: finalContent });
+        rows.push({ thread_id: threadId, role: "assistant", content: displayContent });
         await supabase.from("ai_messages").insert(rows);
       }
     }
@@ -815,7 +832,7 @@ Deno.serve(async (req) => {
       lead_id: null,
       persona_id: null,
       user_message: maskPII(lastUser?.content ?? "").slice(0, 4000),
-      agent_message: maskPII(finalContent).slice(0, 8000),
+      agent_message: maskPII(displayContent).slice(0, 8000),
       system_prompt_excerpt: maskPII(sysContent).slice(0, 4000),
       kb_hits: sources.slice(0, 12),
       tool_calls: usedTools.slice(0, 20).map((t) => ({
@@ -842,7 +859,8 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
-      content: finalContent,
+      content: displayContent,
+      chunks,
       thread_id: threadId,
       tools_used: usedTools,
       sources,

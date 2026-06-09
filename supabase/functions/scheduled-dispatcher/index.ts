@@ -171,10 +171,12 @@ async function handlePendingReply(supabase: any, item: any, nowIso: string): Pro
     }
 
     const reply = ((aiData as any).content ?? "").trim();
+    const rawChunks: string[] = Array.isArray((aiData as any).chunks) ? (aiData as any).chunks : [];
+    const chunks = (rawChunks.length > 0 ? rawChunks : [reply]).map((c) => String(c || "").trim()).filter(Boolean);
     const toolsUsed = ((aiData as any).tools_used ?? []).length;
-    console.log(`[dispatcher] ai-chat OK lead=${item.lead_id} silent=${silent} tools=${toolsUsed} reply_len=${reply.length} latency=${latency}ms`);
+    console.log(`[dispatcher] ai-chat OK lead=${item.lead_id} silent=${silent} tools=${toolsUsed} reply_len=${reply.length} chunks=${chunks.length} latency=${latency}ms`);
 
-    if (silent || !reply) {
+    if (silent || chunks.length === 0) {
       // Success path for silent agents (no message to send) — drop the claim.
       await supabase.from("pending_replies").delete().eq("lead_id", item.lead_id).eq("agent_id", item.agent_id);
       if (silent) {
@@ -183,23 +185,37 @@ async function handlePendingReply(supabase: any, item: any, nowIso: string): Pro
       return "replied";
     }
 
-    // Non-silent: send the reply. Only drop the claim AFTER the send succeeds.
-    const sendResp = await fetch(`${FUNCTIONS_URL}/evolution-send`, {
-      method: "POST", headers: authHeaders,
-      body: JSON.stringify({
-        lead_id: item.lead_id,
-        text: reply,
-        client_message_id: crypto.randomUUID(),
-        bot_agent_id: item.agent_id, // marks the message so auto-reply doesn't loop
-      }),
-    });
-    if (sendResp.ok) {
+    // Non-silent: send cada chunk como mensagem separada no WhatsApp, com pequeno
+    // delay entre elas para simular digitação humana e melhorar leitura.
+    let allOk = true;
+    let lastErr = "";
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      if (i > 0) {
+        const delayMs = Math.min(1200 + chunk.length * 25, 4000);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      const sendResp = await fetch(`${FUNCTIONS_URL}/evolution-send`, {
+        method: "POST", headers: authHeaders,
+        body: JSON.stringify({
+          lead_id: item.lead_id,
+          text: chunk,
+          client_message_id: crypto.randomUUID(),
+          bot_agent_id: item.agent_id, // marks the message so auto-reply doesn't loop
+        }),
+      });
+      if (!sendResp.ok) {
+        allOk = false;
+        lastErr = `send ${sendResp.status}`;
+        console.error(`[dispatcher] send chunk ${i + 1}/${chunks.length} failed lead=${item.lead_id} ${lastErr}`);
+        break;
+      }
+    }
+    if (allOk) {
       await supabase.from("pending_replies").delete().eq("lead_id", item.lead_id).eq("agent_id", item.agent_id);
       return "replied";
     }
-    const sendErr = `send ${sendResp.status}`;
-    console.error(`[dispatcher] send failed lead=${item.lead_id} ${sendErr}`);
-    await releaseOrAbandon(supabase, item.lead_id, item.agent_id, attempts, sendErr);
+    await releaseOrAbandon(supabase, item.lead_id, item.agent_id, attempts, lastErr);
     return "failed";
   } catch (e) {
     console.error(`[dispatcher] exception lead=${item.lead_id}`, e);
