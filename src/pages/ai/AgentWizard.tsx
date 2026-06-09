@@ -855,6 +855,19 @@ export default function AgentWizard() {
 
             {step === 3 && (
               <Step3
+                keySource={keySource}
+                setKeySource={(s) => {
+                  setKeySource(s);
+                  void persist({
+                    settings: {
+                      ...((draft?.settings as Record<string, unknown>) ?? {}),
+                      key_source: s,
+                    },
+                  });
+                  if (s === "builder") setTestError(null);
+                }}
+                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key}
+                builderInfo={builderInfo}
                 provider={provider}
                 setProvider={setProvider}
                 apiKey={apiKey}
@@ -870,6 +883,7 @@ export default function AgentWizard() {
                 onTest={testConnection}
               />
             )}
+
             {step === 4 && (
               <Step4
                 questions={questions}
