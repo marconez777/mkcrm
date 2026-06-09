@@ -428,7 +428,11 @@ export default function AgentWizard() {
   const canNextFromStep2 =
     !!goal && (goal !== "custom" || goalOther.trim().length >= 4);
   const isVerified = !!verifiedAt && !testError;
-  const canNextFromStep3 = !!apiKey && !!model && isVerified;
+  const canNextFromStep3 =
+    keySource === "builder"
+      ? builderStatus === "ok" && !!(builderInfo?.api_key)
+      : !!apiKey && !!model && isVerified;
+
 
   const canNextFromStep4 = questions
     .filter((q) => q.required)
