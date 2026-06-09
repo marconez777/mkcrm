@@ -1766,6 +1766,7 @@ function Step4({
 
 function Step5({
   bundle,
+  setBundle,
   loading,
   error,
   refinement,
@@ -1778,6 +1779,7 @@ function Step5({
   timedOut,
 }: {
   bundle: GeneratedPromptBundle | null;
+  setBundle: React.Dispatch<React.SetStateAction<GeneratedPromptBundle | null>>;
   loading: boolean;
   error: ProviderError | null;
   refinement: string;
