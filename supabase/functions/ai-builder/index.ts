@@ -310,6 +310,54 @@ function ensureContextClause(prompt: string): string {
   return lines.join("\n");
 }
 
+function ensureNoMarkdownClause(prompt: string): string {
+  const needle = "NÃO use asteriscos";
+  if (prompt.includes(needle)) return prompt;
+  return prompt.trimEnd() + "\n\n" + NO_MARKDOWN_CLAUSE + "\n";
+}
+
+// Remove marcação Markdown agressiva (**, *, __, _, `, #) preservando hífens,
+// acentos e a estrutura geral. Usado para limpar o que o LLM devolve antes
+// de persistir ou propor como patch.
+function stripMarkdown(input: string): string {
+  if (!input) return input;
+  let s = input;
+  // remove fenced code blocks marker lines
+  s = s.replace(/```+[a-zA-Z0-9_-]*\n?/g, "");
+  // remove inline code backticks
+  s = s.replace(/`+/g, "");
+  // remove bold/italic markers (**, __, *, _ when wrapping text)
+  s = s.replace(/\*\*(.+?)\*\*/gs, "$1");
+  s = s.replace(/__(.+?)__/gs, "$1");
+  s = s.replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  s = s.replace(/(^|[\s(])_(?!\s)([^_\n]+?)_(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  // headings: strip leading #'s
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  // bullets started with * → hífen
+  s = s.replace(/^(\s*)\*\s+/gm, "$1- ");
+  // residual stray asterisks
+  s = s.replace(/\*/g, "");
+  // colapsa múltiplas linhas em branco
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s;
+}
+
+function normalizeGeneratedPrompt(prompt: string): string {
+  return ensureNoMarkdownClause(ensureContextClause(stripMarkdown(prompt)));
+}
+
+function normalizeForCompare(s: string): string {
+  return String(s ?? "").replace(/\s+/g, " ").trim();
+}
+
+function arraysEqual(a: unknown, b: unknown): boolean {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const aa = [...a].map(String).sort();
+  const bb = [...b].map(String).sort();
+  return aa.every((v, i) => v === bb[i]);
+}
+
 async function actionGenerateSystemPrompt(builder: Agent, payload: Record<string, unknown>) {
   const niche = String(payload.niche ?? "other");
   const nicheOther = String(payload.niche_other ?? "");
