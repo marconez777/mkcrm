@@ -1453,19 +1453,50 @@ function Step3({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="flex items-center">
-              Modelo para este agente <WhyTooltip tip="model" />
-            </Label>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={builderInfo?.model || "Usar o modelo do Construtor"}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Deixe vazio para usar o mesmo modelo do Construtor (<code>{builderInfo?.model || "—"}</code>).
-            </p>
-          </div>
+          {(() => {
+            const builderProv = (builderInfo?.provider as Provider) || "openai";
+            const opts = MODELS_BY_PROVIDER[builderProv] ?? [];
+            const isCustom = !!model && !opts.some((o) => o.value === model);
+            const selectValue = !model ? "__inherit__" : isCustom ? CUSTOM_MODEL : model;
+            return (
+              <div className="space-y-1.5">
+                <Label className="flex items-center">
+                  Modelo para este agente <WhyTooltip tip="model" />
+                </Label>
+                <Select
+                  value={selectValue}
+                  onValueChange={(v) => {
+                    if (v === "__inherit__") setModel("");
+                    else if (v === CUSTOM_MODEL) setModel(model || builderInfo?.model || "");
+                    else setModel(v);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__inherit__">
+                      Usar o mesmo do Construtor ({builderInfo?.model || "—"})
+                    </SelectItem>
+                    {opts.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}{o.hint ? ` — ${o.hint}` : ""}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_MODEL}>Outro (digitar manualmente)…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(isCustom || selectValue === CUSTOM_MODEL) && (
+                  <Input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="Nome exato do modelo"
+                  />
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Modelos disponíveis para {PROVIDERS.find((p) => p.id === builderProv)?.label ?? builderProv}.
+                </p>
+              </div>
+            );
+          })()}
         </>
       ) : (
         <>
