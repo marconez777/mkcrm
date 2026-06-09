@@ -253,22 +253,33 @@ export default function AgentWizard() {
       try {
         const { data, error } = await supabase
           .from("ai_agents")
-          .select("id, builder_verified_at")
+          .select("id, provider, model, api_key, base_url, builder_verified_at")
           .eq("clinic_id", clinicId)
           .eq("system_key", "builder")
           .maybeSingle();
         if (cancelled) return;
         if (error) {
-          // Não bloquear em caso de erro — apenas logar
           console.warn("[AgentWizard] builder check failed:", error.message);
           setBuilderStatus("ok");
           return;
         }
-        setBuilderStatus(data && data.builder_verified_at ? "ok" : "missing");
+        const ok = !!(data && data.builder_verified_at && data.api_key);
+        setBuilderStatus(ok ? "ok" : "missing");
+        if (data) {
+          setBuilderInfo({
+            id: data.id,
+            provider: (data.provider as string) ?? "openai",
+            model: (data.model as string) ?? "",
+            base_url: (data.base_url as string | null) ?? null,
+            api_key: (data.api_key as string | null) ?? null,
+          });
+        }
+        if (!ok) setKeySource("own");
       } catch (e) {
         console.warn("[AgentWizard] builder check exception:", e);
         if (!cancelled) setBuilderStatus("ok");
       }
+
     })();
     return () => {
       cancelled = true;
