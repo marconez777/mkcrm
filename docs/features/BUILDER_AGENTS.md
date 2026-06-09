@@ -3,7 +3,7 @@ title: Construtor de Agentes (Builder)
 topic: ai
 kind: feature
 audience: agent
-updated: 2026-06-07
+updated: 2026-06-09
 summary: O **Construtor de Agentes** (apelidado de "Builder") é um **agente de IA dedicado** que ajuda o usuário final — quase sempre não-técnico — a configurar **outros agentes de IA** da clínica (SDR, classificador, agendador, suporte etc.). Não é
 ---
 # Construtor de Agentes (Builder)
@@ -50,7 +50,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
                 ┌──────────────────────────────┐
                 │  edge function ai-builder    │
                 │  (Deno)                      │
-                │  9 actions (ping → insights) │
+                │  10 actions (ping → copilot) │
                 └───────┬───────────────┬──────┘
                         │               │
               ai_agents │               │ chatCompletion()
@@ -69,7 +69,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
    ai_insights             ← insights persistidos
 ```
 
-Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabelas `ai_usage` / `ai_usage_daily` / `ai_spend_events` (não existem `ai_runs`/`ai_tool_calls`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos.
+Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabela `ai_usage` (+ `ai_spend_events`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos. **Não existe** view/tabela `ai_usage_daily`; agregações diárias são calculadas on-the-fly (`group by date_trunc('day', ...)` em `CostsPanel`).
 
 ---
 
@@ -311,14 +311,14 @@ Três ferramentas:
 
 **Pegadinhas:**
 - Sem dados → retorna `code='no_data'` com mensagem "Sem conversas nos últimos N dias".
-- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_usage` / `ai_usage_daily`.
+- Custos: rodar em 90 dias com muitos leads pode levar 25 transcrições × 16 msgs ≈ ~10k tokens de input. Monitor em `ai_usage` (filtrar `note='ai-builder:generate_insights'`).
 - Recomendações não viram patch automático no prompt — usuário decide.
 
 ---
 
 ### Fase 7 — Prompt History e Audit Log
 
-- `PromptHistory.tsx`: lê de `ai_agent_prompt_history` (trigger BEFORE UPDATE em `ai_agents.system_prompt` cria snapshot). Permite ver versões anteriores e reverter.
+- `PromptHistory.tsx`: lê de `agent_prompt_versions`. **Não há trigger automático** — o snapshot é inserido pelo frontend (`src/pages/Agents.tsx`) quando o usuário salva uma mudança relevante no agente. Permite ver versões anteriores e reverter.
 - `AuditLogPanel.tsx`: trilha de mudanças em `ai_agents` (campo, valor antigo, valor novo, autor, timestamp).
 
 ---
@@ -365,6 +365,7 @@ Três ferramentas:
 | `generate_scenarios` | user | `{agent_id, niche, goal, dominant_offer}` | `submit_scenarios` | — |
 | `run_evaluation` | user | `{agent_id, scenario, max_turns?}` | `submit_evaluation` | — |
 | `generate_insights` | user | `{agent_id, days?}` | `submit_insights` | `ai_insights` |
+| `copilot_chat` | user | `{agent_id, messages[]}` | `propose_agent_patch` | — (frontend faz `UPDATE ai_agents` ao "Aplicar") |
 
 Todo response usa o formato `{ ok: boolean, code?, message?, status?, ...payload }`. O frontend traduz `code` via `parseBuilderError`.
 
@@ -464,11 +465,17 @@ src/
       KbAssistant.tsx                       Fase 4 — 3 ferramentas de KB
       TestLab.tsx                           Fase 5 — cenários + run_evaluation
       AgentInsights.tsx                     Fase 6 — UI de insights
-      PromptHistory.tsx                     Fase 7
+      PromptHistory.tsx                     Fase 7 — lê agent_prompt_versions
+      PromptDiff.tsx                        Diff visual (usado por Co-piloto e History)
       AuditLogPanel.tsx                     Fase 7
-      CostsPanel.tsx                        Fase 8
+      CostsPanel.tsx                        Fase 8 — agrega ai_usage
       AgentHealth.tsx                       Fase 8
       ProviderErrorBanner.tsx               Tradução visual de erros do provedor
+      CopilotPanel.tsx                      Co-piloto (chat + patch + evals contínuos)
+      PersonasPanel.tsx                     Personas (agent_personas)
+      StagesPanel.tsx                       Estágios da conversa (agent_stages)
+      ThreadLearningPanel.tsx               UI para agent-learn-from-thread
+      AlfredDialog.tsx                      Diálogo guiado
     admin/BuilderManualPanel.tsx            Fase 9 — gestão do manual
   lib/
     builder-errors.ts                       parseBuilderError() / códigos

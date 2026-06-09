@@ -3,14 +3,14 @@ title: Co-piloto de Agentes — Documentação técnica
 topic: ai
 kind: doc
 audience: agent
-updated: 2026-06-07
+updated: 2026-06-09
 summary: O **Co-piloto** é um chat dentro da página do agente que permite ao operador conversar em linguagem natural ("aumente a temperatura", "mude o tom para mais formal", "ative a ferramenta de agendamento", "reescreva o prompt para focar em conv
 ---
 # Co-piloto de Agentes — Documentação técnica
 
-> Última atualização: 2026-06-02
+> Última atualização: 2026-06-09
 > Escopo: módulo "Co-piloto" do Construtor de Agentes (página `/ai/agents`).
-> Componentes-chave: `src/components/agents/CopilotPanel.tsx` · `supabase/functions/ai-builder/index.ts` (`actionCopilotChat`) · tabela `ai_agents` · sistema de evals contínuos (`agent_eval_*`).
+> Componentes-chave: `src/components/agents/CopilotPanel.tsx` · `supabase/functions/ai-builder/index.ts` (`actionCopilotChat`) · tabela `ai_agents` · evals em `agent_evals` (campo `last_passed`).
 
 ---
 
@@ -135,8 +135,8 @@ Reset: ao trocar de `agentId` limpa history, proposal, evalRun e snapshot.
 
 Após `Aplicar`:
 
-1. Lê `baselinePassedIds` do snapshot anterior de `agent_eval_results`.
-2. Roda `agent-eval-run` no novo estado.
+1. Lê do snapshot anterior os ids de cenários com `last_passed=true` em `agent_evals` (baseline).
+2. Roda `agent-eval-run` no novo estado, que atualiza `last_passed` / `last_response` em `agent_evals`.
 3. Compara: cenários que passavam e agora falham → `regressed[]`.
 4. Render badge ⚠ + lista, com botão **Reverter** para desfazer a mudança aplicada (re-aplica `previousSnapshot` em `ai_agents`).
 
