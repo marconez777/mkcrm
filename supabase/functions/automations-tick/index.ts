@@ -289,10 +289,13 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { data: automations } = await supabase
+    const { getPausedClinicIds } = await import("../_shared/automations-paused.ts");
+    const paused = await getPausedClinicIds(supabase);
+    const { data: automationsAll } = await supabase
       .from("automations")
       .select("*")
       .eq("enabled", true);
+    const automations = (automationsAll ?? []).filter((a: any) => !paused.has(a.clinic_id));
 
     const summary: any[] = [];
     for (const a of (automations ?? []) as Automation[]) {

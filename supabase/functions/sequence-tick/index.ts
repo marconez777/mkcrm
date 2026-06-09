@@ -2,6 +2,7 @@
 // Runs every minute via pg_cron.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
+import { getPausedClinicIds } from "../_shared/automations-paused.ts";
 
 function renderVars(text: string, lead: any, defs: any[]): string {
   return renderTemplate(text, lead ?? {}, defs ?? []);
@@ -31,12 +32,14 @@ Deno.serve(async (req) => {
 
   try {
     const nowIso = new Date().toISOString();
-    const { data: due } = await supabase
+    const paused = await getPausedClinicIds(supabase);
+    const { data: dueAll } = await supabase
       .from("message_sequence_enrollments")
       .select("id, clinic_id, sequence_id, lead_id, current_step")
       .eq("status", "active")
       .lte("next_run_at", nowIso)
       .limit(50);
+    const due = (dueAll ?? []).filter((e: any) => !paused.has(e.clinic_id));
     const { data: fieldDefs } = await supabase
       .from("lead_custom_fields")
       .select("field_key, field_type");
