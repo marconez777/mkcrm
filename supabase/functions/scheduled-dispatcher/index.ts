@@ -18,13 +18,15 @@ const BACKOFF_MS = [0, 30_000, 120_000]; // 0s, 30s, 2min
 const STALE_CLAIM_MS = 5 * 60 * 1000;    // recover stuck claims after 5min
 
 async function processScheduled(supabase: any) {
+  const { getPausedClinicIds } = await import("../_shared/automations-paused.ts");
+  const paused = await getPausedClinicIds(supabase);
   const nowIso = new Date().toISOString();
-  const { data: due } = await supabase
+  const { data: dueAll } = await supabase
     .from("scheduled_messages").select("*")
     .eq("status", "pending").lte("send_at", nowIso)
     .order("send_at", { ascending: true }).limit(50);
 
-  const items = due ?? [];
+  const items = (dueAll ?? []).filter((i: any) => !paused.has(i.clinic_id));
   if (items.length === 0) return { processed: 0, sent: 0, failed: 0 };
 
   const results = await pmap(items, 10, async (item: any) => {
@@ -219,14 +221,16 @@ async function recoverStaleClaims(supabase: any) {
 
 async function processPendingReplies(supabase: any) {
   await recoverStaleClaims(supabase);
+  const { getPausedClinicIds } = await import("../_shared/automations-paused.ts");
+  const paused = await getPausedClinicIds(supabase);
   const nowIso = new Date().toISOString();
-  const { data: due } = await supabase
+  const { data: dueAll } = await supabase
     .from("pending_replies").select("*")
     .eq("status", "pending")
     .lte("run_at", nowIso)
     .limit(20);
 
-  const items = due ?? [];
+  const items = (dueAll ?? []).filter((i: any) => !paused.has(i.clinic_id));
   if (items.length === 0) return { processed: 0, replied: 0, skipped: 0, failed: 0 };
 
   const results = await pmap(items, 5, (it: any) => handlePendingReply(supabase, it, nowIso));

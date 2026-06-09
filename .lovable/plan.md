@@ -1,79 +1,73 @@
+# Fila & Logs de envios WhatsApp
 
-# Auditoria das docs do agente Construtor (Builder + Co-piloto)
+Nova aba dentro de **IA → Mensagens** (ao lado de Sequências, Automações, Templates, Engajamento) com controle completo dos envios WhatsApp da clínica.
 
-Comparei as docs que cobrem o agente que ajuda a criar e treinar os agentes de atendimento com o código real. Abaixo, o relatório de drift e a proposta de atualização.
+## O que entra na tela
 
-## Escopo auditado
+Visão unificada de 4 fontes de envio já existentes no banco:
 
-- `docs/features/BUILDER_AGENTS.md`
-- `docs/maps/BUILDER_AGENTS.md`
-- `docs/copilot.md`
-- `docs/support/pages/ai-agents.md`
-- Código: `supabase/functions/ai-builder/index.ts`, `_shared/builder-*`, `src/pages/ai/AgentWizard.tsx`, `src/pages/Agents.tsx`, `src/pages/AgentMemories.tsx`, `src/components/agents/*`, schema do Supabase.
-
-## Drift encontrado (precisa corrigir nas docs)
-
-### 1. Nomes de tabela errados
-
-| Doc cita | Tabela real no schema | Onde corrigir |
+| Fonte | Tabela | O que mostra |
 |---|---|---|
-| `ai_agent_versions` | `agent_prompt_versions` | `maps/BUILDER_AGENTS.md` §5 |
-| `ai_agent_prompt_history` | `agent_prompt_versions` (não existe trigger com esse nome) | `features/BUILDER_AGENTS.md` §7 (Fase 7) |
-| `ai_eval_runs` | `agent_evals` | `maps/BUILDER_AGENTS.md` §5 |
-| `agent_memories` (plural) | `agent_memory` (singular) | `maps/BUILDER_AGENTS.md` §3 e §5; `features/BUILDER_AGENTS.md` §1 invariantes |
-| `agent_eval_results` | não existe; usar `agent_evals` | `copilot.md` §4 (Evals contínuos) |
-| `ai_usage_daily` | só existe `ai_usage` | `features/BUILDER_AGENTS.md` §2 e §6 (Pegadinhas), §8 |
+| Sequências | `message_sequence_runs` + `message_sequence_enrollments` | cada step enviado/falhou/skip + inscrições ativas com `next_run_at` |
+| Automações | `automation_runs` | gatilhos executados, success/error + `detail` |
+| Agendamentos avulsos | `scheduled_messages` | mensagens com `send_at` futuro, sent, failed |
+| Respostas IA pendentes | `pending_replies` | debounce do agente, attempts, last_error |
 
-### 2. Contagem de actions desatualizada
+## Layout
 
-Tanto `maps/BUILDER_AGENTS.md` §4 quanto `features/BUILDER_AGENTS.md` §2/§5 dizem **"9 actions"**, mas o `switch` em `ai-builder/index.ts` tem **10**: `ping, interview_plan, generate_system_prompt, suggest_kb_urls, draft_knowledge_base, audit_kb, generate_scenarios, run_evaluation, generate_insights, copilot_chat`.
+```text
+┌─ Fila & Logs ──────────────────────────────────────────────┐
+│ [Kill switch: Envios automáticos ATIVOS  ⬤───]            │
+│                                                             │
+│ ┌─ Cards de resumo (últimas 24h) ───────────────────────┐  │
+│ │  Na fila   │  Enviados  │  Falhas  │  Cancelados      │  │
+│ │    142     │   1.284    │    37    │      8           │  │
+│ └────────────────────────────────────────────────────────┘  │
+│                                                             │
+│ Sub-tabs:  [ Fila (próximos) ] [ Histórico ] [ Falhas ]    │
+│                                                             │
+│ Filtros: Origem ▾  Status ▾  Período ▾  Buscar lead...    │
+│                                                             │
+│ ┌─ Tabela ───────────────────────────────────────────────┐ │
+│ │ Quando │ Origem    │ Lead       │ Preview │ Status │ ⋯ │ │
+│ │ 14:32  │ Sequência │ Maria S.   │ Olá...  │ ✓ sent │   │ │
+│ │ 14:35  │ Auto.     │ João P.    │ Lembr.. │ ✗ err  │ ↻ │ │
+│ │ 15:10  │ Agendada  │ Ana L.     │ ...     │ ⏱ queue│ ✕ │ │
+│ └────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────┘
+```
 
-A tabela "Catálogo de actions" em `features/BUILDER_AGENTS.md` §5 **não inclui `copilot_chat`** — adicionar linha com `agent_id + messages` no body e tool `propose_agent_patch`.
+- **Sub-tab "Fila"** = `scheduled_messages.status='pending'` + `pending_replies.status='pending'` + `message_sequence_enrollments` com `next_run_at` futuro. Ordenado por horário de disparo. Botão **✕ Cancelar** por linha.
+- **Sub-tab "Histórico"** = união dos `*_runs` + scheduled sent. Ordenado desc por `created_at`.
+- **Sub-tab "Falhas"** = só status `failed`/`error`, com `detail`/`last_error` expandível. Sem retry (só visualização — conforme escolha).
+- Filtros aplicam em todas as sub-tabs. Paginação 50/página.
+- Clicar numa linha abre drawer com payload completo, lead e link para a conversa.
 
-### 3. Line numbers dos `case` no mapa estão deslocados
+## Ações
 
-`maps/BUILDER_AGENTS.md` §4 cita L1401 ping … L1462 copilot_chat. Reais: **L1410 ping … L1471 copilot_chat** (+9 linhas). Atualizar.
+- **Cancelar agendado:** UPDATE `scheduled_messages` status→`cancelled` (só pending) e DELETE em `pending_replies` pendentes do lead. Confirm dialog.
+- **Kill switch global:** flag em `settings` por clínica (`automations_paused: boolean`). Os workers (`automations-tick`, `sequences-tick`, `scheduled-messages-tick`) passam a checar essa flag no começo do tick e abortam o ciclo da clínica quando true. UI mostra banner amarelo quando pausado.
 
-### 4. Trigger de versionamento
+Sem retry e sem WhatsApp/Email unificado (conforme respostas).
 
-`maps/BUILDER_AGENTS.md` §5 e `features/BUILDER_AGENTS.md` §7 dizem "trigger BEFORE UPDATE em `ai_agents.system_prompt` cria snapshot em `ai_agent_prompt_history`". Não existe trigger desse nome no banco. O versionamento hoje é **manual via INSERT em `agent_prompt_versions`** feito pelo frontend (`src/pages/Agents.tsx:434`). Corrigir a descrição (ou abrir tarefa separada para criar o trigger se for desejado).
+## Detalhes técnicos
 
-### 5. Pequenas inconsistências
+**Arquivos novos:**
+- `src/pages/QueueLogs.tsx` — página com cards, filtros, 3 sub-tabs.
+- `src/components/queue/QueueTable.tsx` — tabela genérica com colunas configuráveis.
+- `src/components/queue/CancelButton.tsx`, `KillSwitch.tsx`, `LogDetailDrawer.tsx`.
+- `src/hooks/useQueueData.ts` — react-query hooks que fazem 4 queries paralelas e fundem numa lista normalizada `{ source, when, leadId, leadName, preview, status, detail, refId }`.
 
-- `features/BUILDER_AGENTS.md` §10 (resumo executivo) não lista `CopilotPanel.tsx`, `PersonasPanel.tsx`, `StagesPanel.tsx`, `ThreadLearningPanel.tsx`, `AlfredDialog.tsx`, `PromptDiff.tsx` (todos existem em `src/components/agents/`).
-- `features/BUILDER_AGENTS.md` §7 invariantes diz "leitura `authenticated`, escrita só `owner/admin` via RLS" para `builder_manual_versions` — confirmar que casa com a migration mais recente (memória de segurança recente escopou várias políticas para `authenticated`).
-- `maps/BUILDER_AGENTS.md` §1 invariante 9 menciona `BuilderManualPanel` em `/admin` — agora o super admin login é separado (`/admin/login`); valeria referenciar a doc nova de SUPER_ADMIN.
-- `copilot.md` §2.2 lista campos do `changes` do `propose_agent_patch`. Reconfirmar contra `COPILOT_PATCH_TOOL` atual em `ai-builder/index.ts` e atualizar se novos campos foram adicionados (RAG flags, hybrid_search, hyde, memory_enabled, planning_mode aparecem na UI mas talvez não no patch).
+**Edits:**
+- `src/pages/ai/Messages.tsx` — adicionar sub `{ value: "queue", label: "Fila & Logs", paths: ["/ai/messages/queue"] }`.
+- `src/lib/features.ts` — feature key `messages_queue` (default on).
+- `supabase/functions/automations-tick/index.ts`, `sequences-tick/index.ts`, `scheduled-messages-tick/index.ts` — early-return quando `settings.automations_paused = true` para a clínica.
 
-## O que NÃO está em drift (ok)
+**Migração:**
+1. Adicionar coluna `automations_paused boolean not null default false` em `settings`.
+2. Adicionar valor `cancelled` na lista permitida de `scheduled_messages.status` (se houver CHECK constraint) e em `pending_replies.status`.
+3. RLS: leitura das 4 tabelas via `clinic_id = current_clinic_id()` já existe; só garantir que `UPDATE` em `scheduled_messages`/`pending_replies` para cancelar respeita a mesma política.
 
-- 12 KBs de nicho em `_shared/builder-knowledge/niches/` ✓
-- `ai_agent_drafts` schema, unique `(clinic_id, user_id)` ✓
-- Wizard 5 passos em `AgentWizard.tsx` ✓
-- Roadmap do co-piloto (Fase A1 `copilot_threads`, A2 `agent_revisions`) — tabelas ainda não criadas, então continuam como roadmap ✓
-- `BuilderSetupCard`, `KbAssistant`, `TestLab`, `AgentInsights`, `PromptHistory`, `AuditLogPanel`, `CostsPanel`, `AgentHealth`, `ProviderErrorBanner`, `StagesPanel`, `PersonasPanel`, `ThreadLearningPanel`, `CopilotPanel`, `AlfredDialog` — todos existem ✓
-- 10 actions do edge `ai-builder` ✓
+**Performance:** as 4 tabelas têm volume (ex.: 41k automation_runs). Hooks aplicam `limit + order by created_at desc` no banco com índices em `(clinic_id, created_at desc)` e `(clinic_id, status, send_at)` — criar via migration se faltarem.
 
-## Plano de atualização
-
-1. **`docs/maps/BUILDER_AGENTS.md`**
-   - §4: atualizar line numbers (L1401→L1410, …, L1462→L1471) e somar `copilot_chat` no total (9→10 actions).
-   - §5: trocar `ai_agent_versions`→`agent_prompt_versions`, `ai_eval_runs`→`agent_evals`, `agent_memories`→`agent_memory`. Remover trigger inexistente; descrever versionamento como "INSERT manual via UI".
-
-2. **`docs/features/BUILDER_AGENTS.md`**
-   - §2: "9 actions" → "10 actions".
-   - §2 e §6/§8: substituir `ai_usage_daily` por `ai_usage` (e remover referência à view inexistente).
-   - §5: adicionar linha `copilot_chat` na tabela de actions com payload `{agent_id, messages[]}`, tool `propose_agent_patch`, persistência `—` (UPDATE em `ai_agents` é feito pelo frontend ao "Aplicar").
-   - §7 Fase 7: corrigir nome da tabela (`agent_prompt_versions`) e remover menção ao trigger; descrever fluxo real (INSERT pelo `Agents.tsx`).
-   - §10: completar resumo executivo com componentes faltantes.
-
-3. **`docs/copilot.md`**
-   - §4: trocar `agent_eval_results` por `agent_evals` (campo `last_passed`); ajustar descrição de "baselinePassedIds" para a query real em `CopilotPanel.tsx`.
-   - §2.2: reconferir `COPILOT_PATCH_TOOL` e expandir a tabela de campos se houver flags novas (rag/hybrid/hyde/memory/planning).
-   - Atualizar `updated:` no frontmatter.
-
-4. **Rodar `node scripts/docs-sync.mjs`** para regenerar `docs/INDEX.json`, `docs/DRIFT.md` e manifest do SupportKB, e validar que nenhum `code_refs` quebrou.
-
-5. Atualizar `updated:` para 2026-06-09 nos três arquivos editados.
-
-Nenhuma mudança de código de produto neste plano — só docs. Posso prosseguir e aplicar?
+Nenhuma alteração em emails, dashboards existentes ou lógica de envio em si — só visibilidade, cancelamento e pausa.
