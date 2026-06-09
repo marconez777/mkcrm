@@ -1399,31 +1399,49 @@ ${promptSnippet}
     const rawChanges = (args.changes ?? {}) as Record<string, unknown>;
     const sanitized: Record<string, unknown> = {};
     if (typeof rawChanges.system_prompt === "string" && rawChanges.system_prompt.trim().length > 20) {
-      sanitized.system_prompt = ensureContextClause(rawChanges.system_prompt);
+      const normalized = normalizeGeneratedPrompt(rawChanges.system_prompt);
+      if (normalizeForCompare(normalized) !== normalizeForCompare(String(agent.system_prompt ?? ""))) {
+        sanitized.system_prompt = normalized;
+      }
     }
     if (typeof rawChanges.temperature === "number" && rawChanges.temperature >= 0 && rawChanges.temperature <= 1) {
-      sanitized.temperature = Number(rawChanges.temperature);
+      const next = Number(rawChanges.temperature);
+      if (next !== Number(agent.temperature ?? NaN)) sanitized.temperature = next;
     }
-    if (typeof rawChanges.draft_mode === "boolean") sanitized.draft_mode = rawChanges.draft_mode;
+    if (typeof rawChanges.draft_mode === "boolean" && rawChanges.draft_mode !== Boolean(agent.draft_mode)) {
+      sanitized.draft_mode = rawChanges.draft_mode;
+    }
     if (Number.isFinite(rawChanges.rag_top_k as number)) {
       const n = Math.max(1, Math.min(20, Math.round(Number(rawChanges.rag_top_k))));
-      sanitized.rag_top_k = n;
+      if (n !== Number(agent.rag_top_k ?? NaN)) sanitized.rag_top_k = n;
     }
     if (Number.isFinite(rawChanges.debounce_seconds as number)) {
       const n = Math.max(0, Math.min(600, Math.round(Number(rawChanges.debounce_seconds))));
-      sanitized.debounce_seconds = n;
+      if (n !== Number(agent.debounce_seconds ?? NaN)) sanitized.debounce_seconds = n;
     }
     if (Array.isArray(rawChanges.tools)) {
-      sanitized.tools = filterKnownToolsEdge(rawChanges.tools);
+      const next = filterKnownToolsEdge(rawChanges.tools);
+      if (!arraysEqual(next, Array.isArray(agent.tools) ? agent.tools : [])) {
+        sanitized.tools = next;
+      }
+    }
+
+    const hasChanges = Object.keys(sanitized).length > 0;
+    let message = String(args.message ?? "").trim() || "Pronto.";
+    let summary = String(args.summary ?? "").trim();
+    if (!hasChanges) {
+      // Não invente sucesso quando o modelo devolveu algo igual ao atual.
+      summary = "";
+      message = message + " (Nenhuma mudança efetiva foi detectada — o texto sugerido é igual ao atual. Reformule o pedido se quiser uma alteração real.)";
     }
 
     return {
       ok: true,
-      message: String(args.message ?? "").trim() || "Pronto.",
-      summary: String(args.summary ?? "").trim(),
+      message,
+      summary,
       rationale: String(args.rationale ?? "").trim(),
       changes: sanitized,
-      has_changes: Object.keys(sanitized).length > 0,
+      has_changes: hasChanges,
     };
   } catch (e) {
     console.error("[copilot_chat] caught", e);
