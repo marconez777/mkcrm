@@ -86,8 +86,8 @@ Registradas em `supabase/functions/ai-chat/index.ts` e whitelisted no frontend p
 
 ## Pause / handoff
 
-- Humano respondendo manualmente no Inbox → o frontend/`ai-auto-reply` checa `messages.bot_agent_id IS NULL` (resposta humana) e a tool `pause_ai_for_lead` seta `leads.ai_paused=true`. **Não existe** trigger `tg_pause_ai_on_human_reply` — pausa é manual ou via tool. Em paralelo, `trg_stop_sequences_on_reply` em `messages` interrompe sequences ativas.
-- Tool `transfer_to_human` faz o mesmo.
+- Humano respondendo manualmente no Inbox → o frontend/`ai-auto-reply` checa `messages.bot_agent_id IS NULL` (resposta humana) e o frontend marca `leads.ai_paused=true` quando o atendente assume. **Não existe** tool `pause_ai_for_lead` nem trigger `tg_pause_ai_on_human_reply` — pausa é via UI ou via tool `transfer_to_human`. Em paralelo, `trg_stop_sequences_on_reply` em `messages` interrompe sequences ativas.
+- Tool `transfer_to_human` faz o mesmo (seta `ai_paused=true` e marca handoff).
 - Retomada: botão "retomar IA" no Inbox seta `ai_paused=false` e dispara `ai-auto-reply` com a última msg do lead.
 
 ---
