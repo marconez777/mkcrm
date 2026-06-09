@@ -1855,10 +1855,13 @@ function Step5({
           )}
 
           <div>
-            <Label className="text-xs text-muted-foreground">System prompt</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">System prompt</Label>
+              <span className="text-[10px] text-muted-foreground">Edição livre</span>
+            </div>
             <textarea
-              readOnly
               value={bundle.system_prompt}
+              onChange={(e) => setBundle((b) => (b ? { ...b, system_prompt: e.target.value } : b))}
               className="mt-1 h-64 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-xs"
             />
           </div>
