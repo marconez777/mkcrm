@@ -427,7 +427,7 @@ Chame a tool submit_agent_prompt com o resultado.`;
       return { ok: false, code: "unknown", message: "O Construtor não devolveu um prompt válido. Tente novamente." };
     }
 
-    const finalPrompt = ensureContextClause(args.system_prompt);
+    const finalPrompt = normalizeGeneratedPrompt(args.system_prompt);
     const eval_passed = finalPrompt.includes("Use o contexto do lead antes de perguntar");
 
     return {
