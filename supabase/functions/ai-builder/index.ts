@@ -266,7 +266,7 @@ const PROMPT_TOOL = {
       properties: {
         system_prompt: {
           type: "string",
-          description: "Prompt completo em PT-BR, no estilo Markdown leve. DEVE conter a cláusula literal de uso do contexto do lead fornecida pelo Construtor. Use a oferta dominante como caminho default.",
+          description: "Prompt completo em PT-BR em TEXTO PURO. PROIBIDO usar caracteres Markdown: nada de asteriscos (*, **), sublinhados (_, __), crases (`) ou cabeçalhos (#, ##). Use apenas letras, acentos, pontuação comum e hífen simples para listas. DEVE conter literalmente a cláusula de uso do contexto do lead e a cláusula de formatação sem Markdown fornecidas pelo Construtor. Use a oferta dominante como caminho default.",
         },
         suggested_tools: {
           type: "array",
