@@ -3,6 +3,7 @@ import MarketingSite from "@/pages/site/MarketingSite";
 import AppShell from "@/components/AppShell";
 import Kanban from "@/pages/Kanban";
 import { Loader2 } from "lucide-react";
+import { Navigate } from "react-router-dom";
 
 /**
  * Decide o que servir em "/":
@@ -11,7 +12,7 @@ import { Loader2 } from "lucide-react";
  * - autenticado → AppShell + Kanban (comportamento atual)
  */
 export default function RootGate() {
-  const { session, loading } = useAuth();
+  const { session, loading, isSuperAdmin, membership } = useAuth();
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -20,6 +21,8 @@ export default function RootGate() {
     );
   }
   if (!session) return <MarketingSite />;
+  // Super admin "puro" (sem clínica) vai direto para o painel da plataforma.
+  if (isSuperAdmin && !membership) return <Navigate to="/admin" replace />;
   return (
     <AppShell>
       <Kanban />

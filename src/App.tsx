@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ClinicOnlyRoute from "./components/ClinicOnlyRoute";
 import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -125,6 +126,7 @@ const App = () => (
               path="*"
               element={
                 <ProtectedRoute>
+                  <ClinicOnlyRoute>
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Kanban />} />
@@ -180,6 +182,7 @@ const App = () => (
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppShell>
+                  </ClinicOnlyRoute>
                 </ProtectedRoute>
               }
             />
