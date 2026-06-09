@@ -105,7 +105,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
-            <Route path="/admin" element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
+            <Route path="/admin/login" element={<Suspense fallback={<AdminFallback />}><AdminLogin /></Suspense>} />
+            <Route path="/admin" element={<AdminShell />}>
               <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
               <Route path="clinics" element={<Suspense fallback={<AdminFallback />}><AdminClinics /></Suspense>} />
               <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
