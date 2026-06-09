@@ -1344,7 +1344,9 @@ ${promptSnippet}
 - Sempre chame a tool 'propose_agent_patch'.
 - Se o usuário pediu uma MUDANÇA concreta, devolva 'changes' com os campos a alterar e 'summary' não vazio.
 - Se for apenas dúvida/conversa, devolva 'changes' vazio e responda no campo 'message'.
-- Ao mexer em 'system_prompt', devolva o prompt COMPLETO reescrito (não diff). Preserve a cláusula obrigatória 'Use o contexto do lead antes de perguntar'.
+- Ao mexer em 'system_prompt', devolva o prompt COMPLETO reescrito (não diff). Preserve as cláusulas obrigatórias: 'Use o contexto do lead antes de perguntar' e a cláusula de formatação sem Markdown.
+- O system_prompt DEVE ser TEXTO PURO. PROIBIDO usar asteriscos (*, **), sublinhados (_, __), crases (\`) ou cabeçalhos (#, ##). Use hífen simples para listas. Se o usuário pediu para remover esses caracteres, sua reescrita TEM que removê-los de verdade — não devolva o mesmo texto.
+- Não devolva um system_prompt idêntico (ou praticamente idêntico) ao atual. Se nada mudou, devolva 'changes' vazio.
 - Ao mexer em 'tools', devolva a lista COMPLETA desejada com nomes da whitelist.
 - Seja conciso: 'message' tem 1-3 frases em PT-BR.
 `;
