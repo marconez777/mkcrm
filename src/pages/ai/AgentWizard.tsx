@@ -621,16 +621,20 @@ export default function AgentWizard() {
     setTestError(null);
     // Salva primeiro pra garantir que ai-builder use os valores mais recentes
     await persist({});
+    const overrides =
+      keySource === "builder"
+        ? { clinic_id: clinicId }
+        : {
+            clinic_id: clinicId,
+            provider,
+            api_key: apiKey,
+            base_url: baseUrl || null,
+            model,
+          };
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: {
         action: "ping",
-        clinic_id: clinicId,
-        // overrides opcionais — ai-builder pode preferir usar do Builder do clinic;
-        // o backend aceita override durante o wizard
-        provider,
-        api_key: apiKey,
-        base_url: baseUrl || null,
-        model,
+        ...overrides,
       },
     });
     setTesting(false);
