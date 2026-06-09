@@ -458,7 +458,7 @@ Para adicionar um nicho novo:
 ```text
 src/
   pages/ai/AgentWizard.tsx                  Wizard 5 passos + persistência em draft
-  pages/Admin.tsx                           Aba "Manual do Builder"
+  pages/admin/AdminPanels.tsx              Aba "Manual do Builder" (monta BuilderManualPanel)
   components/
     agents/
       BuilderSetupCard.tsx                  Setup do provider/chave do Builder
