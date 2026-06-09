@@ -345,6 +345,10 @@ export default function AgentWizard() {
         setBaseUrl(d.base_url ?? "");
         if (d.model) setModel(d.model);
         setVerifiedAt(d.provider_verified_at ?? null);
+        const savedKeySource = (d.settings as Record<string, unknown>)?.key_source;
+        if (savedKeySource === "builder" || savedKeySource === "own") {
+          setKeySource(savedKeySource as "builder" | "own");
+        }
         setAnswers((d.interview_answers as Record<string, string>) ?? {});
         if (d.generated_prompt) {
           setBundle({
