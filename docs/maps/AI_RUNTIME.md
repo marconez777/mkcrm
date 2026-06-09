@@ -60,7 +60,7 @@ Tudo que executa um agente IA em produção: resposta automática a mensagem inb
 - `ai-spend-notify` — notifica quando limite se aproxima.
 - `classifier-daily-batch` — classifica leads em lote (modelo lite).
 - `agent-followups-tick` — dispara follow-ups agendados.
-- `agent-learn-from-thread` — extrai memórias de conversa para `agent_memories`.
+- `agent-learn-from-thread` — extrai memórias de conversa para `agent_memory`.
 - `agent-run-bulk` — roda agente sobre N leads.
 - `transcribe-audio` — (TODO ainda) transcrição de áudio inbound.
 
@@ -95,7 +95,7 @@ Lista canônica (espelha `KNOWN_AGENT_TOOLS`):
 | `ai_spend_limits` | `monthly_cap_usd` por clínica |
 | `ai_chat_traces` | transcrição completa por turn, com `tool_calls[]` em `turns[].tool_calls` |
 | `ai_agents` | configuração do agente (provider, chave, prompt, tools) |
-| `agent_memories` | fatos persistidos por `remember_fact` |
+| `agent_memory` | fatos persistidos por `remember_fact` (tabela no singular) |
 | `ai_insights` | insights gerados |
 | `ai_documents` | KB com embeddings |
 | `scheduled_messages` | criadas pela tool `schedule_message` |
@@ -105,7 +105,7 @@ Lista canônica (espelha `KNOWN_AGENT_TOOLS`):
 | `messages.bot_agent_id` | marca mensagens out originadas por IA |
 | `leads.ai_paused` | flag de pausa (manual ou via `transfer_to_human`) |
 
-⚠️ **Não existem** `ai_runs` nem `ai_tool_calls`. Naming antigo em docs deve ser corrigido para `ai_usage` + `ai_chat_traces`.
+⚠️ **Não existem** tabelas `ai_runs`, `ai_tool_calls` nem `clinic_settings`. Naming canônico: `ai_usage` (1 linha por chamada) + view `ai_usage_daily` (rollup) + `ai_spend_events` (cobrança) + `ai_chat_traces` (transcrição por turno, com `tool_calls[]` em `turns[].tool_calls[]`). Memória persistente é `agent_memory` (singular). Config de IA por clínica vive em `clinics.settings.ai.*`.
 
 ### RPCs
 - `engagement_sequences_summary`, `engagement_sequence_steps` — aba `/ai/engagement`.
