@@ -36,6 +36,7 @@ const AdminSupport = lazy(() => import("./pages/admin/AdminPanels").then((m) => 
 const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAudit })));
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
 import Team from "./pages/Team";
 import Invite from "./pages/Invite";
@@ -105,7 +106,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<Invite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
-            <Route path="/admin" element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
+            <Route path="/admin/login" element={<Suspense fallback={<AdminFallback />}><AdminLogin /></Suspense>} />
+            <Route path="/admin" element={<AdminShell />}>
               <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
               <Route path="clinics" element={<Suspense fallback={<AdminFallback />}><AdminClinics /></Suspense>} />
               <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />

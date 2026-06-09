@@ -90,7 +90,7 @@ function useTheme() {
 
 export default function AdminShell() {
   useBrandingSync();
-  const { isSuperAdmin, loading } = useAuth();
+  const { session, isSuperAdmin, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { dark, toggle } = useTheme();
@@ -114,7 +114,8 @@ export default function AdminShell() {
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-admin-bg text-admin-text-muted">Carregando…</div>;
   }
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
+  // Sem sessão OU não é super admin → portal admin (login dedicado).
+  if (!session || !isSuperAdmin) return <Navigate to="/admin/login" replace />;
 
   const currentLabel = NAV.flatMap((g) => g.items).find((i) => i.end ? location.pathname === i.to : location.pathname.startsWith(i.to))?.label ?? "Admin";
 

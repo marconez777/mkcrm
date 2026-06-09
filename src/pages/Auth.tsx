@@ -55,6 +55,21 @@ export default function AuthPage() {
         refresh_token: payload.session.refresh_token,
       });
       if (setErr) throw setErr;
+
+      // Super admin "puro" não entra pelo login normal — usa /admin/login.
+      const uid = (await supabase.auth.getUser()).data.user?.id;
+      if (uid) {
+        const [{ data: roleRow }, { data: memberRow }] = await Promise.all([
+          supabase.from("user_roles").select("role").eq("user_id", uid).eq("role", "super_admin").maybeSingle(),
+          supabase.from("clinic_members").select("clinic_id").eq("user_id", uid).maybeSingle(),
+        ]);
+        if (roleRow && !memberRow) {
+          await supabase.auth.signOut();
+          toast.error("Esta conta é de Super Admin. Use o Portal Admin para entrar.");
+          return;
+        }
+      }
+
       nav(from, { replace: true });
     } catch (err: any) {
       toast.error(err?.message ?? "Falha na autenticação");
