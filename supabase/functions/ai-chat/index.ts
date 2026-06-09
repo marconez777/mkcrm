@@ -7,7 +7,7 @@ import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.t
 import { retrieveContext, formatContext } from "../_shared/rag.ts";
 import { listMcpTools, callMcpTool, toOpenAITools, type McpTool } from "../_shared/mcp.ts";
 import { stableStringify, withTimeout, pmap, logTrace } from "../_shared/utils.ts";
-import { NO_MARKDOWN_CLAUSE } from "../_shared/builder-system-prompt.ts";
+import { NO_MARKDOWN_CLAUSE, SHORT_MESSAGE_CLAUSE } from "../_shared/builder-system-prompt.ts";
 
 // Remove formatação Markdown (** __ * _ ` #) preservando quebras de linha e listas com "- ".
 // Aplicado à resposta do agente para garantir texto puro compatível com WhatsApp,
