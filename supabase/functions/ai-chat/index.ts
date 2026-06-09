@@ -786,6 +786,10 @@ Deno.serve(async (req) => {
       finalContent = "Desculpe, não consegui finalizar a resposta a tempo. Tente reformular.";
     }
     finalContent = stripMarkdown(finalContent);
+    const chunks = splitChunks(finalContent);
+    // Versão "limpa" para persistência/exibição: junta as partes com linha em branco,
+    // sem o token [[SPLIT]] cru aparecendo para o usuário.
+    const displayContent = chunks.join("\n\n");
 
     let threadId = thread_id;
     if (persist) {
@@ -798,7 +802,7 @@ Deno.serve(async (req) => {
       if (threadId) {
         const rows = incoming.filter((m: any) => m.role === "user").slice(-1)
           .map((m: any) => ({ thread_id: threadId, role: "user", content: m.content }));
-        rows.push({ thread_id: threadId, role: "assistant", content: finalContent });
+        rows.push({ thread_id: threadId, role: "assistant", content: displayContent });
         await supabase.from("ai_messages").insert(rows);
       }
     }
