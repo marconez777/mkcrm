@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ClinicOnlyRoute from "./components/ClinicOnlyRoute";
 import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
