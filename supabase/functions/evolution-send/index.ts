@@ -102,7 +102,14 @@ Deno.serve(async (req) => {
           break;
         }
         lastErr = `HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 300)}`;
-        if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) {
+        // "Connection Closed" do Evolution vem como 400 mas é transitório (socket
+        // WhatsApp caiu no momento do envio) — tratar como retryable.
+        const transient = /Connection Closed/i.test(lastErr);
+        if (
+          !transient &&
+          resp.status >= 400 && resp.status < 500 &&
+          resp.status !== 408 && resp.status !== 429
+        ) {
           break;
         }
       } catch (e) {
