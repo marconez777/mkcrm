@@ -5,6 +5,7 @@ import Sequences from "@/pages/Sequences";
 import Automations from "@/pages/Automations";
 import Templates from "@/pages/Templates";
 import MetricsEngagement from "@/pages/MetricsEngagement";
+import QueueLogs from "@/pages/QueueLogs";
 import type { FeatureKey } from "@/lib/features";
 
 type SubTab = { value: string; label: string; feature?: FeatureKey; paths: string[] };
@@ -16,6 +17,7 @@ const SUBS: SubTab[] = [
   { value: "sequences", label: "Sequências", feature: "sequences", paths: ["/ai/messages/sequences", "/ai/sequences", "/sequences"] },
   { value: "automations", label: "Automações", feature: "automations", paths: ["/ai/messages/automations", "/ai/automations", "/automations"] },
   { value: "templates", label: "Templates", feature: "templates", paths: ["/ai/messages/templates", "/ai/templates", "/templates"] },
+  { value: "queue", label: "Fila & Logs", paths: ["/ai/messages/queue", "/ai/queue"] },
   { value: "engagement", label: "Engajamento", paths: ["/ai/messages/engagement", "/ai/engagement", "/metrics/engagement", "/metrics"] },
 ];
 
@@ -62,6 +64,9 @@ export default function Messages() {
       )}
       {visible.some((s) => s.value === "templates") && (
         <TabsContent value="templates" className="mt-0"><Templates /></TabsContent>
+      )}
+      {visible.some((s) => s.value === "queue") && (
+        <TabsContent value="queue" className="mt-0"><QueueLogs /></TabsContent>
       )}
       {visible.some((s) => s.value === "engagement") && (
         <TabsContent value="engagement" className="mt-0"><MetricsEngagement /></TabsContent>

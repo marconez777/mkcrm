@@ -156,6 +156,8 @@ const App = () => (
                       <Route path="/ai/messages/automations" element={<FeatureRoute feature="automations"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/messages/templates" element={<FeatureRoute feature="templates"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/messages/engagement" element={<AiHub />} />
+                      <Route path="/ai/messages/queue" element={<AiHub />} />
+                      <Route path="/ai/queue" element={<AiHub />} />
                       <Route path="/metrics/ai-usage" element={<FeatureRoute feature="metrics_ai_usage"><AiHub /></FeatureRoute>} />
                       <Route path="/ai/engagement" element={<AiHub />} />
                       <Route path="/metrics/engagement" element={<AiHub />} />
