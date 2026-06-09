@@ -3,7 +3,7 @@ title: "Mapa: Construtor de Agentes (Builder)"
 topic: ai
 kind: map
 audience: agent
-updated: 2026-06-07
+updated: 2026-06-09
 summary: Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros agentes** (SDR, classificador, agendador…). Roda como `ai_agents` com `system_key='builder'`, um por clínica. Usa provider/chave próprios da clínica.
 ---
 # Mapa: Construtor de Agentes (Builder)
@@ -31,7 +31,7 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 ### Páginas
 - `src/pages/ai/AgentWizard.tsx` — wizard principal, orquestra os 5 passos.
 - `src/pages/Agents.tsx` — listagem, com `SectionAccordion` por categoria.
-- `src/pages/AgentMemories.tsx` — visualização de `agent_memories`.
+- `src/pages/AgentMemories.tsx` — visualização de `agent_memory` (tab `memories` do `AiHub`).
 
 ### Componentes (`src/components/agents/`)
 | Arquivo | Função |
@@ -60,17 +60,17 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 ## 4. Edge functions
 
 ### Principal
-- `supabase/functions/ai-builder/index.ts` — **9 actions** (linha de cada `case` no `switch`):
-  - L1401 `ping` — healthcheck
-  - L1415 `interview_plan` — plano de perguntas adaptado ao nicho
-  - L1422 `generate_system_prompt` — gera prompt (injetando `LEAD_CONTEXT_CLAUSE`)
-  - L1429 `suggest_kb_urls` — sugere URLs para KB
-  - L1434 `draft_knowledge_base` — monta KB inicial
-  - L1439 `audit_kb` — audita qualidade da KB
-  - L1444 `generate_scenarios` — cenários para Test Lab
-  - L1449 `run_evaluation` — roda simulação e avalia
-  - L1454 `generate_insights` — insights sobre conversas reais
-  - L1462 `copilot_chat` — chat livre com o Builder
+- `supabase/functions/ai-builder/index.ts` — **10 actions** (linha de cada `case` no `switch`):
+  - L1410 `ping` — healthcheck
+  - L1424 `interview_plan` — plano de perguntas adaptado ao nicho
+  - L1431 `generate_system_prompt` — gera prompt (injetando `LEAD_CONTEXT_CLAUSE`)
+  - L1438 `suggest_kb_urls` — sugere URLs para KB
+  - L1443 `draft_knowledge_base` — monta KB inicial
+  - L1448 `audit_kb` — audita qualidade da KB
+  - L1453 `generate_scenarios` — cenários para Test Lab
+  - L1458 `run_evaluation` — roda simulação e avalia
+  - L1463 `generate_insights` — insights sobre conversas reais
+  - L1471 `copilot_chat` — chat de co-piloto que devolve patch estruturado (`propose_agent_patch`)
 
 ### Compartilhado
 - `_shared/builder-system-prompt.ts` — `CORE_RULES`, `LEAD_CONTEXT_CLAUSE`, `MULTI_NICHE_CLAUSE`, `buildBuilderSystemPrompt()` (carrega manual de `builder_manual_versions` com cache 60s + fallback em arquivo).
@@ -93,22 +93,23 @@ Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros
 ### Tabelas
 | Tabela | Colunas-chave |
 |---|---|
-| `ai_agents` | `id`, `clinic_id`, `name`, `system_key`, `system_prompt`, `tools[]`, `api_key`, `provider`, `model_primary`, `enabled` |
-| `ai_agent_versions` | versionamento de prompt (alimenta `PromptHistory`) |
-| `builder_manual_versions` | `id`, `version`, `content`, `active`, `created_by` — fonte canônica do manual |
+| `ai_agents` | `id`, `clinic_id`, `name`, `system_key`, `system_prompt`, `tools[]`, `api_key`, `provider`, `model`, `enabled` |
+| `agent_prompt_versions` | versionamento de prompt (alimenta `PromptHistory`) — INSERT manual feito pelo frontend ao salvar mudanças relevantes |
+| `builder_manual_versions` | `id`, `version`, `content`, `is_active`, `published_by` — fonte canônica do manual |
 | `ai_documents` | KB por agente; `embedding` vector |
-| `agent_memories` | fatos persistidos via tool `remember_fact` |
+| `agent_memory` | fatos persistidos via tool `remember_fact` (singular no schema real) |
 | `ai_insights` | resultado de `generate_insights` |
 | `stage_ai_defaults` | `stage_id`, `agent_id`, `auto_reply` — agente default por stage |
-| `ai_eval_runs` | execuções do Test Lab |
+| `agent_evals` | casos de avaliação do Test Lab (`prompt`, `expected_contains`, `last_passed`, `last_response`) |
+| `agent_personas`, `agent_stages`, `agent_mcp_servers`, `agent_traces` | personas, estágios, MCP e telemetria do agente |
 
 ### RPCs / funções
 - `get_active_builder_manual()` — retorna `{content, version}` do manual ativo (usado por `_shared/builder-system-prompt.ts`).
-- `has_role(_user_id, 'super_admin')` — gating do painel admin do manual.
+- `has_role(_user_id, 'super_admin')` — gating do painel admin do manual (login do super admin é separado em `/admin/login` — ver [`SUPER_ADMIN`](../architecture/SUPER_ADMIN.md)).
 
 ### Triggers
 - Atualização de `updated_at` padrão.
-- Versionamento automático em `ai_agent_versions` quando `system_prompt` muda (verificar migration mais recente).
+- **Não há trigger automático** copiando `ai_agents.system_prompt` para histórico. O snapshot em `agent_prompt_versions` é feito por `INSERT` explícito no frontend (`src/pages/Agents.tsx`).
 
 ## 6. Integrações externas
 
