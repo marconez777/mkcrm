@@ -1,45 +1,79 @@
-## Diagnóstico — erros nos lembretes da clínica ÓR
 
-Investiguei as execuções com `status=error` da clínica ÓR (`slug=or`). Achados:
+# Auditoria das docs do agente Construtor (Builder + Co-piloto)
 
-### 1. Lead "." (Natalie — `5511973444438`) — `send 502`
-- Cada tentativa de envio gerou linha em `messages` com `status=failed` e `last_error`:
-  ```
-  HTTP 400: {"status":400,"error":"Bad Request","response":{"message":["Error: Connection Closed"]}}
-  ```
-- O Evolution devolveu "Connection Closed" — a sessão WhatsApp da instância estava caída no momento exato do disparo (ou o número não tinha conta no WhatsApp).
-- O `evolution-send` tem retry, mas só re-tenta em 5xx / 408 / 429. Como o erro veio com status 400, ele falhou nas 3 tentativas e devolveu 502 ao `automations-tick`, que registrou `send 502`.
+Comparei as docs que cobrem o agente que ajuda a criar e treinar os agentes de atendimento com o código real. Abaixo, o relatório de drift e a proposta de atualização.
 
-### 2. Lead "Ricardo Ferraz" (`5511965748326`) — `send 400` (94 execuções)
-- Não existe NENHUMA mensagem com `status=failed` desse lead — ou seja, o `evolution-send` retornou 400 **antes mesmo de inserir a linha em `messages`**. Os únicos pontos do código que retornam 400 nesse ponto são:
-  - `lead_id` ou `text` ausentes/vazios
-  - `loadInstance` retornou `null` ("Nenhuma instância WhatsApp configurada")
-- A instância default da clínica existe e funcionou (mensagem manual ao mesmo lead em 08/06 19:59 saiu como `sent`). O mais provável é que a instância estivesse momentaneamente indisponível/desconectada no momento dos disparos, mas o `automations-tick` só registra `send 400` sem o corpo da resposta — então não há como ter certeza.
+## Escopo auditado
 
-### Problema de fundo
-O `detail` salvo em `automation_runs` é só `send <status>` (linhas 229 e 270 de `supabase/functions/automations-tick/index.ts`). Sem o corpo da resposta, qualquer investigação futura vai ficar no escuro como esta. Além disso, "Connection Closed" devolvido como 400 não é tratado como retryable, mas é claramente transitório.
+- `docs/features/BUILDER_AGENTS.md`
+- `docs/maps/BUILDER_AGENTS.md`
+- `docs/copilot.md`
+- `docs/support/pages/ai-agents.md`
+- Código: `supabase/functions/ai-builder/index.ts`, `_shared/builder-*`, `src/pages/ai/AgentWizard.tsx`, `src/pages/Agents.tsx`, `src/pages/AgentMemories.tsx`, `src/components/agents/*`, schema do Supabase.
 
-## Plano de correção
+## Drift encontrado (precisa corrigir nas docs)
 
-### A. Melhor diagnóstico em `automations-tick`
-Em `supabase/functions/automations-tick/index.ts` (ações `ai_followup` e `send_template`):
-- Ler `await sendResp.text()` quando `!sendResp.ok`, truncar a 240 chars, e gravar em `detail` como `send <status>: <body>`.
-- Mesma coisa para a chamada do `ai-chat`.
+### 1. Nomes de tabela errados
 
-Resultado: nas próximas falhas, o usuário verá direto na UI algo como `send 400: Nenhuma instância WhatsApp configurada` ou `send 502: Connection Closed`.
+| Doc cita | Tabela real no schema | Onde corrigir |
+|---|---|---|
+| `ai_agent_versions` | `agent_prompt_versions` | `maps/BUILDER_AGENTS.md` §5 |
+| `ai_agent_prompt_history` | `agent_prompt_versions` (não existe trigger com esse nome) | `features/BUILDER_AGENTS.md` §7 (Fase 7) |
+| `ai_eval_runs` | `agent_evals` | `maps/BUILDER_AGENTS.md` §5 |
+| `agent_memories` (plural) | `agent_memory` (singular) | `maps/BUILDER_AGENTS.md` §3 e §5; `features/BUILDER_AGENTS.md` §1 invariantes |
+| `agent_eval_results` | não existe; usar `agent_evals` | `copilot.md` §4 (Evals contínuos) |
+| `ai_usage_daily` | só existe `ai_usage` | `features/BUILDER_AGENTS.md` §2 e §6 (Pegadinhas), §8 |
 
-### B. Tratar "Connection Closed" como retryable em `evolution-send`
-Em `supabase/functions/evolution-send/index.ts`, dentro do loop (linha 94-115):
-- Se o corpo da resposta contiver `"Connection Closed"`, não dar `break` no 400 — continuar para próxima tentativa do backoff.
-- Manter o comportamento atual para os demais 4xx (continuam não retryable).
+### 2. Contagem de actions desatualizada
 
-### C. (Opcional) Health-check pré-envio
-No início de `runAction`, quando a ação envolve `evolution-send`, opcionalmente chamar `evolution-health` para o `whatsapp_instance_id` do lead e abortar com `detail="instance disconnected"` em vez de tentar enviar e falhar. Só implementar se você quiser; aumenta uma chamada extra por automação.
+Tanto `maps/BUILDER_AGENTS.md` §4 quanto `features/BUILDER_AGENTS.md` §2/§5 dizem **"9 actions"**, mas o `switch` em `ai-builder/index.ts` tem **10**: `ping, interview_plan, generate_system_prompt, suggest_kb_urls, draft_knowledge_base, audit_kb, generate_scenarios, run_evaluation, generate_insights, copilot_chat`.
 
-### Não muda
-- Schema do banco.
-- UI de "Execuções recentes" (já mostra `detail`; ele vai ficar mais informativo automaticamente).
-- Lembretes que rodam para leads válidos com instância OK (que continuam funcionando — Bruna Correa, Silmara, etc.).
+A tabela "Catálogo de actions" em `features/BUILDER_AGENTS.md` §5 **não inclui `copilot_chat`** — adicionar linha com `agent_id + messages` no body e tool `propose_agent_patch`.
 
-## Próximo passo
-Quer que eu já implemente **A + B** (recomendado), só **A**, ou também o **C**?
+### 3. Line numbers dos `case` no mapa estão deslocados
+
+`maps/BUILDER_AGENTS.md` §4 cita L1401 ping … L1462 copilot_chat. Reais: **L1410 ping … L1471 copilot_chat** (+9 linhas). Atualizar.
+
+### 4. Trigger de versionamento
+
+`maps/BUILDER_AGENTS.md` §5 e `features/BUILDER_AGENTS.md` §7 dizem "trigger BEFORE UPDATE em `ai_agents.system_prompt` cria snapshot em `ai_agent_prompt_history`". Não existe trigger desse nome no banco. O versionamento hoje é **manual via INSERT em `agent_prompt_versions`** feito pelo frontend (`src/pages/Agents.tsx:434`). Corrigir a descrição (ou abrir tarefa separada para criar o trigger se for desejado).
+
+### 5. Pequenas inconsistências
+
+- `features/BUILDER_AGENTS.md` §10 (resumo executivo) não lista `CopilotPanel.tsx`, `PersonasPanel.tsx`, `StagesPanel.tsx`, `ThreadLearningPanel.tsx`, `AlfredDialog.tsx`, `PromptDiff.tsx` (todos existem em `src/components/agents/`).
+- `features/BUILDER_AGENTS.md` §7 invariantes diz "leitura `authenticated`, escrita só `owner/admin` via RLS" para `builder_manual_versions` — confirmar que casa com a migration mais recente (memória de segurança recente escopou várias políticas para `authenticated`).
+- `maps/BUILDER_AGENTS.md` §1 invariante 9 menciona `BuilderManualPanel` em `/admin` — agora o super admin login é separado (`/admin/login`); valeria referenciar a doc nova de SUPER_ADMIN.
+- `copilot.md` §2.2 lista campos do `changes` do `propose_agent_patch`. Reconfirmar contra `COPILOT_PATCH_TOOL` atual em `ai-builder/index.ts` e atualizar se novos campos foram adicionados (RAG flags, hybrid_search, hyde, memory_enabled, planning_mode aparecem na UI mas talvez não no patch).
+
+## O que NÃO está em drift (ok)
+
+- 12 KBs de nicho em `_shared/builder-knowledge/niches/` ✓
+- `ai_agent_drafts` schema, unique `(clinic_id, user_id)` ✓
+- Wizard 5 passos em `AgentWizard.tsx` ✓
+- Roadmap do co-piloto (Fase A1 `copilot_threads`, A2 `agent_revisions`) — tabelas ainda não criadas, então continuam como roadmap ✓
+- `BuilderSetupCard`, `KbAssistant`, `TestLab`, `AgentInsights`, `PromptHistory`, `AuditLogPanel`, `CostsPanel`, `AgentHealth`, `ProviderErrorBanner`, `StagesPanel`, `PersonasPanel`, `ThreadLearningPanel`, `CopilotPanel`, `AlfredDialog` — todos existem ✓
+- 10 actions do edge `ai-builder` ✓
+
+## Plano de atualização
+
+1. **`docs/maps/BUILDER_AGENTS.md`**
+   - §4: atualizar line numbers (L1401→L1410, …, L1462→L1471) e somar `copilot_chat` no total (9→10 actions).
+   - §5: trocar `ai_agent_versions`→`agent_prompt_versions`, `ai_eval_runs`→`agent_evals`, `agent_memories`→`agent_memory`. Remover trigger inexistente; descrever versionamento como "INSERT manual via UI".
+
+2. **`docs/features/BUILDER_AGENTS.md`**
+   - §2: "9 actions" → "10 actions".
+   - §2 e §6/§8: substituir `ai_usage_daily` por `ai_usage` (e remover referência à view inexistente).
+   - §5: adicionar linha `copilot_chat` na tabela de actions com payload `{agent_id, messages[]}`, tool `propose_agent_patch`, persistência `—` (UPDATE em `ai_agents` é feito pelo frontend ao "Aplicar").
+   - §7 Fase 7: corrigir nome da tabela (`agent_prompt_versions`) e remover menção ao trigger; descrever fluxo real (INSERT pelo `Agents.tsx`).
+   - §10: completar resumo executivo com componentes faltantes.
+
+3. **`docs/copilot.md`**
+   - §4: trocar `agent_eval_results` por `agent_evals` (campo `last_passed`); ajustar descrição de "baselinePassedIds" para a query real em `CopilotPanel.tsx`.
+   - §2.2: reconferir `COPILOT_PATCH_TOOL` e expandir a tabela de campos se houver flags novas (rag/hybrid/hyde/memory/planning).
+   - Atualizar `updated:` no frontmatter.
+
+4. **Rodar `node scripts/docs-sync.mjs`** para regenerar `docs/INDEX.json`, `docs/DRIFT.md` e manifest do SupportKB, e validar que nenhum `code_refs` quebrou.
+
+5. Atualizar `updated:` para 2026-06-09 nos três arquivos editados.
+
+Nenhuma mudança de código de produto neste plano — só docs. Posso prosseguir e aplicar?
