@@ -215,7 +215,10 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
       body: JSON.stringify({ agent_id: agentId, lead_id: leadId, persist: true, messages: conv }),
     });
     const data = await resp.json();
-    if (!resp.ok || !data.content) return { ok: false, detail: `ai-chat ${resp.status}` };
+    if (!resp.ok || !data.content) {
+      const body = JSON.stringify(data).slice(0, 240);
+      return { ok: false, detail: `ai-chat ${resp.status}: ${body}` };
+    }
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
@@ -226,7 +229,10 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
       },
       body: JSON.stringify({ lead_id: leadId, text: data.content, client_message_id: crypto.randomUUID() }),
     });
-    if (!sendResp.ok) return { ok: false, detail: `send ${sendResp.status}` };
+    if (!sendResp.ok) {
+      const body = (await sendResp.text().catch(() => "")).slice(0, 240);
+      return { ok: false, detail: `send ${sendResp.status}: ${body}` };
+    }
     return { ok: true, detail: data.content.slice(0, 200) };
   }
 
@@ -267,7 +273,10 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
       },
       body: JSON.stringify({ lead_id: leadId, text, client_message_id: crypto.randomUUID() }),
     });
-    if (!sendResp.ok) return { ok: false, detail: `send ${sendResp.status}` };
+    if (!sendResp.ok) {
+      const body = (await sendResp.text().catch(() => "")).slice(0, 240);
+      return { ok: false, detail: `send ${sendResp.status}: ${body}` };
+    }
     return { ok: true, detail: text.slice(0, 200) };
   }
 

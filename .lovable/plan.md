@@ -1,44 +1,45 @@
-# Separar Super Admin em conta dedicada
+## Diagnóstico — erros nos lembretes da clínica ÓR
 
-## Objetivo
-Criar uma conta exclusiva de super admin (`marco_next7@hotmail.com`) que **não tenha vínculo com nenhuma clínica**, evitando que dados de clínicas vazem entre telas de operação (Settings, Inbox, Kanban, etc.) e o painel administrativo.
+Investiguei as execuções com `status=error` da clínica ÓR (`slug=or`). Achados:
 
-## Decisão de arquitetura
-Manter um único sistema de auth (não dá para ter dois Supabase Auth no mesmo projeto), mas reforçar a regra:
-- **Super admin "puro"** = usuário com `user_roles.role = 'super_admin'` **e SEM linha em `clinic_members`**.
-- **Operador de clínica** = usuário com linha em `clinic_members` (sem super_admin).
-- Os dois papéis ficam **mutuamente exclusivos por convenção** (validado no backend).
+### 1. Lead "." (Natalie — `5511973444438`) — `send 502`
+- Cada tentativa de envio gerou linha em `messages` com `status=failed` e `last_error`:
+  ```
+  HTTP 400: {"status":400,"error":"Bad Request","response":{"message":["Error: Connection Closed"]}}
+  ```
+- O Evolution devolveu "Connection Closed" — a sessão WhatsApp da instância estava caída no momento exato do disparo (ou o número não tinha conta no WhatsApp).
+- O `evolution-send` tem retry, mas só re-tenta em 5xx / 408 / 429. Como o erro veio com status 400, ele falhou nas 3 tentativas e devolveu 502 ao `automations-tick`, que registrou `send 502`.
 
-Isso resolve o conflito atual (seu user é super_admin **e** membro de clínica, então RLS retorna tudo nas telas operacionais).
+### 2. Lead "Ricardo Ferraz" (`5511965748326`) — `send 400` (94 execuções)
+- Não existe NENHUMA mensagem com `status=failed` desse lead — ou seja, o `evolution-send` retornou 400 **antes mesmo de inserir a linha em `messages`**. Os únicos pontos do código que retornam 400 nesse ponto são:
+  - `lead_id` ou `text` ausentes/vazios
+  - `loadInstance` retornou `null` ("Nenhuma instância WhatsApp configurada")
+- A instância default da clínica existe e funcionou (mensagem manual ao mesmo lead em 08/06 19:59 saiu como `sent`). O mais provável é que a instância estivesse momentaneamente indisponível/desconectada no momento dos disparos, mas o `automations-tick` só registra `send 400` sem o corpo da resposta — então não há como ter certeza.
 
-## Mudanças
+### Problema de fundo
+O `detail` salvo em `automation_runs` é só `send <status>` (linhas 229 e 270 de `supabase/functions/automations-tick/index.ts`). Sem o corpo da resposta, qualquer investigação futura vai ficar no escuro como esta. Além disso, "Connection Closed" devolvido como 400 não é tratado como retryable, mas é claramente transitório.
 
-### 1. Banco de dados (migration)
-- Função `prevent_super_admin_clinic_membership()` + trigger em `clinic_members` que **bloqueia INSERT** se o `user_id` já for super_admin (e vice-versa em `user_roles`).
-- Função utilitária `public.is_pure_super_admin(uid)` para uso futuro.
+## Plano de correção
 
-### 2. Roteamento (frontend)
-- `RootGate` / `AppShell`: se `isSuperAdmin && !membership` → redirecionar `/` para `/admin` automaticamente.
-- Bloquear acesso de super admin puro às rotas operacionais (`/settings`, `/inbox`, `/kanban`, `/team`, etc.) com redirect para `/admin` + toast explicando "essa conta é só admin da plataforma".
-- Inverso: usuário sem super_admin que tente `/admin/*` continua sendo barrado como hoje.
+### A. Melhor diagnóstico em `automations-tick`
+Em `supabase/functions/automations-tick/index.ts` (ações `ai_followup` e `send_template`):
+- Ler `await sendResp.text()` quando `!sendResp.ok`, truncar a 240 chars, e gravar em `detail` como `send <status>: <body>`.
+- Mesma coisa para a chamada do `ai-chat`.
 
-### 3. Criação da conta `marco_next7@hotmail.com`
-Duas opções (escolha sua na revisão do plano):
-- **(A) Eu crio agora via edge function `admin-user-action`** chamando uma nova ação `create_super_admin` (email + senha temporária definidos por você). Conta nasce já com `user_roles.super_admin` e **sem** `clinic_members`.
-- **(B) Você cria pela tela `/admin/users` (botão novo "Criar super admin")** — adiciono o botão no `UsersPanel`.
+Resultado: nas próximas falhas, o usuário verá direto na UI algo como `send 400: Nenhuma instância WhatsApp configurada` ou `send 502: Connection Closed`.
 
-### 4. Migração da sua conta atual
-Sua conta atual (a que está logada agora) **continua como operador da clínica** — eu **removo o papel `super_admin`** dela na mesma migration, pra você logar com `marco_next7@hotmail.com` quando quiser administrar a plataforma e com a conta de sempre para operar a clínica.
+### B. Tratar "Connection Closed" como retryable em `evolution-send`
+Em `supabase/functions/evolution-send/index.ts`, dentro do loop (linha 94-115):
+- Se o corpo da resposta contiver `"Connection Closed"`, não dar `break` no 400 — continuar para próxima tentativa do backoff.
+- Manter o comportamento atual para os demais 4xx (continuam não retryable).
 
-> Confirmação necessária: qual é o email da sua conta atual que devo **rebaixar** para apenas membro de clínica? (Para não rebaixar a errada.)
+### C. (Opcional) Health-check pré-envio
+No início de `runAction`, quando a ação envolve `evolution-send`, opcionalmente chamar `evolution-health` para o `whatsapp_instance_id` do lead e abortar com `detail="instance disconnected"` em vez de tentar enviar e falhar. Só implementar se você quiser; aumenta uma chamada extra por automação.
 
-### 5. Documentação
-- Atualizar `docs/architecture/SUPER_ADMIN.md` e `docs/maps/ADMIN_SUPER_ADMIN.md` com a nova regra de exclusividade.
+### Não muda
+- Schema do banco.
+- UI de "Execuções recentes" (já mostra `detail`; ele vai ficar mais informativo automaticamente).
+- Lembretes que rodam para leads válidos com instância OK (que continuam funcionando — Bruna Correa, Silmara, etc.).
 
-## O que NÃO muda
-- Auth provider, fluxo de login, tabela `auth.users`, RLS das tabelas operacionais (continuam com a policy `is_super_admin OR current_clinic_id`).
-- O super admin **continua vendo tudo** nas telas `/admin/*` — só não entra mais nas telas de clínica.
-
-## Perguntas antes de implementar
-1. **Opção A ou B** para criar `marco_next7@hotmail.com`? Se A, qual senha inicial?
-2. Qual é o email da **sua conta atual** que devo manter como operador da clínica (e remover `super_admin` dela)?
+## Próximo passo
+Quer que eu já implemente **A + B** (recomendado), só **A**, ou também o **C**?
