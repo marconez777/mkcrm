@@ -240,7 +240,7 @@ O sistema foi construído em **9 fases incrementais**. Cada fase entrega uma cap
 
 ### Fase 4 — KB Assistant (base de conhecimento assistida)
 
-**Componente:** `src/components/agents/KbAssistant.tsx`, exibido na página do agente em `/ai/agents/:id`.
+**Componente:** `src/components/agents/KbAssistant.tsx`, exibido na página do agente em `/ai/agents?agent=<id>` (renderizada por `src/pages/Agents.tsx`).
 
 Três ferramentas:
 
