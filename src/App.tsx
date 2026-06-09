@@ -126,6 +126,7 @@ const App = () => (
               path="*"
               element={
                 <ProtectedRoute>
+                  <ClinicOnlyRoute>
                   <AppShell>
                     <Routes>
                       <Route path="/" element={<Kanban />} />
