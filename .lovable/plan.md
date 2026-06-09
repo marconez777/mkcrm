@@ -1,61 +1,44 @@
-## Problema
+# Separar Super Admin em conta dedicada
 
-A instância `or-76da5186` (Recepção) está sem receber mensagens desde 5/jun, embora a Evolution reporte `state=open` e o webhook esteja configurado corretamente. A causa é uma **sessão WhatsApp Web fantasma**: o pareamento morreu no celular (print mostra "Última sessão ativa em 5 de junho 09:23"), mas a Evolution continua dizendo "Connected". Nosso watchdog atual só reinicia o processo (`/instance/restart`), o que não recria o pareamento — logo o problema permanece silenciosamente até alguém notar.
+## Objetivo
+Criar uma conta exclusiva de super admin (`marco_next7@hotmail.com`) que **não tenha vínculo com nenhuma clínica**, evitando que dados de clínicas vazem entre telas de operação (Settings, Inbox, Kanban, etc.) e o painel administrativo.
 
-## Ação imediata (manual, fora do código)
+## Decisão de arquitetura
+Manter um único sistema de auth (não dá para ter dois Supabase Auth no mesmo projeto), mas reforçar a regra:
+- **Super admin "puro"** = usuário com `user_roles.role = 'super_admin'` **e SEM linha em `clinic_members`**.
+- **Operador de clínica** = usuário com linha em `clinic_members` (sem super_admin).
+- Os dois papéis ficam **mutuamente exclusivos por convenção** (validado no backend).
 
-Excluir a instância "Recepção" no painel Evolution (ou em Configurações → WhatsApp → Excluir) e criar nova + escanear QR. Isso restaura o tráfego agora.
+Isso resolve o conflito atual (seu user é super_admin **e** membro de clínica, então RLS retorna tudo nas telas operacionais).
 
-## Mudanças propostas no código
+## Mudanças
 
-### 1. `supabase/functions/evolution-health/index.ts` — escalonamento da auto-recuperação
+### 1. Banco de dados (migration)
+- Função `prevent_super_admin_clinic_membership()` + trigger em `clinic_members` que **bloqueia INSERT** se o `user_id` já for super_admin (e vice-versa em `user_roles`).
+- Função utilitária `public.is_pure_super_admin(uid)` para uso futuro.
 
-Hoje: se `state=open` e sem eventos há 120min, faz `restart` (cooldown 20min). Restart não conserta sessão fantasma.
+### 2. Roteamento (frontend)
+- `RootGate` / `AppShell`: se `isSuperAdmin && !membership` → redirecionar `/` para `/admin` automaticamente.
+- Bloquear acesso de super admin puro às rotas operacionais (`/settings`, `/inbox`, `/kanban`, `/team`, etc.) com redirect para `/admin` + toast explicando "essa conta é só admin da plataforma".
+- Inverso: usuário sem super_admin que tente `/admin/*` continua sendo barrado como hoje.
 
-Novo comportamento, em camadas, controlado pelo tempo sem eventos inbound (`minutes_since_last_inbound`):
+### 3. Criação da conta `marco_next7@hotmail.com`
+Duas opções (escolha sua na revisão do plano):
+- **(A) Eu crio agora via edge function `admin-user-action`** chamando uma nova ação `create_super_admin` (email + senha temporária definidos por você). Conta nasce já com `user_roles.super_admin` e **sem** `clinic_members`.
+- **(B) Você cria pela tela `/admin/users` (botão novo "Criar super admin")** — adiciono o botão no `UsersPanel`.
 
-- **≥ 120 min** → `restart` (mantém o que já existe).
-- **≥ 240 min** (4h) → `logout` (`DELETE /instance/logout/{name}`), forçando estado `close`. Isso quebra o "open fantasma" e libera a UI para pedir novo QR.
-- **≥ 30 min** sem eventos + `state=open` → setar uma nova coluna `whatsapp_instances.session_stale_since` (timestamp da primeira detecção). Limpar quando `last_inbound_webhook_at` avança.
+### 4. Migração da sua conta atual
+Sua conta atual (a que está logada agora) **continua como operador da clínica** — eu **removo o papel `super_admin`** dela na mesma migration, pra você logar com `marco_next7@hotmail.com` quando quiser administrar a plataforma e com a conta de sempre para operar a clínica.
 
-Cooldown separado por ação (`AUTO_LOGOUT_COOLDOWN_MIN = 60`) e registro em `webhook_events` com `event_type='AUTO_LOGOUT'`.
-
-### 2. Migration — colunas novas em `whatsapp_instances`
-
-```sql
-ALTER TABLE public.whatsapp_instances
-  ADD COLUMN IF NOT EXISTS session_stale_since timestamptz,
-  ADD COLUMN IF NOT EXISTS last_auto_logout_at timestamptz,
-  ADD COLUMN IF NOT EXISTS auto_logout_count int NOT NULL DEFAULT 0;
-```
-
-(GRANTs e RLS atuais da tabela cobrem; nada novo.)
-
-### 3. `src/hooks/useWhatsappInstances.ts` + `src/pages/Settings.tsx` (aba WhatsApp)
-
-- Expor `session_stale_since` no hook.
-- Substituir o badge atual *"sessão travada (sem sinal há 2h+)"* por estados graduais:
-  - 30–120 min: badge âmbar **"sem eventos há Nmin — verificando"**.
-  - 120–240 min: badge vermelho **"sessão travada — tentando reiniciar"**.
-  - ≥ 240 min ou `last_auto_logout_at` recente: banner vermelho **"Sessão expirada no WhatsApp do celular. Reescaneie o QR Code."** com botão **Gerar novo QR** em destaque.
-
-### 4. `src/pages/admin/AdminClinics.tsx` — coluna "WhatsApp"
-
-Já existe o dot colorido por `connection_state`. Adicionar um indicador extra (ponto vermelho com tooltip "sem eventos há Xh") quando `session_stale_since` for antigo, para o super-admin enxergar essas sessões fantasmas sem precisar abrir cada clínica.
+> Confirmação necessária: qual é o email da sua conta atual que devo **rebaixar** para apenas membro de clínica? (Para não rebaixar a errada.)
 
 ### 5. Documentação
+- Atualizar `docs/architecture/SUPER_ADMIN.md` e `docs/maps/ADMIN_SUPER_ADMIN.md` com a nova regra de exclusividade.
 
-- `docs/integrations/EVOLUTION_API.md` → na seção "Pegadinhas", documentar o caso "open fantasma" e a nova lógica de logout automático.
-- `docs/support/troubleshooting/whatsapp.md` → adicionar entrada *"Recebe 'Sessão expirada no WhatsApp do celular'"* com passo-a-passo de reescaneamento.
+## O que NÃO muda
+- Auth provider, fluxo de login, tabela `auth.users`, RLS das tabelas operacionais (continuam com a policy `is_super_admin OR current_clinic_id`).
+- O super admin **continua vendo tudo** nas telas `/admin/*` — só não entra mais nas telas de clínica.
 
-## Por que isso resolve
-
-- O `logout` força o Evolution a sair do `open` fantasma → o socket WhatsApp Web é encerrado de verdade.
-- A UI passa a comunicar **claramente** ao operador que precisa reescanear o QR, em vez de mostrar apenas "open" enganoso.
-- Super-admin enxerga todas as instâncias afetadas em um lugar (aba Clínicas).
-- O caso fica auditável via `webhook_events.AUTO_LOGOUT`.
-
-## Não muda
-
-- Webhook, ingest, backfill, polling: mantidos. Nada na forma como mensagens entram é alterado.
-- Instâncias saudáveis: nenhuma mudança de comportamento (a escalada só dispara após 30 min sem inbound).
+## Perguntas antes de implementar
+1. **Opção A ou B** para criar `marco_next7@hotmail.com`? Se A, qual senha inicial?
+2. Qual é o email da **sua conta atual** que devo manter como operador da clínica (e remover `super_admin` dela)?
