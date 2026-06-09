@@ -207,8 +207,36 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
   }
 
 
+  function patchHasRealDiff(patch: Patch): boolean {
+    const snap = agentSnapshot ?? {};
+    const norm = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) continue;
+      const current = (snap as Record<string, unknown>)[k];
+      if (k === "system_prompt") {
+        if (norm(v) !== norm(current)) return true;
+      } else if (k === "tools" && Array.isArray(v)) {
+        const a = [...v].map(String).sort().join(",");
+        const b = Array.isArray(current) ? [...(current as unknown[])].map(String).sort().join(",") : "";
+        if (a !== b) return true;
+      } else if (v !== current) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async function applyPatch() {
     if (!proposal?.has_changes || applying) return;
+    if (!patchHasRealDiff(proposal.changes)) {
+      toast.info("A sugestão é idêntica ao agente atual — nada para aplicar.");
+      setHistory((h) => [
+        ...h,
+        { role: "assistant", content: "ℹ️ Patch ignorado: o texto sugerido é igual ao atual." },
+      ]);
+      setProposal(null);
+      return;
+    }
     setApplying(true);
     try {
       // baseline: which evals are passing right now?

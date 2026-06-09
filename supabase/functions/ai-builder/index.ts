@@ -7,7 +7,7 @@
 
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 import { chatCompletion, type Agent } from "../_shared/ai.ts";
-import { buildBuilderSystemPrompt, LEAD_CONTEXT_CLAUSE } from "../_shared/builder-system-prompt.ts";
+import { buildBuilderSystemPrompt, LEAD_CONTEXT_CLAUSE, NO_MARKDOWN_CLAUSE } from "../_shared/builder-system-prompt.ts";
 import { nicheKbBlock } from "../_shared/builder-knowledge/niche-loader.ts";
 
 type Action =
@@ -266,7 +266,7 @@ const PROMPT_TOOL = {
       properties: {
         system_prompt: {
           type: "string",
-          description: "Prompt completo em PT-BR, no estilo Markdown leve. DEVE conter a cláusula literal de uso do contexto do lead fornecida pelo Construtor. Use a oferta dominante como caminho default.",
+          description: "Prompt completo em PT-BR em TEXTO PURO. PROIBIDO usar caracteres Markdown: nada de asteriscos (*, **), sublinhados (_, __), crases (`) ou cabeçalhos (#, ##). Use apenas letras, acentos, pontuação comum e hífen simples para listas. DEVE conter literalmente a cláusula de uso do contexto do lead e a cláusula de formatação sem Markdown fornecidas pelo Construtor. Use a oferta dominante como caminho default.",
         },
         suggested_tools: {
           type: "array",
@@ -310,6 +310,54 @@ function ensureContextClause(prompt: string): string {
   return lines.join("\n");
 }
 
+function ensureNoMarkdownClause(prompt: string): string {
+  const needle = "NÃO use asteriscos";
+  if (prompt.includes(needle)) return prompt;
+  return prompt.trimEnd() + "\n\n" + NO_MARKDOWN_CLAUSE + "\n";
+}
+
+// Remove marcação Markdown agressiva (**, *, __, _, `, #) preservando hífens,
+// acentos e a estrutura geral. Usado para limpar o que o LLM devolve antes
+// de persistir ou propor como patch.
+function stripMarkdown(input: string): string {
+  if (!input) return input;
+  let s = input;
+  // remove fenced code blocks marker lines
+  s = s.replace(/```+[a-zA-Z0-9_-]*\n?/g, "");
+  // remove inline code backticks
+  s = s.replace(/`+/g, "");
+  // remove bold/italic markers (**, __, *, _ when wrapping text)
+  s = s.replace(/\*\*(.+?)\*\*/gs, "$1");
+  s = s.replace(/__(.+?)__/gs, "$1");
+  s = s.replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  s = s.replace(/(^|[\s(])_(?!\s)([^_\n]+?)_(?=[\s.,;:!?)\]]|$)/g, "$1$2");
+  // headings: strip leading #'s
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  // bullets started with * → hífen
+  s = s.replace(/^(\s*)\*\s+/gm, "$1- ");
+  // residual stray asterisks
+  s = s.replace(/\*/g, "");
+  // colapsa múltiplas linhas em branco
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s;
+}
+
+function normalizeGeneratedPrompt(prompt: string): string {
+  return ensureNoMarkdownClause(ensureContextClause(stripMarkdown(prompt)));
+}
+
+function normalizeForCompare(s: string): string {
+  return String(s ?? "").replace(/\s+/g, " ").trim();
+}
+
+function arraysEqual(a: unknown, b: unknown): boolean {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const aa = [...a].map(String).sort();
+  const bb = [...b].map(String).sort();
+  return aa.every((v, i) => v === bb[i]);
+}
+
 async function actionGenerateSystemPrompt(builder: Agent, payload: Record<string, unknown>) {
   const niche = String(payload.niche ?? "other");
   const nicheOther = String(payload.niche_other ?? "");
@@ -345,15 +393,20 @@ ${answersBlock}
 
 Diretrizes do prompt:
 1. PT-BR, frases curtas, sem floreios.
-2. INCLUA LITERALMENTE este bloco de cláusula de contexto do lead (sem reescrever):
+2. TEXTO PURO. PROIBIDO usar Markdown: nada de **, *, _, __, \`, #, ##. Para listas use apenas hífen simples no início da linha ("- item"). Títulos de seção devem ser apenas o nome da seção, sem #.
+3. INCLUA LITERALMENTE este bloco de cláusula de contexto do lead (sem reescrever):
 ---
 ${LEAD_CONTEXT_CLAUSE}
 ---
-3. Use a resposta da pergunta de oferta dominante como CAMINHO DEFAULT do agente. Outras ofertas viram fallback se o lead recusar.
-4. Linguagem neutra ao nicho. NÃO use "paciente/clínica/Dr." se o nicho não for saúde.
-5. Estruture com seções: Identidade, Objetivo, Como conduzir a conversa, Caminho default, Fallbacks, Tom, Tabu, Quando escalar.
-6. Recomende temperature entre 0.2-0.6 (mais baixo para classificadores/agendadores, mais alto para SDR/suporte).
-7. Sugira tools coerentes com o objetivo.${refinementBlock}
+4. INCLUA LITERALMENTE também este bloco de cláusula de formatação (sem reescrever):
+---
+${NO_MARKDOWN_CLAUSE}
+---
+5. Use a resposta da pergunta de oferta dominante como CAMINHO DEFAULT do agente. Outras ofertas viram fallback se o lead recusar.
+6. Linguagem neutra ao nicho. NÃO use "paciente/clínica/Dr." se o nicho não for saúde.
+7. Estruture com seções: Identidade, Objetivo, Como conduzir a conversa, Caminho default, Fallbacks, Tom, Tabu, Quando escalar. Escreva o nome da seção em uma linha, seguida de dois pontos, sem # nem **.
+8. Recomende temperature entre 0.2-0.6 (mais baixo para classificadores/agendadores, mais alto para SDR/suporte).
+9. Sugira tools coerentes com o objetivo.${refinementBlock}
 
 Chame a tool submit_agent_prompt com o resultado.`;
 
@@ -374,7 +427,7 @@ Chame a tool submit_agent_prompt com o resultado.`;
       return { ok: false, code: "unknown", message: "O Construtor não devolveu um prompt válido. Tente novamente." };
     }
 
-    const finalPrompt = ensureContextClause(args.system_prompt);
+    const finalPrompt = normalizeGeneratedPrompt(args.system_prompt);
     const eval_passed = finalPrompt.includes("Use o contexto do lead antes de perguntar");
 
     return {
@@ -1291,7 +1344,9 @@ ${promptSnippet}
 - Sempre chame a tool 'propose_agent_patch'.
 - Se o usuário pediu uma MUDANÇA concreta, devolva 'changes' com os campos a alterar e 'summary' não vazio.
 - Se for apenas dúvida/conversa, devolva 'changes' vazio e responda no campo 'message'.
-- Ao mexer em 'system_prompt', devolva o prompt COMPLETO reescrito (não diff). Preserve a cláusula obrigatória 'Use o contexto do lead antes de perguntar'.
+- Ao mexer em 'system_prompt', devolva o prompt COMPLETO reescrito (não diff). Preserve as cláusulas obrigatórias: 'Use o contexto do lead antes de perguntar' e a cláusula de formatação sem Markdown.
+- O system_prompt DEVE ser TEXTO PURO. PROIBIDO usar asteriscos (*, **), sublinhados (_, __), crases (\`) ou cabeçalhos (#, ##). Use hífen simples para listas. Se o usuário pediu para remover esses caracteres, sua reescrita TEM que removê-los de verdade — não devolva o mesmo texto.
+- Não devolva um system_prompt idêntico (ou praticamente idêntico) ao atual. Se nada mudou, devolva 'changes' vazio.
 - Ao mexer em 'tools', devolva a lista COMPLETA desejada com nomes da whitelist.
 - Seja conciso: 'message' tem 1-3 frases em PT-BR.
 `;
@@ -1344,31 +1399,49 @@ ${promptSnippet}
     const rawChanges = (args.changes ?? {}) as Record<string, unknown>;
     const sanitized: Record<string, unknown> = {};
     if (typeof rawChanges.system_prompt === "string" && rawChanges.system_prompt.trim().length > 20) {
-      sanitized.system_prompt = ensureContextClause(rawChanges.system_prompt);
+      const normalized = normalizeGeneratedPrompt(rawChanges.system_prompt);
+      if (normalizeForCompare(normalized) !== normalizeForCompare(String(agent.system_prompt ?? ""))) {
+        sanitized.system_prompt = normalized;
+      }
     }
     if (typeof rawChanges.temperature === "number" && rawChanges.temperature >= 0 && rawChanges.temperature <= 1) {
-      sanitized.temperature = Number(rawChanges.temperature);
+      const next = Number(rawChanges.temperature);
+      if (next !== Number(agent.temperature ?? NaN)) sanitized.temperature = next;
     }
-    if (typeof rawChanges.draft_mode === "boolean") sanitized.draft_mode = rawChanges.draft_mode;
+    if (typeof rawChanges.draft_mode === "boolean" && rawChanges.draft_mode !== Boolean(agent.draft_mode)) {
+      sanitized.draft_mode = rawChanges.draft_mode;
+    }
     if (Number.isFinite(rawChanges.rag_top_k as number)) {
       const n = Math.max(1, Math.min(20, Math.round(Number(rawChanges.rag_top_k))));
-      sanitized.rag_top_k = n;
+      if (n !== Number(agent.rag_top_k ?? NaN)) sanitized.rag_top_k = n;
     }
     if (Number.isFinite(rawChanges.debounce_seconds as number)) {
       const n = Math.max(0, Math.min(600, Math.round(Number(rawChanges.debounce_seconds))));
-      sanitized.debounce_seconds = n;
+      if (n !== Number(agent.debounce_seconds ?? NaN)) sanitized.debounce_seconds = n;
     }
     if (Array.isArray(rawChanges.tools)) {
-      sanitized.tools = filterKnownToolsEdge(rawChanges.tools);
+      const next = filterKnownToolsEdge(rawChanges.tools);
+      if (!arraysEqual(next, Array.isArray(agent.tools) ? agent.tools : [])) {
+        sanitized.tools = next;
+      }
+    }
+
+    const hasChanges = Object.keys(sanitized).length > 0;
+    let message = String(args.message ?? "").trim() || "Pronto.";
+    let summary = String(args.summary ?? "").trim();
+    if (!hasChanges) {
+      // Não invente sucesso quando o modelo devolveu algo igual ao atual.
+      summary = "";
+      message = message + " (Nenhuma mudança efetiva foi detectada — o texto sugerido é igual ao atual. Reformule o pedido se quiser uma alteração real.)";
     }
 
     return {
       ok: true,
-      message: String(args.message ?? "").trim() || "Pronto.",
-      summary: String(args.summary ?? "").trim(),
+      message,
+      summary,
       rationale: String(args.rationale ?? "").trim(),
       changes: sanitized,
-      has_changes: Object.keys(sanitized).length > 0,
+      has_changes: hasChanges,
     };
   } catch (e) {
     console.error("[copilot_chat] caught", e);
