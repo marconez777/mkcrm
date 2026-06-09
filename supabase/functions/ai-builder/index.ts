@@ -393,15 +393,20 @@ ${answersBlock}
 
 Diretrizes do prompt:
 1. PT-BR, frases curtas, sem floreios.
-2. INCLUA LITERALMENTE este bloco de cláusula de contexto do lead (sem reescrever):
+2. TEXTO PURO. PROIBIDO usar Markdown: nada de **, *, _, __, \`, #, ##. Para listas use apenas hífen simples no início da linha ("- item"). Títulos de seção devem ser apenas o nome da seção, sem #.
+3. INCLUA LITERALMENTE este bloco de cláusula de contexto do lead (sem reescrever):
 ---
 ${LEAD_CONTEXT_CLAUSE}
 ---
-3. Use a resposta da pergunta de oferta dominante como CAMINHO DEFAULT do agente. Outras ofertas viram fallback se o lead recusar.
-4. Linguagem neutra ao nicho. NÃO use "paciente/clínica/Dr." se o nicho não for saúde.
-5. Estruture com seções: Identidade, Objetivo, Como conduzir a conversa, Caminho default, Fallbacks, Tom, Tabu, Quando escalar.
-6. Recomende temperature entre 0.2-0.6 (mais baixo para classificadores/agendadores, mais alto para SDR/suporte).
-7. Sugira tools coerentes com o objetivo.${refinementBlock}
+4. INCLUA LITERALMENTE também este bloco de cláusula de formatação (sem reescrever):
+---
+${NO_MARKDOWN_CLAUSE}
+---
+5. Use a resposta da pergunta de oferta dominante como CAMINHO DEFAULT do agente. Outras ofertas viram fallback se o lead recusar.
+6. Linguagem neutra ao nicho. NÃO use "paciente/clínica/Dr." se o nicho não for saúde.
+7. Estruture com seções: Identidade, Objetivo, Como conduzir a conversa, Caminho default, Fallbacks, Tom, Tabu, Quando escalar. Escreva o nome da seção em uma linha, seguida de dois pontos, sem # nem **.
+8. Recomende temperature entre 0.2-0.6 (mais baixo para classificadores/agendadores, mais alto para SDR/suporte).
+9. Sugira tools coerentes com o objetivo.${refinementBlock}
 
 Chame a tool submit_agent_prompt com o resultado.`;
 
