@@ -675,7 +675,8 @@ Deno.serve(async (req) => {
       stageCtx +
       ragContext +
       "\n\nQuando usar trechos da base, cite com [1], [2] etc." +
-      "\n\n" + NO_MARKDOWN_CLAUSE;
+      "\n\n" + NO_MARKDOWN_CLAUSE +
+      "\n\n" + SHORT_MESSAGE_CLAUSE;
 
     const sysPrompt: ChatMessage = { role: "system", content: sysContent };
     const conv: ChatMessage[] = [sysPrompt, ...incoming];
