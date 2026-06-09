@@ -228,6 +228,15 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
 
   async function applyPatch() {
     if (!proposal?.has_changes || applying) return;
+    if (!patchHasRealDiff(proposal.changes)) {
+      toast.info("A sugestão é idêntica ao agente atual — nada para aplicar.");
+      setHistory((h) => [
+        ...h,
+        { role: "assistant", content: "ℹ️ Patch ignorado: o texto sugerido é igual ao atual." },
+      ]);
+      setProposal(null);
+      return;
+    }
     setApplying(true);
     try {
       // baseline: which evals are passing right now?
