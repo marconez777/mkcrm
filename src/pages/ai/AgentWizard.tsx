@@ -657,11 +657,13 @@ export default function AgentWizard() {
     toast.success(`Conexão validada (${result.latency_ms ?? "—"} ms)`);
   }
 
-  // Invalida verificação quando dados mudam
+  // Invalida verificação quando dados mudam (somente no modo "chave própria")
   useEffect(() => {
+    if (keySource === "builder") return;
     if (verifiedAt) setVerifiedAt(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, provider, model, baseUrl]);
+  }, [apiKey, provider, model, baseUrl, keySource]);
+
 
   // Sugere nome do agente quando entramos no passo 5 sem nome definido
   useEffect(() => {
