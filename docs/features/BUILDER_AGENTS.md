@@ -9,7 +9,7 @@ summary: O **Construtor de Agentes** (apelidado de "Builder") é um **agente de 
 # Construtor de Agentes (Builder)
 
 > **Quando ler:** antes de mexer em qualquer parte do `/ai/agents/new`, da edge `ai-builder`, do manual de boas práticas, do Test Lab, do KB Assistant ou do painel de Insights gerados pelo Builder.
-> **Última atualização:** 2026-06-03 (redesign visual da página `/ai/agents` com `SectionAccordion` por categoria)
+> **Última atualização:** 2026-06-09 (correção de drift: `ai_usage_daily` existe como view; caminho do BuilderManualPanel é `src/pages/admin/AdminPanels.tsx`; edição do agente vive em `/ai/agents?agent=<id>`).
 > **Fonte da verdade no código:**
 > - Edge: `supabase/functions/ai-builder/index.ts`
 > - System prompt do Builder: `supabase/functions/_shared/builder-system-prompt.ts`
