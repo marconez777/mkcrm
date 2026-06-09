@@ -310,7 +310,7 @@
     "topic": "ai",
     "kind": "doc",
     "audience": "agent",
-    "updated": "2026-06-07",
+    "updated": "2026-06-09",
     "summary": "O **Co-piloto** é um chat dentro da página do agente que permite ao operador conversar em linguagem natural (\"aumente a temperatura\", \"mude o tom para mais formal\", \"ative a ferramenta de agendamento\", \"reescreva o prompt para focar em conv",
     "headings": [
       "1. Visão geral",
@@ -676,7 +676,7 @@
     "topic": "ai",
     "kind": "feature",
     "audience": "agent",
-    "updated": "2026-06-07",
+    "updated": "2026-06-09",
     "summary": "O **Construtor de Agentes** (apelidado de \"Builder\") é um **agente de IA dedicado** que ajuda o usuário final — quase sempre não-técnico — a configurar **outros agentes de IA** da clínica (SDR, classificador, agendador, suporte etc.). Não é",
     "headings": [
       "1. O que é",
@@ -694,7 +694,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 500,
+    "size_lines": 507,
     "stale_refs": []
   },
   {
@@ -1439,7 +1439,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 109,
+    "size_lines": 110,
     "stale_refs": []
   },
   {
@@ -1753,7 +1753,7 @@
     "topic": "ai",
     "kind": "map",
     "audience": "agent",
-    "updated": "2026-06-07",
+    "updated": "2026-06-09",
     "summary": "Agente de IA dedicado que ajuda o usuário (não-técnico) a configurar **outros agentes** (SDR, classificador, agendador…). Roda como `ai_agents` com `system_key='builder'`, um por clínica. Usa provider/chave próprios da clínica.",
     "headings": [
       "1. O que é",
@@ -1768,7 +1768,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 157,
+    "size_lines": 158,
     "stale_refs": []
   },
   {
@@ -2765,7 +2765,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 159,
+    "size_lines": 161,
     "stale_refs": []
   },
   {
@@ -3293,13 +3293,13 @@
       "Conectado mas não recebe mensagens",
       "Mensagens não enviam (status fica \"pendente\")",
       "Mídia falha (imagem/áudio/PDF)",
-      "Sessão travada\"",
+      "Sessão travada\" / \"Sessão expirada — reescaneie o QR\"",
       "IA não responde no WhatsApp",
       "Relacionado"
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 37,
+    "size_lines": 44,
     "stale_refs": []
   },
   {
