@@ -1305,6 +1305,10 @@ interface ProviderMeta {
 }
 
 function Step3({
+  keySource,
+  setKeySource,
+  builderAvailable,
+  builderInfo,
   provider,
   setProvider,
   apiKey,
@@ -1319,6 +1323,10 @@ function Step3({
   testError,
   onTest,
 }: {
+  keySource: "builder" | "own";
+  setKeySource: (s: "builder" | "own") => void;
+  builderAvailable: boolean;
+  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key: string | null } | null;
   provider: Provider;
   setProvider: (p: Provider) => void;
   apiKey: string;
@@ -1334,6 +1342,9 @@ function Step3({
   onTest: () => void;
 }) {
   const [advanced, setAdvanced] = useState(!!baseUrl);
+  const useBuilder = keySource === "builder";
+  const builderProviderLabel =
+    PROVIDERS.find((p) => p.id === builderInfo?.provider)?.label ?? builderInfo?.provider ?? "—";
 
   return (
     <div className="space-y-4">
@@ -1343,130 +1354,212 @@ function Step3({
           <WhyTooltip tip="api_key" />
         </h2>
         <p className="text-xs text-muted-foreground">
-          Você usa sua própria chave. Validamos antes de prosseguir.
+          {useBuilder
+            ? "Você pode reaproveitar a chave do Construtor ou usar uma chave separada para este agente."
+            : "Você usa sua própria chave. Validamos antes de prosseguir."}
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Provedor <WhyTooltip tip="provider" />
-        </Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDERS.map((p) => {
-            const active = provider === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setProvider(p.id);
-                  if (!model) setModel(p.defaultModel);
-                  else setModel(p.defaultModel);
-                }}
-                className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
-                  active
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                    : "hover:border-foreground/30"
-                }`}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Chave de API <WhyTooltip tip="api_key" />
-        </Label>
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={providerInfo.placeholder}
-          autoComplete="off"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Modelo <WhyTooltip tip="model" />
-        </Label>
-        <Input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={providerInfo.defaultModel}
-        />
-        <p className="text-[11px] text-muted-foreground">
-          Sugestão para começar: <code>{providerInfo.defaultModel}</code>
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setAdvanced((v) => !v)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ChevronDown
-          className={`h-3 w-3 transition ${advanced ? "rotate-180" : ""}`}
-        />
-        Avançado
-      </button>
-      {advanced && (
-        <div className="space-y-1.5">
-          <Label className="flex items-center">
-            Base URL (opcional) <WhyTooltip tip="base_url" />
-          </Label>
-          <Input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={providerInfo.baseExample}
-          />
-        </div>
-      )}
-
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isVerified ? (
-              <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-3 w-3" /> Conexão validada
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="gap-1">
-                <AlertTriangle className="h-3 w-3" /> Não testado
-              </Badge>
-            )}
-            <WhyTooltip tip="test_connection" />
+      {/* Seletor de origem da chave */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={!builderAvailable}
+          onClick={() => setKeySource("builder")}
+          className={`rounded-lg border p-3 text-left text-xs transition ${
+            useBuilder
+              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+              : "hover:border-foreground/30"
+          } ${!builderAvailable ? "cursor-not-allowed opacity-50" : ""}`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            Usar a chave do Construtor
           </div>
-          <Button
-            size="sm"
-            variant={isVerified ? "outline" : "default"}
-            onClick={onTest}
-            disabled={testing || !apiKey || !model}
-          >
-            {testing ? (
-              <>
-                <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Testando…
-              </>
-            ) : isVerified ? (
-              "Testar de novo"
-            ) : (
-              "Testar conexão"
-            )}
-          </Button>
-        </div>
-        {testError && <ProviderErrorBanner error={testError} className="text-xs" />}
-        {!testError && !isVerified && (
-          <p className="text-[11px] text-muted-foreground">
-            Testar a conexão é obrigatório antes de avançar.
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {builderAvailable
+              ? "Reaproveita o provedor e a chave já validados na clínica."
+              : "Configure o Construtor primeiro para liberar esta opção."}
           </p>
-        )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setKeySource("own")}
+          className={`rounded-lg border p-3 text-left text-xs transition ${
+            !useBuilder
+              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+              : "hover:border-foreground/30"
+          }`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <SettingsIcon className="h-3.5 w-3.5" />
+            Usar uma chave própria
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Use um provedor/chave separados só para este agente.
+          </p>
+        </button>
       </div>
+
+      {useBuilder ? (
+        <>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+            <div className="mb-2 flex items-center gap-2">
+              <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" /> Já validada
+              </Badge>
+              <span className="text-muted-foreground">Construtor da clínica</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Provedor</p>
+                <p className="font-medium">{builderProviderLabel}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Modelo (Construtor)</p>
+                <p className="font-medium">{builderInfo?.model || "—"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Modelo para este agente <WhyTooltip tip="model" />
+            </Label>
+            <Input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={builderInfo?.model || "Usar o modelo do Construtor"}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Deixe vazio para usar o mesmo modelo do Construtor (<code>{builderInfo?.model || "—"}</code>).
+            </p>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Provedor <WhyTooltip tip="provider" />
+            </Label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PROVIDERS.map((p) => {
+                const active = provider === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setProvider(p.id);
+                      setModel(p.defaultModel);
+                    }}
+                    className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
+                      active
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "hover:border-foreground/30"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Chave de API <WhyTooltip tip="api_key" />
+            </Label>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={providerInfo.placeholder}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Modelo <WhyTooltip tip="model" />
+            </Label>
+            <Input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={providerInfo.defaultModel}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Sugestão para começar: <code>{providerInfo.defaultModel}</code>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvanced((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown
+              className={`h-3 w-3 transition ${advanced ? "rotate-180" : ""}`}
+            />
+            Avançado
+          </button>
+          {advanced && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center">
+                Base URL (opcional) <WhyTooltip tip="base_url" />
+              </Label>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder={providerInfo.baseExample}
+              />
+            </div>
+          )}
+
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isVerified ? (
+                  <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" /> Conexão validada
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Não testado
+                  </Badge>
+                )}
+                <WhyTooltip tip="test_connection" />
+              </div>
+              <Button
+                size="sm"
+                variant={isVerified ? "outline" : "default"}
+                onClick={onTest}
+                disabled={testing || !apiKey || !model}
+              >
+                {testing ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Testando…
+                  </>
+                ) : isVerified ? (
+                  "Testar de novo"
+                ) : (
+                  "Testar conexão"
+                )}
+              </Button>
+            </div>
+            {testError && <ProviderErrorBanner error={testError} className="text-xs" />}
+            {!testError && !isVerified && (
+              <p className="text-[11px] text-muted-foreground">
+                Testar a conexão é obrigatório antes de avançar.
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
 
 // ---------- Step 4 — Entrevista ----------
 
