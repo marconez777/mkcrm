@@ -332,7 +332,7 @@ Três ferramentas:
 
 ### Fase 9 — Manual de boas práticas versionado
 
-**Painel admin:** `/admin` → aba "Manual do Builder" (`BuilderManualPanel.tsx`).
+**Painel admin:** `/admin` → aba "Manual do Builder", montada em `src/pages/admin/AdminPanels.tsx` via `src/components/admin/BuilderManualPanel.tsx`.
 
 **Funcionalidades:**
 - Listar versões (mais recente primeiro), com `summary`, `source`, autor e data.
