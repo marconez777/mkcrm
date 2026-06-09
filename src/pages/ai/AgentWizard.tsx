@@ -180,7 +180,6 @@ const MODELS_BY_PROVIDER: Record<Provider, { value: string; label: string; hint?
     { value: "grok-2-mini", label: "grok-2-mini", hint: "Rápido" },
     { value: "grok-2-latest", label: "grok-2-latest", hint: "Qualidade" },
   ],
-  manus: [],
 };
 
 const CUSTOM_MODEL = "__custom__";
