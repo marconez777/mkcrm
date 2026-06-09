@@ -1541,19 +1541,45 @@ function Step3({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="flex items-center">
-              Modelo <WhyTooltip tip="model" />
-            </Label>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={providerInfo.defaultModel}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Sugestão para começar: <code>{providerInfo.defaultModel}</code>
-            </p>
-          </div>
+          {(() => {
+            const opts = MODELS_BY_PROVIDER[provider] ?? [];
+            const isCustom = !!model && !opts.some((o) => o.value === model);
+            const selectValue = isCustom ? CUSTOM_MODEL : (model || providerInfo.defaultModel);
+            return (
+              <div className="space-y-1.5">
+                <Label className="flex items-center">
+                  Modelo <WhyTooltip tip="model" />
+                </Label>
+                <Select
+                  value={selectValue}
+                  onValueChange={(v) => {
+                    if (v === CUSTOM_MODEL) setModel(model || "");
+                    else setModel(v);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {opts.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}{o.hint ? ` — ${o.hint}` : ""}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_MODEL}>Outro (digitar manualmente)…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(isCustom || selectValue === CUSTOM_MODEL) && (
+                  <Input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder={providerInfo.defaultModel}
+                  />
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Sugestão: <code>{providerInfo.defaultModel}</code>
+                </p>
+              </div>
+            );
+          })()}
 
           <button
             type="button"
