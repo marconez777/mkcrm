@@ -4,7 +4,7 @@ topic: general
 kind: doc
 audience: agent
 updated: 2026-06-09
-summary: "Stub de redirecionamento — o conteúdo real (multi-provider, RAG, tools, MCP, auto-reply, traces, custos, evals, pegadinhas) vive em `docs/edge-functions/AI.md`."
+summary: Stub de redirecionamento — o conteúdo real (multi-provider, RAG, tools, MCP, auto-reply, traces, custos, evals, pegadinhas) vive em `docs/edge-functions/AI.md`.
 ---
 # AI — movido
 

@@ -4,7 +4,7 @@ topic: ai
 kind: flow
 audience: agent
 updated: 2026-06-09
-summary: "Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) — carrega contexto, chama o provedor LLM da clínica via `_shared/ai.ts`, executa tools, persiste em `ai_usage` + `ai_chat_traces` e dispara `evolution-send`."
+summary: Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) — carrega contexto, chama o provedor LLM da clínica via `_shared/ai.ts`, executa tools, persiste em `ai_usage` + `ai_chat_traces` e dispara `evolution-send`.
 ---
 # Fluxo: AI Agent Loop (auto-reply e assist)
 
