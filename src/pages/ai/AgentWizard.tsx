@@ -691,10 +691,16 @@ export default function AgentWizard() {
       toast.error("Dê um nome ao agente (2-80 caracteres).");
       return;
     }
-    if (!apiKey || !model) {
+    const useBuilder = keySource === "builder";
+    const effectiveProvider = useBuilder ? (builderInfo?.provider as Provider) ?? provider : provider;
+    const effectiveApiKey = useBuilder ? builderInfo?.api_key ?? "" : apiKey;
+    const effectiveBaseUrl = useBuilder ? builderInfo?.base_url ?? null : baseUrl || null;
+    const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
+    if (!effectiveApiKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
     }
+
 
     setCreating(true);
     try {
