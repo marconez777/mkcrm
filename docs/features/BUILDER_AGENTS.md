@@ -69,7 +69,7 @@ O Builder roda como um registro em `ai_agents` com `system_key = 'builder'`, um 
    ai_insights             ← insights persistidos
 ```
 
-Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabela `ai_usage` (+ `ai_spend_events`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos. **Não existe** view/tabela `ai_usage_daily`; agregações diárias são calculadas on-the-fly (`group by date_trunc('day', ...)` em `CostsPanel`).
+Todos os custos do Builder (tokens, latência) são contabilizados via `_shared/ai.ts` → tabela `ai_usage` (+ `ai_spend_events`), com `note: 'ai-builder:<action>'` para filtragem no painel de custos. Agregações diárias usam a view `public.ai_usage_daily` (rollup com `tokens_in/out`, `cost_usd`, `calls`); `CostsPanel` consulta direto `ai_usage` quando precisa de filtros finos por `note`.
 
 ---
 
