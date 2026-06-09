@@ -1,43 +1,42 @@
-# Validação final dos docs de Agentes IA + Builder
+## Objetivo
+No Passo 3 (Conexão) do wizard `/ai/agents/new`, permitir reutilizar a chave/provedor já configurada no **Construtor** da clínica, em vez de obrigar a colar uma nova chave.
 
-Comparei `docs/features/BUILDER_AGENTS.md`, `docs/flows/AI_AGENT_LOOP.md`, `docs/maps/AI_RUNTIME.md`, `docs/edge-functions/AI.md`, `docs/AI.md` e `docs/support/journeys/criar-primeiro-agente-ia.md` contra `ai-chat`, `ai-builder`, `ai-auto-reply`, `_shared/agent-flags.ts`, `src/lib/agent-tools.ts`, `src/pages/Agents.tsx`, `src/pages/ai/AgentWizard.tsx`, `src/pages/admin/AdminPanels.tsx` e schema real.
+## UX (Passo 3 — Conexão)
 
-## ✅ O que está 100% alinhado
+Adicionar no topo do card um seletor (segmented/radio) com duas opções:
 
-- 15 tools em `KNOWN_AGENT_TOOLS` ↔ `SILENT_TOOLS` ↔ tools registradas em `ai-chat/index.ts`.
-- 10 actions da edge `ai-builder` (§5 do BUILDER_AGENTS).
-- Tabelas reais: `ai_usage`, `ai_usage_daily` (view), `ai_spend_events`, `ai_chat_traces`, `agent_memory` (singular), `ai_agents`, `ai_agent_drafts`, `builder_manual_versions`, `ai_insights`.
-- Rota de edição do agente (`/ai/agents?agent=<id>`), painel do manual em `src/pages/admin/AdminPanels.tsx`, `/ai/agents/new` no wizard.
-- Stub `docs/AI.md` com summary já reescrito.
-- Frontmatter `updated: 2026-06-09` aplicado.
+1. **Usar a chave do Construtor** (padrão quando Builder está `operacional`)
+   - Mostra um resumo somente-leitura: provedor + modelo do Builder + badge ✓ "Já validada".
+   - Campos de provedor / API key / Base URL ficam ocultos.
+   - Permite só editar o **Modelo** (opcional; default = modelo do Builder).
+   - **Testar conexão** roda `ai-builder` action `ping` sem overrides (usa o agente Builder direto). Não é obrigatório — já vem validado.
+   - Botão **Continuar** liberado imediatamente.
 
-## ❌ 3 driftes residuais a corrigir
+2. **Usar uma chave própria** (fluxo atual)
+   - Mantém exatamente a UI atual: provedor, API key, Base URL, Modelo, Testar conexão obrigatório.
 
-### Drift A — `docs/features/BUILDER_AGENTS.md` linha 217
-Pegadinha da Fase 2 ainda diz:
-> "Ele **não responde leads reais** até o usuário ativar manualmente em `/ai/agents/:id` (toggle "Ativo")."
+Se o Builder não estiver configurado/`operacional`, a opção 1 aparece desabilitada com tooltip *"Configure o Construtor primeiro"* e a opção 2 fica selecionada por padrão (comportamento atual).
 
-Rota inexistente. Trocar para `/ai/agents?agent=<id>` (igual ao §3.2 corrigido).
+## Mudanças técnicas
 
-### Drift B — `docs/maps/AI_RUNTIME.md` linhas 63 e 98
-Usa `agent_memories` (plural). Tabela real é `agent_memory` (singular, confirmado no schema). Corrigir:
-- Linha 63: "extrai memórias de conversa para `agent_memories`" → `agent_memory`.
-- Linha 98: linha da tabela `| agent_memories |` → `| agent_memory |`.
+**`src/pages/ai/AgentWizard.tsx`**
+- Buscar o Builder (provider, model, api_key existência, `builder_verified_at`) no mesmo effect que já faz `builderStatus` check — guardar em estado `builderInfo`.
+- Novo estado `keySource: "builder" | "own"` (default `"builder"` quando `builderStatus === "ok"`).
+- Persistir `keySource` em `ai_agent_drafts.settings.key_source` para sobreviver a reloads.
+- Ajustar `canNextFromStep3`: se `keySource === "builder"` → sempre `true` (Builder já validado); se `"own"` → regra atual.
+- Em `finishAndCreateAgent`, quando `keySource === "builder"`:
+  - Buscar o Builder atual e copiar `provider`, `api_key`, `base_url` para o novo agente.
+  - Usar o `model` escolhido no wizard (ou o do Builder se vazio).
+  - `provider_verified_at` herdado.
+- Em `testConnection` (modo builder), invocar `ai-builder` `ping` sem overrides.
+- Atualizar `invalida verificação` effect para ignorar mudanças quando `keySource === "builder"`.
 
-### Drift C — `docs/maps/AI_RUNTIME.md` linha 108
-Aviso atual: "Naming antigo em docs deve ser corrigido para `ai_usage` + `ai_chat_traces`."
+**Step3 component (mesmo arquivo, ~linha 1251)**
+- Renderizar bloco de seleção de origem da chave no topo.
+- Condicionalmente esconder o grid de Provider/API key/Base URL.
+- Mostrar resumo do Builder quando `keySource === "builder"`.
 
-Está incompleto. Alinhar com a nota canônica do `AI_AGENT_LOOP.md`: incluir também `ai_usage_daily` (view), `ai_spend_events` e citar que `tool_calls` vivem em `ai_chat_traces.turns[].tool_calls[]`.
-
-## Execução
-
-1. `code--line_replace` em `docs/features/BUILDER_AGENTS.md` (linha 217).
-2. `code--line_replace` em `docs/maps/AI_RUNTIME.md` (linhas 63, 98, 108).
-3. `node scripts/docs-sync.mjs` para regenerar `INDEX.json`, `public/docs-*.json`, `DRIFT.md`.
-
-Sem mudanças de código de runtime — só 2 arquivos de documentação.
-
-## Fora de escopo (mencionar mas não corrigir agora)
-
-- `docs/frontend/PAGES.md:82`, `docs/features/ADMIN_ACCOUNTS_AND_LIMITS.md`, `docs/maps/BILLING_PLANS.md`, `docs/architecture/SUPER_ADMIN.md`, `docs/maps/ADMIN_SUPER_ADMIN.md` referenciam `src/pages/Admin.tsx` (que não existe — admin vive em `src/pages/admin/*`). Não é doc de agente IA; tratar em outro ciclo se quiser.
-- `docs/CHANGELOG.md` menciona `pause_ai_for_lead` num registro histórico — manter como histórico.
+## Fora de escopo
+- Nenhuma mudança em edge functions (`ai-builder` já aceita rodar `ping` sem overrides).
+- Nenhuma migração de banco.
+- Docs (`docs/support/pages/ai-agents.md` e `supabase/functions/_shared/support-kb/pages/ai-agents.md`) serão atualizadas em seguida para refletir a nova opção no Passo 3.

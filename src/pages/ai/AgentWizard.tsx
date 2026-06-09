@@ -213,6 +213,17 @@ export default function AgentWizard() {
 
   // Builder configuration guard
   const [builderStatus, setBuilderStatus] = useState<"checking" | "ok" | "missing">("checking");
+  const [builderInfo, setBuilderInfo] = useState<{
+    id: string;
+    provider: string;
+    model: string;
+    base_url: string | null;
+    api_key: string | null;
+  } | null>(null);
+
+  // Origem da chave no passo 3: reusar Builder ou usar chave própria
+  const [keySource, setKeySource] = useState<"builder" | "own">("builder");
+
 
   // Success modal post-creation
   const [successAgentId, setSuccessAgentId] = useState<string | null>(null);
@@ -242,22 +253,33 @@ export default function AgentWizard() {
       try {
         const { data, error } = await supabase
           .from("ai_agents")
-          .select("id, builder_verified_at")
+          .select("id, provider, model, api_key, base_url, builder_verified_at")
           .eq("clinic_id", clinicId)
           .eq("system_key", "builder")
           .maybeSingle();
         if (cancelled) return;
         if (error) {
-          // Não bloquear em caso de erro — apenas logar
           console.warn("[AgentWizard] builder check failed:", error.message);
           setBuilderStatus("ok");
           return;
         }
-        setBuilderStatus(data && data.builder_verified_at ? "ok" : "missing");
+        const ok = !!(data && data.builder_verified_at && data.api_key);
+        setBuilderStatus(ok ? "ok" : "missing");
+        if (data) {
+          setBuilderInfo({
+            id: data.id,
+            provider: (data.provider as string) ?? "openai",
+            model: (data.model as string) ?? "",
+            base_url: (data.base_url as string | null) ?? null,
+            api_key: (data.api_key as string | null) ?? null,
+          });
+        }
+        if (!ok) setKeySource("own");
       } catch (e) {
         console.warn("[AgentWizard] builder check exception:", e);
         if (!cancelled) setBuilderStatus("ok");
       }
+
     })();
     return () => {
       cancelled = true;
@@ -323,6 +345,10 @@ export default function AgentWizard() {
         setBaseUrl(d.base_url ?? "");
         if (d.model) setModel(d.model);
         setVerifiedAt(d.provider_verified_at ?? null);
+        const savedKeySource = (d.settings as Record<string, unknown>)?.key_source;
+        if (savedKeySource === "builder" || savedKeySource === "own") {
+          setKeySource(savedKeySource as "builder" | "own");
+        }
         setAnswers((d.interview_answers as Record<string, string>) ?? {});
         if (d.generated_prompt) {
           setBundle({
@@ -402,7 +428,11 @@ export default function AgentWizard() {
   const canNextFromStep2 =
     !!goal && (goal !== "custom" || goalOther.trim().length >= 4);
   const isVerified = !!verifiedAt && !testError;
-  const canNextFromStep3 = !!apiKey && !!model && isVerified;
+  const canNextFromStep3 =
+    keySource === "builder"
+      ? builderStatus === "ok" && !!(builderInfo?.api_key)
+      : !!apiKey && !!model && isVerified;
+
 
   const canNextFromStep4 = questions
     .filter((q) => q.required)
@@ -591,16 +621,20 @@ export default function AgentWizard() {
     setTestError(null);
     // Salva primeiro pra garantir que ai-builder use os valores mais recentes
     await persist({});
+    const overrides =
+      keySource === "builder"
+        ? { clinic_id: clinicId }
+        : {
+            clinic_id: clinicId,
+            provider,
+            api_key: apiKey,
+            base_url: baseUrl || null,
+            model,
+          };
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: {
         action: "ping",
-        clinic_id: clinicId,
-        // overrides opcionais — ai-builder pode preferir usar do Builder do clinic;
-        // o backend aceita override durante o wizard
-        provider,
-        api_key: apiKey,
-        base_url: baseUrl || null,
-        model,
+        ...overrides,
       },
     });
     setTesting(false);
@@ -623,11 +657,13 @@ export default function AgentWizard() {
     toast.success(`Conexão validada (${result.latency_ms ?? "—"} ms)`);
   }
 
-  // Invalida verificação quando dados mudam
+  // Invalida verificação quando dados mudam (somente no modo "chave própria")
   useEffect(() => {
+    if (keySource === "builder") return;
     if (verifiedAt) setVerifiedAt(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, provider, model, baseUrl]);
+  }, [apiKey, provider, model, baseUrl, keySource]);
+
 
   // Sugere nome do agente quando entramos no passo 5 sem nome definido
   useEffect(() => {
@@ -655,10 +691,16 @@ export default function AgentWizard() {
       toast.error("Dê um nome ao agente (2-80 caracteres).");
       return;
     }
-    if (!apiKey || !model) {
+    const useBuilder = keySource === "builder";
+    const effectiveProvider = useBuilder ? (builderInfo?.provider as Provider) ?? provider : provider;
+    const effectiveApiKey = useBuilder ? builderInfo?.api_key ?? "" : apiKey;
+    const effectiveBaseUrl = useBuilder ? builderInfo?.base_url ?? null : baseUrl || null;
+    const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
+    if (!effectiveApiKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
     }
+
 
     setCreating(true);
     try {
@@ -693,10 +735,10 @@ export default function AgentWizard() {
           role: goal || null,
           niche: niche || null,
           niche_other: nicheOther || null,
-          provider,
-          api_key: apiKey,
-          base_url: baseUrl || null,
-          model,
+          provider: effectiveProvider,
+          api_key: effectiveApiKey,
+          base_url: effectiveBaseUrl,
+          model: effectiveModel,
           system_prompt: bundle.system_prompt,
           temperature: bundle.suggested_temperature,
           max_iterations: bundle.suggested_max_iterations,
@@ -704,8 +746,9 @@ export default function AgentWizard() {
           tools,
           enabled: false,
           draft_mode: true,
-          builder_verified_at: verifiedAt,
+          builder_verified_at: useBuilder ? new Date().toISOString() : verifiedAt,
         } as never)
+
         .select("id")
         .single();
 
@@ -812,6 +855,19 @@ export default function AgentWizard() {
 
             {step === 3 && (
               <Step3
+                keySource={keySource}
+                setKeySource={(s) => {
+                  setKeySource(s);
+                  void persist({
+                    settings: {
+                      ...((draft?.settings as Record<string, unknown>) ?? {}),
+                      key_source: s,
+                    },
+                  });
+                  if (s === "builder") setTestError(null);
+                }}
+                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key}
+                builderInfo={builderInfo}
                 provider={provider}
                 setProvider={setProvider}
                 apiKey={apiKey}
@@ -827,6 +883,7 @@ export default function AgentWizard() {
                 onTest={testConnection}
               />
             )}
+
             {step === 4 && (
               <Step4
                 questions={questions}
@@ -1248,6 +1305,10 @@ interface ProviderMeta {
 }
 
 function Step3({
+  keySource,
+  setKeySource,
+  builderAvailable,
+  builderInfo,
   provider,
   setProvider,
   apiKey,
@@ -1262,6 +1323,10 @@ function Step3({
   testError,
   onTest,
 }: {
+  keySource: "builder" | "own";
+  setKeySource: (s: "builder" | "own") => void;
+  builderAvailable: boolean;
+  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key: string | null } | null;
   provider: Provider;
   setProvider: (p: Provider) => void;
   apiKey: string;
@@ -1277,6 +1342,9 @@ function Step3({
   onTest: () => void;
 }) {
   const [advanced, setAdvanced] = useState(!!baseUrl);
+  const useBuilder = keySource === "builder";
+  const builderProviderLabel =
+    PROVIDERS.find((p) => p.id === builderInfo?.provider)?.label ?? builderInfo?.provider ?? "—";
 
   return (
     <div className="space-y-4">
@@ -1286,130 +1354,212 @@ function Step3({
           <WhyTooltip tip="api_key" />
         </h2>
         <p className="text-xs text-muted-foreground">
-          Você usa sua própria chave. Validamos antes de prosseguir.
+          {useBuilder
+            ? "Você pode reaproveitar a chave do Construtor ou usar uma chave separada para este agente."
+            : "Você usa sua própria chave. Validamos antes de prosseguir."}
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Provedor <WhyTooltip tip="provider" />
-        </Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDERS.map((p) => {
-            const active = provider === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setProvider(p.id);
-                  if (!model) setModel(p.defaultModel);
-                  else setModel(p.defaultModel);
-                }}
-                className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
-                  active
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                    : "hover:border-foreground/30"
-                }`}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Chave de API <WhyTooltip tip="api_key" />
-        </Label>
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={providerInfo.placeholder}
-          autoComplete="off"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="flex items-center">
-          Modelo <WhyTooltip tip="model" />
-        </Label>
-        <Input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={providerInfo.defaultModel}
-        />
-        <p className="text-[11px] text-muted-foreground">
-          Sugestão para começar: <code>{providerInfo.defaultModel}</code>
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setAdvanced((v) => !v)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ChevronDown
-          className={`h-3 w-3 transition ${advanced ? "rotate-180" : ""}`}
-        />
-        Avançado
-      </button>
-      {advanced && (
-        <div className="space-y-1.5">
-          <Label className="flex items-center">
-            Base URL (opcional) <WhyTooltip tip="base_url" />
-          </Label>
-          <Input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={providerInfo.baseExample}
-          />
-        </div>
-      )}
-
-      <div className="rounded-lg border bg-muted/30 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isVerified ? (
-              <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-3 w-3" /> Conexão validada
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="gap-1">
-                <AlertTriangle className="h-3 w-3" /> Não testado
-              </Badge>
-            )}
-            <WhyTooltip tip="test_connection" />
+      {/* Seletor de origem da chave */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={!builderAvailable}
+          onClick={() => setKeySource("builder")}
+          className={`rounded-lg border p-3 text-left text-xs transition ${
+            useBuilder
+              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+              : "hover:border-foreground/30"
+          } ${!builderAvailable ? "cursor-not-allowed opacity-50" : ""}`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            Usar a chave do Construtor
           </div>
-          <Button
-            size="sm"
-            variant={isVerified ? "outline" : "default"}
-            onClick={onTest}
-            disabled={testing || !apiKey || !model}
-          >
-            {testing ? (
-              <>
-                <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Testando…
-              </>
-            ) : isVerified ? (
-              "Testar de novo"
-            ) : (
-              "Testar conexão"
-            )}
-          </Button>
-        </div>
-        {testError && <ProviderErrorBanner error={testError} className="text-xs" />}
-        {!testError && !isVerified && (
-          <p className="text-[11px] text-muted-foreground">
-            Testar a conexão é obrigatório antes de avançar.
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {builderAvailable
+              ? "Reaproveita o provedor e a chave já validados na clínica."
+              : "Configure o Construtor primeiro para liberar esta opção."}
           </p>
-        )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setKeySource("own")}
+          className={`rounded-lg border p-3 text-left text-xs transition ${
+            !useBuilder
+              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+              : "hover:border-foreground/30"
+          }`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <SettingsIcon className="h-3.5 w-3.5" />
+            Usar uma chave própria
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Use um provedor/chave separados só para este agente.
+          </p>
+        </button>
       </div>
+
+      {useBuilder ? (
+        <>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+            <div className="mb-2 flex items-center gap-2">
+              <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" /> Já validada
+              </Badge>
+              <span className="text-muted-foreground">Construtor da clínica</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Provedor</p>
+                <p className="font-medium">{builderProviderLabel}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Modelo (Construtor)</p>
+                <p className="font-medium">{builderInfo?.model || "—"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Modelo para este agente <WhyTooltip tip="model" />
+            </Label>
+            <Input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={builderInfo?.model || "Usar o modelo do Construtor"}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Deixe vazio para usar o mesmo modelo do Construtor (<code>{builderInfo?.model || "—"}</code>).
+            </p>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Provedor <WhyTooltip tip="provider" />
+            </Label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PROVIDERS.map((p) => {
+                const active = provider === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setProvider(p.id);
+                      setModel(p.defaultModel);
+                    }}
+                    className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
+                      active
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "hover:border-foreground/30"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Chave de API <WhyTooltip tip="api_key" />
+            </Label>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={providerInfo.placeholder}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center">
+              Modelo <WhyTooltip tip="model" />
+            </Label>
+            <Input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={providerInfo.defaultModel}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Sugestão para começar: <code>{providerInfo.defaultModel}</code>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvanced((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown
+              className={`h-3 w-3 transition ${advanced ? "rotate-180" : ""}`}
+            />
+            Avançado
+          </button>
+          {advanced && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center">
+                Base URL (opcional) <WhyTooltip tip="base_url" />
+              </Label>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder={providerInfo.baseExample}
+              />
+            </div>
+          )}
+
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isVerified ? (
+                  <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" /> Conexão validada
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Não testado
+                  </Badge>
+                )}
+                <WhyTooltip tip="test_connection" />
+              </div>
+              <Button
+                size="sm"
+                variant={isVerified ? "outline" : "default"}
+                onClick={onTest}
+                disabled={testing || !apiKey || !model}
+              >
+                {testing ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Testando…
+                  </>
+                ) : isVerified ? (
+                  "Testar de novo"
+                ) : (
+                  "Testar conexão"
+                )}
+              </Button>
+            </div>
+            {testError && <ProviderErrorBanner error={testError} className="text-xs" />}
+            {!testError && !isVerified && (
+              <p className="text-[11px] text-muted-foreground">
+                Testar a conexão é obrigatório antes de avançar.
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
 
 // ---------- Step 4 — Entrevista ----------
 
