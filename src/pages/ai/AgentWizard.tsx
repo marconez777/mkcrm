@@ -929,6 +929,7 @@ export default function AgentWizard() {
             {step === 5 && (
               <Step5
                 bundle={bundle}
+                setBundle={setBundle}
                 loading={promptLoading}
                 error={promptError}
                 refinement={refinement}
