@@ -867,7 +867,7 @@ function MessageRow(props: {
       {!m.from_me && actions}
       <div
         className={cn(
-          "min-w-0 max-w-[78%] rounded-lg px-3 py-1.5 text-sm shadow-sm transition-all",
+          "relative min-w-0 max-w-[78%] rounded-lg pl-3 pr-3 pt-1.5 pb-1 text-sm shadow-sm transition-all",
           failed && "ring-1 ring-destructive",
           pending && "opacity-70",
           isActiveMatch && "ring-2 ring-amber-400",
@@ -906,19 +906,22 @@ function MessageRow(props: {
             {searchTerm && m.content
               ? highlight(m.content, searchTerm, !!isActiveMatch)
               : (m.content || `[${m.message_type}]`)}
+            {/* WhatsApp-style spacer so the timestamp can sit on the last line */}
+            <span aria-hidden className="inline-block align-bottom" style={{ width: m.from_me ? 62 : 42, height: 1 }} />
           </div>
         )}
         {m.message_type === "audio" && <AudioTranscript m={m} />}
-        <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
+        <div className="pointer-events-none absolute bottom-1 right-2 flex items-center gap-1 text-[10px] leading-none tabular-nums text-foreground/45">
           <span>{fmtTime(m.timestamp)}</span>
           <StatusTicks m={m} />
           {failed && (
-            <button onClick={() => resend(m)} className="ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
+            <button onClick={() => resend(m)} className="pointer-events-auto ml-1 inline-flex items-center gap-0.5 text-destructive hover:underline">
               <RotateCw className="h-3 w-3" /> reenviar
             </button>
           )}
         </div>
       </div>
+
       {m.from_me && actions}
     </div>
   );
