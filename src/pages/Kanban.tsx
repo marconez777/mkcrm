@@ -216,9 +216,103 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
     a.stage_id === b.stage_id &&
     a.position === b.position &&
     a.created_at === b.created_at &&
-    a.deal_value === b.deal_value
+    a.deal_value === b.deal_value &&
+    a.needs_ai_review === b.needs_ai_review &&
+    a.manual_lock_until === b.manual_lock_until &&
+    JSON.stringify(a.ai_review_reasons ?? []) === JSON.stringify(b.ai_review_reasons ?? []) &&
+    JSON.stringify(a.custom_fields ?? {}) === JSON.stringify(b.custom_fields ?? {})
   );
 });
+
+const REASON_LABEL: Record<string, string> = {
+  proc_cetamina: "Cetamina",
+  proc_emt: "EMT",
+  proc_primeira_consulta: "1ª consulta",
+  proc_retorno: "Retorno",
+  proc_seguimento: "Seguimento",
+  proc_terapia: "Terapia",
+  interesse: "Interesse",
+  pagamento: "Pagamento",
+  agendamento: "Agendamento",
+  audio_pendente: "Áudio",
+  imagem_pendente: "Imagem",
+  proc_nao_atendido_emdr: "EMDR (desq.)",
+};
+
+function shortReason(r: string): string {
+  if (REASON_LABEL[r]) return REASON_LABEL[r];
+  if (r.startsWith("proc_nao_atendido")) return r.replace("proc_nao_atendido:", "Não oferecido: ");
+  return r.replace(/_/g, " ");
+}
+
+function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
+  const cf = (lead.custom_fields ?? {}) as Record<string, any>;
+  const qualif: string | undefined = cf.qualificacao;
+  const proc: string | undefined = cf.procedimento_interesse;
+  const tentouPag: boolean | undefined = cf.tentou_pagamento;
+  const pago: boolean | undefined = cf.pagamento_confirmado;
+  const agendou: boolean | undefined = cf.tentou_agendar;
+  const consulta: string | undefined = cf.consulta_agendada_em;
+  const reasons = lead.ai_review_reasons ?? [];
+  const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
+  const pending = !!lead.needs_ai_review;
+
+  const visibleReasons = compact ? reasons.slice(0, 2) : reasons.slice(0, 4);
+  const extra = reasons.length - visibleReasons.length;
+
+  if (
+    !qualif && !proc && !tentouPag && !pago && !agendou && !consulta &&
+    !locked && !pending && reasons.length === 0
+  ) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1">
+      {qualif === "desqualificado" && (
+        <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>Desqualif.</Chip>
+      )}
+      {qualif === "interessado" && <Chip tone="success">Interessado</Chip>}
+      {qualif === "em_negociacao" && <Chip tone="warning">Negociação</Chip>}
+      {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
+      {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>Pago</Chip>}
+      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>Comprovante</Chip>}
+      {consulta && (
+        <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
+          {new Date(consulta).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+        </Chip>
+      )}
+      {!consulta && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
+      {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
+      {locked && <Chip tone="neutral" icon={<Lock className="h-3 w-3" />}>Lock manual</Chip>}
+      {!compact && visibleReasons.map((r) => (
+        <Chip key={r} tone="muted">{shortReason(r)}</Chip>
+      ))}
+      {!compact && extra > 0 && <Chip tone="muted">+{extra}</Chip>}
+    </div>
+  );
+}
+
+function Chip({ children, tone = "neutral", icon }: {
+  children: React.ReactNode;
+  tone?: "neutral" | "muted" | "success" | "warning" | "danger" | "info" | "ai";
+  icon?: React.ReactNode;
+}) {
+  const cls = {
+    neutral: "bg-secondary text-secondary-foreground",
+    muted: "bg-muted text-muted-foreground",
+    success: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+    warning: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+    danger: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+    info: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+    ai: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>
+      {icon}
+      {children}
+    </span>
+  );
+}
+
 
 function Column({
   stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll,
