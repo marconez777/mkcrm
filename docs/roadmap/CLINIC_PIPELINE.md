@@ -16,7 +16,7 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F4 entregue**. Próximo passo: F5 (automations-tick + `pipeline_field_rules` pra mover cards).
+> Status: **F5 entregue**. Próximo passo: F6 (UI de limites/budgets + observabilidade no Kanban).
 >
 > Entregue até aqui:
 > - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
