@@ -176,6 +176,7 @@ export default function SettingsPage() {
             <TabsTrigger value="forms">Integração do Site</TabsTrigger>
             {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
+            {!isProfessional && <TabsTrigger value="ai-pipeline">IA do Pipeline</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="connection" className="space-y-4">
