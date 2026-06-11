@@ -1,46 +1,104 @@
-# Mover todos os leads de UMA coluna para outra coluna (de qualquer funil)
+# Roadmap: Pipeline Clínica ÓR + Agentes IA (v5 — aprovado)
 
-Hoje existe "mover todos do funil inteiro" (no `EditPipelineDialog`). Vou adicionar o equivalente **por coluna**.
+## Decisões fechadas
 
-## O que muda
+| # | Tema | Decisão |
+|---|---|---|
+| 1 | Chave OpenAI | **BYOK por clínica** — cada clínica configura a sua |
+| 2 | Edição humana | IA **respeita** edição manual recente (`manual_lock_minutes`, default 30) |
+| 3 | Áudio | **Whisper-1** (mais barato, ~$0.006/min) |
+| 4 | Storage da chave | Máxima segurança — tabela `clinic_secrets` com **pgsodium** + RLS service_role-only |
+| 5 | Sobrescrita | Permitida quando `confidence ≥ threshold` (default 0.7) e fora da janela de manual_lock |
+| 6 | Comprovante/áudio ilegível | Cria **tarefa pra humano** |
+| 7 | Limites | **Configuráveis na UI** por clínica |
+| 8 | Regex schedule | **PT-BR somente** |
+| 9 | Procedimentos atendidos | Infusão de Cetamina · EMT · Primeira Consulta · Consulta de seguimento · Retorno · Sessão de terapia |
+| 10 | **EMDR (e demais procedimentos fora da lista)** | **Não atendidos** — se aparecer na conversa, o extrator marca o lead como `qualificacao = desqualificado` com `reason = "procedimento não oferecido: EMDR"`. Sem follow-up de IA, sem mover pra agendamento. |
 
-### 1. Novo item no menu da coluna do Kanban
-No menu **⋮** de cada coluna (ao lado de "Editar etapa" / "Excluir etapa"), adicionar:
-- **"Mover todos os leads desta coluna →"**
+## Entregável agora (apenas documentação)
 
-### 2. Novo diálogo `MoveColumnLeadsDialog`
-Arquivo novo: `src/components/kanban/MoveColumnLeadsDialog.tsx`.
+Criar **`docs/roadmap/CLINIC_PIPELINE.md`** com frontmatter padrão (`topic: automations`, `kind: roadmap`, `audience: agent`, `code_refs` apontando para arquivos a criar).
 
-Campos:
-- Mostra contagem: *"Esta coluna tem N leads."*
-- Select **Funil de destino** (lista todos os funis da clínica, inclusive o atual).
-- Select **Etapa de destino** (carrega stages do funil escolhido, exclui a própria coluna de origem se for o mesmo funil).
-- Botão **"Mover N leads"** com loading.
-- Toast de sucesso + `onChanged()` para refrescar o Kanban.
+### Estrutura
 
-Lógica (mesmo padrão do `EditPipelineDialog.moveAllLeads`):
-```ts
-await supabase.from("leads")
-  .update({ pipeline_id: targetPipelineId, stage_id: targetStageId })
-  .eq("stage_id", sourceStageId);
+```
+1. Visão geral
+2. Decisões fechadas (tabela acima, incluindo EMDR/desqualificação)
+3. Arquitetura
+   3.1 Source of truth = custom fields
+   3.2 4 camadas (keywords SQL → extrator → visão → áudio)
+   3.3 Diagrama ASCII
+4. Modelos & custos (OpenAI BYOK)
+   - texto (gpt-5-nano / gpt-4o-mini)
+   - visão (gpt-5-mini / gpt-4o)
+   - áudio (whisper-1)
+   - tabela estimada $/lead/dia
+5. Database
+   - messages: is_automated, vision_processed, transcript, transcript_status,
+     transcript_cost_usd, needs_audio_transcription
+   - leads: needs_ai_review, ai_review_reasons[], ai_review_queued_at, manual_lock_until
+   - clinics: classifier_config jsonb
+   - lead_stage_history: reason
+   - clinic_secrets (pgsodium, service_role only)
+   - lead_ai_extraction_runs (kind, model, tokens, cost, fields_set, confidence)
+   - pipeline_field_rules (crawl)
+6. Edge functions
+   - trigger SQL trg_lead_needs_extraction
+   - extractor-tick (cron 10m)
+   - vision-tick (cron 10m)
+   - audio-tick (cron 5m)
+   - automations-tick + branch field_rules_crawl
+7. Keywords PT-BR (separadas por procedimento)
+   - PROCEDURE_REGEX (6 atendidos + 1 lista de bloqueio: EMDR e similares → desqualifica)
+   - INTEREST_REGEX, PAYMENT_REGEX, SCHEDULE_REGEX
+   - Glossário Whisper (EMT, cetamina)
+8. Lógica de desqualificação
+   - Se mensagem matchar PROC_NAO_ATENDIDO_REGEX (EMDR e variações) →
+     extrator preenche qualificacao=desqualificado, reason, não aciona follow-up
+   - Card pode ir pra coluna "Desqualificado" via field rule
+9. UI — Settings → IA do Pipeline (6 abas)
+   - Chave OpenAI (input + teste + status, nunca exibe a chave)
+   - Extrator de texto
+   - Visão
+   - Áudio
+   - Palavras-chave (read-only, inclui lista de bloqueio)
+   - Histórico & custos
+10. Regras de movimentação por campo (crawl)
+    - pipeline_field_rules + UI em /automations
+    - min_field_age_minutes (default 15)
+11. Tratamento de erros & tarefas humanas
+    - Comprovante ilegível → board Financeiro
+    - Áudio falha 2× → board Atendimento
+    - Chave OpenAI inválida → banner + agentes pausam
+    - Procedimento não oferecido → tarefa opcional pra confirmar desqualificação
+12. Observabilidade
+    - /metrics: custo/dia, custo/lead, % preenchimento IA, taxa de sobrescrita,
+      % desqualificados por procedimento não oferecido
+    - Chips no card do Kanban: 🤖 / 👁️ / 🎧 / 🚫(desqualificado)
+13. Fragilidades & mitigações (~15 cenários)
+14. Fases
+    F0 — Migrations + UI da chave OpenAI + roadmap doc
+    F1 — Trigger keyword + 4 automações rule-based + lógica EMDR/desqualifica
+    F2 — Extrator texto + UI completa + histórico/custos
+    F3 — Visão (comprovante) + fallback humano
+    F4 — Áudio Whisper + transcript no chat
+    F5 — Crawl de regras de coluna
+    F6 — Observabilidade + chips + docs-sync
+15. Changelog do roadmap
 ```
 
-### 3. Integração
-No componente que renderiza as colunas do Kanban (`src/pages/Kanban.tsx` — header da coluna com o menu ⋮), importar e abrir o novo diálogo com `sourceStageId`, `sourceStageName`, e a lista de funis/instâncias já disponível no contexto.
+### Segurança da chave OpenAI
 
-## Regras / proteções
+- `clinic_secrets (clinic_id pk, openai_api_key_encrypted bytea, key_id uuid, updated_at)`
+- Criptografia via **pgsodium** (`crypto_aead_det_encrypt`) com `key_id` por clínica
+- RLS revoga `anon`/`authenticated`; só `service_role` via função `get_openai_key(clinic_id)` SECURITY DEFINER decriptografa em runtime
+- UI mostra apenas status `configured/empty/invalid` + últimos 4 chars
+- Health-check diário; se inválida, `classifier_config.openai_status='invalid'` + banner
 
-- Esconder a opção para `professional` (mesma regra do "mover funil inteiro").
-- Bloquear botão se `targetStageId` vazio ou igual ao `sourceStageId`.
-- Se contagem = 0, mostrar opção desabilitada com tooltip "Coluna vazia".
-- Não muda nada do lead além de `pipeline_id` + `stage_id` (triggers de `stage_ai_defaults` já cuidam do resto).
+### Próximo passo após este plano
 
-## Fora do escopo
+1. Criar `docs/roadmap/CLINIC_PIPELINE.md` com o conteúdo acima.
+2. Rodar `node scripts/docs-sync.mjs`.
+3. Aguardar OK pra iniciar **F0** (migrations + UI da chave).
 
-- Não mexer no agente classificador, automações, ou docs agora — fica para o roadmap salvo.
-- Não criar histórico extra: `lead_stage_history` já é populado por trigger existente.
-
-## Arquivos tocados
-
-- `src/components/kanban/MoveColumnLeadsDialog.tsx` (novo)
-- `src/pages/Kanban.tsx` (adicionar item de menu + estado do diálogo)
+Nenhum código de feature nem migration é tocado nesta etapa — só o documento de roadmap.
