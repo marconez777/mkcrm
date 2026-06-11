@@ -16,7 +16,9 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F6 entregue**. Pipeline base completo. Próximos passos opcionais: F7 (cron-jobs registrados em pg_cron) e F8 (testes Deno dos ticks).
+> Status: **F7 entregue**. Pipeline base + cron automáticos rodando. Próximo opcional: F8 (testes Deno dos ticks).
+>
+> - **F7** — cron-jobs registrados em `pg_cron` (extensions `pg_cron` + `pg_net` ativos): `extractor-tick-cron` a cada 2 min, `vision-tick-cron` a cada 3 min, `audio-tick-cron` a cada 5 min, `field-rules-tick-cron` a cada 2 min. Cada job faz `net.http_post` na edge function correspondente (URL `/functions/v1/<tick>` com header `apikey`). Os botões manuais ("Rodar texto/visão/áudio/agora") continuam funcionando para disparo sob demanda.
 >
 > Entregue até aqui:
 > - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
