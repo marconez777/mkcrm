@@ -388,6 +388,7 @@ export default function SettingsPage() {
                 </Card>
               )}
               {membership?.clinic_id && <ExtractorHistoryCard clinicId={membership.clinic_id} />}
+              {membership?.clinic_id && <FieldRulesCard clinicId={membership.clinic_id} />}
               <Card className="p-6 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Próximas configurações (em breve)</p>
                 <p>Limites do extrator, visão, Whisper e palavras-chave serão liberados nas próximas fases do roadmap.</p>
