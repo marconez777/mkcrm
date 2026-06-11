@@ -415,6 +415,7 @@ export default function KanbanPage() {
   
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
+  const [movingColumnStage, setMovingColumnStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
