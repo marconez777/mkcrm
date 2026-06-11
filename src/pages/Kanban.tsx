@@ -187,6 +187,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
           {lead.last_message_preview}
         </div>
       )}
+      <AIBadges lead={lead} compact={compact} />
       <div className={`flex items-center justify-between text-[11px] text-muted-foreground ${compact ? "mt-1" : "mt-2"}`}>
         <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {timeAgo(lead.last_message_at)}</span>
         {lead.created_at && (
