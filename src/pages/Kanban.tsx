@@ -757,6 +757,13 @@ export default function KanbanPage() {
 
       <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
 
+      <MoveColumnLeadsDialog
+        open={!!movingColumnStage}
+        onOpenChange={(v) => !v && setMovingColumnStage(null)}
+        sourceStage={movingColumnStage}
+        pipelines={pipelines}
+      />
+
       <EditPipelineDialog
         pipeline={current ?? null}
         open={editPipelineOpen}
