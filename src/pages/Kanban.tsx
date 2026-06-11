@@ -220,12 +220,12 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
 });
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
-  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void;
+  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
@@ -250,6 +250,9 @@ function Column({
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
+          <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
           <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
