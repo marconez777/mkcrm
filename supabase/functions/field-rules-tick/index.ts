@@ -35,7 +35,7 @@ interface Rule {
   conditions: Condition[] | null;
 }
 
-function getField(cf: Record<string, unknown>, path: string): unknown {
+export function getField(cf: Record<string, unknown>, path: string): unknown {
   if (!path) return undefined;
   const parts = path.split(".");
   let cur: any = cf;
@@ -46,7 +46,7 @@ function getField(cf: Record<string, unknown>, path: string): unknown {
   return cur;
 }
 
-function evalCondition(cf: Record<string, unknown>, c: Condition): boolean {
+export function evalCondition(cf: Record<string, unknown>, c: Condition): boolean {
   const v = getField(cf, c.field);
   switch (c.op) {
     case "equals": return v === c.value;
@@ -65,7 +65,7 @@ function evalCondition(cf: Record<string, unknown>, c: Condition): boolean {
   }
 }
 
-function matches(cf: Record<string, unknown>, rule: Rule): boolean {
+export function matches(cf: Record<string, unknown>, rule: Rule): boolean {
   const conds = rule.conditions ?? [];
   if (conds.length === 0) return false; // regra sem condição não casa nada
   return conds.every((c) => evalCondition(cf, c));

@@ -16,9 +16,9 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F7 entregue**. Pipeline base + cron automáticos rodando. Próximo opcional: F8 (testes Deno dos ticks).
+> Status: **F8 entregue**. Pipeline base + crons automáticos + testes Deno verdes.
 >
-> - **F7** — cron-jobs registrados em `pg_cron` (extensions `pg_cron` + `pg_net` ativos): `extractor-tick-cron` a cada 2 min, `vision-tick-cron` a cada 3 min, `audio-tick-cron` a cada 5 min, `field-rules-tick-cron` a cada 2 min. Cada job faz `net.http_post` na edge function correspondente (URL `/functions/v1/<tick>` com header `apikey`). Os botões manuais ("Rodar texto/visão/áudio/agora") continuam funcionando para disparo sob demanda.
+> - **F8** — testes Deno cobrindo os 4 ticks. Unit tests puros em `field-rules-tick/rules_test.ts` (helpers `getField` / `evalCondition` / `matches` com operadores equals, not_equals, is_true/false, is_empty/not_empty, in, contains, gte, lte + AND de múltiplas condições). Smoke tests (`index_test.ts` em cada tick) batem em produção via `_shared/tick_smoke.ts`: validam preflight CORS e contrato `{ ok, results? }` do POST autenticado com `apikey`. Resultado atual: **15 passed / 0 failed (~8s)**.
 >
 > Entregue até aqui:
 > - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
