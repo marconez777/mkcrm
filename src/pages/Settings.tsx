@@ -20,6 +20,7 @@ import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
 import ExtractorHistoryCard from "@/components/settings/ExtractorHistoryCard";
 import FieldRulesCard from "@/components/settings/FieldRulesCard";
+import AILimitsCard from "@/components/settings/AILimitsCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Instance = {
@@ -388,12 +389,9 @@ export default function SettingsPage() {
                   Você precisa pertencer a uma clínica para configurar a IA do pipeline.
                 </Card>
               )}
+              {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}
               {membership?.clinic_id && <ExtractorHistoryCard clinicId={membership.clinic_id} />}
               {membership?.clinic_id && <FieldRulesCard clinicId={membership.clinic_id} />}
-              <Card className="p-6 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">Próximas configurações (em breve)</p>
-                <p>Limites do extrator, visão, Whisper e palavras-chave serão liberados nas próximas fases do roadmap.</p>
-              </Card>
             </TabsContent>
           )}
         </Tabs>

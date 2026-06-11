@@ -1,8 +1,8 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-11T19:14:13.367Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-11T20:01:18.983Z_
 
-Total de docs: **147** · frontmatter atualizado neste run: **1**
+Total de docs: **147** · frontmatter atualizado neste run: **0**
 
 ## code_refs apontando para arquivo inexistente
 - `docs/roadmap/CLINIC_PIPELINE.md` → `src/pages/automations/`
@@ -50,6 +50,7 @@ Total de docs: **147** · frontmatter atualizado neste run: **1**
 - `ai-ingest-urls`
 - `ai-reingest-document`
 - `ai-spend-notify`
+- `audio-tick`
 - `auth-login`
 - `automations-tick`
 - `backfill-resend-events`
@@ -57,6 +58,7 @@ Total de docs: **147** · frontmatter atualizado neste run: **1**
 - `broadcast-tick`
 - `clinic-create-user`
 - `clinic-invite`
+- `clinic-openai-key`
 - `cron-expire-manual-grants`
 - `daily-summary`
 - `dispatch-campaign`
@@ -81,7 +83,9 @@ Total de docs: **147** · frontmatter atualizado neste run: **1**
 - `evolution-test`
 - `evolution-webhook`
 - `external-lead-capture`
+- `extractor-tick`
 - `fetch-wa-avatar`
+- `field-rules-tick`
 - `forms-admin`
 - `forms-ingest`
 - `forms-plugin-zip`
@@ -109,5 +113,6 @@ Total de docs: **147** · frontmatter atualizado neste run: **1**
 - `tracking-identify`
 - `tracking-pixel`
 - `transcribe-audio`
+- `vision-tick`
 - `wa-redirect`
 - `watch-stale-leads`

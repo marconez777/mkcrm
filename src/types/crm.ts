@@ -60,6 +60,10 @@ export type Lead = {
   ai_summary?: string | null;
   ai_summary_at?: string | null;
   whatsapp_instance_id?: string | null;
+  needs_ai_review?: boolean;
+  ai_review_reasons?: string[] | null;
+  ai_review_queued_at?: string | null;
+  manual_lock_until?: string | null;
 };
 
 export type Message = {

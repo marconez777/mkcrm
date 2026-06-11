@@ -16,7 +16,7 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F5 entregue**. Próximo passo: F6 (UI de limites/budgets + observabilidade no Kanban).
+> Status: **F6 entregue**. Pipeline base completo. Próximos passos opcionais: F7 (cron-jobs registrados em pg_cron) e F8 (testes Deno dos ticks).
 >
 > Entregue até aqui:
 > - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
@@ -25,7 +25,9 @@ related_docs:
 > - **F3** — edge function `vision-tick` (cron `*/10 * * * *`) que lê mensagens com `media_url` + `vision_processed=false` + `from_me=false` (image/document com mime `image/*`), chama `gpt-5-mini` Vision com tool `analyze_payment_proof` (is_payment_proof, readable, method, amount_brl, paid_at, payer/receiver, transaction_id). Quando comprovante legível, marca `custom_fields.tentou_pagamento=true` e grava `custom_fields.ultimo_comprovante`; quando ilegível dispara `lead_events.type='vision_unreadable'`. Respeita `manual_lock_until`, `max_vision_per_lead`, `daily_budget_vision`; registra run em `lead_ai_extraction_runs` (kind=vision). UI ganhou botão "Rodar visão" no mesmo card.
 > - **F4** — edge function `audio-tick` (cron `*/5 * * * *`) que lê mensagens com `needs_audio_transcription=true` + `transcript IS NULL`, baixa o `media_url`, envia via multipart pro Whisper-1 (`/v1/audio/transcriptions`, `language=pt`, `response_format=verbose_json`), grava `messages.transcript` + `transcript_status='done'` + `transcript_cost_usd` (a $0.006/min com base no `duration` retornado). Após transcrever, reenfileira o lead (`needs_ai_review=true`) pra o `extractor-tick` reprocessar o texto novo. Respeita `daily_budget_audio_minutes`; registra run em `lead_ai_extraction_runs` (kind=audio) e dispara `lead_events.type='audio_transcribed'`. UI ganhou botão "Rodar áudio" no mesmo card.
 > - **F5** — tabela `pipeline_field_rules` (clinic_id, pipeline_id, target_stage_id, name, priority, enabled, conditions jsonb) com RLS tenant-scoped + edge function `field-rules-tick` (cron `*/2 * * * *`) que avalia regras AND-joined sobre `leads.custom_fields` (ops: equals, not_equals, is_true, is_false, is_empty, not_empty, in, contains, gte, lte). Primeira regra que casa (priority DESC) move o card pra coluna alvo, respeita `manual_lock_until`, grava `lead_stage_history` com `reason='field_rule:<nome>'` e dispara `lead_events.type='stage_auto_moved'`. UI: `FieldRulesCard` na aba IA do Pipeline pra criar/editar/desabilitar regras + "Rodar agora".
+> - **F6** — UI completa de limites/budgets em `AILimitsCard` (manual_lock_minutes, confidence_threshold, allow_overwrite_filled, max_messages_per_extraction, max_extractions_per_lead_per_day, daily_budget_extractions, max_vision_per_lead, daily_budget_vision, daily_budget_audio_minutes + modelos), persistida em `clinics.classifier_config` preservando `openai_status`. Observabilidade no `Kanban`: novo componente `AIBadges` no `LeadCard` mostra qualificação (interessado/negociação/desqualif), procedimento de interesse, status de pagamento (comprovante / pago), agendamento/data, "IA na fila", "Lock manual" e até 4 motivos do trigger (`ai_review_reasons`). Tipo `Lead` estendido com `needs_ai_review`, `ai_review_reasons`, `ai_review_queued_at`, `manual_lock_until`.
 >
+
 
 
 
