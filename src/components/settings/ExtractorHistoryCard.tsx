@@ -133,7 +133,11 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
           </Button>
           <Button size="sm" onClick={runNow} disabled={running}>
             {running ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
-            Rodar agora
+            Rodar texto
+          </Button>
+          <Button size="sm" variant="secondary" onClick={runVisionNow} disabled={runningVision}>
+            {runningVision ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
+            Rodar visão
           </Button>
         </div>
       </div>
