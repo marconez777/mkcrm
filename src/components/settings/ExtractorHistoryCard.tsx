@@ -101,6 +101,26 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
     }
   }
 
+  async function runAudioNow() {
+    setRunningAudio(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("audio-tick", {
+        body: { clinic_id: clinicId },
+      });
+      if (error) throw new Error(error.message);
+      const r = (data as any)?.results?.[0];
+      if (r?.error) toast.error(`Áudio falhou: ${r.error}`);
+      else toast.success(`Áudio · Processados: ${r?.processed ?? 0} · Ignorados: ${r?.skipped ?? 0}`);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao rodar áudio");
+    } finally {
+      setRunningAudio(false);
+    }
+  }
+
+
+
 
   // Agregação por dia
   const byDay: Record<string, DailyAgg> = {};
