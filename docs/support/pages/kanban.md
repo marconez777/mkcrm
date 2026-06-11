@@ -4,6 +4,7 @@ topic: support
 kind: support
 audience: user
 updated: 2026-06-07
+summary: "Detalhes de cada chip e como configurar: `journeys/usar-pipeline-ia.md`."
 ---
 # 🗂️ Kanban — `/`
 
@@ -43,6 +44,21 @@ Cada coluna mostra: bolinha colorida + **nome da etapa** + contador + **valor to
 
 ## Cards de lead
 Mostram: avatar com iniciais · badge de não lidas · nome ou telefone · telefone · prévia da última mensagem (modo normal) · 💬 + tempo desde a última (`agora / Nm / Nh / Nd`) · data de entrada.
+
+### Selos da IA (chips automáticos)
+Quando o Pipeline IA está ligado, o card ganha etiquetas pequenas preenchidas sozinhas:
+
+| Chip | Significa |
+|---|---|
+| 🟢 **Interessado** / 🟡 **Negociação** / 🔴 **Desqualif.** | Qualificação dada pela IA |
+| 💰 **Pago** | Comprovante de pagamento validado pela visão |
+| 🧾 **Comprovante** | Imagem chegou mas IA não validou — pede revisão humana |
+| 📅 **Data: dd/mm** | IA encontrou data de agendamento na conversa |
+| ⏳ **IA na fila** | Lead aguardando próximo ciclo de extração |
+| 🔒 **Lock manual** | Humano respondeu há pouco — IA pausada nesse lead |
+| 🏷️ **EMT** / **EMDR** / **Cetamina** … | Procedimento que disparou interesse |
+
+Detalhes de cada chip e como configurar: `journeys/usar-pipeline-ia.md`.
 
 - Menu **⋮** no canto: **Mover para coluna →** (submenu de etapas) · **Mover para outro funil**.
 - **Clique no card** abre o **LeadDrawer** (painel lateral).
