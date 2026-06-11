@@ -4499,6 +4499,67 @@ export type Database = {
           },
         ]
       }
+      pipeline_field_rules: {
+        Row: {
+          clinic_id: string
+          conditions: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          pipeline_id: string
+          priority: number
+          target_stage_id: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id?: string
+          conditions?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          pipeline_id: string
+          priority?: number
+          target_stage_id: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          conditions?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          pipeline_id?: string
+          priority?: number
+          target_stage_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_field_rules_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_field_rules_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_field_rules_target_stage_id_fkey"
+            columns: ["target_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_stages: {
         Row: {
           clinic_id: string
