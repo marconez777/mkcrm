@@ -6484,41 +6484,6 @@ export type Database = {
           },
         ]
       }
-      clinic_openai_status: {
-        Row: {
-          clinic_id: string | null
-          openai_key_last4: string | null
-          openai_last_checked_at: string | null
-          openai_last_error: string | null
-          openai_status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          clinic_id?: string | null
-          openai_key_last4?: string | null
-          openai_last_checked_at?: string | null
-          openai_last_error?: string | null
-          openai_status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          clinic_id?: string | null
-          openai_key_last4?: string | null
-          openai_last_checked_at?: string | null
-          openai_last_error?: string | null
-          openai_status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "clinic_secrets_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: true
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       email_system_health: {
         Row: {
           active_alerts: number | null
@@ -6899,6 +6864,17 @@ export type Database = {
           content: string
           published_at: string
           version: number
+        }[]
+      }
+      get_clinic_openai_status: {
+        Args: { _clinic_id: string }
+        Returns: {
+          clinic_id: string
+          openai_key_last4: string
+          openai_last_checked_at: string
+          openai_last_error: string
+          openai_status: string
+          updated_at: string
         }[]
       }
       get_invite_by_token: {
