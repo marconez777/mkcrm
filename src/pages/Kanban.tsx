@@ -41,6 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import LeadDrawer from "./LeadDrawer";
 import MoveLeadDialog from "@/components/kanban/MoveLeadDialog";
+import MoveColumnLeadsDialog from "@/components/kanban/MoveColumnLeadsDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
