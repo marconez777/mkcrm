@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload, Sparkles, Mail, Globe } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap, QrCode, Smartphone, Wifi, WifiOff, RefreshCw, Star, MoreVertical, Upload, Mail, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -27,7 +27,7 @@ type Instance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
-  watcher_agent_id: string | null;
+  
   last_inbound_webhook_at: string | null;
   last_auto_restart_at: string | null;
   last_reconnect_at: string | null;
@@ -37,7 +37,7 @@ type Instance = {
   last_auto_logout_at: string | null;
 };
 
-type AgentLite = { id: string; name: string };
+
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin, hasFeature } = useAuth();
@@ -55,15 +55,15 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [healingId, setHealingId] = useState<string | null>(null);
-  const [runningClassifier, setRunningClassifier] = useState(false);
+  
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
-  const [agents, setAgents] = useState<AgentLite[]>([]);
+  
 
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -72,33 +72,8 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
     supabase.from("pipelines").select("id", { count: "exact", head: true }).then(({ count }) => setPipelinesCount(count ?? 0));
-    supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name")
-      .then(({ data }) => setAgents((data as AgentLite[]) ?? []));
   }, []);
 
-  async function setWatcher(instanceId: string, agentId: string | null) {
-    const { error } = await supabase
-      .from("whatsapp_instances")
-      .update({ watcher_agent_id: agentId })
-      .eq("id", instanceId);
-    if (error) { toast.error(error.message); return; }
-    toast.success(agentId ? "Vigia atualizado" : "Vigia removido");
-    setInstances((prev) => prev.map((i) => i.id === instanceId ? { ...i, watcher_agent_id: agentId } : i));
-  }
-
-  async function runClassifierNow() {
-    setRunningClassifier(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("classifier-daily-batch", { body: {} });
-      if (error) throw error;
-      const queued = (data as any)?.totalQueued ?? (data as any)?.total_queued ?? 0;
-      toast.success(`Classificador disparado · ${queued} lead(s) enfileirado(s)`);
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao rodar classificador");
-    } finally {
-      setRunningClassifier(false);
-    }
-  }
 
   async function createInstance() {
     if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
@@ -210,15 +185,9 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
                 </div>
                 {canManage && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={runClassifierNow} disabled={runningClassifier}>
-                      {runningClassifier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Rodar classificador agora
-                    </Button>
-                    <Button size="sm" onClick={() => setNewOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
-                    </Button>
-                  </div>
+                  <Button size="sm" onClick={() => setNewOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                  </Button>
                 )}
               </div>
 
@@ -327,26 +296,6 @@ export default function SettingsPage() {
                           </DropdownMenu>
                         )}
                       </div>
-                      {canManage && (
-                        <div className="flex items-center gap-2 pl-12">
-                          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Vigia de IA:</span>
-                          <Select
-                            value={inst.watcher_agent_id ?? "__none__"}
-                            onValueChange={(v) => setWatcher(inst.id, v === "__none__" ? null : v)}
-                          >
-                            <SelectTrigger className="h-7 w-[260px] text-xs">
-                              <SelectValue placeholder="Sem vigia" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">Sem vigia</SelectItem>
-                              {agents.map((a) => (
-                                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
