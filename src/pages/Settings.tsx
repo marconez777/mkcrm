@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
+import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Instance = {
@@ -175,6 +176,7 @@ export default function SettingsPage() {
             <TabsTrigger value="forms">Integração do Site</TabsTrigger>
             {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
             {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
+            {!isProfessional && <TabsTrigger value="ai-pipeline">IA do Pipeline</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="connection" className="space-y-4">
@@ -368,6 +370,25 @@ export default function SettingsPage() {
                     <Upload className="mr-2 h-4 w-4" /> Importar pipeline
                   </Button>
                 </div>
+              </Card>
+            </TabsContent>
+          )}
+
+          {!isProfessional && (
+            <TabsContent value="ai-pipeline" className="space-y-6">
+              {membership?.clinic_id ? (
+                <OpenAIKeyCard
+                  clinicId={membership.clinic_id}
+                  canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
+                />
+              ) : (
+                <Card className="p-6 text-sm text-muted-foreground">
+                  Você precisa pertencer a uma clínica para configurar a IA do pipeline.
+                </Card>
+              )}
+              <Card className="p-6 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Próximas configurações (em breve)</p>
+                <p>Limites do extrator, visão, Whisper, palavras-chave e histórico de custos serão liberados nas próximas fases do roadmap.</p>
               </Card>
             </TabsContent>
           )}

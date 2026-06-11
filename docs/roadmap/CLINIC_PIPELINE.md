@@ -16,8 +16,10 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **aprovado**. Próximo passo: executar **F0** (migrations + UI da chave OpenAI).
-> Antes de F0, este documento é a única coisa que muda no repo.
+> Status: **F0 entregue (parcial)**. Próximo passo: F1 (trigger SQL + 4 automações rule-based).
+> F0 entregou: migrations (colunas + `clinic_secrets` + `lead_ai_extraction_runs` + `get_openai_key`/`get_clinic_openai_status`), edge function `clinic-openai-key` (status/set/test/clear) e aba "IA do Pipeline" em `/settings` com card de chave OpenAI BYOK.
+>
+> **Nota de implementação**: pgsodium foi deprecado pelo Supabase. F0 usa o padrão atual recomendado para BYOK: tabela `clinic_secrets` sem GRANTs para `anon`/`authenticated` (apenas `service_role`), chave em coluna `text`, leitura via função SECURITY DEFINER `public.get_openai_key(clinic_id)` e edge function que valida com a OpenAI antes de persistir. Disco do Supabase é criptografado at-rest. Migração futura para Vault possível sem mudança de API.
 
 ## 1. Visão geral
 

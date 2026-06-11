@@ -1795,6 +1795,47 @@ export type Database = {
           },
         ]
       }
+      clinic_secrets: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          openai_api_key: string | null
+          openai_key_last4: string | null
+          openai_last_checked_at: string | null
+          openai_last_error: string | null
+          openai_status: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          openai_api_key?: string | null
+          openai_key_last4?: string | null
+          openai_last_checked_at?: string | null
+          openai_last_error?: string | null
+          openai_status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          openai_api_key?: string | null
+          openai_key_last4?: string | null
+          openai_last_checked_at?: string | null
+          openai_last_error?: string | null
+          openai_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_secrets_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_subscriptions: {
         Row: {
           cancel_at: string | null
@@ -1875,6 +1916,7 @@ export type Database = {
       }
       clinics: {
         Row: {
+          classifier_config: Json
           created_at: string
           id: string
           name: string
@@ -1886,6 +1928,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          classifier_config?: Json
           created_at?: string
           id?: string
           name: string
@@ -1897,6 +1940,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          classifier_config?: Json
           created_at?: string
           id?: string
           name?: string
@@ -3401,6 +3445,79 @@ export type Database = {
           },
         ]
       }
+      lead_ai_extraction_runs: {
+        Row: {
+          clinic_id: string
+          confidence: number | null
+          cost_usd: number
+          created_at: string
+          error: string | null
+          fields_set: Json
+          id: string
+          kind: Database["public"]["Enums"]["lead_ai_extraction_kind"]
+          lead_id: string
+          message_id: string | null
+          model: string | null
+          skipped_reason: string | null
+          tokens_in: number
+          tokens_out: number
+        }
+        Insert: {
+          clinic_id: string
+          confidence?: number | null
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          fields_set?: Json
+          id?: string
+          kind: Database["public"]["Enums"]["lead_ai_extraction_kind"]
+          lead_id: string
+          message_id?: string | null
+          model?: string | null
+          skipped_reason?: string | null
+          tokens_in?: number
+          tokens_out?: number
+        }
+        Update: {
+          clinic_id?: string
+          confidence?: number | null
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          fields_set?: Json
+          id?: string
+          kind?: Database["public"]["Enums"]["lead_ai_extraction_kind"]
+          lead_id?: string
+          message_id?: string | null
+          model?: string | null
+          skipped_reason?: string | null
+          tokens_in?: number
+          tokens_out?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ai_extraction_runs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_extraction_runs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_extraction_runs_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
@@ -3627,6 +3744,7 @@ export type Database = {
           moved_at: string
           moved_by_agent_id: string | null
           moved_by_user_id: string | null
+          reason: string | null
           to_stage_id: string | null
         }
         Insert: {
@@ -3637,6 +3755,7 @@ export type Database = {
           moved_at?: string
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
+          reason?: string | null
           to_stage_id?: string | null
         }
         Update: {
@@ -3647,6 +3766,7 @@ export type Database = {
           moved_at?: string
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
+          reason?: string | null
           to_stage_id?: string | null
         }
         Relationships: [
@@ -3784,6 +3904,8 @@ export type Database = {
       }
       leads: {
         Row: {
+          ai_review_queued_at: string | null
+          ai_review_reasons: string[]
           ai_summary: string | null
           ai_summary_at: string | null
           archived_at: string | null
@@ -3804,8 +3926,10 @@ export type Database = {
           last_message_at: string | null
           last_message_preview: string | null
           last_site_activity_at: string | null
+          manual_lock_until: string | null
           marked_unread: boolean
           name: string | null
+          needs_ai_review: boolean
           notes: string | null
           phone: string
           pinned_at: string | null
@@ -3822,6 +3946,8 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
+          ai_review_queued_at?: string | null
+          ai_review_reasons?: string[]
           ai_summary?: string | null
           ai_summary_at?: string | null
           archived_at?: string | null
@@ -3842,8 +3968,10 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           last_site_activity_at?: string | null
+          manual_lock_until?: string | null
           marked_unread?: boolean
           name?: string | null
+          needs_ai_review?: boolean
           notes?: string | null
           phone: string
           pinned_at?: string | null
@@ -3860,6 +3988,8 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Update: {
+          ai_review_queued_at?: string | null
+          ai_review_reasons?: string[]
           ai_summary?: string | null
           ai_summary_at?: string | null
           archived_at?: string | null
@@ -3880,8 +4010,10 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           last_site_activity_at?: string | null
+          manual_lock_until?: string | null
           marked_unread?: boolean
           name?: string | null
+          needs_ai_review?: boolean
           notes?: string | null
           phone?: string
           pinned_at?: string | null
@@ -4172,16 +4304,22 @@ export type Database = {
           external_id: string | null
           from_me: boolean
           id: string
+          is_automated: boolean
           last_error: string | null
           lead_id: string
           media_mime: string | null
           media_url: string | null
           message_type: string
+          needs_audio_transcription: boolean
           raw: Json | null
           reply_to_external_id: string | null
           retry_count: number
           status: string
           timestamp: string
+          transcript: string | null
+          transcript_cost_usd: number | null
+          transcript_status: string | null
+          vision_processed: boolean
         }
         Insert: {
           bot_agent_id?: string | null
@@ -4193,16 +4331,22 @@ export type Database = {
           external_id?: string | null
           from_me?: boolean
           id?: string
+          is_automated?: boolean
           last_error?: string | null
           lead_id: string
           media_mime?: string | null
           media_url?: string | null
           message_type?: string
+          needs_audio_transcription?: boolean
           raw?: Json | null
           reply_to_external_id?: string | null
           retry_count?: number
           status?: string
           timestamp?: string
+          transcript?: string | null
+          transcript_cost_usd?: number | null
+          transcript_status?: string | null
+          vision_processed?: boolean
         }
         Update: {
           bot_agent_id?: string | null
@@ -4214,16 +4358,22 @@ export type Database = {
           external_id?: string | null
           from_me?: boolean
           id?: string
+          is_automated?: boolean
           last_error?: string | null
           lead_id?: string
           media_mime?: string | null
           media_url?: string | null
           message_type?: string
+          needs_audio_transcription?: boolean
           raw?: Json | null
           reply_to_external_id?: string | null
           retry_count?: number
           status?: string
           timestamp?: string
+          transcript?: string | null
+          transcript_cost_usd?: number | null
+          transcript_status?: string | null
+          vision_processed?: boolean
         }
         Relationships: [
           {
@@ -6716,6 +6866,17 @@ export type Database = {
           version: number
         }[]
       }
+      get_clinic_openai_status: {
+        Args: { _clinic_id: string }
+        Returns: {
+          clinic_id: string
+          openai_key_last4: string
+          openai_last_checked_at: string
+          openai_last_error: string
+          openai_status: string
+          updated_at: string
+        }[]
+      }
       get_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -6727,6 +6888,7 @@ export type Database = {
           role: Database["public"]["Enums"]["clinic_role"]
         }[]
       }
+      get_openai_key: { Args: { _clinic_id: string }; Returns: string }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
@@ -6915,6 +7077,7 @@ export type Database = {
     Enums: {
       app_role: "super_admin"
       clinic_role: "owner" | "admin" | "professional" | "viewer"
+      lead_ai_extraction_kind: "text" | "vision" | "audio" | "skipped"
       professional_type:
         | "psiquiatra"
         | "psicologo"
@@ -7050,6 +7213,7 @@ export const Constants = {
     Enums: {
       app_role: ["super_admin"],
       clinic_role: ["owner", "admin", "professional", "viewer"],
+      lead_ai_extraction_kind: ["text", "vision", "audio", "skipped"],
       professional_type: [
         "psiquiatra",
         "psicologo",
