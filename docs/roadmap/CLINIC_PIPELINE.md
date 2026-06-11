@@ -16,11 +16,12 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F1 entregue**. Próximo passo: F2 (`extractor-tick` + UI completa + histórico/custos).
+> Status: **F2 entregue**. Próximo passo: F3 (vision-tick para comprovantes).
 >
 > Entregue até aqui:
 > - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
-> - **F1** — trigger `trg_lead_needs_extraction` (BEFORE INSERT em `messages`) que aplica regex PT-BR em mensagens inbound: detecta procedimento (cetamina, EMT, primeira consulta, retorno, seguimento, terapia), interesse, pagamento, agendamento e EMDR (procedimento não atendido → marca `qualificacao=desqualificado`). Preenche `leads.custom_fields` somente quando vazio e respeita `manual_lock_until`. Marca `needs_audio_transcription=true` em áudios e marca `needs_ai_review=true` pra IA (F2+). Cada execução grava `lead_events.type='ai_review_queued'` com `reasons[]` e `message_id` (auditável). Índices parciais `idx_messages_audio_pending` e `idx_messages_vision_pending` pra próximas fases.
+> - **F1** — trigger `trg_lead_needs_extraction` (BEFORE INSERT em `messages`) com regex PT-BR (procedimento, interesse, pagamento, agendamento, EMDR). Audit em `lead_events`.
+> - **F2** — edge function `extractor-tick` (cron `*/10 * * * *`) que lê leads enfileirados, chama `gpt-5-nano` com BYOK via function-calling (tool `extract_lead_fields`), respeita `manual_lock_until` e `allow_overwrite_filled`, aplica limites (`max_messages_per_extraction`, `max_extractions_per_lead_per_day`, `daily_budget_extractions`), registra cada execução em `lead_ai_extraction_runs` com tokens+custo (via `calcCostUsd`) e dispara `lead_events.type='ai_fields_extracted'`. UI: card "Histórico & custos" na aba IA do Pipeline com agregados (execuções, custo total, ignorados, erros), tabela diária e log das últimas 100 execuções + botão "Rodar agora".
 >
 > **Nota de implementação**: pgsodium foi deprecado pelo Supabase. F0 usa o padrão atual recomendado para BYOK: tabela `clinic_secrets` sem GRANTs para `anon`/`authenticated` (apenas `service_role`), chave em coluna `text`, leitura via função SECURITY DEFINER `public.get_openai_key(clinic_id)` e edge function que valida com a OpenAI antes de persistir. Disco do Supabase é criptografado at-rest. Migração futura para Vault possível sem mudança de API.
 
