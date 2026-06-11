@@ -36,12 +36,16 @@ const FIELD_LABELS: Record<string, string> = {
   consulta_agendada_em: "Consulta",
   nome_preferido: "Apelido",
   observacoes: "Obs.",
+  ultimo_comprovante: "Comprovante",
 };
+
 
 export default function ExtractorHistoryCard({ clinicId }: Props) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runningVision, setRunningVision] = useState(false);
+
 
   async function load() {
     setLoading(true);
@@ -68,7 +72,7 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
       if (error) throw new Error(error.message);
       const r = (data as any)?.results?.[0];
       if (r?.error) toast.error(`Falhou: ${r.error}`);
-      else toast.success(`Processados: ${r?.processed ?? 0} · Ignorados: ${r?.skipped ?? 0}`);
+      else toast.success(`Texto · Processados: ${r?.processed ?? 0} · Ignorados: ${r?.skipped ?? 0}`);
       await load();
     } catch (e: any) {
       toast.error(e.message ?? "Erro ao rodar");
@@ -76,6 +80,25 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
       setRunning(false);
     }
   }
+
+  async function runVisionNow() {
+    setRunningVision(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("vision-tick", {
+        body: { clinic_id: clinicId },
+      });
+      if (error) throw new Error(error.message);
+      const r = (data as any)?.results?.[0];
+      if (r?.error) toast.error(`Visão falhou: ${r.error}`);
+      else toast.success(`Visão · Processados: ${r?.processed ?? 0} · Ignorados: ${r?.skipped ?? 0}`);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao rodar visão");
+    } finally {
+      setRunningVision(false);
+    }
+  }
+
 
   // Agregação por dia
   const byDay: Record<string, DailyAgg> = {};
@@ -110,7 +133,11 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
           </Button>
           <Button size="sm" onClick={runNow} disabled={running}>
             {running ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
-            Rodar agora
+            Rodar texto
+          </Button>
+          <Button size="sm" variant="secondary" onClick={runVisionNow} disabled={runningVision}>
+            {runningVision ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
+            Rodar visão
           </Button>
         </div>
       </div>
