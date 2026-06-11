@@ -44,6 +44,8 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [runningVision, setRunningVision] = useState(false);
+
 
   async function load() {
     setLoading(true);
