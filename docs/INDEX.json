@@ -2064,7 +2064,7 @@
       "docs/maps/AI.md",
       "docs/MAP.md"
     ],
-    "size_lines": 250,
+    "size_lines": 252,
     "stale_refs": [
       "src/pages/automations/"
     ]
@@ -2519,6 +2519,46 @@
     "code_refs": [],
     "related_docs": [],
     "size_lines": 33,
+    "stale_refs": []
+  },
+  {
+    "path": "docs/support/journeys/usar-pipeline-ia.md",
+    "title": "Manual do Pipeline IA — como usar, monitorar e configurar",
+    "topic": "ai",
+    "kind": "journey",
+    "audience": "both",
+    "updated": "2026-06-11",
+    "summary": "Manual leigo de ponta a ponta do Pipeline IA (extractor, vision, audio, field-rules, crons e budgets) para donos de clínica.",
+    "headings": [
+      "1. O que é o \"Pipeline IA\"?",
+      "2. Os 4 robôs em 1 página",
+      "3. Como ligar (5 minutos)",
+      "4. Limites e orçamento — pra não estourar a fatura",
+      "5. Regras automáticas do Kanban (Field-rules)",
+      "6. Como usar no dia a dia",
+      "7. Como monitorar",
+      "8. Resolução de problemas (FAQ rápido)",
+      "9. Glossário leigo",
+      "10. Checklist de implantação",
+      "Relacionado"
+    ],
+    "code_refs": [
+      "src/pages/Settings.tsx",
+      "src/components/settings/ExtractorHistoryCard.tsx",
+      "src/components/settings/AILimitsCard.tsx",
+      "src/components/settings/FieldRulesCard.tsx",
+      "src/pages/Kanban.tsx",
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/vision-tick/",
+      "supabase/functions/audio-tick/",
+      "supabase/functions/field-rules-tick/"
+    ],
+    "related_docs": [
+      "docs/roadmap/CLINIC_PIPELINE.md",
+      "docs/support/pages/settings.md",
+      "docs/support/pages/kanban.md"
+    ],
+    "size_lines": 287,
     "stale_refs": []
   },
   {
@@ -2977,7 +3017,7 @@
     "kind": "support",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "",
+    "summary": "Detalhes de cada chip e como configurar: `journeys/usar-pipeline-ia.md`.",
     "headings": [
       "Para que serve",
       "Quem acessa",
@@ -2992,7 +3032,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 73,
+    "size_lines": 88,
     "stale_refs": []
   },
   {
@@ -3088,7 +3128,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 90,
+    "size_lines": 93,
     "stale_refs": []
   },
   {

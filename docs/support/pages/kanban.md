@@ -4,6 +4,7 @@ topic: support
 kind: support
 audience: user
 updated: 2026-06-07
+summary: "Detalhes de cada chip e como configurar: `journeys/usar-pipeline-ia.md`."
 ---
 # 🗂️ Kanban — `/`
 

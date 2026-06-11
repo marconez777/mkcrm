@@ -1,10 +1,10 @@
 ---
-title: "Manual do Pipeline IA — como usar, monitorar e configurar"
+title: Manual do Pipeline IA — como usar, monitorar e configurar
 topic: ai
 kind: journey
 audience: both
 updated: 2026-06-11
-summary: "Manual leigo de ponta a ponta do Pipeline IA (extractor, vision, audio, field-rules, crons e budgets) para donos de clínica."
+summary: Manual leigo de ponta a ponta do Pipeline IA (extractor, vision, audio, field-rules, crons e budgets) para donos de clínica.
 code_refs:
   - src/pages/Settings.tsx
   - src/components/settings/ExtractorHistoryCard.tsx
