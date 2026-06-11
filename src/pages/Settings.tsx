@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
+import ExtractorHistoryCard from "@/components/settings/ExtractorHistoryCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Instance = {
@@ -386,9 +387,10 @@ export default function SettingsPage() {
                   Você precisa pertencer a uma clínica para configurar a IA do pipeline.
                 </Card>
               )}
+              {membership?.clinic_id && <ExtractorHistoryCard clinicId={membership.clinic_id} />}
               <Card className="p-6 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Próximas configurações (em breve)</p>
-                <p>Limites do extrator, visão, Whisper, palavras-chave e histórico de custos serão liberados nas próximas fases do roadmap.</p>
+                <p>Limites do extrator, visão, Whisper e palavras-chave serão liberados nas próximas fases do roadmap.</p>
               </Card>
             </TabsContent>
           )}
