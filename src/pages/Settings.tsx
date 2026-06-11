@@ -27,7 +27,7 @@ type Instance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
-  watcher_agent_id: string | null;
+  
   last_inbound_webhook_at: string | null;
   last_auto_restart_at: string | null;
   last_reconnect_at: string | null;
@@ -37,7 +37,7 @@ type Instance = {
   last_auto_logout_at: string | null;
 };
 
-type AgentLite = { id: string; name: string };
+
 
 export default function SettingsPage() {
   const { membership, isSuperAdmin, hasFeature } = useAuth();
@@ -58,12 +58,12 @@ export default function SettingsPage() {
   
   const [importOpen, setImportOpen] = useState(false);
   const [pipelinesCount, setPipelinesCount] = useState(0);
-  const [agents, setAgents] = useState<AgentLite[]>([]);
+  
 
   async function load() {
     const { data } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, watcher_agent_id, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
+      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
       .order("created_at");
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
@@ -72,8 +72,6 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
     supabase.from("pipelines").select("id", { count: "exact", head: true }).then(({ count }) => setPipelinesCount(count ?? 0));
-    supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name")
-      .then(({ data }) => setAgents((data as AgentLite[]) ?? []));
   }, []);
 
 
