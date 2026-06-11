@@ -36,7 +36,9 @@ const FIELD_LABELS: Record<string, string> = {
   consulta_agendada_em: "Consulta",
   nome_preferido: "Apelido",
   observacoes: "Obs.",
+  ultimo_comprovante: "Comprovante",
 };
+
 
 export default function ExtractorHistoryCard({ clinicId }: Props) {
   const [runs, setRuns] = useState<Run[]>([]);
