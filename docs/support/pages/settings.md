@@ -17,11 +17,14 @@ Todos os papéis veem a página, mas algumas abas dependem de papel e plano (ver
 | Aba | Visibilidade |
 |---|---|
 | **WhatsApp** | Sempre |
+| **IA do Pipeline** | Sempre (precisa de chave OpenAI cadastrada para funcionar) |
 | **Campos** | Planos com `custom_fields` |
 | **Respostas rápidas** | Sempre |
 | **Integração do Site** | Sempre |
 | **Email Marketing** | Planos com `email_marketing` |
 | **Importações** | Apenas Admin/Owner |
+
+> 🤖 **IA do Pipeline** — esta aba concentra a chave da OpenAI (BYOK), os limites/budgets dos robôs (Extractor, Vision, Audio), as regras automáticas de Kanban (Field-rules) e o histórico de custos. Manual completo passo a passo em `journeys/usar-pipeline-ia.md`.
 
 ---
 
