@@ -161,6 +161,10 @@ export default function ExtractorHistoryCard({ clinicId }: Props) {
             {runningVision ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
             Rodar visão
           </Button>
+          <Button size="sm" variant="secondary" onClick={runAudioNow} disabled={runningAudio}>
+            {runningAudio ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
+            Rodar áudio
+          </Button>
         </div>
       </div>
 
