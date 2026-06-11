@@ -706,6 +706,7 @@ export default function KanbanPage() {
                         compact={ui.compact}
                         onEdit={editStageCb}
                         onDelete={requestDeleteStage}
+                        onMoveAll={setMovingColumnStage}
                       />
                     ))}
                     {stages.length === 0 && (
