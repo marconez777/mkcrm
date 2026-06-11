@@ -16,8 +16,11 @@ related_docs:
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)
 
-> Status: **F0 entregue (parcial)**. Próximo passo: F1 (trigger SQL + 4 automações rule-based).
-> F0 entregou: migrations (colunas + `clinic_secrets` + `lead_ai_extraction_runs` + `get_openai_key`/`get_clinic_openai_status`), edge function `clinic-openai-key` (status/set/test/clear) e aba "IA do Pipeline" em `/settings` com card de chave OpenAI BYOK.
+> Status: **F1 entregue**. Próximo passo: F2 (`extractor-tick` + UI completa + histórico/custos).
+>
+> Entregue até aqui:
+> - **F0** — migrations base, `clinic_secrets`, `lead_ai_extraction_runs`, funções `get_openai_key` / `get_clinic_openai_status`, edge `clinic-openai-key`, aba "IA do Pipeline" em `/settings`.
+> - **F1** — trigger `trg_lead_needs_extraction` (BEFORE INSERT em `messages`) que aplica regex PT-BR em mensagens inbound: detecta procedimento (cetamina, EMT, primeira consulta, retorno, seguimento, terapia), interesse, pagamento, agendamento e EMDR (procedimento não atendido → marca `qualificacao=desqualificado`). Preenche `leads.custom_fields` somente quando vazio e respeita `manual_lock_until`. Marca `needs_audio_transcription=true` em áudios e marca `needs_ai_review=true` pra IA (F2+). Cada execução grava `lead_events.type='ai_review_queued'` com `reasons[]` e `message_id` (auditável). Índices parciais `idx_messages_audio_pending` e `idx_messages_vision_pending` pra próximas fases.
 >
 > **Nota de implementação**: pgsodium foi deprecado pelo Supabase. F0 usa o padrão atual recomendado para BYOK: tabela `clinic_secrets` sem GRANTs para `anon`/`authenticated` (apenas `service_role`), chave em coluna `text`, leitura via função SECURITY DEFINER `public.get_openai_key(clinic_id)` e edge function que valida com a OpenAI antes de persistir. Disco do Supabase é criptografado at-rest. Migração futura para Vault possível sem mudança de API.
 
