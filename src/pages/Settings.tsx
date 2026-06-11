@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
+import ExtractorHistoryCard from "@/components/settings/ExtractorHistoryCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
 type Instance = {
