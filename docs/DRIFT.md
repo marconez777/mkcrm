@@ -1,11 +1,11 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-09T14:04:35.582Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-11T19:14:13.367Z_
 
-Total de docs: **146** · frontmatter atualizado neste run: **0**
+Total de docs: **147** · frontmatter atualizado neste run: **1**
 
 ## code_refs apontando para arquivo inexistente
-_(nenhum)_
+- `docs/roadmap/CLINIC_PIPELINE.md` → `src/pages/automations/`
 
 ## Rotas em src/App.tsx sem mapa associado (heurística)
 - `/reset-password`
@@ -55,7 +55,6 @@ _(nenhum)_
 - `backfill-resend-events`
 - `broadcast-control`
 - `broadcast-tick`
-- `classifier-daily-batch`
 - `clinic-create-user`
 - `clinic-invite`
 - `cron-expire-manual-grants`

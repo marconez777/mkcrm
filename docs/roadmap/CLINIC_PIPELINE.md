@@ -1,5 +1,5 @@
 ---
-title: "Roadmap — Pipeline Clínica + Agentes IA"
+title: Roadmap — Pipeline Clínica + Agentes IA
 topic: roadmap
 kind: roadmap
 audience: agent

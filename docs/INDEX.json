@@ -2034,6 +2034,42 @@
     "stale_refs": []
   },
   {
+    "path": "docs/roadmap/CLINIC_PIPELINE.md",
+    "title": "Roadmap — Pipeline Clínica + Agentes IA",
+    "topic": "roadmap",
+    "kind": "roadmap",
+    "audience": "agent",
+    "updated": "2026-06-11",
+    "summary": "Roadmap v5 (aprovado) do pipeline da clínica: 2 agentes IA (texto + visão) + Whisper para áudio, BYOK OpenAI por clínica, regras SQL pré-IA para reduzir custo, e desqualificação automática para procedimentos não atendidos (EMDR e similares).",
+    "headings": [
+      "1. Visão geral",
+      "2. Decisões fechadas",
+      "3. Arquitetura",
+      "4. Modelos & custos (OpenAI BYOK)",
+      "5. Database (F0)",
+      "6. Edge functions",
+      "7. Keywords PT-BR (por procedimento)",
+      "8. UI — `/settings/ai-pipeline` (6 abas)",
+      "9. Movimentação por campo (crawl)",
+      "10. Erros & tarefas humanas",
+      "11. Observabilidade",
+      "12. Fragilidades & mitigações"
+    ],
+    "code_refs": [
+      "supabase/functions/",
+      "src/pages/automations/",
+      "src/components/leads/"
+    ],
+    "related_docs": [
+      "docs/maps/AI.md",
+      "docs/MAP.md"
+    ],
+    "size_lines": 236,
+    "stale_refs": [
+      "src/pages/automations/"
+    ]
+  },
+  {
     "path": "docs/roadmap/EMAIL_SCALE.md",
     "title": "Email Marketing — Roadmap de Escala & Performance",
     "topic": "email",
