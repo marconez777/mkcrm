@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { useAttendants } from "@/hooks/useAttendants";
+import { useClinicTeam } from "@/hooks/useClinicTeam";
 import { cn } from "@/lib/utils";
 import {
   TaskBoard, TaskCard as TCard, TaskColumn, TaskChecklistItem,
@@ -184,7 +184,7 @@ export default function Tasks() {
   const [newCol, setNewCol] = useState("");
   const [addingCol, setAddingCol] = useState(false);
 
-  const { attendants } = useAttendants();
+  const { attendants } = useClinicTeam();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   async function reloadBoard(b: TaskBoard) {
