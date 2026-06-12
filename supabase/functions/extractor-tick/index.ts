@@ -507,6 +507,9 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       cfg,
       confidence,
     );
+    // mapping para field_keys reais da clínica (interesse, procedimentos, etc.)
+    const mappedKeys = applyClinicFieldMapping(merged, extracted, fieldDefs);
+    const allSetKeys = Array.from(new Set([...setKeys, ...mappedKeys]));
 
     const tokensIn = r.data?.usage?.prompt_tokens ?? 0;
     const tokensOut = r.data?.usage?.completion_tokens ?? 0;
@@ -522,7 +525,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       tokens_in: tokensIn,
       tokens_out: tokensOut,
       cost_usd: cost,
-      fields_set: setKeys.reduce<Record<string, unknown>>((acc, k) => {
+      fields_set: allSetKeys.reduce<Record<string, unknown>>((acc, k) => {
         acc[k] = merged[k];
         return acc;
       }, {}),
@@ -535,7 +538,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       ai_review_queued_at: null,
       ai_review_reasons: [],
     };
-    if (setKeys.length) update.custom_fields = merged;
+    if (allSetKeys.length) update.custom_fields = merged;
 
     await supabase.from("leads").update(update).eq("id", lead.id);
 
