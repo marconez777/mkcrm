@@ -87,6 +87,29 @@ const EXTRACTION_TOOL = {
           type: ["boolean", "null"],
           description: "True só se o atendente confirmou recebimento do pagamento.",
         },
+        pagamento_valor: {
+          type: ["number", "null"],
+          description: "Valor em R$ (somente número) combinado/pago, se houver.",
+        },
+        teleconsulta: {
+          type: ["boolean", "null"],
+          description: "True se ficou claro que é online/teleconsulta; false se presencial; null se não disse.",
+        },
+        origem: {
+          type: ["string", "null"],
+          enum: [
+            "Google - Orgânico",
+            "Google - Ads",
+            "Youtube",
+            "Redes Sociais",
+            "Indicação de paciente",
+            "Indicação de Médico",
+            "Indicação de Psicóloga",
+            "Indeterminado",
+            null,
+          ],
+          description: "Como o lead chegou à clínica, se mencionado.",
+        },
         tentou_agendar: { type: ["boolean", "null"] },
         consulta_agendada_em: {
           type: ["string", "null"],
@@ -134,28 +157,41 @@ interface OpenAIResp {
   error?: { message?: string };
 }
 
+function modelRejectsTemperature(model: string): boolean {
+  // Reasoning models só aceitam temperature default (1). Lista conservadora.
+  return /^(gpt-5|gpt-4\.1|o[134])/i.test(model);
+}
+
 async function callOpenAI(
   apiKey: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<{ ok: boolean; data?: OpenAIResp; error?: string; status?: number }> {
-  try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  async function doFetch(includeTemperature: boolean) {
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      tools: [EXTRACTION_TOOL],
+      tool_choice: { type: "function", function: { name: "extract_lead_fields" } },
+    };
+    if (includeTemperature) body.temperature = 0.1;
+    return await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: [EXTRACTION_TOOL],
-        tool_choice: { type: "function", function: { name: "extract_lead_fields" } },
-        // Reasoning models (gpt-5*, o1, o3, o4) only aceitam temperature=1 (default).
-        ...(/^(gpt-5|o[134])/i.test(model) ? {} : { temperature: 0.1 }),
-      }),
+      body: JSON.stringify(body),
     });
-    const data = (await r.json()) as OpenAIResp;
+  }
+  try {
+    let r = await doFetch(!modelRejectsTemperature(model));
+    let data = (await r.json()) as OpenAIResp;
+    if (!r.ok && /temperature/i.test(data?.error?.message ?? "")) {
+      // retry sem temperature
+      r = await doFetch(false);
+      data = (await r.json()) as OpenAIResp;
+    }
     if (!r.ok) {
       return { ok: false, status: r.status, error: data?.error?.message ?? `HTTP ${r.status}` };
     }
@@ -215,6 +251,108 @@ function applyFields(
   return { merged, setKeys };
 }
 
+// Mapeia procedimento_interesse (enum interno) para os labels das opções
+// que costumam aparecer nos campos custom da clínica.
+const PROC_TO_INTERESSE_LABEL: Record<string, string[]> = {
+  cetamina: ["Infusão de Cetamina", "Infusão de cetamina"],
+  emt: ["EMT"],
+  primeira_consulta: ["Consulta com psiquiatria", "Primeira Consulta"],
+  retorno: ["Retorno"],
+  seguimento: ["Consulta de seguimento"],
+  terapia: ["Psicoterapia", "Sessão de terapia"],
+};
+const PROC_TO_PROCEDIMENTO_LABEL: Record<string, string[]> = {
+  cetamina: ["Infusão de cetamina"],
+  emt: ["EMT"],
+  primeira_consulta: ["Primeira Consulta"],
+  retorno: ["Retorno"],
+  seguimento: ["Consulta de seguimento"],
+  terapia: ["Sessão de terapia"],
+};
+
+interface CustomFieldDef {
+  field_key: string;
+  field_type: string;
+  label: string;
+  options: string[] | null;
+}
+
+function pickOption(candidates: string[], options: string[] | null): string | null {
+  if (!options || options.length === 0) return candidates[0] ?? null;
+  for (const c of candidates) {
+    const found = options.find((o) => o.toLowerCase() === c.toLowerCase());
+    if (found) return found;
+  }
+  return null;
+}
+
+// Traduz chaves internas extraídas para os field_keys reais da clínica.
+// Só preenche campos vazios (nunca sobrescreve algo já preenchido manualmente).
+function applyClinicFieldMapping(
+  merged: Record<string, unknown>,
+  extracted: Record<string, unknown>,
+  defs: CustomFieldDef[],
+): string[] {
+  const setKeys: string[] = [];
+  const byKey = new Map(defs.map((d) => [d.field_key, d]));
+  const setIfEmpty = (key: string, value: unknown) => {
+    if (value === undefined || value === null || value === "") return;
+    if (!fieldIsEmpty(merged[key])) return;
+    merged[key] = value;
+    setKeys.push(key);
+  };
+
+  const proc = extracted.procedimento_interesse as string | null | undefined;
+
+  // interesse (select)
+  const interesseDef = byKey.get("interesse");
+  if (interesseDef && proc) {
+    const candidates = PROC_TO_INTERESSE_LABEL[proc] ?? [];
+    const opt = pickOption(candidates, interesseDef.options);
+    if (opt) setIfEmpty("interesse", opt);
+  }
+
+  // procedimentos (multiselect)
+  const procDef = byKey.get("procedimentos");
+  if (procDef && proc) {
+    const candidates = PROC_TO_PROCEDIMENTO_LABEL[proc] ?? [];
+    const opt = pickOption(candidates, procDef.options);
+    if (opt && fieldIsEmpty(merged["procedimentos"])) {
+      merged["procedimentos"] = [opt];
+      setKeys.push("procedimentos");
+    }
+  }
+
+  // data_horario (datetime)
+  if (byKey.has("data_horario")) {
+    setIfEmpty("data_horario", extracted.consulta_agendada_em);
+  }
+
+  // teleconsulta (boolean)
+  if (byKey.has("teleconsulta") && typeof extracted.teleconsulta === "boolean") {
+    setIfEmpty("teleconsulta", extracted.teleconsulta);
+  }
+
+  // pagamento (currency)
+  if (byKey.has("pagamento") && typeof extracted.pagamento_valor === "number" && extracted.pagamento_valor > 0) {
+    setIfEmpty("pagamento", extracted.pagamento_valor);
+  }
+
+  // origem (select)
+  const origemDef = byKey.get("origem");
+  if (origemDef && typeof extracted.origem === "string") {
+    const opt = pickOption([extracted.origem], origemDef.options);
+    if (opt) setIfEmpty("origem", opt);
+  }
+
+  // mensagem (textarea) — usa observacoes
+  if (byKey.has("mensagem")) {
+    setIfEmpty("mensagem", extracted.observacoes);
+  }
+
+  return setKeys;
+}
+
 interface LeadRow {
   id: string;
   clinic_id: string;
@@ -226,7 +364,7 @@ interface LeadRow {
   phone: string;
 }
 
-async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[]) {
+async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
   const supabase = sb();
 
   // 1) carrega a chave
@@ -248,14 +386,22 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
     return { clinic_id: clinicId, processed: 0, skipped: 0, error: "daily_budget_exhausted" };
   }
 
+  // 2.1) defs de custom fields da clínica (pra mapear chaves IA -> chaves visíveis)
+  const { data: fieldDefsRaw } = await supabase
+    .from("lead_custom_fields")
+    .select("field_key, field_type, label, options")
+    .eq("clinic_id", clinicId);
+  const fieldDefs = (fieldDefsRaw ?? []) as CustomFieldDef[];
+
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
     .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone")
     .eq("clinic_id", clinicId)
-    .eq("needs_ai_review", true)
-    .order("ai_review_queued_at", { ascending: true })
+    .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
+  // Em runs forçadas com lead_ids explícitos, ignora a flag needs_ai_review
+  if (!(force && leadIds?.length)) leadsQ.eq("needs_ai_review", true);
   if (leadIds?.length) leadsQ.in("id", leadIds);
 
   const { data: leads, error: leadsErr } = await leadsQ;
@@ -361,6 +507,9 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       cfg,
       confidence,
     );
+    // mapping para field_keys reais da clínica (interesse, procedimentos, etc.)
+    const mappedKeys = applyClinicFieldMapping(merged, extracted, fieldDefs);
+    const allSetKeys = Array.from(new Set([...setKeys, ...mappedKeys]));
 
     const tokensIn = r.data?.usage?.prompt_tokens ?? 0;
     const tokensOut = r.data?.usage?.completion_tokens ?? 0;
@@ -376,7 +525,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       tokens_in: tokensIn,
       tokens_out: tokensOut,
       cost_usd: cost,
-      fields_set: setKeys.reduce<Record<string, unknown>>((acc, k) => {
+      fields_set: allSetKeys.reduce<Record<string, unknown>>((acc, k) => {
         acc[k] = merged[k];
         return acc;
       }, {}),
@@ -389,18 +538,18 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       ai_review_queued_at: null,
       ai_review_reasons: [],
     };
-    if (setKeys.length) update.custom_fields = merged;
+    if (allSetKeys.length) update.custom_fields = merged;
 
     await supabase.from("leads").update(update).eq("id", lead.id);
 
     // evento auditável
-    if (setKeys.length) {
+    if (allSetKeys.length) {
       await supabase.from("lead_events").insert({
         clinic_id: lead.clinic_id,
         lead_id: lead.id,
         type: "ai_fields_extracted",
         payload: {
-          fields: setKeys,
+          fields: allSetKeys,
           confidence,
           model: cfg.openai_model_text,
           message_id: lastMessageId,
@@ -448,7 +597,7 @@ Deno.serve(async (req) => {
       // status no clinics.classifier_config pode estar dessincronizado, mas
       // confiamos no secrets.openai_status acima
     }
-    const r = await processClinic(s.clinic_id, cfg, body.lead_ids);
+    const r = await processClinic(s.clinic_id, cfg, body.lead_ids, body.force);
     results.push(r);
   }
 

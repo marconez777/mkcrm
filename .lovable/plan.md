@@ -1,99 +1,67 @@
-## O que muda
+## O que encontrei
 
-Já inseri direto no banco as 6 regras para a clínica OR no pipeline "Agendamentos Novo":
+A IA não está preenchendo os campos por dois motivos principais:
 
-| Prioridade | Quando | Move para |
-|---|---|---|
-| 100 | `pagamento_confirmado = true` | Procedimento pago |
-| 90 | `consulta_agendada_em` preenchido | Consulta Agendada |
-| 80 | `tentou_agendar = true` | Fechamento pendente consulta |
-| 70 | `tentou_pagamento = true` | Fechamento pendente procedimento |
-| 60 | `qualificacao = desqualificado` | Lead não qualificado |
-| 50 | `qualificacao ∈ {interessado, em_negociacao}` | Qualificação |
+1. **A chamada do extrator está falhando no modelo atual**
+   - O `extractor-tick` está usando `gpt-5-nano`.
+   - O código ainda envia `temperature: 0.1` para esse modelo em alguns casos.
+   - Os logs da tabela `lead_ai_extraction_runs` mostram o erro repetido:
+     - `Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported.`
+   - Exemplo: o lead **EDUARDO** teve várias execuções sem preencher nada por causa disso.
 
-Falta criar o **agente de sugestão** e expor isso na UI pra qualquer clínica usar com 1 clique.
+2. **Os campos que a IA grava não batem com os campos que a tela espera**
+   - A função grava chaves como:
+     - `procedimento_interesse`
+     - `qualificacao`
+     - `tentou_pagamento`
+     - `consulta_agendada_em`
+   - Mas a clínica OR configurou no cadastro campos como:
+     - `interesse`
+     - `procedimentos`
+     - `data_horario`
+     - `teleconsulta`
+     - `link_consulta`
+     - `pagamento`
+     - `origem`
+     - `mensagem`
+     - `enviar_dia`
+   - Ou seja: mesmo quando a IA extrai algo útil, **ela pode salvar em chaves diferentes das que aparecem no drawer**.
 
----
+## Plano
 
-## 1. Edge function `field-rules-suggest`
+1. **Corrigir a chamada do modelo no `extractor-tick`**
+   - Ajustar a lógica para nunca enviar parâmetros incompatíveis com `gpt-5-nano`.
+   - Validar a resposta antes de salvar para evitar runs “vazios” com falso sucesso.
 
-`supabase/functions/field-rules-suggest/index.ts`
+2. **Mapear a extração para os campos reais da clínica**
+   - Fazer o extrator ler a definição dos `lead_custom_fields` da clínica.
+   - Traduzir a saída da IA para as chaves reais configuradas, em vez de depender só de chaves fixas internas.
+   - Exemplo:
+     - `procedimento_interesse` -> `interesse` / `procedimentos`
+     - `consulta_agendada_em` -> `data_horario`
+     - valor identificado -> `pagamento`
+     - resumo relevante -> `mensagem`
 
-Recebe `{ clinic_id, pipeline_id }` e devolve uma lista de regras sugeridas (sem persistir — o usuário decide quais importar).
+3. **Manter compatibilidade com as automações já criadas**
+   - Preservar os campos internos usados nas regras do pipeline, quando necessário.
+   - Salvar também nos campos visíveis da clínica para a operação enxergar os dados no card e no drawer.
 
-Pipeline interno:
-
-1. **Coleta contexto** (em paralelo):
-   - Pipeline + nome
-   - Stages do pipeline (`id`, `name`, `position`)
-   - Regras já existentes (pra não duplicar)
-   - Amostra dos 80 leads mais recentes da clínica → extrai quais chaves de `custom_fields` realmente aparecem, tipos e exemplos de valores
-2. **Monta prompt** com: lista de colunas, regras existentes, dicionário `available_fields = [{name, type, samples, occurrences}]`
-3. **Chama Lovable AI Gateway** (`google/gemini-3-flash-preview`) com `tool_choice` forçado pra uma function `suggest_rules` cujo schema garante:
-   - `target_stage_id` é um dos UUIDs reais
-   - `conditions[]` usa só operadores válidos (`equals`, `is_true`, `not_empty`, `in`, etc.)
-   - Cada `field` é um dos campos descobertos no passo 1 (sem inventar)
-4. **Sanitiza** a resposta: descarta regras com `stage_id` inválido, condição vazia, operador desconhecido ou campo inexistente
-5. Retorna `{ suggestions, stages, used_fields }`
-
-Erros tratados explicitamente: 401 (sem key), 402 (créditos), 429 (rate limit), parsing inválido.
-
-Segurança: exige JWT via `requireUser`; service-role tokens também aceitos.
-
-## 2. UI no `FieldRulesCard.tsx`
-
-Adicionar botão **"Sugerir com IA"** ao lado de "Rodar agora", visível quando há um pipeline selecionado no formulário (ou sempre, com pipeline picker no diálogo).
-
-Fluxo:
-
-1. Clique abre `SuggestRulesDialog` (novo arquivo `src/components/settings/SuggestRulesDialog.tsx`)
-2. Dialog mostra loader e chama `supabase.functions.invoke("field-rules-suggest", { body: { clinic_id, pipeline_id } })`
-3. Renderiza cada sugestão como um card com:
-   - Checkbox (selecionar)
-   - Nome + prioridade
-   - "→ Coluna alvo"
-   - Pré-visualização das condições (mesma `<pre>` que já existe no card)
-   - **rationale** em itálico (por que o agente sugere)
-4. Botões "Selecionar todas" / "Limpar" no topo
-5. "Importar selecionadas (N)" no footer → `INSERT` em batch em `pipeline_field_rules`, depois `load()` no card pai
-6. Erros do gateway viram toast com mensagem amigável (créditos esgotados → orientar adicionar saldo)
-
-## 3. Onde aparece
-
-`FieldRulesCard` já é renderizado em `src/pages/Settings.tsx` (aba de configurações da clínica). Sem rotas novas.
+4. **Rodar um reprocessamento dos leads afetados**
+   - Reexecutar a IA nos leads recentes da clínica OR para preencher os campos que ficaram vazios por erro anterior.
+   - Confirmar no banco e na interface que os valores passaram a aparecer.
 
 ## Detalhes técnicos
 
-- A função roda em qualquer clínica: a UI passa o `clinicId` que o card já recebe via prop.
-- O agente é stateless — cada clique pode gerar um conjunto ligeiramente diferente. Útil quando o pipeline muda.
-- Custo: 1 chamada Gemini Flash por clique (~$0.0005). Sem cron — só on-demand.
-- Não mexe em nada existente do `field-rules-tick`; só facilita popular a tabela que ele lê.
-- Validação dupla: o schema da tool já restringe, mas o servidor re-valida `field` ∈ `available_fields` e `stage_id` ∈ stages reais antes de devolver.
+- Arquivo principal envolvido: `supabase/functions/extractor-tick/index.ts`
+- UI dos campos: `src/components/inbox/CustomFieldsPanel.tsx`
+- Drawer de detalhes: `src/components/inbox/ContextRail.tsx`
+- Evidência no banco:
+  - `lead_ai_extraction_runs.error` com erro de `temperature`
+  - `lead_custom_fields` da clínica usando chaves diferentes das gravadas pelo extrator
 
-```text
-[User clica "Sugerir com IA"]
-         │
-         ▼
-[Dialog abre] ──► invoke("field-rules-suggest")
-                          │
-                          ▼
-                  ┌──────────────────┐
-                  │ Edge Function    │
-                  │ 1. lê contexto   │
-                  │ 2. monta prompt  │
-                  │ 3. Lovable AI    │
-                  │ 4. sanitiza      │
-                  └────────┬─────────┘
-                           ▼
-              [Dialog mostra N sugestões]
-                           │
-              [User marca + Importar]
-                           ▼
-                INSERT em pipeline_field_rules
-                           │
-                           ▼
-                 field-rules-tick (cron 2min)
-                 move os cards retroativamente
-```
+## Resultado esperado
 
-Quer aprovar e eu já implemento?
+Depois da correção:
+- a IA volta a executar sem erro,
+- os campos do drawer passam a ser preenchidos com as chaves certas,
+- e os leads antigos podem ser reprocessados para recuperar os dados faltantes.
