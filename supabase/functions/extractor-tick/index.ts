@@ -151,7 +151,8 @@ async function callOpenAI(
         messages,
         tools: [EXTRACTION_TOOL],
         tool_choice: { type: "function", function: { name: "extract_lead_fields" } },
-        temperature: 0.1,
+        // Reasoning models (gpt-5*, o1, o3, o4) only aceitam temperature=1 (default).
+        ...(/^(gpt-5|o[134])/i.test(model) ? {} : { temperature: 0.1 }),
       }),
     });
     const data = (await r.json()) as OpenAIResp;
