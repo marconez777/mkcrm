@@ -326,6 +326,7 @@ function Column({
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(stage.name);
+  const [runningAI, setRunningAI] = useState(false);
   useEffect(() => { setNameDraft(stage.name); }, [stage.name]);
   async function commitRename() {
     setRenaming(false);
@@ -333,6 +334,30 @@ function Column({
     if (!v || v === stage.name) { setNameDraft(stage.name); return; }
     const { error } = await supabase.from("pipeline_stages").update({ name: v }).eq("id", stage.id);
     if (error) { toast.error(error.message); setNameDraft(stage.name); }
+  }
+
+  async function runAIOnColumn() {
+    if (runningAI) return;
+    if (leads.length === 0) { toast.info("Coluna sem leads."); return; }
+    const clinicId = leads[0]?.clinic_id;
+    if (!clinicId) { toast.error("Clínica não identificada."); return; }
+    const leadIds = leads.map((l) => l.id);
+    setRunningAI(true);
+    const t = toast.loading(`Rodando IA em ${leadIds.length} lead(s)…`);
+    try {
+      const [ext, rules] = await Promise.all([
+        supabase.functions.invoke("extractor-tick", { body: { clinic_id: clinicId, lead_ids: leadIds, force: true } }),
+        supabase.functions.invoke("field-rules-tick", { body: { clinic_id: clinicId, lead_ids: leadIds } }),
+      ]);
+      if (ext.error) throw ext.error;
+      if (rules.error) throw rules.error;
+      const moved = (rules.data?.results ?? []).reduce((s: number, r: any) => s + (r.moved ?? 0), 0);
+      toast.success(`IA executada. ${moved} card(s) movido(s).`, { id: t });
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao rodar IA", { id: t });
+    } finally {
+      setRunningAI(false);
+    }
   }
 
   const menu = (
@@ -345,6 +370,10 @@ function Column({
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={runningAI} onSelect={(e) => { e.preventDefault(); setTimeout(runAIOnColumn, 0); }}>
+          {runningAI ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-2 h-3.5 w-3.5" />}
+          Rodar IA na coluna
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
           <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
