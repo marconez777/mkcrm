@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, Copy } from "lucide-react";
@@ -392,11 +393,39 @@ function BroadcastEditor({ id }: { id: string }) {
               <p className="text-xs text-muted-foreground mt-1">Recomendado: usar uma instância dedicada (diferente da usada no atendimento) para reduzir risco de banimento.</p>
             </div>
             <div>
-              <Label>Intervalo entre destinatários (minutos) — mínimo 15</Label>
-              <Input type="number" min={15} value={Math.round(bc.throttle_seconds / 60)} onChange={(e) => {
-                const m = Math.max(15, parseInt(e.target.value || "15"));
-                save({ throttle_seconds: m * 60 } as any);
-              }} />
+              {(() => {
+                const testMode = bc.throttle_seconds < 15 * 60;
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Intervalo entre destinatários {testMode ? "(segundos)" : "(minutos) — mínimo 15"}</Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Modo teste</span>
+                        <Switch
+                          checked={testMode}
+                          onCheckedChange={(on) => save({ throttle_seconds: on ? 30 : 15 * 60 } as any)}
+                        />
+                      </div>
+                    </div>
+                    {testMode ? (
+                      <Input type="number" min={5} value={bc.throttle_seconds} onChange={(e) => {
+                        const s = Math.max(5, parseInt(e.target.value || "30"));
+                        save({ throttle_seconds: s } as any);
+                      }} />
+                    ) : (
+                      <Input type="number" min={15} value={Math.round(bc.throttle_seconds / 60)} onChange={(e) => {
+                        const m = Math.max(15, parseInt(e.target.value || "15"));
+                        save({ throttle_seconds: m * 60 } as any);
+                      }} />
+                    )}
+                    {testMode && (
+                      <p className="text-xs mt-2 px-2 py-1 rounded bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30">
+                        ⚠ Modo teste ativo — use apenas para validar o fluxo. Intervalos curtos em produção aumentam o risco de banimento da instância.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
