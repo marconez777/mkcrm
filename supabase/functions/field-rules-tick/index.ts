@@ -102,19 +102,22 @@ async function processClinic(clinicId: string, leadIds?: string[]) {
     rulesByPipeline.set(r.pipeline_id, arr);
   }
 
-  // 2) candidatos: leads atualizados nas últimas 24h, com pipeline que tem regras
+  // 2) candidatos: leads com pipeline que tem regras.
+  //    - cron automático: últimas 24h (limite 500/clínica)
+  //    - rodadas forçadas (lead_ids explícitos): ignora janela de tempo
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const pipelineIds = Array.from(rulesByPipeline.keys());
+  const forced = !!(leadIds && leadIds.length);
 
   const leadsQ = supabase
     .from("leads")
     .select("id, clinic_id, pipeline_id, stage_id, custom_fields, manual_lock_until, updated_at")
     .eq("clinic_id", clinicId)
     .in("pipeline_id", pipelineIds)
-    .gte("updated_at", since)
     .order("updated_at", { ascending: false })
-    .limit(500);
-  if (leadIds?.length) leadsQ.in("id", leadIds);
+    .limit(forced ? Math.max(500, leadIds!.length) : 500);
+  if (!forced) leadsQ.gte("updated_at", since);
+  if (forced) leadsQ.in("id", leadIds!);
 
   const { data: leads, error } = await leadsQ;
   if (error) return { clinic_id: clinicId, error: error.message };
