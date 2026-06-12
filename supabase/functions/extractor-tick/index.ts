@@ -87,6 +87,29 @@ const EXTRACTION_TOOL = {
           type: ["boolean", "null"],
           description: "True só se o atendente confirmou recebimento do pagamento.",
         },
+        pagamento_valor: {
+          type: ["number", "null"],
+          description: "Valor em R$ (somente número) combinado/pago, se houver.",
+        },
+        teleconsulta: {
+          type: ["boolean", "null"],
+          description: "True se ficou claro que é online/teleconsulta; false se presencial; null se não disse.",
+        },
+        origem: {
+          type: ["string", "null"],
+          enum: [
+            "Google - Orgânico",
+            "Google - Ads",
+            "Youtube",
+            "Redes Sociais",
+            "Indicação de paciente",
+            "Indicação de Médico",
+            "Indicação de Psicóloga",
+            "Indeterminado",
+            null,
+          ],
+          description: "Como o lead chegou à clínica, se mencionado.",
+        },
         tentou_agendar: { type: ["boolean", "null"] },
         consulta_agendada_em: {
           type: ["string", "null"],
