@@ -257,7 +257,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 79,
+    "size_lines": 80,
     "stale_refs": []
   },
   {
@@ -2030,7 +2030,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 160,
+    "size_lines": 161,
     "stale_refs": []
   },
   {
@@ -2039,7 +2039,7 @@
     "topic": "roadmap",
     "kind": "roadmap",
     "audience": "agent",
-    "updated": "2026-06-11",
+    "updated": "2026-06-12",
     "summary": "Roadmap v5 (aprovado) do pipeline da clínica: 2 agentes IA (texto + visão) + Whisper para áudio, BYOK OpenAI por clínica, regras SQL pré-IA para reduzir custo, e desqualificação automática para procedimentos não atendidos (EMDR e similares).",
     "headings": [
       "1. Visão geral",
@@ -2056,18 +2056,60 @@
       "12. Fragilidades & mitigações"
     ],
     "code_refs": [
-      "supabase/functions/",
-      "src/pages/automations/",
-      "src/components/leads/"
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/vision-tick/",
+      "supabase/functions/audio-tick/",
+      "supabase/functions/field-rules-tick/",
+      "src/pages/Settings.tsx",
+      "src/pages/Kanban.tsx",
+      "src/components/settings/AILimitsCard.tsx",
+      "src/components/settings/ExtractorHistoryCard.tsx",
+      "src/components/settings/FieldRulesCard.tsx",
+      "src/components/settings/OpenAIKeyCard.tsx"
     ],
     "related_docs": [
-      "docs/maps/AI.md",
-      "docs/MAP.md"
+      "docs/maps/AI_RUNTIME.md",
+      "docs/MAP.md",
+      "docs/roadmap/DOCS_MAINTENANCE.md",
+      "docs/support/journeys/usar-pipeline-ia.md"
     ],
     "size_lines": 252,
-    "stale_refs": [
-      "src/pages/automations/"
-    ]
+    "stale_refs": []
+  },
+  {
+    "path": "docs/roadmap/DOCS_MAINTENANCE.md",
+    "title": "Roadmap — Manutenção da Documentação",
+    "topic": "roadmap",
+    "kind": "roadmap",
+    "audience": "agent",
+    "updated": "2026-06-12",
+    "summary": "Checklist vivo da saúde de docs/: rotina, métricas, backlog priorizado (F-DOC-1..6) para zerar drift de code_refs/rotas/edges e institucionalizar a manutenção.",
+    "headings": [
+      "1. Visão geral do sistema de docs",
+      "2. Princípios",
+      "3. Fluxo \"ao mudar código\"",
+      "4. Rotina semanal",
+      "5. Rotina por release",
+      "6. Backlog priorizado",
+      "7. Definition of Done (copiar pro PR)",
+      "8. Métricas (preencher a cada release)",
+      "9. Glossário rápido"
+    ],
+    "code_refs": [
+      "scripts/docs-sync.mjs",
+      "scripts/gen-support-kb-manifest.mjs",
+      "docs/INDEX.json",
+      "docs/DRIFT.md",
+      "src/pages/admin/AdminDocs.tsx"
+    ],
+    "related_docs": [
+      "docs/README.md",
+      "docs/MAP.md",
+      "docs/conventions/COMMIT_PR.md",
+      "docs/CHANGELOG.md"
+    ],
+    "size_lines": 144,
+    "stale_refs": []
   },
   {
     "path": "docs/roadmap/EMAIL_SCALE.md",
