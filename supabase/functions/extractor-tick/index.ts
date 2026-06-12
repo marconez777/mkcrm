@@ -251,6 +251,108 @@ function applyFields(
   return { merged, setKeys };
 }
 
+// Mapeia procedimento_interesse (enum interno) para os labels das opções
+// que costumam aparecer nos campos custom da clínica.
+const PROC_TO_INTERESSE_LABEL: Record<string, string[]> = {
+  cetamina: ["Infusão de Cetamina", "Infusão de cetamina"],
+  emt: ["EMT"],
+  primeira_consulta: ["Consulta com psiquiatria", "Primeira Consulta"],
+  retorno: ["Retorno"],
+  seguimento: ["Consulta de seguimento"],
+  terapia: ["Psicoterapia", "Sessão de terapia"],
+};
+const PROC_TO_PROCEDIMENTO_LABEL: Record<string, string[]> = {
+  cetamina: ["Infusão de cetamina"],
+  emt: ["EMT"],
+  primeira_consulta: ["Primeira Consulta"],
+  retorno: ["Retorno"],
+  seguimento: ["Consulta de seguimento"],
+  terapia: ["Sessão de terapia"],
+};
+
+interface CustomFieldDef {
+  field_key: string;
+  field_type: string;
+  label: string;
+  options: string[] | null;
+}
+
+function pickOption(candidates: string[], options: string[] | null): string | null {
+  if (!options || options.length === 0) return candidates[0] ?? null;
+  for (const c of candidates) {
+    const found = options.find((o) => o.toLowerCase() === c.toLowerCase());
+    if (found) return found;
+  }
+  return null;
+}
+
+// Traduz chaves internas extraídas para os field_keys reais da clínica.
+// Só preenche campos vazios (nunca sobrescreve algo já preenchido manualmente).
+function applyClinicFieldMapping(
+  merged: Record<string, unknown>,
+  extracted: Record<string, unknown>,
+  defs: CustomFieldDef[],
+): string[] {
+  const setKeys: string[] = [];
+  const byKey = new Map(defs.map((d) => [d.field_key, d]));
+  const setIfEmpty = (key: string, value: unknown) => {
+    if (value === undefined || value === null || value === "") return;
+    if (!fieldIsEmpty(merged[key])) return;
+    merged[key] = value;
+    setKeys.push(key);
+  };
+
+  const proc = extracted.procedimento_interesse as string | null | undefined;
+
+  // interesse (select)
+  const interesseDef = byKey.get("interesse");
+  if (interesseDef && proc) {
+    const candidates = PROC_TO_INTERESSE_LABEL[proc] ?? [];
+    const opt = pickOption(candidates, interesseDef.options);
+    if (opt) setIfEmpty("interesse", opt);
+  }
+
+  // procedimentos (multiselect)
+  const procDef = byKey.get("procedimentos");
+  if (procDef && proc) {
+    const candidates = PROC_TO_PROCEDIMENTO_LABEL[proc] ?? [];
+    const opt = pickOption(candidates, procDef.options);
+    if (opt && fieldIsEmpty(merged["procedimentos"])) {
+      merged["procedimentos"] = [opt];
+      setKeys.push("procedimentos");
+    }
+  }
+
+  // data_horario (datetime)
+  if (byKey.has("data_horario")) {
+    setIfEmpty("data_horario", extracted.consulta_agendada_em);
+  }
+
+  // teleconsulta (boolean)
+  if (byKey.has("teleconsulta") && typeof extracted.teleconsulta === "boolean") {
+    setIfEmpty("teleconsulta", extracted.teleconsulta);
+  }
+
+  // pagamento (currency)
+  if (byKey.has("pagamento") && typeof extracted.pagamento_valor === "number" && extracted.pagamento_valor > 0) {
+    setIfEmpty("pagamento", extracted.pagamento_valor);
+  }
+
+  // origem (select)
+  const origemDef = byKey.get("origem");
+  if (origemDef && typeof extracted.origem === "string") {
+    const opt = pickOption([extracted.origem], origemDef.options);
+    if (opt) setIfEmpty("origem", opt);
+  }
+
+  // mensagem (textarea) — usa observacoes
+  if (byKey.has("mensagem")) {
+    setIfEmpty("mensagem", extracted.observacoes);
+  }
+
+  return setKeys;
+}
+
 interface LeadRow {
   id: string;
   clinic_id: string;
