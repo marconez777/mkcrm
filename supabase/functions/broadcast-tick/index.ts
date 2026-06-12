@@ -147,67 +147,87 @@ Deno.serve(async (req) => {
         stats.processed++;
         const group = groups.find((g: any) => g.position === r.group_position) ?? groups[0];
         const parts = ((group as any).broadcast_message_parts ?? []).sort((a: any, b: any) => a.position - b.position);
-        const partIndex = r.parts_sent;
-        if (partIndex >= parts.length) {
-          // já enviou tudo
+        const startIndex = r.parts_sent;
+        if (startIndex >= parts.length) {
           await supabase.from("broadcast_recipients")
             .update({ status: "sent", sent_at: new Date().toISOString() })
             .eq("id", r.id);
           continue;
         }
-        const part = parts[partIndex];
-        // simples interpolação {{nome}}
-        const content = (part.content as string).replace(/\{\{\s*nome\s*\}\}/gi, r.name ?? "");
 
-        // CLAIM atômico: tenta reservar o destinatário para esse tick.
-        // Se outro tick (cron + triggerTick rodando em paralelo) já reservou, pula.
-        const claimUntil = new Date(Date.now() + 60_000).toISOString();
+        // CLAIM atômico do CONTATO inteiro (reserva tempo para enviar todas as partes restantes).
+        // Se outro tick rodando em paralelo já reservou, pula este recipient.
+        const partsRemaining = parts.length - startIndex;
+        const claimMs = partsRemaining * 5_000 + 30_000;
+        const claimUntil = new Date(Date.now() + claimMs).toISOString();
         const { data: claimed } = await supabase
           .from("broadcast_recipients")
           .update({ next_send_at: claimUntil })
           .eq("id", r.id)
-          .eq("parts_sent", partIndex)
+          .eq("parts_sent", startIndex)
           .lte("next_send_at", new Date().toISOString())
           .select("id");
         if (!claimed || claimed.length === 0) {
-          // outro worker pegou esse destinatário — pula
           continue;
         }
 
+        // Loop interno: envia todas as partes restantes do MESMO contato, com 1s entre partes.
+        // Isso elimina a corrida entre triggerTick() e next_send_at e garante a entrega completa.
+        let lastOk = true;
+        let lastErr: string | null = null;
+        let partsSentNow = startIndex;
+        let firstPartJustSent = false;
 
-        let ok = false;
-        let errText: string | null = null;
-        let evoResp: any = null;
-        let evoStatus = 0;
-        try {
-          const resp = await evoFetch(
-            instance,
-            `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
-            { method: "POST", body: JSON.stringify({ number: r.phone, text: content }) },
-          );
-          evoStatus = resp.status;
-          evoResp = await resp.json().catch(() => ({}));
-          if (resp.ok) {
-            // Heurística: Evolution pode retornar 200 mesmo quando o número não existe.
-            // Considera entregue só se vier um id de mensagem (messageId ou key.id).
-            const messageId = evoResp?.key?.id ?? evoResp?.messageId ?? evoResp?.message?.id ?? null;
-            if (messageId) { ok = true; }
-            else { errText = `Evolution 200 sem messageId (numero pode nao existir no WhatsApp): ${JSON.stringify(evoResp).slice(0, 300)}`; }
-          } else {
-            errText = `HTTP ${resp.status}: ${JSON.stringify(evoResp).slice(0, 300)}`;
+        for (let i = startIndex; i < parts.length; i++) {
+          if (i > startIndex) {
+            // drip de 1s entre partes do mesmo grupo
+            await new Promise((res) => setTimeout(res, 1000));
           }
-        } catch (e) { errText = String(e); }
+          const part = parts[i];
+          const content = (part.content as string).replace(/\{\{\s*nome\s*\}\}/gi, r.name ?? "");
 
-        if (ok) {
-          const newPartsSent = partIndex + 1;
-          const allDone = newPartsSent >= parts.length;
-          const jitter = 1 + (Math.random() - 0.5) * 0.2; // ±10%
-          const throttleMs = bc.throttle_seconds * 1000 * jitter;
-          // Partes do mesmo grupo: intervalo fixo de 1s.
-          // Throttle (intervalo entre contatos) só se aplica quando o contato termina TODAS as partes.
-          const nextSendAt = allDone
-            ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
-            : new Date(Date.now() + 1000).toISOString();
+          let ok = false;
+          let errText: string | null = null;
+          let evoResp: any = null;
+          let evoStatus = 0;
+          try {
+            const resp = await evoFetch(
+              instance,
+              `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
+              { method: "POST", body: JSON.stringify({ number: r.phone, text: content }) },
+            );
+            evoStatus = resp.status;
+            evoResp = await resp.json().catch(() => ({}));
+            if (resp.ok) {
+              const messageId = evoResp?.key?.id ?? evoResp?.messageId ?? evoResp?.message?.id ?? null;
+              if (messageId) { ok = true; }
+              else { errText = `Evolution 200 sem messageId (numero pode nao existir no WhatsApp): ${JSON.stringify(evoResp).slice(0, 300)}`; }
+            } else {
+              errText = `HTTP ${resp.status}: ${JSON.stringify(evoResp).slice(0, 300)}`;
+            }
+          } catch (e) { errText = String(e); }
+
+          if (!ok) {
+            lastOk = false;
+            lastErr = errText;
+            await supabase.from("broadcast_recipients").update({
+              status: "failed",
+              parts_sent: partsSentNow,
+              last_error: errText,
+              next_send_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+            }).eq("id", r.id);
+            await supabase.from("broadcast_events").insert({
+              broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
+              type: "failed",
+              payload: { part: i + 1, total: parts.length, error: errText, evolution_status: evoStatus, evolution_response: evoResp },
+            });
+            stats.failed++;
+            break;
+          }
+
+          partsSentNow = i + 1;
+          const allDone = partsSentNow >= parts.length;
+
           // Snapshot da coluna do pipeline ao concluir o envio (para qualificação)
           let stageSnap: { stage_id_at_send: string | null; stage_position_at_send: number | null } = { stage_id_at_send: null, stage_position_at_send: null };
           if (allDone && r.lead_id) {
@@ -217,11 +237,15 @@ Deno.serve(async (req) => {
               if (st) stageSnap = { stage_id_at_send: st.id, stage_position_at_send: st.position };
             }
           }
+
           await supabase.from("broadcast_recipients").update({
             status: allDone ? "sent" : "sending",
-            parts_sent: newPartsSent,
+            parts_sent: partsSentNow,
             sent_at: allDone ? new Date().toISOString() : null,
-            next_send_at: nextSendAt,
+            // mantém o claim até terminar; se allDone, empurra para o futuro distante.
+            next_send_at: allDone
+              ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+              : claimUntil,
             last_error: null,
             ...(allDone ? stageSnap : {}),
           }).eq("id", r.id);
@@ -230,7 +254,7 @@ Deno.serve(async (req) => {
             broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
             type: "sent",
             payload: {
-              part: newPartsSent,
+              part: partsSentNow,
               total: parts.length,
               group: group.position,
               evolution_status: evoStatus,
@@ -238,11 +262,15 @@ Deno.serve(async (req) => {
             },
           });
 
-          const isFirstPart = partIndex === 0;
-          if (isFirstPart || allDone) {
-            // Reserva o intervalo entre contatos: assim que um contato COMEÇA (parte 1)
-            // ou TERMINA, empurra os demais pendentes pelo throttle configurado.
-            // Isso impede que outro contato seja intercalado enquanto este envia suas partes.
+          if (i === startIndex) firstPartJustSent = true;
+        }
+
+        // Throttle entre contatos: aplica quando o contato termina (ou já tinha começado e terminou agora).
+        if (lastOk) {
+          stats.sent++;
+          const jitter = 1 + (Math.random() - 0.5) * 0.2; // ±10%
+          const throttleMs = (bc.throttle_seconds ?? 0) * 1000 * jitter;
+          if (throttleMs > 0) {
             const pushUntil = new Date(Date.now() + throttleMs).toISOString();
             await supabase
               .from("broadcast_recipients")
@@ -253,33 +281,20 @@ Deno.serve(async (req) => {
               .lt("next_send_at", pushUntil);
           }
 
-          if (allDone) {
-            stats.sent++;
-            const { count: sentCount } = await supabase
-              .from("broadcast_recipients")
-              .select("id", { count: "exact", head: true })
-              .eq("broadcast_id", bc.id)
-              .eq("status", "sent");
-            await supabase.from("broadcasts")
-              .update({ totals: { ...(bc.totals ?? {}), sent: sentCount ?? 0 } })
-              .eq("id", bc.id);
-            triggerTick();
-            break;
-          } else {
-            // parte intermediária enviada: dispara novo tick para mandar a próxima parte sem esperar o cron
-            triggerTick();
-          }
-        } else {
-          stats.failed++;
-          await supabase.from("broadcast_recipients").update({
-            status: "failed", last_error: errText,
-          }).eq("id", r.id);
-          await supabase.from("broadcast_events").insert({
-            broadcast_id: bc.id, recipient_id: r.id, clinic_id: bc.clinic_id,
-            type: "failed",
-            payload: { error: errText, evolution_status: evoStatus, evolution_response: evoResp },
-          });
+          const { count: sentCount } = await supabase
+            .from("broadcast_recipients")
+            .select("id", { count: "exact", head: true })
+            .eq("broadcast_id", bc.id)
+            .eq("status", "sent");
+          await supabase.from("broadcasts")
+            .update({ totals: { ...(bc.totals ?? {}), sent: sentCount ?? 0 } })
+            .eq("id", bc.id);
         }
+
+        // Dispara próximo tick para começar o próximo contato sem esperar o cron.
+        triggerTick();
+        // Sai do for (limit=1) — defensivo.
+        break;
       }
     }
 
