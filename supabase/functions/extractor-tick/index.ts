@@ -386,6 +386,13 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
     return { clinic_id: clinicId, processed: 0, skipped: 0, error: "daily_budget_exhausted" };
   }
 
+  // 2.1) defs de custom fields da clínica (pra mapear chaves IA -> chaves visíveis)
+  const { data: fieldDefsRaw } = await supabase
+    .from("lead_custom_fields")
+    .select("field_key, field_type, label, options")
+    .eq("clinic_id", clinicId);
+  const fieldDefs = (fieldDefsRaw ?? []) as CustomFieldDef[];
+
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
