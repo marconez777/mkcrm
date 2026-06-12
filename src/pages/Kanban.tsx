@@ -343,7 +343,6 @@ function Column({
     const { data: row } = await supabase.from("leads").select("clinic_id").eq("id", leadIds[0]).maybeSingle();
     const clinicId = (row as any)?.clinic_id as string | undefined;
     if (!clinicId) { toast.error("Clínica não identificada."); return; }
-    const leadIds = leads.map((l) => l.id);
     setRunningAI(true);
     const t = toast.loading(`Rodando IA em ${leadIds.length} lead(s)…`);
     try {
