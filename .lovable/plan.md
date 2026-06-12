@@ -1,24 +1,99 @@
-# Refinar TabsList em Configurações — Glass Pills com destaque verde
+## O que muda
 
-## Escopo
-Substituir apenas as classes da `TabsList` e dos `TabsTrigger` na página `src/pages/Settings.tsx`. Sem mexer em outras tabs do app nem no componente shadcn `src/components/ui/tabs.tsx`.
+Já inseri direto no banco as 6 regras para a clínica OR no pipeline "Agendamentos Novo":
 
-## Mudanças
+| Prioridade | Quando | Move para |
+|---|---|---|
+| 100 | `pagamento_confirmado = true` | Procedimento pago |
+| 90 | `consulta_agendada_em` preenchido | Consulta Agendada |
+| 80 | `tentou_agendar = true` | Fechamento pendente consulta |
+| 70 | `tentou_pagamento = true` | Fechamento pendente procedimento |
+| 60 | `qualificacao = desqualificado` | Lead não qualificado |
+| 50 | `qualificacao ∈ {interessado, em_negociacao}` | Qualificação |
 
-**`src/pages/Settings.tsx`** — sobrescrever via `className` na `TabsList` e `TabsTrigger`:
+Falta criar o **agente de sugestão** e expor isso na UI pra qualquer clínica usar com 1 clique.
 
-- **Container (`TabsList`)**: `inline-flex items-center gap-1 rounded-2xl bg-white/60 p-1.5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.02)] backdrop-blur-md h-auto`
-- **Item inativo (`TabsTrigger` base)**: altura `h-10`, `rounded-xl px-5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95`
-- **Item ativo (`data-[state=active]:`)**: `bg-background text-emerald-700 font-semibold shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] ring-1 ring-emerald-500/10`, com pseudo-overlay de gradiente `from-emerald-500/5` e um dot `bg-emerald-500` (1.5×1.5) à direita do label apenas na aba ativa.
+---
 
-Como o `TabsTrigger` não aceita filhos condicionais ao estado ativo no shadcn padrão, o dot verde será injetado via classe usando `after:` (pseudo-elemento) que aparece só com `data-[state=active]`. Isso evita refatorar o componente base.
+## 1. Edge function `field-rules-suggest`
 
-## Tokens
-Usar `bg-background`, `text-muted-foreground`, `text-foreground`, `hover:bg-muted` (já definidos em `index.css`). O verde acento usa `emerald-*` do Tailwind — a paleta atual do app já usa verde do mesmo tom em botões de "Salvar" (visível no print), então fica consistente. Caso prefira, posso promover esse verde para um token `--accent-success` no `index.css`.
+`supabase/functions/field-rules-suggest/index.ts`
 
-## Fora de escopo
-- Outras instâncias de `<Tabs>` no app
-- Conteúdo dos cards abaixo das tabs
-- Comportamento/lógica de troca de abas
+Recebe `{ clinic_id, pipeline_id }` e devolve uma lista de regras sugeridas (sem persistir — o usuário decide quais importar).
 
-Sigo?
+Pipeline interno:
+
+1. **Coleta contexto** (em paralelo):
+   - Pipeline + nome
+   - Stages do pipeline (`id`, `name`, `position`)
+   - Regras já existentes (pra não duplicar)
+   - Amostra dos 80 leads mais recentes da clínica → extrai quais chaves de `custom_fields` realmente aparecem, tipos e exemplos de valores
+2. **Monta prompt** com: lista de colunas, regras existentes, dicionário `available_fields = [{name, type, samples, occurrences}]`
+3. **Chama Lovable AI Gateway** (`google/gemini-3-flash-preview`) com `tool_choice` forçado pra uma function `suggest_rules` cujo schema garante:
+   - `target_stage_id` é um dos UUIDs reais
+   - `conditions[]` usa só operadores válidos (`equals`, `is_true`, `not_empty`, `in`, etc.)
+   - Cada `field` é um dos campos descobertos no passo 1 (sem inventar)
+4. **Sanitiza** a resposta: descarta regras com `stage_id` inválido, condição vazia, operador desconhecido ou campo inexistente
+5. Retorna `{ suggestions, stages, used_fields }`
+
+Erros tratados explicitamente: 401 (sem key), 402 (créditos), 429 (rate limit), parsing inválido.
+
+Segurança: exige JWT via `requireUser`; service-role tokens também aceitos.
+
+## 2. UI no `FieldRulesCard.tsx`
+
+Adicionar botão **"Sugerir com IA"** ao lado de "Rodar agora", visível quando há um pipeline selecionado no formulário (ou sempre, com pipeline picker no diálogo).
+
+Fluxo:
+
+1. Clique abre `SuggestRulesDialog` (novo arquivo `src/components/settings/SuggestRulesDialog.tsx`)
+2. Dialog mostra loader e chama `supabase.functions.invoke("field-rules-suggest", { body: { clinic_id, pipeline_id } })`
+3. Renderiza cada sugestão como um card com:
+   - Checkbox (selecionar)
+   - Nome + prioridade
+   - "→ Coluna alvo"
+   - Pré-visualização das condições (mesma `<pre>` que já existe no card)
+   - **rationale** em itálico (por que o agente sugere)
+4. Botões "Selecionar todas" / "Limpar" no topo
+5. "Importar selecionadas (N)" no footer → `INSERT` em batch em `pipeline_field_rules`, depois `load()` no card pai
+6. Erros do gateway viram toast com mensagem amigável (créditos esgotados → orientar adicionar saldo)
+
+## 3. Onde aparece
+
+`FieldRulesCard` já é renderizado em `src/pages/Settings.tsx` (aba de configurações da clínica). Sem rotas novas.
+
+## Detalhes técnicos
+
+- A função roda em qualquer clínica: a UI passa o `clinicId` que o card já recebe via prop.
+- O agente é stateless — cada clique pode gerar um conjunto ligeiramente diferente. Útil quando o pipeline muda.
+- Custo: 1 chamada Gemini Flash por clique (~$0.0005). Sem cron — só on-demand.
+- Não mexe em nada existente do `field-rules-tick`; só facilita popular a tabela que ele lê.
+- Validação dupla: o schema da tool já restringe, mas o servidor re-valida `field` ∈ `available_fields` e `stage_id` ∈ stages reais antes de devolver.
+
+```text
+[User clica "Sugerir com IA"]
+         │
+         ▼
+[Dialog abre] ──► invoke("field-rules-suggest")
+                          │
+                          ▼
+                  ┌──────────────────┐
+                  │ Edge Function    │
+                  │ 1. lê contexto   │
+                  │ 2. monta prompt  │
+                  │ 3. Lovable AI    │
+                  │ 4. sanitiza      │
+                  └────────┬─────────┘
+                           ▼
+              [Dialog mostra N sugestões]
+                           │
+              [User marca + Importar]
+                           ▼
+                INSERT em pipeline_field_rules
+                           │
+                           ▼
+                 field-rules-tick (cron 2min)
+                 move os cards retroativamente
+```
+
+Quer aprovar e eu já implemento?
