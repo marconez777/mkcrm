@@ -398,9 +398,10 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
     .from("leads")
     .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone")
     .eq("clinic_id", clinicId)
-    .eq("needs_ai_review", true)
-    .order("ai_review_queued_at", { ascending: true })
+    .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
+  // Em runs forçadas com lead_ids explícitos, ignora a flag needs_ai_review
+  if (!(force && leadIds?.length)) leadsQ.eq("needs_ai_review", true);
   if (leadIds?.length) leadsQ.in("id", leadIds);
 
   const { data: leads, error: leadsErr } = await leadsQ;
