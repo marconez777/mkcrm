@@ -86,16 +86,14 @@ async function upsertStatus(
 
   // Sincroniza classifier_config.openai_status na clinica
   if (patch.openai_status) {
-    await supabase.rpc("noop").catch(() => null); // no-op, mantido pra clareza
-    await supabase
-      .from("clinics")
-      .update({
-        classifier_config: { openai_status: patch.openai_status },
-      })
-      .eq("id", clinicId)
-      .then(() => null)
-      .catch(() => null);
+    try {
+      await supabase
+        .from("clinics")
+        .update({ classifier_config: { openai_status: patch.openai_status } })
+        .eq("id", clinicId);
+    } catch { /* não falha o fluxo principal */ }
   }
+
 }
 
 Deno.serve(async (req) => {
