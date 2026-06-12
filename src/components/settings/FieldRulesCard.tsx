@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, GitBranch, PlayCircle } from "lucide-react";
+import { Loader2, Plus, Trash2, GitBranch, PlayCircle, Sparkles } from "lucide-react";
+import SuggestRulesDialog from "./SuggestRulesDialog";
 
 interface Pipeline {
   id: string;
@@ -51,6 +52,7 @@ export default function FieldRulesCard({ clinicId }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   // form
   const [pipelineId, setPipelineId] = useState<string>("");
@@ -166,11 +168,27 @@ export default function FieldRulesCard({ clinicId }: Props) {
             Avaliado a cada 2 minutos. Respeita lock manual.
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={runNow} disabled={running}>
-          {running ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
-          Rodar agora
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setSuggestOpen(true)}>
+            <Sparkles className="mr-2 h-3 w-3" />
+            Sugerir com IA
+          </Button>
+          <Button size="sm" variant="secondary" onClick={runNow} disabled={running}>
+            {running ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <PlayCircle className="mr-2 h-3 w-3" />}
+            Rodar agora
+          </Button>
+        </div>
       </div>
+
+      <SuggestRulesDialog
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
+        clinicId={clinicId}
+        pipelines={pipelines}
+        stages={stages}
+        defaultPipelineId={pipelineId}
+        onImported={load}
+      />
 
       <div className="grid gap-3 rounded-lg border p-3 md:grid-cols-2">
         <div className="space-y-1">
