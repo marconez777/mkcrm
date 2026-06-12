@@ -176,6 +176,15 @@ function BroadcastList() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      title="Duplicar"
+                      onClick={(e) => { e.stopPropagation(); duplicate(b); }}
+                    >
+                      <Copy className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Excluir"
                       onClick={(e) => { e.stopPropagation(); remove(b); }}
                     >
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
