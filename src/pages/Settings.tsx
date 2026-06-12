@@ -172,9 +172,10 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
-          <TabsList className="inline-flex w-auto h-auto items-center gap-1 rounded-2xl bg-background/60 p-1.5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.02)] backdrop-blur-md">
+          <TabsList className="flex w-full h-auto flex-wrap items-center gap-1 rounded-2xl bg-background/60 p-1.5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.02)] backdrop-blur-md">
             {(() => {
-              const triggerCls = "relative h-10 rounded-xl px-5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95 data-[state=active]:bg-background data-[state=active]:text-emerald-700 data-[state=active]:font-semibold data-[state=active]:shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] data-[state=active]:ring-1 data-[state=active]:ring-emerald-500/10 data-[state=active]:after:content-[''] data-[state=active]:after:ml-2 data-[state=active]:after:inline-block data-[state=active]:after:h-1.5 data-[state=active]:after:w-1.5 data-[state=active]:after:rounded-full data-[state=active]:after:bg-emerald-500 data-[state=active]:after:shadow-[0_0_4px_rgba(16,185,129,0.8)]";
+              const triggerCls = "relative flex-1 min-w-fit h-10 rounded-xl px-5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95 data-[state=active]:bg-background data-[state=active]:text-emerald-700 data-[state=active]:font-semibold data-[state=active]:shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] data-[state=active]:ring-1 data-[state=active]:ring-emerald-500/10 data-[state=active]:after:content-[''] data-[state=active]:after:ml-2 data-[state=active]:after:inline-block data-[state=active]:after:h-1.5 data-[state=active]:after:w-1.5 data-[state=active]:after:rounded-full data-[state=active]:after:bg-emerald-500 data-[state=active]:after:shadow-[0_0_4px_rgba(16,185,129,0.8)]";
+
               return (
                 <>
                   <TabsTrigger value="connection" className={triggerCls}>WhatsApp</TabsTrigger>
