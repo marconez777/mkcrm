@@ -364,7 +364,7 @@ interface LeadRow {
   phone: string;
 }
 
-async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[]) {
+async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
   const supabase = sb();
 
   // 1) carrega a chave
