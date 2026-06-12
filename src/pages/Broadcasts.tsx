@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw } from "lucide-react";
+import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, Copy } from "lucide-react";
 import { downloadBroadcastTemplate, parseContactsFile } from "@/lib/broadcast-template";
 import { formatPhoneDisplay } from "@/lib/phone";
 
@@ -96,6 +96,46 @@ function BroadcastList() {
     else { toast.success("Campanha excluída"); load(); }
   };
 
+  const duplicate = async (b: Broadcast) => {
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const { data: m } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", u.user!.id).maybeSingle();
+      if (!m?.clinic_id) { toast.error("Sem clínica associada"); return; }
+      // fetch full original
+      const { data: orig, error: oe } = await supabase.from("broadcasts").select("*").eq("id", b.id).single();
+      if (oe || !orig) throw oe || new Error("Campanha não encontrada");
+      const { id: _omit, created_at: _c, updated_at: _u, audience_frozen_at: _af, totals: _t, status: _s, ...rest } = orig as any;
+      const { data: nb, error: ne } = await supabase.from("broadcasts").insert({
+        ...rest,
+        clinic_id: m.clinic_id,
+        name: `${orig.name} (cópia)`,
+        status: "draft",
+        audience_frozen_at: null,
+        totals: {},
+        created_by: u.user!.id,
+      }).select("id").single();
+      if (ne) throw ne;
+      // clone message groups + parts
+      const { data: gs } = await supabase.from("broadcast_message_groups")
+        .select("id, position, name").eq("broadcast_id", b.id).order("position");
+      for (const g of gs || []) {
+        const { data: ng } = await supabase.from("broadcast_message_groups")
+          .insert({ broadcast_id: nb.id, position: g.position, name: g.name })
+          .select("id").single();
+        if (!ng) continue;
+        const { data: parts } = await supabase.from("broadcast_message_parts")
+          .select("position, content").eq("group_id", g.id).order("position");
+        if (parts && parts.length) {
+          await supabase.from("broadcast_message_parts").insert(
+            parts.map((p: any) => ({ group_id: ng.id, position: p.position, content: p.content })),
+          );
+        }
+      }
+      toast.success("Campanha duplicada");
+      navigate(`/ai/broadcasts/${nb.id}`);
+    } catch (e: any) { toast.error(e.message || "Erro ao duplicar"); }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -136,6 +176,15 @@ function BroadcastList() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      title="Duplicar"
+                      onClick={(e) => { e.stopPropagation(); duplicate(b); }}
+                    >
+                      <Copy className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Excluir"
                       onClick={(e) => { e.stopPropagation(); remove(b); }}
                     >
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
