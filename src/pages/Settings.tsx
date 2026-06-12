@@ -172,15 +172,23 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
-          <TabsList className="inline-flex w-auto justify-start gap-1">
-            <TabsTrigger value="connection">WhatsApp</TabsTrigger>
-            {showFields && <TabsTrigger value="fields">Campos</TabsTrigger>}
-            <TabsTrigger value="quick-replies">Respostas rápidas</TabsTrigger>
-            <TabsTrigger value="forms">Integração do Site</TabsTrigger>
-            {showEmail && <TabsTrigger value="email">Email Marketing</TabsTrigger>}
-            {!isProfessional && <TabsTrigger value="imports">Importações</TabsTrigger>}
-            {!isProfessional && <TabsTrigger value="ai-pipeline">IA do Pipeline</TabsTrigger>}
+          <TabsList className="inline-flex w-auto h-auto items-center gap-1 rounded-2xl bg-background/60 p-1.5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.02)] backdrop-blur-md">
+            {(() => {
+              const triggerCls = "relative h-10 rounded-xl px-5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95 data-[state=active]:bg-background data-[state=active]:text-emerald-700 data-[state=active]:font-semibold data-[state=active]:shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] data-[state=active]:ring-1 data-[state=active]:ring-emerald-500/10 data-[state=active]:after:content-[''] data-[state=active]:after:ml-2 data-[state=active]:after:inline-block data-[state=active]:after:h-1.5 data-[state=active]:after:w-1.5 data-[state=active]:after:rounded-full data-[state=active]:after:bg-emerald-500 data-[state=active]:after:shadow-[0_0_4px_rgba(16,185,129,0.8)]";
+              return (
+                <>
+                  <TabsTrigger value="connection" className={triggerCls}>WhatsApp</TabsTrigger>
+                  {showFields && <TabsTrigger value="fields" className={triggerCls}>Campos</TabsTrigger>}
+                  <TabsTrigger value="quick-replies" className={triggerCls}>Respostas rápidas</TabsTrigger>
+                  <TabsTrigger value="forms" className={triggerCls}>Integração do Site</TabsTrigger>
+                  {showEmail && <TabsTrigger value="email" className={triggerCls}>Email Marketing</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>Importações</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>IA do Pipeline</TabsTrigger>}
+                </>
+              );
+            })()}
           </TabsList>
+
 
           <TabsContent value="connection" className="space-y-4">
             <Card className="space-y-4 p-6">
