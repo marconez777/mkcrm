@@ -2,7 +2,7 @@
 // Modes:
 //   - default (incremental): pulls latest page, stops at known timestamp
 //   - full=true: paginates through ALL messages on Evolution, idempotent via external_id
-import { corsHeaders, json, sb, loadInstance, evoFetch, ingestMessage, downloadAndStoreMedia } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, loadInstance, loadDefaultInstanceForClinic, evoFetch, ingestMessage, downloadAndStoreMedia } from "../_shared/evolution.ts";
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 200; // hard safety cap → 10k msgs/run
@@ -17,13 +17,21 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("phone, whatsapp_instance_id")
+      .select("phone, whatsapp_instance_id, clinic_id")
       .eq("id", lead_id)
       .single();
     if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
-    const instance = await loadInstance(lead.whatsapp_instance_id);
-    if (!instance) return json({ error: "Nenhuma instância WhatsApp configurada" }, 400);
+    let instance = lead.whatsapp_instance_id ? await loadInstance(lead.whatsapp_instance_id) : null;
+    if (!instance && lead.clinic_id) {
+      instance = await loadDefaultInstanceForClinic(lead.clinic_id);
+      if (instance) {
+        // Auto-heal: persist link so future calls don't re-resolve
+        await supabase.from("leads").update({ whatsapp_instance_id: instance.id }).eq("id", lead_id);
+      }
+    }
+    if (!instance) return json({ error: "Nenhuma instância WhatsApp configurada para esta clínica" }, 400);
+
 
     const remoteJid = `${lead.phone}@s.whatsapp.net`;
 

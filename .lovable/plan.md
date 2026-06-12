@@ -1,22 +1,26 @@
-# Permitir delay curto (30s) entre contatos para teste
+# Foco: clínica **ÓR** (`cf038458…`)
 
-## Problema
-Hoje a aba **Configuração** da campanha força intervalo mínimo de **15 minutos** entre destinatários (`min={15}` no input, e `Math.max(15, …)` no onChange). Para validar o fluxo end-to-end (igual ao bug recém-corrigido de partes faltantes), precisamos disparar para vários contatos em poucos segundos sem ter que esperar 15min cada.
+## Diagnóstico
 
-## Mudança proposta (somente UI — backend já aceita qualquer `throttle_seconds`)
+- **1.328 leads órfãos** (`whatsapp_instance_id = NULL`) de 1.585 totais.
+- Causa: instância antiga foi deletada/recriada → FK `ON DELETE SET NULL` apagou o vínculo.
+- Instância atual default: **Recepção** (`0645e606…` / `or-fbfd8d5e`, `open`).
+- Existem 2 outras instâncias na clínica (`Disparo pacientes` close, `prospecção medico` open) — mas o tráfego de atendimento é via **Recepção**.
 
-Em `src/pages/Broadcasts.tsx`, no editor da campanha, aba **Configuração**, substituir o campo único por:
+## Plano (3 partes, só para ÓR)
 
-1. **Switch "Modo teste (delay em segundos)"** — default desligado.
-2. Quando **desligado** (produção): comportamento atual — input em minutos, mínimo 15.
-3. Quando **ligado** (teste): input em **segundos**, mínimo **5**, default 30. Mostra badge amarela de aviso `"⚠ Modo teste — use só para validar o fluxo, risco de ban em produção"`.
+### 1. Backfill imediato
+`UPDATE leads SET whatsapp_instance_id = '0645e606-5417-4b88-8c73-d05199911bb3' WHERE clinic_id = 'cf038458…' AND whatsapp_instance_id IS NULL` → resolve os 1.328 leads agora.
 
-O toggle é **derivado do valor atual** (`throttle_seconds < 15*60` → assume modo teste ligado), então não precisa de coluna nova no banco — apenas escreve `throttle_seconds` direto.
+### 2. Auto-heal nas edge functions (evita repetir)
+Em `evolution-sync-lead` e `fetch-wa-avatar`:
+- Se `lead.whatsapp_instance_id` é `NULL` → usa a instância default da clínica do lead.
+- Em caso de sucesso, persiste o `whatsapp_instance_id` no lead.
+- Se não houver default → retorna 400 com `"Nenhuma instância WhatsApp configurada para esta clínica"`.
 
-## Escopo
-- Somente `src/pages/Broadcasts.tsx` (aba Configuração do editor).
-- Sem mudanças em backend, edge functions, schema ou docs.
-- Não mexer em nada além desse campo.
+### 3. Erro real no frontend
+Em `src/pages/LeadDrawer.tsx` (sync de histórico e avatar): ler `data?.error` da resposta e exibir no toast em vez de "non-2xx".
 
-## Validação
-- Criar campanha → ativar modo teste → setar 30s → congelar audiência com 2-3 contatos → iniciar → confirmar que mensagens chegam com ~30s entre contatos (e 1s entre partes do mesmo contato, comportamento já existente).
+---
+
+Sigo? (parto pelo backfill da ÓR e depois faço 2 + 3)

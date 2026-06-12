@@ -1,6 +1,6 @@
 // Fetches a WhatsApp profile picture URL via Evolution and stores it on the lead.
 // Body: { lead_id: string }
-import { corsHeaders, json, sb, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { corsHeaders, json, sb, loadInstance, loadDefaultInstanceForClinic, evoFetch } from "../_shared/evolution.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -9,13 +9,20 @@ Deno.serve(async (req) => {
     if (!lead_id) return json({ error: "lead_id required" }, 400);
     const supabase = sb();
     const { data: lead } = await supabase
-      .from("leads").select("id, phone, whatsapp_instance_id, avatar_url")
+      .from("leads").select("id, phone, whatsapp_instance_id, avatar_url, clinic_id")
       .eq("id", lead_id).single();
     if (!lead) return json({ error: "lead not found" }, 404);
     if (lead.avatar_url) return json({ ok: true, avatar_url: lead.avatar_url, cached: true });
 
-    const instance = await loadInstance(lead.whatsapp_instance_id);
-    if (!instance) return json({ error: "no instance" }, 400);
+    let instance = lead.whatsapp_instance_id ? await loadInstance(lead.whatsapp_instance_id) : null;
+    if (!instance && lead.clinic_id) {
+      instance = await loadDefaultInstanceForClinic(lead.clinic_id);
+      if (instance) {
+        await supabase.from("leads").update({ whatsapp_instance_id: instance.id }).eq("id", lead_id);
+      }
+    }
+    if (!instance) return json({ error: "Nenhuma instância WhatsApp configurada para esta clínica" }, 400);
+
 
     const resp = await evoFetch(
       instance,

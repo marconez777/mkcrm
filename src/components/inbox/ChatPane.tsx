@@ -358,8 +358,10 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     setSyncing(true);
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead.id } });
     setSyncing(false);
-    if (error) toast.error("Falha: " + error.message);
+    const errMsg = (data as any)?.error;
+    if (error || errMsg) toast.error("Falha: " + (errMsg || error?.message));
     else toast.success(`Sincronizado: ${(data as SyncLeadResult | null)?.imported ?? 0} mensagens`);
+
   }
   async function backfillFull() {
     if (backfilling) return;

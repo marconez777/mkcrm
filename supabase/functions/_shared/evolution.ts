@@ -75,6 +75,28 @@ export async function loadInstance(instanceId?: string | null): Promise<Instance
   return (data as Instance) ?? null;
 }
 
+/** Load the default instance for a clinic (preferred when lead lost its instance link). */
+export async function loadDefaultInstanceForClinic(clinicId: string): Promise<Instance | null> {
+  const supabase = sb();
+  const { data } = await supabase
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("is_default", true)
+    .maybeSingle();
+  if (data) return data as Instance;
+  // Fallback: any open instance for the clinic
+  const { data: alt } = await supabase
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("connection_state", "open")
+    .limit(1)
+    .maybeSingle();
+  return (alt as Instance) ?? null;
+}
+
+
 /** Load instance by webhook token (used by webhook handler). */
 export async function loadInstanceByToken(token: string): Promise<Instance | null> {
   const supabase = sb();
