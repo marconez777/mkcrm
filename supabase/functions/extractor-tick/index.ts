@@ -543,13 +543,13 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
     await supabase.from("leads").update(update).eq("id", lead.id);
 
     // evento auditável
-    if (setKeys.length) {
+    if (allSetKeys.length) {
       await supabase.from("lead_events").insert({
         clinic_id: lead.clinic_id,
         lead_id: lead.id,
         type: "ai_fields_extracted",
         payload: {
-          fields: setKeys,
+          fields: allSetKeys,
           confidence,
           model: cfg.openai_model_text,
           message_id: lastMessageId,
