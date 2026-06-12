@@ -1,26 +1,24 @@
-# Foco: clínica **ÓR** (`cf038458…`)
+# Refinar TabsList em Configurações — Glass Pills com destaque verde
 
-## Diagnóstico
+## Escopo
+Substituir apenas as classes da `TabsList` e dos `TabsTrigger` na página `src/pages/Settings.tsx`. Sem mexer em outras tabs do app nem no componente shadcn `src/components/ui/tabs.tsx`.
 
-- **1.328 leads órfãos** (`whatsapp_instance_id = NULL`) de 1.585 totais.
-- Causa: instância antiga foi deletada/recriada → FK `ON DELETE SET NULL` apagou o vínculo.
-- Instância atual default: **Recepção** (`0645e606…` / `or-fbfd8d5e`, `open`).
-- Existem 2 outras instâncias na clínica (`Disparo pacientes` close, `prospecção medico` open) — mas o tráfego de atendimento é via **Recepção**.
+## Mudanças
 
-## Plano (3 partes, só para ÓR)
+**`src/pages/Settings.tsx`** — sobrescrever via `className` na `TabsList` e `TabsTrigger`:
 
-### 1. Backfill imediato
-`UPDATE leads SET whatsapp_instance_id = '0645e606-5417-4b88-8c73-d05199911bb3' WHERE clinic_id = 'cf038458…' AND whatsapp_instance_id IS NULL` → resolve os 1.328 leads agora.
+- **Container (`TabsList`)**: `inline-flex items-center gap-1 rounded-2xl bg-white/60 p-1.5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.02)] backdrop-blur-md h-auto`
+- **Item inativo (`TabsTrigger` base)**: altura `h-10`, `rounded-xl px-5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95`
+- **Item ativo (`data-[state=active]:`)**: `bg-background text-emerald-700 font-semibold shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] ring-1 ring-emerald-500/10`, com pseudo-overlay de gradiente `from-emerald-500/5` e um dot `bg-emerald-500` (1.5×1.5) à direita do label apenas na aba ativa.
 
-### 2. Auto-heal nas edge functions (evita repetir)
-Em `evolution-sync-lead` e `fetch-wa-avatar`:
-- Se `lead.whatsapp_instance_id` é `NULL` → usa a instância default da clínica do lead.
-- Em caso de sucesso, persiste o `whatsapp_instance_id` no lead.
-- Se não houver default → retorna 400 com `"Nenhuma instância WhatsApp configurada para esta clínica"`.
+Como o `TabsTrigger` não aceita filhos condicionais ao estado ativo no shadcn padrão, o dot verde será injetado via classe usando `after:` (pseudo-elemento) que aparece só com `data-[state=active]`. Isso evita refatorar o componente base.
 
-### 3. Erro real no frontend
-Em `src/pages/LeadDrawer.tsx` (sync de histórico e avatar): ler `data?.error` da resposta e exibir no toast em vez de "non-2xx".
+## Tokens
+Usar `bg-background`, `text-muted-foreground`, `text-foreground`, `hover:bg-muted` (já definidos em `index.css`). O verde acento usa `emerald-*` do Tailwind — a paleta atual do app já usa verde do mesmo tom em botões de "Salvar" (visível no print), então fica consistente. Caso prefira, posso promover esse verde para um token `--accent-success` no `index.css`.
 
----
+## Fora de escopo
+- Outras instâncias de `<Tabs>` no app
+- Conteúdo dos cards abaixo das tabs
+- Comportamento/lógica de troca de abas
 
-Sigo? (parto pelo backfill da ÓR e depois faço 2 + 3)
+Sigo?
