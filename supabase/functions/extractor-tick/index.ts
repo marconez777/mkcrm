@@ -597,7 +597,7 @@ Deno.serve(async (req) => {
       // status no clinics.classifier_config pode estar dessincronizado, mas
       // confiamos no secrets.openai_status acima
     }
-    const r = await processClinic(s.clinic_id, cfg, body.lead_ids);
+    const r = await processClinic(s.clinic_id, cfg, body.lead_ids, body.force);
     results.push(r);
   }
 
