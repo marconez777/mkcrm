@@ -76,6 +76,7 @@ Toda doc em `docs/` tem frontmatter YAML (`title`, `topic`, `kind`, `audience`, 
   3. Regenera `docs/DRIFT.md` (revisar!) e `supabase/functions/_shared/support-kb-manifest.ts`.
 - Para o agente Lovable: ler `docs/INDEX.json` **antes** de varrer `docs/` — é mais barato.
 - Tela `/admin/docs` (super_admin) consome esses artefatos para navegação e auditoria.
+- **Rotina, métricas e backlog de manutenção de docs:** ver [`docs/roadmap/DOCS_MAINTENANCE.md`](../roadmap/DOCS_MAINTENANCE.md). Todo item novo em `DRIFT.md` vira um `F-DOC-N` nesse roadmap.
 
 ---
 

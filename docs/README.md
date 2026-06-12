@@ -41,6 +41,7 @@ summary: 1. Leia este `README.md` inteiro (mapa de leitura abaixo). 2. Leia [`OV
 | Erro/bug recorrente | `known-issues/PITFALLS.md` antes de qualquer coisa |
 | Autenticação / login | `architecture/AUTH.md` |
 | Feature flag | `architecture/FEATURE_FLAGS.md` |
+| **Manter a própria documentação** | **`roadmap/DOCS_MAINTENANCE.md`** (rotina + backlog F-DOC-*) |
 
 ---
 

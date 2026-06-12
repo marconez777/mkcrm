@@ -3,15 +3,24 @@ title: Roadmap — Pipeline Clínica + Agentes IA
 topic: roadmap
 kind: roadmap
 audience: agent
-updated: 2026-06-11
+updated: 2026-06-12
 summary: "Roadmap v5 (aprovado) do pipeline da clínica: 2 agentes IA (texto + visão) + Whisper para áudio, BYOK OpenAI por clínica, regras SQL pré-IA para reduzir custo, e desqualificação automática para procedimentos não atendidos (EMDR e similares)."
 code_refs:
-  - supabase/functions/
-  - src/pages/automations/
-  - src/components/leads/
+  - supabase/functions/extractor-tick/
+  - supabase/functions/vision-tick/
+  - supabase/functions/audio-tick/
+  - supabase/functions/field-rules-tick/
+  - src/pages/Settings.tsx
+  - src/pages/Kanban.tsx
+  - src/components/settings/AILimitsCard.tsx
+  - src/components/settings/ExtractorHistoryCard.tsx
+  - src/components/settings/FieldRulesCard.tsx
+  - src/components/settings/OpenAIKeyCard.tsx
 related_docs:
-  - docs/maps/AI.md
+  - docs/maps/AI_RUNTIME.md
   - docs/MAP.md
+  - docs/roadmap/DOCS_MAINTENANCE.md
+  - docs/support/journeys/usar-pipeline-ia.md
 ---
 
 # Roadmap — Pipeline Clínica + Agentes IA (v5)

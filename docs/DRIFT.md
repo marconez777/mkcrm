@@ -1,11 +1,11 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-11T20:17:47.005Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-12T12:26:25.280Z_
 
-Total de docs: **148** · frontmatter atualizado neste run: **2**
+Total de docs: **149** · frontmatter atualizado neste run: **1**
 
 ## code_refs apontando para arquivo inexistente
-- `docs/roadmap/CLINIC_PIPELINE.md` → `src/pages/automations/`
+_(nenhum)_
 
 ## Rotas em src/App.tsx sem mapa associado (heurística)
 - `/reset-password`
