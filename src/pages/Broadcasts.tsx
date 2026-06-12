@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw } from "lucide-react";
+import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, Copy } from "lucide-react";
 import { downloadBroadcastTemplate, parseContactsFile } from "@/lib/broadcast-template";
 import { formatPhoneDisplay } from "@/lib/phone";
 
