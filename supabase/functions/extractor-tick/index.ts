@@ -157,28 +157,41 @@ interface OpenAIResp {
   error?: { message?: string };
 }
 
+function modelRejectsTemperature(model: string): boolean {
+  // Reasoning models só aceitam temperature default (1). Lista conservadora.
+  return /^(gpt-5|gpt-4\.1|o[134])/i.test(model);
+}
+
 async function callOpenAI(
   apiKey: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<{ ok: boolean; data?: OpenAIResp; error?: string; status?: number }> {
-  try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  async function doFetch(includeTemperature: boolean) {
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      tools: [EXTRACTION_TOOL],
+      tool_choice: { type: "function", function: { name: "extract_lead_fields" } },
+    };
+    if (includeTemperature) body.temperature = 0.1;
+    return await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: [EXTRACTION_TOOL],
-        tool_choice: { type: "function", function: { name: "extract_lead_fields" } },
-        // Reasoning models (gpt-5*, o1, o3, o4) only aceitam temperature=1 (default).
-        ...(/^(gpt-5|o[134])/i.test(model) ? {} : { temperature: 0.1 }),
-      }),
+      body: JSON.stringify(body),
     });
-    const data = (await r.json()) as OpenAIResp;
+  }
+  try {
+    let r = await doFetch(!modelRejectsTemperature(model));
+    let data = (await r.json()) as OpenAIResp;
+    if (!r.ok && /temperature/i.test(data?.error?.message ?? "")) {
+      // retry sem temperature
+      r = await doFetch(false);
+      data = (await r.json()) as OpenAIResp;
+    }
     if (!r.ok) {
       return { ok: false, status: r.status, error: data?.error?.message ?? `HTTP ${r.status}` };
     }
