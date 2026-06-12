@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronDown } from "lucide-react";
 
 type SourceType = "first_touch" | "conversion_touch" | "last_non_direct";
 
@@ -28,6 +29,7 @@ type LeadSource = {
 export function LeadAttributionCard({ leadId }: { leadId: string }) {
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,22 +58,6 @@ export function LeadAttributionCard({ leadId }: { leadId: string }) {
         </CardHeader>
         <CardContent className="space-y-2">
           <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (sources.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Atribuição</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Sem dados de origem. Esse lead não foi vinculado a um visitante rastreado.
-          </p>
         </CardContent>
       </Card>
     );
@@ -84,18 +70,46 @@ export function LeadAttributionCard({ leadId }: { leadId: string }) {
   const first = byType["first_touch"];
   const nonDirect = byType["last_non_direct"];
   const idsSource = conv ?? first;
+  const summarySrc = conv ?? first ?? nonDirect;
+
+  const summary = sources.length === 0
+    ? "Sem dados de origem"
+    : [summarySrc?.source, summarySrc?.medium].filter(Boolean).join(" / ") || "—";
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm">Atribuição</CardTitle>
+      <CardHeader className="pb-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+          aria-expanded={open}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <CardTitle className="text-sm">Atribuição</CardTitle>
+            <span className="truncate text-xs text-muted-foreground">· {summary}</span>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {conv && <SourceBlock title="Origem da conversão" data={conv} highlight />}
-        {first && <SourceBlock title="Primeira origem" data={first} />}
-        {nonDirect && <SourceBlock title="Última origem não direta" data={nonDirect} />}
-        <ClickIdsRow source={idsSource} />
-      </CardContent>
+      {open && (
+        <CardContent className="space-y-3">
+          {sources.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sem dados de origem. Esse lead não foi vinculado a um visitante rastreado.
+            </p>
+          ) : (
+            <>
+              {conv && <SourceBlock title="Origem da conversão" data={conv} highlight />}
+              {first && <SourceBlock title="Primeira origem" data={first} />}
+              {nonDirect && <SourceBlock title="Última origem não direta" data={nonDirect} />}
+              <ClickIdsRow source={idsSource} />
+            </>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
 }
