@@ -239,6 +239,29 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
   if (a.action_type === "move_stage") {
     const stageId = a.action_config?.stage_id;
     if (!stageId) return { ok: false, detail: "missing stage_id" };
+
+    // Verifica trava de etapa (lock_auto_move) tanto na origem quanto no destino
+    const { data: targetStage } = await supabase
+      .from("pipeline_stages")
+      .select("lock_auto_move")
+      .eq("id", stageId)
+      .maybeSingle();
+    if (targetStage?.lock_auto_move) {
+      return { ok: false, detail: "stage_locked:target" };
+    }
+    const { data: leadRow } = await supabase
+      .from("leads").select("stage_id").eq("id", leadId).maybeSingle();
+    if (leadRow?.stage_id) {
+      const { data: curStage } = await supabase
+        .from("pipeline_stages")
+        .select("lock_auto_move")
+        .eq("id", leadRow.stage_id)
+        .maybeSingle();
+      if (curStage?.lock_auto_move) {
+        return { ok: false, detail: "stage_locked:source" };
+      }
+    }
+
     const { error } = await supabase.from("leads").update({ stage_id: stageId }).eq("id", leadId);
     if (error) return { ok: false, detail: error.message };
     return { ok: true };
