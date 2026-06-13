@@ -230,6 +230,26 @@ function applyFields(
 ): { merged: Record<string, unknown>; setKeys: string[] } {
   const merged = { ...current };
   const setKeys: string[] = [];
+
+  // Validação extra: consulta_agendada_em precisa ser data futura válida.
+  // Se a IA mandou algo no passado ou inválido, descarta e zera tentou_agendar
+  // se ele tiver vindo só dessa inferência.
+  const rawDate = extracted["consulta_agendada_em"];
+  if (rawDate !== undefined && rawDate !== null) {
+    const valid = parseFutureDate(rawDate);
+    if (!valid) {
+      extracted = { ...extracted, consulta_agendada_em: null };
+      // Se tentou_agendar veio true apenas porque a IA "achou" uma data,
+      // não consideramos confirmação válida.
+      if (extracted["tentou_agendar"] === true) {
+        extracted = { ...extracted, tentou_agendar: null };
+      }
+    } else {
+      // normaliza para ISO
+      extracted = { ...extracted, consulta_agendada_em: valid.toISOString() };
+    }
+  }
+
   const writable = [
     "procedimento_interesse",
     "qualificacao",
@@ -242,9 +262,14 @@ function applyFields(
     "nome_preferido",
     "observacoes",
   ];
+  // Threshold mais alto para campos sensíveis
+  const SENSITIVE = new Set(["consulta_agendada_em", "tentou_agendar"]);
+  const sensitiveThreshold = Math.max(0.8, cfg.confidence_threshold);
+
   for (const k of writable) {
     const newVal = extracted[k];
     if (newVal === undefined || newVal === null) continue;
+    if (SENSITIVE.has(k) && confidence < sensitiveThreshold) continue;
     const isEmpty = fieldIsEmpty(current[k]);
     const canOverwrite =
       cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold;
@@ -330,9 +355,10 @@ function applyClinicFieldMapping(
     }
   }
 
-  // data_horario (datetime)
+  // data_horario (datetime) — só se a data extraída for futura/válida
   if (byKey.has("data_horario")) {
-    setIfEmpty("data_horario", extracted.consulta_agendada_em);
+    const valid = parseFutureDate(extracted.consulta_agendada_em);
+    if (valid) setIfEmpty("data_horario", valid.toISOString());
   }
 
   // teleconsulta (boolean)
