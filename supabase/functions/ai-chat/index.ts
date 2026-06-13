@@ -226,7 +226,7 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
     if (name === "move_lead_stage") {
       if (!leadId) return { error: "no lead context" };
       const { data: leadRow } = await supabase.from("leads").select("pipeline_id, stage_id").eq("id", leadId).single();
-      let q = supabase.from("pipeline_stages").select("id, name, pipeline_id").ilike("name", args.stage_name);
+      let q = supabase.from("pipeline_stages").select("id, name, pipeline_id, lock_auto_move").ilike("name", args.stage_name);
       if (leadRow?.pipeline_id) q = q.eq("pipeline_id", leadRow.pipeline_id);
       const { data: stages } = await q.limit(2);
       const stage = stages?.[0];
@@ -235,6 +235,18 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
         return { error: `stage not found: ${args.stage_name}`, available_stages: (avail ?? []).map((s: any) => s.name) };
       }
       if (leadRow?.stage_id === stage.id) return { ok: true, stage: stage.name, unchanged: true };
+      // Bloqueia entrada em etapa travada (ex.: Administrativo)
+      if ((stage as any).lock_auto_move) {
+        return { error: "stage_locked", stage: stage.name, reason: "Etapa travada para automações" };
+      }
+      // Bloqueia saída de etapa travada
+      if (leadRow?.stage_id) {
+        const { data: curStage } = await supabase
+          .from("pipeline_stages").select("lock_auto_move, name").eq("id", leadRow.stage_id).maybeSingle();
+        if ((curStage as any)?.lock_auto_move) {
+          return { error: "stage_locked_source", current_stage: (curStage as any)?.name, reason: "Lead está em etapa travada" };
+        }
+      }
       await supabase.from("leads").update({ stage_id: stage.id, stage_changed_at: new Date().toISOString() }).eq("id", leadId);
       await supabase.from("lead_events").insert({
         lead_id: leadId, type: "stage_changed_by_ai",

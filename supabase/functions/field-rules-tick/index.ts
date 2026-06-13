@@ -13,11 +13,12 @@
 // Trigger via cron OU POST manual (force=true, clinic_id, lead_ids).
 
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
+import { parseFutureDate } from "../_shared/dates.ts";
 
 type Op =
   | "equals" | "not_equals" | "is_true" | "is_false"
   | "is_empty" | "not_empty" | "in" | "contains"
-  | "gte" | "lte";
+  | "gte" | "lte" | "is_future" | "is_past";
 
 interface Condition {
   field: string;        // chave em custom_fields. Suporta dot.path raso.
@@ -61,6 +62,12 @@ export function evalCondition(cf: Record<string, unknown>, c: Condition): boolea
         v.toLowerCase().includes((c.value as string).toLowerCase());
     case "gte": return typeof v === "number" && typeof c.value === "number" && v >= c.value;
     case "lte": return typeof v === "number" && typeof c.value === "number" && v <= c.value;
+    case "is_future": return parseFutureDate(v) !== null;
+    case "is_past": {
+      if (typeof v !== "string" || !v) return false;
+      const t = Date.parse(v);
+      return !isNaN(t) && t < Date.now();
+    }
     default: return false;
   }
 }
@@ -95,16 +102,26 @@ async function processClinic(clinicId: string, leadIds?: string[]) {
   const rules = (rulesRaw ?? []) as Rule[];
   if (rules.length === 0) return { clinic_id: clinicId, moved: 0, evaluated: 0 };
 
+  // 1.1) etapas travadas (lock_auto_move) — para bloquear saída E entrada automática
+  const { data: stagesRaw } = await supabase
+    .from("pipeline_stages")
+    .select("id, lock_auto_move")
+    .eq("clinic_id", clinicId);
+  const lockedStageIds = new Set(
+    (stagesRaw ?? []).filter((s: any) => s.lock_auto_move).map((s: any) => s.id as string),
+  );
+
   const rulesByPipeline = new Map<string, Rule[]>();
   for (const r of rules) {
+    // Pula regras que tentam mover PARA uma etapa travada
+    if (lockedStageIds.has(r.target_stage_id)) continue;
     const arr = rulesByPipeline.get(r.pipeline_id) ?? [];
     arr.push(r);
     rulesByPipeline.set(r.pipeline_id, arr);
   }
 
-  // 2) candidatos: leads com pipeline que tem regras.
-  //    - cron automático: últimas 24h (limite 500/clínica)
-  //    - rodadas forçadas (lead_ids explícitos): ignora janela de tempo
+  if (rulesByPipeline.size === 0) return { clinic_id: clinicId, moved: 0, evaluated: 0 };
+
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const pipelineIds = Array.from(rulesByPipeline.keys());
   const forced = !!(leadIds && leadIds.length);
@@ -136,6 +153,12 @@ async function processClinic(clinicId: string, leadIds?: string[]) {
       continue;
     }
     if (!lead.pipeline_id) continue;
+
+    // Pula leads em etapas travadas (ex.: Administrativo)
+    if (lead.stage_id && lockedStageIds.has(lead.stage_id)) {
+      skipped++;
+      continue;
+    }
 
     const pipelineRules = rulesByPipeline.get(lead.pipeline_id) ?? [];
     const cf = (lead.custom_fields ?? {}) as Record<string, unknown>;

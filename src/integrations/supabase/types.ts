@@ -4567,6 +4567,7 @@ export type Database = {
           created_at: string
           id: string
           is_terminal: boolean
+          lock_auto_move: boolean
           name: string
           pipeline_id: string
           position: number
@@ -4577,6 +4578,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_terminal?: boolean
+          lock_auto_move?: boolean
           name: string
           pipeline_id: string
           position: number
@@ -4587,6 +4589,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_terminal?: boolean
+          lock_auto_move?: boolean
           name?: string
           pipeline_id?: string
           position?: number

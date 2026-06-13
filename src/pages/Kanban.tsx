@@ -245,6 +245,15 @@ function shortReason(r: string): string {
   return r.replace(/_/g, " ");
 }
 
+function isFutureDateStr(raw: string | undefined | null): Date | null {
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  if (isNaN(t)) return null;
+  // Tolerância de 12h pra fuso
+  if (t < Date.now() - 12 * 60 * 60 * 1000) return null;
+  return new Date(t);
+}
+
 function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const cf = (lead.custom_fields ?? {}) as Record<string, any>;
   const qualif: string | undefined = cf.qualificacao;
@@ -252,7 +261,8 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const tentouPag: boolean | undefined = cf.tentou_pagamento;
   const pago: boolean | undefined = cf.pagamento_confirmado;
   const agendou: boolean | undefined = cf.tentou_agendar;
-  const consulta: string | undefined = cf.consulta_agendada_em;
+  const consultaRaw: string | undefined = cf.consulta_agendada_em;
+  const consultaDate = isFutureDateStr(consultaRaw);
   const reasons = lead.ai_review_reasons ?? [];
   const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
   const pending = !!lead.needs_ai_review;
@@ -261,7 +271,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const extra = reasons.length - visibleReasons.length;
 
   if (
-    !qualif && !proc && !tentouPag && !pago && !agendou && !consulta &&
+    !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate &&
     !locked && !pending && reasons.length === 0
   ) return null;
 
@@ -275,12 +285,12 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
       {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>Pago</Chip>}
       {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>Comprovante</Chip>}
-      {consulta && (
+      {consultaDate && (
         <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
-          {new Date(consulta).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+          {consultaDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
         </Chip>
       )}
-      {!consulta && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
+      {!consultaDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
       {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
       {locked && <Chip tone="neutral" icon={<Lock className="h-3 w-3" />}>Lock manual</Chip>}
       {!compact && visibleReasons.map((r) => (

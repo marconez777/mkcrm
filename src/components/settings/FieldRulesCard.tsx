@@ -240,7 +240,8 @@ export default function FieldRulesCard({ clinicId }: Props) {
           <p className="text-[11px] text-muted-foreground">
             Ops: <code>equals</code>, <code>not_equals</code>, <code>is_true</code>, <code>is_false</code>,
             <code> is_empty</code>, <code>not_empty</code>, <code>in</code>, <code>contains</code>,
-            <code> gte</code>, <code>lte</code>. Lê <code>leads.custom_fields</code>.
+            <code> gte</code>, <code>lte</code>, <code>is_future</code> (data futura),
+            <code> is_past</code> (data passada). Lê <code>leads.custom_fields</code>.
           </p>
         </div>
         <div className="md:col-span-2 flex justify-end">

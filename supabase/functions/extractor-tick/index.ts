@@ -16,6 +16,7 @@
 
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
+import { parseFutureDate } from "../_shared/dates.ts";
 
 interface ClinicCfg {
   manual_lock_minutes: number;
@@ -143,12 +144,18 @@ Procedimentos NÃO oferecidos (qualquer menção → qualificacao="desqualificad
 - EMDR (dessensibilização e reprocessamento por movimentos oculares)
 - Qualquer outro procedimento que não esteja na lista acima.
 
-Regras:
-- Use null quando a informação não estiver clara.
-- Não invente datas. Só preencha consulta_agendada_em se houver uma data/hora explicitamente combinada.
+Regras gerais:
+- Use null quando a informação não estiver clara. Prefira null a chutar.
 - pagamento_confirmado só é true se o atendente CONFIRMOU recebimento. Lead enviando comprovante = tentou_pagamento=true.
 - Confidence reflete o quão clara a informação está nas mensagens.
-- Sempre chame a função extract_lead_fields exatamente uma vez.`;
+- Sempre chame a função extract_lead_fields exatamente uma vez.
+
+Regras estritas de agendamento (siga à risca):
+- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma consulta ("pode marcar pra terça 14h", "confirmo", "fechado dia 20", "combinado"). Pedir horário, perguntar disponibilidade, dizer "queria agendar" ou apenas citar um dia da semana NÃO conta — nesses casos use null ou false.
+- consulta_agendada_em SOMENTE quando houver data combinada de forma explícita E essa data for HOJE ou no FUTURO. Se a data mencionada já passou (ex.: "vim dia 25/02" quando hoje é depois de 25/02), retorne null.
+- Não invente datas. Não infira datas a partir de "semana que vem" sem confirmação.
+- Use formato ISO 8601 (AAAA-MM-DDTHH:mm) para consulta_agendada_em. Se não souber a hora, use 12:00.
+- Se a conversa é administrativa/interna (clínica conversando com médico, fornecedor, secretária), retorne tudo null — não é lead.`;
 
 interface OpenAIUsage { prompt_tokens?: number; completion_tokens?: number; }
 interface OpenAIResp {
@@ -223,6 +230,26 @@ function applyFields(
 ): { merged: Record<string, unknown>; setKeys: string[] } {
   const merged = { ...current };
   const setKeys: string[] = [];
+
+  // Validação extra: consulta_agendada_em precisa ser data futura válida.
+  // Se a IA mandou algo no passado ou inválido, descarta e zera tentou_agendar
+  // se ele tiver vindo só dessa inferência.
+  const rawDate = extracted["consulta_agendada_em"];
+  if (rawDate !== undefined && rawDate !== null) {
+    const valid = parseFutureDate(rawDate);
+    if (!valid) {
+      extracted = { ...extracted, consulta_agendada_em: null };
+      // Se tentou_agendar veio true apenas porque a IA "achou" uma data,
+      // não consideramos confirmação válida.
+      if (extracted["tentou_agendar"] === true) {
+        extracted = { ...extracted, tentou_agendar: null };
+      }
+    } else {
+      // normaliza para ISO
+      extracted = { ...extracted, consulta_agendada_em: valid.toISOString() };
+    }
+  }
+
   const writable = [
     "procedimento_interesse",
     "qualificacao",
@@ -235,9 +262,14 @@ function applyFields(
     "nome_preferido",
     "observacoes",
   ];
+  // Threshold mais alto para campos sensíveis
+  const SENSITIVE = new Set(["consulta_agendada_em", "tentou_agendar"]);
+  const sensitiveThreshold = Math.max(0.8, cfg.confidence_threshold);
+
   for (const k of writable) {
     const newVal = extracted[k];
     if (newVal === undefined || newVal === null) continue;
+    if (SENSITIVE.has(k) && confidence < sensitiveThreshold) continue;
     const isEmpty = fieldIsEmpty(current[k]);
     const canOverwrite =
       cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold;
@@ -323,9 +355,10 @@ function applyClinicFieldMapping(
     }
   }
 
-  // data_horario (datetime)
+  // data_horario (datetime) — só se a data extraída for futura/válida
   if (byKey.has("data_horario")) {
-    setIfEmpty("data_horario", extracted.consulta_agendada_em);
+    const valid = parseFutureDate(extracted.consulta_agendada_em);
+    if (valid) setIfEmpty("data_horario", valid.toISOString());
   }
 
   // teleconsulta (boolean)
