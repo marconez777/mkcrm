@@ -16,6 +16,7 @@
 
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
+import { parseFutureDate } from "../_shared/dates.ts";
 
 interface ClinicCfg {
   manual_lock_minutes: number;
@@ -143,12 +144,18 @@ Procedimentos NÃO oferecidos (qualquer menção → qualificacao="desqualificad
 - EMDR (dessensibilização e reprocessamento por movimentos oculares)
 - Qualquer outro procedimento que não esteja na lista acima.
 
-Regras:
-- Use null quando a informação não estiver clara.
-- Não invente datas. Só preencha consulta_agendada_em se houver uma data/hora explicitamente combinada.
+Regras gerais:
+- Use null quando a informação não estiver clara. Prefira null a chutar.
 - pagamento_confirmado só é true se o atendente CONFIRMOU recebimento. Lead enviando comprovante = tentou_pagamento=true.
 - Confidence reflete o quão clara a informação está nas mensagens.
-- Sempre chame a função extract_lead_fields exatamente uma vez.`;
+- Sempre chame a função extract_lead_fields exatamente uma vez.
+
+Regras estritas de agendamento (siga à risca):
+- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma consulta ("pode marcar pra terça 14h", "confirmo", "fechado dia 20", "combinado"). Pedir horário, perguntar disponibilidade, dizer "queria agendar" ou apenas citar um dia da semana NÃO conta — nesses casos use null ou false.
+- consulta_agendada_em SOMENTE quando houver data combinada de forma explícita E essa data for HOJE ou no FUTURO. Se a data mencionada já passou (ex.: "vim dia 25/02" quando hoje é depois de 25/02), retorne null.
+- Não invente datas. Não infira datas a partir de "semana que vem" sem confirmação.
+- Use formato ISO 8601 (AAAA-MM-DDTHH:mm) para consulta_agendada_em. Se não souber a hora, use 12:00.
+- Se a conversa é administrativa/interna (clínica conversando com médico, fornecedor, secretária), retorne tudo null — não é lead.`;
 
 interface OpenAIUsage { prompt_tokens?: number; completion_tokens?: number; }
 interface OpenAIResp {
