@@ -248,23 +248,31 @@ function applyFields(
   const merged = { ...current };
   const setKeys: string[] = [];
 
-  // Validação extra: consulta_agendada_em precisa ser data futura válida.
-  // Se a IA mandou algo no passado ou inválido, descarta e zera tentou_agendar
-  // se ele tiver vindo só dessa inferência.
-  const rawDate = extracted["consulta_agendada_em"];
-  if (rawDate !== undefined && rawDate !== null) {
-    const valid = parseFutureDate(rawDate);
-    if (!valid) {
-      extracted = { ...extracted, consulta_agendada_em: null };
-      // Se tentou_agendar veio true apenas porque a IA "achou" uma data,
-      // não consideramos confirmação válida.
-      if (extracted["tentou_agendar"] === true) {
-        extracted = { ...extracted, tentou_agendar: null };
+  // Validação extra: datas precisam ser futuras válidas.
+  // Se a IA mandou algo no passado ou inválido, descarta.
+  for (const dateKey of ["consulta_agendada_em", "procedimento_agendado_em"] as const) {
+    const rawDate = extracted[dateKey];
+    if (rawDate !== undefined && rawDate !== null) {
+      const valid = parseFutureDate(rawDate);
+      if (!valid) {
+        extracted = { ...extracted, [dateKey]: null };
+      } else {
+        extracted = { ...extracted, [dateKey]: valid.toISOString() };
       }
-    } else {
-      // normaliza para ISO
-      extracted = { ...extracted, consulta_agendada_em: valid.toISOString() };
     }
+  }
+
+  // Se tipo_agendamento=procedimento, garante que não escreve campos de consulta
+  if (extracted.tipo_agendamento === "procedimento") {
+    extracted = { ...extracted, consulta_agendada_em: null, tentou_agendar: null };
+  }
+  // Se nenhuma data válida sobrou e tentou_agendar veio só por inferência, zera
+  if (
+    extracted["tentou_agendar"] === true &&
+    !extracted["consulta_agendada_em"] &&
+    !extracted["procedimento_agendado_em"]
+  ) {
+    extracted = { ...extracted, tentou_agendar: null };
   }
 
   const writable = [
@@ -276,11 +284,12 @@ function applyFields(
     "pagamento_confirmado",
     "tentou_agendar",
     "consulta_agendada_em",
+    "procedimento_agendado_em",
     "nome_preferido",
     "observacoes",
   ];
   // Threshold mais alto para campos sensíveis
-  const SENSITIVE = new Set(["consulta_agendada_em", "tentou_agendar"]);
+  const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);
   const sensitiveThreshold = Math.max(0.8, cfg.confidence_threshold);
 
   for (const k of writable) {
@@ -299,6 +308,7 @@ function applyFields(
   }
   return { merged, setKeys };
 }
+
 
 // Mapeia procedimento_interesse (enum interno) para os labels das opções
 // que costumam aparecer nos campos custom da clínica.
@@ -372,11 +382,20 @@ function applyClinicFieldMapping(
     }
   }
 
-  // data_horario (datetime) — só se a data extraída for futura/válida
+  // data_horario (datetime) — recebe a data de procedimento se houver, senão consulta
   if (byKey.has("data_horario")) {
-    const valid = parseFutureDate(extracted.consulta_agendada_em);
-    if (valid) setIfEmpty("data_horario", valid.toISOString());
+    const validProc = parseFutureDate(extracted.procedimento_agendado_em);
+    const validCons = parseFutureDate(extracted.consulta_agendada_em);
+    const chosen = validProc ?? validCons;
+    if (chosen) setIfEmpty("data_horario", chosen.toISOString());
   }
+
+  // procedimento_agendado_em (datetime) — campo dedicado de sessão de procedimento
+  if (byKey.has("procedimento_agendado_em")) {
+    const valid = parseFutureDate(extracted.procedimento_agendado_em);
+    if (valid) setIfEmpty("procedimento_agendado_em", valid.toISOString());
+  }
+
 
   // teleconsulta (boolean)
   if (byKey.has("teleconsulta") && typeof extracted.teleconsulta === "boolean") {
