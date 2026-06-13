@@ -262,7 +262,9 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const pago: boolean | undefined = cf.pagamento_confirmado;
   const agendou: boolean | undefined = cf.tentou_agendar;
   const consultaRaw: string | undefined = cf.consulta_agendada_em;
+  const procedimentoRaw: string | undefined = cf.procedimento_agendado_em;
   const consultaDate = isFutureDateStr(consultaRaw);
+  const procedimentoDate = isFutureDateStr(procedimentoRaw);
   const reasons = lead.ai_review_reasons ?? [];
   const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
   const pending = !!lead.needs_ai_review;
@@ -271,9 +273,11 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const extra = reasons.length - visibleReasons.length;
 
   if (
-    !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate &&
+    !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
     !locked && !pending && reasons.length === 0
   ) return null;
+
+  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -285,12 +289,17 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
       {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>Pago</Chip>}
       {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>Comprovante</Chip>}
-      {consultaDate && (
-        <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
-          {consultaDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+      {procedimentoDate && (
+        <Chip tone="success" icon={<CalendarClock className="h-3 w-3" />}>
+          Procedimento {fmt(procedimentoDate)}
         </Chip>
       )}
-      {!consultaDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
+      {!procedimentoDate && consultaDate && (
+        <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
+          Consulta {fmt(consultaDate)}
+        </Chip>
+      )}
+      {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
       {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
       {locked && <Chip tone="neutral" icon={<Lock className="h-3 w-3" />}>Lock manual</Chip>}
       {!compact && visibleReasons.map((r) => (
@@ -300,6 +309,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
     </div>
   );
 }
+
 
 function Chip({ children, tone = "neutral", icon }: {
   children: React.ReactNode;
