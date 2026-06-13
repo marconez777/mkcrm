@@ -1,79 +1,64 @@
 ## Problema
 
-Hoje o pipeline tem 3 falhas que se somam:
+Hoje só existe **um** campo de agendamento (`consulta_agendada_em`) e **uma** regra ("data preenchida → Consulta Agendada"). Quando o lead marca uma sessão de cetamina (procedimento, recorrente), a IA grava no mesmo campo e o card vai parar em **Consulta Agendada** — quando o certo seria **Procedimento Agendado**.
 
-1. **Qualquer palavra vira “agendamento”.** Um gatilho no banco marca o lead como “tentou agendar” só por ver palavras como *marcar, agendar, hoje, segunda, 10h, 3/4*. Isso já dispara a IA e acende o chip “Agendando”.
-2. **Datas antigas viram consulta agendada.** A IA aceita qualquer data que extrair do texto (inclusive passada) e grava como `consulta_agendada_em`. A regra de Kanban move o card para *Consulta Agendada* só por ter data preenchida — sem checar se é futura.
-3. **Coluna Administrativo não está protegida.** Nenhum dos 3 motores que movem card (IA, automação, regras de campo) sabe que *Administrativo* é intocável, então o lead volta pra *Consulta Agendada* na próxima varredura.
+No caso Leonardo/Ariane: o procedimento já foi identificado (Procedimentos = Infusão de cetamina), só falta o pipeline tratar o novo agendamento como **sessão de procedimento**, não como nova consulta.
 
-Decisões assumidas (você pediu pra eu decidir):
-- Administrativo: **nenhuma movimentação automática** — nem entrada, nem saída.
-- Data no passado: **ignorar** (não grava, não move).
-- “Consulta agendada” exige: **data futura válida + frase explícita de confirmação + confiança alta**.
+## Decisões assumidas
 
----
+- "Consulta" = primeira avaliação com o médico. "Procedimento" = aplicação/sessão (cetamina, infusão, etc.), normalmente repetida.
+- Sinal forte de procedimento: a palavra do agendamento vem junto de um nome de procedimento conhecido (cetamina, infusão, cetamine, sessão, aplicação, EMTr, etc.) **ou** o lead já tem `procedimentos` preenchido / já passou por Procedimento pago / Consulta finalizada.
+- Quando for procedimento, **não** mexe em `consulta_agendada_em` nem em `tentou_agendar`.
 
-## O que vai mudar (linguagem leigo)
+## O que muda (linguagem leigo)
 
-### 1. Coluna “Administrativo” virá blindada
-- Marcar a etapa como “trava de saída/entrada automática”.
-- Os 3 robôs (IA do chat, automações, regras de campo) passam a ignorar qualquer card que esteja em Administrativo e também não podem mandar nada *para* Administrativo sozinhos.
-- Mover de/para Administrativo só por arrastar manualmente.
+### 1. Novo campo "Data do procedimento"
+- Campo customizado `procedimento_agendado_em` (mesma validação de data futura que já fizemos pro de consulta).
+- Aparece no drawer do lead junto da data de consulta.
 
-### 2. Data de consulta só conta se for futura e explícita
-- Antes de gravar `consulta_agendada_em`, o sistema confere:
-  - É data válida no formato esperado (DD/MM, DD/MM/AAAA ou ISO).
-  - É **hoje ou no futuro** (com 12h de tolerância pra fuso). Se for passada, descarta.
-- A IA recebe instrução reforçada: só preencher data se o lead **confirmar** (“pode ser dia X às Y”, “confirmo terça 14h”). Pedido de horário (“qual horário tem?”) **não** vale.
-- O chip de data no card também esconde data passada (proteção dupla, pros leads que já estão sujos).
+### 2. IA aprende a diferença
+- Prompt do extractor recebe lista explícita:
+  - Palavras de **consulta**: "consulta", "avaliação", "primeira vez", "avaliar", "conhecer o doutor".
+  - Palavras de **procedimento**: "cetamina", "infusão", "sessão", "aplicação", "EMTr", "estimulação", "tratamento" + qualquer item já listado em `procedimentos`.
+- Regra: se a mensagem agenda algo **e** bate procedimento → grava em `procedimento_agendado_em`. Senão, em `consulta_agendada_em`.
+- Reforço contextual: se o lead já tem `procedimentos` preenchido, **ou** já passou por "Consulta finalizada"/"Procedimento pago", o default vira procedimento (a não ser que a mensagem diga explicitamente "consulta"/"avaliação").
 
-### 3. Regra que move pra “Consulta Agendada” fica mais exigente
-- Novo operador `is_future` para datas no campo `consulta_agendada_em`.
-- A regra padrão muda de *“data preenchida”* para *“data preenchida E é futura E `tentou_agendar` = verdadeiro”*.
+### 3. Nova regra de movimentação
+- Regra padrão por pipeline:
+  - `procedimento_agendado_em` preenchido + é data futura → move pra **Procedimento Agendado**.
+- A regra existente ("Consulta agendada") continua, mas só dispara pelo campo de consulta. Como na rodada anterior já incluímos `is_future`, fica consistente.
 
-### 4. Gatilho do banco fica mais conservador
-- Reduzir as palavras-soltas que acendem `tentou_agendar`. Só liga o flag quando há padrão de *confirmação* (ex.: “pode marcar pra…”, “confirmo …”, “fechado pra …”, data + horário juntos). Palavras isoladas (*hoje*, *marcar*, *segunda*) só sinalizam pra IA revisar, mas **não** marcam o lead como tendo tentado agendar.
+### 4. Chip do card
+- Card mostra o chip que tiver: se for procedimento, "🧪 Procedimento dd/mm"; se for consulta, "📅 Consulta dd/mm". Esconde data passada (já implementado).
 
-### 5. Limpeza dos leads atuais com data antiga
-- Script único: para todos os leads com `consulta_agendada_em` no passado, limpar o campo e o flag `tentou_agendar`. Os cards param de aparecer como “Agendado” sem a gente ter que mexer um por um.
-- Cards que estão hoje em *Consulta Agendada* mas têm data passada/sem data: ficam onde estão (não mexemos no stage manualmente), mas a próxima varredura não vai mais segurar lá.
-
----
+### 5. Limpeza dos leads atuais
+- Para leads que estão hoje em **Consulta Agendada** mas têm `procedimentos` preenchido (cetamina, infusão, etc.) e nunca passaram por "Consulta finalizada": mover script-único pra **Procedimento Agendado** e migrar a data de `consulta_agendada_em` → `procedimento_agendado_em`.
+- Caso Leonardo/Ariane entra nesse lote.
 
 ## Detalhes técnicos
 
 **Migrations**
-- `pipeline_stages`: adicionar `lock_auto_move boolean default false`.
-- Marcar a etapa “Administrativo” de cada pipeline com `lock_auto_move = true`.
-- Limpeza: `UPDATE leads SET custom_fields = custom_fields - 'consulta_agendada_em' - 'data_horario'` onde a data é passada; `custom_fields || '{"tentou_agendar": false}'` quando aplicável.
-- Ajustar `trg_lead_needs_extraction()`: remover do gatilho de `tentou_agendar=true` os matches genéricos; manter apenas combinações “verbo de confirmação + (data|hora|dia da semana)”.
+- `custom_field_defs`: nova chave `procedimento_agendado_em` (type=date) — por clínica.
+- `pipeline_field_rules`: para cada pipeline com stage "Procedimento Agendado", inserir regra `[{field:"procedimento_agendado_em", op:"not_empty"}, {field:"procedimento_agendado_em", op:"is_future"}]` → `target_stage = Procedimento Agendado`.
+- Data fix script: `UPDATE leads SET custom_fields = jsonb_set(custom_fields - 'consulta_agendada_em', '{procedimento_agendado_em}', custom_fields->'consulta_agendada_em')` WHERE stage = Consulta Agendada AND custom_fields ? 'procedimentos' AND ... .
 
 **Edge functions**
-- `supabase/functions/_shared/dates.ts` (novo): `parseFutureDate(str): Date | null` — aceita DD/MM, DD/MM/AAAA, ISO, em UTC; rejeita data > 12h no passado; rejeita Feb 31 etc.
-- `extractor-tick/index.ts`:
-  - Em `applyFields`/`applyClinicFieldMapping`, passar `consulta_agendada_em` por `parseFutureDate`; se `null`, não grava e também zera `tentou_agendar` se a IA só inferiu por isso.
-  - SYSTEM_PROMPT reforçado: lista explícita de frases que contam como confirmação vs. dúvida; instrução “se a data mencionada já passou, retorne null”.
-  - Subir threshold default para `0.8` quando o campo for `consulta_agendada_em`.
-- `field-rules-tick/index.ts`:
-  - Novo operador `is_future` (parseia string como data e compara com `now()`).
-  - Skip do lead se o stage atual tem `lock_auto_move=true`.
-  - Skip da regra se `target_stage_id` aponta para stage com `lock_auto_move=true`.
-- `automations-tick/index.ts` (action `move_stage`) e `ai-chat/index.ts` (tool `move_lead_stage`): mesma checagem de `lock_auto_move` em origem e destino, com log em `lead_events` (`stage_lock_skipped`).
+- `supabase/functions/extractor-tick/index.ts`:
+  - Adicionar bloco no SYSTEM_PROMPT classificando o agendamento (consulta vs procedimento) com lista de termos.
+  - Ao escrever data: `applyClinicFieldMapping` decide alvo (`consulta_agendada_em` ou `procedimento_agendado_em`) baseado no classifier; `parseFutureDate` em ambos.
+  - Heurística de contexto: passa `lead.custom_fields.procedimentos` e `stage atual` no prompt.
+- `_shared/dates.ts`: já cobre — reaproveita.
+- `ai-chat/index.ts` tool `set_lead_field`: aceita `procedimento_agendado_em`.
 
 **Frontend**
-- `src/pages/Kanban.tsx` (linha ~278): só renderizar chip de data se `parseFutureDate(consulta)` ≠ null.
-- `FieldRulesCard` / `SuggestRulesDialog`: adicionar `is_future` à lista de operadores em PT (“É data futura”).
-- Indicador visual de etapa travada (cadeado pequeno no header de Administrativo).
-
-**Atualização das regras existentes**
-- Migration data-only converte regras com `{field: "consulta_agendada_em", op: "not_empty"}` para um array `[{op:"not_empty"}, {op:"is_future"}, {field:"tentou_agendar", op:"is_true"}]`.
-
----
+- `src/pages/Kanban.tsx`: render do chip — se tiver `procedimento_agendado_em` futuro, mostra esse; senão consulta.
+- `src/pages/LeadDrawer.tsx` / `CustomFieldsPanel.tsx`: exibe os dois campos.
+- `FieldRulesCard` / `SuggestRulesDialog`: já suporta `is_future`; basta listar o novo campo.
 
 ## Validação
 
-1. Lead em Administrativo + mensagem com “agendar terça”: card **não sai** de Administrativo, log `stage_lock_skipped`.
-2. Lead com mensagem “vim dia 25/02” (passado): IA não grava `consulta_agendada_em`, card não vai pra Consulta Agendada.
-3. Lead com mensagem “pode marcar pra 20/12 às 14h”: IA grava data futura, regra move pra Consulta Agendada.
-4. Card existente da Camila Attori (25/02): após o script de limpeza, chip some e o card pode ser movido manualmente.
-5. Dr. Ivan em Administrativo: ao rodar `field-rules-tick` manualmente, é pulado.
+1. Mensagem "pode marcar a cetamina pra 20/12 às 14h" em lead com `procedimentos=Infusão de cetamina`: card vai pra **Procedimento Agendado**, chip 🧪 20/12.
+2. Mensagem "quero marcar uma consulta com o dr X" em lead novo: vai pra **Consulta Agendada**.
+3. Leonardo/Ariane após backfill: aparece em **Procedimento Agendado** com a próxima data de infusão.
+4. Mensagem ambígua "agenda pra mim terça" em lead que já tem cetamina: default = procedimento.
+5. Mensagem com data passada: nem um nem outro campo é gravado (mantém comportamento da rodada anterior).
