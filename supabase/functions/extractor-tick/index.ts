@@ -112,9 +112,19 @@ const EXTRACTION_TOOL = {
           description: "Como o lead chegou à clínica, se mencionado.",
         },
         tentou_agendar: { type: ["boolean", "null"] },
+        tipo_agendamento: {
+          type: ["string", "null"],
+          enum: ["consulta", "procedimento", null],
+          description:
+            "Tipo do agendamento mencionado. 'consulta' = primeira avaliação/consulta com o médico. 'procedimento' = aplicação/sessão (cetamina, infusão, EMT). null se não houver agendamento confirmado.",
+        },
         consulta_agendada_em: {
           type: ["string", "null"],
-          description: "Data/hora ISO 8601 quando o lead/clínica acordaram a consulta, se houver.",
+          description: "Data/hora ISO 8601 da CONSULTA combinada (não use para sessões de procedimento).",
+        },
+        procedimento_agendado_em: {
+          type: ["string", "null"],
+          description: "Data/hora ISO 8601 de uma SESSÃO DE PROCEDIMENTO combinada (cetamina, infusão, EMT, sessão).",
         },
         nome_preferido: {
           type: ["string", "null"],
@@ -129,6 +139,7 @@ const EXTRACTION_TOOL = {
     },
   },
 } as const;
+
 
 const SYSTEM_PROMPT = `Você é um extrator de dados de conversas de WhatsApp de uma clínica de psiquiatria.
 
@@ -151,10 +162,16 @@ Regras gerais:
 - Sempre chame a função extract_lead_fields exatamente uma vez.
 
 Regras estritas de agendamento (siga à risca):
-- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma consulta ("pode marcar pra terça 14h", "confirmo", "fechado dia 20", "combinado"). Pedir horário, perguntar disponibilidade, dizer "queria agendar" ou apenas citar um dia da semana NÃO conta — nesses casos use null ou false.
-- consulta_agendada_em SOMENTE quando houver data combinada de forma explícita E essa data for HOJE ou no FUTURO. Se a data mencionada já passou (ex.: "vim dia 25/02" quando hoje é depois de 25/02), retorne null.
+- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma CONSULTA (não procedimento). Pedir horário, perguntar disponibilidade, dizer "queria agendar" ou apenas citar um dia da semana NÃO conta.
+- Distinção CRUCIAL — classifique cada agendamento em "consulta" ou "procedimento":
+  • CONSULTA = primeira avaliação/conversa com o médico. Palavras-chave: "consulta", "avaliação", "primeira vez", "avaliar", "conhecer o doutor", "marcar com o Dr.".
+  • PROCEDIMENTO = aplicação/sessão de tratamento (recorrente). Palavras-chave: "cetamina", "infusão", "sessão", "aplicação", "EMT", "EMTr", "estimulação", "tratamento", "próxima sessão", "agendar a infusão".
+  • Se o lead já tem "procedimentos" preenchido nos custom_fields (ex.: "Infusão de cetamina"), o default para agendamentos novos é PROCEDIMENTO, exceto se a mensagem disser explicitamente "consulta"/"avaliação".
+  • Se for procedimento, preencha procedimento_agendado_em e deixe consulta_agendada_em=null e tentou_agendar=null. Se for consulta, preencha consulta_agendada_em.
+- A data preenchida (em qualquer um dos dois campos) precisa ser HOJE ou no FUTURO. Se a data mencionada já passou, retorne null.
 - Não invente datas. Não infira datas a partir de "semana que vem" sem confirmação.
-- Use formato ISO 8601 (AAAA-MM-DDTHH:mm) para consulta_agendada_em. Se não souber a hora, use 12:00.
+- Use formato ISO 8601 (AAAA-MM-DDTHH:mm). Se não souber a hora, use 12:00.
+
 - Se a conversa é administrativa/interna (clínica conversando com médico, fornecedor, secretária), retorne tudo null — não é lead.`;
 
 interface OpenAIUsage { prompt_tokens?: number; completion_tokens?: number; }
