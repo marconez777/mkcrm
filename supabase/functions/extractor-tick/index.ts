@@ -678,6 +678,10 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       ai_review_reasons: [],
     };
     if (allSetKeys.length) update.custom_fields = merged;
+    // I5/B33: extractor sinalizou contato administrativo → marca a flag estrutural
+    if (extracted.is_administrative_contact === true && !lead.is_internal_contact) {
+      update.is_internal_contact = true;
+    }
 
     await supabase.from("leads").update(update).eq("id", lead.id);
 
