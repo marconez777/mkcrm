@@ -15,6 +15,24 @@ async function fetchAudio(url: string): Promise<{ bytes: Uint8Array; mime: strin
   }
 }
 
+// Re-sign a Supabase storage URL if it's a signed URL (possibly expired).
+// Returns the original URL if it's not a supabase storage signed URL.
+async function ensureFreshUrl(supabase: any, url: string): Promise<string> {
+  try {
+    const u = new URL(url);
+    // Match: /storage/v1/object/{sign|public}/<bucket>/<path...>
+    const m = u.pathname.match(/\/storage\/v1\/object\/(sign|public)\/([^/]+)\/(.+)$/);
+    if (!m) return url;
+    const bucket = m[2];
+    const path = decodeURIComponent(m[3]);
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 10);
+    if (error || !data?.signedUrl) return url;
+    return data.signedUrl;
+  } catch {
+    return url;
+  }
+}
+
 function bytesToBase64(buf: Uint8Array): string {
   let bin = "";
   for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
@@ -102,8 +120,9 @@ Deno.serve(async (req) => {
       return json({ error: "Nenhum agente OpenAI ou Google configurado. A transcrição de áudio requer um desses provedores." }, 400);
     }
 
-    const audio = await fetchAudio(msg.media_url);
-    if (!audio) return json({ error: "failed to download audio" }, 502);
+    const freshUrl = await ensureFreshUrl(supabase, msg.media_url);
+    const audio = await fetchAudio(freshUrl);
+    if (!audio) return json({ error: "failed to download audio (URL inválida ou expirada)" }, 502);
 
     let transcript = "";
     try {
