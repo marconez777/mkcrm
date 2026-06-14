@@ -174,3 +174,92 @@ Sistema (resumo, ver `supabase/functions/extractor-tick/index.ts:144-175`):
 - Fase 6 (síntese: matriz, top-10 erros, mapeamento erro→fix).
 
 Aguardando confirmação pra prosseguir.
+
+---
+
+## Fase 2 — Consulta Agendada (18) + Procedimento Agendado (8) + reuniao agendada (7) = 33 leads
+
+**Data da auditoria:** 2026-06-14. **Critério de "futuro":** `data_horario` ou `procedimento_agendado_em` ≥ hoje. Leituras: últimas 8 mensagens, `custom_fields`, últimas 3 execuções do extractor, notas internas.
+
+### 2.1 Consulta Agendada (18 leads) — 0/18 corretos ❌
+
+| Lead | data_horario | Verdict | Motivo |
+|---|---|---|---|
+| Ana Clara Borelli | 2026-06-05 | ❌ | Consulta já realizada ("Bom final de semana" pós-link). Deveria ir pra **Fechamento pendente consulta** ou **Consulta finalizada**. |
+| Thiago di Marcantonio | 2024-05-31 | ❌ | Data de 2 anos atrás. Conversa atual confirma 19/06 — extractor não atualizou. |
+| Kauê Pcte | 2026-06-09 | ❌ | Consulta de 5 dias atrás. Cobrança PIX enviada, sem confirmação de pagamento. Deveria estar em **Fechamento pendente consulta**. |
+| Rosa Neli | 2026-06-10 | ❌ | Passado. Link de pagamento enviado, sem comprovante. |
+| Fabio Dalla | 2025-12-16 | ❌ | 6 meses atrás. Conversa atual fala de retorno hoje — extractor não capturou. |
+| Thalita Oliveira | 2025-05-21 | ❌ | 1 ano atrás. Nova data ("quarta às 13h") não extraída. |
+| Paula Quartim | 2026-03-05 | ❌ | 3 meses atrás. |
+| Julia Coletti | 2026-05-25 | ❌ | NF já emitida → consulta finalizada e paga. Deveria estar em **Procedimento pago** ou pós-atendimento. |
+| `.` (sem nome) | 2026-06-05 | ❌ | Lead com nome vazio. Conversa interna ("avisar enfermeiras") = **ruído administrativo** (B9). |
+| `11971765819` | 2026-02-03 | ❌ | Sem nome próprio, lead-fantasma. |
+| Bruna Correa | 2026-06-09 | ❌ | NF enviada → finalizada. Nota mostra insatisfação grave — deveria sinalizar urgência humana. |
+| Patrícia Enf. | {} | ❌ | **Enfermeira** falando em nome de outra paciente (Rosângela). Ruído administrativo. |
+| Marcelle | 2023-06-19 | ❌ | 3 anos atrás. Nota indica remarcação 14/05→11/06 não capturada. |
+| Vitória | 2026-06-08 | ❌ | Passado. Extractor com erro "Error while downloading https://…storage/v1/obje" (B2). |
+| Marco Guimarães Agencia | 2026-06-02 | ❌ | **Médico parceiro** recebendo prospecção de parceria — deveria estar em **reuniao agendada**, não consulta. |
+| Felipe Moulin | só `form_submission` | ❌ | Sem data, sem qualificação. Conversa só sobre óculos esquecido (pós-consulta). |
+| Milene Campanholo | 2026-06-05 | ❌ | Passado. 5 lembretes "começa em 1 hora" disparados — consulta provavelmente finalizada. |
+| Oneide Pereira | {} | ❌ | "Nova consulta daqui 45 dias" — deveria estar em **Nutrição** ou agendamento futuro. |
+
+**Conclusão coluna:** 100% de erro. Causa raiz = ausência de `is_future` na Rule 90 (B3) + extractor não revisa `data_horario` em conversas subsequentes + ruído administrativo (B9) classificado como consulta.
+
+### 2.2 Procedimento Agendado (8 leads) — 2/8 corretos (25%)
+
+| Lead | data | Verdict | Motivo |
+|---|---|---|---|
+| Rosa Maria | `procedimento_agendado_em` 2026-06-17 | ✅ | Futuro. Único caso com campo correto preenchido (`procedimento_agendado_em` separado de `data_horario`). |
+| Juliana Alves (28223ac2) | 2026-06-15 | ✅ | Futuro. Confirmou infusão segunda 07h30. |
+| Juliana Alves (0ee236df) | 2024-03-09 | ❌ | **Lead duplicado** de Juliana com data 2 anos atrás. Deveria ser mesclado. |
+| Rosangela | {} | ❌ | Sem data. Conversa mostra agendamento 10:30 amanhã — extractor não capturou. |
+| Juca Palacios | 2026-05-15 | ❌ | Passado (1 mês). Conversa sobre reagendar p/ sexta. |
+| Isabela Terlizzi | 2024-06-26 | ❌ | 2 anos atrás. Conversa atual: "cetamina quarta semana que vem". |
+| Michelle Kartychak | 2023-07-07 | ❌ | 3 anos atrás. Conversa: EMT 9:30 amanhã. |
+| Laís Carrara | 2024-07-10 | ❌ | 2 anos atrás. |
+
+**Padrão:** mesma falha sistêmica — `data_horario` capturado uma vez no agendamento original e nunca atualizado quando há reagendamento. Confirma necessidade do extractor rodar em **toda mensagem nova** e **sobrescrever** datas anteriores quando o lead pede remarcação.
+
+### 2.3 reuniao agendada (7 leads) — N/A, todos sem dados
+
+| Lead | msgs | notas | extractions |
+|---|---|---|---|
+| Dr. Cyro Masci | 0 | 0 | 0 |
+| Dr. Daniel Castelo | 0 | 0 | 0 |
+| Dr. Marcel Lamas | 0 | 0 | 0 |
+| Dr. Rafael Latorraca | 0 | 0 | 0 |
+| Dra Alanna Nunes | 0 | 0 | 0 |
+| Dra Laís Símaro | 0 | 0 | 0 |
+| Dra. Stephanie Lins | 0 | 0 | 0 |
+
+**Conclusão:** coluna usada **manualmente** para tracking de reuniões com médicos parceiros (todos prefixados "Dr./Dra."). Nenhum lead tem conversa WhatsApp nem custom_fields. O agente nunca opera aqui. **Recomendação:** mover esta coluna para um pipeline separado "Parcerias B2B" para não poluir o pipeline clínico (e impedir que leads como **Marco Guimarães Agencia** sejam classificados como consulta de paciente).
+
+### 2.4 Resumo Fase 2
+
+| Coluna | Total | Corretos | Acerto |
+|---|---:|---:|---:|
+| Consulta Agendada | 18 | 0 | **0%** |
+| Procedimento Agendado | 8 | 2 | **25%** |
+| reuniao agendada | 7 | N/A | — |
+| **Total verificável** | **26** | **2** | **7,7%** |
+
+### 2.5 Novos bugs identificados na Fase 2
+
+- **B10 — Extractor não sobrescreve `data_horario` em reagendamentos.** Quando o lead pede nova data, o campo antigo permanece. Precisa de regra explícita no prompt: "se houver nova confirmação de data, SUBSTITUA `data_horario` pela mais recente".
+- **B11 — Falta `consulta_finalizada` / detecção de pós-atendimento.** NF emitida, "bom final de semana", "Estamos sentindo sua falta" são sinais claros de consulta concluída. O agente não tem campo nem regra para detectar isso → leads ficam estagnados em "Consulta Agendada" depois da consulta.
+- **B12 — Ruído administrativo classificado como lead clínico.** Mensagens de enfermeiras, secretárias, médicos parceiros, contatos internos (sem nome ou com sufixo "Enf.", "Agencia", "Pcte") são tratados como leads. Precisa de regra de exclusão por padrão de nome + flag `is_internal_contact` no extractor.
+- **B13 — Leads duplicados** (ex.: 2 Julianas Alves) não são mesclados. Sugestão: rotina de dedup por telefone.
+- **B14 — Pipeline misto B2C+B2B.** "reuniao agendada" e prospecções de parceria (Marco Guimarães) deveriam estar em pipeline separado.
+
+### 2.6 Atualização ao plano de fix
+
+Acrescentar à lista de itens code-only:
+- **B10**: ajustar prompt do `extractor-tick` para "substituir data mais recente".
+- **B11**: criar enum `status_consulta` (`agendada`/`realizada`/`cancelada`) + regra de stage por NF emitida ou frase de despedida pós-consulta.
+- **B12**: pré-filtro no agent runner — `if lead.name ~ /(Enf\.|Pcte|Agencia|^Dr[a]?\.? )/i` → marcar como `non_clinical=true` e não processar.
+- **B13**: job batch de dedup por phone.
+
+---
+
+**Próxima fase:** Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads. Aguardando confirmação.
