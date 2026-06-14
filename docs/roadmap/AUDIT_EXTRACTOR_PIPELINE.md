@@ -965,4 +965,24 @@ Onda 1 destravada. Próximo: B15, B31 (+backfill ~25 leads), D2 (backfill Admini
 
 **Deploy:** extractor-tick redeployado.
 
-**Próximo:** rodar o eval com chave OpenAI para medir baseline real pós-Onda 2; expandir golden set para ~50 conversas reais anonimizadas; depois Onda 3 (field-rules D1, D3, B8, B10, B16, B18, B27).
+### Baseline pós-Onda 2 (eval real, 2026-06-14)
+
+Rodado com chave OpenAI da clínica (`clinic_secrets.openai_api_key`, last4 `ovcA`), modelo `gpt-5-nano`, 10 casos do golden set:
+
+| Métrica | Valor |
+|---|---|
+| Accuracy global | **83.0 %** (39/47 campos) |
+| Erros de chamada | 0/10 |
+| Baseline anterior (Parte I) | 44 % |
+| Meta Onda 2 | ≥ 75 % ✅ |
+| Meta Onda 6 | ≥ 90 % |
+
+**Casos 100 % acertados (6/10):** 02-admin-medico-parceiro, 04-sessao-com-maisa-terapia, 07-data-passada-rejeita, 10-emdr-desqualificado, e parciais 01/05/06/08 perdendo só 1 campo cada.
+
+**Mismatches recorrentes (a tratar nas próximas ondas):**
+1. `is_administrative_contact` retornando `null` em vez de `false` em 4 casos (01, 05, 08, 09). Modelo está omitindo o campo quando não-administrativo. → ajustar prompt p/ exigir bool explícito ou normalizar no pós-processo.
+2. **B33 (caso 03 spam-b2b):** `qualificacao` e `motivo_desqualificacao` voltaram `null` mesmo com sinais óbvios de pitch B2B. Prompt precisa reforçar gatilho.
+3. **I8 (caso 09 retorno-reativacao):** classificou como `em_negociacao` em vez de `retorno_reativacao` apesar de 30+ dias de inatividade. Regra de 14d precisa estar mais explícita no system prompt.
+4. **I2 (caso 06 pagamento):** `tentou_pagamento` retornando `null` (modelo só preenche `pagamento_confirmado`). → adicionar regra: se `pagamento_confirmado=true`, `tentou_pagamento=true` automaticamente.
+
+**Próximo:** expandir golden set para ~50 conversas reais anonimizadas; corrigir os 4 padrões de erro acima no prompt antes de seguir para Onda 3 (field-rules D1, D3, B8, B10, B16, B18, B27).
