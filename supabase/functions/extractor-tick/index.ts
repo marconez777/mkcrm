@@ -518,12 +518,14 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
-    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone")
+    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact")
     .eq("clinic_id", clinicId)
     .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
   // Em runs forçadas com lead_ids explícitos, ignora a flag needs_ai_review
   if (!(force && leadIds?.length)) leadsQ.eq("needs_ai_review", true);
+  // I5: nunca extrair em contatos administrativos/B2B (a menos que force+lead_ids explícitos)
+  if (!(force && leadIds?.length)) leadsQ.eq("is_internal_contact", false);
   if (leadIds?.length) leadsQ.in("id", leadIds);
 
   const { data: leads, error: leadsErr } = await leadsQ;
