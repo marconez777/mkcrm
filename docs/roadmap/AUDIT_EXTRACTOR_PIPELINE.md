@@ -353,3 +353,90 @@ Acrescentar à lista de itens code-only:
 ---
 
 **Próxima fase:** Fase 4 — pós-atendimento (Consulta finalizada 17 + Retorno Tratamento Finalizado 10 + Paciente antigo 6 + Nutrição de Leads Inativos 6) = 39 leads. Foco: detectar se a regra de envelhecimento/saída está ausente. Aguardando confirmação.
+
+---
+
+## Fase 4 — Pós-atendimento: Consulta finalizada (17) + Retorno Tratamento Finalizado (10) + Paciente antigo (545) + Nutrição de Leads Inativos (655) = **1.227 leads**
+
+> **Correção do plano original:** a Fase 4 tinha previsão de 39 leads. Na prática **Paciente antigo (545)** e **Nutrição de Leads Inativos (655)** são mega-cemitérios. Auditoria foi feita por **stats agregadas + amostra aleatória de 10**, não 1-a-1.
+
+### 4.1 Stats agregadas
+
+| Stage | Total | cf={} | Só form_submission | Nome "Lead #…/telefone" | Zero msgs | `updated_at` > 90d |
+|---|---:|---:|---:|---:|---:|---:|
+| Consulta finalizada | 17 | 1 | 0 | 3 | 4 | 0 |
+| Retorno Tratamento Finalizado | 10 | 6 | 0 | 8 | 9 | 0 |
+| Paciente antigo | **545** | 261 (48%) | 0 | 104 (19%) | 349 (64%) | 0 |
+| Nutrição de Leads Inativos | **655** | 327 (50%) | 29 | 227 (35%) | 546 (83%) | 0 |
+
+**Observação crítica:** **zero leads** com `updated_at > 90 dias` em qualquer dessas colunas. Como o CRM existe há mais tempo, isso indica **migração/carga em massa recente** (provavelmente import do CRM antigo) que carimbou `updated_at=now()` em tudo, **destruindo o sinal de envelhecimento real**.
+
+### 4.2 Consulta finalizada (17) — ~65% válida
+
+Inspeção 1-a-1:
+- ✅ **11 leads** com conversa real e data de consulta passada coerente: Felipe Baracat, Gilberto Castilho, Mitchell Andres, Victor Martelli, Leônidas, Bauman, Bruno Sella, Rodrigo Wainberg, Dan Friedlander, Soraia/Mirtes, 11994096788, Lady Law.
+- ❌ **6 leads** sem conversa ou com 1 mensagem só → não há prova de que a consulta aconteceu: Lead #9262476, Vinícius Frenzel, Guilherme Pirri, Lead #8766732, Andrea de Marco (1 msg automática), Lady Law (parcial).
+- ⚠️ **Bauman** e **Bruno Sella** têm conversa de **reagendamento ativo** em junho — não estão finalizados, deveriam estar em **Fechamento pendente consulta**.
+- ⚠️ **Mitchell** tem `data_horario` 14/05 → realmente passou, mas está sendo confundido com pacientes que **reagendaram** depois.
+
+### 4.3 Retorno Tratamento Finalizado (10) — 0% verificável
+
+| | Valor |
+|---|---|
+| Com mensagens | 1 (e só 1 mensagem) |
+| Com `custom_fields={}` | 6 |
+| Com nome "Lead #…" | 8 |
+
+**Veredito:** coluna é **órfã de regra** (já mapeado na Fase 0). Os 10 leads parecem cargas órfãs sem critério humano nem da IA. **Não há nada para "auditar" aqui** — a coluna precisa ser **purgada ou redesenhada**.
+
+### 4.4 Paciente antigo (545) — cemitério parcialmente legítimo
+
+Amostra de 10 mostra:
+- Leads com `data_horario` 2023–2025 e zero mensagens recentes → **legítimos como histórico**.
+- Mas também:
+  - **Ivan** (homônimo do médico, ruído — já visto em Procedimento pago).
+  - **Andressa Mota Lima** com 8 mensagens e `cf={}` → não enriquecida.
+  - **Lucia** com `interesse: Tratamento Alcoolismo` → poderia ser **lead ativo**, foi enterrado.
+  - **Cesar Augusto / Arthur Witte / Daniel Mario** com `data_horario` em dezembro 2025/janeiro 2026 e zero msgs → consultas marcadas que nunca tiveram interação WhatsApp registrada (provável import).
+
+**Risco real:** leads importados com `interesse` preenchido foram enterrados aqui sem nenhuma tentativa de reativação. Estimativa rasa: ~5% dos 545 (≈27 leads) poderiam estar ativos.
+
+### 4.5 Nutrição de Leads Inativos (655) — cemitério mais grave
+
+- **83% sem nenhuma mensagem** → leads importados ou que nunca responderam.
+- **35% com nome "Lead #…"** ou só formulário → enriquecimento falhou.
+- **29 leads** com apenas `form_submission` → ou seja, **encheram formulário no site e nunca foram contatados** (ou a IA falhou em iniciar conversa).
+- Amostra:
+  - **Anna Strunck** `interesse: Infusão de Cetamina` + zero msgs → **lead quente nunca contatado**.
+  - **Daniele Souza** `interesse: Cetamina` zero msgs.
+  - **Maria Luiza** `interesse: Consulta com psiquiatria` zero msgs.
+
+**Veredito:** Nutrição virou caixa-preta. **Provável perda de receita** — leads com interesse claro que nunca receberam outreach.
+
+### 4.6 Resumo Fase 4
+
+| Coluna | Total | Stage realmente apropriado |
+|---|---:|---|
+| Consulta finalizada | 17 | ~65% ok, 2 deveriam voltar pra Fechamento |
+| Retorno Tratamento Finalizado | 10 | **0% verificável — coluna sem propósito claro** |
+| Paciente antigo | 545 | ~95% ok como histórico; ~27 leads quentes enterrados |
+| Nutrição de Leads Inativos | 655 | **~29 leads de formulário nunca contatados + N leads quentes sem outreach** |
+
+### 4.7 Novos bugs Fase 4
+
+- **B20 — Migração em massa zerou `updated_at`.** Impede qualquer cron de envelhecimento. Solução: adicionar coluna `last_human_activity_at` separada e popular via trigger só em eventos reais (msg recebida, stage change manual). Não usar `updated_at` como sinal.
+- **B21 — "Retorno Tratamento Finalizado" não tem regra de entrada nem critério humano.** Coluna deveria ser **removida** ou definida (ex.: lead com `tratamento_concluido=true` por X tempo).
+- **B22 — Leads de `form_submission` em Nutrição sem outreach.** Falta automação: ao criar lead via formulário, disparar mensagem inicial automática + mover pra "Qualificação" — não pra Nutrição.
+- **B23 — Leads quentes enterrados em Paciente antigo / Nutrição.** Falta query/rotina: `interesse IN ('Cetamina','EMT','Consulta') AND total_msgs=0 AND created_at < X` → flag pra time comercial **reativar**. Estimativa: 50-100 leads recuperáveis hoje.
+- **B24 — "Bauman" e "Bruno Sella" como falsos finalizados.** Mesmo bug do B11 invertido: leads em reagendamento ativo foram classificados como finalizados. Falta regra "se há msg do lead nos últimos 7d com intenção de reagendar → tirar de Consulta finalizada".
+
+### 4.8 Recomendações prioritárias da Fase 4
+
+1. **Reativação imediata (esta semana):** rodar query que liste leads em Nutrição/Paciente antigo com `interesse` preenchido + zero msgs + sem outreach. Repassar pro time humano.
+2. **Automação de form_submission:** trigger ao inserir lead com `custom_fields.form_submission` → enrolar em sequência de WhatsApp e mover pra "Qualificação".
+3. **Decidir o destino de "Retorno Tratamento Finalizado":** o cliente precisa definir o critério ou aceitar a remoção.
+4. **Coluna `last_human_activity_at`:** prerequisito de qualquer cron de envelhecimento confiável (B20).
+
+---
+
+**Próxima fase:** Fase 5 — resíduos (Negou parceria + lead parou de responder + Contato inicial + outros) + amostra de colunas-depósito (Sem perfil, Desqualificado etc.). Aguardando confirmação.

@@ -2046,7 +2046,8 @@
       "Fase 1 — Coluna \"Qualificação\" (22 leads)",
       "Próximos passos",
       "Fase 2 — Consulta Agendada (18) + Procedimento Agendado (8) + reuniao agendada (7) = 33 leads",
-      "Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads"
+      "Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads",
+      "Fase 4 — Pós-atendimento: Consulta finalizada (17) + Retorno Tratamento Finalizado (10) + Paciente antigo (545) + Nutrição de Leads Inativos (655) = **1.227 leads**"
     ],
     "code_refs": [
       "supabase/functions/extractor-tick/",
@@ -2056,7 +2057,7 @@
       "docs/maps/AI_RUNTIME.md",
       "docs/maps/KANBAN_LEADS.md"
     ],
-    "size_lines": 342,
+    "size_lines": 429,
     "stale_refs": []
   },
   {
