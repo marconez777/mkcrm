@@ -763,3 +763,140 @@ Não existe regra que detecte spam/propaganda/cold-outreach B2B e mova automatic
 - `src/pages/LeadDrawer.tsx` (botão "marcar como spam").
 
 **Relação:** fecha o ciclo com B14 (B2B isolado de paciente), B19 (médicos parceiros) — o critério passa a ser: **B2B genuíno → coluna de parcerias; spam/cold-outreach → Lead não qualificado**.
+
+---
+
+# Parte II — Plano executável (refino 2026-06-14)
+
+> A Parte I (Fases 1–7 + B1–B33 acima) é log de auditoria. A Parte II é o **plano de execução**: invariantes, eixos, ondas e métricas que governam todas as próximas PRs do extractor/pipeline.
+
+## Decisões registradas (D1–D5, decididas pelo usuário em 2026-06-14)
+
+- **D1 — Coluna "Retorno Tratamento Finalizado": MANTER + gatilho automático.**
+  Regra: `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}` com último atendimento finalizado há ≥ 30 dias **E** sem mensagem inbound/outbound há ≥ 60 dias → mover para "Retorno Tratamento Finalizado". Sai da coluna quando: nova mensagem do lead, novo agendamento criado, ou drag manual.
+- **D2 — Contatos B2B / administrativos: coluna fixa "Administrativo".**
+  Não criar pipeline separado. Leads com `is_internal_contact=true` (Dr. Karina, Distrimed, Marco Guimarães, Elton/Hospital, parceiros, fornecedores, spam não-comercial relevante) vão direto para coluna **Administrativo** e ficam fixos lá — o extractor não os move por mais nenhuma regra comercial. Métricas operacionais excluem essa coluna por default.
+- **D3 — `status_consulta`: transição automática por data.**
+  Quando `data_consulta < now()` e `status_consulta = 'agendada'` → cron move para `realizada`. No-show é resolução humana via botão "marcar no-show" no `LeadDrawer.tsx`, que seta `status_consulta='no_show'` e move o lead para coluna apropriada. Modelagem em `custom_fields.status_consulta` (enum `agendada | realizada | no_show | cancelada | reagendada`) — sem nova tabela `appointments`.
+- **D4 — Texto de auto-reply fora-de-horário (B31) confirmado:**
+  > "Olá, obrigado pelo contato! Aqui é a equipe de consultoras da Clínica Ór Psiquiatria. Por estarmos fora do nosso horário de atendimento, podemos demorar um pouco a te responder. Assim que possível, retornaremos a sua mensagem."
+  Mensagens com esse template ficam `messages.is_auto_reply=true` e são ignoradas na regra de qualificação (I1).
+- **D5 — Mapeamento profissional → modalidade: hardcoded só para Clínica Ór** (`clinic_id = cf038458…`).
+  - Dr. Maísa → terapia (psicóloga)
+  - Dr. Ivan → consulta psiquiátrica
+  - Sem profissional + "cetamina"/"infusão" → sessão de cetamina
+  - Sem profissional + "EMT"/"estimulação" → sessão de EMT
+  Futuro multi-clínica: arquivo `supabase/functions/extractor-tick/clinics/<clinic_id>/professionals.json` carregado por `clinic_id`.
+
+---
+
+## Seção A — Invariantes do pipeline (I1–I8)
+
+Regras duras que extractor, automações e UI **devem** respeitar. Cada bug B# referencia qual invariante viola; toda PR nova deve declarar quais I# atende ou preserva.
+
+- **I1 — Qualificação real.** Lead só vai para "Qualificação" após ≥1 outbound real (humano OU agente IA com LLM). Auto-reply (`is_auto_reply=true`) **não** conta. → B31.
+- **I2 — Procedimento pago.** "Procedimento pago" exige `custom_fields.pagamento_confirmado=true` **E** `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}`. Consulta normal nunca entra aqui. → B15, B30.
+- **I3 — Datas no futuro.** Toda data extraída deve ser ≥ `now()` no momento da escrita. Passado = rejeitar e logar (`lead_ai_extraction_runs.warnings`).
+- **I4 — Convergência de sinais.** Campos estruturais (`tipo_atendimento`, `pagamento_confirmado`, `status_consulta`, `qualificacao`) só são gravados com ≥2 sinais convergentes na conversa (não chutar a partir de 1 menção isolada).
+- **I5 — Administrativo isolado.** Mensagens em chats com `is_internal_contact=true` nunca disparam regras de pipeline comercial — leads vão fixos para coluna **Administrativo**. → D2, B14, B19.
+- **I6 — Motivo de desqualificação obrigatório.** `qualificacao='desqualificado'` exige `motivo_desqualificacao` preenchido (enum: `spam_propaganda | fora_perfil | sem_interesse | contato_invalido | duplicado | outro`). → B32, B33.
+- **I7 — Auditoria de movimentações automáticas.** Toda mudança de stage automática grava `moved_by_agent_id` + razão em `lead_stage_history.metadata`. Permite explicar "por que esse lead se mexeu".
+- **I8 — "Interessado em retorno" exige reativação.** Só vale quando o lead esteve inativo por período mínimo (≥ 14 dias) **e** demonstrou sinal explícito de retorno ("voltei", "quero retomar", "ainda tenho interesse"). "Vou pensar e te retorno" durante negociação ativa **não** qualifica como retorno. → B32.
+
+---
+
+## Seção B — Eixos de trabalho (E1–E6)
+
+Cada bug B# ganha tag `eixo:` para agrupar PRs. Um bug pode ter mais de um eixo.
+
+- **E1 — Extractor.** Prompt, tool schema, desambiguação semântica. Bugs: B1–B6, B12, B17, B25, B29, B30, B32, B33.
+- **E2 — Field-rules + cron.** `pipeline_field_rules` e crons de transição automática. Bugs: B8, B10, B16, B18, B27; D1, D3.
+- **E3 — Schema/migrations.** Novas colunas/enums: `messages.is_auto_reply`, `leads.is_internal_contact`, `custom_fields.tipo_atendimento`, `custom_fields.status_consulta`, `custom_fields.motivo_desqualificacao`, `custom_fields.pagamento_confirmado`.
+- **E4 — Onboarding/outreach.** Sequências de boas-vindas + auto-reply fora-de-horário. Cobre B31, D4 e os ~188 leads sem outreach sequence ativo.
+- **E5 — Coluna Administrativo / B2B.** Classificador `is_internal_contact` + UI da coluna fixa. Bugs: D2, B14, B19, B33 (spam ≠ administrativo).
+- **E6 — Higiene de dados.** Backfills, blocklist de spam, marcação manual. Bugs: B26, B33, backfill de B31, limpeza dos 18 leads de B26.
+
+---
+
+## Seção C — Ondas de implementação (Onda 0 → Onda 6)
+
+Ordem respeita dependências (foundation antes de regras, regras antes de UI).
+
+```text
+Onda 0 — Foundation (E3)
+  Migrations: is_auto_reply, is_internal_contact, tipo_atendimento,
+  status_consulta, motivo_desqualificacao, pagamento_confirmado.
+  Sem mudança de comportamento — só estrutura.
+
+Onda 1 — Quick wins críticos (E2 + E6)
+  B15  — procedimento pago exige I2
+  B31  — auto-reply não qualifica (regra) + backfill ~25 leads
+  D2   — mover contatos B2B atuais para coluna Administrativo (one-shot)
+  B26  — limpar 18 leads "Consulta Agendada" sem data
+
+Onda 2 — Extractor (E1)
+  Prompt + tool schema cobrindo B1–B6, B12, B17, B25, B29, B30, B32, B33
+  Golden set v1 (~50 conversas reais anonimizadas) + eval-extractor.ts
+
+Onda 3 — Field-rules + crons (E2)
+  D1 — gatilho Retorno Tratamento Finalizado
+  D3 — status_consulta agendada → realizada por data
+  B8, B10, B16, B18, B27
+
+Onda 4 — Pagamentos & comprovantes (E1 + E2)
+  B22, B28, B23 — NF/recibo/print → pagamento_confirmado=true
+
+Onda 5 — B2B / Administrativo (E5)
+  Classificador is_internal_contact automático no extractor
+  UI da coluna Administrativo fixa (drag bloqueado)
+  B14, B19, B33 (spam → desqualificado; B2B legítimo → Administrativo)
+
+Onda 6 — Polimento
+  B7, B11, B13, B20, B21, B24
+```
+
+Critério para passar de Onda N para N+1: todas as métricas de pronto da Onda N verificadas na tabela da Seção E.
+
+---
+
+## Seção D — Eval contínuo
+
+- **Golden set:** `supabase/functions/extractor-tick/eval/golden/*.json` — ~50 conversas reais (anonimizadas) cobrindo todos os B# e I#. Cada arquivo: `{ messages: [...], expected: { custom_fields, stage_key, qualificacao, motivo_desqualificacao, tipo_atendimento, status_consulta } }`.
+- **Runner:** `supabase/functions/extractor-tick/eval/run.ts` — roda extractor contra cada conversa e compara com `expected`. Reporta:
+  - `accuracy` global e por campo.
+  - `invariant_violations` por I#.
+  - Diff por conversa quando falha.
+- **CI gate:** nenhum deploy do extractor pode reduzir o score em > 2 pp vs baseline anterior. Baseline atual (Parte I): **44%** → meta Onda 2: **≥ 75%**, Onda 6: **≥ 90%**.
+
+---
+
+## Seção E — Inventário consolidado
+
+Substitui as listas espalhadas das Fases 1–7. Tabela única `B# | Título | Eixos | Severidade | Onda | Invariante(s) | Leads afetados | Status | Métrica de pronto`.
+
+| B#  | Título curto                              | Eixos     | Sev   | Onda | Inv     | Leads | Status | Métrica de pronto |
+|-----|-------------------------------------------|-----------|-------|------|---------|-------|--------|-------------------|
+| B15 | Procedimento pago sem confirmação         | E2,E3     | ALTO  | 1    | I2      | ?     | aberto | 0 leads em "Procedimento pago" sem `pagamento_confirmado=true` |
+| B31 | Qualificação por auto-reply               | E1,E6     | ALTO  | 1    | I1      | ~25   | aberto | 0 leads em Qualificação cuja única outbound é `is_auto_reply=true` |
+| B26 | Consulta Agendada sem data                | E2,E6     | ALTO  | 1    | I3      | 18    | aberto | 0 leads em "Consulta Agendada" com `data_consulta IS NULL` |
+| B29 | Ambiguidade "sessão"                      | E1        | MÉD   | 2    | I4      | —     | aberto | `tipo_atendimento` correto em ≥ 95% do golden set |
+| B30 | Taxonomia de agendamentos incompleta      | E1,E3     | ALTO  | 2    | I2,I4   | —     | aberto | `tipo_atendimento` preenchido em 100% de "Consulta Agendada" |
+| B32 | "Interessado em retorno" prematuro        | E1        | MÉD   | 2    | I8      | ?     | aberto | 0 leads marcados como retorno sem inatividade ≥ 14d |
+| B33 | Spam / propaganda B2B                     | E1,E5,E6  | ALTO  | 5    | I5,I6   | ?     | aberto | spam com `motivo_desqualificacao='spam_propaganda'` em ≥ 90% dos casos |
+| B14 | B2B na pipeline clínica                   | E5        | MÉD   | 5    | I5      | ~60   | aberto | 0 leads `is_internal_contact=true` fora da coluna Administrativo |
+| B19 | Médicos parceiros como pacientes          | E5        | MÉD   | 5    | I5      | ?     | aberto | parceiros classificados em Administrativo |
+| D1  | Retorno Tratamento Finalizado (gatilho)   | E2        | MÉD   | 3    | —       | ~10   | aberto | regra ativa + leads elegíveis movidos |
+| D3  | status_consulta auto-realizada            | E2,E3     | ALTO  | 3    | I3      | —     | aberto | 0 consultas vencidas com `status_consulta='agendada'` |
+| ... | (demais B# da Parte I)                    | conforme  | —     | 2–6  | —       | —     | aberto | golden set                                                       |
+
+> **Convenção:** toda PR que fecha um B# atualiza `Status` para `fechado <commit-sha>` e cita a métrica medida.
+
+---
+
+## Seção F — Próximas ações concretas
+
+1. Criar migrations da Onda 0 (não muda comportamento, libera o resto).
+2. Abrir PR de Onda 1 (4 mudanças pequenas, alto impacto, baixo risco).
+3. Em paralelo: começar a coletar o golden set (Onda 2) — alvo 50 conversas anonimizadas até final da Onda 1.
+
+Tudo o que não está acima continua valendo conforme a Parte I.
