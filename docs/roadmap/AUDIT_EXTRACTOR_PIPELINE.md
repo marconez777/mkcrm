@@ -900,3 +900,20 @@ Substitui as listas espalhadas das Fases 1–7. Tabela única `B# | Título | Ei
 3. Em paralelo: começar a coletar o golden set (Onda 2) — alvo 50 conversas anonimizadas até final da Onda 1.
 
 Tudo o que não está acima continua valendo conforme a Parte I.
+
+---
+
+## Onda 0 — Foundation executada (2026-06-14)
+
+Migration aplicada (sem mudança de comportamento, só estrutura):
+
+- `messages.is_auto_reply boolean default false` + índice parcial `idx_messages_lead_real_outbound (lead_id, timestamp DESC) WHERE from_me=true AND is_auto_reply=false`. Usado por I1/B31.
+- `leads.is_internal_contact boolean default false` + índice parcial `idx_leads_internal_contact (clinic_id) WHERE is_internal_contact=true`. Usado por I5/D2.
+- Trigger `trg_validate_lead_custom_fields_enums` em `leads` (BEFORE INSERT/UPDATE OF custom_fields) valida:
+  - `tipo_atendimento` ∈ {consulta_psiquiatria, consulta_terapia, sessao_emt, sessao_cetamina}
+  - `status_consulta` ∈ {agendada, realizada, no_show, cancelada, reagendada}
+  - `motivo_desqualificacao` ∈ {spam_propaganda, fora_perfil, sem_interesse, contato_invalido, duplicado, outro}
+  - `pagamento_confirmado` precisa ser boolean
+  - **I6**: `qualificacao='desqualificado'` exige `motivo_desqualificacao` preenchido.
+
+Onda 1 destravada. Próximo: B15, B31 (+backfill ~25 leads), D2 (backfill Administrativo), B26 (limpar 18 leads sem data).
