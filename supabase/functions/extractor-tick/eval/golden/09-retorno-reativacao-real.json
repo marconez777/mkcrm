@@ -1,0 +1,15 @@
+{
+  "id": "09-retorno-reativacao-real",
+  "description": "Lead inativo há 30+ dias volta dizendo quer retomar — retorno_reativacao válido.",
+  "covers": ["I8"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": { "procedimentos": ["Infusão de cetamina"], "pagamento_confirmado": true },
+  "messages": [
+    { "from_me": false, "content": "Oi, sumi um tempo mas quero retomar o tratamento. Posso agendar a próxima infusão?" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": "retorno_reativacao",
+    "procedimento_interesse": "cetamina"
+  }
+}
