@@ -322,10 +322,16 @@ function applyFields(
     extracted = { ...extracted, tentou_agendar: null };
   }
 
+  // I6: se desqualificado sem motivo, default 'outro' (evita exceção do trigger)
+  if (extracted.qualificacao === "desqualificado" && !extracted.motivo_desqualificacao) {
+    extracted = { ...extracted, motivo_desqualificacao: "outro" };
+  }
+
   const writable = [
     "procedimento_interesse",
     "qualificacao",
-    "desqualificacao_motivo",
+    "motivo_desqualificacao",
+    "tipo_atendimento",
     "demonstrou_interesse",
     "tentou_pagamento",
     "pagamento_confirmado",
@@ -335,9 +341,9 @@ function applyFields(
     "nome_preferido",
     "observacoes",
   ];
-  // Threshold mais alto para campos sensíveis
+  // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);
-  const sensitiveThreshold = Math.max(0.8, cfg.confidence_threshold);
+  const sensitiveThreshold = Math.max(0.7, cfg.confidence_threshold);
 
   for (const k of writable) {
     const newVal = extracted[k];
