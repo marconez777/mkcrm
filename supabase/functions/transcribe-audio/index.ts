@@ -120,8 +120,9 @@ Deno.serve(async (req) => {
       return json({ error: "Nenhum agente OpenAI ou Google configurado. A transcrição de áudio requer um desses provedores." }, 400);
     }
 
-    const audio = await fetchAudio(msg.media_url);
-    if (!audio) return json({ error: "failed to download audio" }, 502);
+    const freshUrl = await ensureFreshUrl(supabase, msg.media_url);
+    const audio = await fetchAudio(freshUrl);
+    if (!audio) return json({ error: "failed to download audio (URL inválida ou expirada)" }, 502);
 
     let transcript = "";
     try {
