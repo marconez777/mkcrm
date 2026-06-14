@@ -1,0 +1,22 @@
+{
+  "id": "01-paciente-novo-cetamina",
+  "description": "Paciente novo perguntando sobre cetamina; sem agendamento ainda.",
+  "covers": ["B5", "I4"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Oi, queria saber sobre o tratamento de cetamina pra depressão" },
+    { "from_me": true,  "content": "Oi! Posso te explicar. A infusão custa R$ 1800 por sessão. Quer que eu te passe mais detalhes?" },
+    { "from_me": false, "content": "Sim por favor, quanto tempo dura cada sessão?" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "procedimento_interesse": "cetamina",
+    "qualificacao": "interessado",
+    "tipo_atendimento": null,
+    "consulta_agendada_em": null,
+    "procedimento_agendado_em": null,
+    "tentou_agendar": null,
+    "pagamento_confirmado": null
+  }
+}
