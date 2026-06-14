@@ -618,3 +618,92 @@ Ambos médicos (Dr. Marcel V. Nunes, Dra. Sabrina) sem mensagem. Coluna B2B isol
 - **Causa-raiz principal:** o extractor preenche bem campos textuais (qualificação, interesse), mas **não fecha o ciclo** — não atualiza datas em re-agendamentos (B10), não detecta confirmação de pagamento (B15), e regras de campo não cobrem transições importantes (B16).
 - **28 bugs identificados** (B1–B28), com 4 críticos e 9 altos.
 - **Próximo passo recomendado:** atacar B15 + B16 + B28 nesta ordem — desbloqueiam 238 leads e fecham as 3 colunas mais quebradas.
+
+---
+
+## Fase 7 — Achados de campo (vocabulário + regra de qualificação)
+> Apurado em 2026-06-14 a partir de revisão manual de conversas + print enviado pelo usuário.
+
+### B29 — Ambiguidade do termo "sessão" [ALTO]
+**Sintoma:** "sessão" aparece em contextos distintos:
+- "sessão com Dr. Maísa" → **terapia** (psicóloga).
+- "sessão" isolado → pode ser **infusão de cetamina** OU **terapia** OU **EMT**.
+
+O extractor hoje não desambigua e tende a classificar tudo como "procedimento", poluindo a coluna Procedimento pago (já quebrada — B15).
+
+**Fix:**
+1. Adicionar ao prompt do extractor regra explícita: ao detectar "sessão", **investigar contexto** (profissional citado, modalidade, mensagens anteriores) antes de classificar.
+2. Mapa profissional → modalidade (hardcoded no prompt da clínica Ór):
+   - **Dr. Maísa** → terapia (psicóloga/terapeuta).
+   - **Dr. Ivan** → consulta psiquiátrica.
+   - Sem profissional + menção a `cetamina`/`infusão` → sessão de cetamina.
+   - Sem profissional + menção a `EMT`/`estimulação magnética` → sessão de EMT.
+3. Se permanecer ambíguo após investigação: marcar `tipo_atendimento=indefinido` (ver B30) e disparar **handoff humano**. Nunca chutar.
+
+**Onde mexer:** `supabase/functions/extractor-tick/` (prompt) + `supabase/functions/_shared/builder-knowledge/niches/clinic.md` (vocabulário).
+
+---
+
+### B30 — Taxonomia de agendamentos incompleta [ALTO]
+**Sintoma:** pipeline trata todo agendamento como "consulta", mas existem **4 tipos distintos** com fluxos diferentes:
+
+| # | Tipo | Profissional / modalidade | Coluna esperada |
+|---|---|---|---|
+| 1 | Consulta psiquiatria | Dr. Ivan | Consulta Agendada → Finalizada |
+| 2 | Consulta terapia | Dr. Maísa (psicóloga) | Consulta Agendada → Retorno terapia |
+| 3 | Sessão EMT | Tratamento | Procedimento pago → Em tratamento |
+| 4 | Sessão cetamina | Tratamento (infusão) | Procedimento pago → Em tratamento |
+
+Como o extractor não diferencia, métricas, regras de aging e colunas de finalização ficam misturadas (alimenta B11, B15, B21).
+
+**Fix:**
+1. Adicionar campo `tipo_atendimento` em `custom_fields` com enum: `consulta_psiquiatria | consulta_terapia | sessao_emt | sessao_cetamina | indefinido`.
+2. Extractor obrigado a preencher antes de mover para "Consulta Agendada" ou "Procedimento pago".
+3. Regra "Procedimento pago" (B15) passa a exigir `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}` E `pagamento_confirmado=true`. Consulta normal (psiquiatria/terapia) **não vai** para essa coluna.
+4. `MetricsOps.tsx` segmentar funil por `tipo_atendimento`.
+5. Considerar pipelines/sub-stages separados se a clínica quiser tratar EMT/cetamina como esteira própria (decisão de produto).
+
+**Onde mexer:** `supabase/functions/extractor-tick/`, `src/components/settings/FieldRulesCard.tsx` (definir regra), `src/pages/MetricsOps.tsx`.
+
+---
+
+### B31 — Qualificação prematura por auto-reply fora-de-horário [CRÍTICO]
+**Sintoma observado (print, lead Letícia – 558698049388, 2026-06-14):**
+1. Lead enviou 1 mensagem inicial às 04:14 ("quero info sobre consulta online com Dr. Ivan").
+2. Recebeu **resposta automática fora-de-horário** ("estamos fora do horário, retornaremos").
+3. Foi imediatamente movida para **Qualificação**.
+4. Nunca houve interação humana nem geração de IA — só o auto-reply.
+
+**Regra correta:** lead só entra em "Qualificação" após **primeira interação real**:
+- Humano (`messages.sent_by_user_id IS NOT NULL`), OU
+- Agente IA com resposta gerada por LLM (`messages.sent_by_agent_id IS NOT NULL` e `kind != 'auto_reply'`).
+
+Auto-reply de fora-de-horário **não conta** como atendimento — é apenas acuse de recebimento.
+
+**Fix:**
+1. **Schema:** adicionar `messages.is_auto_reply boolean default false` (ou usar `kind='auto_reply'` no enum existente). Marcar nessa flag todo envio originado de regra de horário/ausência.
+2. **Extractor / trigger de movimentação:** ignorar mensagens com `is_auto_reply=true` ao decidir transição para Qualificação.
+3. **Condição de entrada em "Qualificação":**
+   ```
+   EXISTS (
+     SELECT 1 FROM messages m
+     WHERE m.lead_id = leads.id
+       AND m.direction = 'outbound'
+       AND COALESCE(m.is_auto_reply, false) = false
+       AND (m.sent_by_user_id IS NOT NULL OR m.sent_by_agent_id IS NOT NULL)
+   )
+   ```
+4. **Backfill:** query para identificar leads atualmente em Qualificação cuja única outbound é auto-reply → mover de volta para "Contato inicial" / "Novo lead" e flagar para outreach humano (alimenta a lista de B23/B28).
+
+**Onde mexer:**
+- Migration para `messages.is_auto_reply`.
+- `supabase/functions/evolution-webhook/` ou módulo de auto-reply: setar a flag ao enviar.
+- `supabase/functions/extractor-tick/`: filtrar no cálculo de estágio.
+- `pipeline_field_rules` / `stage_ai_defaults`: revisar regras que disparam mudança para Qualificação só por evento "primeira resposta enviada".
+
+**Impacto estimado:** alto — boa parte dos leads em Qualificação "fantasma" (sem nenhum atendimento) pode se enquadrar nessa pegadinha. Precisa de query exploratória para dimensionar.
+
+---
+
+### Próximos achados (placeholder)
+Usuário sinalizou que enviará mais ocorrências. Anexar como B32+ neste mesmo bloco.
