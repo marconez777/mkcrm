@@ -942,3 +942,27 @@ Onda 1 destravada. Próximo: B15, B31 (+backfill ~25 leads), D2 (backfill Admini
 ### Pendência aberta
 
 20 leads em Procedimento pago sem `tipo_atendimento` — exportar lista pra revisão humana (decidir caso a caso: ficam na coluna confirmados como sessão, ou voltam para Consulta finalizada).
+
+---
+
+## Onda 2 — Extractor + Golden Set executada (2026-06-14)
+
+**`supabase/functions/extractor-tick/index.ts` refatorado:**
+- **B3:** `userPrompt` agora envia `custom_fields` em prosa (linhas) em vez de `JSON.stringify` cru.
+- **B4:** novo helper `buildSystemPrompt(now)` injeta data atual em pt-BR + ISO + fuso `America/Sao_Paulo` no system prompt.
+- **B5:** enum `procedimento_interesse` expandido (+ alcoolismo, hipnoterapia, depressao, outro).
+- **B6:** threshold sensível baixado de 0.8 → 0.7 (campos: datas + `tentou_agendar`).
+- **B25/I6:** campo renomeado `desqualificacao_motivo` → `motivo_desqualificacao` (alinhado com trigger I6); enum fixo `{spam_propaganda, fora_perfil, sem_interesse, contato_invalido, duplicado, outro}`. Default `outro` quando `qualificacao=desqualificado` vier sem motivo.
+- **B29/B30:** novo campo `tipo_atendimento` enum `{consulta_psiquiatria, consulta_terapia, sessao_emt, sessao_cetamina}` no schema; system prompt traz mapa profissional→modalidade (Dr. Ivan → psiquiatria, Dr. Maísa → terapia) e desambiguação de "sessão".
+- **B32/I8:** novo enum em `qualificacao` (`retorno_reativacao`) só permitido com inatividade ≥14d + sinal explícito; "vou pensar e te retorno" mantém `em_negociacao`.
+- **B33:** sinais de pitch B2B/spam descritos no prompt + obriga `motivo_desqualificacao='spam_propaganda'`.
+- **I5:** novo campo `is_administrative_contact` no schema; quando `true`, extractor escreve `leads.is_internal_contact=true` (coluna estrutural) e zera os demais campos. Query de leads agora filtra `is_internal_contact=false` por default — administrativos nunca mais entram na fila.
+
+**Golden set + eval (novo):**
+- `supabase/functions/extractor-tick/eval/run.ts` — runner Deno que compara extração ao vivo vs `expected`, reporta accuracy global e exit code != 0 abaixo de 75%.
+- `supabase/functions/extractor-tick/eval/golden/01..10-*.json` — 10 casos iniciais cobrindo B4, B5, B9, B25, B29, B30, B32, B33, I2, I3, I5, I6, I8.
+- `supabase/functions/extractor-tick/eval/README.md` — como rodar e como adicionar caso novo.
+
+**Deploy:** extractor-tick redeployado.
+
+**Próximo:** rodar o eval com chave OpenAI para medir baseline real pós-Onda 2; expandir golden set para ~50 conversas reais anonimizadas; depois Onda 3 (field-rules D1, D3, B8, B10, B16, B18, B27).
