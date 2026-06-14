@@ -1,0 +1,18 @@
+{
+  "id": "07-data-passada-rejeita",
+  "description": "Lead menciona consulta que já passou — extractor não pode preencher data passada (I3).",
+  "covers": ["B4", "I3"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Tive a primeira consulta dia 05/06 às 14h, gostei muito" },
+    { "from_me": true,  "content": "Que bom! Quer agendar o retorno?" },
+    { "from_me": false, "content": "Vou pensar e te falo" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "consulta_agendada_em": null,
+    "procedimento_agendado_em": null,
+    "tentou_agendar": null
+  }
+}
