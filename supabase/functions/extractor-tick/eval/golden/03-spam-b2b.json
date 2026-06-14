@@ -1,0 +1,18 @@
+{
+  "id": "03-spam-b2b",
+  "description": "Vendedor de SaaS pra clínica — spam B2B.",
+  "covers": ["B33", "I5", "I6"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Oi! Criei uma recepcionista com IA pra clínicas de psicologia, automatiza 80% do atendimento. Posso te mostrar em uma reunião rápida? serenebr.online" },
+    { "from_me": false, "content": "Tenho cases de outras clínicas que aumentaram conversão em 3x" }
+  ],
+  "expected": {
+    "is_administrative_contact": true,
+    "qualificacao": "desqualificado",
+    "motivo_desqualificacao": "spam_propaganda",
+    "procedimento_interesse": null,
+    "tipo_atendimento": null
+  }
+}
