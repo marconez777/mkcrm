@@ -440,3 +440,81 @@ Amostra de 10 mostra:
 ---
 
 **Próxima fase:** Fase 5 — resíduos (Negou parceria + lead parou de responder + Contato inicial + outros) + amostra de colunas-depósito (Sem perfil, Desqualificado etc.). Aguardando confirmação.
+
+---
+
+## Fase 5 — Resíduos + colunas-depósito (2026-06-14)
+
+**Escopo:** 23 leads em 4 colunas de resíduo + amostra de 10 leads das 2 colunas-depósito (`Administrativo` 46 · `Não respondeu` 188).
+
+### 5.1 Contato inicial (9 leads) — **11% correto**
+
+| # | Lead | msgs | Veredito |
+|---|---|---:|---|
+| 1 | Dra. Karina Cintra | 23 | ⚠️ B2B médico parceiro — devia ir pra pipeline de parcerias (B14/B19) |
+| 2 | Sayuri | 4 | ✅ lead novo, ok |
+| 3-9 | Dr. Anderson, Mateus Ferro, Marcelo Azevedo, Jéssica Martani, Jonathan Assis, Saádia Teixeira, Stéphanie Babá | 0 cada | ❌ 7 médicos sem nenhuma mensagem — cadastros manuais B2B mal colocados (B14) |
+
+**Padrão:** 8 de 9 são contatos B2B (médicos) sem conversa. A coluna virou depósito de cadastros administrativos.
+
+### 5.2 Lead não qualificado (6 leads) — **33% correto**
+
+| Lead | qualificacao | motivo | Veredito |
+|---|---|---|---|
+| Rafael Menezes | desqualificado | (vazio) | ⚠️ campo `motivo_desqualificacao` não preenchido pela IA (B25) |
+| Sofia Rossini | desqualificado | (vazio) | ⚠️ idem |
+| Beatriz Gioia | (vazio) | — | ❌ stage diz desqualificado mas `qualificacao` continua null (B26) |
+| Podcast Executivo | (vazio) | — | ✅ correto na essência (não é paciente) mas IA não preencheu motivo |
+| Beatriz Farias | (vazio) | — | ❌ idem B26 |
+| 🕶 (emoji) | (vazio) | — | ❌ nome inválido (B17), sem qualificacao |
+
+**Bug B25:** prompt do extractor não está exigindo `motivo_desqualificacao` quando seta `qualificacao=desqualificado`.  
+**Bug B26:** 4 de 6 leads em "Lead não qualificado" não têm `qualificacao=desqualificado` no `custom_fields` → movimentação foi 100% manual, regra de campo não disparou.
+
+### 5.3 Negou parceria (2 leads) — **100% correto**
+
+Ambos médicos (Dr. Marcel V. Nunes, Dra. Sabrina) sem mensagem. Coluna B2B isolada → ok, mas reforça B14 (pipeline B2C+B2B misturados).
+
+### 5.4 lead parou de responder (6 leads) — **50% correto**
+
+| Lead | msgs | last_msg | Veredito |
+|---|---:|---|---|
+| Mah | 4 | 06-11 | ❌ apenas 3 dias sem resposta — prematuro |
+| (sem nome) ×2 | 2 | 06-10 | ⚠️ leads sem nome, prováveis spam (B17) |
+| Gabriela Nascimento | 39 | 06-09 | ✅ conversa longa abandonada, ok |
+| Vitor Andrade | 151 | 06-08 | ✅ conversa muito ativa que parou, ok |
+| 🤷🏻‍♀️ | 3 | 06-05 | ⚠️ nome emoji, possível spam |
+
+**Bug B27:** Regra "lead parou de responder" disparando com <7 dias de inatividade — deveria ser ≥14 dias para evitar falsos positivos.
+
+### 5.5 Administrativo (amostra 10/46)
+
+- **12/46 sem mensagem nenhuma** — cadastros vazios.
+- **11/46 com atividade nos últimos 7 dias** — Vivi, Distrimed (65 msgs), Diogo Comercial → coluna virou caixa-de-fornecedores ativa.
+- Nenhum tem `qualificacao` setada → IA não toca esses leads (correto, são B2B).
+- Nomes "Lead #2013…" mostram que importação não enriqueceu nome (B17).
+
+### 5.6 Não respondeu (amostra 10/188)
+
+- **187/188 sem nenhuma mensagem** — coluna usada como cemitério de imports sem contato.
+- **0 ativos nos últimos 7 dias** — saudável como depósito.
+- **0 com `qualificacao` preenchida** → IA nunca avaliou (correto, sem mensagem pra extrair).
+
+**Bug B28:** 188 leads importados sem nunca terem recebido a primeira mensagem outbound → falha de onboarding/sequência de boas-vindas. Mesma classe do B22 (form_submission sem outreach), mas em escala muito maior.
+
+---
+
+## Bugs novos consolidados (Fase 5)
+
+| ID | Severidade | Descrição | Fix sugerido |
+|---|---|---|---|
+| B25 | Média | IA não preenche `motivo_desqualificacao` ao setar `qualificacao=desqualificado` | adicionar campo obrigatório no prompt + tool schema |
+| B26 | **Alta** | Leads em "Lead não qualificado" sem `qualificacao` no `custom_fields` (4/6) — regra de campo nunca disparou, mov manual | rodar backfill + ativar regra `qualificacao=desqualificado → stage` |
+| B27 | Média | "lead parou de responder" disparando com <7 dias | regra deve exigir `last_message_at < now() - 14 days` |
+| B28 | **Crítica** | 188 leads em "Não respondeu" sem nenhuma mensagem — falha de outreach inicial em massa | trigger automático de primeira mensagem ao criar lead via import/form |
+
+---
+
+## Próxima fase
+
+**Fase 6 — Síntese final:** matriz stage_atual × stage_esperado, top 10 padrões de erro, mapeamento erro→fix, lista de leads que precisam intervenção manual urgente (B23 hot leads + B26 backfill + B28 outreach).
