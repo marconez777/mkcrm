@@ -594,10 +594,25 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       continue;
     }
 
-    const userPrompt = `Conversa (mais antiga em cima, mais recente embaixo):\n\n${convo}\n\nCustom fields atuais do lead: ${JSON.stringify(lead.custom_fields ?? {})}\n\nExtraia.`;
+    // B3: custom_fields em prosa (não JSON cru) — modelo se confunde com aspas/brackets
+    const cf = (lead.custom_fields ?? {}) as Record<string, unknown>;
+    const cfLines: string[] = [];
+    if (Array.isArray(cf.procedimentos) && cf.procedimentos.length) {
+      cfLines.push(`- Procedimentos já registrados: ${(cf.procedimentos as unknown[]).join(", ")}`);
+    }
+    if (cf.interesse) cfLines.push(`- Interesse atual: ${cf.interesse}`);
+    if (cf.tipo_atendimento) cfLines.push(`- Tipo de atendimento atual: ${cf.tipo_atendimento}`);
+    if (cf.qualificacao) cfLines.push(`- Qualificação atual: ${cf.qualificacao}`);
+    if (cf.pagamento_confirmado === true) cfLines.push(`- Pagamento já confirmado`);
+    const cfBlock = cfLines.length
+      ? `Contexto do lead (campos já preenchidos):\n${cfLines.join("\n")}\n\n`
+      : "";
+
+    const userPrompt =
+      `${cfBlock}Conversa (mais antiga em cima, mais recente embaixo):\n\n${convo}\n\nExtraia.`;
 
     const r = await callOpenAI(apiKey, cfg.openai_model_text, [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(now) },
       { role: "user", content: userPrompt },
     ]);
 
