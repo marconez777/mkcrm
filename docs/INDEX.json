@@ -2044,7 +2044,8 @@
     "headings": [
       "Fase 0 — Base: objetivo, prompt, regras, estatísticas",
       "Fase 1 — Coluna \"Qualificação\" (22 leads)",
-      "Próximos passos"
+      "Próximos passos",
+      "Fase 2 — Consulta Agendada (18) + Procedimento Agendado (8) + reuniao agendada (7) = 33 leads"
     ],
     "code_refs": [
       "supabase/functions/extractor-tick/",
@@ -2054,7 +2055,7 @@
       "docs/maps/AI_RUNTIME.md",
       "docs/maps/KANBAN_LEADS.md"
     ],
-    "size_lines": 163,
+    "size_lines": 252,
     "stale_refs": []
   },
   {
