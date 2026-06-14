@@ -1,0 +1,20 @@
+{
+  "id": "04-sessao-com-maisa-terapia",
+  "description": "Desambiguar 'sessão' — com Dr. Maísa = terapia, não cetamina.",
+  "covers": ["B29", "B30", "D5"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Oi, queria marcar uma sessão com a Dra Maísa" },
+    { "from_me": true,  "content": "Claro! A Dra atende terças e quintas. Tem preferência?" },
+    { "from_me": false, "content": "Pode ser quinta 18/06 às 16h" },
+    { "from_me": true,  "content": "Marcado! Sessão de psicoterapia dia 18/06 às 16h com a Dra Maísa." }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "tipo_atendimento": "consulta_terapia",
+    "procedimento_interesse": "terapia",
+    "consulta_agendada_em": "2026-06-18T16:00",
+    "procedimento_agendado_em": null
+  }
+}
