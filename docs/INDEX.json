@@ -2047,7 +2047,12 @@
       "Próximos passos",
       "Fase 2 — Consulta Agendada (18) + Procedimento Agendado (8) + reuniao agendada (7) = 33 leads",
       "Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads",
-      "Fase 4 — Pós-atendimento: Consulta finalizada (17) + Retorno Tratamento Finalizado (10) + Paciente antigo (545) + Nutrição de Leads Inativos (655) = **1.227 leads**"
+      "Fase 4 — Pós-atendimento: Consulta finalizada (17) + Retorno Tratamento Finalizado (10) + Paciente antigo (545) + Nutrição de Leads Inativos (655) = **1.227 leads**",
+      "Fase 5 — Resíduos + colunas-depósito (2026-06-14)",
+      "Bugs novos consolidados (Fase 5)",
+      "Próxima fase",
+      "Fase 6 — Síntese final (2026-06-14)",
+      "Conclusão da auditoria"
     ],
     "code_refs": [
       "supabase/functions/extractor-tick/",
@@ -2057,7 +2062,7 @@
       "docs/maps/AI_RUNTIME.md",
       "docs/maps/KANBAN_LEADS.md"
     ],
-    "size_lines": 429,
+    "size_lines": 607,
     "stale_refs": []
   },
   {
