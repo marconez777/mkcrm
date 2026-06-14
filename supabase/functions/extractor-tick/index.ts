@@ -44,79 +44,83 @@ function mergeCfg(raw: any): ClinicCfg {
   return { ...DEFAULTS, ...(raw && typeof raw === "object" ? raw : {}) };
 }
 
-// JSON schema do tool de extração
-const EXTRACTION_TOOL = {
+// JSON schema do tool de extração (Onda 2: cobre B5, B25, B29, B30, B32, B33, I5, I6).
+export const EXTRACTION_TOOL = {
   type: "function",
   function: {
     name: "extract_lead_fields",
     description:
-      "Extrai informações estruturadas de uma conversa de WhatsApp entre uma clínica de psiquiatria e um lead. Preencha apenas o que estiver explícito ou claramente subentendido na conversa. Use null quando não tiver certeza.",
+      "Extrai informações estruturadas de uma conversa de WhatsApp entre uma clínica de psiquiatria e um lead. Preencha apenas o que estiver explícito ou claramente subentendido. Use null quando não tiver certeza.",
     parameters: {
       type: "object",
       additionalProperties: false,
       properties: {
-        confidence: {
-          type: "number",
-          description: "Confiança geral na extração de 0 a 1.",
+        confidence: { type: "number", description: "Confiança geral na extração (0 a 1)." },
+
+        // ────────── classificação do contato ──────────
+        is_administrative_contact: {
+          type: ["boolean", "null"],
+          description:
+            "true quando NÃO é paciente: médico parceiro, hospital/clínica encaminhando paciente, secretária, fornecedor, agência, dono da clínica. Quando true, deixe todos os outros campos null. (Invariante I5)",
         },
+
+        // ────────── interesse / qualificação ──────────
         procedimento_interesse: {
           type: ["string", "null"],
           enum: [
-            "cetamina",
-            "emt",
-            "primeira_consulta",
-            "retorno",
-            "seguimento",
-            "terapia",
-            null,
+            "cetamina", "emt", "primeira_consulta", "retorno", "seguimento", "terapia",
+            "alcoolismo", "hipnoterapia", "depressao", "outro", null,
           ],
-          description: "Procedimento que o lead demonstrou interesse.",
+          description: "Procedimento que o lead demonstrou interesse (B5).",
         },
         qualificacao: {
           type: ["string", "null"],
-          enum: ["interessado", "em_negociacao", "desqualificado", null],
+          enum: ["interessado", "em_negociacao", "desqualificado", "retorno_reativacao", null],
           description:
-            "Estado de qualificação. 'desqualificado' apenas se pediu procedimento NÃO oferecido (ex.: EMDR).",
+            "Estado de qualificação. 'retorno_reativacao' SÓ se o lead esteve inativo ≥14 dias E pediu explicitamente voltar (I8). 'vou pensar e te retorno' durante negociação ativa NÃO conta como retorno (B32).",
         },
-        desqualificacao_motivo: {
+        motivo_desqualificacao: {
           type: ["string", "null"],
-          description: "Motivo curto da desqualificação, em pt-BR.",
+          enum: [
+            "spam_propaganda", "fora_perfil", "sem_interesse",
+            "contato_invalido", "duplicado", "outro", null,
+          ],
+          description:
+            "Obrigatório quando qualificacao='desqualificado' (I6). Use 'spam_propaganda' para pitches B2B/cold-outreach (B33). 'fora_perfil' para EMDR ou procedimento não oferecido.",
         },
+
+        // ────────── taxonomia do atendimento (B30) ──────────
+        tipo_atendimento: {
+          type: ["string", "null"],
+          enum: ["consulta_psiquiatria", "consulta_terapia", "sessao_emt", "sessao_cetamina", null],
+          description:
+            "Tipo do atendimento agendado/em negociação. Use o mapa profissional→modalidade do system prompt (B29, B30). null se não há agendamento.",
+        },
+
         demonstrou_interesse: { type: ["boolean", "null"] },
         tentou_pagamento: { type: ["boolean", "null"] },
         pagamento_confirmado: {
           type: ["boolean", "null"],
-          description: "True só se o atendente confirmou recebimento do pagamento.",
+          description: "True só se o atendente CONFIRMOU recebimento.",
         },
         pagamento_valor: {
           type: ["number", "null"],
           description: "Valor em R$ (somente número) combinado/pago, se houver.",
         },
-        teleconsulta: {
-          type: ["boolean", "null"],
-          description: "True se ficou claro que é online/teleconsulta; false se presencial; null se não disse.",
-        },
+        teleconsulta: { type: ["boolean", "null"] },
         origem: {
           type: ["string", "null"],
           enum: [
-            "Google - Orgânico",
-            "Google - Ads",
-            "Youtube",
-            "Redes Sociais",
-            "Indicação de paciente",
-            "Indicação de Médico",
-            "Indicação de Psicóloga",
-            "Indeterminado",
-            null,
+            "Google - Orgânico", "Google - Ads", "Youtube", "Redes Sociais",
+            "Indicação de paciente", "Indicação de Médico", "Indicação de Psicóloga",
+            "Indeterminado", null,
           ],
-          description: "Como o lead chegou à clínica, se mencionado.",
         },
         tentou_agendar: { type: ["boolean", "null"] },
         tipo_agendamento: {
           type: ["string", "null"],
           enum: ["consulta", "procedimento", null],
-          description:
-            "Tipo do agendamento mencionado. 'consulta' = primeira avaliação/consulta com o médico. 'procedimento' = aplicação/sessão (cetamina, infusão, EMT). null se não houver agendamento confirmado.",
+          description: "Legado — preferir tipo_atendimento (B30). null se não há agendamento confirmado.",
         },
         consulta_agendada_em: {
           type: ["string", "null"],
@@ -124,12 +128,9 @@ const EXTRACTION_TOOL = {
         },
         procedimento_agendado_em: {
           type: ["string", "null"],
-          description: "Data/hora ISO 8601 de uma SESSÃO DE PROCEDIMENTO combinada (cetamina, infusão, EMT, sessão).",
+          description: "Data/hora ISO 8601 de uma SESSÃO DE PROCEDIMENTO (cetamina, infusão, EMT).",
         },
-        nome_preferido: {
-          type: ["string", "null"],
-          description: "Nome ou primeiro nome que o lead pediu pra ser chamado, se mencionado.",
-        },
+        nome_preferido: { type: ["string", "null"] },
         observacoes: {
           type: ["string", "null"],
           description: "Observações curtas (até 280 chars) úteis pro atendente.",
@@ -141,38 +142,84 @@ const EXTRACTION_TOOL = {
 } as const;
 
 
-const SYSTEM_PROMPT = `Você é um extrator de dados de conversas de WhatsApp de uma clínica de psiquiatria.
+/**
+ * Constrói o system prompt injetando a data atual (B4) e o mapa
+ * profissional→modalidade da clínica (D5, B29, B30).
+ */
+export function buildSystemPrompt(now: Date = new Date()): string {
+  // Data formatada em America/Sao_Paulo para evitar drift de fuso (B4)
+  const fmt = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  }).format(now);
+  const iso = now.toISOString();
 
-Procedimentos oferecidos pela clínica:
-- Infusão de Cetamina (chame de "cetamina")
-- EMT (Estimulação Magnética Transcraniana — chame de "emt")
-- Primeira Consulta / Avaliação inicial (chame de "primeira_consulta")
-- Retorno / Reavaliação (chame de "retorno")
-- Seguimento / Acompanhamento (chame de "seguimento")
-- Psicoterapia / Terapia (chame de "terapia")
+  return `Você é um extrator de dados de conversas de WhatsApp de uma clínica de psiquiatria (Clínica Ór).
 
-Procedimentos NÃO oferecidos (qualquer menção → qualificacao="desqualificado" + motivo):
-- EMDR (dessensibilização e reprocessamento por movimentos oculares)
-- Qualquer outro procedimento que não esteja na lista acima.
+CONTEXTO TEMPORAL (B4):
+Hoje é ${fmt} (ISO: ${iso}, fuso America/Sao_Paulo).
+Use isso para resolver "amanhã", "segunda que vem", "daqui a duas semanas", etc.
 
-Regras gerais:
-- Use null quando a informação não estiver clara. Prefira null a chutar.
-- pagamento_confirmado só é true se o atendente CONFIRMOU recebimento. Lead enviando comprovante = tentou_pagamento=true.
-- Confidence reflete o quão clara a informação está nas mensagens.
-- Sempre chame a função extract_lead_fields exatamente uma vez.
+PROCEDIMENTOS OFERECIDOS:
+- Infusão de Cetamina → "cetamina"
+- EMT (Estimulação Magnética Transcraniana) → "emt"
+- Primeira Consulta / Avaliação → "primeira_consulta"
+- Retorno / Reavaliação → "retorno"
+- Seguimento / Acompanhamento → "seguimento"
+- Psicoterapia / Terapia → "terapia"
+- Tratamento de Alcoolismo → "alcoolismo"
+- Hipnoterapia → "hipnoterapia"
+- Tratamento de Depressão → "depressao"
 
-Regras estritas de agendamento (siga à risca):
-- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma CONSULTA (não procedimento). Pedir horário, perguntar disponibilidade, dizer "queria agendar" ou apenas citar um dia da semana NÃO conta.
-- Distinção CRUCIAL — classifique cada agendamento em "consulta" ou "procedimento":
-  • CONSULTA = primeira avaliação/conversa com o médico. Palavras-chave: "consulta", "avaliação", "primeira vez", "avaliar", "conhecer o doutor", "marcar com o Dr.".
-  • PROCEDIMENTO = aplicação/sessão de tratamento (recorrente). Palavras-chave: "cetamina", "infusão", "sessão", "aplicação", "EMT", "EMTr", "estimulação", "tratamento", "próxima sessão", "agendar a infusão".
-  • Se o lead já tem "procedimentos" preenchido nos custom_fields (ex.: "Infusão de cetamina"), o default para agendamentos novos é PROCEDIMENTO, exceto se a mensagem disser explicitamente "consulta"/"avaliação".
-  • Se for procedimento, preencha procedimento_agendado_em e deixe consulta_agendada_em=null e tentou_agendar=null. Se for consulta, preencha consulta_agendada_em.
-- A data preenchida (em qualquer um dos dois campos) precisa ser HOJE ou no FUTURO. Se a data mencionada já passou, retorne null.
-- Não invente datas. Não infira datas a partir de "semana que vem" sem confirmação.
-- Use formato ISO 8601 (AAAA-MM-DDTHH:mm). Se não souber a hora, use 12:00.
+NÃO OFERECIDOS (qualquer menção → qualificacao='desqualificado', motivo_desqualificacao='fora_perfil'):
+- EMDR e qualquer outro fora da lista acima.
 
-- Se a conversa é administrativa/interna (clínica conversando com médico, fornecedor, secretária), retorne tudo null — não é lead.`;
+MAPA PROFISSIONAL → MODALIDADE (Clínica Ór, D5/B29):
+- Dr. Ivan / Dr. Ivan Barenboim → consulta_psiquiatria
+- Dr. Maísa / Dra Maisa / Psicologa Ana Maisa → consulta_terapia (psicóloga)
+- Sem profissional + "cetamina"/"infusão" → sessao_cetamina
+- Sem profissional + "EMT"/"estimulação magnética"/"EMTr" → sessao_emt
+
+DESAMBIGUAÇÃO DE "SESSÃO" (B29):
+- "sessão com Dr. Maísa" / "sessão com a psicóloga" → consulta_terapia
+- "sessão de cetamina"/"infusão" → sessao_cetamina
+- "sessão de EMT"/"sessão de estimulação" → sessao_emt
+- "sessão" sozinho sem contexto: NÃO chute — use null e baixe a confidence.
+
+CONTATO ADMINISTRATIVO (I5, B33):
+Marque is_administrative_contact=true E deixe os demais campos null quando ≥2 destes sinais:
+- Apresenta-se como médico/psicóloga/secretária/hospital/clínica/agência/fornecedor.
+- Está encaminhando outro paciente ("vou mandar a Maria pra vocês").
+- Conversa é entre profissionais (interconsulta, parceria, cobrança, agenda interna).
+- Pitch B2B / cold-outreach: usa termos como "criei", "desenvolvi", "minha empresa", "posso te mostrar", "demo", "automatizar atendimento", "IA pra clínicas", "marketing", "SEO", "tráfego pago", "CRM", junto com URL/domínio comercial e oferta dirigida à clínica.
+Se é PITCH B2B/spam: além disso, marque qualificacao='desqualificado' e motivo_desqualificacao='spam_propaganda' (B33).
+
+REGRAS DE PAGAMENTO:
+- pagamento_confirmado=true SÓ se o atendente confirmou recebimento. Lead mandando comprovante = tentou_pagamento=true.
+
+REGRAS DE AGENDAMENTO:
+- tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma CONSULTA. Pedir horário, perguntar disponibilidade ou citar um dia da semana NÃO conta.
+- Sempre preencha tipo_atendimento usando o mapa profissional→modalidade acima (B30).
+- Se for sessão de procedimento (sessao_emt/sessao_cetamina): preencha procedimento_agendado_em.
+- Se for consulta (consulta_psiquiatria/consulta_terapia): preencha consulta_agendada_em.
+- Se o lead já tem "procedimentos" preenchido (ex.: "Infusão de cetamina"), o default para agendamentos novos é a sessão correspondente, exceto se a mensagem disser explicitamente "consulta"/"avaliação".
+- Data preenchida precisa ser HOJE ou FUTURO (I3). Passado → null.
+- Não invente datas. Não infira "semana que vem" sem confirmação.
+- ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
+
+RETORNO/REATIVAÇÃO (I8, B32):
+- qualificacao='retorno_reativacao' SÓ quando: lead esteve inativo ≥14 dias E há sinal explícito de retomada ("voltei", "quero retomar", "ainda tenho interesse", "estou pronto pra agendar agora").
+- "Vou pensar e te retorno", "depois te falo" durante negociação ativa → mantém qualificacao='em_negociacao'. NUNCA classifique como retorno.
+
+REGRA FINAL:
+- Use null quando não estiver claro. Prefira null a chutar.
+- Chame a função extract_lead_fields exatamente uma vez.`;
+}
+
+// Mantém SYSTEM_PROMPT como fallback estático (data calculada em runtime no callsite).
+const SYSTEM_PROMPT_STATIC_NOTE =
+  "// SYSTEM_PROMPT é construído via buildSystemPrompt(now) para injetar data atual (B4).";
 
 interface OpenAIUsage { prompt_tokens?: number; completion_tokens?: number; }
 interface OpenAIResp {
