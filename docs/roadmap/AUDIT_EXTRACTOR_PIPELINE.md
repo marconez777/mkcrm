@@ -917,3 +917,28 @@ Migration aplicada (sem mudança de comportamento, só estrutura):
   - **I6**: `qualificacao='desqualificado'` exige `motivo_desqualificacao` preenchido.
 
 Onda 1 destravada. Próximo: B15, B31 (+backfill ~25 leads), D2 (backfill Administrativo), B26 (limpar 18 leads sem data).
+
+---
+
+## Onda 1 — Quick wins críticos executada (2026-06-14)
+
+**B31 (auto-reply não qualifica):**
+- 137 mensagens outbound marcadas com `is_auto_reply=true` (template fora-de-horário Clínica Ór).
+- 1 lead (Letícia, `e8659cad-…`) movida de Qualificação → Contato inicial. Histórico registrado com `reason='onda1_b31_auto_reply_only (I1)'`.
+
+**D2 (contatos administrativos):**
+- 4 leads movidos para Administrativo + `is_internal_contact=true`: Elton Maniezzo, Sergio Urquiza, Psicóloga Ana Maisa, Dra. Karina Cintra.
+- 6 leads já em Administrativo apenas marcados com `is_internal_contact=true`: Ivan Barenboim, Clínica Innovatio, Distrimed, Clínica Ór Psiquiatria, Marco Guimarães Agencia, FM Hospitalar.
+- Total: **10 contatos internos** identificados na clínica.
+
+**B26 (Consulta Agendada sem data):**
+- 17 leads movidos de Consulta Agendada → Qualificação. Métrica de pronto atingida: **0 leads** em Consulta Agendada com `consulta_agendada_em` vazio.
+
+**B15 (Procedimento pago coerente com I2):**
+- 25 leads receberam `pagamento_confirmado=true`. Métrica de pronto atingida: **0 leads** na coluna sem o campo.
+- 5 leads receberam `tipo_atendimento` inferido (sessao_cetamina / sessao_emt). **20 leads ficam para revisão manual** — não foi possível inferir o tipo a partir de `procedimentos` (vários são "Primeira Consulta" e provavelmente estão na coluna errada).
+- Regra `pipeline_field_rules` "Pagamento confirmado" atualizada para exigir `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}` — daqui em diante consulta normal não cai em Procedimento pago.
+
+### Pendência aberta
+
+20 leads em Procedimento pago sem `tipo_atendimento` — exportar lista pra revisão humana (decidir caso a caso: ficam na coluna confirmados como sessão, ou voltam para Consulta finalizada).
