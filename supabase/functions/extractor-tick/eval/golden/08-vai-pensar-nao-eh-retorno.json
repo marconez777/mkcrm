@@ -1,0 +1,18 @@
+{
+  "id": "08-vai-pensar-nao-eh-retorno",
+  "description": "'Vou pensar e te retorno' durante negociação ativa NÃO é retorno_reativacao (B32, I8).",
+  "covers": ["B32", "I8"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": { "qualificacao": "em_negociacao" },
+  "messages": [
+    { "from_me": false, "content": "Quanto é a primeira consulta?" },
+    { "from_me": true,  "content": "R$ 750. Quer agendar?" },
+    { "from_me": false, "content": "Deixa eu pensar e te retorno" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": "em_negociacao",
+    "tentou_agendar": null,
+    "consulta_agendada_em": null
+  }
+}

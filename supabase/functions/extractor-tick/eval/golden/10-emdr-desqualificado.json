@@ -1,0 +1,15 @@
+{
+  "id": "10-emdr-desqualificado",
+  "description": "Lead pede EMDR (não oferecido) — desqualificado por fora_perfil.",
+  "covers": ["B5", "I6"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Vocês fazem EMDR? Tenho TEPT e meu psicólogo indicou" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": "desqualificado",
+    "motivo_desqualificacao": "fora_perfil"
+  }
+}
