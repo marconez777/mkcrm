@@ -263,3 +263,93 @@ Acrescentar à lista de itens code-only:
 ---
 
 **Próxima fase:** Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads. Aguardando confirmação.
+
+---
+
+## Fase 3 — Fechamento pendente consulta (14) + Fechamento pendente procedimento (5) + Procedimento pago (25) = 44 leads
+
+**Data:** 2026-06-14. Verificações: existe negociação ativa? `data_horario` atualizada? `pagamento_confirmado` reflete realidade?
+
+### 3.1 Fechamento pendente consulta (14) — 8/14 corretos (57%)
+
+| Lead | Estado real | Verdict | Motivo |
+|---|---|---|---|
+| `5511954800888` (Selma MEDCOM) | Fornecedora B2B de seringa 60ml | ❌ | **Ruído B2B** — não é lead clínico, é fornecedor. Pipeline misturado (B12/B14). |
+| `5511981218171` (Daniel) | Em fase de manutenção, busca clínica | ✅ | Negociação ativa, mas `name` do lead = telefone (falta enriquecer com `nome_preferido`). |
+| Andressa Martins | Cancelou cetamina por falta de acompanhante | ✅ | Em reagendamento. Stage ok. |
+| Cadu | "Vou dar uma pensada, te chamo" | ✅ | Indeciso, válido aqui. |
+| Yuri (lead.name = "Deixe Seu Recado") | Vai mandar msg amanhã p/ reconfirmar | ⚠️ | Stage ok, mas `name="Deixe Seu Recado"` é a mensagem padrão de voicemail do WhatsApp, não o nome real (Yuri está em `nome_preferido`). Bug de enriquecimento. |
+| EDUARDO | "Agendado segunda 13h" + pagamento confirmado | ❌ | Já fechado → deveria ir pra **Consulta Agendada** ou **Procedimento pago**. |
+| Isabelli Alves | Pediu remarcar "quarta 11h" | ✅ | Em negociação. `data_horario` antiga (10/06) não atualizada — B10. |
+| Kamila Nunes | Pediu primeira consulta, sem data | ✅ | Negociação inicial. |
+| Lead #7171022 (Daniella) | Vai viajar, volta e marca | ✅ | Stage ok; `name` continua como ID. Mesmo problema do Yuri. |
+| Marcia Lunas | Esposo viajou, ela retorna | ✅ | Stage ok. |
+| Mari | Aguardando retorno até 14h | ✅ | Stage ok. |
+| Ronaldo Saraiva | "Gostaria de agendar", sem evolução | ✅ | Stage ok. |
+| Rosemary De Andrade | "Reagendado para terça 16/06 13h30" | ❌ | Já confirmado → **Consulta Agendada**. |
+| ROSSANA | "Confirmou 01/07" + dados cadastrais | ❌ | Já confirmado → **Consulta Agendada**. |
+
+**Padrão:** 4 erros são leads que JÁ confirmaram data mas continuam aqui porque o extractor não promove pra "Consulta Agendada" (B10 + falta de regra "ao detectar confirmação verbal + data, mover").
+
+### 3.2 Fechamento pendente procedimento (5) — 2/5 corretos (40%)
+
+| Lead | Estado | Verdict |
+|---|---|---|
+| 🌈 | "Agendado, segunda faço o pagamento" | ✅ Aguardando pagamento. |
+| Ana Paula 🌼 | Solicita comprovantes p/ convênio (pós-pago) | ❌ Já pagou (com cartão) — deveria estar em **Procedimento pago** ou pós-atendimento. |
+| Camilla Hattori | (sem msgs recentes coletadas) | ⚠️ Inspeção rasa. |
+| Carla | (sem msgs recentes coletadas) | ⚠️ Inspeção rasa. |
+| Fabiane Medical Magazine | Nome com sufixo "Medical Magazine" | ❌ **Provável B2B** (mídia/parceria). |
+
+### 3.3 Procedimento pago (25) — bug sistêmico
+
+**Achado crítico:** `SELECT count(*) FROM leads WHERE stage='Procedimento pago' AND custom_fields ? 'pagamento_confirmado' → 0`. **Zero** dos 25 leads tem o campo `pagamento_confirmado` preenchido. Ou seja, **nenhum lead chegou aqui via Rule 60 (que depende desse campo)** — todos foram movidos **manualmente** pela equipe.
+
+| Indicador | Valor |
+|---|---|
+| Total leads | 25 |
+| `pagamento_confirmado=true` no `custom_fields` | **0** |
+| `data_horario` em 2023 | 5 |
+| `data_horario` em 2024 | 1 |
+| `data_horario` em 2025 | 6 |
+| `data_horario` em 2026 (passado) | 8 |
+| Sem `data_horario` | 5 |
+| Sem mensagens recentes (8 últimas vazias) | 14 |
+| `custom_fields={}` | 2 (Janaina, Laura Dzazio) |
+| Nome ambíguo "Ivan" | 1 (homônimo do médico) |
+
+**Diagnóstico:**
+1. **Rule 60 (Procedimento pago) não dispara.** A IA nunca seta `pagamento_confirmado=true` mesmo quando lead envia "Segue o comprovante" (vide Fabiana Oliveira). Bug grave.
+2. **Coluna virou cemitério.** Leads ficam aqui sem regra de envelhecimento → não migram pra "Consulta finalizada" / "Retorno Tratamento Finalizado" / "Nutrição".
+3. **`Ivan` como lead** = ruído (provavelmente é o próprio médico testando).
+
+### 3.4 Resumo Fase 3
+
+| Coluna | Total | Corretos | Acerto |
+|---|---:|---:|---:|
+| Fechamento pendente consulta | 14 | 8 | **57%** |
+| Fechamento pendente procedimento | 5 | 2 | **40%** |
+| Procedimento pago | 25 | — | **0%** (movidos manualmente, regra quebrada) |
+| **Total** | **44** | **10** | **~23%** |
+
+### 3.5 Novos bugs Fase 3
+
+- **B15 — `pagamento_confirmado` nunca é setado pela IA.** O prompt define `pagamento_confirmado` no schema mas não tem instrução explícita ("se lead envia comprovante PIX, foto de transferência, 'paguei', 'segue comprovante', set `pagamento_confirmado=true`"). Sem isso, Rule 60 nunca dispara → coluna alimentada 100% manualmente.
+- **B16 — Falta promoção automática Fechamento→Agendada.** Quando lead confirma data ("pode ser terça 13h30", "confirmo 01/07"), o extractor seta `data_horario` mas a IA não promove pra "Consulta Agendada". Precisa de regra: `tentou_agendar=true AND data_horario IS NOT NULL AND data_horario > now()` → mover.
+- **B17 — `lead.name` poluído por mensagens padrão WhatsApp.** Casos: "Deixe Seu Recado", "Lead #7171022", "5511954800888". A IA já extrai `nome_preferido` mas o `name` da tabela não é atualizado. Migration: sync `name = COALESCE(custom_fields->>'nome_preferido', name)`.
+- **B18 — Coluna "Procedimento pago" sem regra de envelhecimento.** Leads de 2023 ainda aqui. Precisa de cron: `if updated_at < now() - interval '60 days' → mover pra Nutrição/Finalizado`.
+- **B19 — Pipeline aceita leads B2B no fluxo clínico.** Selma MEDCOM (fornecedora), Fabiane Medical Magazine (mídia). Mesmo problema da Fase 2 (Marco Guimarães Agencia). Precisa de pré-filtro por keywords no nome/contexto.
+
+### 3.6 Atualização ao plano de fix
+
+| Bug | Tipo | Esforço |
+|---|---|---|
+| B15 | Prompt extractor | Baixo — adicionar 2 linhas no schema/instruções |
+| B16 | Pipeline rule nova | Baixo — `priority=85, condition: tentou_agendar AND data_horario IS_FUTURE` |
+| B17 | Migration + trigger | Baixo |
+| B18 | Cron `stage-aging-tick` | Médio — função nova + agendamento |
+| B19 | Pré-filtro `extractor-tick` + `agent-runner` | Médio |
+
+---
+
+**Próxima fase:** Fase 4 — pós-atendimento (Consulta finalizada 17 + Retorno Tratamento Finalizado 10 + Paciente antigo 6 + Nutrição de Leads Inativos 6) = 39 leads. Foco: detectar se a regra de envelhecimento/saída está ausente. Aguardando confirmação.
