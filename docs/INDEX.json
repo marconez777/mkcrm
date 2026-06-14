@@ -2034,6 +2034,30 @@
     "stale_refs": []
   },
   {
+    "path": "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md",
+    "title": "Auditoria: Extractor + Pipeline (Clínica Ór)",
+    "topic": "ai",
+    "kind": "roadmap",
+    "audience": "agent",
+    "updated": "2026-06-14",
+    "summary": "Auditoria profunda do agente extractor-tick e das regras de pipeline-field-rules, com avaliação lead-a-lead da clínica cf038458 (Ór Psiquiatria) em fases.",
+    "headings": [
+      "Fase 0 — Base: objetivo, prompt, regras, estatísticas",
+      "Fase 1 — Coluna \"Qualificação\" (22 leads)",
+      "Próximos passos"
+    ],
+    "code_refs": [
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/field-rules-tick/"
+    ],
+    "related_docs": [
+      "docs/maps/AI_RUNTIME.md",
+      "docs/maps/KANBAN_LEADS.md"
+    ],
+    "size_lines": 163,
+    "stale_refs": []
+  },
+  {
     "path": "docs/roadmap/CLINIC_PIPELINE.md",
     "title": "Roadmap — Pipeline Clínica + Agentes IA",
     "topic": "roadmap",
