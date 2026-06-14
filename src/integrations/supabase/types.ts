@@ -3921,6 +3921,7 @@ export type Database = {
           form_source: string | null
           gclid: string | null
           id: string
+          is_internal_contact: boolean
           landing_page: string | null
           last_classified_at: string | null
           last_message_at: string | null
@@ -3963,6 +3964,7 @@ export type Database = {
           form_source?: string | null
           gclid?: string | null
           id?: string
+          is_internal_contact?: boolean
           landing_page?: string | null
           last_classified_at?: string | null
           last_message_at?: string | null
@@ -4005,6 +4007,7 @@ export type Database = {
           form_source?: string | null
           gclid?: string | null
           id?: string
+          is_internal_contact?: boolean
           landing_page?: string | null
           last_classified_at?: string | null
           last_message_at?: string | null
@@ -4304,6 +4307,7 @@ export type Database = {
           external_id: string | null
           from_me: boolean
           id: string
+          is_auto_reply: boolean
           is_automated: boolean
           last_error: string | null
           lead_id: string
@@ -4331,6 +4335,7 @@ export type Database = {
           external_id?: string | null
           from_me?: boolean
           id?: string
+          is_auto_reply?: boolean
           is_automated?: boolean
           last_error?: string | null
           lead_id: string
@@ -4358,6 +4363,7 @@ export type Database = {
           external_id?: string | null
           from_me?: boolean
           id?: string
+          is_auto_reply?: boolean
           is_automated?: boolean
           last_error?: string | null
           lead_id?: string
