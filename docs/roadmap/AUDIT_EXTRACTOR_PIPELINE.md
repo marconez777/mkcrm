@@ -730,3 +730,36 @@ O extractor está fazendo match léxico ingênuo: a palavra "retorno" / "retorna
 **Relação com outros bugs:** complementa B17 (nomes poluídos) e B29/B30 (vocabulário) — é mais um caso de **match léxico sem contexto**. Vale criar uma diretriz geral no prompt do extractor: "nunca classificar campo estrutural (tipo, estágio, tag) com base em uma única palavra-chave da mensagem do lead — sempre exigir 2 sinais convergentes ou confirmação humana".
 
 **Onde mexer:** `supabase/functions/extractor-tick/` (prompt) + `pipeline_field_rules` (regra de tag "Retorno").
+
+---
+
+### B33 — Spam / propaganda B2B sem detecção automática [ALTO]
+**Sintoma observado (print, Serene – 5511930143908, 2026-06-08):**
+- Lead recebido com pitch B2B ("Criei uma recepcionista com IA pra clínicas de psicologia... posso te mostrar em uma reunião rápida? serenebr.online").
+- Atendente humano respondeu por educação ("aguarde, já iremos te atender") e o lead ficou parado na pipeline clínica consumindo atenção.
+
+Não existe regra que detecte spam/propaganda/cold-outreach B2B e mova automaticamente para **Lead não qualificado** (ou coluna de descarte). Relaciona-se com B14/B19 (B2B na pipeline clínica) e B26 (`qualificacao=desqualificado` sem disparo de regra).
+
+**Fix:**
+1. Adicionar classificador no extractor com categoria `spam_propaganda` quando a primeira mensagem inbound apresenta ≥2 destes sinais:
+   - Pitch comercial ("criei", "desenvolvi", "minha empresa", "posso te mostrar", "agendamos uma reunião", "demo", "case de sucesso").
+   - URL/domínio comercial não solicitado no corpo da mensagem.
+   - Oferta de produto/serviço dirigida à clínica (não pedido de atendimento).
+   - Menção a "automatizar", "IA para clínicas", "agendamento automático", "marketing", "tráfego pago", "SEO", "site", "CRM" como oferta.
+   - Remetente se apresenta como empresa/agência, não paciente.
+2. Quando classificado como `spam_propaganda`:
+   - Setar `custom_fields.qualificacao = 'desqualificado'`.
+   - Setar `custom_fields.motivo_desqualificacao = 'spam_propaganda'` (cobre B25).
+   - Mover automaticamente para **Lead não qualificado**.
+   - Pausar IA (`ai_paused=true`) e **não** enviar auto-reply (evita engajar spam — hoje a clínica respondeu por educação, alimentando o remetente).
+3. Adicionar lista de domínios/telefones recorrentes de spam em `app_settings` (blocklist) — match imediato manda direto pra Lead não qualificado sem passar pelo classificador.
+4. Permitir override humano: botão "marcar como spam" no LeadDrawer que aplica as 3 ações acima + adiciona à blocklist.
+5. Backfill: query nos leads atuais de Contato inicial / Qualificação / Nutrição com URL no primeiro inbound e zero respostas → revisar e mover para Lead não qualificado.
+
+**Onde mexer:**
+- `supabase/functions/extractor-tick/` (classificador + regra de movimentação).
+- `supabase/functions/evolution-webhook/` (checar blocklist antes de disparar auto-reply).
+- `app_settings` (nova chave `spam_blocklist`).
+- `src/pages/LeadDrawer.tsx` (botão "marcar como spam").
+
+**Relação:** fecha o ciclo com B14 (B2B isolado de paciente), B19 (médicos parceiros) — o critério passa a ser: **B2B genuíno → coluna de parcerias; spam/cold-outreach → Lead não qualificado**.
