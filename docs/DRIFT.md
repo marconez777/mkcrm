@@ -1,8 +1,8 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-12T12:26:25.280Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-14T06:00:31.678Z_
 
-Total de docs: **149** · frontmatter atualizado neste run: **1**
+Total de docs: **150** · frontmatter atualizado neste run: **0**
 
 ## code_refs apontando para arquivo inexistente
 _(nenhum)_
@@ -83,6 +83,7 @@ _(nenhum)_
 - `evolution-webhook`
 - `external-lead-capture`
 - `fetch-wa-avatar`
+- `field-rules-suggest`
 - `forms-admin`
 - `forms-ingest`
 - `forms-plugin-zip`
