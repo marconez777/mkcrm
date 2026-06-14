@@ -484,6 +484,7 @@ interface LeadRow {
   ai_review_queued_at: string | null;
   name: string | null;
   phone: string;
+  is_internal_contact: boolean;
 }
 
 async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
