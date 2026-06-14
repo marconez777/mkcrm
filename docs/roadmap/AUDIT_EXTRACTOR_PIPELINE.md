@@ -518,3 +518,103 @@ Ambos médicos (Dr. Marcel V. Nunes, Dra. Sabrina) sem mensagem. Coluna B2B isol
 ## Próxima fase
 
 **Fase 6 — Síntese final:** matriz stage_atual × stage_esperado, top 10 padrões de erro, mapeamento erro→fix, lista de leads que precisam intervenção manual urgente (B23 hot leads + B26 backfill + B28 outreach).
+
+---
+
+## Fase 6 — Síntese final (2026-06-14)
+
+### 6.1 Matriz stage_atual × acerto da IA
+
+| Coluna | Leads | ✅ Correto | ⚠️ Divergente | ❌ Errado | Acerto |
+|---|---:|---:|---:|---:|---:|
+| Qualificação | 22 | 9 | 8 | 5 | 41% |
+| Consulta Agendada | 18 | 0 | 0 | 18 | **0%** |
+| Procedimento Agendado | 8 | 2 | 0 | 6 | 25% |
+| reuniao agendada | 7 | n/a | 7 | 0 | n/a (B2B) |
+| Fechamento pendente consulta | 14 | 8 | 4 | 2 | 57% |
+| Fechamento pendente procedimento | 5 | 2 | 1 | 2 | 40% |
+| Procedimento pago | 25 | 0 | 0 | 25 | **0%** (regra nunca dispara) |
+| Consulta finalizada | 17 | 11 | 4 | 2 | 65% |
+| Retorno Tratamento Finalizado | 10 | 0 | 10 | 0 | n/a (órfã) |
+| Paciente antigo | 545 | ~518 | ~27 | 0 | 95% (hot leads enterrados) |
+| Nutrição de Leads Inativos | 655 | ~110 | ~545 | 0 | 17% |
+| Contato inicial | 9 | 1 | 1 | 7 | 11% |
+| Lead não qualificado | 6 | 2 | 0 | 4 | 33% |
+| Negou parceria | 2 | 2 | 0 | 0 | 100% (B2B) |
+| lead parou de responder | 6 | 3 | 0 | 3 | 50% |
+| Administrativo | 46 | ~35 | ~11 | 0 | ~76% (B2B ativo) |
+| Não respondeu | 188 | 1 | 0 | 187 | **0,5%** (zero outreach) |
+| **TOTAL ponderado** | **1.591** | **~704** | **~618** | **~261** | **~44%** |
+
+### 6.2 Top 10 padrões de erro recorrentes
+
+| # | Padrão | Bug | Leads afetados | Severidade |
+|---|---|---|---:|---|
+| 1 | "Procedimento pago" sem `pagamento_confirmado=true` | B15 | 25 | **Crítica** |
+| 2 | "Não respondeu" sem nenhuma mensagem outbound | B28 | 188 | **Crítica** |
+| 3 | "Consulta Agendada" com `data_horario` no passado | B3 / B10 | 18 | **Crítica** |
+| 4 | Nutrição com lead `form_submission` nunca contatado | B22 | 29 | Alta |
+| 5 | Re-agendamento não promove "Fechamento pendente" → "Consulta Agendada" | B16 | 4 | Alta |
+| 6 | "Paciente antigo" com interesse Cetamina/EMT enterrado | B23 | ~27 | Alta |
+| 7 | B2B (médicos parceiros, fornecedores, mídia) entra pipeline clínica | B14 / B19 | ~60 | Alta |
+| 8 | `lead.name` poluído ("Deixe Seu Recado", "Lead #…", emojis) | B17 | ~30 | Média |
+| 9 | "Lead não qualificado" sem `qualificacao=desqualificado` (mov manual) | B26 | 4 | Média |
+| 10 | "lead parou de responder" disparando com <7 dias | B27 | 3 | Média |
+
+### 6.3 Mapeamento erro → fix
+
+| Bug | Onde | Fix |
+|---|---|---|
+| **B3, B10** data_horario obsoleta | `extractor-tick` prompt + tool schema | obrigar sobrescrita de `data_horario` em re-agendamentos; regra 90 incluir `data_horario >= now()` |
+| **B11** sem enum `status_consulta` | migration + extractor | adicionar `status_consulta` (agendada/realizada/cancelada); detectar NF emitida = realizada |
+| **B12, B14, B19** B2B na pipeline clínica | trigger SQL + nova pipeline | flag `is_internal_contact`; pipeline separada "Parcerias/Fornecedores" |
+| **B13** duplicatas | job de deduplicação | merge por telefone normalizado |
+| **B15** `pagamento_confirmado` não setado | `vision-tick` + `extractor-tick` | quando comprovante legível OU mensagem "paguei/pix" do atendente confirmando → setar |
+| **B16** fechamento → agendada | `pipeline_field_rules` | criar regra `tentou_agendar=true AND data_horario>=now() → Consulta Agendada` |
+| **B17** nomes poluídos | migration backfill | sync `nome_preferido` → `lead.name`; ignorar valores "Lead #*", "Deixe Seu Recado", emojis puros |
+| **B18** Procedimento pago sem aging | cron novo | após N dias sem atividade pós-pagamento → mover pra "Consulta finalizada" |
+| **B20** `updated_at` invalidado | migration | nova coluna `last_human_activity_at` atualizada por messages+notes |
+| **B21** "Retorno Tratamento Finalizado" órfã | decisão de produto | remover ou definir critério claro |
+| **B22, B28** outreach faltante | `form-ingest` + import | trigger auto-WhatsApp de boas-vindas na criação de lead com canal de origem |
+| **B23** hot leads enterrados | dashboard | view "Reativação" filtrando Paciente antigo+Nutrição com interesse claro + sem mensagens |
+| **B24** falso finalizado | `pipeline_field_rules` | regra para re-abrir card quando nova mensagem chega em "Consulta finalizada" |
+| **B25, B26** desqualificação incompleta | prompt + tool | tornar `motivo_desqualificacao` obrigatório quando `qualificacao=desqualificado`; backfill |
+| **B27** parou de responder prematuro | regra | exigir `last_message_at < now() - interval '14 days'` |
+
+### 6.4 Lista de intervenção manual urgente
+
+**Imediato (revisão humana esta semana):**
+
+1. **B23 — Hot leads enterrados (~27 leads)** — query de reativação:
+   ```sql
+   SELECT l.id, l.name, l.custom_fields->>'procedimento_interesse' AS interesse
+   FROM leads l JOIN pipeline_stages s ON s.id=l.stage_id
+   WHERE s.name IN ('Paciente antigo','Nutrição de Leads Inativos')
+     AND l.custom_fields->>'procedimento_interesse' IN ('cetamina','emt')
+     AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.lead_id=l.id AND m.from_me=false);
+   ```
+2. **B28 — 188 leads sem outreach em "Não respondeu"** — disparar sequência de boas-vindas (revisar antes para garantir relevância).
+3. **B15 — 25 leads em "Procedimento pago"** sem confirmação real — pedir ao atendente validar caso a caso antes de qualquer aging automático.
+4. **B26 — Backfill** dos 4 leads em "Lead não qualificado" sem `qualificacao` no `custom_fields`.
+
+**Curto prazo (próximas 2 sprints):**
+
+- Implementar B16 (regra fechamento→agendada) — resolve 4 leads e padrão futuro.
+- Migration B20 `last_human_activity_at` — pré-requisito p/ qualquer cron de aging.
+- Migration B17 sanear nomes — melhora UX e accuracy da IA.
+
+**Decisão de produto necessária:**
+
+- B21 (manter ou remover "Retorno Tratamento Finalizado"?).
+- B14 (criar pipeline B2B separada vs. tag `is_internal_contact`?).
+- B11 (modelar status_consulta no schema?).
+
+---
+
+## Conclusão da auditoria
+
+- **Pipeline tem ~44% de acerto agregado**, puxado pra cima por colunas-depósito (Paciente antigo 95%, Negou parceria 100%).
+- **Colunas operacionais críticas estão quebradas:** Consulta Agendada (0%), Procedimento pago (0%), Não respondeu (0,5%).
+- **Causa-raiz principal:** o extractor preenche bem campos textuais (qualificação, interesse), mas **não fecha o ciclo** — não atualiza datas em re-agendamentos (B10), não detecta confirmação de pagamento (B15), e regras de campo não cobrem transições importantes (B16).
+- **28 bugs identificados** (B1–B28), com 4 críticos e 9 altos.
+- **Próximo passo recomendado:** atacar B15 + B16 + B28 nesta ordem — desbloqueiam 238 leads e fecham as 3 colunas mais quebradas.
