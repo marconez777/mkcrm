@@ -707,3 +707,26 @@ Auto-reply de fora-de-horário **não conta** como atendimento — é apenas acu
 
 ### Próximos achados (placeholder)
 Usuário sinalizou que enviará mais ocorrências. Anexar como B32+ neste mesmo bloco.
+
+---
+
+### B32 — Tag "Retorno" aplicada incorretamente a lead de primeira consulta [MÉDIO]
+**Sintoma observado (print, Ateliê Patrícia Machado – 556598209954, 2026-06-12):**
+- Lead perguntando valor da consulta para **agendar a primeira vez** ("Tem mais algum valor além desse da consulta?" / "Vou falar com e retorno").
+- Foi tagueada como **Interessado + Retorno**.
+- "Retorno" no contexto da clínica significa **retorno de tratamento** (paciente que já consultou e voltou para nova sessão/consulta), não "vai retornar o contato".
+
+O extractor está fazendo match léxico ingênuo: a palavra "retorno" / "retorna" na mensagem do lead dispara a tag `Retorno`, ignorando o sentido (cliente dizendo "vou retornar o contato depois").
+
+**Fix:**
+1. Reservar a tag/coluna **Retorno** exclusivamente para `tipo_atendimento` indicando **paciente recorrente** (já tem histórico de consulta/sessão na clínica).
+2. Prompt do extractor: ao detectar "retorno"/"retornar"/"volto" em mensagem **inbound**, classificar como intenção comunicacional ("lead vai pensar e voltar") e **não** como tipo de atendimento. Só marcar Retorno se:
+   - Lead explicitamente menciona consulta/sessão anterior, OU
+   - Existe registro prévio do mesmo telefone com `tipo_atendimento` finalizado, OU
+   - Atendente confirma manualmente.
+3. Para o caso "vai pensar e volta", usar tag/estado mais adequado: `aguardando_decisao` ou manter em Qualificação com nota — não criar falso sinal de retorno.
+4. Backfill: query para auditar leads marcados como Retorno sem histórico anterior de atendimento → desmarcar.
+
+**Relação com outros bugs:** complementa B17 (nomes poluídos) e B29/B30 (vocabulário) — é mais um caso de **match léxico sem contexto**. Vale criar uma diretriz geral no prompt do extractor: "nunca classificar campo estrutural (tipo, estágio, tag) com base em uma única palavra-chave da mensagem do lead — sempre exigir 2 sinais convergentes ou confirmação humana".
+
+**Onde mexer:** `supabase/functions/extractor-tick/` (prompt) + `pipeline_field_rules` (regra de tag "Retorno").
