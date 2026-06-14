@@ -2052,7 +2052,8 @@
       "Bugs novos consolidados (Fase 5)",
       "Próxima fase",
       "Fase 6 — Síntese final (2026-06-14)",
-      "Conclusão da auditoria"
+      "Conclusão da auditoria",
+      "Fase 7 — Achados de campo (vocabulário + regra de qualificação)"
     ],
     "code_refs": [
       "supabase/functions/extractor-tick/",
@@ -2062,7 +2063,7 @@
       "docs/maps/AI_RUNTIME.md",
       "docs/maps/KANBAN_LEADS.md"
     ],
-    "size_lines": 607,
+    "size_lines": 696,
     "stale_refs": []
   },
   {
