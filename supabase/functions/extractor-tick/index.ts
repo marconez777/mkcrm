@@ -188,15 +188,25 @@ DESAMBIGUAÇÃO DE "SESSÃO" (B29):
 - "sessão" sozinho sem contexto: NÃO chute — use null e baixe a confidence.
 
 CONTATO ADMINISTRATIVO (I5, B33):
+SEMPRE preencha is_administrative_contact com booleano explícito (true OU false). NUNCA deixe null.
 Marque is_administrative_contact=true E deixe os demais campos null quando ≥2 destes sinais:
 - Apresenta-se como médico/psicóloga/secretária/hospital/clínica/agência/fornecedor.
 - Está encaminhando outro paciente ("vou mandar a Maria pra vocês").
 - Conversa é entre profissionais (interconsulta, parceria, cobrança, agenda interna).
 - Pitch B2B / cold-outreach: usa termos como "criei", "desenvolvi", "minha empresa", "posso te mostrar", "demo", "automatizar atendimento", "IA pra clínicas", "marketing", "SEO", "tráfego pago", "CRM", junto com URL/domínio comercial e oferta dirigida à clínica.
-Se é PITCH B2B/spam: além disso, marque qualificacao='desqualificado' e motivo_desqualificacao='spam_propaganda' (B33).
 
-REGRAS DE PAGAMENTO:
-- pagamento_confirmado=true SÓ se o atendente confirmou recebimento. Lead mandando comprovante = tentou_pagamento=true.
+Se é PITCH B2B/spam (qualquer pitch comercial dirigido à clínica, mesmo sem se apresentar como empresa):
+- is_administrative_contact=true
+- qualificacao='desqualificado'
+- motivo_desqualificacao='spam_propaganda'
+Os TRÊS campos juntos. Não esqueça nenhum (B33).
+
+Caso contrário (paciente real, lead comum): is_administrative_contact=false explicitamente.
+
+REGRAS DE PAGAMENTO (I2):
+- pagamento_confirmado=true SÓ se o atendente confirmou recebimento explicitamente.
+- Sempre que pagamento_confirmado=true, tentou_pagamento TAMBÉM é true (confirmação implica tentativa). Preencha os dois.
+- Lead mandando comprovante sem confirmação do atendente = tentou_pagamento=true, pagamento_confirmado=null.
 
 REGRAS DE AGENDAMENTO:
 - tentou_agendar=true SOMENTE quando o lead CONFIRMOU uma CONSULTA. Pedir horário, perguntar disponibilidade ou citar um dia da semana NÃO conta.
@@ -209,11 +219,23 @@ REGRAS DE AGENDAMENTO:
 - ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
 
 RETORNO/REATIVAÇÃO (I8, B32):
-- qualificacao='retorno_reativacao' SÓ quando: lead esteve inativo ≥14 dias E há sinal explícito de retomada ("voltei", "quero retomar", "ainda tenho interesse", "estou pronto pra agendar agora").
-- "Vou pensar e te retorno", "depois te falo" durante negociação ativa → mantém qualificacao='em_negociacao'. NUNCA classifique como retorno.
+Use qualificacao='retorno_reativacao' quando QUALQUER UMA destas condições for satisfeita:
+(1) Há gap explícito ≥14 dias entre a última mensagem do lead e a atual (verifique timestamps/datas se presentes) E o lead retoma a conversa; OU
+(2) O lead admite explicitamente que sumiu/ficou ausente E sinaliza retomada (mesmo sem ver timestamps). Frases-chave que disparam isso: "sumi", "fiquei sumido(a)", "sumi um tempo", "fiquei longe", "depois de tanto tempo", "voltei", "demorei pra responder", "fiquei sem responder", combinadas com "quero retomar", "ainda tenho interesse", "vamos marcar", "agora consigo", "posso agendar". Quando o lead já tem procedimentos preenchidos (paciente antigo) e diz "quero retomar" / "próxima infusão depois de sumir", é retorno_reativacao.
+
+Exemplos POSITIVOS (retorno_reativacao):
+- "Oi, sumi um tempo mas quero retomar o tratamento" → retorno_reativacao.
+- Lead sumiu em janeiro, volta em março: "oi, voltei. ainda tem horário?" → retorno_reativacao.
+- "fiquei sem responder, mas agora consigo marcar" → retorno_reativacao.
+
+Exemplos NEGATIVOS (mantém em_negociacao ou interessado):
+- "vou pensar e te retorno" dentro da mesma negociação → em_negociacao.
+- Lead respondendo no mesmo dia, mesmo dizendo "voltei a pensar" → em_negociacao.
+- Lead novo perguntando preço pela primeira vez → interessado (não é retorno).
 
 REGRA FINAL:
 - Use null quando não estiver claro. Prefira null a chutar.
+- Exceção: is_administrative_contact e (quando pagamento_confirmado=true) tentou_pagamento são SEMPRE explícitos.
 - Chame a função extract_lead_fields exatamente uma vez.`;
 }
 
@@ -284,6 +306,29 @@ function extractArgs(data: OpenAIResp): Record<string, unknown> | null {
 
 function fieldIsEmpty(v: unknown): boolean {
   return v === undefined || v === null || v === "";
+}
+
+/**
+ * Normaliza saída do extractor (Onda 2.1) antes do merge.
+ * - I5: is_administrative_contact null/undefined → false (modelo costuma omitir).
+ * - I2: pagamento_confirmado=true implica tentou_pagamento=true.
+ * - B33: motivo='spam_propaganda' força qualificacao='desqualificado'.
+ * Idempotente — chamada também pelo eval runner.
+ */
+export function normalizeExtracted(
+  extracted: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...extracted };
+  if (out.is_administrative_contact === null || out.is_administrative_contact === undefined) {
+    out.is_administrative_contact = false;
+  }
+  if (out.pagamento_confirmado === true && (out.tentou_pagamento === null || out.tentou_pagamento === undefined)) {
+    out.tentou_pagamento = true;
+  }
+  if (out.motivo_desqualificacao === "spam_propaganda" && out.qualificacao !== "desqualificado") {
+    out.qualificacao = "desqualificado";
+  }
+  return out;
 }
 
 function applyFields(
@@ -639,7 +684,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       continue;
     }
 
-    const extracted = extractArgs(r.data!) ?? {};
+    const extracted = normalizeExtracted(extractArgs(r.data!) ?? {});
     const confidence = typeof extracted.confidence === "number" ? Number(extracted.confidence) : 0;
     const { merged, setKeys } = applyFields(
       lead.custom_fields ?? {},

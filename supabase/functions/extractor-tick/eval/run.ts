@@ -6,7 +6,7 @@
 //   deno run --allow-net --allow-env --allow-read \
 //     supabase/functions/extractor-tick/eval/run.ts [--model gpt-5-nano]
 
-import { buildSystemPrompt, EXTRACTION_TOOL } from "../index.ts";
+import { buildSystemPrompt, EXTRACTION_TOOL, normalizeExtracted } from "../index.ts";
 
 interface GoldenCase {
   id: string;
@@ -29,8 +29,12 @@ interface CaseResult {
 }
 
 function eq(a: unknown, b: unknown): boolean {
+  // null e undefined são equivalentes: schema permite omitir o campo
+  const aNil = a === null || a === undefined;
+  const bNil = b === null || b === undefined;
+  if (aNil && bNil) return true;
+  if (aNil || bNil) return false;
   if (a === b) return true;
-  if (a === null || b === null || a === undefined || b === undefined) return false;
   // datas ISO: comparar só o prefixo AAAA-MM-DD
   if (typeof a === "string" && typeof b === "string" && /^\d{4}-\d{2}-\d{2}T/.test(a) && /^\d{4}-\d{2}-\d{2}T/.test(b)) {
     return a.slice(0, 10) === b.slice(0, 10);
@@ -87,7 +91,7 @@ async function runOne(apiKey: string, model: string, c: GoldenCase): Promise<Cas
   let extracted: Record<string, unknown> = {};
   let error: string | undefined;
   try {
-    extracted = await callOpenAI(apiKey, model, system, user);
+    extracted = normalizeExtracted(await callOpenAI(apiKey, model, system, user));
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
