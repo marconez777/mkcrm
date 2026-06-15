@@ -583,7 +583,7 @@ function applyFields(
   for (const dateKey of ["consulta_agendada_em", "procedimento_agendado_em"] as const) {
     const rawDate = extracted[dateKey];
     if (rawDate !== undefined && rawDate !== null) {
-      const valid = parseFutureDate(rawDate);
+      const valid = parseFutureDateInTZ(rawDate, CLINIC_TZ);
       if (!valid) {
         extracted = { ...extracted, [dateKey]: null };
       } else {
