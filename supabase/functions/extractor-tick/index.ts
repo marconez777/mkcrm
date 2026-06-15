@@ -382,20 +382,76 @@ export function normalizeExtracted(
     out.tipo_atendimento = null;
   }
   // I5/B14/B19 (Onda 5) — Heurística determinística de contato administrativo
-  // por NOME (título médico / empresa) e por sinais no conteúdo da conversa.
-  // Cobre médicos parceiros (Dr./Dra./Prof.), agências, distribuidoras, hospitais,
-  // laboratórios, farmácias — comuns no inventário (B14/B19, ~60 leads).
   if (out.is_administrative_contact !== true && detectAdministrativeContact(convo ?? "", leadName ?? null)) {
     out.is_administrative_contact = true;
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
   // B11 (Onda 6) — Heurística determinística de status_consulta='realizada'
-  // a partir de sinais textuais inequívocos de pós-atendimento.
   if (convo && !out.status_consulta && detectConsultaRealizada(convo)) {
     out.status_consulta = "realizada";
   }
+  // wa-redirect template: lead só mandou o template do site → suprime intenção falsa
+  // e marca campo interno `_wa_redirect_origin` para o caller aplicar tag/evento.
+  if (convo) {
+    const origin = detectWaRedirectOriginFromConvo(convo);
+    if (origin && origin.isTemplate) {
+      out.tentou_agendar = null;
+      out.consulta_agendada_em = null;
+      out.procedimento_agendado_em = null;
+      out.qualificacao = null;
+      // só sobrescreve procedimento_interesse se o CTA dá uma pista clara
+      if (origin.procedimento) {
+        out.procedimento_interesse = origin.procedimento;
+      } else {
+        out.procedimento_interesse = null;
+      }
+      (out as Record<string, unknown>)._wa_redirect_origin = origin;
+    }
+  }
   return out;
+}
+
+/**
+ * Inspeciona a conversa serializada ("Lead: ...\nAtendente: ...") e devolve
+ * a origem do wa-redirect quando TODAS as mensagens do lead são templates do site.
+ * Retorna null caso o lead já tenha digitado algo próprio.
+ */
+function detectWaRedirectOriginFromConvo(convo: string): DetectedOrigin | null {
+  // Reconstroi blocos por orador. Mensagens do lead podem ter múltiplas linhas
+  // (template tem \n---\n no meio), por isso não dá pra usar split('\n').
+  const lines = convo.split("\n");
+  const leadMessages: string[] = [];
+  let current: { who: "Lead" | "Atendente" | null; buf: string[] } = { who: null, buf: [] };
+  const flush = () => {
+    if (current.who === "Lead" && current.buf.length) {
+      leadMessages.push(current.buf.join("\n").replace(/^Lead:\s*/i, "").trim());
+    }
+    current = { who: null, buf: [] };
+  };
+  for (const ln of lines) {
+    if (/^Lead:/i.test(ln)) {
+      flush();
+      current = { who: "Lead", buf: [ln] };
+    } else if (/^Atendente:/i.test(ln)) {
+      flush();
+      current = { who: "Atendente", buf: [ln] };
+    } else {
+      current.buf.push(ln);
+    }
+  }
+  flush();
+  if (leadMessages.length === 0) return null;
+  // Todas as mensagens do lead precisam ser template-only.
+  let detected: DetectedOrigin | null = null;
+  for (const m of leadMessages) {
+    if (!isTemplateOnly(m)) return null;
+    const o = detectOrigin(m);
+    if (!o.isTemplate) return null;
+    // Se mais de um template, prefere o primeiro com procedimento conhecido.
+    if (!detected || (!detected.procedimento && o.procedimento)) detected = o;
+  }
+  return detected;
 }
 
 
