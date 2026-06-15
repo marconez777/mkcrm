@@ -141,7 +141,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
 
     let q = supabase
       .from("leads")
-      .select("id, stage_id, custom_fields")
+      .select("id, stage_id, custom_fields, updated_at")
       .not("custom_fields->>" + fieldKey, "is", null)
       .is("archived_at", null)
       .limit(200);
@@ -163,6 +163,16 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     if (businessOnly && (!isWeekday || localHour < businessStart || localHour >= businessEnd)) return [];
     if (preferred && localHM < preferred) return [];
 
+    // Helper: YYYY-MM-DD no tz
+    const ymdInTZ = (d: Date) => {
+      const ps = new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(d);
+      const g = (t: string) => ps.find((p) => p.type === t)?.value || "";
+      return `${g("year")}-${g("month")}-${g("day")}`;
+    };
+    const nowDay = `${get("year")}-${get("month")}-${get("day")}`;
+
     const out: any[] = [];
     for (const l of data ?? []) {
       const raw = (l.custom_fields as any)?.[fieldKey];
@@ -171,21 +181,31 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       if (isNaN(appt.getTime())) continue;
       const target = new Date(appt.getTime() - offsetMin * 60_000);
       // Dispara se passamos o alvo mas ainda faltam >=5min para a consulta
-      if (now >= target && now <= new Date(appt.getTime() - 5 * 60_000)) {
-        out.push({ ...l, appointment_at: appt.toISOString() });
-      }
+      if (!(now >= target && now <= new Date(appt.getTime() - 5 * 60_000))) continue;
+
       // Para o caso D-1 com preferred_time: garante que estamos no mesmo dia local do target
-      if (preferred) {
-        const targetParts = new Intl.DateTimeFormat("en-GB", {
-          timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-        }).formatToParts(target);
-        const nowDay = `${get("year")}-${get("month")}-${get("day")}`;
-        const tgtDay = `${targetParts.find(p=>p.type==="year")?.value}-${targetParts.find(p=>p.type==="month")?.value}-${targetParts.find(p=>p.type==="day")?.value}`;
-        if (nowDay !== tgtDay) {
-          // remove se acabamos de adicionar
-          if (out[out.length - 1]?.id === l.id) out.pop();
+      if (preferred && ymdInTZ(target) !== nowDay) continue;
+
+      // Bloqueio "agendado no mesmo dia da consulta" — evita confirmação fora de hora
+      // quando o atendente marca de última hora. Permite só o lembrete curto se ainda
+      // houver folga > 5h até a consulta.
+      const apptDay = ymdInTZ(appt);
+      const bookedAt = l.updated_at ? new Date(l.updated_at) : null;
+      const bookedDay = bookedAt ? ymdInTZ(bookedAt) : null;
+      if (bookedDay && bookedDay === apptDay) {
+        const hoursToAppt = (appt.getTime() - now.getTime()) / 3600_000;
+        // Offsets longos (>=6h, ex.: D-1=1440min) nunca disparam para agendamento no mesmo dia
+        if (offsetMin >= 360) {
+          await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "same_day_short_notice", appt.toISOString());
+          continue;
+        }
+        if (hoursToAppt <= 5) {
+          await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "same_day_short_notice", appt.toISOString());
+          continue;
         }
       }
+
+      out.push({ ...l, appointment_at: appt.toISOString() });
     }
     return out;
   }
