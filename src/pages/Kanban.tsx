@@ -685,9 +685,11 @@ export default function KanbanPage() {
     const targetStage = stages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const manualLockUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
+    const manualLockUntil = manualLockUntilIso();
+    const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
+    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
+    if (cfPatch) patch.custom_fields = cfPatch;
     await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
     toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
