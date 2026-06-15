@@ -1,6 +1,6 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T00:59:00.920Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T06:52:06.057Z_
 
 Total de docs: **150** · frontmatter atualizado neste run: **0**
 
@@ -60,6 +60,7 @@ _(nenhum)_
 - `clinic-openai-key`
 - `cron-expire-manual-grants`
 - `daily-summary`
+- `dedup-leads-tick`
 - `dispatch-campaign`
 - `eduzz-webhook`
 - `email-automations-tick`

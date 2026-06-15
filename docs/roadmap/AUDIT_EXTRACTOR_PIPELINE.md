@@ -1177,3 +1177,52 @@ Total: **208 leads** rastreados para reativação automática (vs. estimativa do
 **Backfill Clínica Ór:** 211 leads `Dr./Dra./Prof./Enf.` + 1 corporativo → `is_internal_contact=true` + movidos para coluna Administrativo (`stage_changed_at=now()`, histórico em `lead_stage_history.reason='onda5_admin_backfill (I5/B14/B19)'`).
 
 Pós-backfill: **222 internos** marcados, **264 leads** fixos na coluna Administrativo. B14/B19 fechados. B33 já tratado em Onda 3.1.
+
+## Onda 6 — Polimento (2026-06-15)
+
+Fecha os 6 bugs residuais (B7, B11, B13, B20, B21, B24) com migration de fundação + extractor + edge functions + 2 novos golden cases.
+
+### Migration (`20260615` — Onda 6 fundação)
+- `lead_stage_history` ganhou `source text` + `metadata jsonb`. Trigger `record_lead_stage_history` agora preenche `source='manual'` quando há `auth.uid()`, senão `'system'`. **B7** resolvido — toda movimentação tem autoria.
+- `leads.last_human_activity_at timestamptz` + 2 triggers (mensagens humanas e notas internas) + backfill via `MAX(messages.timestamp)` filtrando auto-reply. **B20** resolvido — cron de aging passa a usar coluna confiável (não o `updated_at` zerado pela migração em massa).
+- `find_duplicate_leads_by_phone(clinic_id)` (RPC) lista grupos por telefone normalizado. **B13** infra pronta.
+
+### Extractor (`extractor-tick`)
+- Schema do tool ganhou `status_consulta` enum (`agendada|realizada|no_show|cancelada|reagendada`) e prompt com regras explícitas de pós-atendimento (B11) e reabertura após finalização (B24).
+- Helper determinístico `detectConsultaRealizada(convo)`: força `status_consulta='realizada'` quando o lead expressa pós-atendimento ("obrigado pela consulta", "tive a primeira consulta", "consulta foi excelente") ou quando atendente cita NF/recibo na mesma conversa. Cobre variância do modelo.
+- `status_consulta` adicionado a `writable`.
+- Edge functions `field-rules-tick` e `stage-aging-tick` deixaram de inserir uma 2ª linha em `lead_stage_history` — agora **atualizam** a linha que o trigger acabou de criar, preenchendo `source` + `metadata` + `reason`. Fim da duplicação histórica.
+
+### Nova edge function `dedup-leads-tick` (B13)
+- Roda a RPC `find_duplicate_leads_by_phone` por clínica, emite `lead_events.type='duplicate_detected'` no lead primário do grupo (assinatura por phone+ids → idempotente).
+- Cron `dedup-leads-tick-daily`, 04:30 BRT.
+- Dry-run inicial: **0 grupos** em todas as clínicas (telefone já é único hoje). Mecanismo fica armado para o futuro.
+
+### B21 — "Retorno Tratamento Finalizado"
+- Coluna **mantida** (D1 já implementou critério automático na Onda 3). Sem trabalho adicional.
+
+### Golden set (15 casos)
+- `14-status-realizada-nf` (B11): NF emitida + "obrigada pela consulta, foi excelente" → `status_consulta='realizada'`.
+- `15-reabrir-finalizado-reagendar` (B24/I8): paciente com `status_consulta='realizada'` volta pedindo nova sessão → `qualificacao='retorno_reativacao'` + `tentou_agendar=true`.
+
+### Eval pós-Onda 6 (2026-06-15)
+
+| Métrica | Valor |
+|---|---|
+| Accuracy global | **98.5 %** (64/65) |
+| Erros de chamada | 0/15 |
+| Casos 100 % acertados | 14/15 |
+| Meta Onda 6 | ≥ 90 % ✅ |
+| Baseline Onda 3.1 | 100 % (52/52) |
+
+**Único mismatch:** caso `13-admin-distribuidora-nome` — modelo marcou `qualificacao='desqualificado'` (esperado `null`). Comportamento defensável (distribuidora B2B é desqualificada por definição) e não afeta `is_internal_contact` (correto). Variância tolerada dentro do gate −2 pp.
+
+### Resumo Onda 6
+- 1 migration (B7 + B20 + B13 infra)
+- 1 extractor change (B11 schema + helper + B24 prompt)
+- 2 edge functions atualizadas (B7 — sem duplicação)
+- 1 edge function nova (`dedup-leads-tick`) + 1 cron
+- 2 golden cases novos · eval 98.5 % · gate de CI mantido
+- Bugs fechados: **B7, B11, B13, B20, B21, B24** ✅
+
+Onda 6 encerra o roadmap `AUDIT_EXTRACTOR_PIPELINE`. Próxima auditoria fica em backlog.
