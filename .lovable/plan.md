@@ -1,114 +1,40 @@
-## Problema
+## Decisões confirmadas
 
-Toda mensagem inicial enviada via `wa-redirect` (CTAs do site, testes PHQ-9 / GAD-7 / depressão / EMT, botões de "agendar consulta") tem o mesmo padrão:
+1. Fuso fixo `America/Sao_Paulo` (sem nova coluna em `clinics`/`settings` por enquanto).
+2. Backfill: rodar nos leads existentes com data possivelmente "shiftada" nas últimas 60 dias.
+3. Corte de 5h para o lembrete de 1h: mantido.
 
-```
-<frase de marketing pré-definida pelo CTA>
----
-*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
-(ref=XXXXXXXX)
-```
+## Implementação
 
-A IA está lendo o "gostaria de agendar uma avaliação" como intenção real → marca o lead como `interessado`/`tentou_agendar`, e o pipeline já o joga em "Qualificação" sem nenhum sinal de que ele veio de um teste/CTA específico.
+### 1. `supabase/functions/_shared/dates.ts`
+- Novo `parseFutureDateInTZ(raw, tz, now)` que interpreta strings ISO **sem offset** como wall-clock no `tz` (usa o truque `Intl.DateTimeFormat` para descobrir o offset correto na data, resolvendo DST). Strings com `Z` ou `±HH:MM` continuam sendo instante absoluto.
+- `parseFutureDate` antigo passa a delegar para `parseFutureDateInTZ(raw, "UTC", now)` → comportamento idêntico para chamadas legadas.
 
-## Solução
+### 2. `supabase/functions/extractor-tick/index.ts`
+- Constante `CLINIC_TZ = "America/Sao_Paulo"`.
+- `buildSystemPrompt`: adiciona bloco "FORMATO DE DATA" instruindo o modelo a devolver `AAAA-MM-DDTHH:mm` **sem `Z` e sem offset**, sempre em horário local da clínica.
+- Trocar `parseFutureDate(...)` por `parseFutureDateInTZ(..., CLINIC_TZ)` em `applyFields` e `applyClinicFieldMapping`. Os `.toISOString()` continuam corretos porque o `Date` retornado já é o instante UTC certo.
 
-### 1. Detectar o template deterministicamente
+### 3. `supabase/functions/automations-tick/index.ts`
+- Adicionar helper local `ymdInTZ(date, tz)`.
+- Buscar `updated_at` do lead na query do `before_appointment`.
+- Após calcular `target` e antes de adicionar o lead em `out`:
+  - `apptDay = ymdInTZ(appt, tz)`, `nowDay = ymdInTZ(now, tz)`, `bookedDay = ymdInTZ(updated_at, tz)`.
+  - Se `bookedDay === apptDay` (o agendamento foi marcado no mesmo dia da consulta):
+    - bloqueia qualquer offset ≥ 360 min (D-1/longo).
+    - permite o lembrete só se faltam **mais de 5h** para a consulta.
+- Quando bloqueado, registra `automation_runs` com `status='skipped', detail='same_day_short_notice'` (auditável).
 
-Marcador universal (não depende do texto do CTA):
-
-- linha contém `*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*`
-- OU regex `\(ref=[a-z0-9]{6,}\)` na mesma mensagem
-
-Se a **última mensagem do lead** (inbound) é apenas template (sem texto adicional depois do bloco `---`), e **não há nenhuma outra inbound** com conteúdo livre depois dela, tratamos como **primeiro contato via site**.
-
-### 2. Mapa "frase do CTA → origem" (passar pra IA e pra tag)
-
-Extraído das mensagens reais já no banco (`messages` com `ref=`):
-
-| Trecho identificador da 1ª linha | Origem / tag |
-|---|---|
-| `teste de depressão PHQ-9` | `lead-phq9` |
-| `GAD-7` / `teste de ansiedade` | `lead-gad7` |
-| `teste de depressão` (sem PHQ-9) | `lead-teste-depressao` |
-| `tratamento com EMT` / `estimulação magnética` | `lead-emt` |
-| `cetamina` / `escetamina` / `spravato` | `lead-cetamina` |
-| `hipnose` / `hipnoterapia` | `lead-hipnose` |
-| `agendar uma consulta na Clínica Ór` (CTA genérico) | `lead-site` |
-| Qualquer outra com `(ref=)` que não bata acima | `lead-site` |
-
-Mapa fica num módulo único `supabase/functions/_shared/wa-redirect-templates.ts` (exportando regex+tag) e é importado tanto pelo extractor quanto por testes.
-
-### 3. Mudanças
-
-**a) `supabase/functions/_shared/wa-redirect-templates.ts`** (novo)
-- exporta `WA_REDIRECT_MARKER_RE`, `WA_REDIRECT_REF_RE`
-- exporta `detectOrigin(text): { isTemplate: boolean; tag: string | null; cta: string | null }`
-- exporta `KNOWN_CTAS` (array dos trechos da tabela acima) para usar no prompt
-
-**b) `supabase/functions/extractor-tick/index.ts`**
-
-- **System prompt**: adicionar bloco
-  ```
-  MENSAGENS-TEMPLATE DO SITE (wa-redirect):
-  Mensagens que terminam com:
-      ---
-      *Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
-      (ref=XXXXXXXX)
-  são TEMPLATES automáticos disparados quando o lead clica num CTA do site
-  (não foram digitadas pelo lead). Exemplos de CTAs conhecidos:
-  <lista de KNOWN_CTAS>
-
-  Regras quando a única mensagem do lead é esse template:
-  - NÃO preencha tentou_agendar, consulta_agendada_em, procedimento_agendado_em
-  - NÃO classifique qualificacao (deixe null) — espere o lead realmente conversar
-  - Pode preencher procedimento_interesse APENAS se o CTA mencionar
-    explicitamente um procedimento (ex.: "tratamento com EMT" → emt;
-    "cetamina"/"spravato" → cetamina; "hipnose" → hipnoterapia).
-    Se for CTA genérico ("agendar consulta") → procedimento_interesse=null.
-  - observacoes pode anotar: "lead veio do CTA <texto>".
-  ```
-
-- **`normalizeExtracted`** (guarda determinística):
-  Antes de devolver, se `detectOrigin(lastInboundContent).isTemplate === true` E não houver outra inbound com conteúdo não-template, força:
-  ```ts
-  out.tentou_agendar = null;
-  out.consulta_agendada_em = null;
-  out.procedimento_agendado_em = null;
-  out.qualificacao = null;
-  out._wa_redirect_tag = tag;  // campo interno, removido antes do INSERT
-  ```
-
-- **`processClinic`**: depois do `applyFields`, se `_wa_redirect_tag` veio:
-  - merge em `leads.tags` (sem duplicar)
-  - registra `lead_events` `type='wa_redirect_template_detected'` com `{ tag, cta }`
-
-**c) `supabase/functions/extractor-tick/eval/golden/`**
-- `11-phq9-template.json` — só PHQ-9 → expected: tudo null, sem agendamento.
-- `12-cta-cetamina-template.json` — CTA cetamina → expected: procedimento_interesse=cetamina, qualificacao=null, tentou_agendar=null.
-- `13-cta-generico-template.json` — "agendar consulta" genérico → expected: tudo null.
-
-### 4. Backfill (opcional — pergunta abaixo)
-
-SQL único que para cada lead cuja única inbound é template:
-- adiciona a tag correspondente (`lead-phq9`, etc) em `leads.tags`
-- zera `custom_fields.qualificacao` se estiver como `interessado`
-- limpa `tentou_agendar`/datas inferidas
-
-## Fora de escopo
-
-- Não muda `wa-redirect`, `forms-ingest`, nem o conteúdo enviado pelo site.
-- Não muda `field-rules-tick` nem pipeline. Os efeitos vêm sozinhos: sem `qualificacao=interessado`, a regra "Interessado" não casa, então o lead fica no stage atual ou no default da clínica.
-- Não cria stage/coluna nova.
+### 4. Backfill (via tool de insert)
+- SQL que, em `leads.custom_fields` com chaves `data_horario`, `consulta_agendada_em`, `procedimento_agendado_em`:
+  - candidato = valor termina em `:00:00.000Z` (hora redonda em UTC, típico do parsing errado anterior) E foi modificado nos últimos 60 dias E ainda está no futuro.
+  - ação: soma `+3 horas` no valor (ajustando para `America/Sao_Paulo`). Sem DST relevante hoje no Brasil, +3h é seguro.
+  - registra `lead_events` `type='date_tz_backfill'` por lead afetado.
+- Antes do UPDATE em massa, rodar um `SELECT` para mostrar contagem; se a contagem for absurdamente alta (>500), pausa e pergunta antes de aplicar.
 
 ## Validação
+1. Reprocessar lead "Ps" com `force=true` → `data_horario` salvo como `…T21:00:00.000Z`, render no Inbox volta a 18:00.
+2. Simular tick com lead `data_horario` para hoje +30min e `updated_at` de hoje → `automation_runs` registra `skipped/same_day_short_notice`.
+3. Eval do extractor continua passando (chamadas existentes só ganharam interpretação TZ-aware).
 
-1. `Edmara Schröder` (PHQ-9): reprocessar com `force=true` → ganha tag `lead-phq9`, `qualificacao` vazia, sem `tentou_agendar`.
-2. Lead que mandar o template + depois "oi, quero terça 14h às 15h" deve voltar a qualificar normalmente (`em_negociacao`/`tentou_agendar`).
-3. Eval: novos 3 goldens passam 100%, sem regressão nos antigos.
-
-## Perguntas
-
-1. **Convenção de tag**: prefere kebab-case (`lead-phq9`, `lead-cetamina`) ou em português com espaços (`Lead PHQ-9`, `Lead Cetamina`)? O sistema já usa tags free-form em `leads.tags[]`.
-2. **Backfill**: rodar nos leads existentes que já vieram via template (estimo ~35 leads pelo SQL acima), ou só aplicar daqui pra frente?
-3. **CTA genérico "agendar consulta"**: tag `lead-site` está OK, ou prefere algo mais específico (`lead-cta-agendar`)?
+Aguardando build mode para começar.
