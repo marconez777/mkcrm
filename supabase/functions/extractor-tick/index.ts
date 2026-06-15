@@ -781,7 +781,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       continue;
     }
 
-    const extracted = normalizeExtracted(extractArgs(r.data!) ?? {}, convo);
+    const extracted = normalizeExtracted(extractArgs(r.data!) ?? {}, convo, lead.name);
     const confidence = typeof extracted.confidence === "number" ? Number(extracted.confidence) : 0;
     const { merged, setKeys } = applyFields(
       lead.custom_fields ?? {},
