@@ -262,8 +262,30 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
       }
     }
 
+    const fromStage = leadRow?.stage_id ?? null;
     const { error } = await supabase.from("leads").update({ stage_id: stageId }).eq("id", leadId);
     if (error) return { ok: false, detail: error.message };
+
+    // Onda 7 / Fase 1: enriquecer histórico (sem inserir 2ª linha — trigger já criou).
+    const { data: latest } = await supabase
+      .from("lead_stage_history")
+      .select("id")
+      .eq("lead_id", leadId)
+      .order("moved_at", { ascending: false })
+      .limit(1);
+    const rowId = (latest?.[0] as { id?: string } | undefined)?.id;
+    if (rowId) {
+      await supabase.from("lead_stage_history").update({
+        reason: `automation:${a.id}`,
+        source: "automations_tick",
+        metadata: {
+          automation_id: a.id,
+          from_stage_id: fromStage,
+          to_stage_id: stageId,
+          at: new Date().toISOString(),
+        },
+      }).eq("id", rowId);
+    }
     return { ok: true };
   }
 

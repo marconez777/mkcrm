@@ -3,7 +3,7 @@ title: Roadmap / Melhorias propostas
 topic: roadmap
 kind: roadmap
 audience: agent
-updated: 2026-06-07
+updated: 2026-06-15
 summary: "Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam **novas capacidades** propostas. Sem compromisso de prazo."
 ---
 # Roadmap / Melhorias propostas
