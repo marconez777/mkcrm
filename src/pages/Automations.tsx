@@ -437,3 +437,59 @@ export default function Automations() {
     </div>
   );
 }
+
+function normalizeStageIds(cfg: any): string[] {
+  if (Array.isArray(cfg?.stage_ids)) return cfg.stage_ids.filter(Boolean);
+  if (cfg?.stage_id) return [cfg.stage_id];
+  return [];
+}
+
+function StageMultiSelect({
+  stages, value, onChange, label,
+}: {
+  stages: { id: string; name: string }[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  label: string;
+}) {
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  };
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1 max-h-56 overflow-y-auto rounded-md border bg-background p-2 space-y-1">
+        {stages.length === 0 && (
+          <p className="text-xs text-muted-foreground px-1 py-2">Nenhum estágio disponível.</p>
+        )}
+        {stages.map((s) => {
+          const checked = value.includes(s.id);
+          return (
+            <label key={s.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent cursor-pointer">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(s.id)}
+                className="h-4 w-4"
+              />
+              <span className="flex-1">{s.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      {value.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {value.map((id) => {
+            const s = stages.find((x) => x.id === id);
+            return (
+              <Badge key={id} variant="secondary" className="text-[11px]">
+                {s?.name ?? id.slice(0, 8)}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
