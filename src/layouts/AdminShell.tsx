@@ -221,6 +221,18 @@ export default function AdminShell() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-admin-text-muted">
               Voltar ao app
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = "/admin/login";
+              }}
+              className="text-admin-text-muted hover:text-admin-negative gap-1.5"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
           </div>
         </header>
 
