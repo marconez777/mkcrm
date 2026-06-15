@@ -364,6 +364,11 @@ export function normalizeExtracted(
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
+  // B11 (Onda 6) — Heurística determinística de status_consulta='realizada'
+  // a partir de sinais textuais inequívocos de pós-atendimento.
+  if (convo && !out.status_consulta && detectConsultaRealizada(convo)) {
+    out.status_consulta = "realizada";
+  }
   return out;
 }
 
