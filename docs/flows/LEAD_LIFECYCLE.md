@@ -57,7 +57,7 @@ summary: Ver `features/SEQUENCES_AUTOMATIONS.md` para detalhe dos gatilhos.
 | `leads_updated` | BEFORE UPDATE | `set_updated_at()` | mantém `updated_at` |
 | `leads_stage_changed` | BEFORE UPDATE | `set_stage_changed_at()` | atualiza `stage_changed_at` |
 | `trg_leads_sync_pipeline` | BEFORE INSERT / UPDATE OF `stage_id` | `sync_lead_pipeline_id()` | mantém `pipeline_id` coerente com stage |
-| `trg_lead_stage_history` | AFTER UPDATE OF `stage_id` | `record_lead_stage_history()` | grava linha em `lead_stage_history` |
+| `trg_lead_stage_history` | AFTER UPDATE OF `stage_id` | `record_lead_stage_history()` | grava linha em `lead_stage_history`. **Onda 7 / Fase 1**: idempotente (`ON CONFLICT (lead_id, to_stage_id, moved_at) DO NOTHING`) — quando uma edge function INSERTa explicitamente, o trigger não cria duplicata. `source` agora é `NOT NULL` (default `'unknown'`). |
 | `trg_enroll_on_stage_change` | AFTER INSERT OR UPDATE OF `stage_id` | `enroll_lead_on_stage_change()` | enfileira `sequence_enrollments` para sequências `trigger='on_stage_enter'` (e `on_lead_create` no INSERT) |
 | `log_lead_changes_trg` | AFTER UPDATE | `log_lead_changes()` | espelha mudanças relevantes em `lead_events` |
 | `trg_stop_sequences_on_reply` (em `messages`) | AFTER INSERT | `stop_sequences_on_reply()` | pausa sequências do lead quando há mensagem recebida do humano |
