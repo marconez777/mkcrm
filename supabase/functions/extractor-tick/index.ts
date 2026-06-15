@@ -764,6 +764,7 @@ interface LeadRow {
   name: string | null;
   phone: string;
   is_internal_contact: boolean;
+  tags: string[] | null;
 }
 
 async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
