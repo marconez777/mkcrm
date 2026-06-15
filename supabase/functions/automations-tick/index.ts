@@ -79,6 +79,11 @@ async function logRun(
 }
 
 async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
+  // Aceita stage_ids (array) ou stage_id (single, legado). stage_ids tem prioridade.
+  const cfgStageIds: string[] | undefined = Array.isArray(a.trigger_config?.stage_ids) && a.trigger_config.stage_ids.length > 0
+    ? a.trigger_config.stage_ids
+    : (a.trigger_config?.stage_id ? [a.trigger_config.stage_id] : undefined);
+
   if (a.trigger_type === "no_reply_after") {
     const hours = Number(a.trigger_config?.hours ?? 24);
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
@@ -88,7 +93,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       .lte("last_message_at", cutoff)
       .is("archived_at", null)
       .limit(50);
-    if (a.trigger_config?.stage_id) q = q.eq("stage_id", a.trigger_config.stage_id);
+    if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
     const { data } = await q;
     // Filter: last message must be inbound (from_me = false)
     const out: any[] = [];
@@ -107,15 +112,17 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
   if (a.trigger_type === "stage_idle") {
     const hours = Number(a.trigger_config?.hours ?? 48);
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
-    const { data } = await supabase
+    let q = supabase
       .from("leads")
       .select("id, stage_id, stage_changed_at")
-      .eq("stage_id", a.trigger_config?.stage_id)
       .lte("stage_changed_at", cutoff)
       .is("archived_at", null)
       .limit(50);
+    if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
+    const { data } = await q;
     return data ?? [];
   }
+
   if (a.trigger_type === "before_appointment") {
     const cfg = a.trigger_config ?? {};
     const fieldKey: string = cfg.field_key;

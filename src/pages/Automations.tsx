@@ -241,42 +241,37 @@ export default function Automations() {
               </select>
 
               {selected.trigger_type === "no_reply_after" && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <Label>Horas sem resposta</Label>
                     <Input type="number" min="1" value={selected.trigger_config?.hours ?? 24}
                       onChange={(e) => updTrigger({ hours: Number(e.target.value) })} />
                   </div>
-                  <div>
-                    <Label>Estágio (opcional)</Label>
-                    <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-                      value={selected.trigger_config?.stage_id ?? ""}
-                      onChange={(e) => updTrigger({ stage_id: e.target.value || undefined })}>
-                      <option value="">— qualquer —</option>
-                      {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
+                  <StageMultiSelect
+                    stages={stages}
+                    value={normalizeStageIds(selected.trigger_config)}
+                    onChange={(ids) => updTrigger({ stage_ids: ids, stage_id: undefined })}
+                    label="Estágios (deixe vazio = qualquer estágio)"
+                  />
                 </div>
               )}
 
               {selected.trigger_type === "stage_idle" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Estágio</Label>
-                    <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-                      value={selected.trigger_config?.stage_id ?? ""}
-                      onChange={(e) => updTrigger({ stage_id: e.target.value })}>
-                      <option value="">— escolha —</option>
-                      {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
+                <div className="space-y-3">
                   <div>
                     <Label>Horas parado</Label>
                     <Input type="number" min="1" value={selected.trigger_config?.hours ?? 48}
                       onChange={(e) => updTrigger({ hours: Number(e.target.value) })} />
                   </div>
+                  <StageMultiSelect
+                    stages={stages}
+                    value={normalizeStageIds(selected.trigger_config)}
+                    onChange={(ids) => updTrigger({ stage_ids: ids, stage_id: undefined })}
+                    label="Estágios monitorados (selecione 1 ou mais)"
+                  />
                 </div>
               )}
+
 
               {selected.trigger_type === "before_appointment" && (
                 <div className="space-y-3">
@@ -442,3 +437,59 @@ export default function Automations() {
     </div>
   );
 }
+
+function normalizeStageIds(cfg: any): string[] {
+  if (Array.isArray(cfg?.stage_ids)) return cfg.stage_ids.filter(Boolean);
+  if (cfg?.stage_id) return [cfg.stage_id];
+  return [];
+}
+
+function StageMultiSelect({
+  stages, value, onChange, label,
+}: {
+  stages: { id: string; name: string }[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  label: string;
+}) {
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  };
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1 max-h-56 overflow-y-auto rounded-md border bg-background p-2 space-y-1">
+        {stages.length === 0 && (
+          <p className="text-xs text-muted-foreground px-1 py-2">Nenhum estágio disponível.</p>
+        )}
+        {stages.map((s) => {
+          const checked = value.includes(s.id);
+          return (
+            <label key={s.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent cursor-pointer">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(s.id)}
+                className="h-4 w-4"
+              />
+              <span className="flex-1">{s.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      {value.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {value.map((id) => {
+            const s = stages.find((x) => x.id === id);
+            return (
+              <Badge key={id} variant="secondary" className="text-[11px]">
+                {s?.name ?? id.slice(0, 8)}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
