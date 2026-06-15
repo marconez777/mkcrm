@@ -1,65 +1,114 @@
-# Bug: leads voltam para Qualificação após move manual
+## Problema
 
-## Causa raiz
+Toda mensagem inicial enviada via `wa-redirect` (CTAs do site, testes PHQ-9 / GAD-7 / depressão / EMT, botões de "agendar consulta") tem o mesmo padrão:
 
-`field-rules-tick` roda a cada 2 min, lê `leads.custom_fields` e reavalia as regras de pipeline. Helton tem `qualificacao = "interessado"` (extraído pela IA), o que casa com a regra **"Interessado ou em negociação" → Qualificação**. Toda vez que você move manualmente para "Lead não qualificado" ou "Paciente antigo", o tick seguinte reverte.
-
-O backend já tem duas salvaguardas implementadas mas nenhuma está ativa nesse caso:
-
-1. `leads.manual_lock_until` — se preenchido, o tick pula o lead. **O Kanban não está setando isso ao arrastar.**
-2. `pipeline_stages.lock_auto_move` — etapas marcadas como travadas são puladas. **Hoje só "Administrativo" está marcada.**
-
-## Correção (3 partes, complementares)
-
-### 1. Setar `manual_lock_until` em todo move manual
-
-Onde existe move manual no frontend:
-- `src/pages/Kanban.tsx` (drag & drop entre colunas)
-- `src/components/kanban/MoveLeadDialog.tsx` (botão "Mover")
-- `src/components/kanban/MoveColumnLeadsDialog.tsx` (mover em lote)
-- `src/pages/LeadDrawer.tsx` (se houver troca de stage por lá — confirmar ao implementar)
-
-Em cada `update({ stage_id })`, incluir também:
-```ts
-manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+```
+<frase de marketing pré-definida pelo CTA>
+---
+*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
+(ref=XXXXXXXX)
 ```
 
-Janela proposta: **7 dias**. Suficiente para o atendente lidar com o lead sem o tick brigar; após isso, se o `custom_fields` ainda casa com a regra, o automático volta a valer (comportamento desejado caso a IA realmente identifique mudança).
+A IA está lendo o "gostaria de agendar uma avaliação" como intenção real → marca o lead como `interessado`/`tentou_agendar`, e o pipeline já o joga em "Qualificação" sem nenhum sinal de que ele veio de um teste/CTA específico.
 
-### 2. Marcar etapas terminais como `lock_auto_move=true`
+## Solução
 
-Via migration, ligar `lock_auto_move=true` nas etapas do pipeline "agendamentos novo" (ÓR) onde o atendente decide manualmente e nenhum motor automático deveria interferir:
+### 1. Detectar o template deterministicamente
 
-- `Lead não qualificado`
-- `Paciente antigo`
-- `Nutrição de Leads Inativos` (já é alvo de A4 do follow-up, mas saída só por trigger de mensagem nova — não por field rules)
+Marcador universal (não depende do texto do CTA):
 
-Efeito: `field-rules-tick` nunca move leads PARA essas colunas, e nunca move leads QUE ESTÃO nessas colunas. Saída acontece só por ação manual ou pelo trigger `nurture_recovery` (que já roda em outro caminho).
+- linha contém `*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*`
+- OU regex `\(ref=[a-z0-9]{6,}\)` na mesma mensagem
 
-> Deixo "lead parou de responder" de fora porque a automação A4 precisa movê-lo para Nutrição depois de 72h, e A4 usa `automations-tick` (não `field-rules-tick`), então não conflita — mas vale revisar.
+Se a **última mensagem do lead** (inbound) é apenas template (sem texto adicional depois do bloco `---`), e **não há nenhuma outra inbound** com conteúdo livre depois dela, tratamos como **primeiro contato via site**.
 
-### 3. Limpar `custom_fields.qualificacao` ao mover manualmente para "Lead não qualificado"
+### 2. Mapa "frase do CTA → origem" (passar pra IA e pra tag)
 
-Opcional mas recomendado: no move manual para `Lead não qualificado`, também setar `custom_fields.qualificacao = "desqualificado"` para que, quando o lock expirar em 7 dias, a regra "Lead desqualificado" (prio 60) o mantenha lá em vez de cair de novo na "Interessado". 
+Extraído das mensagens reais já no banco (`messages` com `ref=`):
 
-Pergunta para você: **quer que eu inclua esse ajuste automático do custom_field, ou prefere deixar manual?**
+| Trecho identificador da 1ª linha | Origem / tag |
+|---|---|
+| `teste de depressão PHQ-9` | `lead-phq9` |
+| `GAD-7` / `teste de ansiedade` | `lead-gad7` |
+| `teste de depressão` (sem PHQ-9) | `lead-teste-depressao` |
+| `tratamento com EMT` / `estimulação magnética` | `lead-emt` |
+| `cetamina` / `escetamina` / `spravato` | `lead-cetamina` |
+| `hipnose` / `hipnoterapia` | `lead-hipnose` |
+| `agendar uma consulta na Clínica Ór` (CTA genérico) | `lead-site` |
+| Qualquer outra com `(ref=)` que não bata acima | `lead-site` |
 
-## Pontos técnicos
+Mapa fica num módulo único `supabase/functions/_shared/wa-redirect-templates.ts` (exportando regex+tag) e é importado tanto pelo extractor quanto por testes.
 
-- Nenhuma mudança no `field-rules-tick` em si — a lógica já está correta, só precisa dos sinais.
-- Migration simples (1 UPDATE em `pipeline_stages`).
-- Edits localizados em 3-4 arquivos do frontend.
-- Sem mudança de schema.
+### 3. Mudanças
 
-## Fora do escopo
+**a) `supabase/functions/_shared/wa-redirect-templates.ts`** (novo)
+- exporta `WA_REDIRECT_MARKER_RE`, `WA_REDIRECT_REF_RE`
+- exporta `detectOrigin(text): { isTemplate: boolean; tag: string | null; cta: string | null }`
+- exporta `KNOWN_CTAS` (array dos trechos da tabela acima) para usar no prompt
 
-- Reescrever a regra "Interessado ou em negociação" (ela está correta — o problema é só a precedência sobre intenção humana).
-- UI para editar `manual_lock_until` (pode entrar em melhoria futura).
-- Mexer em `automations-tick` ou nas 4 automations criadas no turno anterior.
+**b) `supabase/functions/extractor-tick/index.ts`**
 
-## Validação após implementar
+- **System prompt**: adicionar bloco
+  ```
+  MENSAGENS-TEMPLATE DO SITE (wa-redirect):
+  Mensagens que terminam com:
+      ---
+      *Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
+      (ref=XXXXXXXX)
+  são TEMPLATES automáticos disparados quando o lead clica num CTA do site
+  (não foram digitadas pelo lead). Exemplos de CTAs conhecidos:
+  <lista de KNOWN_CTAS>
 
-1. Mover Helton manualmente para "Lead não qualificado".
-2. Confirmar `leads.manual_lock_until` preenchido (~7d à frente).
-3. Esperar 3 min (2 ciclos do tick) e confirmar que continua em "Lead não qualificado".
-4. Verificar `lead_stage_history` — não deve aparecer nova linha `source=field_rules_tick`.
+  Regras quando a única mensagem do lead é esse template:
+  - NÃO preencha tentou_agendar, consulta_agendada_em, procedimento_agendado_em
+  - NÃO classifique qualificacao (deixe null) — espere o lead realmente conversar
+  - Pode preencher procedimento_interesse APENAS se o CTA mencionar
+    explicitamente um procedimento (ex.: "tratamento com EMT" → emt;
+    "cetamina"/"spravato" → cetamina; "hipnose" → hipnoterapia).
+    Se for CTA genérico ("agendar consulta") → procedimento_interesse=null.
+  - observacoes pode anotar: "lead veio do CTA <texto>".
+  ```
+
+- **`normalizeExtracted`** (guarda determinística):
+  Antes de devolver, se `detectOrigin(lastInboundContent).isTemplate === true` E não houver outra inbound com conteúdo não-template, força:
+  ```ts
+  out.tentou_agendar = null;
+  out.consulta_agendada_em = null;
+  out.procedimento_agendado_em = null;
+  out.qualificacao = null;
+  out._wa_redirect_tag = tag;  // campo interno, removido antes do INSERT
+  ```
+
+- **`processClinic`**: depois do `applyFields`, se `_wa_redirect_tag` veio:
+  - merge em `leads.tags` (sem duplicar)
+  - registra `lead_events` `type='wa_redirect_template_detected'` com `{ tag, cta }`
+
+**c) `supabase/functions/extractor-tick/eval/golden/`**
+- `11-phq9-template.json` — só PHQ-9 → expected: tudo null, sem agendamento.
+- `12-cta-cetamina-template.json` — CTA cetamina → expected: procedimento_interesse=cetamina, qualificacao=null, tentou_agendar=null.
+- `13-cta-generico-template.json` — "agendar consulta" genérico → expected: tudo null.
+
+### 4. Backfill (opcional — pergunta abaixo)
+
+SQL único que para cada lead cuja única inbound é template:
+- adiciona a tag correspondente (`lead-phq9`, etc) em `leads.tags`
+- zera `custom_fields.qualificacao` se estiver como `interessado`
+- limpa `tentou_agendar`/datas inferidas
+
+## Fora de escopo
+
+- Não muda `wa-redirect`, `forms-ingest`, nem o conteúdo enviado pelo site.
+- Não muda `field-rules-tick` nem pipeline. Os efeitos vêm sozinhos: sem `qualificacao=interessado`, a regra "Interessado" não casa, então o lead fica no stage atual ou no default da clínica.
+- Não cria stage/coluna nova.
+
+## Validação
+
+1. `Edmara Schröder` (PHQ-9): reprocessar com `force=true` → ganha tag `lead-phq9`, `qualificacao` vazia, sem `tentou_agendar`.
+2. Lead que mandar o template + depois "oi, quero terça 14h às 15h" deve voltar a qualificar normalmente (`em_negociacao`/`tentou_agendar`).
+3. Eval: novos 3 goldens passam 100%, sem regressão nos antigos.
+
+## Perguntas
+
+1. **Convenção de tag**: prefere kebab-case (`lead-phq9`, `lead-cetamina`) ou em português com espaços (`Lead PHQ-9`, `Lead Cetamina`)? O sistema já usa tags free-form em `leads.tags[]`.
+2. **Backfill**: rodar nos leads existentes que já vieram via template (estimo ~35 leads pelo SQL acima), ou só aplicar daqui pra frente?
+3. **CTA genérico "agendar consulta"**: tag `lead-site` está OK, ou prefere algo mais específico (`lead-cta-agendar`)?

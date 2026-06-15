@@ -1,0 +1,19 @@
+{
+  "id": "11-phq9-template",
+  "description": "Lead manda só o template do wa-redirect do teste PHQ-9 — não deve qualificar como intenção real.",
+  "covers": ["wa-redirect", "B5"],
+  "now": "2026-06-15T10:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Olá! Fiz o teste de depressão PHQ-9 e gostaria de agendar uma avaliação.\n---\n*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*\n(ref=db4fa52006)" },
+    { "from_me": true, "content": "Olá, obrigado pelo contato! Aqui é a equipe da Clínica Ór." }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": null,
+    "tentou_agendar": null,
+    "consulta_agendada_em": null,
+    "procedimento_agendado_em": null,
+    "procedimento_interesse": null
+  }
+}

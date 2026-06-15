@@ -1,0 +1,17 @@
+{
+  "id": "13-cta-generico-template",
+  "description": "Lead vem do CTA genérico de agendamento — sem inferência de procedimento nem de intenção.",
+  "covers": ["wa-redirect"],
+  "now": "2026-06-15T10:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Olá! Gostaria de agendar uma consulta na Clínica Ór\n---\n*Mantenha esse código na sua mensagem para entrar na fila de atendimento:*\n(ref=xyz9876543)" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": null,
+    "tentou_agendar": null,
+    "consulta_agendada_em": null,
+    "procedimento_interesse": null
+  }
+}

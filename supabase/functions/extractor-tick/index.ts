@@ -17,6 +17,12 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
 import { parseFutureDate } from "../_shared/dates.ts";
+import {
+  detectOrigin,
+  isTemplateOnly,
+  knownCtaLabels,
+  type DetectedOrigin,
+} from "../_shared/wa-redirect-templates.ts";
 
 interface ClinicCfg {
   manual_lock_minutes: number;
@@ -250,6 +256,26 @@ Exemplos NEGATIVOS (mantém em_negociacao ou interessado):
 - Lead respondendo no mesmo dia, mesmo dizendo "voltei a pensar" → em_negociacao.
 - Lead novo perguntando preço pela primeira vez → interessado (não é retorno).
 
+MENSAGENS-TEMPLATE DO SITE (wa-redirect):
+Mensagens que contêm o bloco fixo:
+    ---
+    *Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
+    (ref=XXXXXXXX)
+NÃO foram digitadas pelo lead — são templates automáticos disparados pelos CTAs do site
+(testes PHQ-9/GAD-7, botões "agendar consulta", páginas de tratamento). CTAs conhecidos:
+${knownCtaLabels().join("\n")}
+
+Quando a ÚNICA mensagem do lead é esse template (sem nada digitado depois do "(ref=...)"):
+- NÃO preencha tentou_agendar, consulta_agendada_em, procedimento_agendado_em
+- NÃO classifique qualificacao — deixe null. Verbos como "gostaria de agendar" NÃO contam aqui.
+- Pode preencher procedimento_interesse APENAS quando o CTA mencionar explicitamente
+  um procedimento ("tratamento com EMT" → emt; "cetamina"/"escetamina"/"spravato" → cetamina;
+  "hipnose"/"hipnoterapia" → hipnoterapia). CTA genérico ("agendar consulta") → null.
+- Em observacoes pode anotar "lead veio do CTA <texto>".
+
+Quando o lead manda o template E DEPOIS digita algo próprio (ex.: "oi, quero terça 14h"),
+a parte digitada conta normalmente — aplique as regras de qualificação/agendamento sobre ela.
+
 REGRA FINAL:
 - Use null quando não estiver claro. Prefira null a chutar.
 - Exceção: is_administrative_contact e (quando pagamento_confirmado=true) tentou_pagamento são SEMPRE explícitos.
@@ -356,20 +382,76 @@ export function normalizeExtracted(
     out.tipo_atendimento = null;
   }
   // I5/B14/B19 (Onda 5) — Heurística determinística de contato administrativo
-  // por NOME (título médico / empresa) e por sinais no conteúdo da conversa.
-  // Cobre médicos parceiros (Dr./Dra./Prof.), agências, distribuidoras, hospitais,
-  // laboratórios, farmácias — comuns no inventário (B14/B19, ~60 leads).
   if (out.is_administrative_contact !== true && detectAdministrativeContact(convo ?? "", leadName ?? null)) {
     out.is_administrative_contact = true;
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
   // B11 (Onda 6) — Heurística determinística de status_consulta='realizada'
-  // a partir de sinais textuais inequívocos de pós-atendimento.
   if (convo && !out.status_consulta && detectConsultaRealizada(convo)) {
     out.status_consulta = "realizada";
   }
+  // wa-redirect template: lead só mandou o template do site → suprime intenção falsa
+  // e marca campo interno `_wa_redirect_origin` para o caller aplicar tag/evento.
+  if (convo) {
+    const origin = detectWaRedirectOriginFromConvo(convo);
+    if (origin && origin.isTemplate) {
+      out.tentou_agendar = null;
+      out.consulta_agendada_em = null;
+      out.procedimento_agendado_em = null;
+      out.qualificacao = null;
+      // só sobrescreve procedimento_interesse se o CTA dá uma pista clara
+      if (origin.procedimento) {
+        out.procedimento_interesse = origin.procedimento;
+      } else {
+        out.procedimento_interesse = null;
+      }
+      (out as Record<string, unknown>)._wa_redirect_origin = origin;
+    }
+  }
   return out;
+}
+
+/**
+ * Inspeciona a conversa serializada ("Lead: ...\nAtendente: ...") e devolve
+ * a origem do wa-redirect quando TODAS as mensagens do lead são templates do site.
+ * Retorna null caso o lead já tenha digitado algo próprio.
+ */
+function detectWaRedirectOriginFromConvo(convo: string): DetectedOrigin | null {
+  // Reconstroi blocos por orador. Mensagens do lead podem ter múltiplas linhas
+  // (template tem \n---\n no meio), por isso não dá pra usar split('\n').
+  const lines = convo.split("\n");
+  const leadMessages: string[] = [];
+  let current: { who: "Lead" | "Atendente" | null; buf: string[] } = { who: null, buf: [] };
+  const flush = () => {
+    if (current.who === "Lead" && current.buf.length) {
+      leadMessages.push(current.buf.join("\n").replace(/^Lead:\s*/i, "").trim());
+    }
+    current = { who: null, buf: [] };
+  };
+  for (const ln of lines) {
+    if (/^Lead:/i.test(ln)) {
+      flush();
+      current = { who: "Lead", buf: [ln] };
+    } else if (/^Atendente:/i.test(ln)) {
+      flush();
+      current = { who: "Atendente", buf: [ln] };
+    } else {
+      current.buf.push(ln);
+    }
+  }
+  flush();
+  if (leadMessages.length === 0) return null;
+  // Todas as mensagens do lead precisam ser template-only.
+  let detected: DetectedOrigin | null = null;
+  for (const m of leadMessages) {
+    if (!isTemplateOnly(m)) return null;
+    const o = detectOrigin(m);
+    if (!o.isTemplate) return null;
+    // Se mais de um template, prefere o primeiro com procedimento conhecido.
+    if (!detected || (!detected.procedimento && o.procedimento)) detected = o;
+  }
+  return detected;
 }
 
 
@@ -682,6 +764,7 @@ interface LeadRow {
   name: string | null;
   phone: string;
   is_internal_contact: boolean;
+  tags: string[] | null;
 }
 
 async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
@@ -716,7 +799,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
-    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact")
+    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact, tags")
     .eq("clinic_id", clinicId)
     .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
@@ -881,6 +964,19 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       update.is_internal_contact = true;
     }
 
+    // wa-redirect: aplica tag de origem do CTA se detectado.
+    const waOrigin = (extracted as Record<string, unknown>)._wa_redirect_origin as
+      | DetectedOrigin
+      | undefined;
+    let tagsAddedForWaRedirect: string | null = null;
+    if (waOrigin?.isTemplate && waOrigin.tag) {
+      const currentTags = Array.isArray(lead.tags) ? lead.tags : [];
+      if (!currentTags.includes(waOrigin.tag)) {
+        update.tags = [...currentTags, waOrigin.tag];
+        tagsAddedForWaRedirect = waOrigin.tag;
+      }
+    }
+
     await supabase.from("leads").update(update).eq("id", lead.id);
 
     // evento auditável
@@ -895,6 +991,20 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
           model: cfg.openai_model_text,
           message_id: lastMessageId,
           cost_usd: cost,
+        },
+      });
+    }
+    if (waOrigin?.isTemplate) {
+      await supabase.from("lead_events").insert({
+        clinic_id: lead.clinic_id,
+        lead_id: lead.id,
+        type: "wa_redirect_template_detected",
+        payload: {
+          tag: waOrigin.tag,
+          cta: waOrigin.cta,
+          procedimento: waOrigin.procedimento,
+          tag_added: tagsAddedForWaRedirect !== null,
+          message_id: lastMessageId,
         },
       });
     }
