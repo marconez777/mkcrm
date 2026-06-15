@@ -1,6 +1,6 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T00:02:49.299Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T00:31:16.185Z_
 
 Total de docs: **150** · frontmatter atualizado neste run: **0**
 
@@ -100,6 +100,7 @@ _(nenhum)_
 - `sequence-enroll`
 - `sequence-tick`
 - `sequence-trigger`
+- `stage-aging-tick`
 - `support-admin-reply`
 - `support-chat`
 - `support-kb-status`
