@@ -319,6 +319,7 @@ function fieldIsEmpty(v: unknown): boolean {
  */
 export function normalizeExtracted(
   extracted: Record<string, unknown>,
+  convo?: string,
 ): Record<string, unknown> {
   const out = { ...extracted };
   if (out.is_administrative_contact === null || out.is_administrative_contact === undefined) {
@@ -330,8 +331,59 @@ export function normalizeExtracted(
   if (out.motivo_desqualificacao === "spam_propaganda" && out.qualificacao !== "desqualificado") {
     out.qualificacao = "desqualificado";
   }
+  // B33 — Heurística determinística de pitch B2B / spam (cobre variância do modelo).
+  // Dispara quando há ≥2 sinais comerciais OU 1 sinal comercial + 1 sinal "alvo clínica"
+  // OU 1 sinal comercial + URL/domínio. Garante o trio is_administrative_contact=true,
+  // qualificacao='desqualificado', motivo_desqualificacao='spam_propaganda'.
+  if (convo && detectSpamB2B(convo)) {
+    out.is_administrative_contact = true;
+    out.qualificacao = "desqualificado";
+    out.motivo_desqualificacao = "spam_propaganda";
+    // Limpa campos comerciais que o modelo possa ter inferido erroneamente.
+    out.procedimento_interesse = null;
+    out.tipo_atendimento = null;
+  }
   return out;
 }
+
+const SPAM_COMMERCIAL_TERMS = [
+  "criei", "desenvolvi", "minha empresa", "nossa empresa",
+  "posso te mostrar", "agendar uma demo", "agendar uma call", "marcar uma call",
+  "reunião rápida", "reuniao rapida", "tenho cases", "case de sucesso",
+  "automatiza", "automatizar atendimento", "atendimento automatizado",
+  "recepcionista com ia", "recepcionista virtual", "secretária virtual", "secretaria virtual",
+  "marketing", "tráfego pago", "trafego pago", "seo", "crm",
+  "aumentou conversão", "aumentaram conversão", "aumentaram conversao",
+];
+const SPAM_CLINIC_TARGETS = [
+  "pra clínicas", "para clínicas", "pra clinicas", "para clinicas",
+  "pra psicólog", "para psicólog", "pra psicolog", "para psicolog",
+  "pra consultórios", "para consultórios", "pra consultorios", "para consultorios",
+  "outras clínicas", "outras clinicas",
+];
+const URL_DOMAIN_RE = /\b[a-z0-9-]+\.(com|com\.br|online|app|io|net|co|me|tech|ai|digital|store)\b/i;
+
+export function detectSpamB2B(convo: string): boolean {
+  // Só olha mensagens do lead (linhas que começam com "Lead:") — atendente
+  // pode legitimamente usar termos comerciais ao responder ao cliente.
+  const leadLines = convo
+    .split("\n")
+    .filter((l) => /^lead:/i.test(l))
+    .join(" ")
+    .toLowerCase();
+  if (!leadLines) return false;
+  let commercial = 0;
+  for (const t of SPAM_COMMERCIAL_TERMS) if (leadLines.includes(t)) commercial++;
+  let clinicTarget = 0;
+  for (const t of SPAM_CLINIC_TARGETS) if (leadLines.includes(t)) clinicTarget++;
+  const url = URL_DOMAIN_RE.test(leadLines);
+  // Regra: precisa de ≥2 sinais comerciais OU (1 comercial + alvo clínica) OU (1 comercial + URL).
+  if (commercial >= 2) return true;
+  if (commercial >= 1 && clinicTarget >= 1) return true;
+  if (commercial >= 1 && url) return true;
+  return false;
+}
+
 
 function applyFields(
   current: Record<string, unknown>,
