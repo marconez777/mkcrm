@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, Gauge, DollarSign,
   Activity, LifeBuoy, Plug, ShieldCheck, BookOpen, ChevronLeft, ChevronRight,
-  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart, FolderTree,
+  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart, FolderTree, LogOut,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
@@ -220,6 +220,18 @@ export default function AdminShell() {
             <div className="h-6 w-px bg-admin-border mx-2" />
             <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-admin-text-muted">
               Voltar ao app
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.href = "/admin/login";
+              }}
+              className="text-admin-text-muted hover:text-admin-negative gap-1.5"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
             </Button>
           </div>
         </header>
