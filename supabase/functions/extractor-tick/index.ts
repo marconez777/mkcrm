@@ -721,15 +721,15 @@ function applyClinicFieldMapping(
 
   // data_horario (datetime) — recebe a data de procedimento se houver, senão consulta
   if (byKey.has("data_horario")) {
-    const validProc = parseFutureDate(extracted.procedimento_agendado_em);
-    const validCons = parseFutureDate(extracted.consulta_agendada_em);
+    const validProc = parseFutureDateInTZ(extracted.procedimento_agendado_em, CLINIC_TZ);
+    const validCons = parseFutureDateInTZ(extracted.consulta_agendada_em, CLINIC_TZ);
     const chosen = validProc ?? validCons;
     if (chosen) setIfEmpty("data_horario", chosen.toISOString());
   }
 
   // procedimento_agendado_em (datetime) — campo dedicado de sessão de procedimento
   if (byKey.has("procedimento_agendado_em")) {
-    const valid = parseFutureDate(extracted.procedimento_agendado_em);
+    const valid = parseFutureDateInTZ(extracted.procedimento_agendado_em, CLINIC_TZ);
     if (valid) setIfEmpty("procedimento_agendado_em", valid.toISOString());
   }
 
