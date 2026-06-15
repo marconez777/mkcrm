@@ -1101,3 +1101,29 @@ B18 destrava 18 leads históricos. D1/D3 ficam em zero até o extractor preenche
 - Eval 96.2 % com novo caso ativo; gate de CI mantido.
 
 **Próximo:** **Onda 4** — pagamentos & comprovantes (B22, B28, B23) ou **mini-Onda 3.1** se a variância do caso 03 voltar a aparecer em runs subsequentes.
+
+## Onda 3.1 — Variância do caso 03 (spam-b2b) tratada (2026-06-15)
+
+**Problema:** após Onda 3 o caso `03-spam-b2b` apresentou regressão não-determinística (modelo `gpt-5-nano` ocasionalmente omitiu `qualificacao` e `motivo_desqualificacao`, levando o eval a 96.2% num run e 100% em outro). `normalizeExtracted()` só conseguia corrigir quando o modelo preenchia `motivo='spam_propaganda'`.
+
+**Fix:** heurística determinística em `supabase/functions/extractor-tick/index.ts` (`detectSpamB2B(convo)`) que olha SÓ as linhas do lead (`Lead:`) e dispara quando há:
+- ≥2 sinais comerciais (lista `SPAM_COMMERCIAL_TERMS`: "criei", "desenvolvi", "minha empresa", "demo", "recepcionista com IA", "automatiza", "marketing", "SEO", "CRM", "tenho cases", etc.); OU
+- ≥1 sinal comercial + alvo "clínica/psicólogo/consultório"; OU
+- ≥1 sinal comercial + URL/domínio comercial (`URL_DOMAIN_RE`).
+
+Quando dispara, força o trio `is_administrative_contact=true`, `qualificacao='desqualificado'`, `motivo_desqualificacao='spam_propaganda'` e zera `procedimento_interesse` / `tipo_atendimento`. `normalizeExtracted()` ganhou parâmetro opcional `convo` e é chamada com ele tanto no edge function quanto no eval runner.
+
+**Smoke test offline (4/4):** caso 03 dispara; lead pedindo consulta normal não; mensagem do atendente sozinha não; lead com "agência de marketing + CRM pra clínicas" dispara.
+
+### Antes / Depois
+
+| Métrica | Onda 3 (1 run) | Onda 3.1 (3 runs consecutivas) |
+|---|---|---|
+| Accuracy run 1 | 96.2 % (50/52) | **100 % (52/52)** |
+| Accuracy run 2 | — | **100 % (52/52)** |
+| Accuracy run 3 | — | **100 % (52/52)** |
+| Caso 03 (spam-b2b) | 3/5 (qualif + motivo `undefined`) | **5/5 · 5/5 · 5/5** |
+| Erros de chamada | 0/11 | 0/11 · 0/11 · 0/11 |
+| Variância observada | regressão não-determinística | zero across 3 runs |
+
+**Próximo:** Onda 4 (pagamentos B22/B23/B28).
