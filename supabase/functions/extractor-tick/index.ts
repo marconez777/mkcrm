@@ -320,6 +320,7 @@ function fieldIsEmpty(v: unknown): boolean {
 export function normalizeExtracted(
   extracted: Record<string, unknown>,
   convo?: string,
+  leadName?: string | null,
 ): Record<string, unknown> {
   const out = { ...extracted };
   if (out.is_administrative_contact === null || out.is_administrative_contact === undefined) {
@@ -332,19 +333,25 @@ export function normalizeExtracted(
     out.qualificacao = "desqualificado";
   }
   // B33 — Heurística determinística de pitch B2B / spam (cobre variância do modelo).
-  // Dispara quando há ≥2 sinais comerciais OU 1 sinal comercial + 1 sinal "alvo clínica"
-  // OU 1 sinal comercial + URL/domínio. Garante o trio is_administrative_contact=true,
-  // qualificacao='desqualificado', motivo_desqualificacao='spam_propaganda'.
   if (convo && detectSpamB2B(convo)) {
     out.is_administrative_contact = true;
     out.qualificacao = "desqualificado";
     out.motivo_desqualificacao = "spam_propaganda";
-    // Limpa campos comerciais que o modelo possa ter inferido erroneamente.
+    out.procedimento_interesse = null;
+    out.tipo_atendimento = null;
+  }
+  // I5/B14/B19 (Onda 5) — Heurística determinística de contato administrativo
+  // por NOME (título médico / empresa) e por sinais no conteúdo da conversa.
+  // Cobre médicos parceiros (Dr./Dra./Prof.), agências, distribuidoras, hospitais,
+  // laboratórios, farmácias — comuns no inventário (B14/B19, ~60 leads).
+  if (out.is_administrative_contact !== true && detectAdministrativeContact(convo ?? "", leadName ?? null)) {
+    out.is_administrative_contact = true;
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
   return out;
 }
+
 
 const SPAM_COMMERCIAL_TERMS = [
   "criei", "desenvolvi", "minha empresa", "nossa empresa",
@@ -383,6 +390,44 @@ export function detectSpamB2B(convo: string): boolean {
   if (commercial >= 1 && url) return true;
   return false;
 }
+
+// I5/B14/B19 (Onda 5) — Heurística determinística para contato administrativo
+// (médico parceiro, agência, distribuidora, hospital, fornecedor).
+const ADMIN_NAME_TITLE_RE = /^\s*(dr\.?|dra\.?|prof\.?|profa\.?|enf\.?|enfa\.?)\s+\S+/i;
+const ADMIN_NAME_ORG_RE = /\b(ag[êe]ncia|distribuidora|distrib\.?|distri\w*med|hospital(ar)?|laborat[óo]rio|farm[áa]cia|farma|comercial|fornecedor|representante|cl[íi]nica|consult[óo]rio)\b/i;
+const ADMIN_CONTENT_SIGNALS = [
+  "vou encaminhar", "vou mandar pra vocês", "encaminhando paciente", "encaminho paciente",
+  "interconsulta", "parceria", "somos representantes", "somos fornecedor", "represento a",
+  "sou médic", "sou medic", "sou psicólog", "sou psicolog",
+  "sou enfermeir", "sou secretári", "sou secretaria",
+  "atendo paciente", "atendo na clínica", "atendo na clinica",
+  "minha clínica", "minha clinica", "meu consultório", "meu consultorio",
+];
+
+
+
+export function detectAdministrativeContact(convo: string, leadName: string | null): boolean {
+  // Sinal forte por NOME: título médico/profissional prefixado.
+  if (leadName && ADMIN_NAME_TITLE_RE.test(leadName)) return true;
+  // Sinal por NOME corporativo + ≥1 sinal de conteúdo (evita "Clínica" sobrenome casual).
+  if (leadName && ADMIN_NAME_ORG_RE.test(leadName)) {
+    const lower = convo.toLowerCase();
+    for (const s of ADMIN_CONTENT_SIGNALS) if (lower.includes(s)) return true;
+    // Nome corporativo isolado já indica entidade — mas exige um leve gatekeeper:
+    // qualquer menção a "paciente", "encaminh", "parceiro" no conteúdo confirma.
+    if (/\b(paciente|encaminh|parceir|fornecedor)/i.test(convo)) return true;
+  }
+  // Sinal por CONTEÚDO: 2 sinais administrativos na fala do lead.
+  const leadLines = convo
+    .split("\n").filter((l) => /^lead:/i.test(l)).join(" ").toLowerCase();
+  if (leadLines) {
+    let hits = 0;
+    for (const s of ADMIN_CONTENT_SIGNALS) if (leadLines.includes(s)) hits++;
+    if (hits >= 2) return true;
+  }
+  return false;
+}
+
 
 
 function applyFields(
@@ -738,7 +783,7 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       continue;
     }
 
-    const extracted = normalizeExtracted(extractArgs(r.data!) ?? {}, convo);
+    const extracted = normalizeExtracted(extractArgs(r.data!) ?? {}, convo, lead.name);
     const confidence = typeof extracted.confidence === "number" ? Number(extracted.confidence) : 0;
     const { merged, setKeys } = applyFields(
       lead.custom_fields ?? {},

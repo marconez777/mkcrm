@@ -1,0 +1,18 @@
+{
+  "id": "13-admin-distribuidora-nome",
+  "description": "Lead com nome corporativo (Distribuidora) + sinal de fornecedor — heurística (Onda 5/B14) marca administrativo.",
+  "covers": ["B14", "I5"],
+  "now": "2026-06-15T10:00:00-03:00",
+  "name": "Distrimed Hospitalar",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Bom dia, somos fornecedor de insumos. Gostaríamos de apresentar nossa linha pro setor de procedimentos." },
+    { "from_me": true,  "content": "Obrigada, vou repassar pra equipe administrativa." }
+  ],
+  "expected": {
+    "is_administrative_contact": true,
+    "procedimento_interesse": null,
+    "tipo_atendimento": null,
+    "qualificacao": null
+  }
+}

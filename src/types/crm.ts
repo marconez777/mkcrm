@@ -17,7 +17,9 @@ export type Stage = {
   position: number;
   color: string;
   pipeline_id: string;
+  lock_auto_move?: boolean;
 };
+
 
 export type Pipeline = {
   id: string;
@@ -64,7 +66,9 @@ export type Lead = {
   ai_review_reasons?: string[] | null;
   ai_review_queued_at?: string | null;
   manual_lock_until?: string | null;
+  is_internal_contact?: boolean;
 };
+
 
 export type Message = {
   id: string;

@@ -1,0 +1,18 @@
+{
+  "id": "12-admin-dra-nome-implicito",
+  "description": "Lead com prefixo Dra. no nome — heurística de nome (Onda 5/B19) deve marcar administrativo mesmo se o modelo errar.",
+  "covers": ["B19", "I5"],
+  "now": "2026-06-15T10:00:00-03:00",
+  "name": "Dra. Marina Gabriela",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Oi, boa tarde! Vocês têm disponibilidade pra início de julho?" },
+    { "from_me": true,  "content": "Olá! Sim, temos. Pra qual procedimento?" },
+    { "from_me": false, "content": "É pra uma avaliação. Atendo paciente meu que pode se beneficiar de cetamina." }
+  ],
+  "expected": {
+    "is_administrative_contact": true,
+    "procedimento_interesse": null,
+    "tipo_atendimento": null
+  }
+}

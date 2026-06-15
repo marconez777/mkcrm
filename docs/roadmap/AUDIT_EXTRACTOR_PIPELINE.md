@@ -1158,3 +1158,22 @@ Total: **208 leads** rastreados para reativação automática (vs. estimativa do
 1. Em `/email/automations`, criar automação com `trigger_type=segment_contact_added` apontando para "Recuperação — Form sem 1ª mensagem (B22)" → template de boas-vindas.
 2. Em `/sequences`, criar sequência WhatsApp com `trigger_type='lead_tag_added'`, tag `audit:b28`, para a primeira mensagem de outreach dos 187 leads sem contato inicial.
 3. Hot leads (B23) ficam populados conforme o extractor preenche `procedimento_interesse` em leads antigos via processamento retroativo.
+
+---
+
+## Onda 5 — B2B / Administrativo executada (2026-06-15)
+
+**Classificador determinístico `detectAdministrativeContact(convo, leadName)`** em `supabase/functions/extractor-tick/index.ts` cobre B14/B19/I5:
+- Nome com prefixo médico/profissional (`Dr.`, `Dra.`, `Prof.`, `Enf.`) → admin imediato.
+- Nome corporativo (`hospital(ar)`, `distribuidora`, `distri*med`, `farma`, `laboratório`, `agência`, `fornecedor`, `representante`, `clínica`, `consultório`) + sinal de conteúdo (`paciente`, `encaminh`, `parceir`, `fornecedor`, `"sou médico"`, etc.) → admin.
+- ≥2 sinais administrativos na fala do Lead → admin.
+
+`normalizeExtracted()` ganhou parâmetro opcional `leadName`. Quando dispara força `is_administrative_contact=true` e zera `procedimento_interesse`/`tipo_atendimento`. Edge function passa `lead.name`; eval runner passa `case.name`.
+
+**Golden set ampliado para 13 casos** (`12-admin-dra-nome-implicito`, `13-admin-distribuidora-nome`). Eval real (`gpt-5-nano`): **100% (59/59), 0 erros**.
+
+**UI Kanban (`src/pages/Kanban.tsx`):** `onEnd` e `moveLeadToStage` sincronizam `is_internal_contact` ao cruzar coluna com `lock_auto_move=true` (Administrativo). Drop INTO Admin → `is_internal_contact=true`; drag OUT → `false`. Toast e undo refletem a mudança.
+
+**Backfill Clínica Ór:** 211 leads `Dr./Dra./Prof./Enf.` + 1 corporativo → `is_internal_contact=true` + movidos para coluna Administrativo (`stage_changed_at=now()`, histórico em `lead_stage_history.reason='onda5_admin_backfill (I5/B14/B19)'`).
+
+Pós-backfill: **222 internos** marcados, **264 leads** fixos na coluna Administrativo. B14/B19 fechados. B33 já tratado em Onda 3.1.
