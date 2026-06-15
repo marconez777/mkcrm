@@ -43,9 +43,10 @@ export default function MoveLeadDialog({ open, onOpenChange, lead, pipelines, st
   async function handleMove() {
     if (!lead || !pipelineId || !stageId) return;
     setSaving(true);
+    const manualLockUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error } = await supabase
       .from("leads")
-      .update({ stage_id: stageId, pipeline_id: pipelineId, position: 0 })
+      .update({ stage_id: stageId, pipeline_id: pipelineId, position: 0, manual_lock_until: manualLockUntil })
       .eq("id", lead.id);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
