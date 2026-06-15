@@ -225,6 +225,15 @@ REGRAS DE AGENDAMENTO:
 - ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
 - REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
 
+STATUS DA CONSULTA (B11, Onda 6):
+- Preencha status_consulta='realizada' quando houver evidência clara de PÓS-ATENDIMENTO: "nota fiscal", "NF emitida", "recibo da consulta", "obrigado pela consulta/sessão", "consulta foi ótima", "gostei do atendimento", "estou bem melhor depois da", "tive a primeira consulta e gostei". Não confunda com sinais ANTES da consulta ("estou ansioso pra consulta").
+- Preencha 'cancelada' apenas se houver confirmação explícita ("cancelar a consulta", "não vou poder ir e não quero remarcar").
+- Preencha 'reagendada' quando há sinal de remarcação E nova data combinada (use com B10).
+- Quando incerto, deixe null. Não infira 'realizada' só porque a data passou (existe cron específico pra isso — D3).
+
+REABRIR ATENDIMENTO FINALIZADO (B24, Onda 6):
+- Se o lead já tem status_consulta='realizada' (campo informado em "Contexto do lead") e a conversa traz claramente intenção de NOVO agendamento ("quero remarcar", "quero agendar de novo", "outra sessão", "preciso voltar", "marca outra pra mim"), preencha qualificacao='retorno_reativacao' E tentou_agendar=true. Isso permite que o card saia da coluna de finalizados.
+
 
 RETORNO/REATIVAÇÃO (I8, B32):
 Use qualificacao='retorno_reativacao' quando QUALQUER UMA destas condições for satisfeita:
