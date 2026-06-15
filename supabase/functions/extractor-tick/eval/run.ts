@@ -87,11 +87,12 @@ async function runOne(apiKey: string, model: string, c: GoldenCase): Promise<Cas
   const now = c.now ? new Date(c.now) : new Date();
   const system = buildSystemPrompt(now);
   const user = buildUserPrompt(c);
+  const convo = c.messages.map((m) => `${m.from_me ? "Atendente" : "Lead"}: ${m.content}`).join("\n");
 
   let extracted: Record<string, unknown> = {};
   let error: string | undefined;
   try {
-    extracted = normalizeExtracted(await callOpenAI(apiKey, model, system, user));
+    extracted = normalizeExtracted(await callOpenAI(apiKey, model, system, user), convo);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
