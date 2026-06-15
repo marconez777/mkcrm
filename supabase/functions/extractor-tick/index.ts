@@ -391,6 +391,42 @@ export function detectSpamB2B(convo: string): boolean {
   return false;
 }
 
+// I5/B14/B19 (Onda 5) — Heurística determinística para contato administrativo
+// (médico parceiro, agência, distribuidora, hospital, fornecedor).
+const ADMIN_NAME_TITLE_RE = /^\s*(dr\.?|dra\.?|prof\.?|profa\.?|enf\.?|enfa\.?)\s+\S+/i;
+const ADMIN_NAME_ORG_RE = /\b(agência|agencia|distribuidora|distrib\.?|hospital|laborat[óo]rio|farm[áa]cia|farma|comercial|fornecedor|representante|cl[íi]nica|consult[óo]rio)\b/i;
+const ADMIN_CONTENT_SIGNALS = [
+  "vou encaminhar", "vou mandar pra vocês", "encaminhando paciente", "encaminho paciente",
+  "interconsulta", "parceria", "somos representantes", "represento a",
+  "sou médic", "sou medic", "sou psicólog", "sou psicolog",
+  "sou enfermeir", "sou secretári", "sou secretaria",
+  "atendo paciente", "atendo na clínica", "atendo na clinica",
+  "minha clínica", "minha clinica", "meu consultório", "meu consultorio",
+];
+
+export function detectAdministrativeContact(convo: string, leadName: string | null): boolean {
+  // Sinal forte por NOME: título médico/profissional prefixado.
+  if (leadName && ADMIN_NAME_TITLE_RE.test(leadName)) return true;
+  // Sinal por NOME corporativo + ≥1 sinal de conteúdo (evita "Clínica" sobrenome casual).
+  if (leadName && ADMIN_NAME_ORG_RE.test(leadName)) {
+    const lower = convo.toLowerCase();
+    for (const s of ADMIN_CONTENT_SIGNALS) if (lower.includes(s)) return true;
+    // Nome corporativo isolado já indica entidade — mas exige um leve gatekeeper:
+    // qualquer menção a "paciente", "encaminh", "parceiro" no conteúdo confirma.
+    if (/\b(paciente|encaminh|parceir|fornecedor)/i.test(convo)) return true;
+  }
+  // Sinal por CONTEÚDO: 2 sinais administrativos na fala do lead.
+  const leadLines = convo
+    .split("\n").filter((l) => /^lead:/i.test(l)).join(" ").toLowerCase();
+  if (leadLines) {
+    let hits = 0;
+    for (const s of ADMIN_CONTENT_SIGNALS) if (leadLines.includes(s)) hits++;
+    if (hits >= 2) return true;
+  }
+  return false;
+}
+
+
 
 function applyFields(
   current: Record<string, unknown>,
