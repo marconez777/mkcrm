@@ -1,0 +1,19 @@
+{
+  "id": "14-status-realizada-nf",
+  "description": "Lead agradece após consulta, atendente menciona NF emitida — status_consulta='realizada' (B11).",
+  "covers": ["B11"],
+  "now": "2026-06-15T10:00:00-03:00",
+  "custom_fields": {
+    "tipo_atendimento": "consulta_psiquiatria",
+    "qualificacao": "em_negociacao"
+  },
+  "messages": [
+    { "from_me": false, "content": "Bom dia! Obrigada pela consulta de ontem com o Dr. Ivan, foi excelente o atendimento." },
+    { "from_me": true,  "content": "Que ótimo! Segue a nota fiscal por email. Qualquer dúvida me avisa." },
+    { "from_me": false, "content": "Recebi obrigada!" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "status_consulta": "realizada"
+  }
+}

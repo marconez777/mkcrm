@@ -1,0 +1,22 @@
+{
+  "id": "15-reabrir-finalizado-reagendar",
+  "description": "Paciente antigo com status_consulta='realizada' volta querendo nova sessão — qualificacao='retorno_reativacao' + tentou_agendar=true (B24).",
+  "covers": ["B24", "I8"],
+  "now": "2026-06-15T14:00:00-03:00",
+  "custom_fields": {
+    "tipo_atendimento": "sessao_cetamina",
+    "status_consulta": "realizada",
+    "procedimentos": ["Infusão de cetamina"]
+  },
+  "messages": [
+    { "from_me": false, "content": "Oi, sumi um tempo depois da última infusão. Quero remarcar outra sessão de cetamina." },
+    { "from_me": true,  "content": "Que bom te ver de volta! Posso te oferecer terça 23/06 às 14h." },
+    { "from_me": false, "content": "Pode ser, fechado!" }
+  ],
+  "expected": {
+    "is_administrative_contact": false,
+    "qualificacao": "retorno_reativacao",
+    "tentou_agendar": true,
+    "tipo_atendimento": "sessao_cetamina"
+  }
+}
