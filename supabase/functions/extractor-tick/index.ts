@@ -256,6 +256,26 @@ Exemplos NEGATIVOS (mantém em_negociacao ou interessado):
 - Lead respondendo no mesmo dia, mesmo dizendo "voltei a pensar" → em_negociacao.
 - Lead novo perguntando preço pela primeira vez → interessado (não é retorno).
 
+MENSAGENS-TEMPLATE DO SITE (wa-redirect):
+Mensagens que contêm o bloco fixo:
+    ---
+    *Mantenha esse código na sua mensagem para entrar na fila de atendimento:*
+    (ref=XXXXXXXX)
+NÃO foram digitadas pelo lead — são templates automáticos disparados pelos CTAs do site
+(testes PHQ-9/GAD-7, botões "agendar consulta", páginas de tratamento). CTAs conhecidos:
+${knownCtaLabels().join("\n")}
+
+Quando a ÚNICA mensagem do lead é esse template (sem nada digitado depois do "(ref=...)"):
+- NÃO preencha tentou_agendar, consulta_agendada_em, procedimento_agendado_em
+- NÃO classifique qualificacao — deixe null. Verbos como "gostaria de agendar" NÃO contam aqui.
+- Pode preencher procedimento_interesse APENAS quando o CTA mencionar explicitamente
+  um procedimento ("tratamento com EMT" → emt; "cetamina"/"escetamina"/"spravato" → cetamina;
+  "hipnose"/"hipnoterapia" → hipnoterapia). CTA genérico ("agendar consulta") → null.
+- Em observacoes pode anotar "lead veio do CTA <texto>".
+
+Quando o lead manda o template E DEPOIS digita algo próprio (ex.: "oi, quero terça 14h"),
+a parte digitada conta normalmente — aplique as regras de qualificação/agendamento sobre ela.
+
 REGRA FINAL:
 - Use null quando não estiver claro. Prefira null a chutar.
 - Exceção: is_administrative_contact e (quando pagamento_confirmado=true) tentou_pagamento são SEMPRE explícitos.
