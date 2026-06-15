@@ -17,6 +17,12 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
 import { parseFutureDate } from "../_shared/dates.ts";
+import {
+  detectOrigin,
+  isTemplateOnly,
+  knownCtaLabels,
+  type DetectedOrigin,
+} from "../_shared/wa-redirect-templates.ts";
 
 interface ClinicCfg {
   manual_lock_minutes: number;
