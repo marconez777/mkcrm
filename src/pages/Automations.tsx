@@ -241,42 +241,37 @@ export default function Automations() {
               </select>
 
               {selected.trigger_type === "no_reply_after" && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <Label>Horas sem resposta</Label>
                     <Input type="number" min="1" value={selected.trigger_config?.hours ?? 24}
                       onChange={(e) => updTrigger({ hours: Number(e.target.value) })} />
                   </div>
-                  <div>
-                    <Label>Estágio (opcional)</Label>
-                    <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-                      value={selected.trigger_config?.stage_id ?? ""}
-                      onChange={(e) => updTrigger({ stage_id: e.target.value || undefined })}>
-                      <option value="">— qualquer —</option>
-                      {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
+                  <StageMultiSelect
+                    stages={stages}
+                    value={normalizeStageIds(selected.trigger_config)}
+                    onChange={(ids) => updTrigger({ stage_ids: ids, stage_id: undefined })}
+                    label="Estágios (deixe vazio = qualquer estágio)"
+                  />
                 </div>
               )}
 
               {selected.trigger_type === "stage_idle" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Estágio</Label>
-                    <select className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-                      value={selected.trigger_config?.stage_id ?? ""}
-                      onChange={(e) => updTrigger({ stage_id: e.target.value })}>
-                      <option value="">— escolha —</option>
-                      {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
+                <div className="space-y-3">
                   <div>
                     <Label>Horas parado</Label>
                     <Input type="number" min="1" value={selected.trigger_config?.hours ?? 48}
                       onChange={(e) => updTrigger({ hours: Number(e.target.value) })} />
                   </div>
+                  <StageMultiSelect
+                    stages={stages}
+                    value={normalizeStageIds(selected.trigger_config)}
+                    onChange={(ids) => updTrigger({ stage_ids: ids, stage_id: undefined })}
+                    label="Estágios monitorados (selecione 1 ou mais)"
+                  />
                 </div>
               )}
+
 
               {selected.trigger_type === "before_appointment" && (
                 <div className="space-y-3">
