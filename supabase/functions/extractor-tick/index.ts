@@ -761,7 +761,7 @@ interface Body {
   force?: boolean;
 }
 
-Deno.serve(async (req) => {
+if (import.meta.main) Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   let body: Body = {};
