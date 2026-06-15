@@ -52,9 +52,10 @@ export default function MoveColumnLeadsDialog({ open, onOpenChange, sourceStage,
       toast.error("Etapa de destino igual à origem"); return;
     }
     setMoving(true);
+    const manualLockUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error } = await supabase
       .from("leads")
-      .update({ pipeline_id: targetPipeline, stage_id: targetStage })
+      .update({ pipeline_id: targetPipeline, stage_id: targetStage, manual_lock_until: manualLockUntil })
       .eq("stage_id", sourceStage.id);
     setMoving(false);
     if (error) { toast.error(error.message); return; }
