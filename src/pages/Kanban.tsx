@@ -684,7 +684,7 @@ export default function KanbanPage() {
     const targetStage = stages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const patch: Record<string, unknown> = { stage_id: targetStageId, position: newPosition };
+    const patch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: targetStageId, position: newPosition };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
@@ -693,7 +693,7 @@ export default function KanbanPage() {
         label: "Desfazer",
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: Record<string, unknown> = { stage_id: previousStageId, position: previousPosition };
+          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
@@ -701,6 +701,17 @@ export default function KanbanPage() {
       duration: 6000,
     });
   }
+
+  // Onda 5 — calcula sincronização de is_internal_contact ao cruzar coluna admin.
+  // Retorna `true` (drag para admin), `false` (drag saindo de admin) ou `null` (sem mudança).
+  function computeInternalContactSync(lead: Lead, source: Stage | undefined, target: Stage | undefined): boolean | null {
+    const enteringAdmin = !!target?.lock_auto_move && !source?.lock_auto_move;
+    const leavingAdmin = !!source?.lock_auto_move && !target?.lock_auto_move;
+    if (enteringAdmin && lead.is_internal_contact !== true) return true;
+    if (leavingAdmin && lead.is_internal_contact === true) return false;
+    return null;
+  }
+
 
 
   const moveLeadToStage = useCallback(async (lead: Lead, targetStageId: string) => {
