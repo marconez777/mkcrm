@@ -16,7 +16,11 @@
 
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
-import { parseFutureDate } from "../_shared/dates.ts";
+import { parseFutureDateInTZ } from "../_shared/dates.ts";
+
+// Fuso da clínica. Hoje todas as clínicas operam em America/Sao_Paulo;
+// se virar multi-tz, ler de settings/clinics.timezone.
+const CLINIC_TZ = "America/Sao_Paulo";
 import {
   detectOrigin,
   isTemplateOnly,
@@ -228,7 +232,8 @@ REGRAS DE AGENDAMENTO:
 - Se o lead já tem "procedimentos" preenchido (ex.: "Infusão de cetamina"), o default para agendamentos novos é a sessão correspondente, exceto se a mensagem disser explicitamente "consulta"/"avaliação".
 - Data preenchida precisa ser HOJE ou FUTURO (I3). Passado → null.
 - Não invente datas. Não infira "semana que vem" sem confirmação.
-- ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
+- FORMATO DE DATA (obrigatório): ISO 8601 "AAAA-MM-DDTHH:mm" SEM sufixo 'Z' e SEM offset (+/-HH:MM). Interprete e devolva sempre em horário LOCAL da clínica (America/Sao_Paulo). O backend converte para UTC. Exemplo: lead diz "amanhã às 18h" e hoje é 14/06/2026 → devolva "2026-06-15T18:00". Nunca devolva "2026-06-15T18:00Z" nem "2026-06-15T18:00-03:00".
+- Sem hora explícita → use 12:00 (também em horário local).
 - REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
 
 STATUS DA CONSULTA (B11, Onda 6):
@@ -578,7 +583,7 @@ function applyFields(
   for (const dateKey of ["consulta_agendada_em", "procedimento_agendado_em"] as const) {
     const rawDate = extracted[dateKey];
     if (rawDate !== undefined && rawDate !== null) {
-      const valid = parseFutureDate(rawDate);
+      const valid = parseFutureDateInTZ(rawDate, CLINIC_TZ);
       if (!valid) {
         extracted = { ...extracted, [dateKey]: null };
       } else {
@@ -716,15 +721,15 @@ function applyClinicFieldMapping(
 
   // data_horario (datetime) — recebe a data de procedimento se houver, senão consulta
   if (byKey.has("data_horario")) {
-    const validProc = parseFutureDate(extracted.procedimento_agendado_em);
-    const validCons = parseFutureDate(extracted.consulta_agendada_em);
+    const validProc = parseFutureDateInTZ(extracted.procedimento_agendado_em, CLINIC_TZ);
+    const validCons = parseFutureDateInTZ(extracted.consulta_agendada_em, CLINIC_TZ);
     const chosen = validProc ?? validCons;
     if (chosen) setIfEmpty("data_horario", chosen.toISOString());
   }
 
   // procedimento_agendado_em (datetime) — campo dedicado de sessão de procedimento
   if (byKey.has("procedimento_agendado_em")) {
-    const valid = parseFutureDate(extracted.procedimento_agendado_em);
+    const valid = parseFutureDateInTZ(extracted.procedimento_agendado_em, CLINIC_TZ);
     if (valid) setIfEmpty("procedimento_agendado_em", valid.toISOString());
   }
 
