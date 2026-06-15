@@ -320,6 +320,7 @@ function fieldIsEmpty(v: unknown): boolean {
 export function normalizeExtracted(
   extracted: Record<string, unknown>,
   convo?: string,
+  leadName?: string | null,
 ): Record<string, unknown> {
   const out = { ...extracted };
   if (out.is_administrative_contact === null || out.is_administrative_contact === undefined) {
@@ -332,19 +333,25 @@ export function normalizeExtracted(
     out.qualificacao = "desqualificado";
   }
   // B33 — Heurística determinística de pitch B2B / spam (cobre variância do modelo).
-  // Dispara quando há ≥2 sinais comerciais OU 1 sinal comercial + 1 sinal "alvo clínica"
-  // OU 1 sinal comercial + URL/domínio. Garante o trio is_administrative_contact=true,
-  // qualificacao='desqualificado', motivo_desqualificacao='spam_propaganda'.
   if (convo && detectSpamB2B(convo)) {
     out.is_administrative_contact = true;
     out.qualificacao = "desqualificado";
     out.motivo_desqualificacao = "spam_propaganda";
-    // Limpa campos comerciais que o modelo possa ter inferido erroneamente.
+    out.procedimento_interesse = null;
+    out.tipo_atendimento = null;
+  }
+  // I5/B14/B19 (Onda 5) — Heurística determinística de contato administrativo
+  // por NOME (título médico / empresa) e por sinais no conteúdo da conversa.
+  // Cobre médicos parceiros (Dr./Dra./Prof.), agências, distribuidoras, hospitais,
+  // laboratórios, farmácias — comuns no inventário (B14/B19, ~60 leads).
+  if (out.is_administrative_contact !== true && detectAdministrativeContact(convo ?? "", leadName ?? null)) {
+    out.is_administrative_contact = true;
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
   return out;
 }
+
 
 const SPAM_COMMERCIAL_TERMS = [
   "criei", "desenvolvi", "minha empresa", "nossa empresa",
