@@ -404,13 +404,7 @@ const ADMIN_CONTENT_SIGNALS = [
   "minha clínica", "minha clinica", "meu consultório", "meu consultorio",
 ];
 
-  "vou encaminhar", "vou mandar pra vocês", "encaminhando paciente", "encaminho paciente",
-  "interconsulta", "parceria", "somos representantes", "represento a",
-  "sou médic", "sou medic", "sou psicólog", "sou psicolog",
-  "sou enfermeir", "sou secretári", "sou secretaria",
-  "atendo paciente", "atendo na clínica", "atendo na clinica",
-  "minha clínica", "minha clinica", "meu consultório", "meu consultorio",
-];
+
 
 export function detectAdministrativeContact(convo: string, leadName: string | null): boolean {
   // Sinal forte por NOME: título médico/profissional prefixado.
