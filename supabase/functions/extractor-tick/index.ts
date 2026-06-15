@@ -450,6 +450,38 @@ export function detectAdministrativeContact(convo: string, leadName: string | nu
 
 
 
+// B11 (Onda 6) — Detecta sinais inequívocos de PÓS-ATENDIMENTO no que o lead diz.
+// Não dispara apenas pelo atendente: o lead precisa expressar que JÁ esteve na consulta.
+const REALIZADA_LEAD_PHRASES = [
+  "obrigado pela consulta", "obrigada pela consulta",
+  "obrigado pela sessão", "obrigada pela sessão", "obrigado pela sessao", "obrigada pela sessao",
+  "obrigado pelo atendimento", "obrigada pelo atendimento",
+  "consulta foi ótima", "consulta foi otima", "consulta foi excelente", "consulta foi muito boa",
+  "sessão foi ótima", "sessao foi otima", "sessão foi excelente", "sessao foi excelente",
+  "gostei muito da consulta", "gostei muito do atendimento", "gostei do atendimento",
+  "gostei da sessão", "gostei da sessao",
+  "tive a primeira consulta", "tive a consulta", "fiz a consulta", "fiz a sessão", "fiz a sessao",
+  "estou bem melhor depois da consulta", "estou melhor depois da consulta",
+  "depois da nossa consulta", "depois da nossa sessão", "depois da nossa sessao",
+];
+const REALIZADA_ATTENDANT_PHRASES = [
+  "nota fiscal", "nf emitida", "nf enviada", "segue a nota fiscal", "segue a nf",
+  "recibo da consulta", "recibo do atendimento", "segue o recibo",
+];
+
+export function detectConsultaRealizada(convo: string): boolean {
+  const lower = convo.toLowerCase();
+  const leadLower = convo
+    .split("\n").filter((l) => /^lead:/i.test(l)).join(" ").toLowerCase();
+  for (const p of REALIZADA_LEAD_PHRASES) if (leadLower.includes(p)) return true;
+  // Atendente mandando NF/recibo só conta se há ≥1 mensagem do lead na conversa
+  // (evita falso positivo de modelo de mensagem que ninguém respondeu).
+  if (leadLower) {
+    for (const p of REALIZADA_ATTENDANT_PHRASES) if (lower.includes(p)) return true;
+  }
+  return false;
+}
+
 function applyFields(
   current: Record<string, unknown>,
   extracted: Record<string, unknown>,
