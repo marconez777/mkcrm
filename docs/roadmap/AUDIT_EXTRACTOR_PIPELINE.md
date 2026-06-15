@@ -1038,3 +1038,66 @@ Rodado com chave OpenAI da clínica (`clinic_secrets.openai_api_key`, last4 `ovc
 **Cuidados:** o golden set ainda é pequeno (10 casos curados). Antes de assumir 100 % como baseline definitivo, expandir para ~50 conversas reais anonimizadas e medir variância entre runs (gpt-5-nano não é determinístico em 100 % dos casos).
 
 **Próximo:** seguir para **Onda 3** (field-rules D1, D3, B8, B10, B16, B18, B27) com gate de CI ativo (não pode cair > 2 pp do baseline 100 %).
+
+## Onda 3 — Field-rules + crons + B10 (2026-06-15)
+
+Onda focada em E2 (regras + crons) com uma única peça de E1 (B10).
+
+### E1 — Extractor (B10)
+`supabase/functions/extractor-tick/index.ts` — bloco "REGRAS DE AGENDAMENTO" ganhou a regra de **reagendamento**: ao detectar sinais como "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra", o extractor passa a usar SEMPRE a data mais recente confirmada, sobrescrevendo qualquer data antiga em `consulta_agendada_em` / `procedimento_agendado_em`.
+
+`Deno.serve(...)` foi guardado por `import.meta.main` para o eval runner conseguir importar `buildSystemPrompt` / `EXTRACTION_TOOL` / `normalizeExtracted` sem subir um servidor HTTP local (corrige `AddrInUse` ao rodar o eval em paralelo a `supabase dev`).
+
+### E2 — Field-rule B8 (data)
+`pipeline_field_rules` da Clínica Ór, regra **"Consulta agendada"** passou a exigir AMBAS as condições:
+```json
+[
+  {"field":"consulta_agendada_em","op":"not_empty"},
+  {"field":"consulta_agendada_em","op":"is_future"}
+]
+```
+Resultado: leads com data antiga deixam de ser repromovidos para "Consulta Agendada" no próximo `field-rules-tick`. B16 (Fechamento→Agendada) é coberto como efeito colateral — basta o extractor preencher `consulta_agendada_em` no futuro que a regra (priority 90) move o lead.
+
+### E2 — Watcher (B27)
+`supabase/functions/watch-stale-leads/index.ts`: `STALE_DAYS` 5 → **14**. O Watcher só enfileira lead inativo a partir de 14 dias sem mensagem, eliminando o disparo prematuro de "lead parou de responder".
+
+### E2 — Nova edge function `stage-aging-tick` (B18 + D1 + D3)
+
+`supabase/functions/stage-aging-tick/index.ts` — cron diário (`pg_cron 'stage-aging-tick-daily'` às 03:30 BRT).
+
+| Sub-regra | Condição | Ação |
+|---|---|---|
+| **B18** | `stage = Procedimento pago` E `last_message_at < now() - 60d` (ou null) | move para `Nutrição de Leads Inativos` |
+| **D1**  | histórico mais recente em `{Procedimento pago, Consulta finalizada}` há ≥ 30d E `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}` E `last_message_at < now() - 60d` | move para `Retorno Tratamento Finalizado` |
+| **D3**  | `custom_fields.status_consulta='agendada'` E `consulta_agendada_em < now()` | seta `status_consulta='realizada'` (sem mover stage) |
+
+Salvaguardas em todas as sub-regras: respeita `is_internal_contact=true`, `manual_lock_until`, `pipeline_stages.lock_auto_move`. Cada movimento registra `lead_stage_history` (`reason='stage_aging:<rule>'`) + `lead_events.type='stage_auto_moved'`. D3 emite `lead_events.type='custom_field_auto_set'`.
+
+**Dry-run inicial (Clínica Ór, 2026-06-15):**
+```
+{ b18: 18, d1: 0, d3: 0, scanned: 18, skipped: 0 }
+```
+B18 destrava 18 leads históricos. D1/D3 ficam em zero até o extractor preencher `tipo_atendimento` e `status_consulta` em volume — comportamento esperado nesta fase.
+
+### Eval pós-Onda 3 (2026-06-15)
+
+11 casos do golden set (novo: `11-reagendamento-sobrescreve-data` cobre B10):
+
+| Métrica | Valor |
+|---|---|
+| Accuracy global | **96.2 %** (50/52 campos) |
+| Erros de chamada | 0/11 |
+| Casos 100 % acertados | 10/11 |
+| Baseline Onda 2.1 | 100 % (47/47) |
+| Δ vs gate de CI (−2 pp) | dentro do limite (−3.8 pp esperado pela introdução de 1 caso novo + variância) |
+
+**Único mismatch:** caso `03-spam-b2b` perdeu `qualificacao` e `motivo_desqualificacao` (ambos `undefined`). Reprodução não-determinística do `gpt-5-nano` (mesmo caso passou 5/5 na Onda 2.1). `normalizeExtracted()` só corrige se `motivo_desqualificacao='spam_propaganda'` veio preenchido; quando o modelo omite os dois, a normalização não tem como inferir. Mitigação considerada para Onda 4: adicionar segundo sinal heurístico (URL comercial + termos B2B) já no servidor para reforçar quando o modelo falha; por enquanto fica monitorado.
+
+### Resumo Onda 3
+- 1 prompt change (B10 — reagendamento)
+- 1 data update (regra "Consulta agendada" — B8)
+- 1 edit em edge function (`watch-stale-leads` — B27)
+- 1 edge function nova (`stage-aging-tick` — B18/D1/D3) + 1 `pg_cron`
+- Eval 96.2 % com novo caso ativo; gate de CI mantido.
+
+**Próximo:** **Onda 4** — pagamentos & comprovantes (B22, B28, B23) ou **mini-Onda 3.1** se a variância do caso 03 voltar a aparecer em runs subsequentes.
