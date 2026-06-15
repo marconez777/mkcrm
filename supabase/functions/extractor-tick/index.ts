@@ -964,6 +964,19 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
       update.is_internal_contact = true;
     }
 
+    // wa-redirect: aplica tag de origem do CTA se detectado.
+    const waOrigin = (extracted as Record<string, unknown>)._wa_redirect_origin as
+      | DetectedOrigin
+      | undefined;
+    let tagsAddedForWaRedirect: string | null = null;
+    if (waOrigin?.isTemplate && waOrigin.tag) {
+      const currentTags = Array.isArray(lead.tags) ? lead.tags : [];
+      if (!currentTags.includes(waOrigin.tag)) {
+        update.tags = [...currentTags, waOrigin.tag];
+        tagsAddedForWaRedirect = waOrigin.tag;
+      }
+    }
+
     await supabase.from("leads").update(update).eq("id", lead.id);
 
     // evento auditável
@@ -978,6 +991,20 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
           model: cfg.openai_model_text,
           message_id: lastMessageId,
           cost_usd: cost,
+        },
+      });
+    }
+    if (waOrigin?.isTemplate) {
+      await supabase.from("lead_events").insert({
+        clinic_id: lead.clinic_id,
+        lead_id: lead.id,
+        type: "wa_redirect_template_detected",
+        payload: {
+          tag: waOrigin.tag,
+          cta: waOrigin.cta,
+          procedimento: waOrigin.procedimento,
+          tag_added: tagsAddedForWaRedirect !== null,
+          message_id: lastMessageId,
         },
       });
     }
