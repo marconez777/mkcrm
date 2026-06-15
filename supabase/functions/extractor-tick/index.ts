@@ -16,7 +16,11 @@
 
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { calcCostUsd } from "../_shared/ai-pricing.ts";
-import { parseFutureDate } from "../_shared/dates.ts";
+import { parseFutureDate, parseFutureDateInTZ } from "../_shared/dates.ts";
+
+// Fuso da clínica. Hoje todas as clínicas operam em America/Sao_Paulo;
+// se virar multi-tz, ler de settings/clinics.timezone.
+const CLINIC_TZ = "America/Sao_Paulo";
 import {
   detectOrigin,
   isTemplateOnly,
