@@ -13,10 +13,12 @@ interface GoldenCase {
   description: string;
   covers: string[];
   now?: string;
+  name?: string | null;
   custom_fields?: Record<string, unknown>;
   messages: Array<{ from_me: boolean; content: string }>;
   expected: Record<string, unknown>;
 }
+
 
 interface CaseResult {
   id: string;
