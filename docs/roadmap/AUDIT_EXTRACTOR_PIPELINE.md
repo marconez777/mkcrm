@@ -1127,3 +1127,34 @@ Quando dispara, força o trio `is_administrative_contact=true`, `qualificacao='d
 | Variância observada | regressão não-determinística | zero across 3 runs |
 
 **Próximo:** Onda 4 (pagamentos B22/B23/B28).
+
+## Onda 4 — Outreach + reativação como segmentação (2026-06-15)
+
+Em vez de gerar CSV manual, criamos infraestrutura recorrente: 3 segmentos sistêmicos + tags-espelho em `leads.tags` que alimentam diretamente `email_automations` (`trigger_type='lead_tag_added'` ou `'segment_contact_added'`) e `message_sequences` (via `lead_tag_added`).
+
+**Segmentos (Clínica Ór):**
+
+| Cohort | system_key | tag | Definição |
+|---|---|---|---|
+| B22 | `audit:b22_form_no_outreach` | `audit:b22` | `form_source IS NOT NULL` E zero outbound real |
+| B23 | `audit:b23_hot_leads_buried` | `audit:b23` | stage ∈ {Paciente antigo, Nutrição} E `procedimento_interesse ∈ {cetamina,emt}` E zero inbound |
+| B28 | `audit:b28_no_initial_outreach` | `audit:b28` | stage ∈ {lead parou de responder, Não respondeu} E zero outbound real |
+
+Todos os cohorts ignoram: `archived_at IS NOT NULL`, `is_internal_contact=true`, `manual_lock_until` ativo.
+
+**Nova edge function:** `supabase/functions/outreach-recovery-tick/index.ts`
+- Sincronização idempotente: novos matches ganham tag + row em `email_segment_contacts` (se tiver email); leads que saíram do match perdem tag + row. Permite o segmento "esvaziar sozinho" conforme o time comercial vai recuperando os leads.
+- Cron: `outreach-recovery-tick-daily`, 04:00 BRT.
+
+**Dry-run inicial (Clínica Ór):**
+```
+{ b22: matches=21, tags_added=21, segment_added=21 }
+{ b23: matches=0  (depende de extractor preencher procedimento_interesse) }
+{ b28: matches=187, tags_added=187, segment_added=0 (WhatsApp-only, sem email) }
+```
+Total: **208 leads** rastreados para reativação automática (vs. estimativa do audit: 244).
+
+**Próximo (responsabilidade do operador):**
+1. Em `/email/automations`, criar automação com `trigger_type=segment_contact_added` apontando para "Recuperação — Form sem 1ª mensagem (B22)" → template de boas-vindas.
+2. Em `/sequences`, criar sequência WhatsApp com `trigger_type='lead_tag_added'`, tag `audit:b28`, para a primeira mensagem de outreach dos 187 leads sem contato inicial.
+3. Hot leads (B23) ficam populados conforme o extractor preenche `procedimento_interesse` em leads antigos via processamento retroativo.
