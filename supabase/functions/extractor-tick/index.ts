@@ -130,6 +130,12 @@ export const EXTRACTION_TOOL = {
           type: ["string", "null"],
           description: "Data/hora ISO 8601 de uma SESSÃO DE PROCEDIMENTO (cetamina, infusão, EMT).",
         },
+        status_consulta: {
+          type: ["string", "null"],
+          enum: ["agendada", "realizada", "no_show", "cancelada", "reagendada", null],
+          description:
+            "Estado atual da consulta/procedimento (B11). Use 'realizada' SOMENTE com sinais claros pós-atendimento: NF/recibo emitido pela clínica, 'obrigado pela consulta', 'foi excelente o atendimento', 'gostei da sessão', 'estou bem melhor desde a consulta'. 'cancelada' / 'no_show' / 'reagendada' exigem confirmação explícita do lead ou do atendente.",
+        },
         nome_preferido: { type: ["string", "null"] },
         observacoes: {
           type: ["string", "null"],
