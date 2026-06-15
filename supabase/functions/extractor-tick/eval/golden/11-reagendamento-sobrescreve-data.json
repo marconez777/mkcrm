@@ -1,0 +1,22 @@
+{
+  "id": "11-reagendamento-sobrescreve-data",
+  "description": "Lead confirma uma data, depois pede para remarcar — extractor deve manter SÓ a data mais recente em consulta_agendada_em (B10).",
+  "covers": ["B10"],
+  "now": "2026-06-14T15:00:00-03:00",
+  "custom_fields": {},
+  "messages": [
+    { "from_me": false, "content": "Oi, queria marcar uma avaliação com Dr. Ivan." },
+    { "from_me": true,  "content": "Claro! Temos terça 16/06 às 14h. Confirma?" },
+    { "from_me": false, "content": "Confirmo terça 16/06 14h." },
+    { "from_me": false, "content": "Ah, na verdade preciso remarcar — podemos passar pra quinta 18/06 às 10h?" },
+    { "from_me": true,  "content": "Sem problema, confirmado quinta 18/06 às 10h." },
+    { "from_me": false, "content": "Perfeito, obrigada!" }
+  ],
+  "expected": {
+    "tentou_agendar": true,
+    "tipo_atendimento": "consulta_psiquiatria",
+    "consulta_agendada_em": "2026-06-18T10:00:00",
+    "procedimento_agendado_em": null,
+    "is_administrative_contact": false
+  }
+}
