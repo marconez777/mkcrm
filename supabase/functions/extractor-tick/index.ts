@@ -232,7 +232,8 @@ REGRAS DE AGENDAMENTO:
 - Se o lead já tem "procedimentos" preenchido (ex.: "Infusão de cetamina"), o default para agendamentos novos é a sessão correspondente, exceto se a mensagem disser explicitamente "consulta"/"avaliação".
 - Data preenchida precisa ser HOJE ou FUTURO (I3). Passado → null.
 - Não invente datas. Não infira "semana que vem" sem confirmação.
-- ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
+- FORMATO DE DATA (obrigatório): ISO 8601 "AAAA-MM-DDTHH:mm" SEM sufixo 'Z' e SEM offset (+/-HH:MM). Interprete e devolva sempre em horário LOCAL da clínica (America/Sao_Paulo). O backend converte para UTC. Exemplo: lead diz "amanhã às 18h" e hoje é 14/06/2026 → devolva "2026-06-15T18:00". Nunca devolva "2026-06-15T18:00Z" nem "2026-06-15T18:00-03:00".
+- Sem hora explícita → use 12:00 (também em horário local).
 - REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
 
 STATUS DA CONSULTA (B11, Onda 6):
