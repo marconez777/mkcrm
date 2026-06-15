@@ -684,7 +684,8 @@ export default function KanbanPage() {
     const targetStage = stages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const patch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: targetStageId, position: newPosition };
+    const manualLockUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
@@ -693,7 +694,7 @@ export default function KanbanPage() {
         label: "Desfazer",
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
+          const undoPatch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition, manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
