@@ -2063,7 +2063,7 @@
       "docs/maps/AI_RUNTIME.md",
       "docs/maps/KANBAN_LEADS.md"
     ],
-    "size_lines": 1215,
+    "size_lines": 1241,
     "stale_refs": []
   },
   {
@@ -2189,7 +2189,7 @@
     "topic": "roadmap",
     "kind": "roadmap",
     "audience": "agent",
-    "updated": "2026-06-07",
+    "updated": "2026-06-15",
     "summary": "Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam **novas capacidades** propostas. Sem compromisso de prazo.",
     "headings": [
       "Tier 1 — Próximo trimestre (alto valor)",
@@ -2201,7 +2201,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 131,
+    "size_lines": 146,
     "stale_refs": []
   },
   {

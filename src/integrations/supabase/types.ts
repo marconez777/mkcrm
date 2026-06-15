@@ -3746,7 +3746,7 @@ export type Database = {
           moved_by_agent_id: string | null
           moved_by_user_id: string | null
           reason: string | null
-          source: string | null
+          source: string
           to_stage_id: string | null
         }
         Insert: {
@@ -3759,7 +3759,7 @@ export type Database = {
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
           reason?: string | null
-          source?: string | null
+          source?: string
           to_stage_id?: string | null
         }
         Update: {
@@ -3772,7 +3772,7 @@ export type Database = {
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
           reason?: string | null
-          source?: string | null
+          source?: string
           to_stage_id?: string | null
         }
         Relationships: [

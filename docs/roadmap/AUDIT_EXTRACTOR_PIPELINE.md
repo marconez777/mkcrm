@@ -1226,3 +1226,29 @@ Fecha os 6 bugs residuais (B7, B11, B13, B20, B21, B24) com migration de fundaç
 - Bugs fechados: **B7, B11, B13, B20, B21, B24** ✅
 
 Onda 6 encerra o roadmap `AUDIT_EXTRACTOR_PIPELINE`. Próxima auditoria fica em backlog.
+
+---
+
+## Onda 7 — Higiene de stage e classificador "Qualificação" (iniciada 2026-06-15)
+
+Origem: análise `/mnt/documents/qualificacao-conversas-2026-06-15.md` (36 leads). 71 % das transições de stage dos últimos 5 dias estavam sem `source` / actor, e dezenas de pacientes recorrentes ("Consulta Agendada", "Paciente antigo", "Procedimento pago") foram movidos para "Qualificação" em lote pelo reclassificador.
+
+### Fase 1 — entregue (2026-06-15)
+- Dedupe histórico em `lead_stage_history` (mantém a linha com `reason` mais informativo).
+- Backfill: `source = 'legacy'` para todas as linhas antigas com `source IS NULL`.
+- `source` agora é `NOT NULL DEFAULT 'unknown'`.
+- Índice único `(lead_id, to_stage_id, moved_at)` impede dupes futuras.
+- Trigger `record_lead_stage_history` virou idempotente com `ON CONFLICT DO NOTHING` — quando um worker INSERTa explicitamente, o trigger não cria 2ª linha.
+- `automations-tick` (`move_stage`) agora preenche `source='automations_tick'`, `reason='automation:<id>'` e `metadata` enriquecido.
+
+### Fase 2 (próxima)
+- `stages.kind` taxonomy.
+- Função `can_move_to_qualifying(lead_id, target_stage_id)` bloqueando rebaixar pacientes que já passaram por `scheduled|in_treatment|recurring|won` nos últimos 90 dias e bloqueando `is_internal_contact=true`.
+- `extractor-tick` e `field-rules-tick` consultam a função antes de propor "Qualificação".
+
+### Fase 3
+- Função `lead_human_engagement(lead_id)` distinguindo auto-reply de atendimento humano.
+- Templates de auto-reply em `clinics.settings.auto_reply_templates`.
+
+### Fase 4
+- Edge function `requalify-backfill-tick` (dry-run + relatório `.md` antes de aplicar) corrigindo retroativamente leads em Qualificação indevida.

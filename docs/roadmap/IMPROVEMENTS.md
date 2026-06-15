@@ -3,7 +3,7 @@ title: Roadmap / Melhorias propostas
 topic: roadmap
 kind: roadmap
 audience: agent
-updated: 2026-06-07
+updated: 2026-06-15
 summary: "Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam **novas capacidades** propostas. Sem compromisso de prazo."
 ---
 # Roadmap / Melhorias propostas
@@ -40,6 +40,21 @@ Diferente de `known-issues/DEBT.md` (o que **deveria** estar melhor): aqui ficam
 
 ### R-6. Captcha invisível em forms públicos
 - Resolve TD-9.
+
+### R-23. Higiene de stage e auditoria de actor (Onda 7 — em andamento)
+- **Fase 1 entregue (2026-06-15)**: dedupe histórico de `lead_stage_history`, `source` NOT NULL, índice único anti-duplicação, trigger idempotente (`ON CONFLICT DO NOTHING`), `automations-tick` agora preenche `source`/`reason`.
+- **Fase 2 (próxima)**: coluna `stages.kind` (`incoming|qualifying|scheduled|in_treatment|recurring|won|lost`) + função `can_move_to_qualifying()` impedindo rebaixar pacientes recorrentes.
+- **Origem**: análise `/mnt/documents/qualificacao-conversas-2026-06-15.md` mostrou 71% das transições sem actor rastreável e dezenas de pacientes antigos sendo movidos para "Qualificação" em lote pelo extrator.
+
+### R-24. Distinção auto-reply vs atendimento humano (Onda 7 — Fase 3)
+- Função `lead_human_engagement(lead_id)` para diferenciar template "fora do horário" de atendimento real.
+- Classificador de qualificação só promove se houve interação humana ou extração IA explícita.
+- Templates de auto-reply em `clinics.settings.auto_reply_templates`.
+
+### R-25. Reclassificação retroativa controlada (Onda 7 — Fase 4)
+- Edge function `requalify-backfill-tick` com dry-run + relatório `.md` antes de aplicar.
+- Devolve leads em Qualificação indevida para a última stage não-qualificadora dos últimos 90 dias.
+
 
 ---
 
