@@ -182,13 +182,27 @@ async function processClinic(clinicId: string, leadIds?: string[]) {
       continue;
     }
 
-    await supabase.from("lead_stage_history").insert({
-      clinic_id: clinicId,
-      lead_id: lead.id,
-      from_stage_id: fromStage,
-      to_stage_id: matched.target_stage_id,
-      reason: `field_rule:${matched.name}`,
-    });
+    // B7 (Onda 6): atualiza a linha que o trigger record_lead_stage_history
+    // acabou de criar (em vez de inserir 2ª linha duplicada).
+    const { data: latest } = await supabase
+      .from("lead_stage_history")
+      .select("id")
+      .eq("lead_id", lead.id)
+      .order("moved_at", { ascending: false })
+      .limit(1);
+    const rowId = (latest?.[0] as { id?: string } | undefined)?.id;
+    if (rowId) {
+      await supabase.from("lead_stage_history").update({
+        reason: `field_rule:${matched.name}`,
+        source: "field_rules_tick",
+        metadata: {
+          rule_id: matched.id,
+          rule_name: matched.name,
+          function: "field-rules-tick",
+          at: nowIso,
+        },
+      }).eq("id", rowId);
+    }
 
     await supabase.from("lead_events").insert({
       clinic_id: clinicId,

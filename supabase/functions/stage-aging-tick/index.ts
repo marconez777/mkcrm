@@ -70,13 +70,22 @@ async function moveLead(
   if (dryRun) return true;
   const { error } = await supabase.from("leads").update({ stage_id: toStageId }).eq("id", lead.id);
   if (error) return false;
-  await supabase.from("lead_stage_history").insert({
-    clinic_id: lead.clinic_id,
-    lead_id: lead.id,
-    from_stage_id: lead.stage_id,
-    to_stage_id: toStageId,
-    reason: `stage_aging:${rule}`,
-  });
+  // B7 (Onda 6): em vez de inserir uma 2ª linha, atualiza a linha que o trigger
+  // record_lead_stage_history acabou de criar (mais recente pra este lead).
+  const { data: latest } = await supabase
+    .from("lead_stage_history")
+    .select("id")
+    .eq("lead_id", lead.id)
+    .order("moved_at", { ascending: false })
+    .limit(1);
+  const rowId = (latest?.[0] as { id?: string } | undefined)?.id;
+  if (rowId) {
+    await supabase.from("lead_stage_history").update({
+      reason: `stage_aging:${rule}`,
+      source: "stage_aging_tick",
+      metadata: { rule, function: "stage-aging-tick", at: new Date().toISOString() },
+    }).eq("id", rowId);
+  }
   await supabase.from("lead_events").insert({
     clinic_id: lead.clinic_id,
     lead_id: lead.id,

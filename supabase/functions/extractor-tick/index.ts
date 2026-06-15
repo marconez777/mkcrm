@@ -130,6 +130,12 @@ export const EXTRACTION_TOOL = {
           type: ["string", "null"],
           description: "Data/hora ISO 8601 de uma SESSÃO DE PROCEDIMENTO (cetamina, infusão, EMT).",
         },
+        status_consulta: {
+          type: ["string", "null"],
+          enum: ["agendada", "realizada", "no_show", "cancelada", "reagendada", null],
+          description:
+            "Estado atual da consulta/procedimento (B11). Use 'realizada' SOMENTE com sinais claros pós-atendimento: NF/recibo emitido pela clínica, 'obrigado pela consulta', 'foi excelente o atendimento', 'gostei da sessão', 'estou bem melhor desde a consulta'. 'cancelada' / 'no_show' / 'reagendada' exigem confirmação explícita do lead ou do atendente.",
+        },
         nome_preferido: { type: ["string", "null"] },
         observacoes: {
           type: ["string", "null"],
@@ -218,6 +224,15 @@ REGRAS DE AGENDAMENTO:
 - Não invente datas. Não infira "semana que vem" sem confirmação.
 - ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
 - REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
+
+STATUS DA CONSULTA (B11, Onda 6):
+- Preencha status_consulta='realizada' quando houver evidência clara de PÓS-ATENDIMENTO: "nota fiscal", "NF emitida", "recibo da consulta", "obrigado pela consulta/sessão", "consulta foi ótima", "gostei do atendimento", "estou bem melhor depois da", "tive a primeira consulta e gostei". Não confunda com sinais ANTES da consulta ("estou ansioso pra consulta").
+- Preencha 'cancelada' apenas se houver confirmação explícita ("cancelar a consulta", "não vou poder ir e não quero remarcar").
+- Preencha 'reagendada' quando há sinal de remarcação E nova data combinada (use com B10).
+- Quando incerto, deixe null. Não infira 'realizada' só porque a data passou (existe cron específico pra isso — D3).
+
+REABRIR ATENDIMENTO FINALIZADO (B24, Onda 6):
+- Se o lead já tem status_consulta='realizada' (campo informado em "Contexto do lead") e a conversa traz claramente intenção de NOVO agendamento ("quero remarcar", "quero agendar de novo", "outra sessão", "preciso voltar", "marca outra pra mim"), preencha qualificacao='retorno_reativacao' E tentou_agendar=true. Isso permite que o card saia da coluna de finalizados.
 
 
 RETORNO/REATIVAÇÃO (I8, B32):
@@ -349,6 +364,11 @@ export function normalizeExtracted(
     out.procedimento_interesse = null;
     out.tipo_atendimento = null;
   }
+  // B11 (Onda 6) — Heurística determinística de status_consulta='realizada'
+  // a partir de sinais textuais inequívocos de pós-atendimento.
+  if (convo && !out.status_consulta && detectConsultaRealizada(convo)) {
+    out.status_consulta = "realizada";
+  }
   return out;
 }
 
@@ -430,6 +450,38 @@ export function detectAdministrativeContact(convo: string, leadName: string | nu
 
 
 
+// B11 (Onda 6) — Detecta sinais inequívocos de PÓS-ATENDIMENTO no que o lead diz.
+// Não dispara apenas pelo atendente: o lead precisa expressar que JÁ esteve na consulta.
+const REALIZADA_LEAD_PHRASES = [
+  "obrigado pela consulta", "obrigada pela consulta",
+  "obrigado pela sessão", "obrigada pela sessão", "obrigado pela sessao", "obrigada pela sessao",
+  "obrigado pelo atendimento", "obrigada pelo atendimento",
+  "consulta foi ótima", "consulta foi otima", "consulta foi excelente", "consulta foi muito boa",
+  "sessão foi ótima", "sessao foi otima", "sessão foi excelente", "sessao foi excelente",
+  "gostei muito da consulta", "gostei muito do atendimento", "gostei do atendimento",
+  "gostei da sessão", "gostei da sessao",
+  "tive a primeira consulta", "tive a consulta", "fiz a consulta", "fiz a sessão", "fiz a sessao",
+  "estou bem melhor depois da consulta", "estou melhor depois da consulta",
+  "depois da nossa consulta", "depois da nossa sessão", "depois da nossa sessao",
+];
+const REALIZADA_ATTENDANT_PHRASES = [
+  "nota fiscal", "nf emitida", "nf enviada", "segue a nota fiscal", "segue a nf",
+  "recibo da consulta", "recibo do atendimento", "segue o recibo",
+];
+
+export function detectConsultaRealizada(convo: string): boolean {
+  const lower = convo.toLowerCase();
+  const leadLower = convo
+    .split("\n").filter((l) => /^lead:/i.test(l)).join(" ").toLowerCase();
+  for (const p of REALIZADA_LEAD_PHRASES) if (leadLower.includes(p)) return true;
+  // Atendente mandando NF/recibo só conta se há ≥1 mensagem do lead na conversa
+  // (evita falso positivo de modelo de mensagem que ninguém respondeu).
+  if (leadLower) {
+    for (const p of REALIZADA_ATTENDANT_PHRASES) if (lower.includes(p)) return true;
+  }
+  return false;
+}
+
 function applyFields(
   current: Record<string, unknown>,
   extracted: Record<string, unknown>,
@@ -484,6 +536,7 @@ function applyFields(
     "procedimento_agendado_em",
     "nome_preferido",
     "observacoes",
+    "status_consulta",
   ];
   // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);

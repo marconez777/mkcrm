@@ -3741,10 +3741,12 @@ export type Database = {
           from_stage_id: string | null
           id: string
           lead_id: string
+          metadata: Json
           moved_at: string
           moved_by_agent_id: string | null
           moved_by_user_id: string | null
           reason: string | null
+          source: string | null
           to_stage_id: string | null
         }
         Insert: {
@@ -3752,10 +3754,12 @@ export type Database = {
           from_stage_id?: string | null
           id?: string
           lead_id: string
+          metadata?: Json
           moved_at?: string
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
           reason?: string | null
+          source?: string | null
           to_stage_id?: string | null
         }
         Update: {
@@ -3763,10 +3767,12 @@ export type Database = {
           from_stage_id?: string | null
           id?: string
           lead_id?: string
+          metadata?: Json
           moved_at?: string
           moved_by_agent_id?: string | null
           moved_by_user_id?: string | null
           reason?: string | null
+          source?: string | null
           to_stage_id?: string | null
         }
         Relationships: [
@@ -3924,6 +3930,7 @@ export type Database = {
           is_internal_contact: boolean
           landing_page: string | null
           last_classified_at: string | null
+          last_human_activity_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
           last_site_activity_at: string | null
@@ -3967,6 +3974,7 @@ export type Database = {
           is_internal_contact?: boolean
           landing_page?: string | null
           last_classified_at?: string | null
+          last_human_activity_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_site_activity_at?: string | null
@@ -4010,6 +4018,7 @@ export type Database = {
           is_internal_contact?: boolean
           landing_page?: string | null
           last_classified_at?: string | null
+          last_human_activity_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_site_activity_at?: string | null
@@ -6923,6 +6932,17 @@ export type Database = {
       ensure_system_form_assets: {
         Args: { _clinic_id: string }
         Returns: undefined
+      }
+      find_duplicate_leads_by_phone: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          last_message_ats: string[]
+          lead_count: number
+          lead_ids: string[]
+          names: string[]
+          normalized_phone: string
+          stage_ids: string[]
+        }[]
       }
       generate_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string }
