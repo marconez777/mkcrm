@@ -536,6 +536,7 @@ function applyFields(
     "procedimento_agendado_em",
     "nome_preferido",
     "observacoes",
+    "status_consulta",
   ];
   // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);
