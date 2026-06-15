@@ -1,6 +1,6 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T06:52:06.057Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-15T07:42:40.751Z_
 
 Total de docs: **150** · frontmatter atualizado neste run: **0**
 
