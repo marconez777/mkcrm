@@ -217,6 +217,8 @@ REGRAS DE AGENDAMENTO:
 - Data preenchida precisa ser HOJE ou FUTURO (I3). Passado → null.
 - Não invente datas. Não infira "semana que vem" sem confirmação.
 - ISO 8601 (AAAA-MM-DDTHH:mm). Sem hora explícita → 12:00.
+- REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
+
 
 RETORNO/REATIVAÇÃO (I8, B32):
 Use qualificacao='retorno_reativacao' quando QUALQUER UMA destas condições for satisfeita:
