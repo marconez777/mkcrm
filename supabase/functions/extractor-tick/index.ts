@@ -394,8 +394,16 @@ export function detectSpamB2B(convo: string): boolean {
 // I5/B14/B19 (Onda 5) — Heurística determinística para contato administrativo
 // (médico parceiro, agência, distribuidora, hospital, fornecedor).
 const ADMIN_NAME_TITLE_RE = /^\s*(dr\.?|dra\.?|prof\.?|profa\.?|enf\.?|enfa\.?)\s+\S+/i;
-const ADMIN_NAME_ORG_RE = /\b(agência|agencia|distribuidora|distrib\.?|hospital|laborat[óo]rio|farm[áa]cia|farma|comercial|fornecedor|representante|cl[íi]nica|consult[óo]rio)\b/i;
+const ADMIN_NAME_ORG_RE = /\b(ag[êe]ncia|distribuidora|distrib\.?|distri\w*med|hospital(ar)?|laborat[óo]rio|farm[áa]cia|farma|comercial|fornecedor|representante|cl[íi]nica|consult[óo]rio)\b/i;
 const ADMIN_CONTENT_SIGNALS = [
+  "vou encaminhar", "vou mandar pra vocês", "encaminhando paciente", "encaminho paciente",
+  "interconsulta", "parceria", "somos representantes", "somos fornecedor", "represento a",
+  "sou médic", "sou medic", "sou psicólog", "sou psicolog",
+  "sou enfermeir", "sou secretári", "sou secretaria",
+  "atendo paciente", "atendo na clínica", "atendo na clinica",
+  "minha clínica", "minha clinica", "meu consultório", "meu consultorio",
+];
+
   "vou encaminhar", "vou mandar pra vocês", "encaminhando paciente", "encaminho paciente",
   "interconsulta", "parceria", "somos representantes", "represento a",
   "sou médic", "sou medic", "sou psicólog", "sou psicolog",
