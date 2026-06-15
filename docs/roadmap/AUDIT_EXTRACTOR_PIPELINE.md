@@ -986,3 +986,55 @@ Rodado com chave OpenAI da clínica (`clinic_secrets.openai_api_key`, last4 `ovc
 4. **I2 (caso 06 pagamento):** `tentou_pagamento` retornando `null` (modelo só preenche `pagamento_confirmado`). → adicionar regra: se `pagamento_confirmado=true`, `tentou_pagamento=true` automaticamente.
 
 **Próximo:** expandir golden set para ~50 conversas reais anonimizadas; corrigir os 4 padrões de erro acima no prompt antes de seguir para Onda 3 (field-rules D1, D3, B8, B10, B16, B18, B27).
+
+## Onda 2.1 — Correções de prompt + normalização (2026-06-14)
+
+Tratamento dos 4 mismatches recorrentes do baseline da Onda 2.
+
+**`supabase/functions/extractor-tick/index.ts`:**
+- Novo helper exportado `normalizeExtracted(out)` aplicado tanto no edge function quanto no eval runner, com 3 invariantes pós-modelo:
+  - `is_administrative_contact == null` → `false` (cobre I5 quando o modelo omite o booleano).
+  - `pagamento_confirmado === true` → força `tentou_pagamento = true` (I2).
+  - `motivo_desqualificacao === 'spam_propaganda'` → força `qualificacao = 'desqualificado'` (I6/B33).
+- `buildSystemPrompt` reforçado:
+  - I5/B33: exige `is_administrative_contact` bool explícito (nunca null) e combina `qualificacao='desqualificado'` + `motivo_desqualificacao='spam_propaganda'` para pitch B2B.
+  - I8: triggers por frase ("sumi", "voltei", "quero retomar") para identificar reativação mesmo sem timestamps históricos no prompt.
+  - I2: `pagamento_confirmado` implica `tentou_pagamento`.
+
+**`supabase/functions/extractor-tick/eval/run.ts`:**
+- `eq()` trata `null` e `undefined` como equivalentes (cobre campos omitidos pelo modelo).
+- Importa e aplica `normalizeExtracted()` no output antes de comparar.
+
+### Baseline pós-Onda 2.1 (eval real, 2026-06-14)
+
+Rodado com chave OpenAI da clínica (`clinic_secrets.openai_api_key`, last4 `ovcA`), modelo `gpt-5-nano`, 10 casos do golden set, timeout 600 s:
+
+| Métrica | Valor |
+|---|---|
+| Accuracy global | **100.0 %** (47/47 campos) |
+| Erros de chamada | 0/10 |
+| Casos 100 % acertados | 10/10 |
+| Baseline Onda 2 | 83.0 % |
+| Meta Onda 2 | ≥ 75 % ✅ |
+| Meta Onda 6 | ≥ 90 % ✅ |
+
+**Resultado por caso** (todos `expected/expected`, zero mismatches):
+
+| ID | Campos | Cobertura |
+|---|---|---|
+| 01-paciente-novo-cetamina | 8/8 | B5, I4 |
+| 02-admin-medico-parceiro | 6/6 | B9, I5 |
+| 03-spam-b2b | 5/5 | B33, I5, I6 |
+| 04-sessao-com-maisa-terapia | 5/5 | B29, B30, D5 |
+| 05-procedimento-cetamina-amanha | 5/5 | B4, B29, B30 |
+| 06-pagamento-confirmado | 4/4 | I2 |
+| 07-data-passada-rejeita | 4/4 | B4, I3 |
+| 08-vai-pensar-nao-eh-retorno | 4/4 | B32, I8 |
+| 09-retorno-reativacao-real | 3/3 | I8 |
+| 10-emdr-desqualificado | 3/3 | B5, I6 |
+
+**Mismatches:** nenhum. Os 4 padrões de erro identificados na Onda 2 foram totalmente eliminados pela combinação prompt + `normalizeExtracted()`.
+
+**Cuidados:** o golden set ainda é pequeno (10 casos curados). Antes de assumir 100 % como baseline definitivo, expandir para ~50 conversas reais anonimizadas e medir variância entre runs (gpt-5-nano não é determinístico em 100 % dos casos).
+
+**Próximo:** seguir para **Onda 3** (field-rules D1, D3, B8, B10, B16, B18, B27) com gate de CI ativo (não pode cair > 2 pp do baseline 100 %).
