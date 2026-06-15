@@ -677,20 +677,31 @@ export default function KanbanPage() {
     const previousPosition = lead.position ?? 0;
     const targetLeads = leads.filter((l) => l.stage_id === targetStageId);
     const newPosition = targetLeads.reduce((m, l) => Math.max(m, l.position ?? 0), -1) + 1;
-    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition } : l));
-    await supabase.from("leads").update({ stage_id: targetStageId, position: newPosition }).eq("id", lead.id);
+    // Onda 5 / I5 — sincroniza is_internal_contact ao cruzar coluna "Administrativo"
+    // (stage com lock_auto_move=true). Drag manual continua permitido,
+    // mas a flag estrutural reflete a localização.
+    const sourceStage = stages.find((s) => s.id === previousStageId);
+    const targetStage = stages.find((s) => s.id === targetStageId);
+    const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
+    setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
+    const patch: Record<string, unknown> = { stage_id: targetStageId, position: newPosition };
+    if (internalSync !== null) patch.is_internal_contact = internalSync;
+    await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
-    toast.success(`Movido para "${target?.name ?? "etapa"}"`, {
+    toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
       action: previousStageId ? {
         label: "Desfazer",
         onClick: async () => {
-          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition } : l));
-          await supabase.from("leads").update({ stage_id: previousStageId, position: previousPosition }).eq("id", lead.id);
+          setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
+          const undoPatch: Record<string, unknown> = { stage_id: previousStageId, position: previousPosition };
+          if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
+          await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
       } : undefined,
       duration: 6000,
     });
   }
+
 
   const moveLeadToStage = useCallback(async (lead: Lead, targetStageId: string) => {
     if (!targetStageId || targetStageId === lead.stage_id) return;
