@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Lead, Pipeline, Stage } from "@/types/crm";
+import { manualLockUntilIso, customFieldsPatchForStage } from "@/lib/manual-stage-move";
 
 interface Props {
   open: boolean;
