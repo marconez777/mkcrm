@@ -6,7 +6,7 @@
 // Roda diariamente às 03:00 BRT (06:00 UTC) via pg_cron.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 
-const STALE_DAYS = 5;
+const STALE_DAYS = 14; // B27: nunca disparar antes de 14 dias sem resposta.
 const BATCH = 200;
 
 Deno.serve(async (req) => {
