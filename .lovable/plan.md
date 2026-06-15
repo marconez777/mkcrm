@@ -1,106 +1,47 @@
+## Causa raiz
 
-# Refino do roadmap do pipeline (Parte II do AUDIT_EXTRACTOR_PIPELINE)
+`transcribe-audio` retorna 502 porque a chave OpenAI da Clínica Ór (`ai_agents.role=summary/analyst`) está inválida (`401 Incorrect API key`). Hoje a função só usa a chave do agente da clínica — sem fallback — então qualquer transcrição quebra até o usuário trocar a chave manualmente.
 
-Apenas documentação. Sem mudanças de código/SQL nesta etapa.
+## Objetivo
 
-## Decisões fechadas (D1–D5)
+1. Destravar transcrição imediatamente (sem depender do cliente trocar a chave).
+2. Mostrar mensagem clara no toast quando ainda falhar.
+3. Avisar o admin da clínica que a chave OpenAI precisa ser renovada.
 
-- **D1 — Coluna "Retorno Tratamento Finalizado": MANTER + gatilho automático.**
-  Regra: `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}` com último atendimento finalizado há ≥ 30 dias **E** sem mensagem inbound/outbound há ≥ 60 dias → mover para "Retorno Tratamento Finalizado". Sai da coluna se: nova mensagem do lead, novo agendamento, ou drag manual.
-- **D2 — Contatos B2B / administrativos: coluna fixa "Administrativo".**
-  Não criar pipeline separado. Todos os leads classificados como `is_internal_contact=true` (Dr. Karina, Distrimed, Marco Guimarães, Elton/Hospital, parceiros, fornecedores) vão direto para a coluna **Administrativo** e ficam fixos lá — extractor não os move por mais nenhuma regra. Métricas operacionais excluem essa coluna por default.
-- **D3 — `status_consulta`: transição automática por data.**
-  Quando `data_consulta < now()` e status atual = `agendada` → extractor/cron move para `realizada` automaticamente. No-show é resolução humana (botão "marcar no-show" no `LeadDrawer.tsx`), que reverte para `no_show` e move o lead para coluna apropriada. Modelagem fica em `custom_fields.status_consulta` (enum `agendada | realizada | no_show | cancelada | reagendada`) — sem nova tabela.
-- **D4 — Texto fora-de-horário (B31) confirmado:** "Olá, obrigado pelo contato! Aqui é a equipe de consultoras da Clínica Ór Psiquiatria. Por estarmos fora do nosso horário de atendimento, podemos demorar um pouco a te responder. Assim que possível, retornaremos a sua mensagem." Marcadas com `messages.is_auto_reply=true` e ignoradas na regra de qualificação.
-- **D5 — Mapeamento profissional → modalidade: hardcoded só para Clínica Ór** (`clinic_id = cf038458…`). Futuro: arquivo `supabase/functions/extractor-tick/clinics/<clinic_id>/professionals.json`.
+## Mudanças
 
-## Estrutura nova de `docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md` (Parte II — anexada após Fase 7)
+### 1. `supabase/functions/transcribe-audio/index.ts`
+- Manter ordem atual: tentar primeiro o agente da clínica (OpenAI Whisper ou Gemini direto).
+- **Adicionar fallback Lovable AI Gateway** quando:
+  - nenhum agente OpenAI/Google com chave válida estiver configurado, **ou**
+  - a chamada do agente retornar 401/403/invalid_api_key.
+- Fallback usa `google/gemini-2.5-flash` via Gateway (`LOVABLE_API_KEY`, já disponível) com `inline_data` áudio → prompt "Transcreva fielmente em PT-BR. Retorne apenas a transcrição." (formato documentado em `ai-multimodal-input`, endpoint `/v1/chat/completions` com `input_audio` base64 — `audio/ogg` é suportado).
+- Tratar `429` (credits/rate) e `402` do Gateway com mensagens específicas.
+- Quando a chave do agente devolver 401, gravar evento em `webhook_events` (`type='ai_key_invalid'`, payload com `clinic_id`, `provider`, prefixo da chave) para diagnóstico/alerta — sem desabilitar o agente automaticamente.
+- Resposta de erro continua HTTP 200 com `{ ok: false, error, code }` para o cliente conseguir ler (hoje volta 4xx/5xx e o invoke do supabase-js esconde o body).
 
-### Seção A — Invariantes do pipeline (I1–I8)
-Regras duras que extractor, automações e UI devem respeitar. Cada bug B# referencia qual invariante viola.
+### 2. `src/components/inbox/...` (botão "Transcrever áudio")
+Localizar o handler do botão (provavelmente em `MediaBubbles.tsx` ou `ChatPane.tsx`), e:
+- Ler `data.error` quando `data.ok === false` e mostrar no toast (ex.: "Chave OpenAI inválida — atualize em IA → Agentes" ou "Sem créditos no Lovable AI").
+- Manter mensagem genérica só como último fallback.
 
-- **I1** Qualificação só após ≥1 outbound real (humano OU agente IA com LLM). Auto-reply não conta. (B31)
-- **I2** "Procedimento pago" exige `custom_fields.pagamento_confirmado=true` E `tipo_atendimento ∈ {sessao_emt, sessao_cetamina}`. Consulta normal nunca entra aqui. (B15, B30)
-- **I3** Toda data extraída deve ser ≥ `now()` no momento da escrita; passado = rejeitar e logar.
-- **I4** Campos estruturais (`tipo_atendimento`, `pagamento_confirmado`, `status_consulta`) só são gravados com ≥2 sinais convergentes na conversa.
-- **I5** Mensagens em chats administrativos / `is_internal_contact=true` nunca disparam regras de pipeline comercial — vão fixos para coluna **Administrativo**. (D2, B14, B19)
-- **I6** `qualificacao='desqualificado'` exige `motivo_desqualificacao` preenchido (enum). (B32, B33)
-- **I7** Toda mudança de stage automática grava `moved_by_agent_id` + razão em `lead_stage_history.metadata`.
-- **I8** "Interessado em retorno" exige sinal explícito de reativação após período de inatividade — "vou pensar e volto" durante negociação ativa **não** qualifica. (B32)
+### 3. Aviso para o admin
+- Em `src/components/settings/OpenAIKeyCard.tsx` (ou card de agentes), adicionar badge quando houver evento recente `ai_key_invalid` para o `clinic_id` (consulta simples nos últimos 7 dias) → "Chave OpenAI rejeitada em <data>, atualize".
 
-### Seção B — Eixos de trabalho (E1–E6)
-Cada bug ganha tag `eixo:` para agrupar PRs.
+### 4. Warning Radix `DialogTitle/Description`
+- Identificar o `DialogContent` sem título (provavelmente o `CommandPalette` ou outro) e envolver com `VisuallyHidden` + `DialogTitle`/`DialogDescription`. Mudança cosmética, no mesmo passe.
 
-- **E1 — Extractor**: prompt, tool schema, desambiguação semântica (B1–B6, B12, B17, B25, B29, B30, B32, B33).
-- **E2 — Field-rules + cron**: `pipeline_field_rules`, cron de transições automáticas (B8, B10, B16, B18, B27, D1, D3).
-- **E3 — Schema/migrations**: novas colunas/enums (`is_auto_reply`, `is_internal_contact`, `tipo_atendimento`, `status_consulta`, `motivo_desqualificacao`, `pagamento_confirmado`).
-- **E4 — Onboarding/outreach**: sequências de boas-vindas + auto-reply fora-de-horário (B31, D4, 188 leads sem outreach).
-- **E5 — Coluna Administrativo / B2B**: classificador `is_internal_contact` + UI fixa (D2, B14, B19, B33).
-- **E6 — Higiene de dados**: backfills, blocklist, marcação de spam (B26, B33, backfill B31).
+## Fora de escopo
 
-### Seção C — Ondas de implementação (Onda 0 → Onda 6)
-Ordem que respeita dependências (foundation antes de regras).
+- Não trocar a chave do cliente automaticamente.
+- Não migrar todo o pipeline de IA para o Gateway — só transcrição ganha fallback.
+- Não mexer em `record-audio` / envio de áudio outbound.
 
-```text
-Onda 0 — Foundation (E3)
-  Migrations: is_auto_reply, is_internal_contact, tipo_atendimento,
-  status_consulta, motivo_desqualificacao, pagamento_confirmado.
-  Sem mudança de comportamento ainda.
+## Validação
 
-Onda 1 — Quick wins críticos (E2 + E6)
-  B15 (procedimento pago só com I2)
-  B31 (auto-reply não qualifica) + backfill ~25 leads
-  D2 — mover contatos B2B atuais para coluna Administrativo
-  B26 — limpar 18 leads "Consulta Agendada" sem data
+1. `supabase--curl_edge_functions /transcribe-audio` com a mensagem `f4ad61ef-...` deve retornar `{ ok:true, transcript:"..." }` via Gateway.
+2. Repetir após o cliente atualizar a chave → deve voltar a usar OpenAI Whisper (primeiro caminho).
+3. UI: clicar "Transcrever áudio" e confirmar toast com mensagem real em caso de erro.
+4. Conferir que `webhook_events` registra `ai_key_invalid` uma vez por falha.
 
-Onda 2 — Extractor (E1)
-  Prompt + tool schema cobrindo B1–B6, B12, B17, B25, B29, B30, B32, B33
-  Golden set v1 (~50 conversas) + eval-extractor.ts
-
-Onda 3 — Field-rules + crons (E2)
-  D1 — gatilho Retorno Tratamento Finalizado
-  D3 — status_consulta agendada → realizada por data
-  B8, B10, B16, B18, B27
-
-Onda 4 — Pagamentos & comprovantes (E1+E2)
-  B22, B28, B23 (NF/recibo/print → pagamento_confirmado)
-
-Onda 5 — B2B / Administrativo (E5)
-  Classificador is_internal_contact automático
-  UI coluna Administrativo fixa
-  B14, B19, B33 (spam → desqualificado, não para Administrativo)
-
-Onda 6 — Polimento
-  B7, B11, B13, B20, B21, B24
-```
-
-### Seção D — Eval contínuo
-- Golden set em `supabase/functions/extractor-tick/eval/golden/*.json` (~50 conversas com expected output).
-- Script `supabase/functions/extractor-tick/eval/run.ts` roda no CI; reporta `accuracy` por campo + por invariante.
-- Regra: nenhum deploy do extractor pode reduzir score > 2pp vs baseline anterior.
-
-### Seção E — Inventário consolidado (tabela única)
-Substitui as listas espalhadas das Fases 1–7. Colunas:
-
-`B# | Título curto | Eixo | Severidade | Onda | Invariante | Leads afetados | Status | Métrica de pronto`
-
-Exemplo de linha:
-`B31 | Qualificação por auto-reply | E1+E6 | ALTO | 1 | I1 | ~25 | aberto | 0 leads em Qualificação cuja única outbound é is_auto_reply`
-
-### Seção F — Decisões registradas (D1–D5)
-As cinco decisões acima ficam documentadas com data (2026-06-14) e quem decidiu (usuário).
-
-## Arquivos a editar (apenas docs)
-
-- `docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md` — anexar Parte II (seções A–F). Fases 1–7 permanecem como log histórico.
-- `docs/DRIFT.md` — entrada da atualização.
-- `docs/INDEX.json` + `public/docs-index.json` + `public/docs-content.json` — via `node scripts/docs-sync.mjs`.
-- `mem://docs/maintenance-progress` — registrar onde paramos (D1–D5 fechadas, Parte II escrita).
-
-## Fora de escopo desta etapa
-
-- Migrations das novas colunas (Onda 0).
-- Alterações no prompt do extractor / tool schema.
-- Criação do golden set e do `eval/run.ts`.
-- Implementação da coluna fixa "Administrativo" na UI.
-- Implementação dos crons de transição (D1, D3).
+Posso seguir?
