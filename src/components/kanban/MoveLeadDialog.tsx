@@ -47,7 +47,7 @@ export default function MoveLeadDialog({ open, onOpenChange, lead, pipelines, st
     const manualLockUntil = manualLockUntilIso();
     const targetStage = stages.find((s) => s.id === stageId);
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; pipeline_id: string; position: number; manual_lock_until: string; custom_fields?: Record<string, unknown> } = { stage_id: stageId, pipeline_id: pipelineId, position: 0, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; pipeline_id: string; position: number; manual_lock_until: string; custom_fields?: any } = { stage_id: stageId, pipeline_id: pipelineId, position: 0, manual_lock_until: manualLockUntil };
     if (cfPatch) patch.custom_fields = cfPatch;
     const { error } = await supabase
       .from("leads")
