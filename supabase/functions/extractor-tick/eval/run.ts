@@ -94,8 +94,9 @@ async function runOne(apiKey: string, model: string, c: GoldenCase): Promise<Cas
   let extracted: Record<string, unknown> = {};
   let error: string | undefined;
   try {
-    extracted = normalizeExtracted(await callOpenAI(apiKey, model, system, user), convo);
+    extracted = normalizeExtracted(await callOpenAI(apiKey, model, system, user), convo, c.name ?? null);
   } catch (e) {
+
     error = e instanceof Error ? e.message : String(e);
   }
 
