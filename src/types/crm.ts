@@ -17,7 +17,9 @@ export type Stage = {
   position: number;
   color: string;
   pipeline_id: string;
+  lock_auto_move?: boolean;
 };
+
 
 export type Pipeline = {
   id: string;
