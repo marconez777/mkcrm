@@ -630,6 +630,18 @@ function applyFields(
   ];
   // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);
+  // B10.1 — Reagendamento: campos de agenda/teleconsulta SEMPRE seguem o estado
+  // mais recente da conversa; se a IA detectou uma data diferente da atual com
+  // confiança suficiente, sobrescreve mesmo sem allow_overwrite_filled.
+  // manual_lock_until ainda protege contra correções manuais recentes.
+  const RESCHEDULE_TRACKED = new Set([
+    "consulta_agendada_em",
+    "procedimento_agendado_em",
+    "tentou_agendar",
+    "tipo_atendimento",
+    "teleconsulta",
+    "status_consulta",
+  ]);
   const sensitiveThreshold = Math.max(0.7, cfg.confidence_threshold);
 
   for (const k of writable) {
@@ -638,7 +650,8 @@ function applyFields(
     if (SENSITIVE.has(k) && confidence < sensitiveThreshold) continue;
     const isEmpty = fieldIsEmpty(current[k]);
     const canOverwrite =
-      cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold;
+      (cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold) ||
+      (RESCHEDULE_TRACKED.has(k) && confidence >= sensitiveThreshold && current[k] !== newVal);
     if (isEmpty || canOverwrite) {
       if (merged[k] !== newVal) {
         merged[k] = newVal;
