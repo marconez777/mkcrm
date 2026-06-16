@@ -1,40 +1,63 @@
-## Decisões confirmadas
+# Análise do caso "Ana Paula Valeriano" — reagendamento 23/06 → 24/06
 
-1. Fuso fixo `America/Sao_Paulo` (sem nova coluna em `clinics`/`settings` por enquanto).
-2. Backfill: rodar nos leads existentes com data possivelmente "shiftada" nas últimas 60 dias.
-3. Corte de 5h para o lembrete de 1h: mantido.
+## O que aconteceu na conversa
 
-## Implementação
+1. Atendente propõe **23/06 (terça) 10h**.
+2. Lead **recusa implicitamente**: "pela manhã nas terças ele não consegue / quarta sim".
+3. Atendente propõe **24/06 (quarta) 10h online**.
+4. Lead confirma: "online tá".
 
-### 1. `supabase/functions/_shared/dates.ts`
-- Novo `parseFutureDateInTZ(raw, tz, now)` que interpreta strings ISO **sem offset** como wall-clock no `tz` (usa o truque `Intl.DateTimeFormat` para descobrir o offset correto na data, resolvendo DST). Strings com `Z` ou `±HH:MM` continuam sendo instante absoluto.
-- `parseFutureDate` antigo passa a delegar para `parseFutureDateInTZ(raw, "UTC", now)` → comportamento idêntico para chamadas legadas.
+O card no Kanban ainda mostra **Consulta 23/06** — ou seja, `consulta_agendada_em` ficou travado na 1ª proposta.
 
-### 2. `supabase/functions/extractor-tick/index.ts`
-- Constante `CLINIC_TZ = "America/Sao_Paulo"`.
-- `buildSystemPrompt`: adiciona bloco "FORMATO DE DATA" instruindo o modelo a devolver `AAAA-MM-DDTHH:mm` **sem `Z` e sem offset**, sempre em horário local da clínica.
-- Trocar `parseFutureDate(...)` por `parseFutureDateInTZ(..., CLINIC_TZ)` em `applyFields` e `applyClinicFieldMapping`. Os `.toISOString()` continuam corretos porque o `Date` retornado já é o instante UTC certo.
+## Por que o extractor provavelmente NÃO atualiza sozinho hoje
 
-### 3. `supabase/functions/automations-tick/index.ts`
-- Adicionar helper local `ymdInTZ(date, tz)`.
-- Buscar `updated_at` do lead na query do `before_appointment`.
-- Após calcular `target` e antes de adicionar o lead em `out`:
-  - `apptDay = ymdInTZ(appt, tz)`, `nowDay = ymdInTZ(now, tz)`, `bookedDay = ymdInTZ(updated_at, tz)`.
-  - Se `bookedDay === apptDay` (o agendamento foi marcado no mesmo dia da consulta):
-    - bloqueia qualquer offset ≥ 360 min (D-1/longo).
-    - permite o lembrete só se faltam **mais de 5h** para a consulta.
-- Quando bloqueado, registra `automation_runs` com `status='skipped', detail='same_day_short_notice'` (auditável).
+O system prompt (`extractor-tick/index.ts`) já tem a regra **B10 — REAGENDAMENTO**, mas ela depende de palavras-chave explícitas:
 
-### 4. Backfill (via tool de insert)
-- SQL que, em `leads.custom_fields` com chaves `data_horario`, `consulta_agendada_em`, `procedimento_agendado_em`:
-  - candidato = valor termina em `:00:00.000Z` (hora redonda em UTC, típico do parsing errado anterior) E foi modificado nos últimos 60 dias E ainda está no futuro.
-  - ação: soma `+3 horas` no valor (ajustando para `America/Sao_Paulo`). Sem DST relevante hoje no Brasil, +3h é seguro.
-  - registra `lead_events` `type='date_tz_backfill'` por lead afetado.
-- Antes do UPDATE em massa, rodar um `SELECT` para mostrar contagem; se a contagem for absurdamente alta (>500), pausa e pergunta antes de aplicar.
+> "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra"
 
-## Validação
-1. Reprocessar lead "Ps" com `force=true` → `data_horario` salvo como `…T21:00:00.000Z`, render no Inbox volta a 18:00.
-2. Simular tick com lead `data_horario` para hoje +30min e `updated_at` de hoje → `automation_runs` registra `skipped/same_day_short_notice`.
-3. Eval do extractor continua passando (chamadas existentes só ganharam interpretação TZ-aware).
+Neste caso **nenhuma dessas palavras aparece**. O fluxo é:
+- proposta → recusa parcial ("nas terças não") → contraproposta do atendente → "online tá".
 
-Aguardando build mode para começar.
+Pior: na 1ª proposta o lead **nunca confirmou 23/06** ("tentou_agendar=true SÓ quando o lead CONFIRMOU"), mas o extractor pode ter interpretado a frase do atendente como agendamento e preenchido o campo. Como hoje só sobrescreve quando `allow_overwrite_filled=true` + confidence ≥ threshold, ele tende a **manter a data velha** mesmo numa nova run.
+
+O golden test atual `11-reagendamento-sobrescreve-data.json` cobre só o cenário **explícito** ("preciso remarcar… podemos passar pra quinta").
+
+## Plano
+
+### 1. Confirmar diagnóstico no banco
+- `supabase--read_query` no lead da Ana Paula: ver `custom_fields.consulta_agendada_em`, `needs_ai_review`, `lead_ai_extraction_runs` (qual mensagem disparou a data 23/06, qual confidence, se houve run posterior).
+- Conferir `classifier_config.allow_overwrite_filled` da clínica.
+
+### 2. Reforçar o prompt B10
+Adicionar ao bloco **REAGENDAMENTO** sinais de reagendamento **implícito**:
+- Lead rejeita data/horário ("não consegue", "não dá", "nesse dia não", "de manhã não", "só à tarde", "quarta sim") seguido de atendente propondo **nova** data que o lead aceita ("pode ser", "ok", "tá", "fechado", "online tá", "👍").
+- Regra: **a data válida é sempre a ÚLTIMA proposta aceita pelo lead, mesmo sem palavra "remarcar"**.
+- Quando o lead recusa uma data e aceita outra, sobrescreva `consulta_agendada_em` independentemente de `allow_overwrite_filled` (tratar reagendamento como exceção controlada — flag interna `_reschedule_detected` na resposta, e no merge do extractor permitir overwrite quando esse flag vier true com confidence ≥ threshold).
+
+### 3. Novo golden test
+Criar `eval/golden/14-reagendamento-implicito.json` reproduzindo a conversa da Ana Paula:
+- Atendente propõe 23/06 10h → lead recusa terça manhã → atendente propõe 24/06 10h online → lead "online tá".
+- `expected.consulta_agendada_em = "2026-06-24T10:00:00"`, `tentou_agendar=true`, `teleconsulta=true`, `tipo_atendimento="consulta_psiquiatria"`.
+
+### 4. Permitir overwrite no merge para reagendamento
+No `extractor-tick/index.ts`, no ponto onde decide preencher só campos vazios:
+- Se o extractor retornar `consulta_agendada_em` ou `procedimento_agendado_em` **diferente** do valor atual E confidence ≥ threshold E houver sinal de reagendamento (palavra-chave OU sequência recusa+aceite), aplicar overwrite mesmo sem `allow_overwrite_filled=true`. Registrar `kind='reschedule_overwrite'` em `lead_ai_extraction_runs` para auditoria.
+
+### 5. Backfill pontual da Ana Paula
+- Marcar `needs_ai_review=true` no lead e disparar o `extractor-tick` manualmente (POST com `force=true, lead_ids=[...]`) após o deploy, para a data corrigir para 24/06 sem esperar próxima mensagem.
+
+### 6. Validação
+- Rodar `supabase--test_edge_functions` no `extractor-tick` (golden runner) garantindo que os testes 11 e 14 passem.
+- Conferir no Kanban que o card da Ana Paula passa a mostrar "Consulta 24/06".
+
+## Detalhes técnicos
+
+- Arquivos a tocar:
+  - `supabase/functions/extractor-tick/index.ts` (prompt B10 + lógica de overwrite condicional)
+  - `supabase/functions/extractor-tick/eval/golden/14-reagendamento-implicito.json` (novo)
+- Sem mudanças de schema; nenhuma migration necessária.
+- Sem impacto em `automations-tick` — a janela de lembretes recalcula sozinha após a data ser corrigida.
+
+## Resposta direta à sua pergunta
+
+**Hoje, sozinha, a IA muito provavelmente NÃO vai trocar 23/06 por 24/06** nesse caso, porque (a) não há palavra "remarcar" e (b) o campo já está preenchido e a clínica não tem `allow_overwrite_filled=true`. Precisamos da ressalva acima.
