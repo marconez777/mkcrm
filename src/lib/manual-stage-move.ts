@@ -33,6 +33,14 @@ export function customFieldsPatchForStage(
 ): Record<string, unknown> | undefined {
   if (!isDisqualifiedStage(targetStage)) return undefined;
   const cur = (currentCustomFields ?? {}) as Record<string, unknown>;
-  if (cur.qualificacao === "desqualificado") return undefined;
-  return { ...cur, qualificacao: "desqualificado" };
+  const alreadyDisq = cur.qualificacao === "desqualificado";
+  const hasMotivo = typeof cur.motivo_desqualificacao === "string" && cur.motivo_desqualificacao;
+  if (alreadyDisq && hasMotivo) return undefined;
+  return {
+    ...cur,
+    qualificacao: "desqualificado",
+    // I6 (trigger no banco): desqualificado exige motivo. Default 'outro' em moves manuais
+    // — o usuário pode refinar depois (ex.: 'fora_perfil' p/ consulta fora do país).
+    motivo_desqualificacao: hasMotivo ? cur.motivo_desqualificacao : "outro",
+  };
 }
