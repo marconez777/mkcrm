@@ -1,0 +1,26 @@
+{
+  "id": "14-reagendamento-implicito",
+  "description": "Reagendamento IMPLÍCITO (B10.1): atendente propõe terça 23/06 10h, lead recusa terças de manhã, atendente propõe quarta 24/06 10h online, lead aceita ('online tá'). Sem a palavra 'remarcar'. Extractor deve usar 24/06 como data final, marcar teleconsulta=true e tentou_agendar=true.",
+  "covers": ["B10", "B10.1"],
+  "now": "2026-06-16T14:00:00-03:00",
+  "custom_fields": {
+    "consulta_agendada_em": "2026-06-23T13:00:00.000Z",
+    "tentou_agendar": true,
+    "tipo_atendimento": "consulta_psiquiatria"
+  },
+  "messages": [
+    { "from_me": true,  "content": "A consulta pode ser dia 23/06 na terça feira as 10:00 hs?" },
+    { "from_me": false, "content": "pela manhã nas terças ele não consegue" },
+    { "from_me": false, "content": "quarta sim" },
+    { "from_me": true,  "content": "Pode ser no dia 24/06 as 10:00 hs? Será online?" },
+    { "from_me": false, "content": "online tá" }
+  ],
+  "expected": {
+    "tentou_agendar": true,
+    "tipo_atendimento": "consulta_psiquiatria",
+    "consulta_agendada_em": "2026-06-24T10:00:00",
+    "procedimento_agendado_em": null,
+    "teleconsulta": true,
+    "is_administrative_contact": false
+  }
+}
