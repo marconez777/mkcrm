@@ -1,0 +1,1 @@
+UPDATE public.clinics SET classifier_config = classifier_config || jsonb_build_object('max_extractions_per_lead_per_day', 10) WHERE id='cf038458-457d-4c1a-9ac4-c88c3c8353a1';
