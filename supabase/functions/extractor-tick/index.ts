@@ -234,7 +234,10 @@ REGRAS DE AGENDAMENTO:
 - Não invente datas. Não infira "semana que vem" sem confirmação.
 - FORMATO DE DATA (obrigatório): ISO 8601 "AAAA-MM-DDTHH:mm" SEM sufixo 'Z' e SEM offset (+/-HH:MM). Interprete e devolva sempre em horário LOCAL da clínica (America/Sao_Paulo). O backend converte para UTC. Exemplo: lead diz "amanhã às 18h" e hoje é 14/06/2026 → devolva "2026-06-15T18:00". Nunca devolva "2026-06-15T18:00Z" nem "2026-06-15T18:00-03:00".
 - Sem hora explícita → use 12:00 (também em horário local).
-- REAGENDAMENTO (B10): se a conversa contém sinais de remarcar — "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra" — SEMPRE use a data MAIS RECENTE confirmada e ignore a anterior. A última data confirmada sobrescreve qualquer data antiga no campo.
+- REAGENDAMENTO EXPLÍCITO (B10): sinais como "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra".
+- REAGENDAMENTO IMPLÍCITO (B10.1 — IMPORTANTE): o atendente propõe data/horário, o lead RECUSA ("nesse dia não", "de manhã não consegue", "à tarde não dá", "quarta sim", "só consigo X"), o atendente propõe NOVA data, o lead ACEITA ("pode ser", "ok", "tá", "fechado", "perfeito", "isso", "online tá", "👍"). Mesmo sem a palavra "remarcar", isto É reagendamento.
+- REGRA GERAL: SEMPRE preencha consulta_agendada_em / procedimento_agendado_em com a ÚLTIMA data que o lead aceitou. Ignore datas anteriores que foram recusadas ou substituídas. Se a única data proposta foi recusada e nenhuma nova foi aceita, devolva null (não tente "salvar" a data antiga).
+- Se o lead aceitou explicitamente atendimento online ("online tá", "pode ser online", "prefiro online"), preencha teleconsulta=true.
 
 STATUS DA CONSULTA (B11, Onda 6):
 - Preencha status_consulta='realizada' quando houver evidência clara de PÓS-ATENDIMENTO: "nota fiscal", "NF emitida", "recibo da consulta", "obrigado pela consulta/sessão", "consulta foi ótima", "gostei do atendimento", "estou bem melhor depois da", "tive a primeira consulta e gostei". Não confunda com sinais ANTES da consulta ("estou ansioso pra consulta").
@@ -627,6 +630,18 @@ function applyFields(
   ];
   // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);
+  // B10.1 — Reagendamento: campos de agenda/teleconsulta SEMPRE seguem o estado
+  // mais recente da conversa; se a IA detectou uma data diferente da atual com
+  // confiança suficiente, sobrescreve mesmo sem allow_overwrite_filled.
+  // manual_lock_until ainda protege contra correções manuais recentes.
+  const RESCHEDULE_TRACKED = new Set([
+    "consulta_agendada_em",
+    "procedimento_agendado_em",
+    "tentou_agendar",
+    "tipo_atendimento",
+    "teleconsulta",
+    "status_consulta",
+  ]);
   const sensitiveThreshold = Math.max(0.7, cfg.confidence_threshold);
 
   for (const k of writable) {
@@ -635,7 +650,8 @@ function applyFields(
     if (SENSITIVE.has(k) && confidence < sensitiveThreshold) continue;
     const isEmpty = fieldIsEmpty(current[k]);
     const canOverwrite =
-      cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold;
+      (cfg.allow_overwrite_filled && confidence >= cfg.confidence_threshold) ||
+      (RESCHEDULE_TRACKED.has(k) && confidence >= sensitiveThreshold && current[k] !== newVal);
     if (isEmpty || canOverwrite) {
       if (merged[k] !== newVal) {
         merged[k] = newVal;
