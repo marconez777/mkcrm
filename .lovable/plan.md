@@ -1,63 +1,101 @@
-# Análise do caso "Ana Paula Valeriano" — reagendamento 23/06 → 24/06
+## Objetivo
 
-## O que aconteceu na conversa
+Gerar um estudo profundo das conversas da clínica **ÓR** (pipeline "Agendamentos Novo") para alimentar o treino do agente de pipeline (extractor / automation) e do futuro agente de atendimento. Cada coluna do Kanban vira um documento próprio com transcrições, sínteses, padrões e recomendações.
 
-1. Atendente propõe **23/06 (terça) 10h**.
-2. Lead **recusa implicitamente**: "pela manhã nas terças ele não consegue / quarta sim".
-3. Atendente propõe **24/06 (quarta) 10h online**.
-4. Lead confirma: "online tá".
+## Escopo confirmado
 
-O card no Kanban ainda mostra **Consulta 23/06** — ou seja, `consulta_agendada_em` ficou travado na 1ª proposta.
+- Clínica: **ÓR** (`cf038458-457d-4c1a-9ac4-c88c3c8353a1`)
+- Pipeline: **Agendamentos Novo** (16 colunas, 1.619 leads, 13.262 mensagens, 820 áudios, 464 leads com conversa)
+- Janela: **todos os leads, sem corte de data**
+- Áudios: **transcrever todos** com Gemini multimodal via Lovable AI
+- Entregável: **`docs/estudo/` (índice + 1 arquivo por coluna)** + `docs/estudo-geral.md` como hub
 
-## Por que o extractor provavelmente NÃO atualiza sozinho hoje
+## Estrutura de arquivos
 
-O system prompt (`extractor-tick/index.ts`) já tem a regra **B10 — REAGENDAMENTO**, mas ela depende de palavras-chave explícitas:
+```text
+docs/
+├── estudo-geral.md                    ← hub: visão consolidada, padrões cross-coluna, recomendações
+└── estudo/
+    ├── README.md                       ← índice + metodologia + glossário
+    ├── 00-leads-de-entrada.md
+    ├── 01-paciente-antigo.md
+    ├── 02-qualificacao.md
+    ├── 03-consulta-agendada.md
+    ├── 05-consulta-finalizada.md
+    ├── 06-fechamento-pendente-consulta.md
+    ├── 07-lead-parou-de-responder.md
+    ├── 08-lead-nao-qualificado.md
+    ├── 09-fechamento-pendente-procedimento.md
+    ├── 10-procedimento-agendado.md
+    ├── 11-procedimento-pago.md
+    ├── 12-retorno-tratamento-finalizado.md
+    ├── 13-antigo-consulta-procedimento-agendado.md
+    ├── 14-nutricao-leads-inativos.md
+    └── 15-administrativo.md
+```
 
-> "remarcar", "remarcação", "preciso mudar", "podemos passar pra", "ao invés de", "na verdade vai ser", "mudou pra", "trocar pra"
+## Conteúdo de cada arquivo por coluna
 
-Neste caso **nenhuma dessas palavras aparece**. O fluxo é:
-- proposta → recusa parcial ("nas terças não") → contraproposta do atendente → "online tá".
+1. **Metadados**: stage_id, posição, contagem de leads, distribuição temporal, taxa de conversão para a próxima coluna.
+2. **Lista completa de leads** com: nome, telefone, data de entrada na coluna, qtd de mensagens, status_consulta, motivo_desqualificacao, profissional, procedimento, teleconsulta sim/não.
+3. **Transcrição + síntese individual** para cada lead com mais de 3 mensagens. Estrutura:
+   - Cabeçalho: dados do lead + custom_fields relevantes.
+   - Transcrição cronológica (mensagens textuais + áudios transcritos com marcador `[ÁUDIO]`).
+   - Síntese em 4-6 linhas: o que o lead queria, objeções, decisão, resultado.
+   - Sinais detectados: gatilhos de interesse, gatilhos de objeção, pedido de remarcação, menção a preço, menção a concorrente, telecon vs presencial, psicólogo vs psiquiatra.
+4. **Síntese da coluna**: o que define um lead "típico" dessa coluna, perfil demográfico, principais procedimentos/profissionais.
+5. **Padrões identificados**: top 10 padrões linguísticos/comportamentais (ex.: "lead pergunta preço antes de mostrar problema = alta chance de não fechar").
+6. **Erros do agente IA atual** que apareceram nas conversas (campo errado, mensagem fora de contexto, falha em detectar reagendamento, etc.).
+7. **Recomendações para o agente de pipeline** (regras de extração, novos campos a capturar, ajustes em B-rules).
+8. **Recomendações para o agente de atendimento** (scripts, tom, perguntas-chave, gatilhos de handoff).
 
-Pior: na 1ª proposta o lead **nunca confirmou 23/06** ("tentou_agendar=true SÓ quando o lead CONFIRMOU"), mas o extractor pode ter interpretado a frase do atendente como agendamento e preenchido o campo. Como hoje só sobrescreve quando `allow_overwrite_filled=true` + confidence ≥ threshold, ele tende a **manter a data velha** mesmo numa nova run.
+## Conteúdo do `estudo-geral.md`
 
-O golden test atual `11-reagendamento-sobrescreve-data.json` cobre só o cenário **explícito** ("preciso remarcar… podemos passar pra quinta").
+- Resumo executivo da clínica (volume, conversão funil, principais procedimentos, profissionais mais procurados).
+- Mapa de jornada: como os leads transitam entre colunas (Sankey textual).
+- **Cenários canônicos** (cada um com 3-5 exemplos reais):
+  - Agendou consulta na primeira mensagem
+  - Agendou só após objeção (preço / horário / dúvida sobre profissional)
+  - Agendou consulta + procedimento juntos
+  - Agendou consulta com psicólogo
+  - Agendou consulta com psiquiatra
+  - Reagendamento implícito (caso Ana Paula)
+  - Pediu fora do escopo (EMDR, atendimento fora do país)
+  - Paciente antigo voltando
+  - Lead sumiu após cotação
+  - Lead administrativo (parceria, fornecedor, currículo)
+  - Teleconsulta vs presencial
+- Padrões transversais que aparecem em várias colunas.
+- Recomendações priorizadas (P0/P1/P2) para evoluir o extractor (`extractor-tick`) e desenhar o agente de atendimento.
+- Glossário de termos da ÓR (siglas, nomes de profissionais, procedimentos).
 
-## Plano
+## Como o estudo será produzido (técnico)
 
-### 1. Confirmar diagnóstico no banco
-- `supabase--read_query` no lead da Ana Paula: ver `custom_fields.consulta_agendada_em`, `needs_ai_review`, `lead_ai_extraction_runs` (qual mensagem disparou a data 23/06, qual confidence, se houve run posterior).
-- Conferir `classifier_config.allow_overwrite_filled` da clínica.
+Script Python rodando no sandbox (`/tmp/estudo_or.py`) que:
 
-### 2. Reforçar o prompt B10
-Adicionar ao bloco **REAGENDAMENTO** sinais de reagendamento **implícito**:
-- Lead rejeita data/horário ("não consegue", "não dá", "nesse dia não", "de manhã não", "só à tarde", "quarta sim") seguido de atendente propondo **nova** data que o lead aceita ("pode ser", "ok", "tá", "fechado", "online tá", "👍").
-- Regra: **a data válida é sempre a ÚLTIMA proposta aceita pelo lead, mesmo sem palavra "remarcar"**.
-- Quando o lead recusa uma data e aceita outra, sobrescreva `consulta_agendada_em` independentemente de `allow_overwrite_filled` (tratar reagendamento como exceção controlada — flag interna `_reschedule_detected` na resposta, e no merge do extractor permitir overwrite quando esse flag vier true com confidence ≥ threshold).
+1. Lê via `psql` (acesso já habilitado) os leads + custom_fields + stage_id + mensagens (ordenadas, com `media_url`, `media_mime`, `from_me`, `bot_agent_id`, `timestamp`).
+2. Para cada mensagem `audio/*`, baixa o `media_url` e envia para `google/gemini-3-flash-preview` via Lovable AI Gateway (multimodal `input_audio`) — usa skill `ai-gateway` (`/tmp/lovable_ai.py`) ou chamada direta `requests`. Cache em `/tmp/audio-cache/<msg_id>.txt` para idempotência.
+3. Para cada lead com ≥3 mensagens, chama Gemini com o transcript completo + custom_fields atuais e pede saída JSON estruturada: `{ sintese, objecoes[], gatilhos[], procedimento, profissional, teleconsulta, reagendamento, erros_ia_detectados[], recomendacoes_pipeline[], recomendacoes_atendimento[] }`. Cache por `lead_id+last_message_at`.
+4. Agrega por coluna e roda Gemini novamente para destilar os padrões da coluna.
+5. Renderiza markdown obedecendo a estrutura acima e grava em `docs/estudo/*.md` + `docs/estudo-geral.md`.
+6. No fim, roda `node scripts/docs-sync.mjs` para atualizar `docs/INDEX.json` (skill docs-maintainer).
 
-### 3. Novo golden test
-Criar `eval/golden/14-reagendamento-implicito.json` reproduzindo a conversa da Ana Paula:
-- Atendente propõe 23/06 10h → lead recusa terça manhã → atendente propõe 24/06 10h online → lead "online tá".
-- `expected.consulta_agendada_em = "2026-06-24T10:00:00"`, `tentou_agendar=true`, `teleconsulta=true`, `tipo_atendimento="consulta_psiquiatria"`.
+## Custo, tempo e risco
 
-### 4. Permitir overwrite no merge para reagendamento
-No `extractor-tick/index.ts`, no ponto onde decide preencher só campos vazios:
-- Se o extractor retornar `consulta_agendada_em` ou `procedimento_agendado_em` **diferente** do valor atual E confidence ≥ threshold E houver sinal de reagendamento (palavra-chave OU sequência recusa+aceite), aplicar overwrite mesmo sem `allow_overwrite_filled=true`. Registrar `kind='reschedule_overwrite'` em `lead_ai_extraction_runs` para auditoria.
+- ~820 áudios × ~5s cada de Gemini Flash multimodal + ~464 leads × 1 chamada de síntese + 16 chamadas de coluna + 1 chamada do hub ≈ **~1.300 chamadas** ao Gateway. Em Gemini Flash isso é viável mas consome créditos consideráveis — vou logar custo por etapa e parar/avisar se passar de um limite que você definir (default: aviso a cada 500 chamadas).
+- Tempo estimado: 30-60 min de execução, dependendo de tamanho dos áudios.
+- O script é idempotente (cache por message_id e lead_id) — se cair no meio, retoma.
+- Documentos podem ficar grandes (esperado ~80-150 KB por coluna grande, ~500 KB no total). Aceitável; o `docs/INDEX.json` lida com isso.
 
-### 5. Backfill pontual da Ana Paula
-- Marcar `needs_ai_review=true` no lead e disparar o `extractor-tick` manualmente (POST com `force=true, lead_ids=[...]`) após o deploy, para a data corrigir para 24/06 sem esperar próxima mensagem.
+## Validação final
 
-### 6. Validação
-- Rodar `supabase--test_edge_functions` no `extractor-tick` (golden runner) garantindo que os testes 11 e 14 passem.
-- Conferir no Kanban que o card da Ana Paula passa a mostrar "Consulta 24/06".
+- `node scripts/docs-sync.mjs` sem erros.
+- Sanity-check manual: 3 leads que eu sei o desfecho (incluindo Ana Paula em "Consulta Agendada") aparecem com síntese coerente e o reagendamento implícito é detectado.
+- Sumário no chat com: total de leads processados, total de áudios transcritos, total de tokens/custo gasto, link para `docs/estudo-geral.md`.
 
-## Detalhes técnicos
+## O que NÃO faz parte deste plano
 
-- Arquivos a tocar:
-  - `supabase/functions/extractor-tick/index.ts` (prompt B10 + lógica de overwrite condicional)
-  - `supabase/functions/extractor-tick/eval/golden/14-reagendamento-implicito.json` (novo)
-- Sem mudanças de schema; nenhuma migration necessária.
-- Sem impacto em `automations-tick` — a janela de lembretes recalcula sozinha após a data ser corrigida.
-
-## Resposta direta à sua pergunta
-
-**Hoje, sozinha, a IA muito provavelmente NÃO vai trocar 23/06 por 24/06** nesse caso, porque (a) não há palavra "remarcar" e (b) o campo já está preenchido e a clínica não tem `allow_overwrite_filled=true`. Precisamos da ressalva acima.
+- Não altera código de produção (extractor, agentes, prompts).
+- Não cria migrations nem mexe em dados de leads.
+- Não envia mensagens para leads.
+- Recomendações são geradas como texto no estudo; a implementação delas vira plano separado depois que você revisar.
