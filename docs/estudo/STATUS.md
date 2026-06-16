@@ -1,3 +1,11 @@
+---
+title: Estudo ÓR — Status da execução
+topic: general
+kind: doc
+audience: agent
+updated: 2026-06-16
+summary: "Total processado: **14 colunas, 441 leads, 3.973 mensagens, 306 áudios**."
+---
 # Estudo ÓR — Status da execução
 
 **Última atualização:** 2026-06-16 (rev. B+C aplicada)

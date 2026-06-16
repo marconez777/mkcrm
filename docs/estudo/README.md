@@ -1,10 +1,10 @@
 ---
-title: "Estudo de Conversas — Clínica ÓR"
+title: Estudo de Conversas — Clínica ÓR
 topic: ai
 kind: reference
 audience: agent
 updated: 2026-06-16
-summary: "Índice do estudo profundo de conversas do funil Agendamentos Novo da Clínica ÓR."
+summary: Índice do estudo profundo de conversas do funil Agendamentos Novo da Clínica ÓR.
 ---
 
 # Estudo de Conversas — Clínica ÓR

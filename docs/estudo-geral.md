@@ -1,10 +1,10 @@
 ---
-title: "Estudo Geral — Conversas Clínica ÓR"
+title: Estudo Geral — Conversas Clínica ÓR
 topic: ai
 kind: reference
 audience: agent
 updated: 2026-06-16
-summary: "Hub consolidado do estudo profundo de 441 leads / 3.973 mensagens / 306 áudios do funil Agendamentos Novo da Clínica ÓR. Base para treinar agente de pipeline e agente de atendimento."
+summary: Hub consolidado do estudo profundo de 441 leads / 3.973 mensagens / 306 áudios do funil Agendamentos Novo da Clínica ÓR. Base para treinar agente de pipeline e agente de atendimento.
 related_docs:
   - docs/estudo/README.md
 ---
