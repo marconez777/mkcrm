@@ -3757,6 +3757,119 @@ export type Database = {
           },
         ]
       }
+      lead_reclassify_proposals: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          batch_tag: string
+          clinic_id: string
+          confidence: number
+          cost_usd: number | null
+          created_at: string
+          current_stage_id: string
+          error: string | null
+          id: string
+          lead_id: string
+          model: string
+          proposed_custom_fields: Json
+          proposed_stage_id: string
+          reasoning: string
+          status: string
+          tokens_in: number | null
+          tokens_out: number | null
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          batch_tag: string
+          clinic_id: string
+          confidence: number
+          cost_usd?: number | null
+          created_at?: string
+          current_stage_id: string
+          error?: string | null
+          id?: string
+          lead_id: string
+          model: string
+          proposed_custom_fields?: Json
+          proposed_stage_id: string
+          reasoning: string
+          status?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          batch_tag?: string
+          clinic_id?: string
+          confidence?: number
+          cost_usd?: number | null
+          created_at?: string
+          current_stage_id?: string
+          error?: string | null
+          id?: string
+          lead_id?: string
+          model?: string
+          proposed_custom_fields?: Json
+          proposed_stage_id?: string
+          reasoning?: string
+          status?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_reclassify_proposals_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_reclassify_proposals_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_reclassify_snapshot_2026_06: {
+        Row: {
+          clinic_id: string
+          custom_fields: Json
+          lead_id: string
+          snapshotted_at: string
+          stage_id: string
+        }
+        Insert: {
+          clinic_id: string
+          custom_fields: Json
+          lead_id: string
+          snapshotted_at?: string
+          stage_id: string
+        }
+        Update: {
+          clinic_id?: string
+          custom_fields?: Json
+          lead_id?: string
+          snapshotted_at?: string
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_reclassify_snapshot_2026_06_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_reply_counters: {
         Row: {
           clinic_id: string
@@ -6854,6 +6967,10 @@ export type Database = {
           messages_30d: number
         }[]
       }
+      apply_reclassify_proposal: {
+        Args: { _proposal_id: string }
+        Returns: Json
+      }
       broadcast_freeze_audience: {
         Args: {
           _broadcast_id: string
@@ -7149,6 +7266,10 @@ export type Database = {
           locked: boolean
           retry_after_seconds: number
         }[]
+      }
+      reject_reclassify_proposal: {
+        Args: { _proposal_id: string }
+        Returns: Json
       }
       release_domain_warmup: {
         Args: { _clinic_id: string; _domain: string }
