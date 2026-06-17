@@ -57,25 +57,27 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 
 ## 3. Mapeamento de colunas (atual → novo)
 
-> Contagens snapshot 2026-06-17. Atualizar antes do cutover.
+> Snapshot 2026-06-17. Pipeline `Agendamentos Novo` (`737242e7-8efc-4a8f-9fed-f09c6e5dc227`), 1.636 leads. Pipelines secundários `Medicos Parceiros` (9 leads) e `Formulário Site` (0) **não entram** na reestruturação — ficam como estão.
 
-| # | Coluna atual | Leads | Coluna nova | Observação |
-|---|---|---:|---|---|
-| 1 | Leads de entrada | ? | **Leads de entrada** | Sem mudança semântica. |
-| 2 | Paciente antigo | ? | **Paciente antigo** | Sem mudança. |
-| 3 | Qualificação | ? | **Qualificação** | Recebe também "Fechamento pendente". |
-| 4 | Consulta agendada | ? | **Consulta agendada** | Backfill cria `appointment` se `consulta_agendada_em` é futuro. |
-| 5 | Fechamento pendente consulta | ? | **Qualificação** | Decisão #3. |
-| 6 | Fechamento pendente procedimento | 26 | **Qualificação** | Decisão #3. |
-| 7 | Procedimento agendado | ? | **Procedimento agendado** | Sem mudança. |
-| 8 | Procedimento pago | ? | **Procedimento pago** | Sem mudança. |
-| 9 | Em tratamento | ? | **Em tratamento** ou **Paciente antigo** | Decisão #4 — só fica em tratamento se `sessao_total` preenchido. |
-| 10 | Lead parou de responder | ? | **Sem resposta** | Renomeada. |
-| 11 | Lead não qualificado | ? | **Desqualificado / Fora de escopo** | Splitting por motivo (B2B, fora de SP, internação, sem perfil). |
-| 12 | Retorno tratamento finalizado | ? | **Paciente antigo** | Consolidação. |
-| 13 | Antigo consulta/procedimento agendado | ? | **Consulta agendada** ou **Procedimento agendado** | Pelo campo correspondente. |
-| 14 | Nutrição de leads inativos | ? | **Nutrição inativa** | Sem mudança. |
+| Pos | Coluna atual | Leads | Coluna nova | Observação |
+|---:|---|---:|---|---|
+| 0 | Leads de entrada | 29 | **Leads de entrada** | Sem mudança. |
+| 1 | Paciente antigo | 542 | **Paciente antigo** | Sem mudança. **Coluna mais cheia — risco de classificação rasa.** |
+| 2 | Qualificação | 13 | **Qualificação** | Recebe também "Fechamento pendente". |
+| 3 | Consulta Agendada | 2 | **Consulta agendada** | Backfill em `appointments` se `consulta_agendada_em` futuro. |
+| 5 | Consulta finalizada | 16 | **Em tratamento** ou **Paciente antigo** | **Coluna não prevista no plano original.** Decisão pendente — proposta: se `sessao_total > 0` vira "Em tratamento", senão "Paciente antigo". |
+| 6 | Fechamento pendente consulta | 20 | **Qualificação** | Decisão #3. |
+| 7 | lead parou de responder | 14 | **Sem resposta** | Renomeada. |
+| 8 | Lead não qualificado | 8 | **Desqualificado / Fora de escopo** | Splitting por motivo. |
+| 9 | Fechamento pendente procedimento | 6 | **Qualificação** | Decisão #3. |
+| 10 | Procedimento Agendado | 13 | **Procedimento agendado** | Sem mudança. |
+| 11 | Procedimento pago | 7 | **Procedimento pago** | Sem mudança. |
+| 12 | Retorno Tratamento Finalizado | 10 | **Paciente antigo** | Consolidação. |
+| 13 | Antigo Consulta/procedimento agendado | 5 | **Consulta agendada** ou **Procedimento agendado** | Pelo campo correspondente. |
+| 14 | Nutrição de Leads Inativos | 686 | **Nutrição inativa** | Sem mudança. **42% da base.** |
 | 15 | Administrativo | 265 | **B2B / Stakeholders** | Decisão #2. |
+
+**Total: 1.636 leads. Gap na posição 4 (nunca existiu).**
 
 **Stages novos (9 colunas finais):**
 
