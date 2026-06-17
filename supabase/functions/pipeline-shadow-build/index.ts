@@ -341,6 +341,7 @@ Deno.serve(async (req) => {
   let body: Body;
   try { body = await req.json(); } catch { return json({ error: "invalid JSON" }, 400); }
 
+  let debug: any = { has_token: !!token };
   if (!authorized && token) {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -349,20 +350,21 @@ Deno.serve(async (req) => {
       anonKey,
       { global: { headers: { Authorization: `Bearer ${token}`, apikey: anonKey } } },
     );
-    const { data: userRes } = await userClient.auth.getUser(token);
-    const userId = userRes?.user?.id ?? null;
+    const userRes = await userClient.auth.getUser(token);
+    const userId = userRes.data?.user?.id ?? null;
+    debug.user_id = userId;
+    debug.get_user_err = userRes.error?.message ?? null;
     if (userId && body?.clinic_id) {
-      // valida via service-role (evita depender de RLS / RPC com auth.uid()):
       const svc = sb();
-      const [{ data: mem }, { data: isAdmin }] = await Promise.all([
-        svc.from("clinic_members").select("user_id").eq("clinic_id", body.clinic_id).eq("user_id", userId).maybeSingle(),
-        svc.rpc("is_super_admin", { _user_id: userId }).then((r) => r).catch(() => ({ data: null })),
-      ]);
-      if (mem || isAdmin === true) authorized = true;
+      const memRes = await svc.from("clinic_members").select("user_id, role").eq("clinic_id", body.clinic_id).eq("user_id", userId).maybeSingle();
+      const adminRes = await svc.rpc("is_super_admin", { _user_id: userId });
+      debug.member = memRes.data; debug.member_err = memRes.error?.message ?? null;
+      debug.is_admin = adminRes.data; debug.admin_err = adminRes.error?.message ?? null;
+      if (memRes.data || adminRes.data === true) authorized = true;
     }
   }
+  if (!authorized) return json({ error: "service-role token or clinic member required", debug }, 401);
 
-  if (!authorized) return json({ error: "service-role token or clinic member required", debug: { has_token: !!token, token_prefix: token.slice(0, 12), body_clinic: body?.clinic_id } }, 401);
 
 
 
