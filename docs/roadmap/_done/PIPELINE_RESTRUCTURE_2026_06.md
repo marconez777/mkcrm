@@ -22,9 +22,9 @@ related_docs:
 status: entregue
 ---
 
-# Reestruturação do Pipeline Clínica ÓR — 2026-06
+# Reestruturação do Pipeline Clínica ÓR — 2026-06 — ENTREGUE
 
-> Documento vivo. Atualizar a seção §11 "Diário de execução" a cada fase concluída. Quando todas as fases estiverem entregues, mover para `docs/roadmap/_done/` e atualizar `docs/flows/PIPELINE_DERIVED.md` com o estado final.
+> **Status:** ✅ ENTREGUE em 2026-06-17 (F0→F7 no mesmo dia). Documento movido para `docs/roadmap/_done/`. Sucedeu `docs/roadmap/CLINIC_PIPELINE.md`. Estado final do pipeline vive em `docs/flows/PIPELINE_DERIVED.md` e `docs/maps/KANBAN_LEADS.md`.
 
 ---
 
