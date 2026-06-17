@@ -4,7 +4,7 @@ topic: ai
 kind: map
 audience: agent
 updated: 2026-06-17
-summary: "Catálogo canônico dos custom_fields que o pipeline IA escreve em `leads.custom_fields`. Define nome, tipo, enum, quem escreve, quem lê. Fonte única de verdade para extractor + field-rules + AIBadges."
+summary: Catálogo canônico dos custom_fields que o pipeline IA escreve em `leads.custom_fields`. Define nome, tipo, enum, quem escreve, quem lê. Fonte única de verdade para extractor + field-rules + AIBadges.
 code_refs:
   - supabase/functions/extractor-tick/
   - supabase/functions/vision-tick/
