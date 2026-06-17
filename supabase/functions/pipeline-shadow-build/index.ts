@@ -138,7 +138,7 @@ async function doCreate(
   const perStage: Record<string, number> = {};
   let unmapped = 0;
 
-  for (const l of (leads ?? []) as SourceLead[]) {
+  for (const l of leads as SourceLead[]) {
     if (alreadyShadowed.has(l.id)) continue;
     const srcName = l.stage_id ? srcById.get(l.stage_id) : null;
     if (!srcName) { unmapped++; continue; }
