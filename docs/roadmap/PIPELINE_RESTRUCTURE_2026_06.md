@@ -65,7 +65,7 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 | 1 | Paciente antigo | 542 | **Paciente antigo** | Sem mudança. **Coluna mais cheia — risco de classificação rasa.** |
 | 2 | Qualificação | 13 | **Qualificação** | Recebe também "Fechamento pendente". |
 | 3 | Consulta Agendada | 2 | **Consulta agendada** | Backfill em `appointments` se `consulta_agendada_em` futuro. |
-| 5 | Consulta finalizada | 16 | **Em tratamento** ou **Paciente antigo** | **Coluna não prevista no plano original.** Decisão pendente — proposta: se `sessao_total > 0` vira "Em tratamento", senão "Paciente antigo". |
+| 5 | Consulta finalizada | 16 | **Consulta finalizada** | Coluna própria (decisão 2026-06-17). Field-rule: `status_consulta = realizada AND NOT (procedimento_agendado_em is_future OR pagamento_confirmado)`. |
 | 6 | Fechamento pendente consulta | 20 | **Qualificação** | Decisão #3. |
 | 7 | lead parou de responder | 14 | **Sem resposta** | Renomeada. |
 | 8 | Lead não qualificado | 8 | **Desqualificado / Fora de escopo** | Splitting por motivo. |
@@ -79,23 +79,24 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 
 **Total: 1.636 leads. Gap na posição 4 (nunca existiu).**
 
-**Stages novos (9 colunas finais):**
+**Stages novos (10 colunas + 2 laterais):**
 
 ```text
-0. Leads de entrada
-1. Qualificação
-2. Consulta agendada
-3. Procedimento agendado
-4. Procedimento pago
-5. Em tratamento
-6. Paciente antigo
-7. Sem resposta
-8. Nutrição inativa
-9. B2B / Stakeholders        ← coluna lateral, não conta em funil
-10. Desqualificado / Fora de escopo  ← coluna lateral
+ 0. Leads de entrada
+ 1. Qualificação
+ 2. Consulta agendada
+ 3. Consulta finalizada           ← decisão 2026-06-17: coluna própria
+ 4. Procedimento agendado
+ 5. Procedimento pago
+ 6. Em tratamento
+ 7. Paciente antigo
+ 8. Sem resposta
+ 9. Nutrição inativa
+10. B2B / Stakeholders            ← lateral, is_archive=true
+11. Desqualificado / Fora de escopo  ← lateral, is_archive=true
 ```
 
-(O Kanban deve marcar 9 e 10 como `is_archive=true` para não entrar em métricas de conversão.)
+"Consulta finalizada" representa o lead **após** a primeira consulta, **antes** de procedimento agendado/pago — útil para medir conversão consulta→procedimento.
 
 ---
 
@@ -133,6 +134,7 @@ Campos já existentes preservados: `qualificacao`, `tipo_atendimento`, `consulta
 | 170 | Procedimento pago | `pagamento_confirmado = true AND (sessao_emt OR sessao_cetamina)` | Procedimento pago |
 | 160 | Procedimento agendado | `procedimento_agendado_em is_future` | Procedimento agendado |
 | 150 | Em tratamento (pacote ativo) | `sessao_total > 0 AND saldo_sessoes_pacote > 0` | Em tratamento |
+| 140 | Consulta finalizada | `status_consulta = realizada AND procedimento_agendado_em IS NULL AND pagamento_confirmado != true` | Consulta finalizada |
 | 130 | Consulta agendada | `consulta_agendada_em is_future` | Consulta agendada |
 | 100 | Qualificação | `qualificacao in (interessado, em_negociacao) OR tentou_agendar OR tentou_pagamento` | Qualificação |
 | 80 | Paciente antigo | `sessao_total > 0 AND saldo_sessoes_pacote = 0` | Paciente antigo |
@@ -147,7 +149,7 @@ Campos já existentes preservados: `qualificacao`, `tipo_atendimento`, `consulta
 | `stage_idle` em "Nutrição inativa" | 30 d | tarefa de revisão para humano |
 | Risco clínico detectado | imediato | `ai_paused=true`, `manual_lock_until=+7d`, tag `risco_clinico`, INSERT em `lead_tasks` |
 
-> Verificar na Fase 0 se a engine de `automations` suporta `trigger_type='no_reply_after'` e `'stage_idle'`. Se não suportar, esses ficam em backlog separado — não bloqueiam o cutover.
+> **F0 confirmou (2026-06-17):** engine suporta `no_reply_after`, `stage_idle` e `before_appointment` em produção. Entram normalmente na F1.
 
 ---
 
@@ -312,14 +314,26 @@ Hooks e páginas a tocar na F1 (adicionar `.is('shadow_of_lead_id', null)` ou si
 - `src/pages/MetricsOps.tsx` — funil/conversão
 - `src/pages/MetricsAiUsage.tsx` — custos por lead
 
-**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro. Decisão pendente.
+**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro.
 
-### Decisões pendentes para abrir F1
+### Decisões tomadas em 2026-06-17 (desbloqueando F1)
 
-1. **"Consulta finalizada" (16 leads)** — mapear para "Em tratamento" (se `sessao_total > 0`) ou "Paciente antigo"? Ou criar coluna própria?
-2. **View `leads_live` vs filtros espalhados** — qual estratégia preferimos para shadows não vazarem em produção?
+1. ✅ **"Consulta finalizada" vira coluna própria** no pipeline novo (posição 3, entre "Consulta agendada" e "Procedimento agendado"). Field-rule prio 140 — ver §5.1.
+2. ✅ **Estratégia de isolamento: VIEW `leads_live`**. F1 cria a view e migra os 7 hooks/páginas listados acima. Hooks que escrevem (insert/update) continuam usando `leads` direto.
 
-| 2026-06-17 | F1 | ⏸️ Aguardando 2 decisões acima | — | — |
+### Escopo final da F1 (migration única)
+
+1. Coluna `leads.shadow_of_lead_id uuid REFERENCES leads(id) ON DELETE CASCADE` + índice parcial `WHERE shadow_of_lead_id IS NOT NULL`.
+2. View `public.leads_live` = `SELECT * FROM leads WHERE shadow_of_lead_id IS NULL`. GRANT SELECT pros mesmos roles de `leads`. Security barrier para respeitar RLS.
+3. Tabela `appointments` (lead_id, kind, scheduled_at, status, notes, created_by, created_at, updated_at) + RLS no padrão `current_clinic_id()` + GRANTs + trigger `set_updated_at` + função `recompute_lead_appointment_summary`.
+4. Pipeline novo `Clínica ÓR (novo)` (`is_default=false`) com **12 stages** (10 funil + 2 laterais com `is_archive=true`).
+5. 10 field-rules da §5.1 apontando pros stages novos.
+6. Trigger `trg_lead_risk_handler` — criado mas **`enabled=false`** até o cutover (F4 lista pra revisão, F6 ativa).
+7. 5 automações da §5.2 vinculadas aos stages novos, **`enabled=false`** até cutover.
+
+Em paralelo (não na migration): edits nos 7 hooks pra trocar `from('leads')` → `from('leads_live')` em queries de leitura. Listo arquivo-a-arquivo no PR da F1.
+
+| 2026-06-17 | F1 | 🔜 Pronta para abrir | — | Aguardando seu OK pra escrever a migration |
 
 ---
 
