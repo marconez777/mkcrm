@@ -149,7 +149,7 @@ Campos já existentes preservados: `qualificacao`, `tipo_atendimento`, `consulta
 | `stage_idle` em "Nutrição inativa" | 30 d | tarefa de revisão para humano |
 | Risco clínico detectado | imediato | `ai_paused=true`, `manual_lock_until=+7d`, tag `risco_clinico`, INSERT em `lead_tasks` |
 
-> Verificar na Fase 0 se a engine de `automations` suporta `trigger_type='no_reply_after'` e `'stage_idle'`. Se não suportar, esses ficam em backlog separado — não bloqueiam o cutover.
+> **F0 confirmou (2026-06-17):** engine suporta `no_reply_after`, `stage_idle` e `before_appointment` em produção. Entram normalmente na F1.
 
 ---
 
