@@ -166,13 +166,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "agent_memory_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
       agent_personas: {
@@ -846,13 +839,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ai_insights_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ai_kb_defaults: {
@@ -1109,13 +1095,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ai_threads_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ai_usage: {
@@ -1260,13 +1239,6 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "appointments_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
             referencedColumns: ["id"]
           },
         ]
@@ -1637,13 +1609,6 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "broadcast_recipients_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
             referencedColumns: ["id"]
           },
         ]
@@ -3599,13 +3564,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_ai_extraction_runs_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "lead_ai_extraction_runs_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
@@ -3678,13 +3636,6 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: true
             referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_ai_settings_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: true
-            referencedRelation: "leads_live"
             referencedColumns: ["id"]
           },
         ]
@@ -3887,13 +3838,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_stage_history_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "lead_stage_history_moved_by_agent_id_fkey"
             columns: ["moved_by_agent_id"]
             isOneToOne: false
@@ -4010,13 +3954,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_thread_classifications_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "lead_thread_classifications_promoted_eval_id_fkey"
             columns: ["promoted_eval_id"]
             isOneToOne: false
@@ -4060,7 +3997,6 @@ export type Database = {
           pinned_at: string | null
           pipeline_id: string | null
           position: number
-          shadow_of_lead_id: string | null
           stage_changed_at: string
           stage_id: string | null
           tags: string[]
@@ -4105,7 +4041,6 @@ export type Database = {
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
-          shadow_of_lead_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
@@ -4150,7 +4085,6 @@ export type Database = {
           pinned_at?: string | null
           pipeline_id?: string | null
           position?: number
-          shadow_of_lead_id?: string | null
           stage_changed_at?: string
           stage_id?: string | null
           tags?: string[]
@@ -4174,20 +4108,6 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_shadow_of_lead_id_fkey"
-            columns: ["shadow_of_lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_shadow_of_lead_id_fkey"
-            columns: ["shadow_of_lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
             referencedColumns: ["id"]
           },
           {
@@ -4546,13 +4466,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "messages_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
       payment_receipts: {
@@ -4651,13 +4564,6 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_replies_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
             referencedColumns: ["id"]
           },
         ]
@@ -6074,13 +5980,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "tracking_identity_links_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
       tracking_lead_sources: {
@@ -6689,13 +6588,6 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "whatsapp_intents_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
@@ -6757,187 +6649,6 @@ export type Database = {
           sent_today: number | null
         }
         Relationships: []
-      }
-      leads_live: {
-        Row: {
-          ai_review_queued_at: string | null
-          ai_review_reasons: string[] | null
-          ai_summary: string | null
-          ai_summary_at: string | null
-          archived_at: string | null
-          attendant_id: string | null
-          avatar_url: string | null
-          clinic_id: string | null
-          company: string | null
-          created_at: string | null
-          custom_fields: Json | null
-          deal_value: number | null
-          email: string | null
-          fbclid: string | null
-          form_source: string | null
-          gclid: string | null
-          id: string | null
-          is_internal_contact: boolean | null
-          landing_page: string | null
-          last_classified_at: string | null
-          last_human_activity_at: string | null
-          last_message_at: string | null
-          last_message_preview: string | null
-          last_site_activity_at: string | null
-          manual_lock_until: string | null
-          marked_unread: boolean | null
-          name: string | null
-          needs_ai_review: boolean | null
-          notes: string | null
-          phone: string | null
-          pinned_at: string | null
-          pipeline_id: string | null
-          position: number | null
-          shadow_of_lead_id: string | null
-          stage_changed_at: string | null
-          stage_id: string | null
-          tags: string[] | null
-          unread_count: number | null
-          updated_at: string | null
-          utm_campaign: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          whatsapp_instance_id: string | null
-        }
-        Insert: {
-          ai_review_queued_at?: string | null
-          ai_review_reasons?: string[] | null
-          ai_summary?: string | null
-          ai_summary_at?: string | null
-          archived_at?: string | null
-          attendant_id?: string | null
-          avatar_url?: string | null
-          clinic_id?: string | null
-          company?: string | null
-          created_at?: string | null
-          custom_fields?: Json | null
-          deal_value?: number | null
-          email?: string | null
-          fbclid?: string | null
-          form_source?: string | null
-          gclid?: string | null
-          id?: string | null
-          is_internal_contact?: boolean | null
-          landing_page?: string | null
-          last_classified_at?: string | null
-          last_human_activity_at?: string | null
-          last_message_at?: string | null
-          last_message_preview?: string | null
-          last_site_activity_at?: string | null
-          manual_lock_until?: string | null
-          marked_unread?: boolean | null
-          name?: string | null
-          needs_ai_review?: boolean | null
-          notes?: string | null
-          phone?: string | null
-          pinned_at?: string | null
-          pipeline_id?: string | null
-          position?: number | null
-          shadow_of_lead_id?: string | null
-          stage_changed_at?: string | null
-          stage_id?: string | null
-          tags?: string[] | null
-          unread_count?: number | null
-          updated_at?: string | null
-          utm_campaign?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          whatsapp_instance_id?: string | null
-        }
-        Update: {
-          ai_review_queued_at?: string | null
-          ai_review_reasons?: string[] | null
-          ai_summary?: string | null
-          ai_summary_at?: string | null
-          archived_at?: string | null
-          attendant_id?: string | null
-          avatar_url?: string | null
-          clinic_id?: string | null
-          company?: string | null
-          created_at?: string | null
-          custom_fields?: Json | null
-          deal_value?: number | null
-          email?: string | null
-          fbclid?: string | null
-          form_source?: string | null
-          gclid?: string | null
-          id?: string | null
-          is_internal_contact?: boolean | null
-          landing_page?: string | null
-          last_classified_at?: string | null
-          last_human_activity_at?: string | null
-          last_message_at?: string | null
-          last_message_preview?: string | null
-          last_site_activity_at?: string | null
-          manual_lock_until?: string | null
-          marked_unread?: boolean | null
-          name?: string | null
-          needs_ai_review?: boolean | null
-          notes?: string | null
-          phone?: string | null
-          pinned_at?: string | null
-          pipeline_id?: string | null
-          position?: number | null
-          shadow_of_lead_id?: string | null
-          stage_changed_at?: string | null
-          stage_id?: string | null
-          tags?: string[] | null
-          unread_count?: number | null
-          updated_at?: string | null
-          utm_campaign?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          whatsapp_instance_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "leads_attendant_id_fkey"
-            columns: ["attendant_id"]
-            isOneToOne: false
-            referencedRelation: "attendants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_shadow_of_lead_id_fkey"
-            columns: ["shadow_of_lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_shadow_of_lead_id_fkey"
-            columns: ["shadow_of_lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads_live"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_whatsapp_instance_id_fkey"
-            columns: ["whatsapp_instance_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_instances"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Functions: {
