@@ -157,41 +157,132 @@ export default function AdminReclassify() {
         actions={<Button variant="outline" size="sm" onClick={load}><RefreshCw className="size-4" /></Button>}
       />
 
-      <div className="rounded-lg border p-4 space-y-3">
+      <div className="rounded-lg border p-4 space-y-4">
         <div className="font-medium">Disparar reclassificação</div>
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-          <Input placeholder="batch_tag" value={batchTag} onChange={(e) => setBatchTag(e.target.value)} />
-          <Input placeholder="lead_id (opcional)" value={singleLeadId} onChange={(e) => setSingleLeadId(e.target.value)} className="md:col-span-2" />
-          <Select value={clinicId} onValueChange={setClinicId}>
-            <SelectTrigger><SelectValue placeholder="Clínica" /></SelectTrigger>
-            <SelectContent>
-              {clinics.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={stageId} onValueChange={setStageId} disabled={!clinicId}>
-            <SelectTrigger><SelectValue placeholder={clinicId ? "Stage (lote)" : "Escolha clínica"} /></SelectTrigger>
-            <SelectContent>
-              {filteredStages.map((s) => {
-                const pipe = pipelines.find((p) => p.id === s.pipeline_id);
-                return (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name} <span className="text-xs text-muted-foreground">· {pipe?.name}</span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-          <Input type="number" placeholder="limit" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-sm">
-              <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} /> dry-run
+
+        {/* Linha 1: clínica + batch_tag */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Clínica</label>
+            <Select value={clinicId} onValueChange={setClinicId}>
+              <SelectTrigger><SelectValue placeholder="Todas as clínicas" /></SelectTrigger>
+              <SelectContent>
+                {clinics.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Batch tag</label>
+            <Input value={batchTag} onChange={(e) => setBatchTag(e.target.value)} />
+          </div>
+          <div className="space-y-1 flex flex-col">
+            <label className="text-xs text-muted-foreground">Opções</label>
+            <label className="flex items-center gap-2 text-sm h-10 px-3 rounded-md border">
+              <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+              dry-run (não salva proposta)
             </label>
-            <Button onClick={runBatch} disabled={running}>
-              {running ? <Loader2 className="size-4 animate-spin" /> : "Rodar"}
-            </Button>
           </div>
         </div>
+
+        {/* Modo A: lead único */}
+        <div className="rounded-md border p-3 space-y-2 bg-muted/30">
+          <div className="text-sm font-medium">A) Reclassificar um lead específico</div>
+          <Popover open={leadPickerOpen} onOpenChange={setLeadPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                {selectedLead
+                  ? <span className="truncate">{selectedLead.name ?? "(sem nome)"} · {selectedLead.phone}</span>
+                  : <span className="text-muted-foreground">Buscar lead por nome, telefone ou ID…</span>}
+                <ChevronsUpDown className="size-4 opacity-50 ml-2 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput placeholder="Digite nome, telefone ou ID…" value={leadSearch} onValueChange={setLeadSearch} />
+                <CommandList>
+                  {leadSearching && <div className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="size-3 animate-spin" /> buscando…</div>}
+                  <CommandEmpty>Nenhum lead encontrado.</CommandEmpty>
+                  <CommandGroup>
+                    {leadOptions.map((l) => {
+                      const clinic = clinics.find((c) => c.id === l.clinic_id);
+                      return (
+                        <CommandItem key={l.id} value={l.id} onSelect={() => {
+                          setSelectedLead(l); setLeadPickerOpen(false);
+                        }}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{l.name ?? "(sem nome)"} · {l.phone}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {clinic?.name ?? "—"} · {l.stage_id ? stageName(l.stage_id) : "sem stage"}
+                            </span>
+                          </div>
+                          {selectedLead?.id === l.id && <Check className="size-4 ml-auto" />}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          {selectedLead && (
+            <Button size="sm" variant="ghost" onClick={() => setSelectedLead(null)}>Limpar seleção</Button>
+          )}
+        </div>
+
+        {/* Modo B: lote por coluna */}
+        <div className="rounded-md border p-3 space-y-2 bg-muted/30">
+          <div className="text-sm font-medium">B) Reclassificar um lote de uma coluna inteira</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="md:col-span-2">
+              <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" disabled={!clinicId} className="w-full justify-between font-normal">
+                    {stageId
+                      ? <span className="truncate">{stageName(stageId)} · {pipelines.find(p => p.id === stages.find(s => s.id === stageId)?.pipeline_id)?.name}</span>
+                      : <span className="text-muted-foreground">{clinicId ? "Buscar coluna…" : "Escolha uma clínica primeiro"}</span>}
+                    <ChevronsUpDown className="size-4 opacity-50 ml-2 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                  <Command>
+                    <CommandInput placeholder="Filtrar coluna…" />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma coluna.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredStages.map((s) => {
+                          const pipe = pipelines.find((p) => p.id === s.pipeline_id);
+                          return (
+                            <CommandItem key={s.id} value={`${s.name} ${pipe?.name ?? ""}`} onSelect={() => {
+                              setStageId(s.id); setStagePickerOpen(false);
+                            }}>
+                              <div className="flex flex-col gap-0.5">
+                                <span>{s.name}</span>
+                                <span className="text-xs text-muted-foreground">{pipe?.name}</span>
+                              </div>
+                              {stageId === s.id && <Check className="size-4 ml-auto" />}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
+              <Input type="number" min={1} max={500} value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))} placeholder="limite de leads" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={runBatch} disabled={running} size="lg">
+            {running ? <><Loader2 className="size-4 animate-spin mr-2" /> Rodando…</> : "Rodar reclassificação"}
+          </Button>
+        </div>
       </div>
+
 
       <div className="flex items-center gap-2">
         <span className="text-sm">Status:</span>
