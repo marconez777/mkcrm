@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { toast } from "@/hooks/use-toast";
 import { AdminPageHeader } from "@/layouts/AdminShell";
-import { Loader2, Check, X, RefreshCw } from "lucide-react";
+import { Loader2, Check, X, RefreshCw, ChevronsUpDown } from "lucide-react";
 
 interface Proposal {
   id: string;
@@ -25,7 +27,7 @@ interface Proposal {
 interface Stage { id: string; name: string; pipeline_id: string }
 interface Pipeline { id: string; name: string; clinic_id: string }
 interface Clinic { id: string; name: string }
-interface Lead { id: string; name: string | null; phone: string }
+interface Lead { id: string; name: string | null; phone: string; clinic_id?: string; stage_id?: string | null }
 
 export default function AdminReclassify() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -41,7 +43,16 @@ export default function AdminReclassify() {
   const [limit, setLimit] = useState(5);
   const [dryRun, setDryRun] = useState(false);
   const [running, setRunning] = useState(false);
-  const [singleLeadId, setSingleLeadId] = useState("");
+
+  // Lead picker
+  const [leadPickerOpen, setLeadPickerOpen] = useState(false);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [leadOptions, setLeadOptions] = useState<Lead[]>([]);
+  const [leadSearching, setLeadSearching] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // Stage picker
+  const [stagePickerOpen, setStagePickerOpen] = useState(false);
 
   async function loadMeta() {
     const [{ data: cs }, { data: ps }, { data: st }] = await Promise.all([
