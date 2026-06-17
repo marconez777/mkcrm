@@ -1,81 +1,112 @@
+# Fase 1 — Infra de reclassificação profunda
 
-# Criar doc viva da reestruturação do Pipeline ÓR
+Decisão fechada na pergunta 1: **a IA pode mover leads para Paciente antigo, B2B ou Desqualificado** quando identificar isso na conversa (só não revisita os que já estão nessas 3 colunas).
 
-## Arquivo único
+## Entregas da F1
 
-**`docs/roadmap/PIPELINE_RESTRUCTURE_2026_06.md`** (frontmatter `topic: roadmap`, `kind: roadmap`, `audience: agent`, `updated: 2026-06-17`).
-
-Serve como **fonte única de verdade** do projeto até o cutover. Marco entregue = movemos pra `docs/flows/PIPELINE_DERIVED.md` + arquivamos este.
-
-## Estrutura do doc
-
-```text
-1. Contexto e objetivo
-   - 1.625 leads, 15 colunas atuais → 9 colunas novas
-   - Problemas observados no estudo (admin misturado com lead, fora de escopo
-     sem coluna, risco clínico sem sinalização, etc.)
-
-2. Decisões aprovadas
-   - Orçamento de IA: até US$ 3 para reclassificação em lote
-   - Administrativo = 100% B2B → vira B2B/Stakeholders, exceto fornecedor
-   - "Fechamento pendente" → Qualificação
-   - "Em tratamento" exige sessao_total; sem isso → Paciente antigo
-   - Estratégia: pipeline-sombra dentro da Clínica ÓR (não tocar no atual
-     durante o teste)
-
-3. Mapeamento de colunas (atual → novo)
-   Tabela com as 15 colunas atuais, contagem de leads, e o stage destino.
-
-4. Novos custom_fields contratados
-   Tabela: nome, tipo, enum, escrito por, lido por.
-   (interesse_inicial, servicos_ativos[], tipo_contato, contato_eh_terceiro,
-    responsavel, risco_clinico, is_b2b, resumo_*)
-
-5. Novas field-rules (6) e automações (5)
-   Tabela com priority, condições, target_stage.
-
-6. Estratégia pipeline-sombra
-   Diagrama ASCII (atual / durante teste / após cutover).
-   Coluna leads.shadow_of_lead_id ligando cópia ↔ original.
-   Por que é segura: time não percebe; rollback = DROP.
-
-7. Plano de execução (8 fases)
-   F0 verificações · F1 schema · F2 contrato · F3 shadows + IA lote
-   F4 avaliação · F5 cutover atômico · F6 limpeza · F7 doc final
-   Cada fase com: o que entrega, riscos, critério de aceite, owner.
-
-8. Riscos e mitigações
-   Tabela.
-
-9. Custo de IA estimado
-   ~1.300 leads × ~$0.0015 ≈ US$ 2 (gpt-5-nano).
-   Halt automático se passar de US$ 2.80.
-
-10. Checklist de cutover
-    Passos manuais no dia do switch (banner UI, horário combinado,
-    verificação pós-cutover, comunicação ao time).
-
-11. Status / Diário de execução
-    Seção viva atualizada a cada fase concluída, com data e link
-    pro PR/migration.
-
-12. Critérios de "entregue"
-    - 0 leads no pipeline antigo
-    - DRIFT.md limpo
-    - docs/flows/PIPELINE_DERIVED.md atualizado
-    - este arquivo movido pra docs/roadmap/_done/
+### 1.1 Migration — tabela `lead_reclassify_proposals`
+```sql
+create table public.lead_reclassify_proposals (
+  id uuid pk default gen_random_uuid(),
+  clinic_id uuid not null references clinics(id) on delete cascade,
+  lead_id uuid not null references leads(id) on delete cascade,
+  batch_tag text not null,                    -- ex: 'F2-consulta-agendada'
+  current_stage_id uuid not null,
+  proposed_stage_id uuid not null,
+  proposed_custom_fields jsonb not null default '{}'::jsonb,
+  confidence numeric not null,
+  reasoning text not null,
+  model text not null,
+  tokens_in int, tokens_out int, cost_usd numeric,
+  status text not null default 'pending'      -- pending|applied|rejected|skipped|error
+    check (status in ('pending','applied','rejected','skipped','error')),
+  applied_at timestamptz,
+  applied_by uuid,
+  error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+-- índices: (clinic_id, status), (lead_id), (batch_tag)
+-- GRANTs: authenticated select+update (RLS por clinic_id + has_role super_admin), service_role ALL
+-- RLS: super_admin lê/atualiza tudo; service_role bypass
 ```
 
-## Side-effects desta entrega
+### 1.2 Migration — tabela `lead_reclassify_snapshot_2026_06` (rollback)
+```sql
+create table public.lead_reclassify_snapshot_2026_06 (
+  lead_id uuid pk references leads(id) on delete cascade,
+  clinic_id uuid not null,
+  stage_id uuid not null,
+  custom_fields jsonb not null,
+  snapshotted_at timestamptz default now()
+);
+-- GRANTs: service_role ALL; sem acesso para anon/authenticated
+-- RLS enabled, sem policies (só service_role bypass)
+```
 
-- Atualizar `mem://index.md` adicionando referência:
-  `[Pipeline restructure 2026-06](mem://docs/pipeline-restructure)` apontando pro doc.
-- Atualizar `docs/roadmap/CLINIC_PIPELINE.md` com 1 parágrafo "Substituído por PIPELINE_RESTRUCTURE_2026_06.md".
-- Rodar `node scripts/docs-sync.mjs` no final pra regenerar `INDEX.json` + `DRIFT.md`.
+### 1.3 Edge function `lead-reclassify-deep`
+**`supabase/functions/lead-reclassify-deep/index.ts`**
 
-## O que NÃO faço nesta entrega
+Input:
+```ts
+{ lead_id: string, batch_tag: string, dry_run?: boolean }
+// ou em lote:
+{ stage_id: string, batch_tag: string, limit?: number, dry_run?: boolean }
+```
 
-- Nenhuma migration. Nenhum código. Nenhuma edge function.
-- Só o doc + atualização de índices. A execução começa quando você aprovar a Fase 0 dentro do próprio doc.
+Pipeline:
+1. Carrega lead + custom_fields + últimas 200 mensagens (ASC) + tasks abertas.
+2. Snapshot em `lead_reclassify_snapshot_2026_06` (upsert, só se ainda não existe).
+3. Monta prompt com:
+   - data/hora atual (timezone clínica)
+   - definição **exata** das 11 colunas (copiada de `docs/flows/PIPELINE_DERIVED.md`)
+   - lista de `custom_fields` permitidos no patch
+   - regra anti-alucinação: "só preencha `consulta_agendada_em`/`procedimento_agendado_em` se a data literal aparece no transcript"
+   - regra de paciente antigo: "se houve consulta/sessão e há >30d sem nova marcação → Paciente antigo"
+   - histórico completo formatado: `[YYYY-MM-DD HH:mm] <direção> <texto/[imagem]/[áudio: transcript]>`
+4. Chama **Lovable AI Gateway**, modelo `google/gemini-3-flash-preview`, com tool `classify_lead` (schema Zod):
+   ```ts
+   { stage: enum(11 stages), custom_fields_patch: object,
+     reasoning: string (≥40 chars), confidence: 0..1 }
+   ```
+5. Grava em `lead_reclassify_proposals` com `status='pending'` (ou `error`).
+6. Não move o lead.
 
-Posso criar?
+Salvaguardas:
+- Skip se `manual_lock_until > now()` → status=`skipped`.
+- Halt se gasto acumulado no `batch_tag` > US$ 6.
+- Dedup: se já existe proposta `pending` no mesmo `batch_tag` para o lead, pula.
+
+### 1.4 Página admin `/admin/reclassify`
+**`src/pages/admin/AdminReclassify.tsx`** + rota em `App.tsx` (protegida por `ClinicOnlyRoute` + role super_admin).
+
+UI:
+- Header: seletor de `batch_tag` + botão "Disparar reclassificação" (escolhe stage origem + limit).
+- Tabela paginada: lead (nome+phone), stage atual → proposta, confidence (barra), reasoning (expand), botões **Aprovar** / **Rejeitar**.
+- Filtros: status (pending/applied/rejected), confidence min, stage origem, stage destino.
+- Bulk: "Aprovar todas filtradas com confidence ≥ X".
+- Link "ver chat" abre `LeadDrawer` no lead.
+
+Aprovar = chama RPC `apply_reclassify_proposal(proposal_id)`:
+- move lead (UPDATE stage_id)
+- aplica `proposed_custom_fields` (merge jsonb)
+- grava `lead_stage_history` com `reason='reclassify_deep:<proposal_id>'`
+- grava `lead_events.type='stage_reclassified_deep'`
+- atualiza proposal: `status='applied'`, `applied_at=now()`, `applied_by=auth.uid()`
+
+### 1.5 Smoke test
+- Disparar manualmente em 5 leads conhecidos (os 4 das prints + 1 de "Consulta agendada" suspeito).
+- Verificar propostas no admin, aprovar 1, conferir que o card moveu no Kanban.
+
+## Critério de aceite F1
+- Migration aplicada, edge deployada, página `/admin/reclassify` carregando.
+- 5 propostas geradas via dry-run, visíveis no admin com reasoning legível.
+- 1 aprovação manual move o card corretamente.
+- Custo dos 5 ≤ US$ 0.05.
+
+## O que **não** entra na F1
+- Nada de batch automático ainda (isso é F2+).
+- Sem aprovação em massa por confidence — só botão manual (a UI já existe mas só usamos por amostragem).
+- Sem aplicação retroativa nos 965.
+
+Posso executar a F1?
