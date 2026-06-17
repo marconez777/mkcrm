@@ -269,7 +269,57 @@ COMMIT;
 
 | Data | Fase | Status | PR / Migration | Observação |
 |---|---|---|---|---|
-| 2026-06-17 | — | Documento criado | — | Plano aprovado pelo usuário. Aguardando início da F0. |
+| 2026-06-17 | — | Documento criado | — | Plano aprovado. |
+| 2026-06-17 | **F0** | ✅ Concluída | — (só leitura) | Relatório abaixo. |
+
+### F0 — Relatório de verificação (2026-06-17)
+
+**(a) Padrão de RLS para tabelas tenant**
+
+- Helper canônico: **`public.current_clinic_id()`** (não `current_user_clinic` — esse nome do plano original estava errado).
+- Padrão aplicado em `leads`, `pipeline_field_rules`, `lead_tasks` e similares:
+  ```sql
+  CREATE POLICY <nome>_tenant_all ON public.<tabela>
+    FOR ALL TO authenticated
+    USING ((clinic_id = current_clinic_id()) OR is_super_admin())
+    WITH CHECK ((clinic_id = current_clinic_id()) OR is_super_admin());
+  ```
+- A migration da F1 (`appointments`, `shadow_of_lead_id`) **deve seguir esse padrão exato**.
+
+**(b) Contagem real por coluna — Clínica ÓR**
+
+Pipeline ativo: `Agendamentos Novo` (id `737242e7-…`) com **1.636 leads** (não 1.625 como estimado).
+Contagens reais já incorporadas na §3. **Surpresa:** coluna **"Consulta finalizada" (16 leads)** existe e não estava no plano original — adicionei à tabela §3 com proposta de mapeamento, mas precisa decisão sua.
+
+**(c) Engine de `automations` — suporte a triggers temporais** ✅
+
+A engine **já suporta** os 3 trigger_types que precisamos:
+- `no_reply_after` (5 instâncias ativas em produção)
+- `stage_idle` (1 instância ativa)
+- `before_appointment` (2 instâncias — pode reaproveitar para lembrete de consulta)
+
+E as ações: `send_template`, `ai_followup`, `move_stage`. Todas cobrem o que a §5.2 do plano precisa. **Não vai pra backlog** — pode entrar na F1/F5 normalmente.
+
+**(d) Queries de produção que precisam filtrar `shadow_of_lead_id IS NULL`**
+
+Hooks e páginas a tocar na F1 (adicionar `.is('shadow_of_lead_id', null)` ou similar):
+
+- `src/hooks/useCrm.ts` — query agregada principal
+- `src/hooks/useLeadsPaginated.ts` — paginação do kanban
+- `src/hooks/useQueueData.ts` — fila/queue
+- `src/hooks/useUnreadTitle.ts` — contador de não-lidas
+- `src/pages/Kanban.tsx` — query direta
+- `src/pages/MetricsOps.tsx` — funil/conversão
+- `src/pages/MetricsAiUsage.tsx` — custos por lead
+
+**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro. Decisão pendente.
+
+### Decisões pendentes para abrir F1
+
+1. **"Consulta finalizada" (16 leads)** — mapear para "Em tratamento" (se `sessao_total > 0`) ou "Paciente antigo"? Ou criar coluna própria?
+2. **View `leads_live` vs filtros espalhados** — qual estratégia preferimos para shadows não vazarem em produção?
+
+| 2026-06-17 | F1 | ⏸️ Aguardando 2 decisões acima | — | — |
 
 ---
 
