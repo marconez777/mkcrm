@@ -57,25 +57,27 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 
 ## 3. Mapeamento de colunas (atual → novo)
 
-> Contagens snapshot 2026-06-17. Atualizar antes do cutover.
+> Snapshot 2026-06-17. Pipeline `Agendamentos Novo` (`737242e7-8efc-4a8f-9fed-f09c6e5dc227`), 1.636 leads. Pipelines secundários `Medicos Parceiros` (9 leads) e `Formulário Site` (0) **não entram** na reestruturação — ficam como estão.
 
-| # | Coluna atual | Leads | Coluna nova | Observação |
-|---|---|---:|---|---|
-| 1 | Leads de entrada | ? | **Leads de entrada** | Sem mudança semântica. |
-| 2 | Paciente antigo | ? | **Paciente antigo** | Sem mudança. |
-| 3 | Qualificação | ? | **Qualificação** | Recebe também "Fechamento pendente". |
-| 4 | Consulta agendada | ? | **Consulta agendada** | Backfill cria `appointment` se `consulta_agendada_em` é futuro. |
-| 5 | Fechamento pendente consulta | ? | **Qualificação** | Decisão #3. |
-| 6 | Fechamento pendente procedimento | 26 | **Qualificação** | Decisão #3. |
-| 7 | Procedimento agendado | ? | **Procedimento agendado** | Sem mudança. |
-| 8 | Procedimento pago | ? | **Procedimento pago** | Sem mudança. |
-| 9 | Em tratamento | ? | **Em tratamento** ou **Paciente antigo** | Decisão #4 — só fica em tratamento se `sessao_total` preenchido. |
-| 10 | Lead parou de responder | ? | **Sem resposta** | Renomeada. |
-| 11 | Lead não qualificado | ? | **Desqualificado / Fora de escopo** | Splitting por motivo (B2B, fora de SP, internação, sem perfil). |
-| 12 | Retorno tratamento finalizado | ? | **Paciente antigo** | Consolidação. |
-| 13 | Antigo consulta/procedimento agendado | ? | **Consulta agendada** ou **Procedimento agendado** | Pelo campo correspondente. |
-| 14 | Nutrição de leads inativos | ? | **Nutrição inativa** | Sem mudança. |
+| Pos | Coluna atual | Leads | Coluna nova | Observação |
+|---:|---|---:|---|---|
+| 0 | Leads de entrada | 29 | **Leads de entrada** | Sem mudança. |
+| 1 | Paciente antigo | 542 | **Paciente antigo** | Sem mudança. **Coluna mais cheia — risco de classificação rasa.** |
+| 2 | Qualificação | 13 | **Qualificação** | Recebe também "Fechamento pendente". |
+| 3 | Consulta Agendada | 2 | **Consulta agendada** | Backfill em `appointments` se `consulta_agendada_em` futuro. |
+| 5 | Consulta finalizada | 16 | **Em tratamento** ou **Paciente antigo** | **Coluna não prevista no plano original.** Decisão pendente — proposta: se `sessao_total > 0` vira "Em tratamento", senão "Paciente antigo". |
+| 6 | Fechamento pendente consulta | 20 | **Qualificação** | Decisão #3. |
+| 7 | lead parou de responder | 14 | **Sem resposta** | Renomeada. |
+| 8 | Lead não qualificado | 8 | **Desqualificado / Fora de escopo** | Splitting por motivo. |
+| 9 | Fechamento pendente procedimento | 6 | **Qualificação** | Decisão #3. |
+| 10 | Procedimento Agendado | 13 | **Procedimento agendado** | Sem mudança. |
+| 11 | Procedimento pago | 7 | **Procedimento pago** | Sem mudança. |
+| 12 | Retorno Tratamento Finalizado | 10 | **Paciente antigo** | Consolidação. |
+| 13 | Antigo Consulta/procedimento agendado | 5 | **Consulta agendada** ou **Procedimento agendado** | Pelo campo correspondente. |
+| 14 | Nutrição de Leads Inativos | 686 | **Nutrição inativa** | Sem mudança. **42% da base.** |
 | 15 | Administrativo | 265 | **B2B / Stakeholders** | Decisão #2. |
+
+**Total: 1.636 leads. Gap na posição 4 (nunca existiu).**
 
 **Stages novos (9 colunas finais):**
 
@@ -267,7 +269,57 @@ COMMIT;
 
 | Data | Fase | Status | PR / Migration | Observação |
 |---|---|---|---|---|
-| 2026-06-17 | — | Documento criado | — | Plano aprovado pelo usuário. Aguardando início da F0. |
+| 2026-06-17 | — | Documento criado | — | Plano aprovado. |
+| 2026-06-17 | **F0** | ✅ Concluída | — (só leitura) | Relatório abaixo. |
+
+### F0 — Relatório de verificação (2026-06-17)
+
+**(a) Padrão de RLS para tabelas tenant**
+
+- Helper canônico: **`public.current_clinic_id()`** (não `current_user_clinic` — esse nome do plano original estava errado).
+- Padrão aplicado em `leads`, `pipeline_field_rules`, `lead_tasks` e similares:
+  ```sql
+  CREATE POLICY <nome>_tenant_all ON public.<tabela>
+    FOR ALL TO authenticated
+    USING ((clinic_id = current_clinic_id()) OR is_super_admin())
+    WITH CHECK ((clinic_id = current_clinic_id()) OR is_super_admin());
+  ```
+- A migration da F1 (`appointments`, `shadow_of_lead_id`) **deve seguir esse padrão exato**.
+
+**(b) Contagem real por coluna — Clínica ÓR**
+
+Pipeline ativo: `Agendamentos Novo` (id `737242e7-…`) com **1.636 leads** (não 1.625 como estimado).
+Contagens reais já incorporadas na §3. **Surpresa:** coluna **"Consulta finalizada" (16 leads)** existe e não estava no plano original — adicionei à tabela §3 com proposta de mapeamento, mas precisa decisão sua.
+
+**(c) Engine de `automations` — suporte a triggers temporais** ✅
+
+A engine **já suporta** os 3 trigger_types que precisamos:
+- `no_reply_after` (5 instâncias ativas em produção)
+- `stage_idle` (1 instância ativa)
+- `before_appointment` (2 instâncias — pode reaproveitar para lembrete de consulta)
+
+E as ações: `send_template`, `ai_followup`, `move_stage`. Todas cobrem o que a §5.2 do plano precisa. **Não vai pra backlog** — pode entrar na F1/F5 normalmente.
+
+**(d) Queries de produção que precisam filtrar `shadow_of_lead_id IS NULL`**
+
+Hooks e páginas a tocar na F1 (adicionar `.is('shadow_of_lead_id', null)` ou similar):
+
+- `src/hooks/useCrm.ts` — query agregada principal
+- `src/hooks/useLeadsPaginated.ts` — paginação do kanban
+- `src/hooks/useQueueData.ts` — fila/queue
+- `src/hooks/useUnreadTitle.ts` — contador de não-lidas
+- `src/pages/Kanban.tsx` — query direta
+- `src/pages/MetricsOps.tsx` — funil/conversão
+- `src/pages/MetricsAiUsage.tsx` — custos por lead
+
+**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro. Decisão pendente.
+
+### Decisões pendentes para abrir F1
+
+1. **"Consulta finalizada" (16 leads)** — mapear para "Em tratamento" (se `sessao_total > 0`) ou "Paciente antigo"? Ou criar coluna própria?
+2. **View `leads_live` vs filtros espalhados** — qual estratégia preferimos para shadows não vazarem em produção?
+
+| 2026-06-17 | F1 | ⏸️ Aguardando 2 decisões acima | — | — |
 
 ---
 
