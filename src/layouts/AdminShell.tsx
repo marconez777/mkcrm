@@ -63,6 +63,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: "/admin/observability", label: "Observabilidade", icon: Activity },
       { to: "/admin/support", label: "Suporte IA", icon: LifeBuoy },
+      { to: "/admin/reclassify", label: "Reclassificar Leads", icon: Sparkles },
     ],
   },
   {
