@@ -347,9 +347,6 @@ Deno.serve(async (req) => {
 
 
 
-  let body: Body;
-  try { body = await req.json(); } catch { return json({ error: "invalid JSON" }, 400); }
-
   if (!body.clinic_id || !body.source_pipeline_id || !body.target_pipeline_id) {
     return json({ error: "clinic_id, source_pipeline_id, target_pipeline_id are required" }, 400);
   }
