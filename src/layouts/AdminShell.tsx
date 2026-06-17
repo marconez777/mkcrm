@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, Gauge, DollarSign,
   Activity, LifeBuoy, Plug, ShieldCheck, BookOpen, ChevronLeft, ChevronRight,
-  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart, FolderTree, LogOut,
+  Search, Bell, Sun, Moon, Command, Palette, ShoppingCart, FolderTree, LogOut, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, Link } from "react-router-dom";
