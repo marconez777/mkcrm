@@ -65,7 +65,7 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 | 1 | Paciente antigo | 542 | **Paciente antigo** | Sem mudança. **Coluna mais cheia — risco de classificação rasa.** |
 | 2 | Qualificação | 13 | **Qualificação** | Recebe também "Fechamento pendente". |
 | 3 | Consulta Agendada | 2 | **Consulta agendada** | Backfill em `appointments` se `consulta_agendada_em` futuro. |
-| 5 | Consulta finalizada | 16 | **Em tratamento** ou **Paciente antigo** | **Coluna não prevista no plano original.** Decisão pendente — proposta: se `sessao_total > 0` vira "Em tratamento", senão "Paciente antigo". |
+| 5 | Consulta finalizada | 16 | **Consulta finalizada** | Coluna própria (decisão 2026-06-17). Field-rule: `status_consulta = realizada AND NOT (procedimento_agendado_em is_future OR pagamento_confirmado)`. |
 | 6 | Fechamento pendente consulta | 20 | **Qualificação** | Decisão #3. |
 | 7 | lead parou de responder | 14 | **Sem resposta** | Renomeada. |
 | 8 | Lead não qualificado | 8 | **Desqualificado / Fora de escopo** | Splitting por motivo. |
