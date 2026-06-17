@@ -2235,7 +2235,7 @@
       "supabase/functions/extractor-tick/",
       "supabase/functions/vision-tick/",
       "supabase/functions/field-rules-tick/",
-      "src/components/kanban/AIBadges.tsx"
+      "src/pages/Kanban.tsx"
     ],
     "related_docs": [
       "docs/maps/AI_RUNTIME.md",
@@ -2244,9 +2244,7 @@
       "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md"
     ],
     "size_lines": 137,
-    "stale_refs": [
-      "src/components/kanban/AIBadges.tsx"
-    ]
+    "stale_refs": []
   },
   {
     "path": "docs/maps/EMAIL.md",
@@ -3112,7 +3110,7 @@
     "topic": "ai",
     "kind": "journey",
     "audience": "both",
-    "updated": "2026-06-11",
+    "updated": "2026-06-17",
     "summary": "Manual leigo de ponta a ponta do Pipeline IA (extractor, vision, audio, field-rules, crons e budgets) para donos de clínica.",
     "headings": [
       "1. O que é o \"Pipeline IA\"?",
@@ -3143,7 +3141,7 @@
       "docs/support/pages/settings.md",
       "docs/support/pages/kanban.md"
     ],
-    "size_lines": 287,
+    "size_lines": 301,
     "stale_refs": []
   },
   {
