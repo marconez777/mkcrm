@@ -1,8 +1,8 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T20:45:46.813Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T20:48:50.738Z_
 
-Total de docs: **171** · frontmatter atualizado neste run: **1**
+Total de docs: **171** · frontmatter atualizado neste run: **0**
 
 ## code_refs apontando para arquivo inexistente
 _(nenhum)_
