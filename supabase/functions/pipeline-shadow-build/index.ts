@@ -114,8 +114,10 @@ async function doCreate(
       .eq("clinic_id", body.clinic_id)
       .eq("pipeline_id", body.source_pipeline_id)
       .is("shadow_of_lead_id", null)
-      .order("created_at", { ascending: true })
-      .range(from, to);
+      .order("id", { ascending: true })
+      .range(from, to)
+      .limit(PAGE);
+
     if (leadsErr) return { error: leadsErr.message };
     const rows = (page ?? []) as SourceLead[];
     leads.push(...rows);
@@ -147,6 +149,15 @@ async function doCreate(
     const dstStageId = dstByName.get(dstName)!;
     perStage[dstName] = (perStage[dstName] ?? 0) + 1;
 
+    // Trigger I6 exige motivo_desqualificacao quando qualificacao=desqualificado.
+    const srcCf = (l.custom_fields ?? {}) as Record<string, unknown>;
+    const cf: Record<string, unknown> = { ...srcCf };
+    if (cf.qualificacao === "desqualificado" && !cf.motivo_desqualificacao) {
+      cf.motivo_desqualificacao = "outro";
+    }
+
+    const willExtract = NEEDS_EXTRACTION_FROM.has(srcName) && !l.is_internal_contact;
+
     toInsert.push({
       clinic_id: body.clinic_id,
       pipeline_id: body.target_pipeline_id,
@@ -155,7 +166,7 @@ async function doCreate(
       phone: l.phone,
       name: l.name,
       email: l.email,
-      custom_fields: l.custom_fields ?? {},
+      custom_fields: cf,
       tags: Array.from(new Set([...(l.tags ?? []), "shadow"])),
       is_internal_contact: l.is_internal_contact,
       whatsapp_instance_id: l.whatsapp_instance_id,
@@ -163,13 +174,12 @@ async function doCreate(
       utm_medium: l.utm_medium,
       utm_campaign: l.utm_campaign,
       attendant_id: l.attendant_id,
-      // marca pra extractor decidir depois (filtrado pelo NEEDS_EXTRACTION_FROM)
-      needs_ai_review: NEEDS_EXTRACTION_FROM.has(srcName) && !l.is_internal_contact,
-      ai_review_queued_at: NEEDS_EXTRACTION_FROM.has(srcName) && !l.is_internal_contact
-        ? new Date().toISOString() : null,
-      ai_review_reasons: NEEDS_EXTRACTION_FROM.has(srcName) ? ["shadow_build_2026_06"] : [],
+      needs_ai_review: willExtract,
+      ai_review_queued_at: willExtract ? new Date().toISOString() : null,
+      ai_review_reasons: willExtract ? ["shadow_build_2026_06"] : [],
     });
   }
+
 
   if (body.dry_run) {
     return {
@@ -181,28 +191,45 @@ async function doCreate(
     };
   }
 
-  // insert em batches de 200 (limite seguro do PostgREST)
+  // insert em batches de 200; em caso de erro de batch, fallback row-by-row
+  // para isolar a(s) linha(s) ruim(s) sem perder o lote inteiro.
   let inserted = 0;
   const insertedIds: string[] = [];
+  const rowErrors: { lead: string; error: string }[] = [];
+
+  async function insertOne(row: any) {
+    const { data, error } = await supabase
+      .from("leads").insert(row).select("id, needs_ai_review").single();
+    if (error) { rowErrors.push({ lead: row.shadow_of_lead_id, error: error.message }); return; }
+    inserted++;
+    if (data?.needs_ai_review) insertedIds.push(data.id as string);
+  }
+
   for (let i = 0; i < toInsert.length; i += 200) {
     const chunk = toInsert.slice(i, i + 200);
     const { data, error } = await supabase
-      .from("leads").insert(chunk).select("id, custom_fields, needs_ai_review");
-    if (error) return { error: error.message, inserted };
+      .from("leads").insert(chunk).select("id, needs_ai_review");
+    if (error) {
+      for (const row of chunk) await insertOne(row);
+      continue;
+    }
     inserted += data?.length ?? 0;
     for (const r of (data ?? []) as { id: string; needs_ai_review: boolean }[]) {
       if (r.needs_ai_review) insertedIds.push(r.id);
     }
   }
 
+
   return {
     mode: "create",
     inserted,
     queued_for_extraction: insertedIds.length,
     unmapped,
+    row_errors: rowErrors.slice(0, 20),
+    row_errors_count: rowErrors.length,
     per_target_stage: perStage,
-    enqueued_ids: insertedIds,
   };
+
 }
 
 async function doExtract(
