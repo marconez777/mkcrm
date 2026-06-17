@@ -102,13 +102,32 @@ export default function AdminReclassify() {
   // Reset stage quando trocar clínica
   useEffect(() => { setStageId(""); }, [clinicId]);
 
+  // Busca de leads com debounce (filtra por clínica se selecionada)
+  useEffect(() => {
+    let cancelled = false;
+    const term = leadSearch.trim();
+    const t = setTimeout(async () => {
+      setLeadSearching(true);
+      let q = supabase.from("leads").select("id, name, phone, clinic_id, stage_id").limit(20);
+      if (clinicId) q = q.eq("clinic_id", clinicId);
+      if (term) {
+        if (/^[0-9a-f-]{8,}$/i.test(term)) q = q.or(`id.eq.${term},phone.ilike.%${term}%,name.ilike.%${term}%`);
+        else q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data } = await q.order("updated_at", { ascending: false } as any);
+      if (!cancelled) setLeadOptions((data ?? []) as Lead[]);
+      setLeadSearching(false);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [leadSearch, clinicId]);
+
   async function runBatch() {
     setRunning(true);
     try {
       const body: any = { batch_tag: batchTag, dry_run: dryRun };
-      if (singleLeadId.trim()) body.lead_id = singleLeadId.trim();
+      if (selectedLead) body.lead_id = selectedLead.id;
       else if (stageId) { body.stage_id = stageId; body.limit = limit; }
-      else { toast({ title: "Informe lead_id ou clínica + stage" }); return; }
+      else { toast({ title: "Selecione um lead ou clínica + stage" }); return; }
       const { data, error } = await supabase.functions.invoke("lead-reclassify-deep", { body });
       if (error) throw error;
       toast({ title: "OK", description: `${(data as any)?.count ?? 1} processado(s)` });
@@ -117,6 +136,7 @@ export default function AdminReclassify() {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally { setRunning(false); }
   }
+
 
   async function approve(id: string) {
     const { error } = await supabase.rpc("apply_reclassify_proposal", { _proposal_id: id });
