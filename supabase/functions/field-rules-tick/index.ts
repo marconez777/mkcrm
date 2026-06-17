@@ -126,18 +126,37 @@ async function processClinic(clinicId: string, leadIds?: string[]) {
   const pipelineIds = Array.from(rulesByPipeline.keys());
   const forced = !!(leadIds && leadIds.length);
 
-  const leadsQ = supabase
-    .from("leads")
-    .select("id, clinic_id, pipeline_id, stage_id, custom_fields, manual_lock_until, updated_at")
-    .eq("clinic_id", clinicId)
-    .in("pipeline_id", pipelineIds)
-    .order("updated_at", { ascending: false })
-    .limit(forced ? Math.max(500, leadIds!.length) : 500);
-  if (!forced) leadsQ.gte("updated_at", since);
-  if (forced) leadsQ.in("id", leadIds!);
-
-  const { data: leads, error } = await leadsQ;
-  if (error) return { clinic_id: clinicId, error: error.message };
+  let leads: LeadRow[] = [];
+  if (allInPipeline) {
+    let off = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, clinic_id, pipeline_id, stage_id, custom_fields, manual_lock_until, updated_at")
+        .eq("clinic_id", clinicId)
+        .eq("pipeline_id", allInPipeline)
+        .order("id", { ascending: true })
+        .range(off, off + 499);
+      if (error) return { clinic_id: clinicId, error: error.message };
+      if (!data || data.length === 0) break;
+      leads.push(...(data as LeadRow[]));
+      if (data.length < 500) break;
+      off += 500;
+    }
+  } else {
+    const leadsQ = supabase
+      .from("leads")
+      .select("id, clinic_id, pipeline_id, stage_id, custom_fields, manual_lock_until, updated_at")
+      .eq("clinic_id", clinicId)
+      .in("pipeline_id", pipelineIds)
+      .order("updated_at", { ascending: false })
+      .limit(forced ? Math.max(500, leadIds!.length) : 500);
+    if (!forced) leadsQ.gte("updated_at", since);
+    if (forced) leadsQ.in("id", leadIds!);
+    const { data, error } = await leadsQ;
+    if (error) return { clinic_id: clinicId, error: error.message };
+    leads = (data ?? []) as LeadRow[];
+  }
 
   let moved = 0;
   let evaluated = 0;
