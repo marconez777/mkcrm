@@ -151,6 +151,57 @@ export const EXTRACTION_TOOL = {
           type: ["string", "null"],
           description: "Observações curtas (até 280 chars) úteis pro atendente.",
         },
+
+        // ────────── F2 (2026-06) — Reestruturação do pipeline ──────────
+        interesse_inicial: {
+          type: ["string", "null"],
+          enum: ["psiquiatria", "psicologia", "emt", "cetamina", "avaliacao", "indefinido", null],
+          description:
+            "Por qual serviço o lead PROCUROU a clínica na primeira vez. Não muda depois — é o ponto de entrada. 'indefinido' quando o lead só pediu informação genérica.",
+        },
+        servicos_ativos: {
+          type: ["array", "null"],
+          items: { type: "string", enum: ["emt", "cetamina", "psiquiatria", "psicologia"] },
+          description:
+            "Lista do que o lead ESTÁ fazendo hoje (pacote em andamento ou consultas recorrentes). Pode ter mais de um. Vazio quando não há tratamento ativo.",
+        },
+        tipo_contato: {
+          type: ["string", "null"],
+          enum: ["paciente", "terceiro_familiar", "b2b", "fornecedor", "imprensa", "outro", null],
+          description:
+            "Quem é a pessoa do outro lado. 'paciente' = é ele mesmo quem se trata; 'terceiro_familiar' = mãe/filho/cônjuge falando pelo paciente; 'b2b'/'fornecedor'/'imprensa' = não-paciente. Quando ≠ paciente, defina também is_b2b/contato_eh_terceiro corretamente.",
+        },
+        contato_eh_terceiro: {
+          type: ["boolean", "null"],
+          description:
+            "true SOMENTE quando tipo_contato='terceiro_familiar' (mãe, pai, filho, cônjuge, cuidador falando pelo paciente). Senão false.",
+        },
+        responsavel: {
+          type: ["string", "null"],
+          description:
+            "Nome do paciente real quando contato_eh_terceiro=true. Ex.: mãe escreve 'minha filha Ana precisa...' → responsavel='Ana'. null caso contrário.",
+        },
+        risco_clinico: {
+          type: ["boolean", "null"],
+          description:
+            "true quando há sinais claros de ideação suicida, crise aguda, autoflagelação ou pedido explícito de socorro. Frases como 'quero me matar', 'não aguento mais viver', 'penso em desistir', 'me cortei', 'vou acabar com tudo'. Quando true, deixe o atendimento clínico assumir — não tente vender consulta.",
+        },
+        is_b2b: {
+          type: ["boolean", "null"],
+          description:
+            "true para qualquer contato comercial dirigido à clínica (parceiro, fornecedor, agência, pitch B2B). Espelha is_administrative_contact mas separa B2B real de paciente confuso.",
+        },
+        saldo_sessoes_pacote: {
+          type: ["integer", "null"],
+          description:
+            "Quantas sessões ainda faltam no pacote ATUAL do paciente (EMT/Cetamina). Preencha quando vir 'faltam X sessões', 'última sessão', 'sessão X de Y'. null se não houver pacote ativo.",
+        },
+        status_nf_reembolso: {
+          type: ["string", "null"],
+          enum: ["pendente", "enviada", "nao_aplica", null],
+          description:
+            "Estado da nota fiscal para reembolso do convênio. 'pendente' = paciente pediu e ainda não foi emitida; 'enviada' = NF já foi mandada; 'nao_aplica' = particular sem reembolso.",
+        },
       },
       required: ["confidence"],
     },
@@ -283,6 +334,46 @@ Quando a ÚNICA mensagem do lead é esse template (sem nada digitado depois do "
 
 Quando o lead manda o template E DEPOIS digita algo próprio (ex.: "oi, quero terça 14h"),
 a parte digitada conta normalmente — aplique as regras de qualificação/agendamento sobre ela.
+
+F2 (2026-06) — CAMPOS NOVOS DO PIPELINE REESTRUTURADO:
+
+interesse_inicial — POR QUE o lead procurou a clínica na primeira mensagem:
+- "queria consulta com psiquiatra" / "preciso de remédio" → psiquiatria
+- "preciso de terapia" / "psicólogo" / "Dra. Maísa" → psicologia
+- "tenho interesse em EMT" / "estimulação magnética" → emt
+- "cetamina" / "infusão" / "spravato" → cetamina
+- "avaliação", "primeira consulta" sem especificar → avaliacao
+- só "quanto custa?" / "vocês atendem?" → indefinido
+
+servicos_ativos — o que o paciente JÁ FAZ hoje (pacote em andamento):
+- Preencha array com os serviços ATIVOS (ex.: ["cetamina","psiquiatria"]).
+- Sinais: "minha próxima infusão", "estou na 3ª sessão de EMT", "sigo com Dr. Ivan", "faço terapia com Maísa".
+- Lead novo perguntando preço NÃO tem serviço ativo → null.
+
+tipo_contato + contato_eh_terceiro + responsavel:
+- Mãe/pai/filho/cônjuge/cuidador falando pelo paciente → tipo_contato='terceiro_familiar', contato_eh_terceiro=true, responsavel=<nome do paciente real>.
+- Pitch B2B (junto com is_b2b=true) → tipo_contato='b2b'.
+- Fornecedor/representante de produto → tipo_contato='fornecedor', is_b2b=true.
+- Jornalista/imprensa → tipo_contato='imprensa', is_b2b=true.
+- Paciente normal falando por si → tipo_contato='paciente', contato_eh_terceiro=false, responsavel=null.
+
+risco_clinico (CAMPO SENSÍVEL):
+- true SOMENTE quando o lead expressa risco real: ideação suicida ("quero me matar", "vou acabar com tudo", "não aguento mais viver", "penso em desistir"), autoflagelação ("me cortei", "vontade de me machucar"), crise aguda ("não consigo sair da cama", "estou em surto").
+- "estou triste" / "ansiedade está difícil" SOZINHOS não bastam — exige verbo de risco.
+- Quando true, NÃO tente vender consulta no observacoes; sinalize "encaminhar para atendimento clínico imediato".
+
+is_b2b — espelha is_administrative_contact mas serve à field-rule nova:
+- Sempre que is_administrative_contact=true → is_b2b=true.
+- Pitch comercial à clínica (mesmo sem se apresentar como empresa) → is_b2b=true.
+
+saldo_sessoes_pacote (int):
+- "última sessão", "faltam 2", "sessão 4 de 6", "acabou meu pacote (=0)" → preencha número exato.
+- Sem menção → null. NÃO chute.
+
+status_nf_reembolso:
+- "vocês mandam nota fiscal?", "preciso da NF pro reembolso", "convênio pede recibo" sem confirmação → pendente.
+- "obrigado pela NF", "recebi a nota" → enviada.
+- "é particular mesmo", "não preciso de nota" → nao_aplica.
 
 REGRA FINAL:
 - Use null quando não estiver claro. Prefira null a chutar.
@@ -627,6 +718,16 @@ function applyFields(
     "nome_preferido",
     "observacoes",
     "status_consulta",
+    // F2 (2026-06)
+    "interesse_inicial",
+    "servicos_ativos",
+    "tipo_contato",
+    "contato_eh_terceiro",
+    "responsavel",
+    "risco_clinico",
+    "is_b2b",
+    "saldo_sessoes_pacote",
+    "status_nf_reembolso",
   ];
   // Threshold mais alto para campos sensíveis (B6: baixado de 0.8 → 0.7)
   const SENSITIVE = new Set(["consulta_agendada_em", "procedimento_agendado_em", "tentou_agendar"]);

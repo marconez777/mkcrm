@@ -29,14 +29,27 @@ const FIELD_LABELS: Record<string, string> = {
   procedimento_interesse: "Procedimento",
   qualificacao: "Qualificação",
   desqualificacao_motivo: "Motivo desq.",
+  motivo_desqualificacao: "Motivo desq.",
   demonstrou_interesse: "Interesse",
   tentou_pagamento: "Tentou pagar",
   pagamento_confirmado: "Pago",
   tentou_agendar: "Tentou agendar",
   consulta_agendada_em: "Consulta",
+  procedimento_agendado_em: "Procedimento em",
   nome_preferido: "Apelido",
   observacoes: "Obs.",
   ultimo_comprovante: "Comprovante",
+  status_consulta: "Status consulta",
+  // F2 (2026-06)
+  interesse_inicial: "Interesse inicial",
+  servicos_ativos: "Serviços ativos",
+  tipo_contato: "Tipo contato",
+  contato_eh_terceiro: "É terceiro",
+  responsavel: "Paciente (3º)",
+  risco_clinico: "⚠ Risco clínico",
+  is_b2b: "B2B",
+  saldo_sessoes_pacote: "Saldo pacote",
+  status_nf_reembolso: "NF reembolso",
 };
 
 
