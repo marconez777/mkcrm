@@ -887,7 +887,9 @@ interface LeadRow {
   phone: string;
   is_internal_contact: boolean;
   tags: string[] | null;
+  shadow_of_lead_id: string | null;
 }
+
 
 async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
   const supabase = sb();
@@ -921,7 +923,8 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
-    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact, tags")
+    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact, tags, shadow_of_lead_id")
+
     .eq("clinic_id", clinicId)
     .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
@@ -972,12 +975,15 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
     }
 
     // últimas N mensagens (inbound + outbound) pra contexto
+    // Shadows herdam o histórico do lead original (pipeline-shadow-build).
+    const messagesLeadId = lead.shadow_of_lead_id ?? lead.id;
     const { data: msgs } = await supabase
       .from("messages")
       .select("id, from_me, content, message_type, transcript, created_at")
-      .eq("lead_id", lead.id)
+      .eq("lead_id", messagesLeadId)
       .order("created_at", { ascending: false })
       .limit(cfg.max_messages_per_extraction);
+
 
     const ordered = (msgs ?? []).reverse();
     const lastMessageId = ordered.length ? ordered[ordered.length - 1].id : null;
