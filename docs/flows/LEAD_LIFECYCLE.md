@@ -3,13 +3,19 @@ title: "Fluxo: Lead Lifecycle (do nascimento ao fechamento)"
 topic: kanban
 kind: flow
 audience: agent
-updated: 2026-06-07
-summary: Ver `features/SEQUENCES_AUTOMATIONS.md` para detalhe dos gatilhos.
+updated: 2026-06-17
+summary: "Ciclo de vida do lead — origem, dedupe, transições de stage. Em clínicas com Pipeline IA habilitado, transições deixam de ser manuais e passam a ser derivadas de `custom_fields` via `field-rules-tick` (ver `flows/PIPELINE_DERIVED.md`)."
+related_docs:
+  - docs/flows/PIPELINE_DERIVED.md
+  - docs/maps/CUSTOM_FIELDS_CONTRACT.md
+  - docs/features/SEQUENCES_AUTOMATIONS.md
 ---
 # Fluxo: Lead Lifecycle (do nascimento ao fechamento)
 
 > **Quando ler:** antes de mexer em stages, scoring, sequences gatilhadas por estágio, ou regras de qualificação.
-> **Última atualização:** 2026-06-03
+> **Última atualização:** 2026-06-17
+>
+> 📘 Para clínicas com **Pipeline IA** ativo, transições de stage normalmente **não são manuais** — são derivadas dos `custom_fields` extraídos pela IA. Veja [`docs/flows/PIPELINE_DERIVED.md`](./PIPELINE_DERIVED.md) para o loop "mensagem → extractor → field-rules → stage_changed".
 
 ---
 

@@ -1,17 +1,22 @@
 ---
-title: "Fluxo: AI Agent Loop (auto-reply e assist)"
+title: "Fluxo: AI Agent Loop (conversacional auto-reply/assist)"
 topic: ai
 kind: flow
 audience: agent
-updated: 2026-06-09
-summary: Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) — carrega contexto, chama o provedor LLM da clínica via `_shared/ai.ts`, executa tools, persiste em `ai_usage` + `ai_chat_traces` e dispara `evolution-send`.
+updated: 2026-06-17
+summary: Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) do agente conversacional. Para o loop estrutural (extractor → field-rules → kanban), ver `docs/flows/PIPELINE_DERIVED.md`.
+related_docs:
+  - docs/flows/PIPELINE_DERIVED.md
+  - docs/maps/AI_RUNTIME.md
 ---
-# Fluxo: AI Agent Loop (auto-reply e assist)
+# Fluxo: AI Agent Loop (conversacional auto-reply/assist)
 
-> **Quando ler:** antes de adicionar uma tool nova, mudar prompt, mexer no custo/limite, ou debugar resposta estranha do agente.
-> **Última atualização:** 2026-06-09
+> **Quando ler:** antes de adicionar uma tool nova, mudar prompt, mexer no custo/limite, ou debugar resposta estranha do agente conversacional.
+> **Última atualização:** 2026-06-17
 >
-> ⚠️ **Naming**: as tabelas reais de telemetria/custo são `ai_usage` (1 linha por chamada), a view `ai_usage_daily` (rollup), `ai_spend_events` (eventos de cobrança) e `ai_chat_traces` (transcrições por turno, com `turns[].tool_calls[]`). As configurações de IA por clínica vivem em `clinics.settings.ai.*` — **não existe** tabela `clinic_settings`, `ai_runs` ou `ai_tool_calls`. Memória persistente do agente fica em `agent_memory` (singular).
+> 📘 **Este documento cobre só o loop conversacional** (agente IA que conversa no WhatsApp). Para o loop estrutural — extractor + vision + audio + field-rules que extraem dados e movem o card no Kanban sozinho — leia [`docs/flows/PIPELINE_DERIVED.md`](./PIPELINE_DERIVED.md).
+>
+> ⚠️ **Naming**: as tabelas reais de telemetria/custo são `ai_usage` (1 linha por chamada), a view `ai_usage_daily` (rollup), `ai_spend_events` (eventos de cobrança) e `ai_chat_traces` (transcrições por turno, com `turns[].tool_calls[]`). As configurações de IA por clínica vivem em `clinics.settings.ai.*` (conversacional) ou `clinics.classifier_config` (estrutural). Memória persistente do agente fica em `agent_memory` (singular).
 
 ---
 

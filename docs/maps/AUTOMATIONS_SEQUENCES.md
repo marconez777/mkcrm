@@ -1,25 +1,39 @@
 ---
-title: "Mapa: Automations + Sequences"
+title: "Mapa: Automations + Sequences + Pipeline IA"
 topic: automations
 kind: map
 audience: agent
-updated: 2026-06-07
-summary: "Mensageria automatizada por gatilhos: - **Sequences** — drip de N mensagens espaçadas, iniciado por entrada em stage / tag / evento. - **Automations** — regras `quando X → faça Y` (mover stage, enviar msg, criar task, agendar, etc.). - **Le"
+updated: 2026-06-17
+summary: "Mensageria e movimentação automatizada. 3 motores complementares: Sequences (drip de N msgs), Automations (regras temporais quando→faça), Pipeline IA field-rules (regras de estado→stage). Mais Broadcasts e crons auxiliares."
+related_docs:
+  - docs/maps/AI_RUNTIME.md
+  - docs/maps/CUSTOM_FIELDS_CONTRACT.md
+  - docs/flows/PIPELINE_DERIVED.md
+  - docs/features/SEQUENCES_AUTOMATIONS.md
 ---
-# Mapa: Automations + Sequences
+# Mapa: Automations + Sequences + Pipeline IA
 
-> **Para localizar edições.** Para entender *por quê*, leia [`docs/features/SEQUENCES_AUTOMATIONS.md`](../features/SEQUENCES_AUTOMATIONS.md), [`docs/features/APPOINTMENT_REMINDERS.md`](../features/APPOINTMENT_REMINDERS.md), [`docs/features/BROADCASTS.md`](../features/BROADCASTS.md).
-> **Última atualização:** 2026-06-03
+> **Para localizar edições.** Para entender *por quê*, leia [`docs/features/SEQUENCES_AUTOMATIONS.md`](../features/SEQUENCES_AUTOMATIONS.md), [`docs/features/APPOINTMENT_REMINDERS.md`](../features/APPOINTMENT_REMINDERS.md), [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md).
+> **Última atualização:** 2026-06-17
 
 ---
 
 ## 1. O que é
 
-Mensageria automatizada por gatilhos:
-- **Sequences** — drip de N mensagens espaçadas, iniciado por entrada em stage / tag / evento.
-- **Automations** — regras `quando X → faça Y` (mover stage, enviar msg, criar task, agendar, etc.).
-- **Lembretes de agendamento** — `before_appointment` (sem tool dedicada; usa automation).
-- **Broadcasts** — envio em massa one-shot para audiência segmentada.
+Três motores complementares que **automatizam o que acontece com o lead**:
+
+| Motor | Decide o quê | Disparo | Cron |
+|---|---|---|---|
+| **Sequences** | "Mandar essa sequência de mensagens" | Manual / webhook / entrada em stage / entrada em pipeline | `sequence-tick` (1 min) |
+| **Automations** | "Quando X temporal acontecer, fazer Y" (mover stage, enviar template, follow-up IA) | `no_reply_after`, `stage_idle`, `before_appointment` | `automations-tick` (5 min) |
+| **Pipeline IA — field-rules** | "Mover card pra esta coluna quando esses campos baterem" | Estado de `leads.custom_fields` | `field-rules-tick` (2 min) |
+
+Diferença crítica entre **Automations** e **field-rules**:
+- Automations reagem ao **tempo passado** (lead há 24h sem responder…) — vivem em `/automations`.
+- Field-rules reagem ao **estado atual** dos campos extraídos pela IA — vivem em `/settings` → IA do Pipeline.
+- Ambos podem mover stage; quando colidem, **field-rules ganham** (rodam mais frequente).
+
+Complementos: **Broadcasts** (envio em massa one-shot), **lembretes de agendamento** (caso especial de Automation `before_appointment`).
 
 ## 2. Rotas / pontos de entrada
 
@@ -57,7 +71,18 @@ Mensageria automatizada por gatilhos:
 ### Automations
 | Function | Função |
 |---|---|
-| `automations-tick/index.ts` | cron: avalia regras com gatilho temporal |
+| `automations-tick/index.ts` | cron: avalia regras com gatilho temporal (`no_reply_after`, `stage_idle`, `before_appointment`) |
+
+### Pipeline IA (regras de estado)
+| Function | Função |
+|---|---|
+| `extractor-tick/index.ts` | cron 2 min · preenche `leads.custom_fields` via gpt-5-nano (BYOK) |
+| `vision-tick/index.ts` | cron 3 min · analisa comprovantes (gpt-5-mini vision) |
+| `audio-tick/index.ts` | cron 5 min · transcreve áudios (whisper-1) |
+| `field-rules-tick/index.ts` | cron 2 min · move card conforme `pipeline_field_rules` (SQL puro, sem LLM) |
+| `field-rules-suggest/index.ts` | sob demanda · sugere regras baseadas em padrões |
+
+Ver [`docs/maps/AI_RUNTIME.md §4.3`](./AI_RUNTIME.md) e [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md).
 
 ### Broadcasts
 | Function | Função |
@@ -70,6 +95,10 @@ Mensageria automatizada por gatilhos:
 |---|---|
 | `scheduled-dispatcher/index.ts` | envia `scheduled_messages` no horário |
 | `watch-stale-leads/index.ts` | alerta lead parado N dias |
+| `stage-aging-tick/index.ts` | dispara ações por idade do lead em stage |
+| `outreach-recovery-tick/index.ts` | recupera envios falhos com retry exponencial |
+| `dedup-leads-tick/index.ts` | identifica e mescla leads duplicados (telefone) |
+| `agent-followups-tick/index.ts` | follow-ups agendados de agentes IA conversacionais |
 | `daily-summary/index.ts` | resumo diário |
 | `scheduled-report-tick/index.ts` | dispara relatórios agendados |
 

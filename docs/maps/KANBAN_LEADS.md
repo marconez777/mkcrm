@@ -1,15 +1,40 @@
 ---
 title: "Mapa: Kanban + Leads"
-topic: ai
+topic: kanban
 kind: map
 audience: agent
-updated: 2026-06-07
-summary: Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline.
+updated: 2026-06-17
+summary: "Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline. Em clínicas com Pipeline IA, stage é DERIVADO de `custom_fields` via `pipeline_field_rules` — não escolha manual."
+related_docs:
+  - docs/flows/PIPELINE_DERIVED.md
+  - docs/maps/CUSTOM_FIELDS_CONTRACT.md
+  - docs/maps/AI_RUNTIME.md
 ---
 # Mapa: Kanban + Leads
 
-> **Para localizar edições.** Para entender *por quê*, leia [`docs/flows/LEAD_LIFECYCLE.md`](../flows/LEAD_LIFECYCLE.md).
-> **Última atualização:** 2026-06-03
+> **Para localizar edições.** Para entender *por quê*, leia [`docs/flows/LEAD_LIFECYCLE.md`](../flows/LEAD_LIFECYCLE.md) (ciclo geral) e [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md) (movimentação automática via Pipeline IA).
+> **Última atualização:** 2026-06-17
+
+---
+
+## 0. Pipeline derivado por campos (Pipeline IA)
+
+Em clínicas com Pipeline IA habilitado, o stage do lead **não é escolhido manualmente**. É resultado de:
+
+1. `extractor-tick` (cron 2 min) preenche `leads.custom_fields`.
+2. `field-rules-tick` (cron 2 min) avalia `pipeline_field_rules` em ordem de `priority DESC`.
+3. Primeira regra que casa move o card via UPDATE em `leads.stage_id`.
+
+Detalhe completo: [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md).
+Catálogo dos campos: [`docs/maps/CUSTOM_FIELDS_CONTRACT.md`](./CUSTOM_FIELDS_CONTRACT.md).
+
+Componentes específicos do Pipeline IA:
+- `src/components/kanban/AIBadges.tsx` — chips no `LeadCard` (qualificacao, procedimento, pagamento, IA na fila, lock manual).
+- `src/components/settings/FieldRulesCard.tsx` — CRUD de regras.
+- `src/components/settings/ExtractorHistoryCard.tsx` — observabilidade.
+
+Tabela `pipeline_field_rules` (`clinic_id, pipeline_id, target_stage_id, name, priority, enabled, conditions jsonb`).
+Operadores: `equals, not_equals, is_true, is_false, is_empty, not_empty, in, contains, gte, lte, is_future, is_past`.
 
 ---
 
