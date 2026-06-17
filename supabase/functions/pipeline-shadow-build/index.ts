@@ -343,18 +343,25 @@ Deno.serve(async (req) => {
 
   if (!authorized && token) {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } },
+      anonKey,
+      { global: { headers: { Authorization: `Bearer ${token}`, apikey: anonKey } } },
     );
-    const [{ data: isAdmin }, { data: clinicId }] = await Promise.all([
-      userClient.rpc("is_super_admin"),
-      userClient.rpc("current_clinic_id"),
-    ]);
-    if (isAdmin === true) authorized = true;
-    else if (body?.clinic_id && clinicId === body.clinic_id) authorized = true;
+    const { data: userRes } = await userClient.auth.getUser(token);
+    const userId = userRes?.user?.id ?? null;
+    if (userId && body?.clinic_id) {
+      // valida via service-role (evita depender de RLS / RPC com auth.uid()):
+      const svc = sb();
+      const [{ data: mem }, { data: isAdmin }] = await Promise.all([
+        svc.from("clinic_members").select("user_id").eq("clinic_id", body.clinic_id).eq("user_id", userId).maybeSingle(),
+        svc.rpc("is_super_admin", { _user_id: userId }).then((r) => r).catch(() => ({ data: null })),
+      ]);
+      if (mem || isAdmin === true) authorized = true;
+    }
   }
+
   if (!authorized) return json({ error: "service-role token or clinic member required" }, 401);
 
 
