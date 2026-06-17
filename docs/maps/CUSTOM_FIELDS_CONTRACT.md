@@ -4,12 +4,12 @@ topic: ai
 kind: map
 audience: agent
 updated: 2026-06-17
-summary: "Catálogo canônico dos custom_fields que o pipeline IA escreve em `leads.custom_fields`. Define nome, tipo, enum, quem escreve, quem lê. Fonte única de verdade para extractor + field-rules + AIBadges."
+summary: Catálogo canônico dos custom_fields que o pipeline IA escreve em `leads.custom_fields`. Define nome, tipo, enum, quem escreve, quem lê. Fonte única de verdade para extractor + field-rules + AIBadges.
 code_refs:
   - supabase/functions/extractor-tick/
   - supabase/functions/vision-tick/
   - supabase/functions/field-rules-tick/
-  - src/components/kanban/AIBadges.tsx
+  - src/pages/Kanban.tsx
 related_docs:
   - docs/maps/AI_RUNTIME.md
   - docs/maps/KANBAN_LEADS.md
@@ -101,7 +101,7 @@ Checklist obrigatório — pular um passo é como não fazer:
 2. **Schema do extractor.** Em `supabase/functions/extractor-tick/index.ts`, adicione ao JSON Schema da tool `extract_lead_fields` (com `enum` quando aplicável).
 3. **System prompt do extractor.** Adicione 1 frase descrevendo quando preencher o campo (com exemplo PT-BR).
 4. **Field-rule (se for usado para mover).** Crie linha em `pipeline_field_rules` com a condição.
-5. **AIBadges (opcional).** Em `src/components/kanban/AIBadges.tsx`, adicione chip se for útil ver no card.
+5. **AIBadges (opcional).** A função `AIBadges` é inline em `src/pages/Kanban.tsx` (~linha 258) — adicione um chip lá se for útil ver no card.
 6. **Smoke test.** Mande uma mensagem de teste com o gatilho do campo, espere 2 min, confirme em `leads.custom_fields`.
 7. **Roda `docs-sync`**: `node scripts/docs-sync.mjs`.
 

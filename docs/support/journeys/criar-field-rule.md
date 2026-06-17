@@ -1,10 +1,10 @@
 ---
-title: "Como criar uma regra de campo (field-rule) que move card automaticamente"
+title: Como criar uma regra de campo (field-rule) que move card automaticamente
 topic: ai
 kind: journey
 audience: user
 updated: 2026-06-17
-summary: "Passo a passo leigo para criar uma pipeline_field_rule — a regra que ensina a IA a mover o card no Kanban sozinha quando um campo personalizado é preenchido."
+summary: Passo a passo leigo para criar uma pipeline_field_rule — a regra que ensina a IA a mover o card no Kanban sozinha quando um campo personalizado é preenchido.
 related_docs:
   - docs/support/journeys/usar-pipeline-ia.md
   - docs/support/pages/automations.md

@@ -3,8 +3,8 @@ title: Roadmap — Pipeline Clínica + Agentes IA
 topic: roadmap
 kind: roadmap
 audience: agent
-updated: 2026-06-12
-summary: "Roadmap v5 (aprovado) do pipeline da clínica: 2 agentes IA (texto + visão) + Whisper para áudio, BYOK OpenAI por clínica, regras SQL pré-IA para reduzir custo, e desqualificação automática para procedimentos não atendidos (EMDR e similares)."
+updated: 2026-06-17
+summary: Roadmap v5 (ENTREGUE — F0 a F8). Pipeline da clínica com 2 agentes IA (texto + visão) + Whisper, BYOK OpenAI por clínica, regras SQL pré-IA pra reduzir custo, regras de campo movendo cards e desqualificação automática. Documentação viva agora vive em docs/maps/AI_RUNTIME.md, docs/flows/PIPELINE_DERIVED.md e docs/maps/CUSTOM_FIELDS_CONTRACT.md.
 code_refs:
   - supabase/functions/extractor-tick/
   - supabase/functions/vision-tick/
@@ -21,11 +21,19 @@ related_docs:
   - docs/MAP.md
   - docs/roadmap/DOCS_MAINTENANCE.md
   - docs/support/journeys/usar-pipeline-ia.md
+status: entregue
 ---
 
-# Roadmap — Pipeline Clínica + Agentes IA (v5)
+# Roadmap — Pipeline Clínica + Agentes IA (v5) — ENTREGUE
 
-> Status: **F8 entregue**. Pipeline base + crons automáticos + testes Deno verdes.
+> Status: **ENTREGUE (F0–F8)**. Documentação viva atualizada nos mapas — este roadmap fica como registro histórico das fases.
+>
+> Para consumir a documentação atual em vez deste roadmap:
+> - **Runtime/edge functions** → `docs/maps/AI_RUNTIME.md` (seção "Pipeline IA — agentes estruturais") e `docs/edge-functions/INDEX.md` (linha "Pipeline IA").
+> - **Fluxo "mensagem → extractor → field-rules → kanban"** → `docs/flows/PIPELINE_DERIVED.md`.
+> - **Catálogo de `custom_fields` e seus owners** → `docs/maps/CUSTOM_FIELDS_CONTRACT.md`.
+> - **Guia do usuário pra montar regras** → `docs/support/journeys/criar-field-rule.md`.
+> - **Troubleshooting de leads parados / comprovante não detectado** → `docs/support/troubleshooting/ia.md`.
 >
 > - **F8** — testes Deno cobrindo os 4 ticks. Unit tests puros em `field-rules-tick/rules_test.ts` (helpers `getField` / `evalCondition` / `matches` com operadores equals, not_equals, is_true/false, is_empty/not_empty, in, contains, gte, lte + AND de múltiplas condições). Smoke tests (`index_test.ts` em cada tick) batem em produção via `_shared/tick_smoke.ts`: validam preflight CORS e contrato `{ ok, results? }` do POST autenticado com `apikey`. Resultado atual: **15 passed / 0 failed (~8s)**.
 >

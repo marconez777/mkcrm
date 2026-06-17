@@ -501,7 +501,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 92,
+    "size_lines": 93,
     "stale_refs": []
   },
   {
@@ -646,7 +646,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 297,
+    "size_lines": 277,
     "stale_refs": []
   },
   {
@@ -1175,12 +1175,12 @@
   },
   {
     "path": "docs/flows/AI_AGENT_LOOP.md",
-    "title": "Fluxo: AI Agent Loop (auto-reply e assist)",
+    "title": "Fluxo: AI Agent Loop (conversacional auto-reply/assist)",
     "topic": "ai",
     "kind": "flow",
     "audience": "agent",
-    "updated": "2026-06-09",
-    "summary": "Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) — carrega contexto, chama o provedor LLM da clínica via `_shared/ai.ts`, executa tools, persiste em `ai_usage` + `ai_chat_traces` e dispara `evolution-send`.",
+    "updated": "2026-06-17",
+    "summary": "Loop de resposta automática (ai-auto-reply) e assistência manual (ai-assist) do agente conversacional. Para o loop estrutural (extractor → field-rules → kanban), ver `docs/flows/PIPELINE_DERIVED.md`.",
     "headings": [
       "Atores",
       "Loop",
@@ -1192,8 +1192,11 @@
       "Arquivos-chave"
     ],
     "code_refs": [],
-    "related_docs": [],
-    "size_lines": 125,
+    "related_docs": [
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/maps/AI_RUNTIME.md"
+    ],
+    "size_lines": 127,
     "stale_refs": []
   },
   {
@@ -1274,8 +1277,8 @@
     "topic": "kanban",
     "kind": "flow",
     "audience": "agent",
-    "updated": "2026-06-07",
-    "summary": "Ver `features/SEQUENCES_AUTOMATIONS.md` para detalhe dos gatilhos.",
+    "updated": "2026-06-17",
+    "summary": "Ciclo de vida do lead — origem, dedupe, transições de stage. Em clínicas com Pipeline IA habilitado, transições deixam de ser manuais e passam a ser derivadas de `custom_fields` via `field-rules-tick` (ver `flows/PIPELINE_DERIVED.md`).",
     "headings": [
       "Atores",
       "Estados (stages padrão)",
@@ -1290,8 +1293,12 @@
       "Arquivos-chave"
     ],
     "code_refs": [],
-    "related_docs": [],
-    "size_lines": 145,
+    "related_docs": [
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/features/SEQUENCES_AUTOMATIONS.md"
+    ],
+    "size_lines": 147,
     "stale_refs": []
   },
   {
@@ -1314,6 +1321,42 @@
     "code_refs": [],
     "related_docs": [],
     "size_lines": 97,
+    "stale_refs": []
+  },
+  {
+    "path": "docs/flows/PIPELINE_DERIVED.md",
+    "title": "Fluxo: Pipeline derivado por campos (extractor → field-rules → kanban)",
+    "topic": "ai",
+    "kind": "flow",
+    "audience": "agent",
+    "updated": "2026-06-17",
+    "summary": "Como uma mensagem do WhatsApp vira movimentação automática de card no Kanban — passando por trigger SQL, extractor IA, custom_fields canônicos e field-rules. Documenta o loop end-to-end e os 5 modos de falha mais comuns.",
+    "headings": [
+      "1. Conceito central",
+      "2. Atores e gatilhos",
+      "3. Loop end-to-end (passo a passo)",
+      "4. Exemplo real — Clínica ÓR",
+      "5. Manual lock — o \"freio de mão\"",
+      "6. Observabilidade",
+      "7. Checklist \"lead não moveu\"",
+      "8. Receitas de debug",
+      "9. Melhorias sugeridas",
+      "10. Arquivos-chave"
+    ],
+    "code_refs": [
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/vision-tick/",
+      "supabase/functions/audio-tick/",
+      "supabase/functions/field-rules-tick/"
+    ],
+    "related_docs": [
+      "docs/maps/AI_RUNTIME.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/maps/KANBAN_LEADS.md",
+      "docs/flows/LEAD_LIFECYCLE.md",
+      "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md"
+    ],
+    "size_lines": 187,
     "stale_refs": []
   },
   {
@@ -2043,9 +2086,10 @@
     "topic": "ai",
     "kind": "map",
     "audience": "agent",
-    "updated": "2026-06-07",
-    "summary": "Tudo que executa um agente IA em produção: resposta automática a mensagem inbound, assist manual, classificador, follow-ups, copilot, e a infraestrutura compartilhada (tools, custos, spend-guard, pricing). Não inclui o **Builder** (ver mapa",
+    "updated": "2026-06-17",
+    "summary": "Toda execução de IA em produção. Separada em dois universos: AI conversacional (auto-reply / assist / copilot — agente fala com o lead) e AI estrutural (extractor / vision / audio / field-rules — extrai dados e move o card no Kanban). Não inclui o Builder (mapa próprio).",
     "headings": [
+      "0. Os dois universos da IA",
       "1. O que é",
       "2. Rotas / pontos de entrada",
       "3. Frontend",
@@ -2057,8 +2101,15 @@
       "9. Receitas"
     ],
     "code_refs": [],
-    "related_docs": [],
-    "size_lines": 183,
+    "related_docs": [
+      "docs/flows/AI_AGENT_LOOP.md",
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/maps/KANBAN_LEADS.md",
+      "docs/maps/AUTOMATIONS_SEQUENCES.md",
+      "docs/edge-functions/AI.md"
+    ],
+    "size_lines": 237,
     "stale_refs": []
   },
   {
@@ -2087,12 +2138,12 @@
   },
   {
     "path": "docs/maps/AUTOMATIONS_SEQUENCES.md",
-    "title": "Mapa: Automations + Sequences",
+    "title": "Mapa: Automations + Sequences + Pipeline IA",
     "topic": "automations",
     "kind": "map",
     "audience": "agent",
-    "updated": "2026-06-07",
-    "summary": "Mensageria automatizada por gatilhos: - **Sequences** — drip de N mensagens espaçadas, iniciado por entrada em stage / tag / evento. - **Automations** — regras `quando X → faça Y` (mover stage, enviar msg, criar task, agendar, etc.). - **Le",
+    "updated": "2026-06-17",
+    "summary": "Mensageria e movimentação automatizada. 3 motores complementares: Sequences (drip de N msgs), Automations (regras temporais quando→faça), Pipeline IA field-rules (regras de estado→stage). Mais Broadcasts e crons auxiliares.",
     "headings": [
       "1. O que é",
       "2. Rotas / pontos de entrada",
@@ -2105,8 +2156,13 @@
       "9. Receitas"
     ],
     "code_refs": [],
-    "related_docs": [],
-    "size_lines": 152,
+    "related_docs": [
+      "docs/maps/AI_RUNTIME.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/features/SEQUENCES_AUTOMATIONS.md"
+    ],
+    "size_lines": 176,
     "stale_refs": []
   },
   {
@@ -2156,6 +2212,41 @@
     "related_docs": [],
     "size_lines": 158,
     "stale_refs": []
+  },
+  {
+    "path": "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+    "title": "Mapa: Contrato de Custom Fields do Lead",
+    "topic": "ai",
+    "kind": "map",
+    "audience": "agent",
+    "updated": "2026-06-17",
+    "summary": "Catálogo canônico dos custom_fields que o pipeline IA escreve em `leads.custom_fields`. Define nome, tipo, enum, quem escreve, quem lê. Fonte única de verdade para extractor + field-rules + AIBadges.",
+    "headings": [
+      "1. Por que isso existe",
+      "2. Catálogo canônico",
+      "3. Regras de normalização",
+      "4. Como adicionar um campo novo",
+      "5. Como descobrir o que cada campo significa hoje",
+      "6. Invariantes — \"não toque sem ler\"",
+      "7. Pegadinhas",
+      "8. Receitas"
+    ],
+    "code_refs": [
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/vision-tick/",
+      "supabase/functions/field-rules-tick/",
+      "src/components/kanban/AIBadges.tsx"
+    ],
+    "related_docs": [
+      "docs/maps/AI_RUNTIME.md",
+      "docs/maps/KANBAN_LEADS.md",
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md"
+    ],
+    "size_lines": 137,
+    "stale_refs": [
+      "src/components/kanban/AIBadges.tsx"
+    ]
   },
   {
     "path": "docs/maps/EMAIL.md",
@@ -2208,12 +2299,13 @@
   {
     "path": "docs/maps/KANBAN_LEADS.md",
     "title": "Mapa: Kanban + Leads",
-    "topic": "ai",
+    "topic": "kanban",
     "kind": "map",
     "audience": "agent",
-    "updated": "2026-06-07",
-    "summary": "Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline.",
+    "updated": "2026-06-17",
+    "summary": "Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline. Em clínicas com Pipeline IA, stage é DERIVADO de `custom_fields` via `pipeline_field_rules` — não escolha manual.",
     "headings": [
+      "0. Pipeline derivado por campos (Pipeline IA)",
       "1. O que é",
       "2. Rotas / pontos de entrada",
       "3. Frontend",
@@ -2225,8 +2317,12 @@
       "9. Receitas"
     ],
     "code_refs": [],
-    "related_docs": [],
-    "size_lines": 127,
+    "related_docs": [
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/maps/AI_RUNTIME.md"
+    ],
+    "size_lines": 148,
     "stale_refs": []
   },
   {
@@ -2458,8 +2554,8 @@
     "topic": "roadmap",
     "kind": "roadmap",
     "audience": "agent",
-    "updated": "2026-06-12",
-    "summary": "Roadmap v5 (aprovado) do pipeline da clínica: 2 agentes IA (texto + visão) + Whisper para áudio, BYOK OpenAI por clínica, regras SQL pré-IA para reduzir custo, e desqualificação automática para procedimentos não atendidos (EMDR e similares).",
+    "updated": "2026-06-17",
+    "summary": "Roadmap v5 (ENTREGUE — F0 a F8). Pipeline da clínica com 2 agentes IA (texto + visão) + Whisper, BYOK OpenAI por clínica, regras SQL pré-IA pra reduzir custo, regras de campo movendo cards e desqualificação automática. Documentação viva agora vive em docs/maps/AI_RUNTIME.md, docs/flows/PIPELINE_DERIVED.md e docs/maps/CUSTOM_FIELDS_CONTRACT.md.",
     "headings": [
       "1. Visão geral",
       "2. Decisões fechadas",
@@ -2492,7 +2588,7 @@
       "docs/roadmap/DOCS_MAINTENANCE.md",
       "docs/support/journeys/usar-pipeline-ia.md"
     ],
-    "size_lines": 252,
+    "size_lines": 259,
     "stale_refs": []
   },
   {
@@ -2831,6 +2927,34 @@
     "code_refs": [],
     "related_docs": [],
     "size_lines": 37,
+    "stale_refs": []
+  },
+  {
+    "path": "docs/support/journeys/criar-field-rule.md",
+    "title": "Como criar uma regra de campo (field-rule) que move card automaticamente",
+    "topic": "ai",
+    "kind": "journey",
+    "audience": "user",
+    "updated": "2026-06-17",
+    "summary": "Passo a passo leigo para criar uma pipeline_field_rule — a regra que ensina a IA a mover o card no Kanban sozinha quando um campo personalizado é preenchido.",
+    "headings": [
+      "1. Field-rule vs Automação — qual é qual?",
+      "2. Pré-requisitos",
+      "3. Passo a passo",
+      "4. Operadores disponíveis",
+      "5. Exemplos reais (Clínica ÓR — funcionando hoje)",
+      "6. Salvaguardas que a IA respeita sozinha",
+      "7. Como debugar \"minha regra não disparou\"",
+      "8. Erros comuns",
+      "9. Relacionado"
+    ],
+    "code_refs": [],
+    "related_docs": [
+      "docs/support/journeys/usar-pipeline-ia.md",
+      "docs/support/pages/automations.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md"
+    ],
+    "size_lines": 156,
     "stale_refs": []
   },
   {
@@ -3401,7 +3525,7 @@
     "topic": "automations",
     "kind": "support",
     "audience": "user",
-    "updated": "2026-06-07",
+    "updated": "2026-06-17",
     "summary": "",
     "headings": [
       "Para que serve",
@@ -3418,7 +3542,7 @@
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 78,
+    "size_lines": 80,
     "stale_refs": []
   },
   {
@@ -3758,7 +3882,7 @@
     "kind": "troubleshooting",
     "audience": "user",
     "updated": "2026-06-07",
-    "summary": "",
+    "summary": "Checklist na ordem (primeira causa que resolver, vence):",
     "headings": [
       "Agente não responde no WhatsApp",
       "Limite de gasto de IA atingido\" (erro 402)",
@@ -3766,11 +3890,14 @@
       "Builder não gera o prompt",
       "Agente \"inventando\" coisas (alucinação)",
       "Custo de IA muito alto",
+      "Pipeline IA — Lead não está sendo movido automaticamente",
+      "Pipeline IA — Comprovante chegou mas não marcou como pago",
+      "Pipeline IA — Conta da OpenAI estourou",
       "Relacionado"
     ],
     "code_refs": [],
     "related_docs": [],
-    "size_lines": 41,
+    "size_lines": 65,
     "stale_refs": []
   },
   {

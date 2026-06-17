@@ -4,7 +4,7 @@ topic: ai
 kind: flow
 audience: agent
 updated: 2026-06-17
-summary: "Como uma mensagem do WhatsApp vira movimentação automática de card no Kanban — passando por trigger SQL, extractor IA, custom_fields canônicos e field-rules. Documenta o loop end-to-end e os 5 modos de falha mais comuns."
+summary: Como uma mensagem do WhatsApp vira movimentação automática de card no Kanban — passando por trigger SQL, extractor IA, custom_fields canônicos e field-rules. Documenta o loop end-to-end e os 5 modos de falha mais comuns.
 code_refs:
   - supabase/functions/extractor-tick/
   - supabase/functions/vision-tick/

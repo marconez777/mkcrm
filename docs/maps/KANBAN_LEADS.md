@@ -4,7 +4,7 @@ topic: kanban
 kind: map
 audience: agent
 updated: 2026-06-17
-summary: "Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline. Em clínicas com Pipeline IA, stage é DERIVADO de `custom_fields` via `pipeline_field_rules` — não escolha manual."
+summary: Pipeline visual (kanban) de leads. Múltiplos pipelines por clínica, stages com cor + agente IA default, drag & drop, importação (Kommo/CSV), campos personalizados por lead, drawer de detalhes, journey/timeline. Em clínicas com Pipeline IA, stage é DERIVADO de `custom_fields` via `pipeline_field_rules` — não escolha manual.
 related_docs:
   - docs/flows/PIPELINE_DERIVED.md
   - docs/maps/CUSTOM_FIELDS_CONTRACT.md

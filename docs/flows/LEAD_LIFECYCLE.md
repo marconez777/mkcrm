@@ -4,7 +4,7 @@ topic: kanban
 kind: flow
 audience: agent
 updated: 2026-06-17
-summary: "Ciclo de vida do lead — origem, dedupe, transições de stage. Em clínicas com Pipeline IA habilitado, transições deixam de ser manuais e passam a ser derivadas de `custom_fields` via `field-rules-tick` (ver `flows/PIPELINE_DERIVED.md`)."
+summary: Ciclo de vida do lead — origem, dedupe, transições de stage. Em clínicas com Pipeline IA habilitado, transições deixam de ser manuais e passam a ser derivadas de `custom_fields` via `field-rules-tick` (ver `flows/PIPELINE_DERIVED.md`).
 related_docs:
   - docs/flows/PIPELINE_DERIVED.md
   - docs/maps/CUSTOM_FIELDS_CONTRACT.md

@@ -4,6 +4,7 @@ topic: ai
 kind: troubleshooting
 audience: user
 updated: 2026-06-07
+summary: "Checklist na ordem (primeira causa que resolver, vence):"
 ---
 # Problemas com IA
 
