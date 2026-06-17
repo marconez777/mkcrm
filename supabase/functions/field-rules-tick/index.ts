@@ -245,6 +245,7 @@ async function processClinic(clinicId: string, leadIds?: string[], allInPipeline
 interface Body {
   clinic_id?: string;
   lead_ids?: string[];
+  pipeline_id?: string; // se passado, processa TODOS os leads do pipeline (paginado)
 }
 
 Deno.serve(async (req) => {
@@ -257,7 +258,6 @@ Deno.serve(async (req) => {
 
   const supabase = sb();
 
-  // Lista clínicas com pelo menos 1 regra enabled
   let cq = supabase
     .from("pipeline_field_rules")
     .select("clinic_id")
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
   const clinicIds = Array.from(new Set((clinicRows ?? []).map((r: any) => r.clinic_id)));
   const results: any[] = [];
   for (const cid of clinicIds) {
-    const r = await processClinic(cid, body.lead_ids);
+    const r = await processClinic(cid, body.lead_ids, body.pipeline_id);
     results.push(r);
   }
 
