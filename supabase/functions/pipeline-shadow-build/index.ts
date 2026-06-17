@@ -320,12 +320,22 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
-  // requer service-role token (chamadas internas/admin)
+  // requer service-role OU super-admin logado
   const auth = req.headers.get("Authorization") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!auth.startsWith("Bearer ") || auth.slice(7).trim() !== serviceKey) {
-    return json({ error: "service-role token required" }, 401);
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  let authorized = !!token && token === serviceKey;
+  if (!authorized && token) {
+    const userClient = (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } },
+    );
+    const { data: isAdmin } = await userClient.rpc("is_super_admin");
+    if (isAdmin === true) authorized = true;
   }
+  if (!authorized) return json({ error: "service-role token or super-admin required" }, 401);
+
 
   let body: Body;
   try { body = await req.json(); } catch { return json({ error: "invalid JSON" }, 400); }
