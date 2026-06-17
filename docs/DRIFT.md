@@ -1,11 +1,11 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T16:23:32.318Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T20:13:16.218Z_
 
-Total de docs: **170** · frontmatter atualizado neste run: **7**
+Total de docs: **170** · frontmatter atualizado neste run: **0**
 
 ## code_refs apontando para arquivo inexistente
-- `docs/maps/CUSTOM_FIELDS_CONTRACT.md` → `src/components/kanban/AIBadges.tsx`
+_(nenhum)_
 
 ## Rotas em src/App.tsx sem mapa associado (heurística)
 - `/reset-password`
