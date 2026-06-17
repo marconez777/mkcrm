@@ -200,29 +200,43 @@ Abra o **Lead Drawer** (clique no card) → role até **Ações IA** → **Reana
 
 ## 7. Como monitorar
 
-Tudo num só lugar: card **Histórico & custos** em **Configurações → IA do Pipeline**.
+Tudo num só lugar: card **Histórico & custos (últimos 7 dias)** em **Configurações → IA do Pipeline**.
 
-### 7.1 Painel superior
+### 7.1 Painel superior (janela = 7 dias)
 | Indicador | O que mostra |
 |---|---|
-| **Execuções (24h)** | Quantas chamadas a IA fez hoje |
-| **Custo total (24h)** | Quanto gastou em US$ no dia |
-| **Ignorados** | Quantos leads ela pulou por causa de lock/budget |
-| **Erros** | Chamadas que falharam (chave inválida, timeout…) |
+| **Execuções** | Total de chamadas que a IA fez nos últimos 7 dias |
+| **Custo total** | Quanto gastou em US$ na janela |
+| **Ignorados** | Execuções que pularam por lock manual / budget / nada novo pra extrair |
+| **Erros** | Chamadas que falharam (chave inválida, timeout, 402…) |
 
-### 7.2 Tabela diária
-Lista dos últimos 14 dias com colunas: **data · execuções · custo · erros**. Bom pra acompanhar tendência (se o custo dobrou de uma semana pra outra, alguma coisa mudou).
+### 7.2 Tabela "Por dia"
+Lista os **últimos 7 dias** com: **data · nº de execuções · custo do dia**. Bom pra ver tendência (custo dobrou de um dia pro outro → algo mudou no volume).
 
-### 7.3 Log das últimas 100 execuções
-Cada linha: **lead · tipo (texto/visão/áudio) · campos preenchidos · custo · tempo · status**. Clique numa linha pra ver detalhes.
+### 7.3 Últimas 100 execuções (log)
+Cada linha mostra, da esquerda pra direita:
 
-### 7.4 Botões manuais
-| Botão | Quando usar |
+| Elemento | Significado |
 |---|---|
-| **Rodar texto** | Disparar o Extractor agora (não esperar 2 min) |
-| **Rodar visão** | Forçar análise de comprovantes pendentes |
-| **Rodar áudio** | Forçar transcrição de áudios pendentes |
-| **Rodar regras agora** | Forçar a varredura de field-rules |
+| Chip 🟢 **TEXTO** / 🔵 **VISÃO** / 🟣 **ÁUDIO** | Qual dos 3 robôs rodou |
+| Nome do lead | Quem foi analisado (clique abre o lead) |
+| **Modelo** (`gpt-5-nano`, `gpt-5-mini`, `whisper-1`) | Modelo OpenAI usado naquela execução |
+| **conf XX%** | Confiança da IA (0–100%). Abaixo do threshold da clínica, ela não sobrescreve. |
+| **$0.00091** | Custo daquela chamada específica em USD |
+| **3964/1786 tk** | Tokens de entrada / saída (input/output). Quanto maior, mais cara a chamada. |
+| Data/hora | Quando a execução rodou |
+| **Chips coloridos por campo preenchido** | Cada chip = 1 campo que a IA atualizou em `custom_fields` (ex.: `mensagem`, `Obs.`, `Qualificação: interessado`, `procedimento_agendado_em: 2026-06-20T11:30:00.000Z`). Nomes amigáveis vêm do mapa `FIELD_LABELS` no componente. |
+
+> 💡 Se a linha mostra **só** um chip cinza com motivo (ex.: "ignorado: manual_lock"), é porque foi uma execução `skipped` — a IA decidiu não mexer naquele lead.
+
+### 7.4 Botões manuais (topo do card)
+| Botão | O que faz |
+|---|---|
+| **Rodar texto** | Dispara `extractor-tick` agora (sem esperar o cron de 2 min) |
+| **Rodar visão** | Dispara `vision-tick` agora (analisa comprovantes pendentes) |
+| **Rodar áudio** | Dispara `audio-tick` agora (transcreve áudios pendentes) |
+
+> ⚠️ O botão **"Rodar agora"** das **field-rules** (movimentação automática do Kanban) vive em **outro card** logo abaixo (**Regras de auto-movimento**), não aqui.
 
 > 💡 **Use estes botões pra debugar**: se você acha que "a IA não está fazendo nada", clique em **Rodar texto** e veja o resultado em segundos. Se rodou e não preencheu nada, é sinal de que **não há leads na fila** (nenhuma mensagem nova com texto interessante).
 
