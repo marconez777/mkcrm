@@ -887,7 +887,9 @@ interface LeadRow {
   phone: string;
   is_internal_contact: boolean;
   tags: string[] | null;
+  shadow_of_lead_id: string | null;
 }
+
 
 async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[], force?: boolean) {
   const supabase = sb();
