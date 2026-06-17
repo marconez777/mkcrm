@@ -101,7 +101,7 @@ Checklist obrigatório — pular um passo é como não fazer:
 2. **Schema do extractor.** Em `supabase/functions/extractor-tick/index.ts`, adicione ao JSON Schema da tool `extract_lead_fields` (com `enum` quando aplicável).
 3. **System prompt do extractor.** Adicione 1 frase descrevendo quando preencher o campo (com exemplo PT-BR).
 4. **Field-rule (se for usado para mover).** Crie linha em `pipeline_field_rules` com a condição.
-5. **AIBadges (opcional).** Em `src/components/kanban/AIBadges.tsx`, adicione chip se for útil ver no card.
+5. **AIBadges (opcional).** A função `AIBadges` é inline em `src/pages/Kanban.tsx` (~linha 258) — adicione um chip lá se for útil ver no card.
 6. **Smoke test.** Mande uma mensagem de teste com o gatilho do campo, espere 2 min, confirme em `leads.custom_fields`.
 7. **Roda `docs-sync`**: `node scripts/docs-sync.mjs`.
 
