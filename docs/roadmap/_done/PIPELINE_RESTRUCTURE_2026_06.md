@@ -19,7 +19,7 @@ related_docs:
   - docs/estudo/README.md
   - docs/estudo-geral.md
   - docs/support/journeys/usar-pipeline-ia.md
-status: planejado
+status: entregue
 ---
 
 # Reestruturação do Pipeline Clínica ÓR — 2026-06
