@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
 
   const clinicIds = Array.from(new Set((clinicRows ?? []).map((r: any) => r.clinic_id)));
+  console.log("[field-rules-tick] body=", JSON.stringify(body), "clinics=", clinicIds.length);
   const results: any[] = [];
   for (const cid of clinicIds) {
     const r = await processClinic(cid, body.lead_ids, body.pipeline_id);
