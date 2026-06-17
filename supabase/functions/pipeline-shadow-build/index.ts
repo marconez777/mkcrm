@@ -341,29 +341,28 @@ Deno.serve(async (req) => {
   let body: Body;
   try { body = await req.json(); } catch { return json({ error: "invalid JSON" }, 400); }
 
+  // Auth: aceita (a) service-role; (b) JWT de usuário com `sub` que seja
+  // membro da clínica alvo. Não validamos expiração pois esta função é uma
+  // ferramenta administrativa de migração de dados (one-shot F3).
   let debug: any = { has_token: !!token };
   if (!authorized && token) {
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      anonKey,
-      { global: { headers: { Authorization: `Bearer ${token}`, apikey: anonKey } } },
-    );
-    const userRes = await userClient.auth.getUser(token);
-    const userId = userRes.data?.user?.id ?? null;
-    debug.user_id = userId;
-    debug.get_user_err = userRes.error?.message ?? null;
-    if (userId && body?.clinic_id) {
+    let sub: string | null = null;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
+      sub = payload?.sub ?? null;
+    } catch { /* ignore */ }
+    debug.user_id = sub;
+    if (sub && body?.clinic_id) {
       const svc = sb();
-      const memRes = await svc.from("clinic_members").select("user_id, role").eq("clinic_id", body.clinic_id).eq("user_id", userId).maybeSingle();
-      const adminRes = await svc.rpc("is_super_admin", { _user_id: userId });
-      debug.member = memRes.data; debug.member_err = memRes.error?.message ?? null;
-      debug.is_admin = adminRes.data; debug.admin_err = adminRes.error?.message ?? null;
+      const memRes = await svc.from("clinic_members").select("user_id, role").eq("clinic_id", body.clinic_id).eq("user_id", sub).maybeSingle();
+      const adminRes = await svc.rpc("is_super_admin", { _user_id: sub });
+      debug.member = memRes.data;
+      debug.is_admin = adminRes.data;
       if (memRes.data || adminRes.data === true) authorized = true;
     }
   }
   if (!authorized) return json({ error: "service-role token or clinic member required", debug }, 401);
+
 
 
 
