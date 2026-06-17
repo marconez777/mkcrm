@@ -101,16 +101,28 @@ async function doCreate(
   }
   if (missing.length) return { error: `missing target stages: ${missing.join(", ")}` };
 
-  // 2) leads do pipeline origem sem shadow ainda
-  // O Supabase JS client não suporta "NOT EXISTS" direto — fazemos em 2 queries.
-  const { data: leads, error: leadsErr } = await supabase
-    .from("leads")
-    .select("id, phone, name, email, custom_fields, stage_id, tags, is_internal_contact, whatsapp_instance_id, utm_source, utm_medium, utm_campaign, attendant_id")
-    .eq("clinic_id", body.clinic_id)
-    .eq("pipeline_id", body.source_pipeline_id)
-    .is("shadow_of_lead_id", null)
-    .limit(body.max_leads);
-  if (leadsErr) return { error: leadsErr.message };
+  // 2) leads do pipeline origem sem shadow ainda — pagina em chunks de 1000
+  //    (PostgREST limita por max-rows ~1000 por request).
+  const PAGE = 1000;
+  const leads: SourceLead[] = [];
+  let from = 0;
+  while (leads.length < body.max_leads) {
+    const to = from + PAGE - 1;
+    const { data: page, error: leadsErr } = await supabase
+      .from("leads")
+      .select("id, phone, name, email, custom_fields, stage_id, tags, is_internal_contact, whatsapp_instance_id, utm_source, utm_medium, utm_campaign, attendant_id")
+      .eq("clinic_id", body.clinic_id)
+      .eq("pipeline_id", body.source_pipeline_id)
+      .is("shadow_of_lead_id", null)
+      .order("created_at", { ascending: true })
+      .range(from, to);
+    if (leadsErr) return { error: leadsErr.message };
+    const rows = (page ?? []) as SourceLead[];
+    leads.push(...rows);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+
 
   const { data: existingShadows } = await supabase
     .from("leads")
