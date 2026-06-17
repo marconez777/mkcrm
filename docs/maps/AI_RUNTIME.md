@@ -3,13 +3,33 @@ title: "Mapa: AI Runtime (agentes em execução)"
 topic: ai
 kind: map
 audience: agent
-updated: 2026-06-07
-summary: "Tudo que executa um agente IA em produção: resposta automática a mensagem inbound, assist manual, classificador, follow-ups, copilot, e a infraestrutura compartilhada (tools, custos, spend-guard, pricing). Não inclui o **Builder** (ver mapa"
+updated: 2026-06-17
+summary: "Toda execução de IA em produção. Separada em dois universos: AI conversacional (auto-reply / assist / copilot — agente fala com o lead) e AI estrutural (extractor / vision / audio / field-rules — extrai dados e move o card no Kanban). Não inclui o Builder (mapa próprio)."
+related_docs:
+  - docs/flows/AI_AGENT_LOOP.md
+  - docs/flows/PIPELINE_DERIVED.md
+  - docs/maps/CUSTOM_FIELDS_CONTRACT.md
+  - docs/maps/KANBAN_LEADS.md
+  - docs/maps/AUTOMATIONS_SEQUENCES.md
+  - docs/edge-functions/AI.md
 ---
 # Mapa: AI Runtime (agentes em execução)
 
-> **Para localizar edições.** Para entender *por quê*, leia [`docs/edge-functions/AI.md`](../edge-functions/AI.md) e [`docs/flows/AI_AGENT_LOOP.md`](../flows/AI_AGENT_LOOP.md).
-> **Última atualização:** 2026-06-03
+> **Para localizar edições.** Para entender *por quê*, leia [`docs/edge-functions/AI.md`](../edge-functions/AI.md), [`docs/flows/AI_AGENT_LOOP.md`](../flows/AI_AGENT_LOOP.md) (conversacional) e [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md) (estrutural).
+> **Última atualização:** 2026-06-17
+
+---
+
+## 0. Os dois universos da IA
+
+A IA em produção tem **dois propósitos distintos** que não podem ser confundidos:
+
+| Universo | O que faz | Edges principais | Provedor padrão | Cobrança |
+|---|---|---|---|---|
+| **AI conversacional** | Responde mensagem no WhatsApp / sugere resposta no Inbox / resume conversa | `ai-auto-reply`, `ai-assist`, `ai-chat`, `agent-followups-tick` | Configurável por `ai_agents.provider` (OpenAI/Anthropic/Google) | `ai_usage` + `ai_spend_limits.monthly_cap_usd` (Lovable) |
+| **AI estrutural ("Pipeline IA")** | Extrai dados das mensagens → preenche `custom_fields` → field-rules movem o card | `extractor-tick`, `vision-tick`, `audio-tick`, `field-rules-tick` | OpenAI BYOK (`gpt-5-nano` + `gpt-5-mini` vision + `whisper-1`) | `lead_ai_extraction_runs.cost_usd` + `clinics.classifier_config.daily_budget_*` (clínica paga direto) |
+
+Tudo abaixo desta seção referencia explicitamente um dos dois universos.
 
 ---
 
@@ -19,6 +39,7 @@ Tudo que executa um agente IA em produção: resposta automática a mensagem inb
 
 ## 2. Rotas / pontos de entrada
 
+### Conversacional
 | Origem | Entry point |
 |---|---|
 | Mensagem inbound WhatsApp | `evolution-webhook` → `ai-auto-reply` |
@@ -28,6 +49,17 @@ Tudo que executa um agente IA em produção: resposta automática a mensagem inb
 | Follow-ups agendados | `agent-followups-tick` (cron) |
 | Bulk de agentes | `agent-run-bulk` |
 | Métricas IA | `/metrics/ai-usage` (`src/pages/MetricsAiUsage.tsx`) |
+
+### Estrutural (Pipeline IA)
+| Origem | Entry point |
+|---|---|
+| Mensagem inbound (trigger SQL) | `trg_lead_needs_extraction` em `messages` → marca `leads.needs_ai_review=true` |
+| Extração de texto (cron 2 min) | `extractor-tick` |
+| Análise de imagem/comprovante (cron 3 min) | `vision-tick` |
+| Transcrição de áudio (cron 5 min) | `audio-tick` |
+| Movimentação automática do Kanban (cron 2 min) | `field-rules-tick` |
+| UI de configuração | `/settings` aba "IA do Pipeline" (`AILimitsCard`, `FieldRulesCard`, `OpenAIKeyCard`, `ExtractorHistoryCard`) |
+| Chips no Kanban | `src/components/kanban/AIBadges.tsx` |
 
 ## 3. Frontend
 
@@ -45,14 +77,14 @@ Tudo que executa um agente IA em produção: resposta automática a mensagem inb
 
 ## 4. Edge functions
 
-### Núcleo do loop
+### 4.1 Conversacional — núcleo do loop
 | Function | Função |
 |---|---|
 | `ai-chat/index.ts` | **roteador central** — carrega tools, chama provider, executa tool_calls, persiste traces. Usado por `ai-auto-reply` e `ai-assist`. |
 | `ai-auto-reply/index.ts` | trigger por mensagem inbound. Carrega contexto, monta history, chama `ai-chat`, envia resposta via `evolution-send`. |
 | `ai-assist/index.ts` | trigger manual do Inbox. Mesma base de `ai-auto-reply` mas sem envio automático. |
 
-### Suporte
+### 4.2 Conversacional — suporte
 - `ai-analyst-run` — análise longa (PDFs etc.) com `gemini-2.5-pro`.
 - `ai-eval-run` — avaliação contra dataset.
 - `ai-embed` — gera embeddings.
@@ -62,7 +94,21 @@ Tudo que executa um agente IA em produção: resposta automática a mensagem inb
 - `agent-followups-tick` — dispara follow-ups agendados.
 - `agent-learn-from-thread` — extrai memórias de conversa para `agent_memory`.
 - `agent-run-bulk` — roda agente sobre N leads.
-- `transcribe-audio` — (TODO ainda) transcrição de áudio inbound.
+- `transcribe-audio` — utilitário stand-alone (usado pelo `audio-tick` indiretamente via Whisper).
+
+### 4.3 Pipeline IA (estrutural)
+
+> Conta tudo em `lead_ai_extraction_runs` (kind = `text` | `vision` | `audio` | `skipped`). Tudo respeita `leads.manual_lock_until`. Tudo usa OpenAI BYOK via `public.get_openai_key(clinic_id)` SECURITY DEFINER.
+
+| Function | Cron | Modelo padrão | Custo estimado | Responsabilidade |
+|---|---|---|---|---|
+| `extractor-tick/index.ts` | `*/2 min` | `gpt-5-nano` (fallback `gpt-4o-mini`) | ~$0.0005/lead/ciclo | Lê últimas N msgs do lead (`classifier_config.max_messages_per_extraction`), chama tool `extract_lead_fields` (JSON Schema), preenche `leads.custom_fields`. Respeita `manual_lock_until` e `confidence_threshold`. |
+| `vision-tick/index.ts` | `*/3 min` | `gpt-5-mini` Vision (fallback `gpt-4o`) | ~$0.002/imagem | Lê `messages` com `media_url` (image/document) + `vision_processed=false`. Chama tool `analyze_payment_proof` (is_payment_proof, amount_brl, method, paid_at, transaction_id). Marca `pagamento_confirmado=true` quando comprovante legível; cria evento `vision_unreadable` quando ilegível. |
+| `audio-tick/index.ts` | `*/5 min` | `whisper-1` | $0.006/min | Lê `messages` com `needs_audio_transcription=true`. Baixa `media_url`, manda multipart pro Whisper (PT-BR + glossário), grava `messages.transcript` + `transcript_status='done'`. Reenfileira o lead (`needs_ai_review=true`) pro extractor reprocessar. |
+| `field-rules-tick/index.ts` | `*/2 min` | — (SQL puro, sem LLM) | $0 | Lê `pipeline_field_rules` ativas, avalia em ordem de `priority DESC`, primeira regra que casa move o lead via UPDATE em `leads.stage_id` + `lead_stage_history` (`reason='field_rule:<nome>'`) + `lead_events` (`type='stage_auto_moved'`). |
+| `field-rules-suggest/index.ts` | sob demanda (UI) | `gpt-5-mini` | ~$0.005/clínica | Sugere regras novas baseadas em padrões observados em `custom_fields`. |
+
+Operadores reais suportados em `field-rules-tick`: `equals`, `not_equals`, `is_true`, `is_false`, `is_empty`, `not_empty`, `in`, `contains`, `gte`, `lte`, `is_future`, `is_past`.
 
 ### Compartilhado (`_shared/`)
 | Arquivo | Função |
@@ -86,7 +132,7 @@ Lista canônica (espelha `KNOWN_AGENT_TOOLS`):
 
 ## 5. Banco de dados
 
-### Tabelas
+### 5.1 Tabelas conversacionais
 | Tabela | Função |
 |---|---|
 | `ai_usage` | 1 linha por chamada LLM (tokens, custo, modelo, latência, meta) |
@@ -105,12 +151,27 @@ Lista canônica (espelha `KNOWN_AGENT_TOOLS`):
 | `messages.bot_agent_id` | marca mensagens out originadas por IA |
 | `leads.ai_paused` | flag de pausa (manual ou via `transfer_to_human`) |
 
-⚠️ **Não existem** tabelas `ai_runs`, `ai_tool_calls` nem `clinic_settings`. Naming canônico: `ai_usage` (1 linha por chamada) + view `ai_usage_daily` (rollup) + `ai_spend_events` (cobrança) + `ai_chat_traces` (transcrição por turno, com `tool_calls[]` em `turns[].tool_calls[]`). Memória persistente é `agent_memory` (singular). Config de IA por clínica vive em `clinics.settings.ai.*`.
+### 5.2 Tabelas do Pipeline IA
+| Tabela / coluna | Função |
+|---|---|
+| `clinic_secrets` (clinic_id, openai_api_key_encrypted, key_id) | BYOK por clínica. RLS service_role-only. Leitura via `public.get_openai_key()` SECURITY DEFINER. |
+| `clinics.classifier_config` (jsonb) | Limites e configs: `manual_lock_minutes`, `confidence_threshold`, `allow_overwrite_filled`, `max_messages_per_extraction`, `max_extractions_per_lead_per_day`, `daily_budget_extractions`, `max_vision_per_lead`, `daily_budget_vision`, `daily_budget_audio_minutes`, `openai_model_text/vision/audio`, `openai_status` (`empty | configured | invalid`). |
+| `lead_ai_extraction_runs` (id, lead_id, kind, model, tokens_in/out, cost_usd, confidence, fields_set, message_id, error, created_at) | 1 linha por execução do extractor/vision/audio. Permite auditoria e billing. |
+| `pipeline_field_rules` (clinic_id, pipeline_id, target_stage_id, name, priority, enabled, conditions jsonb) | Regras "estado → coluna". |
+| `leads.custom_fields` (jsonb) | **Fonte de verdade** dos campos extraídos. Ver `docs/maps/CUSTOM_FIELDS_CONTRACT.md`. |
+| `leads.needs_ai_review` / `ai_review_reasons[]` / `ai_review_queued_at` | Fila do extractor. |
+| `leads.manual_lock_until` (timestamptz) | Freio de mão. Extractor e field-rules respeitam. |
+| `messages.vision_processed` / `needs_audio_transcription` / `transcript` / `transcript_status` / `transcript_cost_usd` | Flags do pipeline visão/áudio. |
+| `lead_stage_history.reason` | `field_rule:<nome>` ou `manual:<user>` ou `unknown`. Idempotente via `ON CONFLICT (lead_id, to_stage_id, moved_at) DO NOTHING`. |
+| `lead_events.type` | Eventos novos: `ai_fields_extracted`, `vision_unreadable`, `audio_transcribed`, `stage_auto_moved`. |
 
-### RPCs
+⚠️ **Não existem** tabelas `ai_runs`, `ai_tool_calls` nem `clinic_settings`. Config IA conversacional → `clinics.settings.ai.*`. Config IA estrutural → `clinics.classifier_config`.
+
+### 5.3 RPCs
 - `engagement_sequences_summary`, `engagement_sequence_steps` — aba `/ai/engagement`.
 - `admin_top_clinics` — uso de IA agregado (super_admin).
-- Várias `engagement_*` para métricas.
+- `get_openai_key(clinic_id uuid)` SECURITY DEFINER — usada SOMENTE por edge functions do Pipeline IA.
+- `get_clinic_openai_status(clinic_id uuid)` — devolve `empty|configured|invalid` sem expor a chave.
 
 ### Triggers
 - `trg_stop_sequences_on_reply` em `messages` — interrompe sequences quando lead responde.
