@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (!authorized) return json({ error: "service-role token or clinic member required" }, 401);
+  if (!authorized) return json({ error: "service-role token or clinic member required", debug: { has_token: !!token, token_prefix: token.slice(0, 12), body_clinic: body?.clinic_id } }, 401);
 
 
 
