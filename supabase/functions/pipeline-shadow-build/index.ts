@@ -153,7 +153,7 @@ async function doCreate(
     const srcCf = (l.custom_fields ?? {}) as Record<string, unknown>;
     const cf: Record<string, unknown> = { ...srcCf };
     if (cf.qualificacao === "desqualificado" && !cf.motivo_desqualificacao) {
-      cf.motivo_desqualificacao = "migrado_shadow_2026_06";
+      cf.motivo_desqualificacao = "outro";
     }
 
     const willExtract = NEEDS_EXTRACTION_FROM.has(srcName) && !l.is_internal_contact;
