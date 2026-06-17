@@ -314,14 +314,26 @@ Hooks e páginas a tocar na F1 (adicionar `.is('shadow_of_lead_id', null)` ou si
 - `src/pages/MetricsOps.tsx` — funil/conversão
 - `src/pages/MetricsAiUsage.tsx` — custos por lead
 
-**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro. Decisão pendente.
+**Alternativa mais limpa:** criar **VIEW `public.leads_live`** filtrando `shadow_of_lead_id IS NULL` e migrar os hooks pra ela. Reduz risco de esquecer um filtro.
 
-### Decisões pendentes para abrir F1
+### Decisões tomadas em 2026-06-17 (desbloqueando F1)
 
-1. **"Consulta finalizada" (16 leads)** — mapear para "Em tratamento" (se `sessao_total > 0`) ou "Paciente antigo"? Ou criar coluna própria?
-2. **View `leads_live` vs filtros espalhados** — qual estratégia preferimos para shadows não vazarem em produção?
+1. ✅ **"Consulta finalizada" vira coluna própria** no pipeline novo (posição 3, entre "Consulta agendada" e "Procedimento agendado"). Field-rule prio 140 — ver §5.1.
+2. ✅ **Estratégia de isolamento: VIEW `leads_live`**. F1 cria a view e migra os 7 hooks/páginas listados acima. Hooks que escrevem (insert/update) continuam usando `leads` direto.
 
-| 2026-06-17 | F1 | ⏸️ Aguardando 2 decisões acima | — | — |
+### Escopo final da F1 (migration única)
+
+1. Coluna `leads.shadow_of_lead_id uuid REFERENCES leads(id) ON DELETE CASCADE` + índice parcial `WHERE shadow_of_lead_id IS NOT NULL`.
+2. View `public.leads_live` = `SELECT * FROM leads WHERE shadow_of_lead_id IS NULL`. GRANT SELECT pros mesmos roles de `leads`. Security barrier para respeitar RLS.
+3. Tabela `appointments` (lead_id, kind, scheduled_at, status, notes, created_by, created_at, updated_at) + RLS no padrão `current_clinic_id()` + GRANTs + trigger `set_updated_at` + função `recompute_lead_appointment_summary`.
+4. Pipeline novo `Clínica ÓR (novo)` (`is_default=false`) com **12 stages** (10 funil + 2 laterais com `is_archive=true`).
+5. 10 field-rules da §5.1 apontando pros stages novos.
+6. Trigger `trg_lead_risk_handler` — criado mas **`enabled=false`** até o cutover (F4 lista pra revisão, F6 ativa).
+7. 5 automações da §5.2 vinculadas aos stages novos, **`enabled=false`** até cutover.
+
+Em paralelo (não na migration): edits nos 7 hooks pra trocar `from('leads')` → `from('leads_live')` em queries de leitura. Listo arquivo-a-arquivo no PR da F1.
+
+| 2026-06-17 | F1 | 🔜 Pronta para abrir | — | Aguardando seu OK pra escrever a migration |
 
 ---
 
