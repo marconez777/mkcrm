@@ -1,6 +1,6 @@
 # Drift report
 
-_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T21:05:38.201Z_
+_Gerado por `scripts/docs-sync.mjs` em 2026-06-17T22:55:47.798Z_
 
 Total de docs: **171** · frontmatter atualizado neste run: **0**
 
@@ -92,6 +92,7 @@ _(nenhum)_
 - `integrations-status`
 - `log-frontend-error`
 - `outreach-recovery-tick`
+- `pipeline-shadow-build`
 - `process-email-queue`
 - `process-scheduled-campaigns`
 - `resend-webhook`

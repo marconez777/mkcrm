@@ -1356,7 +1356,7 @@
       "docs/flows/LEAD_LIFECYCLE.md",
       "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md"
     ],
-    "size_lines": 187,
+    "size_lines": 191,
     "stale_refs": []
   },
   {
@@ -2320,7 +2320,7 @@
       "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
       "docs/maps/AI_RUNTIME.md"
     ],
-    "size_lines": 148,
+    "size_lines": 150,
     "stale_refs": []
   },
   {
@@ -2514,6 +2514,47 @@
     "stale_refs": []
   },
   {
+    "path": "docs/roadmap/_done/PIPELINE_RESTRUCTURE_2026_06.md",
+    "title": "Reestruturação do Pipeline Clínica ÓR (2026-06)",
+    "topic": "roadmap",
+    "kind": "roadmap",
+    "audience": "agent",
+    "updated": "2026-06-17",
+    "summary": "Fonte única de verdade da reestruturação do pipeline da Clínica ÓR: 15 colunas → 9 colunas, novos custom_fields, novas field-rules, tabela appointments, e estratégia pipeline-sombra para fazer tudo sem interromper a operação. Sucede CLINIC_PIPELINE.md.",
+    "headings": [
+      "1. Contexto e objetivo",
+      "2. Decisões aprovadas",
+      "3. Mapeamento de colunas (atual → novo)",
+      "4. Novos custom_fields contratados",
+      "5. Novas field-rules e automações",
+      "6. Estratégia pipeline-sombra",
+      "7. Plano de execução (8 fases)",
+      "8. Riscos e mitigações",
+      "9. Custo de IA estimado",
+      "10. Checklist de cutover (dia D)",
+      "11. Diário de execução",
+      "12. Critérios de \"entregue\""
+    ],
+    "code_refs": [
+      "supabase/functions/extractor-tick/",
+      "supabase/functions/field-rules-tick/",
+      "src/components/kanban/",
+      "src/components/settings/FieldRulesCard.tsx",
+      "src/components/settings/ExtractorHistoryCard.tsx"
+    ],
+    "related_docs": [
+      "docs/roadmap/CLINIC_PIPELINE.md",
+      "docs/maps/AI_RUNTIME.md",
+      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
+      "docs/flows/PIPELINE_DERIVED.md",
+      "docs/estudo/README.md",
+      "docs/estudo-geral.md",
+      "docs/support/journeys/usar-pipeline-ia.md"
+    ],
+    "size_lines": 333,
+    "stale_refs": []
+  },
+  {
     "path": "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md",
     "title": "Auditoria: Extractor + Pipeline (Clínica Ór)",
     "topic": "ai",
@@ -2586,7 +2627,7 @@
       "docs/roadmap/DOCS_MAINTENANCE.md",
       "docs/support/journeys/usar-pipeline-ia.md"
     ],
-    "size_lines": 261,
+    "size_lines": 259,
     "stale_refs": []
   },
   {
@@ -2682,47 +2723,6 @@
     "code_refs": [],
     "related_docs": [],
     "size_lines": 146,
-    "stale_refs": []
-  },
-  {
-    "path": "docs/roadmap/PIPELINE_RESTRUCTURE_2026_06.md",
-    "title": "Reestruturação do Pipeline Clínica ÓR (2026-06)",
-    "topic": "roadmap",
-    "kind": "roadmap",
-    "audience": "agent",
-    "updated": "2026-06-17",
-    "summary": "Fonte única de verdade da reestruturação do pipeline da Clínica ÓR: 15 colunas → 9 colunas, novos custom_fields, novas field-rules, tabela appointments, e estratégia pipeline-sombra para fazer tudo sem interromper a operação. Sucede CLINIC_PIPELINE.md.",
-    "headings": [
-      "1. Contexto e objetivo",
-      "2. Decisões aprovadas",
-      "3. Mapeamento de colunas (atual → novo)",
-      "4. Novos custom_fields contratados",
-      "5. Novas field-rules e automações",
-      "6. Estratégia pipeline-sombra",
-      "7. Plano de execução (8 fases)",
-      "8. Riscos e mitigações",
-      "9. Custo de IA estimado",
-      "10. Checklist de cutover (dia D)",
-      "11. Diário de execução",
-      "12. Critérios de \"entregue\""
-    ],
-    "code_refs": [
-      "supabase/functions/extractor-tick/",
-      "supabase/functions/field-rules-tick/",
-      "src/components/kanban/",
-      "src/components/settings/FieldRulesCard.tsx",
-      "src/components/settings/ExtractorHistoryCard.tsx"
-    ],
-    "related_docs": [
-      "docs/roadmap/CLINIC_PIPELINE.md",
-      "docs/maps/AI_RUNTIME.md",
-      "docs/maps/CUSTOM_FIELDS_CONTRACT.md",
-      "docs/flows/PIPELINE_DERIVED.md",
-      "docs/estudo/README.md",
-      "docs/estudo-geral.md",
-      "docs/support/journeys/usar-pipeline-ia.md"
-    ],
-    "size_lines": 327,
     "stale_refs": []
   },
   {

@@ -25,6 +25,8 @@ Em clínicas com Pipeline IA habilitado, o stage do lead **não é escolhido man
 2. `field-rules-tick` (cron 2 min) avalia `pipeline_field_rules` em ordem de `priority DESC`.
 3. Primeira regra que casa move o card via UPDATE em `leads.stage_id`.
 
+> Caso de referência atual: **Clínica ÓR** — 11 stages, ~1.638 leads, reestruturação 15→11 concluída em 2026-06-17 (`docs/roadmap/_done/PIPELINE_RESTRUCTURE_2026_06.md`).
+
 Detalhe completo: [`docs/flows/PIPELINE_DERIVED.md`](../flows/PIPELINE_DERIVED.md).
 Catálogo dos campos: [`docs/maps/CUSTOM_FIELDS_CONTRACT.md`](./CUSTOM_FIELDS_CONTRACT.md).
 

@@ -19,12 +19,12 @@ related_docs:
   - docs/estudo/README.md
   - docs/estudo-geral.md
   - docs/support/journeys/usar-pipeline-ia.md
-status: planejado
+status: entregue
 ---
 
-# Reestruturação do Pipeline Clínica ÓR — 2026-06
+# Reestruturação do Pipeline Clínica ÓR — 2026-06 — ENTREGUE
 
-> Documento vivo. Atualizar a seção §11 "Diário de execução" a cada fase concluída. Quando todas as fases estiverem entregues, mover para `docs/roadmap/_done/` e atualizar `docs/flows/PIPELINE_DERIVED.md` com o estado final.
+> **Status:** ✅ ENTREGUE em 2026-06-17 (F0→F7 no mesmo dia). Documento movido para `docs/roadmap/_done/`. Sucedeu `docs/roadmap/CLINIC_PIPELINE.md`. Estado final do pipeline vive em `docs/flows/PIPELINE_DERIVED.md` e `docs/maps/KANBAN_LEADS.md`.
 
 ---
 
@@ -333,17 +333,23 @@ Hooks e páginas a tocar na F1 (adicionar `.is('shadow_of_lead_id', null)` ou si
 
 Em paralelo (não na migration): edits nos 7 hooks pra trocar `from('leads')` → `from('leads_live')` em queries de leitura. Listo arquivo-a-arquivo no PR da F1.
 
-| 2026-06-17 | F1 | 🔜 Pronta para abrir | — | Aguardando seu OK pra escrever a migration |
+| 2026-06-17 | F1 | ✅ Concluída | migration `add_appointments_shadow_field_rules` | Pipeline novo + 11 stages + 9 field-rules + `appointments` + view `leads_live` + coluna `shadow_of_lead_id` + trigger `trg_lead_risk_handler` (disabled). |
+| 2026-06-17 | F2 | ✅ Concluída | edit `extractor-tick` + `FIELD_LABELS` | Contrato de custom_fields novos honrado pelo extractor; B2B/risco regex no trigger SQL; prompt com `Hoje é …`. |
+| 2026-06-17 | F3 | ✅ Concluída | edge `pipeline-shadow-build` + 80 runs | 1.615 shadows criados, 1.272 com extração IA (343 skip por sem histórico, 95 caíram pra cron drenar). Custo: **US$ 0,13** (muito abaixo do teto US$ 2,80). |
+| 2026-06-17 | F4 | ✅ Concluída | edit `field-rules-tick` (param `pipeline_id` + paginação) | 1.615 shadows reavaliados, 9 cards movidos pelas regras prio≥80. Distribuição: Nutrição 683, Paciente antigo 457, B2B 260, Qualificação 109, etc. |
+| 2026-06-17 | F5 | ✅ Concluída | data op `cutover atômico` | 1.638 leads movidos do pipeline antigo para o novo em 1 transação (`UPDATE ... FROM shadow` + merge `custom_fields` + DELETE shadows + rename pipelines). 0 shadows restantes. Pipeline novo virou default. |
+| 2026-06-17 | F6 | ✅ Concluída | migration `pipeline_restructure_cleanup` | DELETE pipeline antigo "[ARQUIVADO] Agendamentos Novo" (cascata 15 stages + 7 field-rules antigas) · DROP view `leads_live` · DROP column `leads.shadow_of_lead_id` · ENABLE TRIGGER `trg_lead_risk_handler`. |
+| 2026-06-17 | F7 | ✅ Concluída | docs sync | `CLINIC_PIPELINE.md` marcado como sucedido, `PIPELINE_DERIVED.md` + `KANBAN_LEADS.md` + journeys atualizados, este arquivo movido para `_done/`, `INDEX.json`/`DRIFT.md` regerados. |
 
 ---
 
 ## 12. Critérios de "entregue"
 
-- [ ] 0 leads no pipeline antigo (`SELECT count(*) FROM leads WHERE pipeline_id = :antigo` = 0)
-- [ ] Pipeline antigo deletado
-- [ ] Coluna `shadow_of_lead_id` deletada
-- [ ] `docs/flows/PIPELINE_DERIVED.md` atualizado com o novo modelo
-- [ ] `docs/maps/CUSTOM_FIELDS_CONTRACT.md` atualizado com campos novos
-- [ ] `docs/roadmap/CLINIC_PIPELINE.md` marcado como sucedido por este
-- [ ] `DRIFT.md` limpo
-- [ ] Este arquivo movido para `docs/roadmap/_done/PIPELINE_RESTRUCTURE_2026_06.md`
+- [x] 0 leads no pipeline antigo
+- [x] Pipeline antigo deletado
+- [x] Coluna `shadow_of_lead_id` deletada
+- [x] `docs/flows/PIPELINE_DERIVED.md` atualizado com o novo modelo
+- [x] `docs/maps/CUSTOM_FIELDS_CONTRACT.md` atualizado com campos novos (F2)
+- [x] `docs/roadmap/CLINIC_PIPELINE.md` marcado como sucedido por este
+- [x] `DRIFT.md` limpo
+- [x] Este arquivo movido para `docs/roadmap/_done/PIPELINE_RESTRUCTURE_2026_06.md`
