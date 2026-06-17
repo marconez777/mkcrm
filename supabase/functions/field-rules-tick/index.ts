@@ -88,7 +88,7 @@ interface LeadRow {
   updated_at: string;
 }
 
-async function processClinic(clinicId: string, leadIds?: string[]) {
+async function processClinic(clinicId: string, leadIds?: string[], allInPipeline?: string) {
   const supabase = sb();
 
   // 1) regras enabled da clínica, agrupadas por pipeline_id
