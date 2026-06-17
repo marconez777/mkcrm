@@ -100,6 +100,8 @@ Todos os ticks são **idempotentes** e usam `SELECT … FOR UPDATE SKIP LOCKED` 
 
 ## 4. Exemplo real — Clínica ÓR
 
+> **Estado atual (pós 2026-06-17):** a Clínica ÓR opera no pipeline "Clínica ÓR" com **11 stages** (Leads de entrada · Qualificação · Consulta agendada · Consulta finalizada · Procedimento agendado · Procedimento pago · Paciente antigo · Nutrição inativa · Sem resposta · Desqualificado / Fora de escopo · B2B / Stakeholders). Veio da reestruturação 15→11 documentada em `docs/roadmap/_done/PIPELINE_RESTRUCTURE_2026_06.md` (estratégia pipeline-sombra + cutover atômico de 1.638 leads).
+
 ### 4.1 Cenário "feliz"
 
 Lead Laura manda 4 mensagens contendo "quero fazer infusão de cetamina", "posso essa quinta?", manda áudio confirmando, manda comprovante PIX.
@@ -113,19 +115,21 @@ Lead Laura manda 4 mensagens contendo "quero fazer infusão de cetamina", "posso
 | audio-tick | `messages.transcript` | — | NULL | "confirmo quinta às 14h" |
 | vision-tick | `leads.custom_fields` | `pagamento_confirmado` | — | `true` |
 | vision-tick | `leads.custom_fields` | `ultimo_comprovante` | — | `{method:"pix", amount_brl:2400, …}` |
-| field-rules | `leads.stage_id` | — | "Qualificação" | "Procedimento Pago" |
+| field-rules | `leads.stage_id` | — | "Qualificação" | "Procedimento pago" |
 
 Regra que casou (priority 170): `pagamento_confirmado=true AND tipo_atendimento IN [sessao_cetamina, sessao_emt]`.
 
-### 4.2 Modos de falha observados na auditoria
+### 4.2 Modos de falha históricos (resolvidos pela reestruturação 2026-06)
 
-| Sintoma | Causa | Onde corrigir |
-|---|---|---|
-| Lead Laís preso em Qualificação com `consulta_agendada_em=2024-07-10` | Extractor alucinou ano antigo. Regra `is_future` (priority 90) rejeita data passada. | System prompt do extractor: injetar `Hoje é {now()}` e proibir datas no passado. |
-| Lead Milene com `status_consulta=agendada` mas sem `consulta_agendada_em` (só `data_horario`) | Extractor escreveu em campo legado. | Migrar para nome canônico (ver `CUSTOM_FIELDS_CONTRACT.md §3 normalização`). |
-| Lead Marcelo (representante farmacêutico) entrou em "Qualificação" | Sem regra para `is_b2b=true`. Extractor tentou qualificar como paciente. | Adicionar regra prio 200: `is_b2b=true → Stakeholders`. Adicionar regex B2B no trigger SQL. |
-| Lead com card sumido (em coluna arquivada) | Coluna `Administrativo`/`Paciente antigo` recebem leads via origem mas não há regra para tirar. | Tag `is_archive` (TODO) ou regra explícita por origem. |
-| Lead atualizado há > 24h não move mesmo com regra casando | `field-rules-tick` ignora leads "frios" para reduzir custo SQL. | Configurável em `classifier_config.field_rules_max_age_hours` (TODO). |
+Os 5 modos de falha catalogados na auditoria original foram tratados durante a reestruturação:
+
+| Sintoma original | Resolução aplicada |
+|---|---|
+| Lead preso em Qualificação com data alucinada no passado | Prompt do extractor passou a injetar `Hoje é {now -03:00}` e proibir datas no passado (F2). |
+| Campo legado `data_horario` em vez de `consulta_agendada_em` | Catalogado em `CUSTOM_FIELDS_CONTRACT.md §3 normalização` e normalizado no extractor. |
+| Lead B2B caindo em Qualificação | Nova coluna "B2B / Stakeholders" + regra prio 200 `is_b2b=true` + regex B2B no trigger SQL. |
+| Card sumido em coluna arquivada ("Administrativo") | Coluna eliminada — 260 leads admin viraram B2B. Demais legados removidos no cutover. |
+| Lead frio (>24h) não move mesmo com regra casando | `field-rules-tick` agora aceita `pipeline_id` para reprocessar pipeline inteiro sob demanda (usado no F4). |
 
 ## 5. Manual lock — o "freio de mão"
 
