@@ -923,7 +923,8 @@ async function processClinic(clinicId: string, cfg: ClinicCfg, leadIds?: string[
   // 3) leads da fila
   const leadsQ = supabase
     .from("leads")
-    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact, tags")
+    .select("id, clinic_id, custom_fields, manual_lock_until, ai_review_reasons, ai_review_queued_at, name, phone, is_internal_contact, tags, shadow_of_lead_id")
+
     .eq("clinic_id", clinicId)
     .order("ai_review_queued_at", { ascending: true, nullsFirst: false })
     .limit(Math.min(remaining, 30));
