@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,31 +23,44 @@ interface Proposal {
 }
 
 interface Stage { id: string; name: string; pipeline_id: string }
+interface Pipeline { id: string; name: string; clinic_id: string }
+interface Clinic { id: string; name: string }
 interface Lead { id: string; name: string | null; phone: string }
 
 export default function AdminReclassify() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [clinics, setClinics] = useState<Clinic[]>([]);
   const [leads, setLeads] = useState<Record<string, Lead>>({});
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [batchTag, setBatchTag] = useState("F1-smoke");
+  const [clinicId, setClinicId] = useState("");
   const [stageId, setStageId] = useState("");
   const [limit, setLimit] = useState(5);
   const [dryRun, setDryRun] = useState(false);
   const [running, setRunning] = useState(false);
   const [singleLeadId, setSingleLeadId] = useState("");
 
+  async function loadMeta() {
+    const [{ data: cs }, { data: ps }, { data: st }] = await Promise.all([
+      supabase.from("clinics").select("id, name").order("name"),
+      supabase.from("pipelines").select("id, name, clinic_id"),
+      supabase.from("pipeline_stages").select("id, name, pipeline_id").limit(500),
+    ]);
+    setClinics((cs ?? []) as Clinic[]);
+    setPipelines((ps ?? []) as Pipeline[]);
+    setStages((st ?? []) as Stage[]);
+  }
+
   async function load() {
     setLoading(true);
-    const [{ data: props }, { data: st }] = await Promise.all([
-      supabase.from("lead_reclassify_proposals")
-        .select("*").eq("status", statusFilter)
-        .order("created_at", { ascending: false }).limit(200),
-      supabase.from("pipeline_stages").select("id, name, pipeline_id").limit(200),
-    ]);
+    const { data: props } = await supabase
+      .from("lead_reclassify_proposals")
+      .select("*").eq("status", statusFilter)
+      .order("created_at", { ascending: false }).limit(200);
     setProposals((props ?? []) as Proposal[]);
-    setStages((st ?? []) as Stage[]);
     const ids = Array.from(new Set((props ?? []).map((p: any) => p.lead_id)));
     if (ids.length) {
       const { data: ls } = await supabase.from("leads")
@@ -55,15 +68,28 @@ export default function AdminReclassify() {
       const map: Record<string, Lead> = {};
       for (const l of (ls ?? []) as Lead[]) map[l.id] = l;
       setLeads(map);
+    } else {
+      setLeads({});
     }
     setLoading(false);
   }
+
+  useEffect(() => { loadMeta(); }, []);
   useEffect(() => { load(); }, [statusFilter]);
 
   const stageName = (id: string) => stages.find((s) => s.id === id)?.name ?? id.slice(0, 8);
-  const orStages = stages.filter((s) =>
-    s.pipeline_id === stages.find((x) => x.name === "Nutrição inativa")?.pipeline_id,
-  );
+
+  // Stages filtrados pela clínica selecionada
+  const filteredStages = useMemo(() => {
+    if (!clinicId) return [];
+    const pipelineIds = new Set(pipelines.filter((p) => p.clinic_id === clinicId).map((p) => p.id));
+    return stages
+      .filter((s) => pipelineIds.has(s.pipeline_id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clinicId, pipelines, stages]);
+
+  // Reset stage quando trocar clínica
+  useEffect(() => { setStageId(""); }, [clinicId]);
 
   async function runBatch() {
     setRunning(true);
@@ -71,7 +97,7 @@ export default function AdminReclassify() {
       const body: any = { batch_tag: batchTag, dry_run: dryRun };
       if (singleLeadId.trim()) body.lead_id = singleLeadId.trim();
       else if (stageId) { body.stage_id = stageId; body.limit = limit; }
-      else { toast({ title: "Informe lead_id ou stage" }); return; }
+      else { toast({ title: "Informe lead_id ou clínica + stage" }); return; }
       const { data, error } = await supabase.functions.invoke("lead-reclassify-deep", { body });
       if (error) throw error;
       toast({ title: "OK", description: `${(data as any)?.count ?? 1} processado(s)` });
@@ -102,13 +128,26 @@ export default function AdminReclassify() {
 
       <div className="rounded-lg border p-4 space-y-3">
         <div className="font-medium">Disparar reclassificação</div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
           <Input placeholder="batch_tag" value={batchTag} onChange={(e) => setBatchTag(e.target.value)} />
           <Input placeholder="lead_id (opcional)" value={singleLeadId} onChange={(e) => setSingleLeadId(e.target.value)} className="md:col-span-2" />
-          <Select value={stageId} onValueChange={setStageId}>
-            <SelectTrigger><SelectValue placeholder="Stage (lote)" /></SelectTrigger>
+          <Select value={clinicId} onValueChange={setClinicId}>
+            <SelectTrigger><SelectValue placeholder="Clínica" /></SelectTrigger>
             <SelectContent>
-              {orStages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              {clinics.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={stageId} onValueChange={setStageId} disabled={!clinicId}>
+            <SelectTrigger><SelectValue placeholder={clinicId ? "Stage (lote)" : "Escolha clínica"} /></SelectTrigger>
+            <SelectContent>
+              {filteredStages.map((s) => {
+                const pipe = pipelines.find((p) => p.id === s.pipeline_id);
+                return (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} <span className="text-xs text-muted-foreground">· {pipe?.name}</span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
           <Input type="number" placeholder="limit" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
