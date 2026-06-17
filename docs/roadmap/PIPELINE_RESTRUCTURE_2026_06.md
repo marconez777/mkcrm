@@ -134,6 +134,7 @@ Campos já existentes preservados: `qualificacao`, `tipo_atendimento`, `consulta
 | 170 | Procedimento pago | `pagamento_confirmado = true AND (sessao_emt OR sessao_cetamina)` | Procedimento pago |
 | 160 | Procedimento agendado | `procedimento_agendado_em is_future` | Procedimento agendado |
 | 150 | Em tratamento (pacote ativo) | `sessao_total > 0 AND saldo_sessoes_pacote > 0` | Em tratamento |
+| 140 | Consulta finalizada | `status_consulta = realizada AND procedimento_agendado_em IS NULL AND pagamento_confirmado != true` | Consulta finalizada |
 | 130 | Consulta agendada | `consulta_agendada_em is_future` | Consulta agendada |
 | 100 | Qualificação | `qualificacao in (interessado, em_negociacao) OR tentou_agendar OR tentou_pagamento` | Qualificação |
 | 80 | Paciente antigo | `sessao_total > 0 AND saldo_sessoes_pacote = 0` | Paciente antigo |
