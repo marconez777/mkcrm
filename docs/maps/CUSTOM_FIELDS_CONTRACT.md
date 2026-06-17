@@ -9,7 +9,7 @@ code_refs:
   - supabase/functions/extractor-tick/
   - supabase/functions/vision-tick/
   - supabase/functions/field-rules-tick/
-  - src/components/kanban/AIBadges.tsx
+  - src/pages/Kanban.tsx
 related_docs:
   - docs/maps/AI_RUNTIME.md
   - docs/maps/KANBAN_LEADS.md
