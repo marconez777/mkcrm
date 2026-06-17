@@ -320,21 +320,31 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
-  // requer service-role OU super-admin logado
+  // requer service-role OU usuário autenticado da própria clínica
   const auth = req.headers.get("Authorization") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   let authorized = !!token && token === serviceKey;
+
+  let body: Body;
+  try { body = await req.json(); } catch { return json({ error: "invalid JSON" }, 400); }
+
   if (!authorized && token) {
-    const userClient = (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: `Bearer ${token}` } } },
     );
-    const { data: isAdmin } = await userClient.rpc("is_super_admin");
+    const [{ data: isAdmin }, { data: clinicId }] = await Promise.all([
+      userClient.rpc("is_super_admin"),
+      userClient.rpc("current_clinic_id"),
+    ]);
     if (isAdmin === true) authorized = true;
+    else if (body?.clinic_id && clinicId === body.clinic_id) authorized = true;
   }
-  if (!authorized) return json({ error: "service-role token or super-admin required" }, 401);
+  if (!authorized) return json({ error: "service-role token or clinic member required" }, 401);
+
 
 
   let body: Body;
