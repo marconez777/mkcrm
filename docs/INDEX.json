@@ -2243,7 +2243,7 @@
       "docs/flows/PIPELINE_DERIVED.md",
       "docs/roadmap/AUDIT_EXTRACTOR_PIPELINE.md"
     ],
-    "size_lines": 137,
+    "size_lines": 144,
     "stale_refs": []
   },
   {
@@ -2722,7 +2722,7 @@
       "docs/estudo-geral.md",
       "docs/support/journeys/usar-pipeline-ia.md"
     ],
-    "size_lines": 313,
+    "size_lines": 327,
     "stale_refs": []
   },
   {
