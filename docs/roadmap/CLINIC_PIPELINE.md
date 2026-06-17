@@ -28,6 +28,8 @@ status: entregue
 
 > Status: **ENTREGUE (F0–F8)**. Documentação viva atualizada nos mapas — este roadmap fica como registro histórico das fases.
 >
+> **Sucessor em curso:** [`docs/roadmap/PIPELINE_RESTRUCTURE_2026_06.md`](./PIPELINE_RESTRUCTURE_2026_06.md) — reestruturação 15→9 colunas, novos custom_fields, estratégia pipeline-sombra.
+>
 > Para consumir a documentação atual em vez deste roadmap:
 > - **Runtime/edge functions** → `docs/maps/AI_RUNTIME.md` (seção "Pipeline IA — agentes estruturais") e `docs/edge-functions/INDEX.md` (linha "Pipeline IA").
 > - **Fluxo "mensagem → extractor → field-rules → kanban"** → `docs/flows/PIPELINE_DERIVED.md`.
