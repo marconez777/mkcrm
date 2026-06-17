@@ -3,9 +3,11 @@ title: Automações — `/automations`
 topic: automations
 kind: support
 audience: user
-updated: 2026-06-07
+updated: 2026-06-17
 ---
 # Automações — `/automations`
+
+> 💡 **Esta tela vs Regras de campo:** Automations reagem ao **tempo** ("lead há 24h sem responder"). Para mover card baseado em **estado dos campos** ("se pagou → manda pra Agendamento"), use **Regras de campo** em **Configurações → IA do Pipeline** (ver `journeys/criar-field-rule.md`).
 
 ## Para que serve
 Regras automáticas do tipo **"quando X acontecer, faça Y"** sobre os leads — follow-up via IA, mover de estágio, enviar template — sem precisar ficar lembrando manualmente.
