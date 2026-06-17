@@ -174,7 +174,7 @@ async function doCreate(
   if (body.dry_run) {
     return {
       mode: "create", dry_run: true,
-      source_total: leads?.length ?? 0,
+      source_total: leads.length,
       already_shadowed: alreadyShadowed.size,
       to_insert: toInsert.length,
       unmapped, per_target_stage: perStage,
