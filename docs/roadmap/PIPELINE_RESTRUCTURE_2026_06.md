@@ -1,10 +1,9 @@
 ---
-title: "Reestruturação do Pipeline Clínica ÓR (2026-06)"
+title: Reestruturação do Pipeline Clínica ÓR (2026-06)
 topic: roadmap
 kind: roadmap
 audience: agent
 updated: 2026-06-17
-status: planejado
 summary: "Fonte única de verdade da reestruturação do pipeline da Clínica ÓR: 15 colunas → 9 colunas, novos custom_fields, novas field-rules, tabela appointments, e estratégia pipeline-sombra para fazer tudo sem interromper a operação. Sucede CLINIC_PIPELINE.md."
 code_refs:
   - supabase/functions/extractor-tick/
@@ -20,6 +19,7 @@ related_docs:
   - docs/estudo/README.md
   - docs/estudo-geral.md
   - docs/support/journeys/usar-pipeline-ia.md
+status: planejado
 ---
 
 # Reestruturação do Pipeline Clínica ÓR — 2026-06
