@@ -79,23 +79,24 @@ A Clínica ÓR opera hoje com **1 pipeline ativo, 15 colunas e 1.625 leads**. O 
 
 **Total: 1.636 leads. Gap na posição 4 (nunca existiu).**
 
-**Stages novos (9 colunas finais):**
+**Stages novos (10 colunas + 2 laterais):**
 
 ```text
-0. Leads de entrada
-1. Qualificação
-2. Consulta agendada
-3. Procedimento agendado
-4. Procedimento pago
-5. Em tratamento
-6. Paciente antigo
-7. Sem resposta
-8. Nutrição inativa
-9. B2B / Stakeholders        ← coluna lateral, não conta em funil
-10. Desqualificado / Fora de escopo  ← coluna lateral
+ 0. Leads de entrada
+ 1. Qualificação
+ 2. Consulta agendada
+ 3. Consulta finalizada           ← decisão 2026-06-17: coluna própria
+ 4. Procedimento agendado
+ 5. Procedimento pago
+ 6. Em tratamento
+ 7. Paciente antigo
+ 8. Sem resposta
+ 9. Nutrição inativa
+10. B2B / Stakeholders            ← lateral, is_archive=true
+11. Desqualificado / Fora de escopo  ← lateral, is_archive=true
 ```
 
-(O Kanban deve marcar 9 e 10 como `is_archive=true` para não entrar em métricas de conversão.)
+"Consulta finalizada" representa o lead **após** a primeira consulta, **antes** de procedimento agendado/pago — útil para medir conversão consulta→procedimento.
 
 ---
 
