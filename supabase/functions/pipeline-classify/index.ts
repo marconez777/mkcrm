@@ -35,6 +35,7 @@ import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
+import { runJudicializacao, runRenovacaoReceita, runObjectionSuggest } from "../_shared/pipeline-fase4.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
