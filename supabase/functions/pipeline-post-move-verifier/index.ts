@@ -27,8 +27,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const MODEL = "openai/gpt-5-nano";
+const MODEL = "gpt-5-nano";
 
 const VerdictSchema = z.object({
   verdict: z.enum(["sim", "nao", "incerto"]),
