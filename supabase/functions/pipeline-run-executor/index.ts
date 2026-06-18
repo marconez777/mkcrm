@@ -29,7 +29,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const CHUNK_SIZE = 5;          // máx. leads por invocação
+const CHUNK_SIZE = 5; // build3          // máx. leads por invocação
 const STALE_AFTER_MS = 3 * 60 * 1000; // 3min sem heartbeat = considerado morto
 
 type EdgeRuntimeShape = { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -317,6 +317,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const action: string = body.action;
+    console.log("[executor v2] action=", action);
     const service = createClient(SUPABASE_URL, SERVICE_KEY);
 
     if (action === "start") {
@@ -330,7 +331,7 @@ Deno.serve(async (req) => {
       }
 
       // Antes de criar um novo, garante que runs stale sejam fechados
-      await service.rpc("mark_stale_pipeline_runs_as_error").catch(() => {});
+      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
 
       const scope: Record<string, unknown> = {};
       if (input.pipeline_id) scope.pipeline_id = input.pipeline_id;
@@ -375,7 +376,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       // Watchdog: se heartbeat estiver stale, marca como erro antes de responder.
-      await service.rpc("mark_stale_pipeline_runs_as_error").catch(() => {});
+      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
       const { data } = await service.from("pipeline_runs").select("*").eq("id", body.run_id).single();
       return jsonResp({ ok: true, run: data });
     }
@@ -416,7 +417,7 @@ Deno.serve(async (req) => {
       const can = await assertClinicAdmin(service, auth.userId, parent.clinic_id as string);
       if (!can.ok) return jsonResp({ error: can.reason }, 403);
 
-      await service.rpc("mark_stale_pipeline_runs_as_error").catch(() => {});
+      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
 
       let itemsQ = service.from("pipeline_run_items").select("lead_id").eq("run_id", body.run_id).not("lead_id", "is", null);
       itemsQ = action === "retry_errors" ? itemsQ.eq("status", "error") : itemsQ.eq("retry_requested", true);
@@ -474,4 +475,4 @@ function jsonResp(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-// touch: STALE_AFTER_MS=${STALE_AFTER_MS}
+// build-tag: v2 chunked executor + reset_ai_classifications
