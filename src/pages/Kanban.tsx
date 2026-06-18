@@ -266,9 +266,27 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const procedimentoRaw: string | undefined = cf.procedimento_agendado_em;
   const consultaDate = isFutureDateStr(consultaRaw);
   const procedimentoDate = isFutureDateStr(procedimentoRaw);
-  const reasons = lead.ai_review_reasons ?? [];
+  const rawReasons = lead.ai_review_reasons ?? [];
   const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
   const pending = !!lead.needs_ai_review;
+
+  // Tags a esconder: ruído interno + duplicatas dos chips já renderizados acima.
+  const HIDDEN_REASONS = new Set<string>([
+    "pipeline-classifier",
+    "pipeline_classifier",
+    "classifier",
+  ]);
+  const shownProcKey = proc ? `proc_${proc}`.toLowerCase() : null;
+  const reasons = rawReasons.filter((r) => {
+    const k = r.toLowerCase();
+    if (HIDDEN_REASONS.has(k)) return false;
+    // redundância com chips de qualif/proc/pag/agenda
+    if (k === "interesse" && qualif === "interessado") return false;
+    if (k === "pagamento" && (pago || tentouPag)) return false;
+    if (k === "agendamento" && (agendou || consultaDate || procedimentoDate)) return false;
+    if (shownProcKey && (k === shownProcKey || k === `procedimento:${proc}`)) return false;
+    return true;
+  });
 
   const visibleReasons = compact ? reasons.slice(0, 2) : reasons.slice(0, 4);
   const extra = reasons.length - visibleReasons.length;
