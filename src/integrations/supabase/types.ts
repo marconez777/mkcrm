@@ -7133,6 +7133,17 @@ export type Database = {
           version: number
         }[]
       }
+      get_builder_agent_for_clinic: {
+        Args: { _clinic_id: string }
+        Returns: {
+          api_key: string
+          base_url: string
+          builder_verified_at: string
+          id: string
+          model: string
+          provider: string
+        }[]
+      }
       get_clinic_openai_status: {
         Args: { _clinic_id: string }
         Returns: {
