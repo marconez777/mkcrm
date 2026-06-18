@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -57,6 +57,7 @@ export default function PipelineRuns() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -135,10 +136,35 @@ export default function PipelineRuns() {
             o que ficou errado e reprocessar.
           </p>
         </div>
-        <Button onClick={handleStart} disabled={starting || !!activeRun} className="gap-2">
-          {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {activeRun ? "Execução em andamento…" : "Executar pipeline inteiro"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (!clinicId) return;
+              if (!confirm("Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta clínica?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.")) return;
+              if (!confirm("Tem certeza? Esta ação não pode ser desfeita. Depois execute o pipeline para reclassificar.")) return;
+              setResetting(true);
+              try {
+                const res = await callExecutor<{ leads_reset?: number }>({ action: "reset_ai_classifications", clinic_id: clinicId });
+                if (res.error) { toast.error(`Erro: ${res.error}`); return; }
+                toast.success(`Classificações limpas em ${res.leads_reset ?? 0} leads`);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : String(err));
+              } finally {
+                setResetting(false);
+              }
+            }}
+            disabled={resetting || starting || !!activeRun}
+            className="gap-2"
+          >
+            {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+            Limpar classificações da IA
+          </Button>
+          <Button onClick={handleStart} disabled={starting || !!activeRun} className="gap-2">
+            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {activeRun ? "Execução em andamento…" : "Executar pipeline inteiro"}
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
