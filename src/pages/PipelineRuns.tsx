@@ -381,7 +381,7 @@ function RunDetail({ runId }: { runId: string }) {
       <ScrollArea className="h-[65vh] pr-2">
         <div className="space-y-3">
           {Object.entries(byStage).map(([stage, list]) => (
-            <StageGroup key={stage} stageName={stage} items={list} />
+            <StageGroup key={stage} stageName={stage} items={list} leadsMap={leadsMap} />
           ))}
           {items.length === 0 && <p className="text-sm text-muted-foreground">Aguardando processamento…</p>}
         </div>
