@@ -3886,6 +3886,7 @@ export type Database = {
           company: string | null
           created_at: string
           custom_fields: Json
+          custom_fields_last_human_edit: Json
           deal_value: number | null
           email: string | null
           fbclid: string | null
@@ -3932,6 +3933,7 @@ export type Database = {
           company?: string | null
           created_at?: string
           custom_fields?: Json
+          custom_fields_last_human_edit?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
@@ -3978,6 +3980,7 @@ export type Database = {
           company?: string | null
           created_at?: string
           custom_fields?: Json
+          custom_fields_last_human_edit?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
@@ -6965,6 +6968,10 @@ export type Database = {
           leads_30d: number
           messages_30d: number
         }[]
+      }
+      apply_lead_automation_patch: {
+        Args: { p_custom_fields?: Json; p_lead_id: string; p_tags?: string[] }
+        Returns: undefined
       }
       apply_reclassify_proposal: {
         Args: { _proposal_id: string }
