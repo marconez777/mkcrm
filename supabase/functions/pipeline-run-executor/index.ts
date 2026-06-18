@@ -84,6 +84,7 @@ interface StartInput {
   pipeline_id?: string;
   stage_ids?: string[];
   lead_ids?: string[];
+  top_n?: number;
   parent_run_id?: string;
 }
 
