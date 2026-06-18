@@ -77,11 +77,22 @@ A whitelist `automation.v42.allowed_tags` em `app_settings` **não é consultada
 
 **Sugestão**: criar `_shared/tag-whitelist.ts` lido pelo classifier antes do UPDATE — silenciosamente descarta o que não está na whitelist + tags listadas em manual-tags da clínica.
 
-## 5. Gate G10 ausente (humano > IA em <7d nos custom_fields)
+## 5. Gate G10 — implementado em 2026-06-18 (Classifier V2)
 
-Veja `GATES.md` para detalhes. Hoje o classifier sobrescreve campos editados manualmente sem checar `updated_at` por chave.
+**Status: CORRIGIDO** via:
 
-**Status**: não implementado. Risco: humana edita `valor_combinado=300`, classifier roda 30s depois e zera/altera baseado em mensagem ambígua.
+- Migration `20260618...g10_human_edits.sql`: coluna `leads.custom_fields_last_human_edit jsonb` + trigger `track_custom_fields_human_edits` (BEFORE UPDATE) que marca por chave quando o ator não é `'system'`.
+- RPC `apply_lead_automation_patch` (SECURITY DEFINER) seta `app.actor='system'` na transação — o classifier V2 sempre usa essa RPC.
+- `pipeline-classify/apply.ts` lê `custom_fields_last_human_edit[key]` e, se < 7d, descarta a sugestão da IA. Bloqueios aparecem em `lead_events.payload.applied.custom_fields.blocked_by_g10`.
+
+**Limitação remanescente**: outras edge functions automáticas (`pipeline-deterministic`, `pipeline-fase4`, `pipeline-move`) que escrevem em `custom_fields` ainda **não** usam a RPC — seus writes são marcados como "humanos" pelo trigger. Isso na prática faz o classifier respeitar regras determinísticas (efeito desejável), mas se elas mesmas precisarem se sobrescrever, vão se autobloquear pela janela de 7d. Acompanhar e migrar para a RPC se observado.
+
+## 5b. Strict no-move — cards podem acumular em Qualificação até Fase 2
+
+A partir de 2026-06-18 (Classifier V2), **nenhum** stage_suggestion é executado automaticamente, exceto o caminho B2B com guards rígidos (`confidence ≥ 0.95` + `tags_suggested` inclui `b2b` + lead nunca tratado). Cards que deveriam ir para "Consulta agendada" / "Tratamento agendado" / etc. ficam estacionados na coluna atual.
+
+**Mitigação**: Fase 2 (webhook SumUp + `appointment-extractor`) vai mover esses cards com base em sinal determinístico, não em LLM. Até lá, a secretária move manualmente.
+
 
 ## 6. `auto:novo-lead`, `auto:secretary-replied`, `auto:appointment-sync` com 0 eventos em 30d
 
