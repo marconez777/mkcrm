@@ -11,6 +11,7 @@ import { buildContextBlock, formatMessages, type LeadContext } from "./context.t
 import {
   CANON_NAMES,
   ClassificationSchemaV2,
+  normalizeClassification,
   type ClassificationV2,
 } from "./schema.ts";
 
