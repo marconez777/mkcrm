@@ -3898,6 +3898,8 @@ export type Database = {
           last_human_activity_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
+          last_processed_message_id_classifier: string | null
+          last_processed_message_id_summarizer: string | null
           last_site_activity_at: string | null
           manual_lock_until: string | null
           marked_unread: boolean
@@ -3942,6 +3944,8 @@ export type Database = {
           last_human_activity_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_processed_message_id_classifier?: string | null
+          last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
           marked_unread?: boolean
@@ -3986,6 +3990,8 @@ export type Database = {
           last_human_activity_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_processed_message_id_classifier?: string | null
+          last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
           marked_unread?: boolean
@@ -5060,6 +5066,50 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: true
             referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_sequence_bindings: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          metadata: Json
+          sequence_id: string
+          stage_id: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          metadata?: Json
+          sequence_id: string
+          stage_id: string
+          trigger?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          metadata?: Json
+          sequence_id?: string
+          stage_id?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_sequence_bindings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
         ]
