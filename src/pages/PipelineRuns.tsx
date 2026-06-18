@@ -443,7 +443,10 @@ function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
     <div className="px-3 py-2 text-xs">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-start gap-2 text-left">
         {icon}
-        <span className="flex-1 truncate font-mono">{item.lead_id?.slice(0, 8) ?? "—"}</span>
+        <span className="flex-1 truncate">
+          <span className="font-medium">{lead?.name || lead?.phone || (item.lead_id ? item.lead_id.slice(0, 8) : "—")}</span>
+          {lead?.name && lead?.phone && <span className="ml-2 text-muted-foreground">{lead.phone}</span>}
+        </span>
         <StatusBadge status={item.status} />
         {item.retry_requested && <Badge variant="outline" className="border-amber-500/40 text-amber-400">retry</Badge>}
         {item.comment && <span className="text-amber-400">●</span>}
