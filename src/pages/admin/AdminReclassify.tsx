@@ -102,21 +102,25 @@ export default function AdminReclassify() {
   // Reset stage quando trocar clínica
   useEffect(() => { setStageId(""); }, [clinicId]);
 
-  // Busca de leads com debounce (filtra por clínica se selecionada)
+  // Busca de leads via edge function (super_admin bypass de RLS)
   useEffect(() => {
     let cancelled = false;
     const term = leadSearch.trim();
     const t = setTimeout(async () => {
       setLeadSearching(true);
-      let q = supabase.from("leads").select("id, name, phone, clinic_id, stage_id").limit(20);
-      if (clinicId) q = q.eq("clinic_id", clinicId);
-      if (term) {
-        if (/^[0-9a-f-]{8,}$/i.test(term)) q = q.or(`id.eq.${term},phone.ilike.%${term}%,name.ilike.%${term}%`);
-        else q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+      try {
+        const params = new URLSearchParams();
+        if (clinicId) params.set("clinic_id", clinicId);
+        if (term) params.set("q", term);
+        params.set("limit", "20");
+        const { data, error } = await supabase.functions.invoke(`admin-search-leads?${params.toString()}`, { method: "GET" } as any);
+        if (error) throw error;
+        if (!cancelled) setLeadOptions(((data as any)?.leads ?? []) as Lead[]);
+      } catch {
+        if (!cancelled) setLeadOptions([]);
+      } finally {
+        if (!cancelled) setLeadSearching(false);
       }
-      const { data } = await q.order("updated_at", { ascending: false } as any);
-      if (!cancelled) setLeadOptions((data ?? []) as Lead[]);
-      setLeadSearching(false);
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
   }, [leadSearch, clinicId]);
