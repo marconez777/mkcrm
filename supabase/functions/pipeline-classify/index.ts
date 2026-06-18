@@ -33,6 +33,8 @@ import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
 import { generateText, tool, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
+import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,6 +74,17 @@ const CANON_NAMES: Canon[] = [
   "B2B / Stakeholders",
 ];
 
+const INTENT_VALUES = [
+  "agendamento",
+  "reagendamento",
+  "duvida_geral",
+  "nf_reembolso",
+  "pagamento_alegado",
+  "desistencia",
+  "interesse_tratamento",
+  "outro",
+] as const;
+
 const ClassificationSchema = z.object({
   stage_suggestion: z.enum([
     "Novo",
@@ -85,6 +98,7 @@ const ClassificationSchema = z.object({
     "Paciente antigo",
     "B2B / Stakeholders",
   ]),
+  intent: z.enum(INTENT_VALUES).default("outro"),
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string()).max(8),
@@ -147,6 +161,16 @@ Regras:
 - tags_suggested ∈ whitelist v4.2 (use apenas se realmente aplicar).
 - custom_fields_patch: só inclua chaves se há evidência clara no texto.
 - reasons: 1-5 frases curtas em PT-BR justificando.
+
+Campo intent (escolha UM):
+- "agendamento": lead pedindo para marcar consulta/tratamento.
+- "reagendamento": lead pedindo para remarcar.
+- "duvida_geral": pergunta sobre serviço, valores, planos.
+- "nf_reembolso": lead pedindo nota fiscal, recibo, ou docs p/ reembolso.
+- "pagamento_alegado": lead afirma ter pago/enviou comprovante (sem confirmação oficial).
+- "desistencia": lead diz que não quer mais.
+- "interesse_tratamento": lead demonstra interesse em começar tratamento.
+- "outro": nenhum acima se encaixa.
 
 Contexto do pipeline atual do lead: ${pipelineSummary}`;
 }
@@ -257,6 +281,30 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     }
   }
 
+  // Marco 3 — task triggers a partir do intent.
+  let nfTaskResult: unknown = null;
+  let paymentAllegedResult: unknown = null;
+  if (cls.intent === "nf_reembolso") {
+    nfTaskResult = await runNfTask(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      stageName: stage?.name ?? null,
+    });
+  }
+  if (cls.intent === "pagamento_alegado") {
+    paymentAllegedResult = await runPaymentAlleged(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+    });
+  }
+
+  // Marco 3 — summarizer (força se intent não trivial).
+  const summarizeForce = cls.intent !== "outro";
+  const summarizeResult = await runSummarize(client, leadId, {
+    force: summarizeForce,
+    reason: summarizeForce ? `intent:${cls.intent}` : "post_classify",
+  }).catch((err) => ({ status: "error" as const, reason: err instanceof Error ? err.message : String(err) }));
+
   // Update watermark + clear flag
   const lastMsgId = orderedMsgs[orderedMsgs.length - 1].id;
   await client
@@ -271,7 +319,13 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     })
     .eq("id", leadId);
 
-  return { classification: cls, last_message_id: lastMsgId };
+  return {
+    classification: cls,
+    last_message_id: lastMsgId,
+    summarize: summarizeResult,
+    nf_task: nfTaskResult,
+    payment_alleged: paymentAllegedResult,
+  };
 }
 
 async function tickQueue(client: SupabaseClient) {
