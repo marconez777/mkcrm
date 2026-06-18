@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   const agentId: string | undefined = body.agent_id;
 
   const client = createClient(SUPABASE_URL, SERVICE_KEY);
-  let q = client.from("agent_evals").select("id, agent_id, prompt, expected_contains").limit(limit);
+  let q = client.from("agent_evals").select("id, agent_id, clinic_id, prompt, expected_contains").limit(limit);
   if (agentId) q = q.eq("agent_id", agentId);
   const { data: evals, error } = await q;
   if (error) {
@@ -57,17 +57,21 @@ Deno.serve(async (req) => {
     });
   }
 
-  const provider = createOpenAICompatible({
-    name: "lovable",
-    apiKey: LOVABLE_KEY,
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-  });
-  const model = provider(MODEL);
+  const aiCache = new Map<string, Awaited<ReturnType<typeof getClinicOpenAI>>>();
+  async function aiFor(clinicId: string) {
+    if (!aiCache.has(clinicId)) aiCache.set(clinicId, await getClinicOpenAI(client, clinicId));
+    return aiCache.get(clinicId) ?? null;
+  }
 
-  const results: Array<{ id: string; passed: boolean; missing: string[] }> = [];
+  const results: Array<{ id: string; passed: boolean; missing: string[]; error?: string }> = [];
   for (const ev of evals ?? []) {
     try {
-      const { text } = await generateText({ model, prompt: ev.prompt });
+      const ai = await aiFor(ev.clinic_id as string);
+      if (!ai) {
+        results.push({ id: ev.id, passed: false, missing: [], error: "no_clinic_openai_key" });
+        continue;
+      }
+      const { text } = await generateText({ model: ai.model(MODEL), prompt: ev.prompt });
       const lower = text.toLowerCase();
       const expected: string[] = ev.expected_contains ?? [];
       const missing = expected.filter((e) => !lower.includes(String(e).toLowerCase()));
@@ -82,7 +86,7 @@ Deno.serve(async (req) => {
         .eq("id", ev.id);
       results.push({ id: ev.id, passed, missing });
     } catch (err) {
-      results.push({ id: ev.id, passed: false, missing: ["__error__"] });
+      results.push({ id: ev.id, passed: false, missing: ["__error__"], error: err instanceof Error ? err.message : String(err) });
       console.error("[evals-run] failed", ev.id, err);
     }
   }
