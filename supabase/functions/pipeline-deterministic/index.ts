@@ -1,0 +1,644 @@
+// supabase/functions/pipeline-deterministic/index.ts
+//
+// Marco 1 — Regras determinísticas do pipeline v4.2.
+// Roteador único; cada action é uma regra `auto:*`. Todas as regras usam o
+// helper pipelineMove (gates G1/G2/G3/G4/G5/G8/D3) e respeitam toggles em
+// `app_settings` (default false).
+//
+// Acessada por:
+//  - Triggers do banco via pg_net (lead INSERT, message INSERT, appointment INSERT/UPDATE, lead.custom_fields UPDATE)
+//  - Cron jobs (inactivity-tick, reactivation-tick, human-reactor-tick)
+//  - Invocação manual via supabase.functions.invoke (smoke test)
+
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { pipelineMove } from "../_shared/pipeline-move.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+type Action =
+  | "novo-lead"
+  | "secretary-replied"
+  | "appointment-sync"
+  | "field-changed"
+  | "inactivity-tick"
+  | "reactivation-tick"
+  | "human-reactor-tick";
+
+interface Body {
+  action: Action;
+  lead_id?: string;
+  message_id?: string;
+  appointment_id?: string;
+  // optional payload for field-changed
+  old_custom_fields?: Record<string, unknown>;
+  new_custom_fields?: Record<string, unknown>;
+}
+
+// Canonical stage names used by the rules (PT-BR).
+type Canon =
+  | "Novo"
+  | "Qualificação"
+  | "Consulta agendada"
+  | "Tratamento agendado"
+  | "Consulta finalizada"
+  | "Em tratamento"
+  | "Sem resposta"
+  | "Nutrição inativa"
+  | "Paciente antigo";
+
+/**
+ * Resolve a stage id within the lead's pipeline using stage_canonical_aliases.
+ * Returns null when the canonical name has no mapping in the clinic's pipeline.
+ */
+async function resolveStageId(
+  client: SupabaseClient,
+  clinicId: string,
+  pipelineId: string,
+  canonical: Canon,
+): Promise<string | null> {
+  // Try alias table first (per pipeline)
+  const { data: alias } = await client
+    .from("stage_canonical_aliases")
+    .select("stage_id")
+    .eq("clinic_id", clinicId)
+    .eq("pipeline_id", pipelineId)
+    .eq("canonical_name", canonical)
+    .maybeSingle();
+  if (alias?.stage_id) return alias.stage_id as string;
+
+  // Fallback: try exact name match in same pipeline
+  const { data: stage } = await client
+    .from("pipeline_stages")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("pipeline_id", pipelineId)
+    .ilike("name", canonical)
+    .maybeSingle();
+  return (stage?.id as string) ?? null;
+}
+
+async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
+  const { data } = await client
+    .from("app_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+  if (!data) return false;
+  const v = String(data.value).toLowerCase();
+  return v === "true" || v === "1" || v === '"true"';
+}
+
+async function patchCustomFields(
+  client: SupabaseClient,
+  leadId: string,
+  patch: Record<string, unknown>,
+) {
+  const { data: lead } = await client
+    .from("leads")
+    .select("custom_fields")
+    .eq("id", leadId)
+    .single();
+  const merged = { ...(lead?.custom_fields ?? {}), ...patch };
+  await client.from("leads").update({ custom_fields: merged }).eq("id", leadId);
+}
+
+async function addTag(client: SupabaseClient, leadId: string, tag: string) {
+  const { data: lead } = await client
+    .from("leads")
+    .select("tags")
+    .eq("id", leadId)
+    .single();
+  const current: string[] = lead?.tags ?? [];
+  if (current.includes(tag)) return;
+  await client
+    .from("leads")
+    .update({ tags: [...current, tag] })
+    .eq("id", leadId);
+}
+
+async function logEvent(
+  client: SupabaseClient,
+  clinicId: string,
+  leadId: string,
+  type: string,
+  payload: Record<string, unknown>,
+) {
+  await client.from("lead_events").insert({
+    clinic_id: clinicId,
+    lead_id: leadId,
+    type,
+    payload,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rules
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function ruleNovoLead(client: SupabaseClient, leadId: string) {
+  if (!(await isEnabled(client, "automation.novo_lead.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const { data: lead } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id")
+    .eq("id", leadId)
+    .single();
+  if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+
+  const novoId = await resolveStageId(
+    client,
+    lead.clinic_id,
+    lead.pipeline_id,
+    "Novo",
+  );
+  if (!novoId) return { skipped: "stage_not_found:Novo" };
+  if (lead.stage_id === novoId) return { skipped: "already_in_stage" };
+
+  const res = await pipelineMove(client, {
+    leadId,
+    toStageId: novoId,
+    source: "auto:novo-lead",
+    reason: "Lead recém-criado garantido no stage Novo",
+    ruleKey: "automation.novo_lead.enabled",
+    idempotencyKey: `novo-lead:${leadId}`,
+  });
+  await logEvent(client, lead.clinic_id, leadId, "auto:novo-lead", { res });
+  return { res };
+}
+
+async function ruleSecretaryReplied(
+  client: SupabaseClient,
+  messageId: string,
+) {
+  if (!(await isEnabled(client, "automation.secretary_replied.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const { data: msg } = await client
+    .from("messages")
+    .select("id, lead_id, from_me, message_type")
+    .eq("id", messageId)
+    .single();
+  if (!msg || !msg.from_me) return { skipped: "not_outbound" };
+
+  const { data: lead } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id")
+    .eq("id", msg.lead_id)
+    .single();
+  if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+
+  const novoId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Novo");
+  if (lead.stage_id !== novoId) return { skipped: "not_in_novo" };
+
+  const qualifId = await resolveStageId(
+    client,
+    lead.clinic_id,
+    lead.pipeline_id,
+    "Qualificação",
+  );
+  if (!qualifId) return { skipped: "stage_not_found:Qualificação" };
+
+  const res = await pipelineMove(client, {
+    leadId: lead.id,
+    toStageId: qualifId,
+    source: "auto:secretary-replied",
+    reason: `Secretária respondeu (msg ${messageId})`,
+    ruleKey: "automation.secretary_replied.enabled",
+    idempotencyKey: `secretary:${messageId}`,
+  });
+  await logEvent(client, lead.clinic_id, lead.id, "auto:secretary-replied", {
+    message_id: messageId,
+    res,
+  });
+  return { res };
+}
+
+async function ruleAppointmentSync(
+  client: SupabaseClient,
+  appointmentId: string,
+) {
+  const { data: appt } = await client
+    .from("appointments")
+    .select("id, lead_id, clinic_id, kind, status")
+    .eq("id", appointmentId)
+    .single();
+  if (!appt) return { skipped: "appt_not_found" };
+
+  const toggleByStatus: Record<string, string> = {
+    agendado: "automation.appointment_agendado.enabled",
+    realizado: "automation.appointment_realizado.enabled",
+    faltou: "automation.appointment_faltou.enabled",
+    cancelado: "automation.appointment_cancelado.enabled",
+  };
+  const toggle = toggleByStatus[appt.status];
+  if (!toggle) return { skipped: `status_unhandled:${appt.status}` };
+  if (!(await isEnabled(client, toggle))) return { skipped: "toggle_off" };
+
+  const { data: lead } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id, custom_fields")
+    .eq("id", appt.lead_id)
+    .single();
+  if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+
+  // appointments.kind ∈ {consulta, procedimento, retorno}; mapeamento v4.2:
+  // procedimento → "Tratamento agendado"
+  let targetCanon: Canon | null = null;
+  let extraTag: string | null = null;
+  const patch: Record<string, unknown> = {};
+
+  if (appt.status === "agendado") {
+    if (appt.kind === "consulta") targetCanon = "Consulta agendada";
+    else if (appt.kind === "procedimento") targetCanon = "Tratamento agendado";
+    else if (appt.kind === "retorno") targetCanon = "Consulta agendada";
+  } else if (appt.status === "realizado") {
+    if (appt.kind === "consulta") {
+      targetCanon = "Consulta finalizada";
+      patch["status_consulta"] = "realizada";
+    } else if (appt.kind === "procedimento") {
+      targetCanon = "Em tratamento";
+      const prev = Number(
+        (lead.custom_fields as Record<string, unknown>)?.sessoes_realizadas ?? 0,
+      );
+      patch["sessoes_realizadas"] = prev + 1;
+    }
+  } else if (appt.status === "faltou") {
+    targetCanon = "Sem resposta";
+    extraTag = "reagendamento_pendente";
+    patch["status_consulta"] = "faltou";
+  } else if (appt.status === "cancelado") {
+    targetCanon = "Qualificação";
+    extraTag = "reagendamento_pendente";
+    patch["status_consulta"] = "cancelada";
+  }
+
+  if (Object.keys(patch).length > 0) await patchCustomFields(client, lead.id, patch);
+  if (extraTag) await addTag(client, lead.id, extraTag);
+
+  if (!targetCanon) return { skipped: "no_target", patch };
+  const toStageId = await resolveStageId(
+    client,
+    lead.clinic_id,
+    lead.pipeline_id,
+    targetCanon,
+  );
+  if (!toStageId) return { skipped: `stage_not_found:${targetCanon}` };
+  if (lead.stage_id === toStageId) {
+    await logEvent(client, lead.clinic_id, lead.id, "auto:appointment-sync", {
+      appointment_id: appointmentId,
+      status: appt.status,
+      kind: appt.kind,
+      patch,
+      moved: false,
+    });
+    return { skipped: "already_in_stage", patch };
+  }
+
+  const res = await pipelineMove(client, {
+    leadId: lead.id,
+    toStageId,
+    source: "auto:appointment-sync",
+    reason: `Appointment ${appt.kind}/${appt.status}`,
+    ruleKey: toggle,
+    idempotencyKey: `appt:${appointmentId}:${appt.status}`,
+    metadata: { appointment_id: appointmentId, kind: appt.kind, status: appt.status },
+  });
+  await logEvent(client, lead.clinic_id, lead.id, "auto:appointment-sync", {
+    appointment_id: appointmentId,
+    status: appt.status,
+    kind: appt.kind,
+    patch,
+    res,
+  });
+  return { res, patch };
+}
+
+async function ruleFieldChanged(
+  client: SupabaseClient,
+  leadId: string,
+  oldCf: Record<string, unknown>,
+  newCf: Record<string, unknown>,
+) {
+  const out: Record<string, unknown> = {};
+
+  // ciclo-concluido
+  if (
+    oldCf?.ciclo_concluido !== true &&
+    newCf?.ciclo_concluido === true &&
+    (await isEnabled(client, "automation.ciclo_concluido.enabled"))
+  ) {
+    const { data: lead } = await client
+      .from("leads")
+      .select("id, clinic_id, pipeline_id, stage_id")
+      .eq("id", leadId)
+      .single();
+    if (lead?.pipeline_id) {
+      const pacAntigo = await resolveStageId(
+        client,
+        lead.clinic_id,
+        lead.pipeline_id,
+        "Paciente antigo",
+      );
+      if (pacAntigo && lead.stage_id !== pacAntigo) {
+        const res = await pipelineMove(client, {
+          leadId,
+          toStageId: pacAntigo,
+          source: "auto:ciclo-concluido",
+          reason: "ciclo_concluido=true",
+          ruleKey: "automation.ciclo_concluido.enabled",
+          idempotencyKey: `ciclo:${leadId}`,
+        });
+        // congela com manual_lock 90 dias
+        if ((res as { moved?: boolean }).moved) {
+          await client
+            .from("leads")
+            .update({
+              manual_lock_until: new Date(
+                Date.now() + 90 * 24 * 3600 * 1000,
+              ).toISOString(),
+            })
+            .eq("id", leadId);
+        }
+        await logEvent(client, lead.clinic_id, leadId, "auto:ciclo-concluido", {
+          res,
+        });
+        out.ciclo = res;
+      }
+    }
+  }
+
+  // modality-guard (flag de atenção quando muda preferência)
+  if (
+    oldCf?.modalidade_preferida !== newCf?.modalidade_preferida &&
+    newCf?.modalidade_preferida === "online" &&
+    (await isEnabled(client, "automation.modality_guard.enabled"))
+  ) {
+    const { data: lead } = await client
+      .from("leads")
+      .select("id, clinic_id, tags")
+      .eq("id", leadId)
+      .single();
+    if (lead) {
+      await addTag(client, leadId, "modalidade_online");
+      await logEvent(client, lead.clinic_id, leadId, "auto:modality-guard", {
+        modalidade: "online",
+      });
+      out.modality = "tagged";
+    }
+  }
+
+  return out;
+}
+
+async function ruleInactivityTick(client: SupabaseClient) {
+  const t24 = await isEnabled(client, "automation.followup_24h.enabled");
+  const t3d = await isEnabled(client, "automation.followup_3d.enabled");
+  const t7d = await isEnabled(client, "automation.followup_7d_nutricao.enabled");
+  if (!t24 && !t3d && !t7d) return { skipped: "all_toggles_off" };
+
+  const now = Date.now();
+  const cutoff24 = new Date(now - 24 * 3600 * 1000).toISOString();
+  const cutoff3d = new Date(now - 3 * 24 * 3600 * 1000).toISOString();
+  const cutoff7d = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
+
+  // Active stages: Novo, Qualificação, Consulta agendada, Tratamento agendado
+  const ACTIVE: Canon[] = [
+    "Novo",
+    "Qualificação",
+    "Consulta agendada",
+    "Tratamento agendado",
+  ];
+
+  // Fetch candidate leads: not archived, has stage in active set (resolved per-clinic)
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("clinic_id, pipeline_id, canonical_name, stage_id")
+    .in("canonical_name", [...ACTIVE, "Nutrição inativa"]);
+
+  const stageIdsActive = new Set(
+    (aliases ?? [])
+      .filter((a) => ACTIVE.includes(a.canonical_name as Canon))
+      .map((a) => a.stage_id),
+  );
+  const nutricaoByPipeline = new Map<string, string>();
+  for (const a of aliases ?? []) {
+    if (a.canonical_name === "Nutrição inativa") {
+      nutricaoByPipeline.set(a.pipeline_id, a.stage_id);
+    }
+  }
+  if (stageIdsActive.size === 0) return { skipped: "no_active_stages_mapped" };
+
+  const { data: leads } = await client
+    .from("leads")
+    .select(
+      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_human_activity_at, tags",
+    )
+    .in("stage_id", Array.from(stageIdsActive))
+    .is("archived_at", null)
+    .eq("is_internal_contact", false)
+    .limit(2000);
+
+  let tier24 = 0, tier3 = 0, tier7 = 0;
+  for (const lead of leads ?? []) {
+    const lastMsg = lead.last_message_at ?? "1970-01-01";
+    const lastHuman = lead.last_human_activity_at ?? "1970-01-01";
+
+    if (t7d && lastMsg < cutoff7d) {
+      const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
+      if (nutricaoId && lead.stage_id !== nutricaoId) {
+        const today = new Date().toISOString().slice(0, 10);
+        const res = await pipelineMove(client, {
+          leadId: lead.id,
+          toStageId: nutricaoId,
+          source: "auto:followup-7d",
+          reason: "7d sem inbound — move para Nutrição inativa",
+          ruleKey: "automation.followup_7d_nutricao.enabled",
+          idempotencyKey: `inactivity:${lead.id}:7d:${today}`,
+        });
+        if ((res as { moved?: boolean }).moved) {
+          await addTag(client, lead.id, "precisa_atencao_humana");
+          tier7++;
+          await logEvent(client, lead.clinic_id, lead.id, "auto:followup-7d", {
+            res,
+          });
+        }
+      }
+    } else if (t3d && lastMsg < cutoff3d) {
+      const today = new Date().toISOString().slice(0, 10);
+      // tag + event only (no move); idempotency via event lookup
+      const { data: existing } = await client
+        .from("lead_events")
+        .select("id")
+        .eq("lead_id", lead.id)
+        .eq("type", "auto:followup-3d")
+        .gte("created_at", `${today}T00:00:00Z`)
+        .maybeSingle();
+      if (!existing) {
+        await logEvent(client, lead.clinic_id, lead.id, "auto:followup-3d", {
+          last_message_at: lead.last_message_at,
+        });
+        tier3++;
+      }
+    } else if (t24 && lastHuman < cutoff24) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: existing } = await client
+        .from("lead_events")
+        .select("id")
+        .eq("lead_id", lead.id)
+        .eq("type", "auto:followup-24h")
+        .gte("created_at", `${today}T00:00:00Z`)
+        .maybeSingle();
+      if (!existing) {
+        await logEvent(client, lead.clinic_id, lead.id, "auto:followup-24h", {
+          last_human_activity_at: lead.last_human_activity_at,
+        });
+        tier24++;
+      }
+    }
+  }
+  return { tier24, tier3, tier7, scanned: leads?.length ?? 0 };
+}
+
+async function ruleReactivationTick(client: SupabaseClient) {
+  if (!(await isEnabled(client, "automation.reactivation.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("stage_id")
+    .eq("canonical_name", "Nutrição inativa");
+  const stageIds = (aliases ?? []).map((a) => a.stage_id);
+  if (stageIds.length === 0) return { skipped: "no_stage_mapped" };
+
+  const { data: leads } = await client
+    .from("leads")
+    .select("id, clinic_id, custom_fields, stage_changed_at, tags")
+    .in("stage_id", stageIds)
+    .lt("stage_changed_at", cutoff)
+    .is("archived_at", null)
+    .limit(500);
+
+  let count = 0;
+  for (const lead of leads ?? []) {
+    const cf = (lead.custom_fields as Record<string, unknown>) ?? {};
+    if (cf.interesse_tratamento !== true) continue;
+    if ((lead.tags as string[]).includes("reativacao")) continue;
+    const today = new Date().toISOString().slice(0, 10);
+    await addTag(client, lead.id, "reativacao");
+    await logEvent(client, lead.clinic_id, lead.id, "auto:reactivation", {
+      day: today,
+    });
+    count++;
+  }
+  return { tagged: count, scanned: leads?.length ?? 0 };
+}
+
+async function ruleHumanReactorTick(client: SupabaseClient) {
+  if (!(await isEnabled(client, "automation.human_reactor.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const { data: leads } = await client
+    .from("leads")
+    .select("id, clinic_id, tags, updated_at")
+    .contains("tags", ["precisa_atencao_humana"])
+    .lt("updated_at", cutoff)
+    .is("archived_at", null)
+    .limit(500);
+
+  let count = 0;
+  for (const lead of leads ?? []) {
+    // skip if a non-done task already exists with this title
+    const { data: existing } = await client
+      .from("lead_tasks")
+      .select("id")
+      .eq("lead_id", lead.id)
+      .ilike("title", "Revisar lead travado%")
+      .is("done_at", null)
+      .maybeSingle();
+    if (existing) continue;
+    await client.from("lead_tasks").insert({
+      clinic_id: lead.clinic_id,
+      lead_id: lead.id,
+      title: "Revisar lead travado (D7)",
+      due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    });
+    await logEvent(client, lead.clinic_id, lead.id, "auto:human-reactor", {});
+    count++;
+  }
+  return { tasks_created: count, scanned: leads?.length ?? 0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP entry
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const body = (await req.json()) as Body;
+    const client = createClient(SUPABASE_URL, SERVICE_KEY);
+    let result: unknown;
+
+    switch (body.action) {
+      case "novo-lead":
+        if (!body.lead_id) throw new Error("lead_id required");
+        result = await ruleNovoLead(client, body.lead_id);
+        break;
+      case "secretary-replied":
+        if (!body.message_id) throw new Error("message_id required");
+        result = await ruleSecretaryReplied(client, body.message_id);
+        break;
+      case "appointment-sync":
+        if (!body.appointment_id) throw new Error("appointment_id required");
+        result = await ruleAppointmentSync(client, body.appointment_id);
+        break;
+      case "field-changed":
+        if (!body.lead_id) throw new Error("lead_id required");
+        result = await ruleFieldChanged(
+          client,
+          body.lead_id,
+          body.old_custom_fields ?? {},
+          body.new_custom_fields ?? {},
+        );
+        break;
+      case "inactivity-tick":
+        result = await ruleInactivityTick(client);
+        break;
+      case "reactivation-tick":
+        result = await ruleReactivationTick(client);
+        break;
+      case "human-reactor-tick":
+        result = await ruleHumanReactorTick(client);
+        break;
+      default:
+        return new Response(
+          JSON.stringify({ error: "unknown_action" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+    }
+
+    console.log(JSON.stringify({ action: body.action, result }));
+    return new Response(JSON.stringify({ ok: true, result }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("pipeline-deterministic error", msg);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
