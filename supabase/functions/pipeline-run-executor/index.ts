@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
       }
 
       // Antes de criar um novo, garante que runs stale sejam fechados
-      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
+      await markStaleRunsAsError(service);
 
       const scope: Record<string, unknown> = {};
       if (input.pipeline_id) scope.pipeline_id = input.pipeline_id;
@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       // Watchdog: se heartbeat estiver stale, marca como erro antes de responder.
-      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
+      await markStaleRunsAsError(service, body.run_id as string | undefined);
       const { data } = await service.from("pipeline_runs").select("*").eq("id", body.run_id).single();
       return jsonResp({ ok: true, run: data });
     }
@@ -474,7 +474,7 @@ Deno.serve(async (req) => {
       const can = await assertClinicAdmin(service, auth.userId, parent.clinic_id as string);
       if (!can.ok) return jsonResp({ error: can.reason }, 403);
 
-      try { await service.rpc("mark_stale_pipeline_runs_as_error"); } catch (_e) { /* best-effort */ }
+      await markStaleRunsAsError(service);
 
       let itemsQ = service.from("pipeline_run_items").select("lead_id").eq("run_id", body.run_id).not("lead_id", "is", null);
       itemsQ = action === "retry_errors" ? itemsQ.eq("status", "error") : itemsQ.eq("retry_requested", true);
@@ -532,4 +532,4 @@ function jsonResp(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-// build-tag: v2 chunked executor + reset_ai_classifications
+// build-tag: v3 chunked executor + direct stale watchdog
