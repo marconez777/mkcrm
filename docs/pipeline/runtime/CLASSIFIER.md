@@ -73,11 +73,11 @@ z.object({
   mentioned_dates: z.array(z.object({
     raw: z.string().max(120),       // string crua, NÃO ISO
     anchor_iso: z.string(),         // timestamp da mensagem que cita
-    kind: z.enum(["consulta","procedimento"])
+    kind: z.string()                // "consulta" | "procedimento" (validado pós-LLM)
   })).max(4),
-  mentioned_intents: z.array(z.enum(INTENT_VALUES)).max(3),
-  stage_suggestion: z.enum(CANON_NAMES),
-  intent: z.enum(INTENT_VALUES).default("outro"),
+  mentioned_intents: z.array(z.string()).max(3),   // filtrado contra INTENT_VALUES
+  stage_suggestion: z.string(),                    // coercido p/ Canon (fallback "Qualificação")
+  intent: z.string().default("outro"),             // coercido p/ INTENT_VALUES
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string().max(40)).max(8),
@@ -86,6 +86,11 @@ z.object({
 })
 ```
 
+> **Enums relaxados (junho/2026)**: `gpt-5-mini` rejeitava o schema quando enums
+> eram declarados diretamente (`"No object generated: response did not match schema"`).
+> Solução: declarar como `z.string()` e normalizar em `normalizeClassification()` —
+> stages/intents inválidos caem para defaults (`"Qualificação"` / `"outro"`).
+>
 > **`tags_remove` removido do LLM** (V2). O `apply.ts` computa removeções como
 > `currentTags − tags_suggested − PROTECTED_TAGS` (quando `tag_replace.enabled`),
 > além de forçar a remoção de "1ª consulta" quando a regra bloqueia.
