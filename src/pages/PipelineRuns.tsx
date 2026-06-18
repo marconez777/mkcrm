@@ -258,13 +258,17 @@ function StatusBadge({ status }: { status: RunStatus | RunItem["status"] }) {
   return <Badge variant="outline" className={`border-0 ${c.cls}`}>{c.label}</Badge>;
 }
 
+type LeadInfo = { name: string | null; phone: string | null };
+
 function RunDetail({ runId }: { runId: string }) {
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
+  const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const knownIds = new Set<string>();
     const load = async () => {
       const { data: initialRun } = await supabase.from("pipeline_runs").select("*").eq("id", runId).single();
       const currentRun = initialRun as Run | null;
@@ -277,7 +281,23 @@ function RunDetail({ runId }: { runId: string }) {
       ]);
       if (!active) return;
       setRun((r as Run) ?? null);
-      setItems((it as RunItem[]) ?? []);
+      const itemsArr = (it as RunItem[]) ?? [];
+      setItems(itemsArr);
+      const missing = Array.from(
+        new Set(itemsArr.map((x) => x.lead_id).filter((x): x is string => !!x && !knownIds.has(x)))
+      );
+      if (missing.length > 0) {
+        missing.forEach((id) => knownIds.add(id));
+        const { data: leads } = await supabase.from("leads").select("id,name,phone").in("id", missing);
+        if (!active) return;
+        setLeadsMap((prev) => {
+          const next = { ...prev };
+          for (const l of (leads ?? []) as Array<{ id: string; name: string | null; phone: string | null }>) {
+            next[l.id] = { name: l.name, phone: l.phone };
+          }
+          return next;
+        });
+      }
     };
     load();
     const ch = supabase
@@ -361,7 +381,7 @@ function RunDetail({ runId }: { runId: string }) {
       <ScrollArea className="h-[65vh] pr-2">
         <div className="space-y-3">
           {Object.entries(byStage).map(([stage, list]) => (
-            <StageGroup key={stage} stageName={stage} items={list} />
+            <StageGroup key={stage} stageName={stage} items={list} leadsMap={leadsMap} />
           ))}
           {items.length === 0 && <p className="text-sm text-muted-foreground">Aguardando processamento…</p>}
         </div>
@@ -370,7 +390,7 @@ function RunDetail({ runId }: { runId: string }) {
   );
 }
 
-function StageGroup({ stageName, items }: { stageName: string; items: RunItem[] }) {
+function StageGroup({ stageName, items, leadsMap }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo> }) {
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -384,14 +404,14 @@ function StageGroup({ stageName, items }: { stageName: string; items: RunItem[] 
       </button>
       {open && (
         <div className="divide-y divide-border/40">
-          {items.map((it) => <ItemRow key={it.id} item={it} />)}
+          {items.map((it) => <ItemRow key={it.id} item={it} lead={it.lead_id ? leadsMap[it.lead_id] : undefined} />)}
         </div>
       )}
     </div>
   );
 }
 
-function ItemRow({ item }: { item: RunItem }) {
+function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
@@ -423,7 +443,10 @@ function ItemRow({ item }: { item: RunItem }) {
     <div className="px-3 py-2 text-xs">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-start gap-2 text-left">
         {icon}
-        <span className="flex-1 truncate font-mono">{item.lead_id?.slice(0, 8) ?? "—"}</span>
+        <span className="flex-1 truncate">
+          <span className="font-medium">{lead?.name || lead?.phone || (item.lead_id ? item.lead_id.slice(0, 8) : "—")}</span>
+          {lead?.name && lead?.phone && <span className="ml-2 text-muted-foreground">{lead.phone}</span>}
+        </span>
         <StatusBadge status={item.status} />
         {item.retry_requested && <Badge variant="outline" className="border-amber-500/40 text-amber-400">retry</Badge>}
         {item.comment && <span className="text-amber-400">●</span>}
