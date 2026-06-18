@@ -144,7 +144,9 @@ Hoje há ~9 tags em uso. A automação só pode escrever tags da whitelist abaix
 | `tratamento_em_andamento` | `auto:appointment-agendado` com guard D3 | Paciente antigo agendou tratamento sem sair do stage. |
 | `agendamento_sugerido` | `auto:agendamento-sugerido` (Fase 2) | Classifier detectou intent `agendar`. Acompanha task. |
 | `judicializacao` | `auto:judicializacao` (Fase 4) | Classifier detectou liminar/processo. |
-| **`precisa_atencao_humana`** | **Múltiplos** — ver seção abaixo | Lead travado, fallback universal (D8). |
+| `auditor_sugere_<stage>` | A1 `pipeline-position-auditor` (Fase 2.5, v4.2) | Auditor diário discorda da posição atual com `confidence ≥ 0.75`. Acompanha task. |
+| `post_move_warning` | A2 `pipeline-post-move-verifier` (Fase 2.5, v4.2) | Segunda opinião pós-move discordou com `confidence ≥ 0.8`. Não reverte. |
+| **`precisa_atencao_humana`** | **Múltiplos** — ver seção abaixo | Lead travado, fallback universal (D8). Aplicada também por A1 e A2 quando discordam. |
 
 ### Tag de sistema: `precisa_atencao_humana` (D8)
 
