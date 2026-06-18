@@ -457,3 +457,173 @@ function ItemRow({ item }: { item: RunItem }) {
     </div>
   );
 }
+
+interface Pipeline { id: string; name: string }
+interface Stage { id: string; name: string; pipeline_id: string; position: number }
+interface LeadOpt { id: string; name: string | null; phone: string | null }
+
+function ScopeDialog({
+  open, onOpenChange, clinicId, starting, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  clinicId: string | null;
+  starting: boolean;
+  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => void;
+}) {
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [pipelineId, setPipelineId] = useState<string>("");
+  const [stageId, setStageId] = useState<string>("__all__");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [leads, setLeads] = useState<LeadOpt[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<Record<string, LeadOpt>>({});
+  const [loadingLeads, setLoadingLeads] = useState(false);
+
+  useEffect(() => {
+    if (!open || !clinicId) return;
+    (async () => {
+      const { data: pls } = await supabase
+        .from("pipelines").select("id, name").eq("clinic_id", clinicId).order("name");
+      const list = (pls ?? []) as Pipeline[];
+      setPipelines(list);
+      if (list.length && !pipelineId) setPipelineId(list[0].id);
+    })();
+  }, [open, clinicId]);
+
+  useEffect(() => {
+    if (!pipelineId) { setStages([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("pipeline_stages")
+        .select("id, name, pipeline_id, position")
+        .eq("pipeline_id", pipelineId)
+        .order("position");
+      setStages((data ?? []) as Stage[]);
+    })();
+  }, [pipelineId]);
+
+  useEffect(() => {
+    if (!open || !clinicId) return;
+    let active = true;
+    const t = setTimeout(async () => {
+      setLoadingLeads(true);
+      let q = supabase
+        .from("leads")
+        .select("id, name, phone")
+        .eq("clinic_id", clinicId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (pipelineId) q = q.eq("pipeline_id", pipelineId);
+      if (stageId && stageId !== "__all__") q = q.eq("stage_id", stageId);
+      if (leadSearch.trim()) q = q.or(`name.ilike.%${leadSearch.trim()}%,phone.ilike.%${leadSearch.trim()}%`);
+      const { data } = await q;
+      if (!active) return;
+      setLeads((data ?? []) as LeadOpt[]);
+      setLoadingLeads(false);
+    }, 250);
+    return () => { active = false; clearTimeout(t); };
+  }, [open, clinicId, pipelineId, stageId, leadSearch]);
+
+  const selectedCount = Object.keys(selectedLeads).length;
+
+  const submit = () => {
+    onConfirm({
+      pipeline_id: pipelineId || undefined,
+      stage_ids: stageId && stageId !== "__all__" ? [stageId] : undefined,
+      lead_ids: selectedCount > 0 ? Object.keys(selectedLeads) : undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Executar com escopo</DialogTitle>
+          <DialogDescription>
+            Escolha o pipeline, a coluna e (opcional) leads específicos. Em cada varredura a IA também corrige tags e campos personalizados quando há evidência nas mensagens.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Pipeline</Label>
+              <Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId("__all__"); setSelectedLeads({}); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Coluna</Label>
+              <Select value={stageId} onValueChange={(v) => { setStageId(v); setSelectedLeads({}); }}>
+                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todas as colunas</SelectItem>
+                  {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">
+              Leads (opcional) — deixe vazio para processar todos da coluna · {selectedCount} selecionado(s)
+            </Label>
+            <Input
+              placeholder="Buscar por nome ou telefone…"
+              value={leadSearch}
+              onChange={(e) => setLeadSearch(e.target.value)}
+            />
+            {selectedCount > 0 && (
+              <div className="flex flex-wrap gap-1 py-1">
+                {Object.values(selectedLeads).map((l) => (
+                  <Badge key={l.id} variant="secondary" className="gap-1">
+                    {l.name ?? l.phone ?? l.id.slice(0, 6)}
+                    <button onClick={() => setSelectedLeads((s) => { const n = { ...s }; delete n[l.id]; return n; })}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <Button size="sm" variant="ghost" onClick={() => setSelectedLeads({})} className="h-6 px-2 text-xs">Limpar</Button>
+              </div>
+            )}
+            <ScrollArea className="h-48 rounded border border-border/60">
+              <div className="divide-y divide-border/40">
+                {loadingLeads && <div className="p-3 text-xs text-muted-foreground">Carregando…</div>}
+                {!loadingLeads && leads.length === 0 && <div className="p-3 text-xs text-muted-foreground">Nenhum lead encontrado.</div>}
+                {leads.map((l) => {
+                  const checked = !!selectedLeads[l.id];
+                  return (
+                    <label key={l.id} className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-muted/40">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) => setSelectedLeads((s) => {
+                          const n = { ...s };
+                          if (v) n[l.id] = l; else delete n[l.id];
+                          return n;
+                        })}
+                      />
+                      <span className="flex-1 truncate">{l.name ?? "(sem nome)"}</span>
+                      <span className="text-xs text-muted-foreground">{l.phone ?? ""}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={submit} disabled={starting || !pipelineId} className="gap-2">
+            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Executar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
