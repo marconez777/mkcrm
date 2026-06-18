@@ -62,6 +62,7 @@ export default function PipelineRuns() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [scopeOpen, setScopeOpen] = useState(false);
 
   useEffect(() => {
     if (!clinicId) return;
