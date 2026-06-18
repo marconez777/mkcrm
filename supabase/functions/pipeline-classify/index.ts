@@ -281,6 +281,30 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     }
   }
 
+  // Marco 3 — task triggers a partir do intent.
+  let nfTaskResult: unknown = null;
+  let paymentAllegedResult: unknown = null;
+  if (cls.intent === "nf_reembolso") {
+    nfTaskResult = await runNfTask(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      stageName: stage?.name ?? null,
+    });
+  }
+  if (cls.intent === "pagamento_alegado") {
+    paymentAllegedResult = await runPaymentAlleged(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+    });
+  }
+
+  // Marco 3 — summarizer (força se intent não trivial).
+  const summarizeForce = cls.intent !== "outro";
+  const summarizeResult = await runSummarize(client, leadId, {
+    force: summarizeForce,
+    reason: summarizeForce ? `intent:${cls.intent}` : "post_classify",
+  }).catch((err) => ({ status: "error" as const, reason: err instanceof Error ? err.message : String(err) }));
+
   // Update watermark + clear flag
   const lastMsgId = orderedMsgs[orderedMsgs.length - 1].id;
   await client
@@ -295,7 +319,13 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     })
     .eq("id", leadId);
 
-  return { classification: cls, last_message_id: lastMsgId };
+  return {
+    classification: cls,
+    last_message_id: lastMsgId,
+    summarize: summarizeResult,
+    nf_task: nfTaskResult,
+    payment_alleged: paymentAllegedResult,
+  };
 }
 
 async function tickQueue(client: SupabaseClient) {
