@@ -81,16 +81,12 @@ export async function runSummarize(
     .map((m) => `[${(m.created_at as string).slice(0, 16)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 500)}`)
     .join("\n");
 
-  const key = Deno.env.get("LOVABLE_API_KEY")!;
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-  });
+  const ai = await getClinicOpenAI(client, lead.clinic_id as string);
+  if (!ai) return { status: "skipped", reason: "no_clinic_openai_key" };
 
   const previous = (lead.ai_summary as string | null)?.trim() || "(sem resumo prévio)";
   const { text } = await generateText({
-    model: gateway(MODEL),
+    model: ai.model(MODEL),
     system:
       "Você produz resumos enxutos de leads de uma clínica médica para uso interno da equipe. " +
       `Escreva PT-BR, ≤${MAX_SUMMARY_CHARS} caracteres, em parágrafo único, factual, sem opinião. ` +
