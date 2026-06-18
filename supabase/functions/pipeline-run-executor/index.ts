@@ -271,11 +271,16 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
     let offset = 0;
     const PAGE = 200;
     while (processed < CHUNK_SIZE) {
+      if (topN !== null && totals.leads >= topN) {
+        return { moreWork: false, processed };
+      }
       let leadsQuery = service
         .from("leads")
         .select("id")
         .eq("clinic_id", clinicId)
         .eq("stage_id", stage.id)
+        .is("archived_at", null)
+        .order("position", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true })
         .range(offset, offset + PAGE - 1);
       if (explicitLeadIds && explicitLeadIds.length > 0) {
@@ -289,6 +294,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
         const key = `${stage.id}::${lead.id}`;
         if (doneSet.has(key)) continue;
         if (processed >= CHUNK_SIZE) return { moreWork: true, processed };
+        if (topN !== null && totals.leads >= topN) return { moreWork: false, processed };
 
         totals.leads += 1;
         processed += 1;
