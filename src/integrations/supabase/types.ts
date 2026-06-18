@@ -7325,6 +7325,10 @@ export type Database = {
         Args: { _agent_id: string }
         Returns: undefined
       }
+      reset_ai_classifications: {
+        Args: { p_clinic_id: string }
+        Returns: number
+      }
       reset_email_send_state: { Args: never; Returns: undefined }
       resolve_email_segment: {
         Args: { _segment_id: string }
