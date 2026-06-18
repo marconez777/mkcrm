@@ -36,6 +36,7 @@ const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
 const AdminPipelineAutomations = lazy(() => import("./pages/admin/AdminPipelineAutomations"));
+const PipelineRuns = lazy(() => import("./pages/PipelineRuns"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
 import Team from "./pages/Team";
@@ -182,6 +183,7 @@ const App = () => (
                       <Route path="/tracking-debug" element={<TrackingDebug />} />
                       <Route path="/tracking" element={<Tracking />} />
                       <Route path="/tasks" element={<FeatureRoute feature="tasks"><Tasks /></FeatureRoute>} />
+                      <Route path="/pipeline-runs" element={<Suspense fallback={null}><PipelineRuns /></Suspense>} />
                       <Route path="/team" element={<FeatureRoute feature="team"><Team /></FeatureRoute>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

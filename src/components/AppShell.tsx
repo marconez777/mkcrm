@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard,
   CalendarClock, Shield, Users, Mail, Radar, UserRound, ChevronsUpDown,
-  Bug,
+  Bug, Workflow,
 } from "lucide-react";
+import { usePipelineAllowlist } from "@/hooks/usePipelineAllowlist";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
@@ -152,6 +153,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
   const unread = useUnreadTotal();
+  const { enabled: pipelineAllowed } = usePipelineAllowlist();
 
   useEffect(() => {
     if (!user) { setProfile(null); return; }
@@ -180,12 +182,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (isClinicAdmin && hasFeature("team")) {
       items.push({ to: "/team", label: "Equipe", icon: Users, accent: "teal", group: "admin" });
     }
+    if (isClinicAdmin && pipelineAllowed) {
+      items.push({ to: "/pipeline-runs", label: "Agente Pipeline", icon: Workflow, accent: "violet", group: "admin" });
+    }
     items.push({ to: "/settings", label: "Configurações", icon: Settings, accent: "slate", group: "admin" });
     if (isSuperAdmin) {
       items.push({ to: "/admin", label: "Super Admin", icon: Shield, accent: "destructive", group: "admin" });
     }
     return items;
-  }, [isProfessional, isClinicAdmin, isSuperAdmin, hasFeature, membership]);
+  }, [isProfessional, isClinicAdmin, isSuperAdmin, hasFeature, membership, pipelineAllowed]);
 
   const grouped = useMemo(() => {
     const g: Record<GroupKey, NavItem[]> = { work: [], marketing: [], admin: [] };
