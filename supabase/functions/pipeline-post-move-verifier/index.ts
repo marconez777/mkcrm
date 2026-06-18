@@ -16,6 +16,7 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -108,6 +109,9 @@ async function verifyMove(client: SupabaseClient, payload: VerifierPayload) {
   ]);
 
   if (!lead) return { skipped: "lead_not_found" };
+  if (!(await isClinicPipelineAllowed(client, lead.clinic_id as string))) {
+    return { skipped: "clinic_not_allowlisted" };
+  }
 
   const fromName = stages?.find((s) => s.id === from_stage_id)?.name ?? "—";
   const toName = stages?.find((s) => s.id === to_stage_id)?.name ?? to_stage_id;

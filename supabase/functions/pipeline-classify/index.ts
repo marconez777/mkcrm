@@ -36,6 +36,7 @@ import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
 import { runJudicializacao, runRenovacaoReceita, runObjectionSuggest } from "../_shared/pipeline-fase4.ts";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +198,9 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     .single();
   if (!lead) return { skipped: "lead_not_found" };
   if (!lead.pipeline_id) return { skipped: "no_pipeline" };
+  if (!(await isClinicPipelineAllowed(client, lead.clinic_id as string))) {
+    return { skipped: "clinic_not_allowlisted" };
+  }
 
   // Fetch up to MAX_MSGS most recent messages
   const { data: msgs } = await client

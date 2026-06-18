@@ -6,6 +6,7 @@
 // Toggle global: automation.stage_bindings.enabled
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -20,6 +21,9 @@ export async function applyStageBindings(
   clinicId: string,
   toStageId: string,
 ): Promise<{ enrolled: string[]; skipped: string }> {
+  if (!(await isClinicPipelineAllowed(client, clinicId))) {
+    return { enrolled: [], skipped: "clinic_not_allowlisted" };
+  }
   if (!(await isEnabled(client, "automation.stage_bindings.enabled"))) {
     return { enrolled: [], skipped: "toggle_off" };
   }

@@ -16,6 +16,7 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -197,6 +198,9 @@ async function selectCandidates(client: SupabaseClient, batchSize: number): Prom
 }
 
 async function auditOne(client: SupabaseClient, c: AuditCandidate) {
+  if (!(await isClinicPipelineAllowed(client, c.clinic_id))) {
+    return { skipped: "clinic_not_allowlisted" };
+  }
   const { data: msgs } = await client
     .from("messages")
     .select("id, from_me, content, created_at")

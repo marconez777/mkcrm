@@ -25,6 +25,7 @@
 // - Lê o toggle em `app_settings` (G3). Default = false (fail-safe off).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 export type PipelineMoveSource =
   | `auto:${string}`
@@ -134,6 +135,11 @@ export async function pipelineMove(
     return { moved: false, reason: `lead_not_found:${leadErr?.message ?? leadId}` };
   }
 
+  // Allowlist por clínica (Marco 4.5) — só fontes automáticas são gateadas.
+  if (isAutoSource && !(await isClinicPipelineAllowed(client, lead.clinic_id))) {
+    return { moved: false, reason: "clinic_not_allowlisted" };
+  }
+
   // G1 — lock manual.
   if (isAutoSource && lead.manual_lock_until) {
     const lockedUntil = new Date(lead.manual_lock_until).getTime();
@@ -141,6 +147,7 @@ export async function pipelineMove(
       return { moved: false, reason: `gate_g1_manual_lock_until:${lead.manual_lock_until}` };
     }
   }
+
 
   // No-op se já está no destino.
   if (lead.stage_id === toStageId) {
