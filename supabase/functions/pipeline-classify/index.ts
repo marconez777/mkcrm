@@ -336,27 +336,42 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     .eq("id", lead.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
 
-  // Extra context: total message count, first message, recent stage history
-  const [{ count: totalMessagesCount }, { data: firstMsg }, { data: stageHist }] = await Promise.all([
+  // Extra context: total message count, first message, recent stage history (join names)
+  const [{ count: totalMessagesCount }, { data: firstMsg }, { data: stageHistRaw }] = await Promise.all([
     client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
     client.from("messages").select("created_at").eq("lead_id", leadId).order("created_at", { ascending: true }).limit(1).maybeSingle(),
     client
       .from("lead_stage_history")
-      .select("created_at, from_stage_name, to_stage_name")
+      .select("moved_at, from_stage_id, to_stage_id")
       .eq("lead_id", leadId)
-      .order("created_at", { ascending: false })
+      .order("moved_at", { ascending: false })
       .limit(8),
   ]);
 
+  // Resolve stage names for history
+  const stageIds = new Set<string>();
+  for (const h of stageHistRaw ?? []) {
+    if (h.from_stage_id) stageIds.add(h.from_stage_id as string);
+    if (h.to_stage_id) stageIds.add(h.to_stage_id as string);
+  }
+  const stageNameMap = new Map<string, string>();
+  if (stageIds.size > 0) {
+    const { data: stageRows } = await client
+      .from("pipeline_stages")
+      .select("id, name")
+      .in("id", Array.from(stageIds));
+    for (const s of stageRows ?? []) stageNameMap.set(s.id as string, s.name as string);
+  }
   const TREATED_STAGES = new Set(["Em tratamento", "Consulta finalizada", "Paciente antigo"]);
-  const recentStageHistory = (stageHist ?? []).map((h: { created_at: string; from_stage_name: string | null; to_stage_name: string | null }) => ({
-    at: h.created_at,
-    from: h.from_stage_name,
-    to: h.to_stage_name,
+  const recentStageHistory = (stageHistRaw ?? []).map((h: { moved_at: string; from_stage_id: string | null; to_stage_id: string | null }) => ({
+    at: h.moved_at,
+    from: h.from_stage_id ? (stageNameMap.get(h.from_stage_id) ?? null) : null,
+    to: h.to_stage_id ? (stageNameMap.get(h.to_stage_id) ?? null) : null,
   }));
   const hasBeenTreatedBefore =
     recentStageHistory.some((h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from))) ||
     ((lead.tags ?? []) as string[]).includes("paciente_antigo");
+
 
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
