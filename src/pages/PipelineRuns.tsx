@@ -79,8 +79,10 @@ export default function PipelineRuns() {
         () => load(),
       )
       .subscribe();
+    const poll = setInterval(load, 3000);
     return () => {
       active = false;
+      clearInterval(poll);
       supabase.removeChannel(ch);
     };
   }, [clinicId]);
