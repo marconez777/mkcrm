@@ -550,6 +550,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
         stage_move: stageMove,
         tags_diff: { added: tagsAdded, removed: tagsRemoved, requested_remove: toRemoveRaw },
         custom_fields: fieldsApplied,
+        custom_fields_rejected: fieldsRejected,
       },
     },
   });
