@@ -15,7 +15,7 @@
 // NUNCA move card. NUNCA toca em appointments (G11).
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
+import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -27,8 +27,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const MODEL = "openai/gpt-5-mini";
+const MODEL = "gpt-5-mini";
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
@@ -207,17 +206,11 @@ async function auditOne(client: SupabaseClient, c: AuditCandidate) {
   const ordered = (msgs ?? []).reverse();
   if (ordered.length === 0) return { skipped: "no_messages" };
 
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": LOVABLE_KEY,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+  const ai = await getClinicOpenAI(client, c.clinic_id);
+  if (!ai) return { skipped: "no_clinic_openai_key" };
 
   const { output } = await generateText({
-    model: gateway(MODEL),
+    model: ai.model(MODEL),
     system: buildSystemPrompt(c.stage_name),
     prompt:
       `Lead id=${c.id}\n` +

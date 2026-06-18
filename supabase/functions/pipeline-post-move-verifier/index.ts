@@ -15,7 +15,7 @@
 //  - G11: nunca cria/edita appointments nem move stages.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
+import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -27,8 +27,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const MODEL = "openai/gpt-5-nano";
+const MODEL = "gpt-5-nano";
 
 const VerdictSchema = z.object({
   verdict: z.enum(["sim", "nao", "incerto"]),
@@ -117,17 +116,11 @@ async function verifyMove(client: SupabaseClient, payload: VerifierPayload) {
     .map((e) => `[${(e.created_at as string).slice(0, 16)}] ${e.type}: ${JSON.stringify(e.payload ?? {}).slice(0, 200)}`)
     .join("\n");
 
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": LOVABLE_KEY,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+  const ai = await getClinicOpenAI(client, lead.clinic_id as string);
+  if (!ai) return { skipped: "no_clinic_openai_key" };
 
   const { output } = await generateText({
-    model: gateway(MODEL),
+    model: ai.model(MODEL),
     system:
       "Você é um revisor curto de movimentações de pipeline CRM médico. " +
       "Responda APENAS via schema: verdict ∈ {sim, nao, incerto}, confidence ∈ [0,1], reason ≤ 200 chars em PT-BR. " +
