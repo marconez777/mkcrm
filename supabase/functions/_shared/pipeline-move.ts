@@ -219,5 +219,42 @@ export async function pipelineMove(
     });
   }
 
+  // A2 (Marco 2.5) — hook não-bloqueante para o verificador pós-move.
+  // Só dispara em moves automáticos. O verifier aplica seus próprios gates
+  // (toggle automation.post_move_verifier.enabled + rules_enabled whitelist).
+  if (isAutoSource) {
+    try {
+      const supaUrl = (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get(
+        "SUPABASE_URL",
+      );
+      const serviceKey = (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get(
+        "SUPABASE_SERVICE_ROLE_KEY",
+      );
+      if (supaUrl && serviceKey) {
+        const verifierPromise = fetch(`${supaUrl}/functions/v1/pipeline-post-move-verifier`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            lead_id: leadId,
+            from_stage_id: lead.stage_id,
+            to_stage_id: toStageId,
+            source,
+            rule_key: ruleKey ?? null,
+          }),
+        }).catch((err) => {
+          console.warn("[pipeline-move] post-move-verifier dispatch failed", err);
+        });
+        // Não esperamos a resposta no caminho crítico.
+        const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+        if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(verifierPromise);
+      }
+    } catch (err) {
+      console.warn("[pipeline-move] post-move-verifier hook error", err);
+    }
+  }
+
   return { moved: true, fromStageId: lead.stage_id ?? null, toStageId };
 }
