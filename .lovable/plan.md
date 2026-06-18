@@ -1,63 +1,37 @@
-## Problema
+## Objetivo
 
-A varredura rodou em 66 leads de "Qualificação" mas nada mudou. Investigando `pipeline-classify/index.ts`:
+Transformar o chip 🔒 **"Lock manual"** dos cards do Kanban num botão clicável que remove imediatamente o lock (`leads.manual_lock_until = null`), liberando o card para automações novamente.
 
-1. **Stage nunca é movido automaticamente** — o código só move para `B2B / Stakeholders` (quando `automation.b2b_move.enabled` está ligado e `confidence ≥ 0.9`). Para qualquer outra `stage_suggestion` (ex.: "Em tratamento", "Sem resposta", "Nutrição inativa", "Paciente antigo"), o classifier apenas grava o evento e segue.
-2. **Tags só são adicionadas (união)** — nunca removidas. Então tags antigas/incorretas como "Interesse", "1ª consulta" persistem mesmo quando a IA discorda.
-3. O resultado é exatamente o sintoma: leads continuam na coluna errada e com tags desatualizadas.
+## Comportamento
 
-## O que vou mudar
+1. **Chip vira botão.** Cursor pointer, hover destaca, ícone do cadeado vira "cadeado aberto" no hover. Tooltip: *"Lead travado para automações até DD/MM HH:mm. Clique para destravar."*
+2. **Clique abre confirmação** (AlertDialog do shadcn):
+   - Título: *"Destravar este lead?"*
+   - Descrição: *"As automações (classifier, auditores, B2B move) voltarão a poder mover este card. Continuar?"*
+   - Botões: **Cancelar** / **Destravar**.
+3. **Ao confirmar:**
+   - `UPDATE leads SET manual_lock_until = NULL WHERE id = :leadId`.
+   - Insert em `lead_events` com `type = 'manual:unlock'` e payload `{ previous_lock_until, by_user_id }` — fica na timeline.
+   - Toast de sucesso + refetch do card (o chip some sozinho porque `locked` recalcula).
+   - Em caso de erro: toast destrutivo, lock permanece.
+4. **Permissão.** Só quem pode mover leads no Kanban pode destravar (mesma regra do drag — RLS atual da tabela `leads` já cobre isso; nenhuma policy nova).
+5. **Propagação de clique.** `stopPropagation` no botão pra não abrir o LeadDrawer ao clicar no chip.
 
-### 1. Mover automaticamente para a `stage_suggestion` da IA
+## Onde mexer
 
-No `pipeline-classify/index.ts`, depois da classificação:
+- **`src/pages/Kanban.tsx`** (linha ~305): substituir o `<Chip>` do Lock manual por um novo componente `<LockManualChip lead={lead} onUnlocked={refetch}/>`. Manter visual idêntico quando não-hover.
+- **`src/lib/manual-stage-move.ts`**: adicionar helper `unlockLeadManually(supabase, leadId): Promise<void>` que faz o UPDATE + insert do evento numa única chamada (evento best-effort, não bloqueia o unlock).
+- **Nenhuma migration** — campo `manual_lock_until` já existe; `lead_events` já aceita `type` arbitrário.
 
-- Resolver o `stage_id` de `cls.stage_suggestion` via `stage_canonical_aliases` (mesma função já usada para B2B).
-- Se `stage_id` resolvido ≠ `lead.stage_id` **e** `cls.confidence ≥ STAGE_MOVE_MIN_CONFIDENCE` (proponho **0.75**, configurável via `app_settings.automation.classifier.stage_move_min_confidence`), chamar `pipelineMove` com:
-  - `source: "auto:classifier-stage"`
-  - `reason: "Classifier: <stage> (conf=X.XX)"`
-  - `ruleKey: "automation.classifier.stage_move.enabled"`
-  - `idempotencyKey: stage:<leadId>:<lastMsgId>` (evita repetir o mesmo move se reprocessar)
-- Gate por toggle novo: `automation.classifier.stage_move.enabled` (default **true** — já que o usuário pediu explicitamente). Se `false`, mantém comportamento atual (só evento).
-- Confiança baixa (`< 0.6`) já recebe tag `precisa_atencao_humana` e **não** é movida.
-- Se `is_b2b=true`, mantém o caminho B2B existente (não duplica).
+## Fora de escopo
 
-### 2. Corrigir tags (não só adicionar)
+- Botão equivalente no LeadDrawer/Detalhes (pode ser próximo passo se você quiser).
+- Mudar a duração padrão de 7 dias do lock.
+- Bulk unlock (destravar a coluna inteira).
 
-Hoje o código faz union. Vou mudar para **substituir** as tags sugeridas pela IA dentro de um "namespace gerenciado":
+## Validação
 
-- Definir whitelist de tags gerenciadas pelo classifier (as do v4.2: `interessado`, `agendando`, `comprovante`, `negociacao`, `1a_consulta`, `seguimento`, `cetamina`, `desistente`, `sem_resposta`, etc. — vou ler `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md` para confirmar a lista exata).
-- Lógica: `final = (current \ managed_whitelist) ∪ tags_suggested ∪ (precisa_atencao_humana se conf<0.6)`.
-- Isso preserva tags manuais fora da whitelist (ex.: "Lock manual") e corrige as gerenciadas.
-- Gate por toggle: `automation.classifier.tag_replace.enabled` (default **true**).
-
-### 3. Custom fields
-
-Já faz merge com remoção quando IA envia `null`. Mantenho como está — comportamento já correto.
-
-### 4. Telemetria
-
-Adicionar ao `lead_events` `auto:classifier` payload campos:
-- `stage_moved`: `{ from, to, applied: bool, skipped_reason? }`
-- `tags_diff`: `{ added: [], removed: [], kept_manual: [] }`
-
-Assim você consegue auditar pela UI de PipelineRuns por que um lead não foi movido (ex.: `skipped_reason: "low_confidence"` ou `"same_stage"`).
-
-## Arquivos afetados
-
-- `supabase/functions/pipeline-classify/index.ts` — lógica de move + reconciliação de tags + payload do evento.
-- (Opcional) `supabase/migrations/...sql` — inserir defaults dos novos toggles em `app_settings` (`stage_move.enabled=true`, `tag_replace.enabled=true`, `stage_move_min_confidence=0.75`).
-
-## Não vou mexer
-
-- UI de PipelineRuns (escopo já funciona).
-- Executor/heartbeat/timeouts (já corrigidos).
-- Summarizer / tasks de intent.
-
-## Pergunta antes de implementar
-
-Confirma os defaults? 
-- Stage move automático **ligado**, mínimo de confiança **0.75**.
-- Tag replace **ligado**, preservando tags manuais fora da whitelist v4.2.
-
-Se preferir mais conservador (ex.: 0.85 de confiança, ou stage move desligado por default e você liga manualmente), me diz.
+- Arrastar um card → chip "Lock manual" aparece.
+- Clicar no chip → modal → confirmar → chip some, toast OK.
+- Conferir `lead_events` do lead: deve ter linha `manual:unlock`.
+- Rodar o classifier naquele lead em seguida → deve conseguir mover stage (se confidence ≥ threshold).
