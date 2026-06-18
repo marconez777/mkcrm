@@ -1,10 +1,10 @@
 ---
-title: "Pipeline — Documentação para planejamento de automação (v4.1)"
+title: "Pipeline — Documentação para planejamento de automação (v4.2)"
 topic: kanban
 kind: map
 audience: agent
 updated: 2026-06-18
-summary: "Hub da documentação do pipeline da Clínica ÓR (v4.1, 11 colunas). Inclui 8 decisões D1–D8, reator de ação humana, tag precisa_atencao_humana, e lembretes via UI /automations."
+summary: "Hub da documentação do pipeline da Clínica ÓR (v4.2, 11 colunas). Inclui 8 decisões D1–D8, reator de ação humana, tag precisa_atencao_humana, lembretes via UI /automations, e agentes auditores A1/A2/A3 da Fase 2.5."
 related_docs:
   - docs/pipeline/STAGES.md
   - docs/pipeline/SCENARIOS.md
@@ -15,7 +15,7 @@ related_docs:
   - docs/estudo-geral.md
 ---
 
-# Pipeline — Documentação base para automação (v4.1)
+# Pipeline — Documentação base para automação (v4.2)
 
 Esta pasta consolida **tudo o que é preciso para planejar e implementar a automação do pipeline** sem precisar varrer o código. A Fase 0+1 do `AUTOMATION_PLAN.md` deve ser implementável **lendo apenas estes arquivos**.
 
@@ -25,6 +25,18 @@ Esta pasta consolida **tudo o que é preciso para planejar e implementar a autom
 - **Agente de WhatsApp (auto-reply)** continua ativo e independente.
 - Base empírica: estudo de 441 leads / 3.973 mensagens / 306 áudios da Clínica ÓR (`docs/estudo/`).
 - **v4.1**: incorpora o brief consolidado da clínica e fecha 8 decisões + 13 perguntas abertas.
+- **v4.2**: adiciona 3 agentes de auditoria (A1 position-auditor, A2 post-move-verifier, A3 history tool no classifier) na Fase 2.5. Nenhuma decisão D nova — são mecanismos de execução.
+
+## Changelog v4.1 → v4.2
+
+| Item | O que muda |
+|---|---|
+| **A1** `pipeline-position-auditor` | Cron diário revisa leads parados ≥7d. Discordância → tag + task. **Não move card.** |
+| **A2** `pipeline-post-move-verifier` | Hook async em `pipeline-move` dá 2ª opinião barata em todo move `auto:*`. Warning sem reverter. |
+| **A3** Tool `get_lead_history` no classifier | Classifier pode puxar contexto histórico sob demanda (até 3 chamadas/execução). |
+| G11 | Estendido para cobrir A1/A2: nenhum agente auditor cria/edita `appointments` nem move stage. |
+| Tags novas | `auditor_sugere_<stage>` (A1), `post_move_warning` (A2). |
+| Toggles novos | `automation.position_auditor.*`, `automation.post_move_verifier.*`, `automation.classifier.history_tool_enabled`. |
 
 ## Mudanças v3 → v4.1
 

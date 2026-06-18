@@ -1,10 +1,10 @@
 ---
-title: "Pipeline — Cenários canônicos do estudo (v4.1)"
+title: "Pipeline — Cenários canônicos do estudo (v4.2)"
 topic: kanban
 kind: reference
 audience: agent
 updated: 2026-06-18
-summary: "Catálogo de cenários reais das 441 conversas + 6 cenários novos da v4.1 (welcome, transição por resposta humana, paciente antigo agenda, reator humano, lead travado, B2B critérios)."
+summary: "Catálogo de cenários reais das 441 conversas + cenários v4.1 (welcome, transição por resposta humana, paciente antigo agenda, reator humano, lead travado, B2B critérios) + cenários v4.2 (auditor de posição C21, verificador pós-move C22)."
 related_docs:
   - docs/pipeline/STAGES.md
   - docs/pipeline/AUTOMATION_PLAN.md
@@ -12,7 +12,7 @@ related_docs:
   - docs/estudo-geral.md
 ---
 
-# Cenários canônicos — extraídos do estudo (v4.1)
+# Cenários canônicos — extraídos do estudo (v4.2)
 
 Cada cenário é uma situação que **acontece com frequência suficiente** para virar regra/automação. Detalhe completo nas pastas `docs/estudo/<coluna>.md`.
 
@@ -257,3 +257,21 @@ A tag `precisa_atencao_humana` é o fallback universal de baixa confiança. Apli
 | E10 | Mover por texto "paguei" | C4 | Status financeiro é campo (D1), nunca movido por texto. |
 | **E11** | **IA criou appointment fantasma** | — | **G11 v4.1**: classifier nunca escreve em `appointments`. Só sugere. |
 | **E12** | **IA fez algo inesperado e ninguém viu** | — | **Reator humano (C19) + tag `precisa_atencao_humana` (C20)**: tudo que IA não tem certeza vira fila de revisão. |
+| **E13** | **Lead entrou certo mas a conversa evoluiu e ninguém releu** | C21 | **A1 v4.2 — auditor de posição**: cron diário revisa leads parados ≥7d e tagga discordâncias. |
+| **E14** | **Move automático ruim só é detectado quando humano percebe** | C22 | **A2 v4.2 — verificador pós-move**: segunda opinião barata em todo `auto:*` move, sinaliza warning sem reverter. |
+
+---
+
+## C21. Auditor de posição revisa lead parado (v4.2)
+- **Sinal**: lead com `last_stage_change_at < now() - 7d`, stage não-final, sem appointment futuro, `qualificacao != 'desqualificado'`.
+- **Hoje**: ninguém faz auditoria periódica; lead pode estar na coluna errada por dias.
+- **Automação v4.2**: `pipeline-position-auditor` (cron 03:00 BRT, batch 50/dia) roda classifier "revisor". Se `suggested_stage != current_stage` e `confidence ≥ 0.75` → tags `precisa_atencao_humana` + `auditor_sugere_<stage>` + `lead_tasks` "Revisar posição".
+- **Não move o card**. Só sinaliza para humano decidir. Idempotente por 14 dias.
+- **Prio: P2**. Critério de entrada: Fase 2 estável ≥14d.
+
+## C22. Verificador pós-move discorda de regra automática (v4.2)
+- **Sinal**: regra `auto:*` acabou de mover card (ex.: `auto:b2b-move`, `auto:reactivation`).
+- **Hoje**: erro de classificação só é detectado quando humano abre o card e desfaz; métrica reativa "% undo em 24h".
+- **Automação v4.2**: hook async em `pipeline-move` chama `pipeline-post-move-verifier` (Flash-Lite) com `{from, to, source, last_5_events}`. Se "não faz sentido" + `confidence ≥ 0.8` → tags `precisa_atencao_humana` + `post_move_warning`.
+- **Não reverte**. Só sinaliza. Toggle seletivo por regra em `app_settings.automation.post_move_verifier.rules_enabled`.
+- **Prio: P2**. Critério de entrada: Fase 2 estável ≥14d.
