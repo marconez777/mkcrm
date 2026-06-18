@@ -390,7 +390,7 @@ function RunDetail({ runId }: { runId: string }) {
   );
 }
 
-function StageGroup({ stageName, items }: { stageName: string; items: RunItem[] }) {
+function StageGroup({ stageName, items, leadsMap }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo> }) {
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -404,14 +404,14 @@ function StageGroup({ stageName, items }: { stageName: string; items: RunItem[] 
       </button>
       {open && (
         <div className="divide-y divide-border/40">
-          {items.map((it) => <ItemRow key={it.id} item={it} />)}
+          {items.map((it) => <ItemRow key={it.id} item={it} lead={it.lead_id ? leadsMap[it.lead_id] : undefined} />)}
         </div>
       )}
     </div>
   );
 }
 
-function ItemRow({ item }: { item: RunItem }) {
+function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
