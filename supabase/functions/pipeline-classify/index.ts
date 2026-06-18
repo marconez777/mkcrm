@@ -29,9 +29,9 @@
 //   - Invocação manual com action=lead + lead_id (smoke test)
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@0.5.0";
-import { generateText, tool, Output, stepCountIs } from "npm:ai@5.0.20";
-import { z } from "npm:zod@3.23.8";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
+import { generateText, tool, Output, stepCountIs } from "npm:ai@^6";
+import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 
 const corsHeaders = {
