@@ -258,13 +258,17 @@ function StatusBadge({ status }: { status: RunStatus | RunItem["status"] }) {
   return <Badge variant="outline" className={`border-0 ${c.cls}`}>{c.label}</Badge>;
 }
 
+type LeadInfo = { name: string | null; phone: string | null };
+
 function RunDetail({ runId }: { runId: string }) {
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
+  const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const knownIds = new Set<string>();
     const load = async () => {
       const { data: initialRun } = await supabase.from("pipeline_runs").select("*").eq("id", runId).single();
       const currentRun = initialRun as Run | null;
@@ -277,7 +281,23 @@ function RunDetail({ runId }: { runId: string }) {
       ]);
       if (!active) return;
       setRun((r as Run) ?? null);
-      setItems((it as RunItem[]) ?? []);
+      const itemsArr = (it as RunItem[]) ?? [];
+      setItems(itemsArr);
+      const missing = Array.from(
+        new Set(itemsArr.map((x) => x.lead_id).filter((x): x is string => !!x && !knownIds.has(x)))
+      );
+      if (missing.length > 0) {
+        missing.forEach((id) => knownIds.add(id));
+        const { data: leads } = await supabase.from("leads").select("id,name,phone").in("id", missing);
+        if (!active) return;
+        setLeadsMap((prev) => {
+          const next = { ...prev };
+          for (const l of (leads ?? []) as Array<{ id: string; name: string | null; phone: string | null }>) {
+            next[l.id] = { name: l.name, phone: l.phone };
+          }
+          return next;
+        });
+      }
     };
     load();
     const ch = supabase
