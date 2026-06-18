@@ -116,17 +116,11 @@ async function verifyMove(client: SupabaseClient, payload: VerifierPayload) {
     .map((e) => `[${(e.created_at as string).slice(0, 16)}] ${e.type}: ${JSON.stringify(e.payload ?? {}).slice(0, 200)}`)
     .join("\n");
 
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": LOVABLE_KEY,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+  const ai = await getClinicOpenAI(client, lead.clinic_id as string);
+  if (!ai) return { skipped: "no_clinic_openai_key" };
 
   const { output } = await generateText({
-    model: gateway(MODEL),
+    model: ai.model(MODEL),
     system:
       "Você é um revisor curto de movimentações de pipeline CRM médico. " +
       "Responda APENAS via schema: verdict ∈ {sim, nao, incerto}, confidence ∈ [0,1], reason ≤ 200 chars em PT-BR. " +
