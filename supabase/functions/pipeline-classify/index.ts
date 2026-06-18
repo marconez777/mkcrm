@@ -216,14 +216,8 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     .maybeSingle();
   const pipelineSummary = `stage atual=${stage?.name ?? "?"}; tags=${(lead.tags ?? []).join(",") || "nenhuma"}`;
 
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": LOVABLE_KEY,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+  const ai = await getClinicOpenAI(client, lead.clinic_id);
+  if (!ai) return { skipped: "no_clinic_openai_key" };
 
   // Optional A3 tool: get_lead_history
   const historyToolEnabled = await isEnabled(client, "automation.classifier.history_tool_enabled");
