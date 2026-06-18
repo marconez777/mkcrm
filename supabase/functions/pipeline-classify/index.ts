@@ -83,6 +83,9 @@ const INTENT_VALUES = [
   "pagamento_alegado",
   "desistencia",
   "interesse_tratamento",
+  "judicializacao",
+  "renovacao_receita",
+  "objecao",
   "outro",
 ] as const;
 
