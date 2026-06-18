@@ -115,23 +115,34 @@ async function tickQueueV2(client: SupabaseClient) {
     .eq("needs_ai_review", true)
     .lte("ai_review_queued_at", new Date().toISOString())
     .contains("ai_review_reasons", ["pipeline-classifier"])
+    .order("ai_review_queued_at", { ascending: true, nullsFirst: true })
     .limit(BATCH_LIMIT);
 
+  // Processa em paralelo (concorrência limitada) para evitar timeout serial.
+  const CONCURRENCY = 5;
+  const queue = [...(leads ?? [])];
   const results: Array<Record<string, unknown>> = [];
-  for (const l of leads ?? []) {
-    try {
-      const r = await classifyOneV2(client, l.id as string);
-      results.push({ lead_id: l.id, ok: true, ...r });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("classify v2 failed", l.id, msg);
-      results.push({ lead_id: l.id, ok: false, error: msg });
-      await client
-        .from("leads")
-        .update({ ai_review_queued_at: new Date(Date.now() + 10 * 60_000).toISOString() })
-        .eq("id", l.id);
+
+  async function worker() {
+    while (queue.length) {
+      const l = queue.shift();
+      if (!l) break;
+      try {
+        const r = await classifyOneV2(client, l.id as string);
+        results.push({ lead_id: l.id, ok: true, ...r });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("classify v2 failed", l.id, msg);
+        results.push({ lead_id: l.id, ok: false, error: msg });
+        await client
+          .from("leads")
+          .update({ ai_review_queued_at: new Date(Date.now() + 10 * 60_000).toISOString() })
+          .eq("id", l.id);
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
   return { processed: results.length, results };
 }
 
