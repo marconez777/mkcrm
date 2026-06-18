@@ -220,6 +220,87 @@ Rule Engine consome e aplica G1–G11. Modelo: `google/gemini-3-flash-preview`. 
 
 260 leads B2B existentes servem de golden set. Aceite: ≥90% precisão em `intent='b2b'` antes de ligar `auto:b2b-move`.
 
+### A3 — Tool `get_lead_history` no classifier (v4.2)
+
+Hoje o classifier recebe payload fixo (`ai_summary` + últimas 10 msgs + `custom_fields` + `tags`). Em conversas longas, o summary perde nuance.
+
+**Mudança**:
+- Adicionar tool calling ao classifier (nativo da AI SDK Gemini).
+- Expor 1 tool: `get_lead_history({ query: string, max_messages?: number })`.
+  - Server-side: full-text search em `messages` daquele `lead_id`, retorna N msgs (default 5) mais relevantes com timestamp.
+  - Limite hard: máximo 3 chamadas por execução (`stopWhen: stepCountIs(4)`).
+- Prompt ganha instrução: "se `ai_summary` não cobre uma intent específica (ex.: paciente referência a evento antigo), use `get_lead_history` antes de classificar".
+
+**Reuso**: a primitiva `get_lead_history` já está na whitelist de `src/lib/agent-tools.ts` e `supabase/functions/_shared/agent-flags.ts`. Só precisa registrar no `pipeline-classify`.
+
+**Custo extra**: +1 round-trip quando acionado. Estimado <10% das execuções → +$0.40/mês.
+
+**Toggle**: `app_settings.automation.classifier.history_tool_enabled` (default `true` quando Fase 2 ligar).
+
+---
+
+## Fase 2.5 — Agentes auditores (v4.2, novo)
+
+Critério de entrada: Fase 2 com ≥14d estável e <10% undo humano.
+
+Princípio comum: **nunca movem card**. Só sinalizam via tag `precisa_atencao_humana` + tag específica + task. Mantêm G1/G5/G11.
+
+### A1 — Auditor de posição
+
+Edge function `pipeline-position-auditor`, agendada por `pg_cron` 03:00 BRT.
+
+**Critério de seleção**:
+- `last_stage_change_at < now() - interval '7 days'`.
+- Stage atual NÃO em `(Paciente antigo, Nutrição inativa, B2B, Desqualificado)`.
+- Sem `appointments` futuro.
+- `qualificacao != 'desqualificado'`.
+- Batch size 50/dia (toggle `app_settings.automation.position_auditor.batch_size`).
+
+**Para cada lead**:
+1. Roda o mesmo prompt do classifier Fase 2, mas com instrução "revisor" — compara `suggested_stage_id` com `current_stage_id`.
+2. Se diferente E `confidence ≥ 0.75`:
+   - Adiciona tags `precisa_atencao_humana` + `auditor_sugere_<stage>`.
+   - Cria `lead_tasks` "Revisar posição: auditor sugere mover para X" `due_at=+2d`.
+   - Grava `lead_events.type='position_audit_disagreement'` com `payload={from,to,confidence,reasoning}`.
+3. Se igual ou `confidence < 0.75`: grava `lead_events.type='position_audit_ok'` (silencioso, só métrica).
+
+**Idempotência**: 1 auditoria por lead a cada 14 dias (`lead_events` lookup).
+
+**Custo**: 50 leads/dia × Flash-Lite ≈ $0.15/mês. Toggle off-by-default.
+
+**Métrica**: % de discordâncias que viram move humano em 7d.
+
+### A2 — Verificador pós-move
+
+Não é regra `auto:*` independente. É **hook dentro do `pipeline-move.ts`**, executado async após move bem-sucedido quando `source LIKE 'auto:%'` (não roda em move humano — reator D7 já cobre).
+
+**Fluxo**:
+1. `pipeline-move` move + grava history.
+2. Enfileira chamada não-bloqueante para `pipeline-post-move-verifier` com `{lead_id, from_stage_id, to_stage_id, source, last_5_events}`.
+3. Verifier roda prompt curto Flash-Lite: "esse move faz sentido dado esses 5 últimos eventos? sim/não/incerto + razão ≤100 chars".
+4. Se "não" com `confidence ≥ 0.8`:
+   - Tags `precisa_atencao_humana` + `post_move_warning`.
+   - `lead_events.type='post_move_disagreement'`.
+   - **NÃO reverte**. Só sinaliza.
+5. Se "sim" ou "incerto": só métrica.
+
+**Toggles**:
+- `app_settings.automation.post_move_verifier.enabled` (default `false`).
+- `app_settings.automation.post_move_verifier.rules_enabled` (string[], default `[]`) — permite ligar seletivamente por regra (ex.: começar só com `['auto:b2b-move','auto:reactivation']`).
+
+**Custo estimado**: ~200 moves/dia com todas regras ligadas ≈ $0.60/mês.
+
+**Métrica**: % de `post_move_warning` seguido de undo humano em 24h. ≥30% = ajuda; ≤5% = desligar.
+
+### Critério de aceite da Fase 2.5
+
+Em 30 dias após ligar:
+- A1 produz ≥1 discordância útil/semana (vira move humano).
+- A2 detecta ≥1 move ruim/semana antes do humano perceber.
+- A3 reduz "% confidence<0.6" do classifier em ≥15%.
+
+Se algum falhar: desligar via toggle, manter doc, reavaliar.
+
 ---
 
 ## Fase 3 — Summarizer + Tarefas (1 semana)
