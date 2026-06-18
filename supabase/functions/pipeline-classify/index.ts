@@ -417,7 +417,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
 
   const { output } = await generateText({
     model: ai.model(MODEL),
-    system: buildSystemPrompt(pipelineSummary),
+    system: buildSystemPrompt(contextBlock),
     prompt: `Histórico recente do lead (id=${leadId}):\n\n${formatMessages(orderedMsgs)}\n\nClassifique agora.`,
     output: Output.object({ schema: ClassificationSchema }),
     tools,
