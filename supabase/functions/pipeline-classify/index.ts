@@ -33,6 +33,8 @@ import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
 import { generateText, tool, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
+import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
