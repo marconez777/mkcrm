@@ -162,6 +162,16 @@ Regras:
 - custom_fields_patch: só inclua chaves se há evidência clara no texto.
 - reasons: 1-5 frases curtas em PT-BR justificando.
 
+Campo intent (escolha UM):
+- "agendamento": lead pedindo para marcar consulta/tratamento.
+- "reagendamento": lead pedindo para remarcar.
+- "duvida_geral": pergunta sobre serviço, valores, planos.
+- "nf_reembolso": lead pedindo nota fiscal, recibo, ou docs p/ reembolso.
+- "pagamento_alegado": lead afirma ter pago/enviou comprovante (sem confirmação oficial).
+- "desistencia": lead diz que não quer mais.
+- "interesse_tratamento": lead demonstra interesse em começar tratamento.
+- "outro": nenhum acima se encaixa.
+
 Contexto do pipeline atual do lead: ${pipelineSummary}`;
 }
 
