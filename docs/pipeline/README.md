@@ -4,8 +4,9 @@ topic: kanban
 kind: map
 audience: agent
 updated: 2026-06-18
-summary: "Hub da documentação do pipeline da Clínica ÓR (v4.2, 11 colunas). Inclui 8 decisões D1–D8, reator de ação humana, tag precisa_atencao_humana, lembretes via UI /automations, e agentes auditores A1/A2/A3 da Fase 2.5."
+summary: "Hub da documentação do pipeline da Clínica ÓR (v4.2, 11 colunas). Inclui 8 decisões D1–D8, reator de ação humana, tag precisa_atencao_humana, lembretes via UI /automations, e agentes auditores A1/A2/A3 da Fase 2.5. Para o ESTADO REAL do que está rodando hoje, ver docs/pipeline/runtime/."
 related_docs:
+  - docs/pipeline/runtime/README.md
   - docs/pipeline/STAGES.md
   - docs/pipeline/SCENARIOS.md
   - docs/pipeline/DATABASE.md
@@ -14,6 +15,8 @@ related_docs:
   - docs/pipeline/LEAD_SAMPLES.md
   - docs/estudo-geral.md
 ---
+
+> ⚠️ **Esta pasta documenta o PLANO v4.2.** Para o estado realmente implementado e deployado (prompts atuais, gates aplicados, bugs corrigidos, tags em uso), use **[`docs/pipeline/runtime/`](./runtime/README.md)** como fonte de verdade.
 
 # Pipeline — Documentação base para automação (v4.2)
 
