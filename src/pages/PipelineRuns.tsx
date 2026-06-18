@@ -69,7 +69,17 @@ export default function PipelineRuns() {
         .eq("clinic_id", clinicId)
         .order("created_at", { ascending: false })
         .limit(50);
-      if (active) setRuns((data as Run[]) ?? []);
+      const nextRuns = (data as Run[]) ?? [];
+      const activeRun = nextRuns.find((r) => r.status === "queued" || r.status === "running");
+      if (activeRun) {
+        const res = await callExecutor<{ run?: Run }>({ action: "status", run_id: activeRun.id }).catch(() => null);
+        if (res?.run) {
+          const checked = nextRuns.map((r) => (r.id === activeRun.id ? res.run! : r));
+          if (active) setRuns(checked);
+          return;
+        }
+      }
+      if (active) setRuns(nextRuns);
     };
     load();
     const ch = supabase
@@ -234,8 +244,13 @@ function RunDetail({ runId }: { runId: string }) {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      const { data: initialRun } = await supabase.from("pipeline_runs").select("*").eq("id", runId).single();
+      const currentRun = initialRun as Run | null;
+      const checkedRun = currentRun?.status === "running" || currentRun?.status === "queued"
+        ? await callExecutor<{ run?: Run }>({ action: "status", run_id: runId }).catch(() => null)
+        : null;
       const [{ data: r }, { data: it }] = await Promise.all([
-        supabase.from("pipeline_runs").select("*").eq("id", runId).single(),
+        checkedRun?.run ? Promise.resolve({ data: checkedRun.run }) : supabase.from("pipeline_runs").select("*").eq("id", runId).single(),
         supabase.from("pipeline_run_items").select("*").eq("run_id", runId).order("created_at", { ascending: true }).limit(2000),
       ]);
       if (!active) return;
