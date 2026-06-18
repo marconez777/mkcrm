@@ -17,6 +17,22 @@ related_docs:
 
 # Bugs conhecidos e limitações
 
+## 0. Fila "IA na fila" não drenava (CORRIGIDO 2026-06-18)
+
+**Sintoma**: badge "IA na fila" persistindo horas/dias em cards (256 leads acumulados, mais antigo de 11/06).
+
+**Causas**:
+1. `pipeline-classify/index.ts` (V2): skips `clinic_not_allowlisted` e `no_new_messages` escreviam telemetria + watermark mas **não** limpavam `needs_ai_review`. Leads não-allowlistados ficavam para sempre na fila.
+2. O tick ordena por `ai_review_queued_at ASC` em batches de 50. Como 235/256 leads eram de clínicas fora da allowlist (e os mais antigos), cada tick era 100% consumido em skips e os 21 leads da ÓR (única allowlistada) raramente eram alcançados.
+
+**Fix**:
+- Nova função `clearQueueFlag()` em `pipeline-classify/index.ts` zera `needs_ai_review`, `ai_review_reasons` e `ai_review_queued_at` em **qualquer** caminho de skip.
+- Limpeza one-shot: `UPDATE leads SET needs_ai_review=false, ai_review_reasons=array_remove(..., 'pipeline-classifier'), ai_review_queued_at=NULL WHERE needs_ai_review AND clinic_id NOT IN (SELECT clinic_id FROM pipeline_automation_allowlist WHERE enabled)` — derrubou de 256 para 21.
+
+**Status**: ✅ Corrigido. Fila drena no ritmo do cron (1/min, 5 paralelos).
+
+
+
 ## 1. Tag "1ª consulta" aplicada a paciente antigo (CORRIGIDO)
 
 **Reportado por**: usuário em 2026-06-18 — "o paciente está ativo há 5 anos, e não era a primeira consulta".
