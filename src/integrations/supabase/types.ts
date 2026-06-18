@@ -7187,6 +7187,7 @@ export type Database = {
         Returns: undefined
       }
       mark_overdue_invoices: { Args: never; Returns: number }
+      mark_stale_pipeline_runs_as_error: { Args: never; Returns: number }
       match_chunks: {
         Args: {
           match_count?: number
