@@ -537,7 +537,9 @@ function ScopeDialog({
         .from("leads")
         .select("id, name, phone")
         .eq("clinic_id", clinicId)
-        .order("created_at", { ascending: false })
+        .is("archived_at", null)
+        .order("position", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true })
         .limit(50);
       if (pipelineId) q = q.eq("pipeline_id", pipelineId);
       if (stageId && stageId !== "__all__") q = q.eq("stage_id", stageId);
