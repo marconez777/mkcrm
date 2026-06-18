@@ -348,6 +348,21 @@ Deno.serve(async (req) => {
       return jsonResp({ ok: true, run_id: runId, lead_count: leadIds.length });
     }
 
+    if (action === "reset_ai_classifications") {
+      const auth = await getUserFromAuth(req);
+      if (!auth) return jsonResp({ error: "unauthorized" }, 401);
+      const clinicId = body.clinic_id as string | undefined;
+      if (!clinicId) return jsonResp({ error: "clinic_id_required" }, 400);
+      const can = await assertClinicAdmin(service, auth.userId, clinicId);
+      if (!can.ok) return jsonResp({ error: can.reason }, 403);
+      if (!(await assertAllowlisted(service, clinicId))) {
+        return jsonResp({ error: "clinic_not_allowlisted" }, 403);
+      }
+      const { data, error } = await service.rpc("reset_ai_classifications", { p_clinic_id: clinicId });
+      if (error) return jsonResp({ error: error.message }, 500);
+      return jsonResp({ ok: true, leads_reset: data ?? 0 });
+    }
+
     return jsonResp({ error: "unknown_action" }, 400);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
