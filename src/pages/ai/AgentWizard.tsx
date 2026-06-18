@@ -282,18 +282,15 @@ export default function AgentWizard() {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from("ai_agents")
-          .select("id, provider, model, api_key, base_url, builder_verified_at")
-          .eq("clinic_id", clinicId)
-          .eq("system_key", "builder")
-          .maybeSingle();
+        const { data: rows, error } = await supabase
+          .rpc("get_builder_agent_for_clinic", { _clinic_id: clinicId });
         if (cancelled) return;
         if (error) {
           console.warn("[AgentWizard] builder check failed:", error.message);
           setBuilderStatus("ok");
           return;
         }
+        const data = Array.isArray(rows) ? (rows[0] as any) : (rows as any);
         const ok = !!(data && data.builder_verified_at && data.api_key);
         setBuilderStatus(ok ? "ok" : "missing");
         if (data) {
