@@ -103,9 +103,9 @@ export default function PipelineRuns() {
     };
   }, [clinicId]);
 
-  const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => {
+  const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number }) => {
     if (!clinicId) return;
-    const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length);
+    const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length || scope?.top_n);
     if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da clínica? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
     setStarting(true);
     try {
@@ -113,6 +113,7 @@ export default function PipelineRuns() {
       if (scope?.pipeline_id) payload.pipeline_id = scope.pipeline_id;
       if (scope?.stage_ids?.length) payload.stage_ids = scope.stage_ids;
       if (scope?.lead_ids?.length) payload.lead_ids = scope.lead_ids;
+      if (scope?.top_n && scope.top_n > 0) payload.top_n = scope.top_n;
       const res = await callExecutor<{ run_id?: string }>(payload);
       if (res.error) {
         toast.error(`Erro: ${res.error}`);
