@@ -103,9 +103,9 @@ export default function PipelineRuns() {
     };
   }, [clinicId]);
 
-  const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => {
+  const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number }) => {
     if (!clinicId) return;
-    const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length);
+    const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length || scope?.top_n);
     if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da clínica? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
     setStarting(true);
     try {
@@ -113,6 +113,7 @@ export default function PipelineRuns() {
       if (scope?.pipeline_id) payload.pipeline_id = scope.pipeline_id;
       if (scope?.stage_ids?.length) payload.stage_ids = scope.stage_ids;
       if (scope?.lead_ids?.length) payload.lead_ids = scope.lead_ids;
+      if (scope?.top_n && scope.top_n > 0) payload.top_n = scope.top_n;
       const res = await callExecutor<{ run_id?: string }>(payload);
       if (res.error) {
         toast.error(`Erro: ${res.error}`);
@@ -492,7 +493,7 @@ function ScopeDialog({
   onOpenChange: (v: boolean) => void;
   clinicId: string | null;
   starting: boolean;
-  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => void;
+  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number }) => void;
 }) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -502,6 +503,7 @@ function ScopeDialog({
   const [leads, setLeads] = useState<LeadOpt[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, LeadOpt>>({});
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [topN, setTopN] = useState<string>("");
 
   useEffect(() => {
     if (!open || !clinicId) return;
@@ -535,7 +537,9 @@ function ScopeDialog({
         .from("leads")
         .select("id, name, phone")
         .eq("clinic_id", clinicId)
-        .order("created_at", { ascending: false })
+        .is("archived_at", null)
+        .order("position", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true })
         .limit(50);
       if (pipelineId) q = q.eq("pipeline_id", pipelineId);
       if (stageId && stageId !== "__all__") q = q.eq("stage_id", stageId);
@@ -551,10 +555,12 @@ function ScopeDialog({
   const selectedCount = Object.keys(selectedLeads).length;
 
   const submit = () => {
+    const n = parseInt(topN, 10);
     onConfirm({
       pipeline_id: pipelineId || undefined,
       stage_ids: stageId && stageId !== "__all__" ? [stageId] : undefined,
       lead_ids: selectedCount > 0 ? Object.keys(selectedLeads) : undefined,
+      top_n: Number.isFinite(n) && n > 0 ? n : undefined,
     });
   };
 
@@ -590,6 +596,38 @@ function ScopeDialog({
               </Select>
             </div>
           </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">
+              Quantidade do topo (opcional) — processa os N primeiros leads da coluna na mesma ordem do Kanban
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                placeholder="ex: 10, 20, 50"
+                value={topN}
+                onChange={(e) => setTopN(e.target.value)}
+                className="w-40"
+              />
+              <div className="flex gap-1">
+                {[10, 20, 50, 100].map((n) => (
+                  <Button key={n} size="sm" variant="outline" type="button" onClick={() => setTopN(String(n))} className="h-8 px-2 text-xs">
+                    {n}
+                  </Button>
+                ))}
+                {topN && (
+                  <Button size="sm" variant="ghost" type="button" onClick={() => setTopN("")} className="h-8 px-2 text-xs">
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Se preenchido, ignora a seleção manual de leads abaixo e roda apenas os N primeiros da coluna selecionada.
+            </p>
+          </div>
+
 
           <div className="space-y-1">
             <Label className="text-xs">

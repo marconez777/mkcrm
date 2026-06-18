@@ -84,6 +84,7 @@ interface StartInput {
   pipeline_id?: string;
   stage_ids?: string[];
   lead_ids?: string[];
+  top_n?: number;
   parent_run_id?: string;
 }
 
@@ -214,6 +215,8 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const clinicId = run.clinic_id as string;
   const scope = (run.scope ?? {}) as Record<string, unknown>;
   const explicitLeadIds = Array.isArray(scope.lead_ids) ? (scope.lead_ids as string[]) : null;
+  const topNRaw = typeof scope.top_n === "number" ? (scope.top_n as number) : null;
+  const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
   const totals = (run.totals ?? {}) as Record<string, number> & {
     ok?: number; skipped?: number; error?: number; leads?: number; stages?: number;
   };
@@ -268,11 +271,16 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
     let offset = 0;
     const PAGE = 200;
     while (processed < CHUNK_SIZE) {
+      if (topN !== null && totals.leads >= topN) {
+        return { moreWork: false, processed };
+      }
       let leadsQuery = service
         .from("leads")
         .select("id")
         .eq("clinic_id", clinicId)
         .eq("stage_id", stage.id)
+        .is("archived_at", null)
+        .order("position", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true })
         .range(offset, offset + PAGE - 1);
       if (explicitLeadIds && explicitLeadIds.length > 0) {
@@ -286,6 +294,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
         const key = `${stage.id}::${lead.id}`;
         if (doneSet.has(key)) continue;
         if (processed >= CHUNK_SIZE) return { moreWork: true, processed };
+        if (topN !== null && totals.leads >= topN) return { moreWork: false, processed };
 
         totals.leads += 1;
         processed += 1;
@@ -394,6 +403,7 @@ Deno.serve(async (req) => {
       if (input.pipeline_id) scope.pipeline_id = input.pipeline_id;
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
+      if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
 
       const { data: run, error } = await service
         .from("pipeline_runs")
