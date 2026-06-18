@@ -29,7 +29,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const CHUNK_SIZE = 5; // build3          // máx. leads por invocação
+const CHUNK_SIZE = 2; // máx. leads por invocação
+const CLASSIFY_TIMEOUT_MS = 55_000;
 const STALE_AFTER_MS = 3 * 60 * 1000; // 3min sem heartbeat = considerado morto
 
 type EdgeRuntimeShape = { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -87,11 +88,11 @@ interface StartInput {
 }
 
 async function callClassify(leadId: string): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  let timeoutId: number | undefined;
   try {
     // hard timeout para não pendurar o worker se a função interna travar
     const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 110_000);
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/pipeline-classify`, {
+    const request = fetch(`${SUPABASE_URL}/functions/v1/pipeline-classify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -100,7 +101,13 @@ async function callClassify(leadId: string): Promise<{ ok: boolean; result?: unk
       body: JSON.stringify({ action: "lead", lead_id: leadId }),
       signal: ctrl.signal,
     });
-    clearTimeout(to);
+    const timeout = new Promise<Response>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        ctrl.abort();
+        reject(new Error(`classify_timeout_${Math.round(CLASSIFY_TIMEOUT_MS / 1000)}s`));
+      }, CLASSIFY_TIMEOUT_MS);
+    });
+    const res = await Promise.race([request, timeout]);
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json?.ok === false) {
       return { ok: false, error: json?.error ?? `http_${res.status}` };
@@ -108,7 +115,57 @@ async function callClassify(leadId: string): Promise<{ ok: boolean; result?: unk
     return { ok: true, result: json?.result };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
+}
+
+function mergeErrorReason(totals: unknown, reason: string): Record<string, unknown> {
+  const base = totals && typeof totals === "object" && !Array.isArray(totals) ? totals as Record<string, unknown> : {};
+  return { ...base, error_reason: reason };
+}
+
+async function markStaleRunsAsError(service: SupabaseClient, runId?: string): Promise<number> {
+  let query = service
+    .from("pipeline_runs")
+    .select("id, status, started_at, last_heartbeat_at, totals")
+    .in("status", ["queued", "running"]);
+  if (runId) query = query.eq("id", runId);
+
+  const { data: runs, error } = await query;
+  if (error) {
+    console.error("[executor] stale watchdog fetch failed", error);
+    return 0;
+  }
+
+  const now = Date.now();
+  let updated = 0;
+  for (const run of runs ?? []) {
+    const reference = (run.last_heartbeat_at ?? run.started_at) as string | null;
+    if (!reference || now - new Date(reference).getTime() <= STALE_AFTER_MS) continue;
+
+    const finishedAt = new Date().toISOString();
+    const { error: runErr } = await service
+      .from("pipeline_runs")
+      .update({
+        status: "error",
+        finished_at: finishedAt,
+        totals: mergeErrorReason(run.totals, "worker_timeout_no_heartbeat"),
+      })
+      .eq("id", run.id as string)
+      .in("status", ["queued", "running"]);
+    if (runErr) {
+      console.error("[executor] stale watchdog update failed", run.id, runErr);
+      continue;
+    }
+    await service
+      .from("pipeline_run_items")
+      .update({ status: "error", error: "worker_timeout_no_heartbeat", finished_at: finishedAt })
+      .eq("run_id", run.id as string)
+      .eq("status", "pending");
+    updated += 1;
+  }
+  return updated;
 }
 
 function triggerResume(runId: string): void {
