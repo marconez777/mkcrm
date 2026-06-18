@@ -456,6 +456,9 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
   // ---- custom_fields patch (shallow merge; null deletes) ----
   let fieldsChanged = false;
   const fieldsApplied: Record<string, unknown> = {};
+  const fieldsRejected: DateReject[] = [];
+  // Anchor for date validation = timestamp of the latest message in context
+  const anchorMs = Date.parse(orderedMsgs[orderedMsgs.length - 1].created_at) || nowMs;
   if (cls.custom_fields_patch && typeof cls.custom_fields_patch === "object") {
     const patch = cls.custom_fields_patch as Record<string, unknown>;
     const keys = Object.keys(patch);
@@ -463,7 +466,16 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       const currentFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
       const nextFields: Record<string, unknown> = { ...currentFields };
       for (const k of keys) {
-        const v = patch[k];
+        let v = patch[k];
+        // Sanitize date fields (null is always allowed = explicit delete)
+        if (DATE_FIELD_KEYS.has(k) && v !== null) {
+          const check = sanitizeDateField(v, anchorMs);
+          if (!check.ok) {
+            fieldsRejected.push({ key: k, raw_value: v, reason: check.reason });
+            continue;
+          }
+          v = check.value;
+        }
         if (v === null) {
           if (k in nextFields) { delete nextFields[k]; fieldsChanged = true; fieldsApplied[k] = null; }
         } else if (currentFields[k] !== v) {
@@ -475,6 +487,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       }
     }
   }
+
 
   // ---- Stage move (B2B path or generic classifier-stage path) ----
   const lastMsgIdNow = orderedMsgs[orderedMsgs.length - 1].id;
