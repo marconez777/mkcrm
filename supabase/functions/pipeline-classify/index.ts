@@ -309,7 +309,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
   const { data: lead } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, custom_fields, tags, last_processed_message_id_classifier",
+      "id, clinic_id, pipeline_id, stage_id, custom_fields, tags, last_processed_message_id_classifier, created_at",
     )
     .eq("id", leadId)
     .single();
@@ -329,16 +329,54 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
   const orderedMsgs = (msgs ?? []).reverse();
   if (orderedMsgs.length === 0) return { skipped: "no_messages" };
 
-  // Build pipeline summary
+  // Current stage
   const { data: stage } = await client
     .from("pipeline_stages")
     .select("name")
     .eq("id", lead.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
-  const pipelineSummary = `stage atual=${stage?.name ?? "?"}; tags=${(lead.tags ?? []).join(",") || "nenhuma"}`;
+
+  // Extra context: total message count, first message, recent stage history
+  const [{ count: totalMessagesCount }, { data: firstMsg }, { data: stageHist }] = await Promise.all([
+    client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
+    client.from("messages").select("created_at").eq("lead_id", leadId).order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    client
+      .from("lead_stage_history")
+      .select("created_at, from_stage_name, to_stage_name")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const TREATED_STAGES = new Set(["Em tratamento", "Consulta finalizada", "Paciente antigo"]);
+  const recentStageHistory = (stageHist ?? []).map((h: { created_at: string; from_stage_name: string | null; to_stage_name: string | null }) => ({
+    at: h.created_at,
+    from: h.from_stage_name,
+    to: h.to_stage_name,
+  }));
+  const hasBeenTreatedBefore =
+    recentStageHistory.some((h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from))) ||
+    ((lead.tags ?? []) as string[]).includes("paciente_antigo");
+
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const nowLocal = fmtBR(nowIso);
+  const ctx: LeadContext = {
+    stageName: stage?.name ?? "?",
+    tags: ((lead.tags ?? []) as string[]).map(String),
+    customFields: (lead.custom_fields ?? {}) as Record<string, unknown>,
+    createdAt: (lead as { created_at?: string }).created_at ?? null,
+    ageHuman: (lead as { created_at?: string }).created_at ? ageHuman((lead as { created_at: string }).created_at, nowMs) : "?",
+    totalMessages: totalMessagesCount ?? orderedMsgs.length,
+    firstMessageAt: firstMsg?.created_at ?? null,
+    recentStageHistory,
+    hasBeenTreatedBefore,
+  };
+  const contextBlock = buildContextBlock(ctx, nowIso, nowLocal);
 
   const ai = await getClinicOpenAI(client, lead.clinic_id);
   if (!ai) return { skipped: "no_clinic_openai_key" };
+
 
   // Optional A3 tool: get_lead_history
   const historyToolEnabled = await isEnabled(client, "automation.classifier.history_tool_enabled");
