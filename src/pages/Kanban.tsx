@@ -369,10 +369,6 @@ function Column({
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={runningAI} onSelect={(e) => { e.preventDefault(); setTimeout(runAIOnColumn, 0); }}>
-          {runningAI ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-2 h-3.5 w-3.5" />}
-          Rodar IA na coluna
-        </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
           <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
         </DropdownMenuItem>
