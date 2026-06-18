@@ -503,6 +503,7 @@ function ScopeDialog({
   const [leads, setLeads] = useState<LeadOpt[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<Record<string, LeadOpt>>({});
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [topN, setTopN] = useState<string>("");
 
   useEffect(() => {
     if (!open || !clinicId) return;
