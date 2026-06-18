@@ -383,31 +383,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <LeadTasksPanel leadId={lead.id} />
         <ScheduledMessagesPanel leadId={lead.id} />
         <div className="rounded-md border bg-muted/20 p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              <Bot className="h-3 w-3" /> Auto-resposta IA
-            </Label>
-            <Switch
-              checked={aiCfg.auto_reply}
-              disabled={agents.length === 0}
-              onCheckedChange={(v) => saveAiCfg({ ...aiCfg, auto_reply: v })}
-            />
-          </div>
-          {agents.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground">Crie um agente em Agentes IA para ativar.</p>
-          ) : (
-            <Select
-              value={aiCfg.agent_id ?? "__none"}
-              onValueChange={(v) => saveAiCfg({ ...aiCfg, agent_id: v === "__none" ? null : v })}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Agente" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">Sem agente</SelectItem>
-                {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-
           <button
             onClick={async () => {
               const next = !showHistory;
@@ -445,6 +420,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             </div>
           )}
         </div>
+
 
         {events.length > 0 && (
           <div>
