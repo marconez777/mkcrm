@@ -35,6 +35,7 @@ import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
+import { runJudicializacao, runRenovacaoReceita, runObjectionSuggest } from "../_shared/pipeline-fase4.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +83,9 @@ const INTENT_VALUES = [
   "pagamento_alegado",
   "desistencia",
   "interesse_tratamento",
+  "judicializacao",
+  "renovacao_receita",
+  "objecao",
   "outro",
 ] as const;
 
@@ -170,6 +174,9 @@ Campo intent (escolha UM):
 - "pagamento_alegado": lead afirma ter pago/enviou comprovante (sem confirmação oficial).
 - "desistencia": lead diz que não quer mais.
 - "interesse_tratamento": lead demonstra interesse em começar tratamento.
+- "judicializacao": lead/familiar menciona processo judicial, advogado, ação, Procon, ou ameaça legal.
+- "renovacao_receita": lead pedindo renovação de receita/prescrição (paciente já tratado).
+- "objecao": lead levantou objeção clara (preço, distância, medo, descrença) que pode ser respondida.
 - "outro": nenhum acima se encaixa.
 
 Contexto do pipeline atual do lead: ${pipelineSummary}`;
@@ -291,6 +298,32 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       stageName: stage?.name ?? null,
     });
   }
+
+  // Marco 4 — judicialização, renovação receita, sugestão objeção.
+  let judResult: unknown = null;
+  let renovResult: unknown = null;
+  let objResult: unknown = null;
+  if (cls.intent === "judicializacao") {
+    judResult = await runJudicializacao(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      reasons: cls.reasons,
+    });
+  }
+  if (cls.intent === "renovacao_receita") {
+    renovResult = await runRenovacaoReceita(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      stageName: stage?.name ?? null,
+    });
+  }
+  if (cls.intent === "objecao") {
+    objResult = await runObjectionSuggest(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      reasons: cls.reasons,
+    });
+  }
   if (cls.intent === "pagamento_alegado") {
     paymentAllegedResult = await runPaymentAlleged(client, {
       leadId,
@@ -325,6 +358,9 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     summarize: summarizeResult,
     nf_task: nfTaskResult,
     payment_alleged: paymentAllegedResult,
+    judicializacao: judResult,
+    renovacao_receita: renovResult,
+    objection_suggest: objResult,
   };
 }
 

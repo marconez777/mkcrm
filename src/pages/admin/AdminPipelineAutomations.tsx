@@ -54,6 +54,11 @@ const RULES: RuleRow[] = [
   { key: "automation.summarizer.enabled",           label: "pipeline-summarize",        phase: "Fase 3",   description: "Mantém ai_summary incremental (≤800 chars)." },
   { key: "automation.nf_task.enabled",              label: "auto:nf-task",              phase: "Fase 3",   description: "Detectou pedido de NF em 'Consulta finalizada' → task." },
   { key: "automation.payment_confirmed.enabled",    label: "auto:payment-confirmed",    phase: "Fase 3",   description: "Webhook real → seta status_financeiro=pago. Não move stage." },
+  // Fase 4
+  { key: "automation.judicializacao.enabled",       label: "auto:judicializacao",       phase: "Fase 4",   description: "Classifier detectou processo/advogado/Procon → tag urgente + task + precisa_atencao_humana." },
+  { key: "automation.renovacao_receita.enabled",    label: "auto:renovacao-receita",    phase: "Fase 4",   description: "Pedido inbound de renovação de receita em paciente tratado → task." },
+  { key: "automation.objection_suggest.enabled",    label: "auto:objection-suggest",    phase: "Fase 4",   description: "Objeção detectada → cria internal_note sugerindo resposta. NÃO envia." },
+  { key: "automation.stage_bindings.enabled",       label: "auto:stage-bindings",       phase: "Fase 4",   description: "Após move de stage, inscreve lead na message_sequence vinculada (stage_sequence_bindings)." },
 ];
 
 type ToggleMap = Record<string, string>;
