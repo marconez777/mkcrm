@@ -4,10 +4,11 @@ topic: database
 kind: reference
 audience: agent
 updated: 2026-06-18
-summary: "Tabelas relevantes para automação do pipeline: pipelines, pipeline_stages, leads, lead_stage_history, lead_events, lead_tasks, appointments. Colunas-chave, RLS e gatilhos."
+summary: "Tabelas, triggers, enums e gates relevantes para automação do pipeline. Inclui triggers que já escrevem em leads e custom_fields com enum implícito."
 related_docs:
   - docs/pipeline/STAGES.md
   - docs/pipeline/AUTOMATION_PLAN.md
+  - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
 ---
 
 # Schema do banco — superfície de automação do pipeline
@@ -24,81 +25,164 @@ Colunas-chave:
 ## `pipeline_stages`
 Colunas do funil.
 
-Colunas-chave:
 - `id`, `pipeline_id`, `name`, `position`, `is_terminal`, `lock_auto_move`.
 - `is_terminal=true` → não retorna ao funil (B2B, Desqualificado).
-- `lock_auto_move=true` → automação NÃO move leads para esse stage (usar quando entrar regras críticas).
+- `lock_auto_move=true` → automação NÃO move leads PARA esse stage. **v3**: `Procedimento pago` recebe esta flag.
 
-## `leads` (42 colunas — só as relevantes para automação)
-- **Posição no funil**: `pipeline_id`, `stage_id`, `position` (ordem dentro da coluna), `stage_changed_at`.
+## `leads` (42 colunas — só relevantes para automação)
+
+- **Posição no funil**: `pipeline_id` (⚠️ derivado por trigger, ver abaixo), `stage_id`, `position`, `stage_changed_at`.
 - **Identidade**: `name`, `phone`, `email`, `clinic_id`, `whatsapp_instance_id`, `attendant_id`.
-- **Estado livre**: `tags text[]`, `custom_fields jsonb` (chaves típicas: `modalidade`, `procedimento_interesse`, `profissional_preferencia`, `status_nf_reembolso`).
+- **Estado livre**: `tags text[]`, `custom_fields jsonb` (ver `CUSTOM_FIELDS_E_TAGS.md`).
 - **Atividade**: `last_message_at`, `last_message_preview`, `last_human_activity_at`, `last_site_activity_at`, `unread_count`.
-- **Triagem IA (legado, ainda usado)**: `ai_summary`, `needs_ai_review`, `ai_review_reasons text[]`, `last_classified_at`.
-- **Lock manual** ⚠️: `manual_lock_until` — automação NÃO deve mover lead até essa data passar. Setado quando humano arrasta no Kanban.
-- **Origem**: `landing_page`, `utm_source/medium/campaign`, `gclid`, `fbclid`, `form_source`.
+- **Triagem IA (campos reaproveitáveis pela v3)**:
+  - `ai_summary text` — usado pelo Summarizer da Fase 3 (resumo incremental ≤800 chars).
+  - `needs_ai_review boolean`, `ai_review_reasons text[]` — flag para Classifier escalar para humano.
+  - `last_classified_at timestamptz` — quando Classifier rodou pela última vez.
+  - **Nenhum desses tem writer ativo hoje** (agente antigo removido).
+- **Lock manual** ⚠️: `manual_lock_until` — **7 dias** após arraste humano. Bloqueia movimentação automática de stage. **Não bloqueia** escrita de tags/custom_fields/ai_summary.
+- **Origem**: `landing_page`, `utm_*`, `gclid`, `fbclid`, `form_source`.
 - **Flags**: `archived_at`, `pinned_at`, `marked_unread`, `is_internal_contact`.
 
+### Novas colunas (Fase 0 migration)
+
+```sql
+ALTER TABLE leads
+  ADD COLUMN last_processed_message_id_classifier uuid REFERENCES messages(id),
+  ADD COLUMN last_processed_message_id_summarizer uuid REFERENCES messages(id);
+```
+
+Dois ponteiros: classifier sempre avança (barato), summarizer só quando dispara (caro, batched).
+
 ## `lead_stage_history`
-Toda movimentação **deve** ser registrada aqui. Hoje as RPC de movimentação manual já gravam.
+Toda movimentação **deve** ser registrada aqui.
 
 - `lead_id`, `from_stage_id`, `to_stage_id`, `moved_at`.
 - `moved_by_user_id` (humano) **ou** `moved_by_agent_id` (agente IA — FK para `ai_agents`).
 - `source text` — convenção: `'manual'`, `'auto:<rule>'`, `'system:<reason>'`. Indexado.
 - `reason text` — texto livre legível.
-- `metadata jsonb` — payload (ex: trigger event id, confidence score).
-- Dedup: índice único `(lead_id, to_stage_id, moved_at)` evita gravação dupla no mesmo ms.
+- `metadata jsonb` — payload (ex: trigger event id, confidence score, `appointment_id`).
 
 ## `lead_events`
-Log livre de eventos por lead. Usar como **trilha de idempotência** das automações.
+Log livre de eventos por lead. **Trilha de idempotência** das automações.
 
-- `type text` — convenções sugeridas: `payment_confirmed`, `nf_solicitada`, `reminder_sent`, `inactivity_detected`, `urgency_flagged`.
+- `type text` — convenções v3:
+  - `appointment_status_synced` (dedup das 5 regras `auto:appointment-*`, payload com `appointment_id` + `status`).
+  - `payment_confirmed`, `payment_alleged`.
+  - `nf_solicitada`.
+  - `reminder_sent` (payload com `appointment_id`).
+  - `inactivity_detected`.
+  - `urgency_flagged`.
+  - `reactivation_during_lock`.
+  - `classifier_ran` (payload com `last_processed_message_id`, `confidence`, `intent`).
 - `payload jsonb`, `actor_user_id` (null se sistema).
 - Indexado por `(lead_id, created_at)` e `(type, created_at)`.
 
 ## `lead_tasks`
-Tarefas vinculadas ao lead (diferente de `tasks`/`task_boards` que é o Kanban de tarefas geral).
+Tarefas vinculadas ao lead.
 
 - `title`, `due_at`, `done_at`.
-- Use para "Emitir NF", "Confirmar pagamento", "Follow-up liminar".
-- Indexado por `due_at WHERE done_at IS NULL` — fácil consultar pendentes.
+- Use para "Emitir NF", "Confirmar pagamento", "Follow-up liminar", "Oferecer novo horário (no-show)", "Reagendamento pendente".
+- Dedup: idempotência verifica se já existe task aberta de mesmo `title` no mesmo lead.
 
 ## `appointments`
-Consultas e procedimentos marcados.
+Consultas e procedimentos marcados. **Motor das 5 regras `auto:appointment-*` (Fase 1, código puro).**
 
 - `kind` CHECK in (`'consulta'`, `'procedimento'`, `'retorno'`).
 - `status` CHECK in (`'agendado'`, `'realizado'`, `'cancelado'`, `'faltou'`, `'remarcado'`).
 - `scheduled_at`.
-- Tem trigger `trg_appointments_recompute` que recalcula campos derivados no lead.
-- Fonte primária para lembretes D-1 e para o cenário C8 (renovação de receita: olhar `MAX(scheduled_at) WHERE kind='consulta' AND status='realizado'`).
+- Trigger `trg_appointments_recompute` recalcula campos derivados no lead.
+- **Importante**: criar appointment **NÃO seta** `manual_lock_until`. Por isso `auto:inactivity-5d` precisa de exceção explícita pra leads com appointment futuro.
 
-## `lead_internal_notes`
-Notas internas (não vão para o paciente). Use para deixar rastro humano-legível quando uma automação tomar decisão importante.
+### Mapeamento `appointments` → ações (Fase 1)
+
+Trigger Postgres em `INSERT OR UPDATE OF status` em `appointments` chama edge function `pipeline-appointment-sync`. Idempotência por `lead_events.type='appointment_status_synced'` com `payload->>'appointment_id'`.
+
+| Evento | Regra | Ação |
+|---|---|---|
+| INSERT status=agendado, kind=consulta | `auto:appointment-agendado` | Mover lead → `Consulta agendada` |
+| INSERT status=agendado, kind=procedimento | `auto:appointment-agendado` | Mover lead → `Procedimento agendado` |
+| UPDATE status→realizado, kind=consulta | `auto:appointment-realizado` | Mover lead → `Consulta finalizada` |
+| UPDATE status→realizado, kind=procedimento | `auto:procedure-realizado` | Se 1ª sessão: mover → `Em tratamento`. Senão: incrementar `custom_fields.sessoes_realizadas` (numérico), não move. |
+| UPDATE status→faltou | `auto:appointment-faltou` | Mover → `Sem resposta` + tag `no_show` + task "Reagendar" D+1 |
+| UPDATE status→cancelado | `auto:appointment-cancelado` | Mover → `Qualificação` + tag `reagendamento_pendente` + task "Oferecer novo horário" |
+
+## Triggers de banco que já escrevem em leads (R1, R2, R3)
+
+| Trigger | O que faz | Implicação para automação |
+|---|---|---|
+| `tg_lead_risk_handler` | Quando classificação detecta risco clínico, injeta tag `risco_clinico` em `leads.tags`. | **R1**: Classifier deve sempre `MERGE` tags (`array_cat` + `array(select distinct)`), nunca `SET`. Senão sobrescreve o trigger. |
+| `trg_validate_lead_custom_fields_enums` | Valida que `custom_fields.qualificacao='desqualificado'` exige `custom_fields.motivo_desqualificacao` não-nulo. | **R2**: Classifier que sugere desqualificação deve preencher ambos juntos no mesmo UPDATE. |
+| `sync_lead_pipeline_id` | Deriva `leads.pipeline_id` a partir de `pipeline_stages.pipeline_id` do `stage_id` atual. | **R3**: Nunca escrever `pipeline_id` diretamente. Mudar só `stage_id`. |
 
 ## `lead_custom_fields`
-Definição dos campos custom por clínica (schema). Os valores moram em `leads.custom_fields jsonb`.
+Definição dos campos custom por clínica (schema). Os valores moram em `leads.custom_fields jsonb`. Hoje há **10 defs** + 8 com enum implícito validado por trigger. Lista completa e enums em `CUSTOM_FIELDS_E_TAGS.md`.
 
-## Tabelas residuais do agente antigo (vazias, mantidas para auth/inbox)
+**Fase 0.5 cria 8 defs novos** que o estudo exige mas não existem hoje (`possui_liminar_judicial`, `saldo_sessoes_pacote`, `nome_responsavel_financeiro`, `sessoes_realizadas`, etc.).
 
-- `lead_ai_settings` — vazia, recriada sem lógica de pipeline.
-- `stage_ai_defaults` — vazia, recriada sem lógica de pipeline.
+## `stage_sequence_bindings` (NOVA — Fase 0)
 
-> Não foram dropadas porque o **agente de auto-reply do WhatsApp** ainda referencia esses nomes em algumas rotas. Tratar como "reservadas, ignorar".
+Mapa `(pipeline_id, stage_id) → message_sequences.id` que enrolla lead automaticamente em sequência ao entrar no stage. Suporta C14.
 
-## RPCs / triggers já existentes (não reescrever)
+```sql
+CREATE TABLE public.stage_sequence_bindings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id uuid NOT NULL,
+  pipeline_id uuid NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  stage_id uuid NOT NULL REFERENCES pipeline_stages(id) ON DELETE CASCADE,
+  sequence_id uuid NOT NULL REFERENCES message_sequences(id) ON DELETE CASCADE,
+  enabled boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (pipeline_id, stage_id, sequence_id)
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.stage_sequence_bindings TO authenticated;
+GRANT ALL ON public.stage_sequence_bindings TO service_role;
+ALTER TABLE public.stage_sequence_bindings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "clinic_scoped" ON public.stage_sequence_bindings
+  USING (clinic_id = current_clinic_id());
+```
 
-- `current_clinic_id()` — pega clínica do usuário/JWT atual; toda RLS depende disso.
-- Movimentação manual passa por hook frontend `manual-stage-move.ts` que grava em `lead_stage_history` com `source='manual'` e seta `manual_lock_until`.
-- `trg_appointments_recompute` — não precisa fazer nada manual quando criar/mudar appointment, os campos derivados no lead são atualizados.
+Trigger em `lead_stage_history` AFTER INSERT verifica bindings ativos e enrolla em `message_sequence_enrollments` com `source='auto:stage_binding'`.
 
-## Edge functions disponíveis (úteis para automação futura)
+## `app_settings` — toggles de automação
 
-- `automations-tick`, `sequence-tick`, `email-automations-tick` — exemplos de cron-driven ticks que podem ser usados como template.
-- `transcribe-audio` — caso precise classificar áudios de novo.
-- `evolution-webhook` — entry point das mensagens de WhatsApp; bom ponto para gatilho síncrono de regras.
-- `ai-assist`, `ai-chat`, `ai-auto-reply` — IA já cabeada com Lovable AI Gateway.
+Toda regra `auto:*` é controlada por `app_settings` com chave `automation.<rule>.enabled`. **Off by default** na Fase 0:
+
+```sql
+INSERT INTO app_settings (key, value, scope, clinic_id) VALUES
+ ('automation.appointment-agendado.enabled',  'false', 'clinic', '<clinic-id>'),
+ ('automation.appointment-realizado.enabled', 'false', 'clinic', '<clinic-id>'),
+ ('automation.appointment-faltou.enabled',    'false', 'clinic', '<clinic-id>'),
+ ('automation.appointment-cancelado.enabled', 'false', 'clinic', '<clinic-id>'),
+ ('automation.procedure-realizado.enabled',   'false', 'clinic', '<clinic-id>'),
+ ('automation.inactivity-5d.enabled',         'false', 'clinic', '<clinic-id>'),
+ ('automation.reactivation.enabled',          'false', 'clinic', '<clinic-id>'),
+ ('automation.reminder-d1.enabled',           'false', 'clinic', '<clinic-id>'),
+ ('automation.modality-guard.enabled',        'false', 'clinic', '<clinic-id>'),
+ ('automation.b2b-move.enabled',              'false', 'clinic', '<clinic-id>'),
+ ('automation.urgency-flag.enabled',          'false', 'clinic', '<clinic-id>'),
+ ('automation.payment-confirmed.enabled',     'false', 'clinic', '<clinic-id>'),
+ ('automation.nf-task.enabled',               'false', 'clinic', '<clinic-id>');
+```
+
+## RPCs / helpers existentes
+
+- `current_clinic_id()` — pega clínica do JWT.
+- `manual-stage-move.ts` (frontend hook) — grava `lead_stage_history` com `source='manual'` e seta `manual_lock_until = now() + 7d`.
+- `trg_appointments_recompute` — campos derivados do lead.
+
+## Edge functions úteis
+
+- `evolution-webhook` — entry point WhatsApp; hook síncrono pro classifier.
+- `ai-assist`, `ai-chat`, `ai-auto-reply` — Lovable AI Gateway cabeado.
+- `automations-tick`, `sequence-tick`, `email-automations-tick` — templates de cron.
+- `transcribe-audio` — áudios.
+
+## Tabelas residuais do agente antigo
+
+- `lead_ai_settings`, `stage_ai_defaults` — vazias, ainda referenciadas pelo agente de auto-reply. **Não dropar, não reusar.**
 
 ## Limites operacionais
 
-- Sem cron jobs ativos para o pipeline hoje (foram removidos). Reativar via `cron.schedule()` em migration quando criar nova tick function.
-- Não há tabela de "regras" do pipeline (`pipeline_field_rules` foi dropada). Se quiser regras configuráveis pelo usuário, **criar nova tabela** — não reusar o nome antigo.
+- Sem cron jobs ativos para o pipeline hoje. Reativar via `cron.schedule()` em migration ao criar nova tick function.
+- Não existe tabela de "regras configuráveis" hoje. Fase 1 é hardcoded; configurável só vem se houver 3+ regras estáveis.
