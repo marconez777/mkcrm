@@ -181,12 +181,23 @@ export default function PipelineRuns() {
             {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
             Limpar classificações da IA
           </Button>
-          <Button onClick={handleStart} disabled={starting || !!activeRun} className="gap-2">
+          <Button variant="outline" onClick={() => setScopeOpen(true)} disabled={starting || !!activeRun} className="gap-2">
+            <Filter className="h-4 w-4" /> Executar com escopo
+          </Button>
+          <Button onClick={() => handleStart()} disabled={starting || !!activeRun} className="gap-2">
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {activeRun ? "Execução em andamento…" : "Executar pipeline inteiro"}
           </Button>
         </div>
       </header>
+
+      <ScopeDialog
+        open={scopeOpen}
+        onOpenChange={setScopeOpen}
+        clinicId={clinicId}
+        starting={starting}
+        onConfirm={handleStart}
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
         <Card className="p-3">
