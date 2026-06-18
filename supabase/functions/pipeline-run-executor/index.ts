@@ -474,4 +474,4 @@ function jsonResp(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-// touch: STALE_AFTER_MS=${STALE_AFTER_MS}
+// build-tag: v2 chunked executor + reset_ai_classifications
