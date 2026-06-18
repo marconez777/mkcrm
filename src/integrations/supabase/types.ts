@@ -3499,114 +3499,32 @@ export type Database = {
           },
         ]
       }
-      lead_ai_extraction_runs: {
-        Row: {
-          clinic_id: string
-          confidence: number | null
-          cost_usd: number
-          created_at: string
-          error: string | null
-          fields_set: Json
-          id: string
-          kind: Database["public"]["Enums"]["lead_ai_extraction_kind"]
-          lead_id: string
-          message_id: string | null
-          model: string | null
-          skipped_reason: string | null
-          tokens_in: number
-          tokens_out: number
-        }
-        Insert: {
-          clinic_id: string
-          confidence?: number | null
-          cost_usd?: number
-          created_at?: string
-          error?: string | null
-          fields_set?: Json
-          id?: string
-          kind: Database["public"]["Enums"]["lead_ai_extraction_kind"]
-          lead_id: string
-          message_id?: string | null
-          model?: string | null
-          skipped_reason?: string | null
-          tokens_in?: number
-          tokens_out?: number
-        }
-        Update: {
-          clinic_id?: string
-          confidence?: number | null
-          cost_usd?: number
-          created_at?: string
-          error?: string | null
-          fields_set?: Json
-          id?: string
-          kind?: Database["public"]["Enums"]["lead_ai_extraction_kind"]
-          lead_id?: string
-          message_id?: string | null
-          model?: string | null
-          skipped_reason?: string | null
-          tokens_in?: number
-          tokens_out?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_ai_extraction_runs_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_ai_extraction_runs_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_ai_extraction_runs_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       lead_ai_settings: {
         Row: {
           agent_id: string | null
           auto_reply: boolean
-          clinic_id: string
+          clinic_id: string | null
           created_at: string
-          current_stage_id: string | null
-          last_followup_at: string | null
           lead_id: string
           paused_until: string | null
-          stage_entered_at: string | null
           updated_at: string
         }
         Insert: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id?: string
+          clinic_id?: string | null
           created_at?: string
-          current_stage_id?: string | null
-          last_followup_at?: string | null
           lead_id: string
           paused_until?: string | null
-          stage_entered_at?: string | null
           updated_at?: string
         }
         Update: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id?: string
+          clinic_id?: string | null
           created_at?: string
-          current_stage_id?: string | null
-          last_followup_at?: string | null
           lead_id?: string
           paused_until?: string | null
-          stage_entered_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3622,13 +3540,6 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_ai_settings_current_stage_id_fkey"
-            columns: ["current_stage_id"]
-            isOneToOne: false
-            referencedRelation: "agent_stages"
             referencedColumns: ["id"]
           },
           {
@@ -3753,119 +3664,6 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_reclassify_proposals: {
-        Row: {
-          applied_at: string | null
-          applied_by: string | null
-          batch_tag: string
-          clinic_id: string
-          confidence: number
-          cost_usd: number | null
-          created_at: string
-          current_stage_id: string
-          error: string | null
-          id: string
-          lead_id: string
-          model: string
-          proposed_custom_fields: Json
-          proposed_stage_id: string
-          reasoning: string
-          status: string
-          tokens_in: number | null
-          tokens_out: number | null
-          updated_at: string
-        }
-        Insert: {
-          applied_at?: string | null
-          applied_by?: string | null
-          batch_tag: string
-          clinic_id: string
-          confidence: number
-          cost_usd?: number | null
-          created_at?: string
-          current_stage_id: string
-          error?: string | null
-          id?: string
-          lead_id: string
-          model: string
-          proposed_custom_fields?: Json
-          proposed_stage_id: string
-          reasoning: string
-          status?: string
-          tokens_in?: number | null
-          tokens_out?: number | null
-          updated_at?: string
-        }
-        Update: {
-          applied_at?: string | null
-          applied_by?: string | null
-          batch_tag?: string
-          clinic_id?: string
-          confidence?: number
-          cost_usd?: number | null
-          created_at?: string
-          current_stage_id?: string
-          error?: string | null
-          id?: string
-          lead_id?: string
-          model?: string
-          proposed_custom_fields?: Json
-          proposed_stage_id?: string
-          reasoning?: string
-          status?: string
-          tokens_in?: number | null
-          tokens_out?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_reclassify_proposals_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_reclassify_proposals_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_reclassify_snapshot_2026_06: {
-        Row: {
-          clinic_id: string
-          custom_fields: Json
-          lead_id: string
-          snapshotted_at: string
-          stage_id: string
-        }
-        Insert: {
-          clinic_id: string
-          custom_fields: Json
-          lead_id: string
-          snapshotted_at?: string
-          stage_id: string
-        }
-        Update: {
-          clinic_id?: string
-          custom_fields?: Json
-          lead_id?: string
-          snapshotted_at?: string
-          stage_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_reclassify_snapshot_2026_06_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: true
-            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -4681,67 +4479,6 @@ export type Database = {
           },
         ]
       }
-      pipeline_field_rules: {
-        Row: {
-          clinic_id: string
-          conditions: Json
-          created_at: string
-          enabled: boolean
-          id: string
-          name: string
-          pipeline_id: string
-          priority: number
-          target_stage_id: string
-          updated_at: string
-        }
-        Insert: {
-          clinic_id?: string
-          conditions?: Json
-          created_at?: string
-          enabled?: boolean
-          id?: string
-          name: string
-          pipeline_id: string
-          priority?: number
-          target_stage_id: string
-          updated_at?: string
-        }
-        Update: {
-          clinic_id?: string
-          conditions?: Json
-          created_at?: string
-          enabled?: boolean
-          id?: string
-          name?: string
-          pipeline_id?: string
-          priority?: number
-          target_stage_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pipeline_field_rules_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pipeline_field_rules_pipeline_id_fkey"
-            columns: ["pipeline_id"]
-            isOneToOne: false
-            referencedRelation: "pipelines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pipeline_field_rules_target_stage_id_fkey"
-            columns: ["target_stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pipeline_stages: {
         Row: {
           clinic_id: string
@@ -5295,20 +5032,20 @@ export type Database = {
         Row: {
           agent_id: string | null
           auto_reply: boolean
-          clinic_id: string
           stage_id: string
+          updated_at: string
         }
         Insert: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id?: string
           stage_id: string
+          updated_at?: string
         }
         Update: {
           agent_id?: string | null
           auto_reply?: boolean
-          clinic_id?: string
           stage_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -5316,13 +5053,6 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stage_ai_defaults_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
           {
