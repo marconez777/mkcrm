@@ -15,7 +15,7 @@
 //  - G11: nunca cria/edita appointments nem move stages.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
+import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
