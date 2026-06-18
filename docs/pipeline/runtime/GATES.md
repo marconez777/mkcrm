@@ -55,15 +55,26 @@ rg -n "guard_d3_paciente_antigo|PACIENTE_ANTIGO_NAME" supabase/functions/_shared
 rg -n "isClinicPipelineAllowed" supabase/functions/
 ```
 
-## Gate G10 — status
+## Gate G10 — implementação V2
 
-Plano original: "para a mesma chave, valor humano <7d **não** é sobrescrito por automação".
+Implementado em 2026-06-18 junto com o Classifier V2.
 
-**Estado real**: classifier escreve `custom_fields_patch` direto via shallow merge sem checar quem escreveu por último. Se humano editou hoje, próximo classifier pode sobrescrever em 1 minuto.
+**Mecânica:**
 
-Mitigação parcial via prompt: "só inclua chaves se há evidência clara no texto". Mas a regra estrutural está ausente.
+1. Migration adiciona `leads.custom_fields_last_human_edit jsonb DEFAULT '{}'`.
+2. Trigger PG `track_custom_fields_human_edits` (BEFORE UPDATE OF custom_fields) detecta diff por chave e grava `{key: now_iso}` no jsonb — exceto se `current_setting('app.actor') = 'system'`.
+3. RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)` (SECURITY DEFINER) seta `app.actor='system'` na transação e aplica o UPDATE. Classifier V2 sempre escreve por aqui.
+4. `pipeline-classify/apply.ts` lê `lead.custom_fields_last_human_edit[key]` antes de aplicar cada chave; se < 7d, descarta e grava em `applied.custom_fields.blocked_by_g10`.
 
-> **Recomendação**: para implementar G10 de fato, seria preciso ler `lead_events.type='custom_fields_changed'` (já existe!) e comparar `created_at` vs `updated_by` antes de aceitar cada chave do patch. Não é trivial — vale issue dedicada.
+**Verificação:**
+
+```bash
+rg -n "blocked_by_g10|apply_lead_automation_patch" supabase/functions/pipeline-classify/
+psql -c "SELECT id, custom_fields_last_human_edit FROM leads WHERE custom_fields_last_human_edit != '{}' LIMIT 5"
+```
+
+**Limitação**: outras edge functions automáticas (`pipeline-deterministic`, `pipeline-fase4`, `pipeline-move`) escrevem direto em `custom_fields` sem usar a RPC → seus writes são marcados como "humanos". Comportamento desejável na maior parte dos casos (classifier respeita regras determinísticas), mas pode causar auto-bloqueio entre execuções consecutivas dessas mesmas funções. Migrar para a RPC se observado.
+
 
 ## G11 — verificação por busca
 
