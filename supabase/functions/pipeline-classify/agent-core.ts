@@ -93,17 +93,29 @@ export async function runAgent(
       }
     : undefined;
 
-  const result = await generateText({
-    model: ai.model(MODEL),
-    system: buildSystem(ctx),
-    prompt: `Histórico recente do lead (id=${ctx.lead.id}):\n\n${formatMessages(ctx.messages)}\n\nClassifique agora.`,
-    output: Output.object({ schema: ClassificationSchemaV2 }),
-    tools,
-    stopWhen: stepCountIs(50),
-  });
+  let result;
+  try {
+    result = await generateText({
+      model: ai.model(MODEL),
+      system: buildSystem(ctx),
+      prompt: `Histórico recente do lead (id=${ctx.lead.id}):\n\n${formatMessages(ctx.messages)}\n\nClassifique agora.`,
+      output: Output.object({ schema: ClassificationSchemaV2 }),
+      tools,
+      stopWhen: stepCountIs(50),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { error: `agent_generate_failed: ${msg}` };
+  }
+
+  const raw = result.output as Record<string, unknown>;
+  const parsed = ClassificationSchemaV2.safeParse(raw);
+  if (!parsed.success) {
+    return { error: `agent_schema_invalid: ${parsed.error.message.slice(0, 200)}` };
+  }
 
   return {
-    classification: result.output as ClassificationV2,
+    classification: normalizeClassification(parsed.data),
     usage: (result as { usage?: unknown }).usage,
   };
 }
