@@ -215,6 +215,8 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const clinicId = run.clinic_id as string;
   const scope = (run.scope ?? {}) as Record<string, unknown>;
   const explicitLeadIds = Array.isArray(scope.lead_ids) ? (scope.lead_ids as string[]) : null;
+  const topNRaw = typeof scope.top_n === "number" ? (scope.top_n as number) : null;
+  const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
   const totals = (run.totals ?? {}) as Record<string, number> & {
     ok?: number; skipped?: number; error?: number; leads?: number; stages?: number;
   };
