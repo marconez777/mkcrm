@@ -161,7 +161,73 @@ async function addTag(client: SupabaseClient, leadId: string, tag: string) {
   await client.from("leads").update({ tags: [...current, tag] }).eq("id", leadId);
 }
 
-function buildSystemPrompt(pipelineSummary: string): string {
+const BR_TZ = "America/Sao_Paulo";
+
+function fmtBR(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: BR_TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  } catch {
+    return iso.slice(0, 16);
+  }
+}
+
+function ageHuman(fromIso: string, nowMs: number): string {
+  const t = Date.parse(fromIso);
+  if (!Number.isFinite(t)) return "?";
+  const days = Math.floor((nowMs - t) / 86_400_000);
+  if (days < 1) return "< 1 dia";
+  if (days < 60) return `${days} dias`;
+  const months = Math.floor(days / 30);
+  if (months < 24) return `${months} meses`;
+  const years = (days / 365).toFixed(1);
+  return `${years} anos`;
+}
+
+type LeadContext = {
+  stageName: string;
+  tags: string[];
+  customFields: Record<string, unknown>;
+  createdAt: string | null;
+  ageHuman: string;
+  totalMessages: number;
+  firstMessageAt: string | null;
+  recentStageHistory: Array<{ at: string; from: string | null; to: string | null }>;
+  hasBeenTreatedBefore: boolean;
+};
+
+function buildContextBlock(ctx: LeadContext, nowIso: string, nowLocal: string): string {
+  const fields = Object.keys(ctx.customFields ?? {}).length
+    ? JSON.stringify(ctx.customFields)
+    : "(vazio)";
+  const history = ctx.recentStageHistory.length
+    ? ctx.recentStageHistory
+        .map((h) => `  - ${fmtBR(h.at)}: ${h.from ?? "?"} → ${h.to ?? "?"}`)
+        .join("\n")
+    : "  (sem histórico)";
+  return `Contexto temporal:
+- Agora (${BR_TZ}): ${nowLocal} (ISO ${nowIso})
+- Fuso para resolver datas relativas: ${BR_TZ} (offset -03:00)
+
+Contexto do lead:
+- Stage atual: ${ctx.stageName}
+- Tags atuais: ${ctx.tags.length ? ctx.tags.join(", ") : "nenhuma"}
+- custom_fields atuais: ${fields}
+- Lead criado: ${ctx.createdAt ? `${fmtBR(ctx.createdAt)} (há ${ctx.ageHuman})` : "?"}
+- Total de mensagens no histórico: ${ctx.totalMessages}${ctx.firstMessageAt ? ` (primeira em ${fmtBR(ctx.firstMessageAt)})` : ""}
+- Já passou por tratamento/alta antes? ${ctx.hasBeenTreatedBefore ? "SIM" : "não detectado"}
+- Últimos stage moves:
+${history}`;
+}
+
+function buildSystemPrompt(contextBlock: string): string {
   return `Você é um classificador determinístico de um pipeline de CRM médico.
 Sua tarefa: ler o histórico de mensagens de um lead e devolver UMA classificação JSON.
 
@@ -183,9 +249,21 @@ Regras:
 - is_b2b=true SOMENTE se o lead claramente representa empresa/parceiro/fornecedor.
 - tags_suggested: tags que DEVEM estar no lead (whitelist v4.2 + descritivas curtas, snake_case ou Title curto).
 - tags_remove: tags ATUALMENTE no lead que NÃO refletem mais a realidade e devem ser removidas
-  (ex.: "Interessado" num lead que já desistiu; "1ª consulta" num paciente em tratamento; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
+  (ex.: "Interessado" num lead que já desistiu; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
 - custom_fields_patch: só inclua chaves se há evidência clara no texto. Use null para apagar campo desatualizado.
 - reasons: 1-5 frases curtas em PT-BR justificando a classificação + mudanças aplicadas.
+
+REGRAS ESPECÍFICAS DE TAG "1ª consulta":
+- Esta tag identifica PRIMEIRA consulta de um paciente NOVO.
+- NUNCA sugira "1ª consulta" se: o lead tem mais de 90 dias de idade, OU já passou por "Em tratamento"/"Consulta finalizada"/"Paciente antigo" em algum momento, OU tem tag "paciente_antigo".
+- Se essa tag já está no lead E qualquer condição acima é verdadeira, OBRIGATORIAMENTE inclua "1ª consulta" em tags_remove. Para retorno de paciente antigo, prefira "retorno".
+
+REGRAS PARA DATAS (consulta_agendada_em, procedimento_agendado_em):
+- Só preencha quando o lead CONFIRMOU dia E hora explicitamente.
+- Para datas relativas ("amanhã", "5a"/"quinta", "semana que vem"), resolva A PARTIR do timestamp da mensagem que cita a data — NÃO a partir de "agora". Os timestamps no histórico já estão em ${BR_TZ}.
+- Sempre devolva no formato ISO completo com offset: "YYYY-MM-DDTHH:mm:00-03:00".
+- Em remarcação, sobrescreva o valor antigo (o patch substitui).
+- Se houver QUALQUER ambiguidade sobre dia ou horário, NÃO preencha o campo (deixe a humana resolver).
 
 Campo intent (escolha UM):
 - "agendamento": lead pedindo para marcar consulta/tratamento.
@@ -200,13 +278,31 @@ Campo intent (escolha UM):
 - "objecao": lead levantou objeção clara (preço, distância, medo, descrença) que pode ser respondida.
 - "outro": nenhum acima se encaixa.
 
-Contexto do pipeline atual do lead: ${pipelineSummary}`;
+${contextBlock}`;
 }
 
 function formatMessages(msgs: Array<{ from_me: boolean; content: string | null; created_at: string }>): string {
   return msgs
-    .map((m) => `[${m.created_at.slice(0, 16)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 600)}`)
+    .map((m) => `[${fmtBR(m.created_at)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 600)}`)
     .join("\n");
+}
+
+const DATE_FIELD_KEYS = new Set(["consulta_agendada_em", "procedimento_agendado_em"]);
+
+type DateReject = { key: string; raw_value: unknown; reason: string };
+
+function sanitizeDateField(
+  value: unknown,
+  anchorMs: number,
+): { ok: true; value: string } | { ok: false; reason: string } {
+  if (typeof value !== "string" || !value.trim()) return { ok: false, reason: "not_string" };
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return { ok: false, reason: "unparseable" };
+  // Allow up to 2h before the anchor (clock skew / "hoje 10:30" depois das 10:30)
+  if (t < anchorMs - 2 * 3_600_000) return { ok: false, reason: "in_past" };
+  // Reject more than 90 days after the latest message
+  if (t > anchorMs + 90 * 86_400_000) return { ok: false, reason: "too_far_future" };
+  return { ok: true, value };
 }
 
 async function classifyOne(client: SupabaseClient, leadId: string) {
