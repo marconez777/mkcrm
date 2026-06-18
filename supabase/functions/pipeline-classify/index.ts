@@ -181,9 +181,11 @@ Diretrizes:
 Regras:
 - confidence reflete sua certeza. Use ≤ 0.5 quando o histórico for ambíguo ou muito curto.
 - is_b2b=true SOMENTE se o lead claramente representa empresa/parceiro/fornecedor.
-- tags_suggested ∈ whitelist v4.2 (use apenas se realmente aplicar).
-- custom_fields_patch: só inclua chaves se há evidência clara no texto.
-- reasons: 1-5 frases curtas em PT-BR justificando.
+- tags_suggested: tags que DEVEM estar no lead (whitelist v4.2 + descritivas curtas, snake_case ou Title curto).
+- tags_remove: tags ATUALMENTE no lead que NÃO refletem mais a realidade e devem ser removidas
+  (ex.: "Interessado" num lead que já desistiu; "1ª consulta" num paciente em tratamento; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
+- custom_fields_patch: só inclua chaves se há evidência clara no texto. Use null para apagar campo desatualizado.
+- reasons: 1-5 frases curtas em PT-BR justificando a classificação + mudanças aplicadas.
 
 Campo intent (escolha UM):
 - "agendamento": lead pedindo para marcar consulta/tratamento.
