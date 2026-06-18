@@ -116,7 +116,7 @@ export async function runObjectionSuggest(client: SupabaseClient, input: ObjInpu
     .from("lead_internal_notes")
     .select("id")
     .eq("lead_id", input.leadId)
-    .ilike("content", "[auto:objection-suggest]%")
+    .ilike("text", "[auto:objection-suggest]%")
     .gte("created_at", since)
     .limit(1)
     .maybeSingle();
@@ -125,7 +125,7 @@ export async function runObjectionSuggest(client: SupabaseClient, input: ObjInpu
   await client.from("lead_internal_notes").insert({
     lead_id: input.leadId,
     clinic_id: input.clinicId,
-    content: body,
+    text: body, author_name: "auto:objection-suggest",
   });
   await addTags(client, input.leadId, ["objecao_detectada"]);
   await client.from("lead_events").insert({
