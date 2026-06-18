@@ -358,6 +358,9 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     summarize: summarizeResult,
     nf_task: nfTaskResult,
     payment_alleged: paymentAllegedResult,
+    judicializacao: judResult,
+    renovacao_receita: renovResult,
+    objection_suggest: objResult,
   };
 }
 
