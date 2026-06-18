@@ -1,147 +1,159 @@
-## Plano v4.1 — Reconciliação dos docs com o brief da clínica
 
-Escopo: **só docs em `docs/pipeline/`**. Nenhum código. Lembretes vão ser configurados depois direto na UI `/automations` (existente), não nos docs.
+# Pipeline v4.2 — auditoria e contexto sob demanda
 
----
+Incremento à v4.1. Mantém todas as 8 decisões (D1–D8) e 11 gates (G1–G11). Adiciona 3 responsabilidades novas para fechar buracos identificados na discussão:
 
-### 1. Decisões travadas
+- **A1** — auditor de posição (lead parado pode estar na coluna errada)
+- **A2** — verificador pós-move (todo move automático recebe segunda opinião barata)
+- **A3** — classifier ganha tool `get_lead_history` para puxar contexto sob demanda
 
-| # | Decisão | Impacto |
-|---|---|---|
-| D1 | "Procedimento pago" deixa de ser coluna. Vira campo `status_financeiro` (`pendente \| parcial \| pago \| reembolsado \| cancelado \| isento \| nao_se_aplica`). | Pipeline cai de 12 → **11 colunas**. v3 perde a regra `auto:procedimento-pago`. |
-| D2 | "Procedimento agendado" → **"Tratamento agendado"**. "Procedimento" sai do vocabulário operacional. | Renomeia stage + todas referências. |
-| D3 | Paciente antigo **não sai do stage** ao agendar nova consulta/tratamento. Controle por campos + tags + calendário. | `auto:appointment-agendado` ganha guard: se `current_stage = Paciente antigo`, não move, só anexa tag + campos. |
-| D4 | "Sem resposta" e "Nutrição inativa" separadas com transição automática. 24h/3d/7d para follow-ups dentro de "Sem resposta"; após 7d → "Nutrição inativa". | Substitui `auto:inactivity` único da v3 por 3 regras escalonadas + 1 transição final. |
-| D5 | Passou do horário → move **automático** para "Consulta finalizada" / mantém em "Em tratamento". Secretária reverte via `status_consulta` se necessário. | Auto-move por tempo + auto-correção por campo. |
-| **D6** | **Lembretes configurados via UI `/automations` existente**, não codificados em regra `auto:*`. Cada consulta/tratamento ganha sua automação `before_appointment` configurada manualmente na interface (já suportado por `automations-tick`). | AUTOMATION_PLAN apenas **referencia** o sistema existente, sem reescrever lógica. Remove cenários C9 detalhados em código — viram nota "configurar em /automations". |
-| **D7** | **Reator de ação humana**: quando humano move card ou edita `status_consulta`/`status_financeiro`, AI infere consequência determinística e ajusta o resto (limpar data se cancelou, mover pra Qualificação se reagendou, etc.). Se não souber inferir → trava com tag `precisa_atencao_humana`. | Nova seção "Reator humano" no AUTOMATION_PLAN com mapa de inferências. |
-| **D8** | **Tag `precisa_atencao_humana`** ("lead travado") = fallback universal de baixa confiança. Aplicada por classifier quando confidence < threshold, por reator humano quando ação é ambígua, e por qualquer regra que não consiga decidir. Vira fila de retreino. | Documentada em CUSTOM_FIELDS_E_TAGS como tag de sistema. View dedicada no Kanban (futuro, fora desta rodada). |
+Escopo desta rodada: **só documentação**. Atualiza `AUTOMATION_PLAN.md`, `SCENARIOS.md`, `CUSTOM_FIELDS_E_TAGS.md`, `README.md` do pipeline, `docs/README.md` e memória `pipeline-v4-1.md` (renomeia para `pipeline-v4-2.md`). Nenhuma migration, nenhuma edge function, nenhuma UI nova.
 
----
+## Arquitetura — diff sobre v4.1
 
-### 2. Recomendações para os 13 pontos abertos do brief (item 18)
+```text
+inbound msg ─► Orchestrator
+                ├─ Classifier (LLM)            ← A3: ganha tool get_lead_history
+                ├─ Summarizer (LLM)
+                └─ Rule Engine
+                     └─ pipeline-move helper   ← A2: dispara post-move-verifier async
+                                                       (se discordar → tag, NUNCA reverte)
 
-Decisões registradas direto nos docs:
+cron diário 03:00 ─► position-auditor          ← A1 novo
+                       scan leads parados ≥7d
+                       classifier "revisor" decide
+                       discordância → tag precisa_atencao_humana + task
+```
 
-- **Falta/cancelamento/reagendamento:** campo `status_consulta` no `appointments` + tags `no_show`, `reagendamento_pendente`. Reator humano (D7) reage à mudança de campo.
-- **Entrada em "Em tratamento":** 1ª sessão `realizada` → move. Subsequentes incrementam `sessoes_realizadas`.
-- **Saída de "Em tratamento":** humano marca `ciclo_concluido=true` → move para "Paciente antigo".
-- **Múltiplos compromissos no mesmo card:** `appointments` é 1-N por `lead_id`. Card mostra próximo ativo + lista no detalhe.
-- **Interesse duplo:** `interesse_consulta` (multi: `ivan|maisa`) + `interesse_tratamento` (multi: `cetamina|emt|hipnose|outro|nenhum`). Substitui `interesse_principal`.
-- **Welcome message:** ação determinística da regra `auto:novo-lead` (Fase 1, sem LLM). Idempotente por `lead_events.type='welcome_sent'`.
-- **Saída de "Leads de entrada" → "Qualificação":** primeira `messages.direction='outbound' AND sender_type='human'`. NÃO conta auto-reply. Regra `auto:secretary-replied`.
-- **B2B/Stakeholders:** entrada manual ou classifier quando detecta intenção institucional. Critérios objetivos em SCENARIOS.md.
-- **Desqualificado:** novo enum `motivo_desqualificacao`: `servico_nao_oferecido | especialidade_nao_atendida | contato_por_engano | fora_da_regiao | demanda_incompativel | outro`.
-- **Guard IA contra sobrescrever appointments:** gate **G11** — classifier nunca cria/altera `appointments`. Só sugere via task + tag `agendamento_sugerido`.
-- **Confirmação pré-criação:** cenário C15 do agente WhatsApp, fora do escopo da Fase 1.
-- **Status financeiro x stage:** independentes. Regras de stage **nunca leem** `status_financeiro`.
-- **Lembretes:** UI `/automations` (D6).
+Princípio comum aos três: **nunca movem card sozinhos**. Só sinalizam via tag `precisa_atencao_humana` + task. Mantém G1/G5/G11.
 
----
+## A1 — Auditor de posição (Fase 2.5, novo)
 
-### 3. Reator de ação humana (D7) — mapa de inferências
+Edge function `pipeline-position-auditor`, agendada por `pg_cron` 03:00 BRT.
 
-Documentado no AUTOMATION_PLAN.md como tabela. Trigger: UPDATE em `leads.stage_id` por usuário humano (`source='manual'` em `lead_stage_history`) OU UPDATE em campos chave.
+**Critério de seleção** (query):
+- `last_stage_change_at < now() - interval '7 days'`
+- stage atual NÃO em `(Paciente antigo, Nutrição inativa, B2B, Desqualificado)`
+- sem `appointments` futuro
+- `qualificacao != 'desqualificado'`
+- batch size 50/dia (toggle em `app_settings.automation.position_auditor.batch_size`)
 
-| Ação humana detectada | Inferência da IA |
-|---|---|
-| Moveu para "Sem resposta" | Pausa follow-ups automáticos por 24h (deixa humano gerenciar primeiro round). |
-| Moveu para "Desqualificado" sem `motivo_desqualificacao` preenchido | Tag `precisa_atencao_humana` + task "Preencher motivo da desqualificação". |
-| Setou `status_consulta='cancelada'` | Limpa `appointment.scheduled_at`, move card para "Qualificação", adiciona tag `reagendamento_pendente`. |
-| Setou `status_consulta='reagendada'` sem nova data | Mantém em "Consulta agendada", tag `aguardando_nova_data`, task "Confirmar nova data". |
-| Setou `status_consulta='faltou'` | Move para "Sem resposta" com tag `no_show`, task D+1 "Oferecer reagendamento". |
-| Setou `status_financeiro='reembolsado'` em paciente em "Em tratamento" | Tag `precisa_atencao_humana` (ambíguo: cancelou tratamento? Trocou de modalidade?). |
-| Moveu para "B2B" um lead que tem `appointment` futuro | Tag `precisa_atencao_humana` + task "Confirmar reclassificação como B2B". |
-| Qualquer movimento humano com `manual_lock_until` ativo | Renova `manual_lock_until` por +7 dias. |
-| Movimento humano que IA não tem regra mapeada | Tag `precisa_atencao_humana`. |
+**Para cada lead**:
+1. Roda mesmo prompt do classifier Fase 2, mas com instrução "revisor" — compara `suggested_stage_id` com `current_stage_id`.
+2. Se diferente E `confidence ≥ 0.75`:
+   - Adiciona tag `precisa_atencao_humana` + `auditor_sugere_<stage>`.
+   - Cria `lead_tasks` "Revisar posição: auditor sugere mover para X" `due_at=+2d`.
+   - Grava `lead_events.type='position_audit_disagreement'` com payload `{from, to, confidence, reasoning}`.
+3. Se igual ou `confidence<0.75`: grava `lead_events.type='position_audit_ok'` (silencioso, só pra métrica).
 
----
+**Idempotência**: 1 auditoria por lead a cada 14 dias (`lead_events` lookup).
 
-### 4. Mudanças por arquivo
+**Custo**: 50 leads/dia × ~$0.0001 (Flash-Lite) ≈ $0.15/mês. Toggle off-by-default.
 
-**`docs/pipeline/STAGES.md`** (edit)
-- Renomear "Procedimento agendado" → "Tratamento agendado".
-- Remover "Procedimento pago" + nota de migração (leads → "Tratamento agendado" com `status_financeiro='pago'`).
-- Atualizar fluxograma para 11 colunas.
-- Critérios de entrada/saída de "Paciente antigo" com regra D3.
+**Métrica**: % de discordâncias que viram move humano em 7d (proxy de utilidade do auditor).
 
-**`docs/pipeline/SCENARIOS.md`** (edit)
-- C1: welcome + transição por resposta manual.
-- C9 (lembretes): **substituir conteúdo detalhado por nota** apontando para `/automations` (D6). Documentar só o padrão de configuração (1 automation `before_appointment` por tipo de procedimento, offset 24h e 1h).
-- Substituir cenário de inatividade único pela versão tiered (24h/3d/7d + nutrição).
-- C15 (confirmação pré-agendamento, P3, fora da Fase 1).
-- C16 (interesse duplo consulta+tratamento).
-- C17 (paciente antigo agenda retorno sem mover stage).
-- C18 (B2B/Stakeholder — critérios objetivos).
-- **C19 (novo): Reator humano** — exemplos práticos de cada linha da tabela D7.
-- **C20 (novo): Lead travado** — fluxo de revisão da fila `precisa_atencao_humana`.
-- Atualizar enum em cenário de desqualificação.
+## A2 — Verificador pós-move (Fase 2.5, novo)
 
-**`docs/pipeline/DATABASE.md`** (edit)
-- Campos novos em `lead_custom_fields`: `status_financeiro`, `status_consulta`, `interesse_consulta`, `interesse_tratamento`, `ciclo_concluido`, `sessoes_realizadas`.
-- Remover `interesse_principal` da lista planejada.
-- Novo enum `motivo_desqualificacao`.
-- Relação `appointments (N) ←→ (1) leads` com regras de exibição.
-- Documentar fonte de detecção de ação humana (`lead_stage_history.source IN ('manual','ui')`).
+Não é regra `auto:*` independente. É **hook dentro do `pipeline-move.ts` helper**, executado async após move bem-sucedido quando `source LIKE 'auto:%'` (não roda em moves humanos — o reator D7 já cobre).
 
-**`docs/pipeline/AUTOMATION_PLAN.md`** (edit, mais profundo)
-- **Fase 1** (regras determinísticas):
-  - Adicionar `auto:novo-lead` (welcome).
-  - Adicionar `auto:secretary-replied` (move para Qualificação).
-  - Substituir `auto:inactivity` por `auto:followup-24h`, `auto:followup-3d`, `auto:followup-7d→nutrição`.
-  - Atualizar `auto:appointment-agendado` com guard D3.
-  - **Remover** subseção de lembretes — apontar para `/automations` (D6).
-  - **Remover** `auto:procedimento-pago` (stage não existe mais).
-  - Adicionar `auto:ciclo-concluido`.
-  - **Nova seção: "Reator humano"** com tabela D7.
-- **Gates:** G11 (classifier nunca escreve em appointments).
-- **Pendências resolvidas:** marcar as 13 perguntas como fechadas.
-- **Decisões v4:** seção dedicada com D1–D8 e rastreabilidade.
+**Fluxo**:
+1. `pipeline-move` move + grava history.
+2. Enfileira chamada não-bloqueante para `pipeline-post-move-verifier` com `{lead_id, from_stage_id, to_stage_id, source, last_5_events}`.
+3. Verifier roda prompt curto Flash-Lite: "esse move faz sentido dado esses 5 últimos eventos? sim/não/incerto + razão ≤100 chars".
+4. Se "não" com `confidence ≥ 0.8`:
+   - Tag `precisa_atencao_humana` + `post_move_warning`.
+   - `lead_events.type='post_move_disagreement'`.
+   - **NÃO reverte**. Só sinaliza.
+5. Se "sim" ou "incerto": só métrica.
 
-**`docs/pipeline/CUSTOM_FIELDS_E_TAGS.md`** (edit)
-- Grupo "Financeiro": `status_financeiro` com enum completo.
-- Grupo "Status operacional": `status_consulta`, `ciclo_concluido`, `sessoes_realizadas`.
-- Substituir `interesse_principal` por `interesse_consulta` + `interesse_tratamento`.
-- Tags novas: `tratamento_em_andamento`, `agendamento_sugerido`, `welcome_sent`, `no_show`, `reagendamento_pendente`, `aguardando_nova_data`, **`precisa_atencao_humana`**.
-- Seção dedicada "Tag de sistema: `precisa_atencao_humana`" explicando quem aplica, quando, e que vira fila de retreino do classifier.
-- Atualizar enum `motivo_desqualificacao`.
+**Toggle**: `app_settings.automation.post_move_verifier.enabled` (off por default). Pode ser ligado seletivamente por regra (`...verifier.rules_enabled=['auto:b2b-move','auto:reactivation']`) para começar barato.
 
-**`docs/pipeline/LEAD_SAMPLES.md`** (edit)
-- Reanalisar 5 leads/coluna no novo modelo (sem "Procedimento pago", com `status_financeiro`).
-- Marcar contradições atuais como casos a migrar.
+**Custo estimado** (todas regras ligadas, ~200 moves/dia): ~$0.60/mês.
 
-**`docs/pipeline/README.md`** (edit)
-- Sumário v3 → v4.1.
-- Tabela das 8 decisões + 13 recomendações.
-- Atualizar lista de colunas (12 → 11) e fluxograma.
-- Seção "Lembretes": apontar para `/automations`, não detalhar.
+**Métrica**: taxa de "post_move_warning seguido de undo humano em 24h" — se ≥30%, o verifier está ajudando. Se ≤5%, o classifier original já está bom; pode desligar.
 
-**`docs/README.md`** (edit)
-- Atualizar referência ao número de stages.
+## A3 — Tool `get_lead_history` no classifier (Fase 2, ajuste)
 
-**`docs/roadmap/DOCS_MAINTENANCE.md`** (consultar antes de salvar — exigência do mem://index.md). Atualizar progresso após salvar.
+Hoje o classifier recebe payload fixo: `ai_summary` + últimas 10 msgs + `custom_fields` + `tags`. Quando a conversa é longa ou específica, o summary perde nuance.
 
-**Pós-edição obrigatório:** `node scripts/docs-sync.mjs` para regenerar `docs/INDEX.json`, `public/docs-*.json`, `DRIFT.md` e manifest da KB de suporte.
+**Mudança**:
+- Adicionar tool calling ao classifier (já é nativo da AI SDK Gemini).
+- Expor 1 tool somente: `get_lead_history({ query: string, max_messages?: number })`.
+  - Implementação server-side: full-text search em `messages` daquele `lead_id` + retorno das N msgs (default 5) mais relevantes com timestamp.
+  - Limite hard: máximo 3 chamadas por execução do classifier (anti-loop). `stopWhen: stepCountIs(4)` (3 tool calls + 1 final).
+- Prompt do classifier ganha instrução: "se ai_summary não cobre uma intent específica do usuário (ex: lembra histórico de outra consulta, refere-se a evento antigo), use get_lead_history antes de classificar".
 
----
+**Custo extra**: +1 round-trip quando acionado. Estimado <10% das execuções → +$0.40/mês na Fase 2.
 
-### 5. Fora desta rodada (próximos planos)
+**Reuso**: a primitiva `get_lead_history` já está na whitelist de `src/lib/agent-tools.ts` e `supabase/functions/_shared/agent-flags.ts`. Só precisa registrar no `pipeline-classify` edge function (Fase 2). Esta rodada só documenta a decisão.
 
-- Migration do banco (Fase 0 da implementação).
-- Edge functions / triggers das regras de Fase 1.
-- Reator humano em código (após docs aprovados).
-- UI de `status_consulta`, `status_financeiro` nos cards.
-- View Kanban "Leads travados" (lista filtrada por tag `precisa_atencao_humana`).
-- Configuração manual das automações de lembrete em `/automations`.
-- Migração dos 424 leads de "Nutrição inativa" e dos leads de "Procedimento pago".
+## Mudanças nas decisões e gates
 
----
+Não cria D9/D10. A1/A2/A3 são **mecanismos de execução**, não decisões de produto.
 
-### 6. Critério de pronto
+Adiciona uma nota explícita em **G11**:
+> G11 cobre também os agentes auditores (A1, A2). Nenhum deles cria/edita `appointments` nem move stage. Apenas tag + task.
 
-- 8 arquivos atualizados, consistentes (sem "Procedimento pago" coluna, sem `interesse_principal`, sem lembretes detalhados em código, sem `auto:inactivity` único).
-- Reator humano (D7) documentado com tabela de inferências.
-- Tag `precisa_atencao_humana` documentada como fallback universal.
-- `docs/INDEX.json` regenerado, `DRIFT.md` sem novos `code_refs` quebrados.
-- D1–D8 rastreáveis no AUTOMATION_PLAN.md.
-- Fase 0+1 implementável lendo só `docs/pipeline/`.
+## Roadmap atualizado (apenas seções que mudam)
+
+```text
+Fase 0    — Infra (sem mudança)
+Fase 0.5  — Campos e tags (sem mudança)
+Fase 1    — Regras determinísticas (sem mudança)
+Fase 2    — Classifier LLM
+              + A3: tool get_lead_history registrada no classifier
+Fase 2.5  — NOVO: Agentes auditores
+              + A1: pipeline-position-auditor (cron diário)
+              + A2: pipeline-post-move-verifier (hook async no pipeline-move)
+              Critério de entrada: Fase 2 com ≥14d estável e <10% undo humano
+Fase 3    — Summarizer + Tasks (sem mudança)
+Fase 4    — Retenção (sem mudança)
+```
+
+## Tags novas (adicionar em `CUSTOM_FIELDS_E_TAGS.md`)
+
+- `auditor_sugere_<stage>` — colocada por A1 quando discorda da posição atual.
+- `post_move_warning` — colocada por A2 quando segunda opinião discorda.
+
+Ambas convivem com `precisa_atencao_humana` (D8). Não são exclusivas.
+
+## Toggles novos (`app_settings`)
+
+- `automation.position_auditor.enabled` (bool, default false)
+- `automation.position_auditor.batch_size` (int, default 50)
+- `automation.post_move_verifier.enabled` (bool, default false)
+- `automation.post_move_verifier.rules_enabled` (string[], default [])
+- `automation.classifier.history_tool_enabled` (bool, default true quando Fase 2 ligar)
+
+## Métricas adicionadas em `/admin/pipeline-automations`
+
+Para cada agente novo, últimos 7d:
+- A1: leads auditados, % discordância, % discordância que virou move humano.
+- A2: moves verificados, % com warning, % warning seguido de undo humano em 24h.
+- A3: % execuções do classifier que chamaram `get_lead_history`, média de chamadas por execução, delta de confidence vs execuções sem tool.
+
+## Critério de sucesso da v4.2
+
+Em 30 dias após Fase 2.5 ligada:
+- A1 produz ≥1 discordância útil/semana (vira move humano).
+- A2 detecta ≥1 move ruim/semana antes do humano perceber.
+- A3 reduz "% confidence<0.6" do classifier em ≥15%.
+
+Se qualquer um falhar: desligar via toggle, manter doc, reavaliar.
+
+## Arquivos a editar quando virar build
+
+1. `docs/pipeline/AUTOMATION_PLAN.md` — nova seção "Fase 2.5", nota em G11, toggles, métricas.
+2. `docs/pipeline/SCENARIOS.md` — 2 cenários novos (C21 auditor, C22 post-move warn).
+3. `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md` — tags `auditor_sugere_*`, `post_move_warning`.
+4. `docs/pipeline/README.md` — bump versão para v4.2 + changelog.
+5. `docs/README.md` — atualizar referência.
+6. `.lovable/memories/docs/pipeline-v4-1.md` → renomear para `pipeline-v4-2.md` + atualizar índice.
+
+Tudo na mesma rodada de build, com `updated:` = data de hoje. Sem migration, sem código.
+
+## Fora deste plano
+
+- Implementação das edge functions `pipeline-position-auditor` e `pipeline-post-move-verifier` (vira plano separado quando Fase 2 estabilizar).
+- Plug do `get_lead_history` no `pipeline-classify` (faz parte do plano da Fase 2).
+- Painel `/admin/pipeline-automations` (já estava previsto na Fase 0; A1/A2/A3 só adicionam linhas).
