@@ -19,16 +19,30 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function decodeJwtRole(token: string | null): string | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const json = JSON.parse(atob(padded));
+    return typeof json.role === "string" ? json.role : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const secret = req.headers.get("x-internal-secret");
     const authHeader = req.headers.get("authorization") ?? "";
     const bearer = authHeader.toLowerCase().startsWith("bearer ")
       ? authHeader.slice(7).trim()
       : null;
-    if (secret !== SERVICE_KEY && bearer !== SERVICE_KEY) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
+    const role = decodeJwtRole(bearer);
+    if (role !== "service_role") {
+      return new Response(JSON.stringify({ error: "unauthorized", reason: "requires_service_role" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
