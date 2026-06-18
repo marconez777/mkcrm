@@ -185,7 +185,7 @@ Cada ação do reator grava `lead_stage_history` com `source='reator:<inferencia
 
 ## Fase 2 — Classifier LLM (2 semanas)
 
-Edge function `pipeline-classify`. Roda em todo inbound (debounce 5s).
+Edge function `pipeline-classify`. Roda em todo inbound (debounce 5s). **v4.2**: ganha tool `get_lead_history` (A3) para puxar contexto sob demanda quando `ai_summary` não cobre a intent.
 
 **Input**: `last_processed_message_id_classifier`, `leads.ai_summary`, `custom_fields`, `tags`, `stage`, novas mensagens.
 
