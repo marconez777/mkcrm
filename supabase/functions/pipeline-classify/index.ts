@@ -161,7 +161,73 @@ async function addTag(client: SupabaseClient, leadId: string, tag: string) {
   await client.from("leads").update({ tags: [...current, tag] }).eq("id", leadId);
 }
 
-function buildSystemPrompt(pipelineSummary: string): string {
+const BR_TZ = "America/Sao_Paulo";
+
+function fmtBR(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: BR_TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  } catch {
+    return iso.slice(0, 16);
+  }
+}
+
+function ageHuman(fromIso: string, nowMs: number): string {
+  const t = Date.parse(fromIso);
+  if (!Number.isFinite(t)) return "?";
+  const days = Math.floor((nowMs - t) / 86_400_000);
+  if (days < 1) return "< 1 dia";
+  if (days < 60) return `${days} dias`;
+  const months = Math.floor(days / 30);
+  if (months < 24) return `${months} meses`;
+  const years = (days / 365).toFixed(1);
+  return `${years} anos`;
+}
+
+type LeadContext = {
+  stageName: string;
+  tags: string[];
+  customFields: Record<string, unknown>;
+  createdAt: string | null;
+  ageHuman: string;
+  totalMessages: number;
+  firstMessageAt: string | null;
+  recentStageHistory: Array<{ at: string; from: string | null; to: string | null }>;
+  hasBeenTreatedBefore: boolean;
+};
+
+function buildContextBlock(ctx: LeadContext, nowIso: string, nowLocal: string): string {
+  const fields = Object.keys(ctx.customFields ?? {}).length
+    ? JSON.stringify(ctx.customFields)
+    : "(vazio)";
+  const history = ctx.recentStageHistory.length
+    ? ctx.recentStageHistory
+        .map((h) => `  - ${fmtBR(h.at)}: ${h.from ?? "?"} → ${h.to ?? "?"}`)
+        .join("\n")
+    : "  (sem histórico)";
+  return `Contexto temporal:
+- Agora (${BR_TZ}): ${nowLocal} (ISO ${nowIso})
+- Fuso para resolver datas relativas: ${BR_TZ} (offset -03:00)
+
+Contexto do lead:
+- Stage atual: ${ctx.stageName}
+- Tags atuais: ${ctx.tags.length ? ctx.tags.join(", ") : "nenhuma"}
+- custom_fields atuais: ${fields}
+- Lead criado: ${ctx.createdAt ? `${fmtBR(ctx.createdAt)} (há ${ctx.ageHuman})` : "?"}
+- Total de mensagens no histórico: ${ctx.totalMessages}${ctx.firstMessageAt ? ` (primeira em ${fmtBR(ctx.firstMessageAt)})` : ""}
+- Já passou por tratamento/alta antes? ${ctx.hasBeenTreatedBefore ? "SIM" : "não detectado"}
+- Últimos stage moves:
+${history}`;
+}
+
+function buildSystemPrompt(contextBlock: string): string {
   return `Você é um classificador determinístico de um pipeline de CRM médico.
 Sua tarefa: ler o histórico de mensagens de um lead e devolver UMA classificação JSON.
 
@@ -183,9 +249,21 @@ Regras:
 - is_b2b=true SOMENTE se o lead claramente representa empresa/parceiro/fornecedor.
 - tags_suggested: tags que DEVEM estar no lead (whitelist v4.2 + descritivas curtas, snake_case ou Title curto).
 - tags_remove: tags ATUALMENTE no lead que NÃO refletem mais a realidade e devem ser removidas
-  (ex.: "Interessado" num lead que já desistiu; "1ª consulta" num paciente em tratamento; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
+  (ex.: "Interessado" num lead que já desistiu; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
 - custom_fields_patch: só inclua chaves se há evidência clara no texto. Use null para apagar campo desatualizado.
 - reasons: 1-5 frases curtas em PT-BR justificando a classificação + mudanças aplicadas.
+
+REGRAS ESPECÍFICAS DE TAG "1ª consulta":
+- Esta tag identifica PRIMEIRA consulta de um paciente NOVO.
+- NUNCA sugira "1ª consulta" se: o lead tem mais de 90 dias de idade, OU já passou por "Em tratamento"/"Consulta finalizada"/"Paciente antigo" em algum momento, OU tem tag "paciente_antigo".
+- Se essa tag já está no lead E qualquer condição acima é verdadeira, OBRIGATORIAMENTE inclua "1ª consulta" em tags_remove. Para retorno de paciente antigo, prefira "retorno".
+
+REGRAS PARA DATAS (consulta_agendada_em, procedimento_agendado_em):
+- Só preencha quando o lead CONFIRMOU dia E hora explicitamente.
+- Para datas relativas ("amanhã", "5a"/"quinta", "semana que vem"), resolva A PARTIR do timestamp da mensagem que cita a data — NÃO a partir de "agora". Os timestamps no histórico já estão em ${BR_TZ}.
+- Sempre devolva no formato ISO completo com offset: "YYYY-MM-DDTHH:mm:00-03:00".
+- Em remarcação, sobrescreva o valor antigo (o patch substitui).
+- Se houver QUALQUER ambiguidade sobre dia ou horário, NÃO preencha o campo (deixe a humana resolver).
 
 Campo intent (escolha UM):
 - "agendamento": lead pedindo para marcar consulta/tratamento.
@@ -200,20 +278,38 @@ Campo intent (escolha UM):
 - "objecao": lead levantou objeção clara (preço, distância, medo, descrença) que pode ser respondida.
 - "outro": nenhum acima se encaixa.
 
-Contexto do pipeline atual do lead: ${pipelineSummary}`;
+${contextBlock}`;
 }
 
 function formatMessages(msgs: Array<{ from_me: boolean; content: string | null; created_at: string }>): string {
   return msgs
-    .map((m) => `[${m.created_at.slice(0, 16)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 600)}`)
+    .map((m) => `[${fmtBR(m.created_at)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 600)}`)
     .join("\n");
+}
+
+const DATE_FIELD_KEYS = new Set(["consulta_agendada_em", "procedimento_agendado_em"]);
+
+type DateReject = { key: string; raw_value: unknown; reason: string };
+
+function sanitizeDateField(
+  value: unknown,
+  anchorMs: number,
+): { ok: true; value: string } | { ok: false; reason: string } {
+  if (typeof value !== "string" || !value.trim()) return { ok: false, reason: "not_string" };
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return { ok: false, reason: "unparseable" };
+  // Allow up to 2h before the anchor (clock skew / "hoje 10:30" depois das 10:30)
+  if (t < anchorMs - 2 * 3_600_000) return { ok: false, reason: "in_past" };
+  // Reject more than 90 days after the latest message
+  if (t > anchorMs + 90 * 86_400_000) return { ok: false, reason: "too_far_future" };
+  return { ok: true, value };
 }
 
 async function classifyOne(client: SupabaseClient, leadId: string) {
   const { data: lead } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, custom_fields, tags, last_processed_message_id_classifier",
+      "id, clinic_id, pipeline_id, stage_id, custom_fields, tags, last_processed_message_id_classifier, created_at",
     )
     .eq("id", leadId)
     .single();
@@ -233,16 +329,69 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
   const orderedMsgs = (msgs ?? []).reverse();
   if (orderedMsgs.length === 0) return { skipped: "no_messages" };
 
-  // Build pipeline summary
+  // Current stage
   const { data: stage } = await client
     .from("pipeline_stages")
     .select("name")
     .eq("id", lead.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
-  const pipelineSummary = `stage atual=${stage?.name ?? "?"}; tags=${(lead.tags ?? []).join(",") || "nenhuma"}`;
+
+  // Extra context: total message count, first message, recent stage history (join names)
+  const [{ count: totalMessagesCount }, { data: firstMsg }, { data: stageHistRaw }] = await Promise.all([
+    client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
+    client.from("messages").select("created_at").eq("lead_id", leadId).order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    client
+      .from("lead_stage_history")
+      .select("moved_at, from_stage_id, to_stage_id")
+      .eq("lead_id", leadId)
+      .order("moved_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  // Resolve stage names for history
+  const stageIds = new Set<string>();
+  for (const h of stageHistRaw ?? []) {
+    if (h.from_stage_id) stageIds.add(h.from_stage_id as string);
+    if (h.to_stage_id) stageIds.add(h.to_stage_id as string);
+  }
+  const stageNameMap = new Map<string, string>();
+  if (stageIds.size > 0) {
+    const { data: stageRows } = await client
+      .from("pipeline_stages")
+      .select("id, name")
+      .in("id", Array.from(stageIds));
+    for (const s of stageRows ?? []) stageNameMap.set(s.id as string, s.name as string);
+  }
+  const TREATED_STAGES = new Set(["Em tratamento", "Consulta finalizada", "Paciente antigo"]);
+  const recentStageHistory = (stageHistRaw ?? []).map((h: { moved_at: string; from_stage_id: string | null; to_stage_id: string | null }) => ({
+    at: h.moved_at,
+    from: h.from_stage_id ? (stageNameMap.get(h.from_stage_id) ?? null) : null,
+    to: h.to_stage_id ? (stageNameMap.get(h.to_stage_id) ?? null) : null,
+  }));
+  const hasBeenTreatedBefore =
+    recentStageHistory.some((h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from))) ||
+    ((lead.tags ?? []) as string[]).includes("paciente_antigo");
+
+
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const nowLocal = fmtBR(nowIso);
+  const ctx: LeadContext = {
+    stageName: stage?.name ?? "?",
+    tags: ((lead.tags ?? []) as string[]).map(String),
+    customFields: (lead.custom_fields ?? {}) as Record<string, unknown>,
+    createdAt: (lead as { created_at?: string }).created_at ?? null,
+    ageHuman: (lead as { created_at?: string }).created_at ? ageHuman((lead as { created_at: string }).created_at, nowMs) : "?",
+    totalMessages: totalMessagesCount ?? orderedMsgs.length,
+    firstMessageAt: firstMsg?.created_at ?? null,
+    recentStageHistory,
+    hasBeenTreatedBefore,
+  };
+  const contextBlock = buildContextBlock(ctx, nowIso, nowLocal);
 
   const ai = await getClinicOpenAI(client, lead.clinic_id);
   if (!ai) return { skipped: "no_clinic_openai_key" };
+
 
   // Optional A3 tool: get_lead_history
   const historyToolEnabled = await isEnabled(client, "automation.classifier.history_tool_enabled");
@@ -268,7 +417,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
 
   const { output } = await generateText({
     model: ai.model(MODEL),
-    system: buildSystemPrompt(pipelineSummary),
+    system: buildSystemPrompt(contextBlock),
     prompt: `Histórico recente do lead (id=${leadId}):\n\n${formatMessages(orderedMsgs)}\n\nClassifique agora.`,
     output: Output.object({ schema: ClassificationSchema }),
     tools,
@@ -307,6 +456,9 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
   // ---- custom_fields patch (shallow merge; null deletes) ----
   let fieldsChanged = false;
   const fieldsApplied: Record<string, unknown> = {};
+  const fieldsRejected: DateReject[] = [];
+  // Anchor for date validation = timestamp of the latest message in context
+  const anchorMs = Date.parse(orderedMsgs[orderedMsgs.length - 1].created_at) || nowMs;
   if (cls.custom_fields_patch && typeof cls.custom_fields_patch === "object") {
     const patch = cls.custom_fields_patch as Record<string, unknown>;
     const keys = Object.keys(patch);
@@ -314,7 +466,16 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       const currentFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
       const nextFields: Record<string, unknown> = { ...currentFields };
       for (const k of keys) {
-        const v = patch[k];
+        let v = patch[k];
+        // Sanitize date fields (null is always allowed = explicit delete)
+        if (DATE_FIELD_KEYS.has(k) && v !== null) {
+          const check = sanitizeDateField(v, anchorMs);
+          if (!check.ok) {
+            fieldsRejected.push({ key: k, raw_value: v, reason: check.reason });
+            continue;
+          }
+          v = check.value;
+        }
         if (v === null) {
           if (k in nextFields) { delete nextFields[k]; fieldsChanged = true; fieldsApplied[k] = null; }
         } else if (currentFields[k] !== v) {
@@ -326,6 +487,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       }
     }
   }
+
 
   // ---- Stage move (B2B path or generic classifier-stage path) ----
   const lastMsgIdNow = orderedMsgs[orderedMsgs.length - 1].id;
@@ -388,6 +550,7 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
         stage_move: stageMove,
         tags_diff: { added: tagsAdded, removed: tagsRemoved, requested_remove: toRemoveRaw },
         custom_fields: fieldsApplied,
+        custom_fields_rejected: fieldsRejected,
       },
     },
   });
