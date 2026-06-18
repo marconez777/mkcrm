@@ -1,89 +1,63 @@
-# Marco 1 — Regras determinísticas do pipeline v4.2
+## Problema
 
-## Escopo
+A varredura rodou em 66 leads de "Qualificação" mas nada mudou. Investigando `pipeline-classify/index.ts`:
 
-9 regras automáticas, todas controladas pelos toggles `automation.*` que já existem em `app_settings` (default `false`). Cada regra usa o helper `pipeline-move.ts` (gates G1-G5/G8/D3 + idempotência).
+1. **Stage nunca é movido automaticamente** — o código só move para `B2B / Stakeholders` (quando `automation.b2b_move.enabled` está ligado e `confidence ≥ 0.9`). Para qualquer outra `stage_suggestion` (ex.: "Em tratamento", "Sem resposta", "Nutrição inativa", "Paciente antigo"), o classifier apenas grava o evento e segue.
+2. **Tags só são adicionadas (união)** — nunca removidas. Então tags antigas/incorretas como "Interesse", "1ª consulta" persistem mesmo quando a IA discorda.
+3. O resultado é exatamente o sintoma: leads continuam na coluna errada e com tags desatualizadas.
 
-## Entregáveis
+## O que vou mudar
 
-### 1. Edge function `pipeline-deterministic`
+### 1. Mover automaticamente para a `stage_suggestion` da IA
 
-Roteador único com `action` no body. Ações:
+No `pipeline-classify/index.ts`, depois da classificação:
 
-| action | Origem | Gate (toggle) | Idempotência |
-|---|---|---|---|
-| `novo-lead` | trigger AFTER INSERT em `leads` | `automation.novo_lead.enabled` | `novo-lead:<lead_id>` |
-| `secretary-replied` | trigger AFTER INSERT em `messages` (from_me=true, attendant_id≠null) | `automation.secretary_replied.enabled` | `secretary:<message_id>` |
-| `appointment-sync` | trigger AFTER INSERT/UPDATE em `appointments` (status muda) | `automation.appointment_*.enabled` (4 toggles, um por status) | `appt:<id>:<status>` |
-| `field-changed` | trigger AFTER UPDATE em `leads.custom_fields` | varia por campo | `field:<lead>:<field>:<hash>` |
-| `inactivity-tick` | cron 15min | `automation.followup_24h/3d/7d_nutricao.enabled` | `inactivity:<lead>:<tier>:<YYYYMMDD>` |
-| `reactivation-tick` | cron diário 04:00 BRT | `automation.reactivation.enabled` | `reactivation:<lead>:<YYYYMMDD>` |
-| `human-reactor-tick` | cron diário 05:00 BRT | `automation.human_reactor.enabled` | `human:<lead>:<YYYYMMDD>` |
+- Resolver o `stage_id` de `cls.stage_suggestion` via `stage_canonical_aliases` (mesma função já usada para B2B).
+- Se `stage_id` resolvido ≠ `lead.stage_id` **e** `cls.confidence ≥ STAGE_MOVE_MIN_CONFIDENCE` (proponho **0.75**, configurável via `app_settings.automation.classifier.stage_move_min_confidence`), chamar `pipelineMove` com:
+  - `source: "auto:classifier-stage"`
+  - `reason: "Classifier: <stage> (conf=X.XX)"`
+  - `ruleKey: "automation.classifier.stage_move.enabled"`
+  - `idempotencyKey: stage:<leadId>:<lastMsgId>` (evita repetir o mesmo move se reprocessar)
+- Gate por toggle novo: `automation.classifier.stage_move.enabled` (default **true** — já que o usuário pediu explicitamente). Se `false`, mantém comportamento atual (só evento).
+- Confiança baixa (`< 0.6`) já recebe tag `precisa_atencao_humana` e **não** é movida.
+- Se `is_b2b=true`, mantém o caminho B2B existente (não duplica).
 
-### 2. Lógica por regra
+### 2. Corrigir tags (não só adicionar)
 
-**`novo-lead`**: lead criado → garante que está no stage canônico "Novo" da pipeline da clínica + dispara welcome (criando registro em `pending_replies` com template padrão).
+Hoje o código faz union. Vou mudar para **substituir** as tags sugeridas pela IA dentro de um "namespace gerenciado":
 
-**`secretary-replied`**: secretária humana respondeu (mensagem outbound com attendant_id) → move para "Qualificação".
+- Definir whitelist de tags gerenciadas pelo classifier (as do v4.2: `interessado`, `agendando`, `comprovante`, `negociacao`, `1a_consulta`, `seguimento`, `cetamina`, `desistente`, `sem_resposta`, etc. — vou ler `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md` para confirmar a lista exata).
+- Lógica: `final = (current \ managed_whitelist) ∪ tags_suggested ∪ (precisa_atencao_humana se conf<0.6)`.
+- Isso preserva tags manuais fora da whitelist (ex.: "Lock manual") e corrige as gerenciadas.
+- Gate por toggle: `automation.classifier.tag_replace.enabled` (default **true**).
 
-**`appointment-sync`** (4 sub-regras):
-- `status=agendado` + `kind=consulta` → move para "Consulta agendada"
-- `status=agendado` + `kind=tratamento` → move para "Tratamento agendado"
-- `status=realizado` + `kind=consulta` → move para "Consulta finalizada"
-- `status=realizado` + `kind=tratamento` → set `custom_fields.sessoes_realizadas += 1`; move para "Em tratamento" se ainda não estiver
-- `status=faltou` → move para "Sem resposta" + tag `reagendamento_pendente`
-- `status=cancelado` → move para "Qualificação" + tag `reagendamento_pendente`
+### 3. Custom fields
 
-**`inactivity-tick`** (3 tiers, escalonados):
-- 24h sem outbound human + stage∈{Novo, Qualificação, Consulta agendada, Tratamento agendado} → cria `pending_replies` "follow-up suave"
-- 3d sem inbound + stage∈mesmos → cria pending_reply "segundo toque"
-- 7d sem inbound + stage∈mesmos → move para "Nutrição inativa" + tag `precisa_atencao_humana`
+Já faz merge com remoção quando IA envia `null`. Mantenho como está — comportamento já correto.
 
-**`reactivation-tick`**: lead em "Nutrição inativa" há ≥30d + tem `interesse_tratamento=true` → cria pending_reply "reativação" + tag `reativacao`.
+### 4. Telemetria
 
-**`modality-guard`**: lead com `custom_fields.modalidade_preferida='online'` + stage="Tratamento agendado" + clinic não oferece online → bloqueia move, tag `precisa_atencao_humana`, log warning. Roda dentro de `field-changed` quando `modalidade_preferida` muda, e dentro de `appointment-sync` antes de mover.
+Adicionar ao `lead_events` `auto:classifier` payload campos:
+- `stage_moved`: `{ from, to, applied: bool, skipped_reason? }`
+- `tags_diff`: `{ added: [], removed: [], kept_manual: [] }`
 
-**`ciclo-concluido`**: `custom_fields.ciclo_concluido=true` + stage="Em tratamento" → move para "Paciente antigo" + congela (manual_lock).
+Assim você consegue auditar pela UI de PipelineRuns por que um lead não foi movido (ex.: `skipped_reason: "low_confidence"` ou `"same_stage"`).
 
-**`human-reactor`** (D7, última a ativar): qualquer lead com tag `precisa_atencao_humana` há >7d sem ação humana → cria task em `lead_tasks` "Revisar lead travado" + notifica responsável.
+## Arquivos afetados
 
-### 3. Triggers no banco (via `pg_net`)
+- `supabase/functions/pipeline-classify/index.ts` — lógica de move + reconciliação de tags + payload do evento.
+- (Opcional) `supabase/migrations/...sql` — inserir defaults dos novos toggles em `app_settings` (`stage_move.enabled=true`, `tag_replace.enabled=true`, `stage_move_min_confidence=0.75`).
 
-Função DB `notify_pipeline_deterministic(action text, payload jsonb)` faz POST autenticado para a edge function. Triggers:
-- `trg_leads_novo_lead` AFTER INSERT em `leads`
-- `trg_messages_secretary` AFTER INSERT em `messages` WHEN (from_me=true AND attendant_id IS NOT NULL)
-- `trg_appointments_sync` AFTER INSERT OR UPDATE OF status em `appointments`
-- `trg_leads_field_changed` AFTER UPDATE OF custom_fields em `leads`
+## Não vou mexer
 
-Triggers só disparam o POST — toda decisão (e G3) vive na edge function.
+- UI de PipelineRuns (escopo já funciona).
+- Executor/heartbeat/timeouts (já corrigidos).
+- Summarizer / tasks de intent.
 
-### 4. Cron jobs (via `supabase--insert` + pg_cron)
+## Pergunta antes de implementar
 
-- `pipeline-inactivity` — `*/15 * * * *` → POST `action=inactivity-tick`
-- `pipeline-reactivation` — `0 7 * * *` UTC (04:00 BRT) → POST `action=reactivation-tick`
-- `pipeline-human-reactor` — `0 8 * * *` UTC (05:00 BRT) → POST `action=human-reactor-tick`
+Confirma os defaults? 
+- Stage move automático **ligado**, mínimo de confiança **0.75**.
+- Tag replace **ligado**, preservando tags manuais fora da whitelist v4.2.
 
-### 5. Observabilidade
-
-- Cada execução grava `lead_events` com tipo `auto:<rule>` e payload.
-- Dashboard `/admin/pipeline-automations` já lê esses eventos — sem mudança de UI.
-- Logs estruturados na edge function (`console.log` JSON).
-
-## Rollout
-
-1. Deploy com **todos os toggles OFF**.
-2. Smoke test manual: invocar cada `action` via `supabase.functions.invoke` em lead de teste.
-3. Habilitar uma regra por vez na sequência sugerida (`novo-lead` → `secretary-replied` → `appointment-sync` → `inactivity` → `reactivation` → `modality-guard` → `ciclo-concluido` → `human-reactor`), observando 48h cada via dashboard.
-
-## Detalhes técnicos
-
-- **Stage matching por nome canônico**: helper interno resolve `stageIdByCanonicalName(clinic_id, name)` consultando `pipeline_stages` da pipeline ativa da clínica. Mapeamento PT-BR canônico → nomes reais via tabela `stage_canonical_aliases` (criada nesta entrega, seedada com aliases observados: "Tratamento agendado", "Procedimento agendado"→"Tratamento agendado", etc).
-- **Sem dados de leads alterados** fora do que cada regra explicitamente fizer via `pipelineMove` ou patch de `custom_fields`.
-- **Segurança**: edge function valida JWT de service role no header `x-internal-secret` (segredo `PIPELINE_INTERNAL_SECRET`) — triggers DB e cron usam esse mesmo segredo.
-
-## Fora de escopo (próximos marcos)
-
-- Classifier LLM (Marco 2)
-- Auditores A1/A2 (Marco 2.5)
-- Summarizer e nf-task/payment-confirmed (Marco 3)
-- Retenção judicial/receita (Marco 4)
+Se preferir mais conservador (ex.: 0.85 de confiança, ou stage move desligado por default e você liga manualmente), me diz.

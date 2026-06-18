@@ -106,9 +106,28 @@ const ClassificationSchema = z.object({
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string()).max(8),
+  tags_remove: z.array(z.string()).max(8).default([]),
   custom_fields_patch: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   reasons: z.array(z.string()).min(1).max(5),
 });
+
+// Tags que NUNCA podem ser removidas por automação (humano-only).
+const PROTECTED_TAGS = new Set([
+  "risco_clinico",
+  "b2b",
+  "vip",
+  "paciente_antigo",
+  "precisa_atencao_humana",
+  "Lock manual",
+  "lock_manual",
+]);
+
+async function getSettingNumber(client: SupabaseClient, key: string, fallback: number): Promise<number> {
+  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
+  if (!data) return fallback;
+  const n = Number(String(data.value).replace(/"/g, ""));
+  return Number.isFinite(n) ? n : fallback;
+}
 
 type Classification = z.infer<typeof ClassificationSchema>;
 
@@ -162,9 +181,11 @@ Diretrizes:
 Regras:
 - confidence reflete sua certeza. Use ≤ 0.5 quando o histórico for ambíguo ou muito curto.
 - is_b2b=true SOMENTE se o lead claramente representa empresa/parceiro/fornecedor.
-- tags_suggested ∈ whitelist v4.2 (use apenas se realmente aplicar).
-- custom_fields_patch: só inclua chaves se há evidência clara no texto.
-- reasons: 1-5 frases curtas em PT-BR justificando.
+- tags_suggested: tags que DEVEM estar no lead (whitelist v4.2 + descritivas curtas, snake_case ou Title curto).
+- tags_remove: tags ATUALMENTE no lead que NÃO refletem mais a realidade e devem ser removidas
+  (ex.: "Interessado" num lead que já desistiu; "1ª consulta" num paciente em tratamento; "Comprovante" num pagamento já confirmado). NUNCA remova: risco_clinico, b2b, vip, paciente_antigo, precisa_atencao_humana, Lock manual.
+- custom_fields_patch: só inclua chaves se há evidência clara no texto. Use null para apagar campo desatualizado.
+- reasons: 1-5 frases curtas em PT-BR justificando a classificação + mudanças aplicadas.
 
 Campo intent (escolha UM):
 - "agendamento": lead pedindo para marcar consulta/tratamento.
@@ -256,63 +277,122 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
 
   const cls = output as Classification;
 
-  // Persist event
-  await client.from("lead_events").insert({
-    clinic_id: lead.clinic_id,
-    lead_id: leadId,
-    type: "auto:classifier",
-    payload: cls as unknown as Record<string, unknown>,
-  });
-
-  // Apply tags from suggestion (union with current) + always tag low confidence
-  if (cls.confidence < 0.6) {
-    await addTag(client, leadId, "precisa_atencao_humana");
+  // ---- Tag reconciliation (add suggested, remove stale, preserve protected) ----
+  const tagReplaceEnabled = await isEnabled(client, "automation.classifier.tag_replace.enabled");
+  const currentTags: string[] = ((lead.tags ?? []) as string[]).map((t) => String(t));
+  const suggested = (cls.tags_suggested ?? []).map((t) => String(t).trim()).filter(Boolean);
+  const toRemoveRaw = tagReplaceEnabled
+    ? (cls.tags_remove ?? []).map((t) => String(t).trim()).filter(Boolean)
+    : [];
+  const toRemove = toRemoveRaw.filter((t) => !PROTECTED_TAGS.has(t));
+  const removeSet = new Set(toRemove);
+  const lowConf = cls.confidence < 0.6;
+  const nextTags = Array.from(
+    new Set([
+      ...currentTags.filter((t) => !removeSet.has(t)),
+      ...suggested,
+      ...(lowConf ? ["precisa_atencao_humana"] : []),
+    ]),
+  );
+  const tagsChanged =
+    nextTags.length !== currentTags.length ||
+    nextTags.some((t) => !currentTags.includes(t)) ||
+    currentTags.some((t) => !nextTags.includes(t));
+  const tagsAdded = nextTags.filter((t) => !currentTags.includes(t));
+  const tagsRemoved = currentTags.filter((t) => !nextTags.includes(t));
+  if (tagsChanged) {
+    await client.from("leads").update({ tags: nextTags }).eq("id", leadId);
   }
-  if (Array.isArray(cls.tags_suggested) && cls.tags_suggested.length > 0) {
-    const currentTags: string[] = (lead.tags ?? []) as string[];
-    const merged = Array.from(new Set([...currentTags, ...cls.tags_suggested.map((t) => String(t).trim()).filter(Boolean)]));
-    if (merged.length !== currentTags.length) {
-      await client.from("leads").update({ tags: merged }).eq("id", leadId);
-    }
-  }
 
-  // Apply custom_fields_patch (shallow merge — IA só envia campos com evidência)
+  // ---- custom_fields patch (shallow merge; null deletes) ----
+  let fieldsChanged = false;
+  const fieldsApplied: Record<string, unknown> = {};
   if (cls.custom_fields_patch && typeof cls.custom_fields_patch === "object") {
     const patch = cls.custom_fields_patch as Record<string, unknown>;
     const keys = Object.keys(patch);
     if (keys.length > 0) {
       const currentFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
       const nextFields: Record<string, unknown> = { ...currentFields };
-      let changed = false;
       for (const k of keys) {
         const v = patch[k];
         if (v === null) {
-          if (k in nextFields) { delete nextFields[k]; changed = true; }
+          if (k in nextFields) { delete nextFields[k]; fieldsChanged = true; fieldsApplied[k] = null; }
         } else if (currentFields[k] !== v) {
-          nextFields[k] = v; changed = true;
+          nextFields[k] = v; fieldsChanged = true; fieldsApplied[k] = v;
         }
       }
-      if (changed) {
+      if (fieldsChanged) {
         await client.from("leads").update({ custom_fields: nextFields }).eq("id", leadId);
       }
     }
   }
 
-  // B2B auto-move (only when toggle + high confidence)
+  // ---- Stage move (B2B path or generic classifier-stage path) ----
+  const lastMsgIdNow = orderedMsgs[orderedMsgs.length - 1].id;
+  let stageMove: Record<string, unknown> = { applied: false, reason: "no_change" };
+
   const b2bEnabled = await isEnabled(client, "automation.b2b_move.enabled");
+  const genericMoveEnabled = await isEnabled(client, "automation.classifier.stage_move.enabled");
+  const minConfMove = await getSettingNumber(client, "automation.classifier.stage_move_min_confidence", 0.75);
+
   if (cls.is_b2b && b2bEnabled && cls.confidence >= 0.9) {
     const b2bId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "B2B / Stakeholders");
     if (b2bId && lead.stage_id !== b2bId) {
-      await pipelineMove(client, {
+      const res = await pipelineMove(client, {
         leadId,
         toStageId: b2bId,
         source: "auto:classifier-b2b",
         reason: `Classifier B2B (conf=${cls.confidence.toFixed(2)})`,
         ruleKey: "automation.b2b_move.enabled",
-        idempotencyKey: `b2b:${leadId}:${orderedMsgs[orderedMsgs.length - 1].id}`,
+        idempotencyKey: `b2b:${leadId}:${lastMsgIdNow}`,
       });
+      stageMove = { applied: res.moved, from: lead.stage_id, to: b2bId, path: "b2b", reason: res.moved ? "ok" : (res as { reason: string }).reason };
+    } else {
+      stageMove = { applied: false, reason: b2bId ? "already_at_destination" : "stage_alias_not_found", path: "b2b" };
     }
+  } else if (genericMoveEnabled && cls.confidence >= minConfMove && !lowConf) {
+    const targetId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, cls.stage_suggestion);
+    if (!targetId) {
+      stageMove = { applied: false, reason: `stage_alias_not_found:${cls.stage_suggestion}`, path: "generic" };
+    } else if (targetId === lead.stage_id) {
+      stageMove = { applied: false, reason: "same_stage", path: "generic", to: targetId };
+    } else {
+      const res = await pipelineMove(client, {
+        leadId,
+        toStageId: targetId,
+        source: "auto:classifier-stage",
+        reason: `Classifier → ${cls.stage_suggestion} (conf=${cls.confidence.toFixed(2)})`,
+        ruleKey: "automation.classifier.stage_move.enabled",
+        idempotencyKey: `classify-stage:${leadId}:${lastMsgIdNow}`,
+      });
+      stageMove = { applied: res.moved, from: lead.stage_id, to: targetId, path: "generic", suggestion: cls.stage_suggestion, reason: res.moved ? "ok" : (res as { reason: string }).reason };
+    }
+  } else {
+    stageMove = {
+      applied: false,
+      path: "generic",
+      reason: !genericMoveEnabled ? "toggle_off" : (lowConf ? "low_confidence" : `below_threshold(${minConfMove})`),
+      suggestion: cls.stage_suggestion,
+      confidence: cls.confidence,
+    };
   }
+
+  // Persist classifier event WITH telemetry of what was applied.
+  await client.from("lead_events").insert({
+    clinic_id: lead.clinic_id,
+    lead_id: leadId,
+    type: "auto:classifier",
+    payload: {
+      ...(cls as unknown as Record<string, unknown>),
+      applied: {
+        stage_move: stageMove,
+        tags_diff: { added: tagsAdded, removed: tagsRemoved, requested_remove: toRemoveRaw },
+        custom_fields: fieldsApplied,
+      },
+    },
+  });
+
+
 
   // Marco 3 — task triggers a partir do intent.
   let nfTaskResult: unknown = null;
