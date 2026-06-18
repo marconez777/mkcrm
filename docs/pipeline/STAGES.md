@@ -4,80 +4,124 @@ topic: kanban
 kind: reference
 audience: agent
 updated: 2026-06-18
-summary: "Mapa das 12 colunas atuais do pipeline da Clínica ÓR, critério de entrada/saída, flags de automação por stage e correspondência com as 14 colunas analisadas no estudo."
+summary: "Mapa das 11 colunas do pipeline da Clínica ÓR (v4.1), critério de entrada/saída, flags por stage e migração desde a versão de 12 colunas com 'Procedimento pago'."
 related_docs:
   - docs/pipeline/SCENARIOS.md
   - docs/pipeline/AUTOMATION_PLAN.md
+  - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
   - docs/estudo/README.md
 ---
 
-# Stages atuais — pipeline `Clínica ÓR`
+# Stages atuais — pipeline `Clínica ÓR` (v4.1)
 
-Pipeline default da clínica `cf038458-457d-4c1a-9ac4-c88c3c8353a1`, id `17c27f4d-8256-4ea7-b5b9-ed706494f686`. Todas as movimentações hoje são **manuais**.
+Pipeline default da clínica `cf038458-457d-4c1a-9ac4-c88c3c8353a1`, id `17c27f4d-8256-4ea7-b5b9-ed706494f686`. Hoje **100% manual**. Esta versão (v4.1) consolida o brief da clínica e fecha as 8 decisões D1–D8 — ver `AUTOMATION_PLAN.md` seção "Decisões v4.1".
+
+**Mudanças vs v3**:
+- D1: "Procedimento pago" **removida** como coluna. Pagamento vira campo `status_financeiro`.
+- D2: "Procedimento agendado" **renomeada** para "Tratamento agendado". Termo "procedimento" sai do vocabulário operacional (mantido só como alias técnico).
+- Total de colunas: **12 → 11**.
 
 ## Tabela de stages
 
-| # | Stage | Terminal? | `lock_auto_move` (v3) | Entrada via automação | Excluído de scans temporais |
-|---|---|---|---|---|---|
-| 0 | **Leads de entrada** | não | não | sim (lead novo) | não |
-| 1 | **Qualificação** | não | não | sim (reativação default, cancelamento) | não |
-| 2 | **Consulta agendada** | não | não | sim (`auto:appointment-agendado` kind=consulta; reativação se tag `no_show`) | não |
-| 3 | **Consulta finalizada** | não | não | sim (`auto:appointment-realizado` kind=consulta) | não |
-| 4 | **Procedimento agendado** | não | não | sim (`auto:appointment-agendado` kind=procedimento) | não |
-| 5 | **Procedimento pago** | não | **sim** | só com sinal real de pagamento (webhook/comprovante+humano) | não |
-| 6 | **Em tratamento** | não | não | sim (`auto:procedure-realizado` na 1ª sessão) | não |
-| 7 | **Paciente antigo** | não | não | só por humano (ciclo concluído) | **sim** (final state) |
-| 8 | **Sem resposta** | não | não | sim (`auto:inactivity-5d`, `auto:appointment-faltou`) | não |
-| 9 | **Nutrição inativa** | não | não | só por humano (judicial, crônico) | **sim** (final state) |
-| 10 | **B2B / Stakeholders** | **sim** | n/a | sim (`auto:b2b-move` Fase 2) | sim |
-| 11 | **Desqualificado / Fora de escopo** | **sim** | n/a | só por humano | sim |
+| # | Stage | Terminal? | Entrada via automação | Excluído de scans temporais |
+|---|---|---|---|---|
+| 0 | **Leads de entrada** | não | sim (lead novo via `evolution-webhook`) | não |
+| 1 | **Qualificação** | não | sim (`auto:secretary-replied`, reativação default, `auto:appointment-cancelado`) | não |
+| 2 | **Consulta agendada** | não | sim (`auto:appointment-agendado` kind=consulta; reativação se tag `no_show`/`reagendamento_pendente`) | não |
+| 3 | **Consulta finalizada** | não | sim (`auto:appointment-realizado` kind=consulta) | não |
+| 4 | **Tratamento agendado** | não | sim (`auto:appointment-agendado` kind=procedimento) | não |
+| 5 | **Em tratamento** | não | sim (`auto:procedure-realizado` na 1ª sessão do ciclo) | não |
+| 6 | **Paciente antigo** | não | só por humano (ciclo concluído via `custom_fields.ciclo_concluido=true` → `auto:ciclo-concluido`) | **sim** (final state) |
+| 7 | **Sem resposta** | não | sim (`auto:followup-7d` em última instância, `auto:appointment-faltou`) | não |
+| 8 | **Nutrição inativa** | não | sim (`auto:followup-7d` move pra cá após esgotar tentativas em Sem resposta) | **sim** (final state) |
+| 9 | **B2B / Stakeholders** | **sim** | sim (`auto:b2b-move` Fase 2) | sim |
+| 10 | **Desqualificado / Fora de escopo** | **sim** | só por humano | sim |
 
 ### Notas das flags
 
-- **`lock_auto_move=true` em `Procedimento pago`** (v3): texto "paguei" sozinho **nunca** move pra cá. Só webhook de pagamento, OU comprovante + confirmação humana, OU movimento manual. Texto sozinho gera tag `pagamento_alegado` + task "Confirmar pagamento" (regra `auto:payment-confirmed` na Fase 3).
-- **Excluído de scans temporais**: `auto:inactivity-5d` e jobs futuros que varrem o pipeline por tempo **NÃO** processam leads nesses stages. Final states + B2B/Desqualificado consomem custo sem retorno e geram falsos positivos.
-- **Exceção do inactivity**: leads com `appointments.scheduled_at > now()` (consulta futura agendada) também são **excluídos** do `auto:inactivity-5d`, mesmo em stages não-finais. Hoje criar appointment NÃO seta `manual_lock_until` — sem essa exceção, lead com consulta marcada pra daqui 10 dias cairia em `Sem resposta`.
+- **Excluído de scans temporais**: jobs `auto:followup-*` e demais varreduras por tempo **NÃO** processam stages finais. Custo zero de retorno.
+- **Exceção do inactivity**: leads com `appointments.scheduled_at > now()` (consulta ou tratamento futuro agendado) também são **excluídos** dos `auto:followup-*`, mesmo em stages não-finais. Criar appointment hoje NÃO seta `manual_lock_until` — sem essa exceção, lead com consulta marcada pra daqui 10 dias cairia em "Sem resposta".
 
 ## Lock manual vs lock de auto-mover
 
-São coisas **diferentes** — a confusão derrubou o agente anterior:
+São coisas **diferentes**:
 
 | Lock | O que bloqueia | O que NÃO bloqueia | Duração |
 |---|---|---|---|
-| `leads.manual_lock_until` | Movimentação automática de stage (qualquer regra `auto:*`) | Classificador escrevendo `tags`, `custom_fields`, `ai_summary`; criação de tasks | **7 dias** após arraste humano (`MANUAL_LOCK_MS = 7 * 24 * 60 * 60 * 1000`) |
-| `pipeline_stages.lock_auto_move` | Entrada automática NESTE stage destino | Saída automática deste stage | Permanente (flag de schema) |
+| `leads.manual_lock_until` | Movimentação automática de stage (qualquer regra `auto:*`) | Classificador escrevendo `tags`, `custom_fields`, `ai_summary`; criação de tasks | **7 dias** após arraste humano. **Renovado** a cada nova ação humana detectada pelo reator (D7). |
+| `pipeline_stages.lock_auto_move` | Entrada automática NESTE stage destino | Saída automática | Permanente (flag de schema) — hoje **nenhum stage tem essa flag** na v4.1. |
 
-**Implicação:** dentro do lock manual de 7 dias, o classificador continua taggeando, resumindo conversa e sugerindo. Só **não move** o card. Reativação (`auto:reactivation`) durante o lock também respeita — em vez de mover, só taggeia `reativacao_durante_lock` e notifica.
+**Implicação:** dentro do lock manual de 7 dias, o classificador continua taggeando, resumindo conversa e sugerindo. Só **não move** o card. Reativação durante lock taggeia `reativacao_durante_lock` + notifica.
 
-## Correspondência com o estudo (14 colunas → 12 stages)
+## Critério de "Paciente antigo" (D3)
 
-O estudo original analisou **14 colunas** do pipeline antigo "Agendamentos Novo". A consolidação atual aglutina alguns estados:
+Lead em "Paciente antigo" que agenda nova consulta ou tratamento **NÃO sai do stage**. Em vez disso:
+- `auto:appointment-agendado` checa `current_stage = Paciente antigo` → aborta a movimentação.
+- Anexa tag `consulta_agendada` ou `tratamento_em_andamento` conforme `kind`.
+- Campos no card mostram o próximo agendamento ativo; calendário exibe todos.
 
-| Coluna do estudo | Stage atual |
+Saída de "Paciente antigo" só acontece por humano arrastar pra outra coluna (ex: novo episódio de qualificação).
+
+## Critério de "Em tratamento" (D-bonus)
+
+- **Entrada**: 1ª sessão `realizada` (`auto:procedure-realizado` 1ª invocação por ciclo).
+- **Permanência**: sessões subsequentes apenas incrementam `custom_fields.sessoes_realizadas` (numérico). **Não movem stage.**
+- **Saída**: humano marca `custom_fields.ciclo_concluido=true` → `auto:ciclo-concluido` move para "Paciente antigo".
+
+## Status independentes do stage
+
+A partir da v4.1, dois eixos de status são **campos**, não colunas:
+
+| Campo | Enum | Quem escreve | Independência |
+|---|---|---|---|
+| `status_financeiro` | `pendente \| parcial \| pago \| reembolsado \| cancelado \| isento \| nao_se_aplica` | humano (manual) ou webhook real de pagamento | Regras de stage **nunca leem** este campo. Separação de preocupações. |
+| `status_consulta` | `agendada \| realizada \| faltou \| cancelada \| reagendada` | humano (manual) ou reator (D7) após appointment update | Reator humano lê este campo e infere consequência (ver `AUTOMATION_PLAN.md`). |
+
+## Correspondência com o estudo (14 colunas → 11 stages v4.1)
+
+O estudo original analisou **14 colunas** do pipeline antigo "Agendamentos Novo". Consolidação atual:
+
+| Coluna do estudo | Stage v4.1 |
 |---|---|
 | `00 - Leads de entrada` | Leads de entrada |
 | `02 - Qualificação` | Qualificação |
 | `03 - Consulta Agendada` | Consulta agendada |
 | `05 - Consulta finalizada` | Consulta finalizada |
-| `06 - Fechamento pendente consulta` | Consulta finalizada (sub-estado: aguardando decisão) |
-| `09 - Fechamento pendente procedimento` | Consulta finalizada (sub-estado: aguardando NF/agenda) |
-| `10 - Procedimento Agendado` | Procedimento agendado |
-| `11 - Procedimento pago` | Procedimento pago |
+| `06 - Fechamento pendente consulta` | Consulta finalizada (sub-estado via `status_financeiro=pendente`) |
+| `09 - Fechamento pendente procedimento` | Tratamento agendado (sub-estado via `status_financeiro=pendente`) |
+| `10 - Procedimento Agendado` | Tratamento agendado |
+| `11 - Procedimento pago` | Tratamento agendado com `status_financeiro=pago` (coluna eliminada — D1) |
 | `12 - Retorno Tratamento Finalizado` | Em tratamento → Paciente antigo |
-| `13 - Antigo Consulta/procedimento agendado` | Paciente antigo (em retorno) |
+| `13 - Antigo Consulta/procedimento agendado` | Paciente antigo (com tag `consulta_agendada`/`tratamento_em_andamento` — D3) |
 | `01 - Paciente antigo` | Paciente antigo |
 | `07 - Lead parou de responder` | Sem resposta |
 | `14 - Nutrição de Leads Inativos` | Nutrição inativa |
 | `08 - Lead não qualificado` | Desqualificado / Fora de escopo |
-| (não havia) | B2B / Stakeholders (criada para resolver problema #1 do estudo) |
+| (não havia) | B2B / Stakeholders |
 
-> Implicação para automação: ao reler arquivos do estudo, mapear o título da coluna para o stage atual usando esta tabela. Para amostra real de leads em cada stage, ver `LEAD_SAMPLES.md`.
-
-## Migration que a Fase 0 precisa rodar
+## Migração desde v3
 
 ```sql
-UPDATE pipeline_stages
-   SET lock_auto_move = true
+-- D1: eliminar coluna 'Procedimento pago'
+UPDATE leads
+   SET stage_id = (SELECT id FROM pipeline_stages
+                    WHERE pipeline_id = '17c27f4d-8256-4ea7-b5b9-ed706494f686'
+                      AND name = 'Tratamento agendado'),
+       custom_fields = jsonb_set(coalesce(custom_fields,'{}'::jsonb),
+                                 '{status_financeiro}', '"pago"', true)
+ WHERE stage_id IN (SELECT id FROM pipeline_stages
+                     WHERE pipeline_id = '17c27f4d-8256-4ea7-b5b9-ed706494f686'
+                       AND name = 'Procedimento pago');
+
+DELETE FROM pipeline_stages
  WHERE pipeline_id = '17c27f4d-8256-4ea7-b5b9-ed706494f686'
    AND name = 'Procedimento pago';
+
+-- D2: renomear stage
+UPDATE pipeline_stages
+   SET name = 'Tratamento agendado'
+ WHERE pipeline_id = '17c27f4d-8256-4ea7-b5b9-ed706494f686'
+   AND name = 'Procedimento agendado';
 ```
+
+Migration completa (com criação de campos novos, recompactação de `position`, etc.) sai na Fase 0 de implementação — fora do escopo desta rodada de docs.
