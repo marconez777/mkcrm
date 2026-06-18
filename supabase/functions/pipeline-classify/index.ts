@@ -264,9 +264,38 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
     payload: cls as unknown as Record<string, unknown>,
   });
 
-  // Apply tags from suggestion (only whitelist subset + always tag low confidence)
+  // Apply tags from suggestion (union with current) + always tag low confidence
   if (cls.confidence < 0.6) {
     await addTag(client, leadId, "precisa_atencao_humana");
+  }
+  if (Array.isArray(cls.tags_suggested) && cls.tags_suggested.length > 0) {
+    const currentTags: string[] = (lead.tags ?? []) as string[];
+    const merged = Array.from(new Set([...currentTags, ...cls.tags_suggested.map((t) => String(t).trim()).filter(Boolean)]));
+    if (merged.length !== currentTags.length) {
+      await client.from("leads").update({ tags: merged }).eq("id", leadId);
+    }
+  }
+
+  // Apply custom_fields_patch (shallow merge — IA só envia campos com evidência)
+  if (cls.custom_fields_patch && typeof cls.custom_fields_patch === "object") {
+    const patch = cls.custom_fields_patch as Record<string, unknown>;
+    const keys = Object.keys(patch);
+    if (keys.length > 0) {
+      const currentFields = (lead.custom_fields ?? {}) as Record<string, unknown>;
+      const nextFields: Record<string, unknown> = { ...currentFields };
+      let changed = false;
+      for (const k of keys) {
+        const v = patch[k];
+        if (v === null) {
+          if (k in nextFields) { delete nextFields[k]; changed = true; }
+        } else if (currentFields[k] !== v) {
+          nextFields[k] = v; changed = true;
+        }
+      }
+      if (changed) {
+        await client.from("leads").update({ custom_fields: nextFields }).eq("id", leadId);
+      }
+    }
   }
 
   // B2B auto-move (only when toggle + high confidence)
