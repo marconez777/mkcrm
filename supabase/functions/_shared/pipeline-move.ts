@@ -256,5 +256,17 @@ export async function pipelineMove(
     }
   }
 
+  // Marco 4 — stage_sequence_bindings (não bloqueia).
+  try {
+    const { applyStageBindings } = await import("./stage-bindings.ts");
+    const bindingsPromise = applyStageBindings(client, leadId, lead.clinic_id, toStageId).catch((err) =>
+      console.warn("[pipeline-move] stage-bindings failed", err),
+    );
+    const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+    if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(bindingsPromise);
+  } catch (err) {
+    console.warn("[pipeline-move] stage-bindings hook error", err);
+  }
+
   return { moved: true, fromStageId: lead.stage_id ?? null, toStageId };
 }
