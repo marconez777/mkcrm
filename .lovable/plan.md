@@ -1,76 +1,87 @@
-## Diagnóstico — caso Marcio
+# Plano — Documentação completa do pipeline "Clínica ÓR"
 
-O classifier errou dois pontos no mesmo lead:
+Objetivo: produzir um pacote de documentação **autossuficiente** (em `docs/pipeline/runtime/`) que descreva exatamente o que está **rodando hoje** — não o que estava planejado em v4.2. Outro agente deve conseguir auditar o sistema lendo só esses arquivos, sem abrir código nem banco.
 
-1. **Tag `1ª consulta` ficou ativa** num paciente em tratamento há ~5 anos. A regra de `tags_remove` existe, mas o modelo não tem **nenhum sinal de idade do lead** no prompt — só vê stage atual e tags. Sem `lead.created_at`, nº de mensagens históricas e moves anteriores, ele assume default ("é uma 1ª consulta porque está em 'Consulta agendada'").
+A documentação atual em `docs/pipeline/` é de **planejamento** (decisões D1–D8, fases 0→4). Falta o espelho do **estado real**: o que de fato foi implementado, com quais prompts, em quais edge functions, escrevendo o quê na base.
 
-2. **Chip mostrou "Consulta 19/06" sendo que era 18/06.** A causa raiz é dupla:
-   - O prompt **não diz qual é "hoje"** nem qual fuso usar.
-   - `formatMessages` usa `created_at.slice(0, 16)` — isso é **UTC cru** (ex.: 18:07 UTC = 15:07 BRT). O modelo lê "15:07" achando que é local, mas quando precisa resolver "quinta" relativa, ele acaba escolhendo "a próxima quinta", que cai dia 19, não dia 18.
-   - Não há validação no servidor: qualquer string que o modelo coloque em `consulta_agendada_em` vira chip no Kanban.
+## Entregáveis (todos em `docs/pipeline/runtime/`)
 
-Os campos `consulta_agendada_em` / `procedimento_agendado_em` são **escritos exclusivamente pelo classifier via `custom_fields_patch`** — nenhum outro código os seta. Então toda a correção é no edge function `pipeline-classify`.
+```text
+docs/pipeline/runtime/
+├── README.md                    # hub + status de cada componente (ativo/parcial/planejado)
+├── ARCHITECTURE.md              # diagrama end-to-end, quem chama quem
+├── STAGES_LIVE.md               # 11 colunas reais com IDs, ordem, flags
+├── CLASSIFIER.md                # pipeline-classify: prompt, schema, validações
+├── DETERMINISTIC_RULES.md       # pipeline-deterministic: 13 regras auto:*
+├── AUDITORS.md                  # A1 position-auditor + A2 post-move-verifier
+├── SUMMARIZER.md                # pipeline-summarize: trigger, prompt, campos
+├── HUMAN_REACTOR.md             # reator de ação manual (D7) + lock manual 7d
+├── FIELDS_LIVE.md               # custom_fields realmente existentes + enums
+├── TAGS_LIVE.md                 # tags na whitelist + quem escreve cada
+├── DATABASE_LIVE.md             # tabelas, colunas-chave, triggers ativos
+├── EVENTS_TELEMETRY.md          # lead_events, pipeline_runs, lead_stage_history
+├── GATES.md                     # G1–G11 com referência ao código que aplica
+├── KNOWN_ISSUES.md              # bugs conhecidos (ex.: data 19/06 vs 18/06, 1ª consulta em paciente antigo)
+└── AUDIT_CHECKLIST.md           # 30 perguntas que outro agente deve conseguir responder
+```
 
-## Plano
+## Fases
 
-### 1. Dar contexto temporal e de idade do lead ao classifier
+### Fase 1 — Inventário (read-only, gera relatório bruto)
 
-Em `classifyOne`, antes de chamar o LLM, montar um bloco **"Contexto do lead"** com:
+Sem escrever doc ainda. Spawn de subagent `acp_subagent--explore` em paralelo para mapear:
+- Todas as edge functions `pipeline-*` + `automations-tick` + `ai-auto-reply` (assinatura, triggers, secrets usados).
+- Migrations recentes (`20260617*` e `20260618*`) — extrair tabelas/colunas/enums efetivamente criados.
+- `app_settings` no banco: quais toggles `automation.*` existem e estão `enabled=true`.
+- `lead_custom_fields` defs reais da clínica `cf038458-…`.
+- `pipeline_stages` reais do pipeline `17c27f4d-…` (IDs, nomes, ordem, is_final, is_terminal).
+- Tags efetivamente presentes em `leads.tags` (top 30 com contagem).
 
-- **`now_local`**: agora em America/Sao_Paulo (`Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" })`) — também passar o ISO com offset.
-- **`timezone`**: `America/Sao_Paulo` (constante por enquanto; campo na clínica fica para depois).
-- **`lead.created_at`** + "idade" calculada em dias/meses/anos.
-- **Contagem total de mensagens** do lead (`select count` em `messages`) e data da primeira mensagem — para inferir "paciente antigo".
-- **Últimos 5 stage moves** (`lead_stage_history`) com data + nomes — mostra se já passou por "Em tratamento"/"Consulta finalizada"/"Paciente antigo".
-- **`custom_fields` atuais resumidos** — para o modelo não duplicar/contradizer.
+Saída: `/tmp/runtime-inventory.md` (rascunho para a fase 2 consumir).
 
-Esse bloco substitui o atual `pipelineSummary` minimalista.
+### Fase 2 — Núcleo: arquitetura + stages + banco
 
-### 2. Formatar timestamps das mensagens em BRT
+Escreve `README.md`, `ARCHITECTURE.md`, `STAGES_LIVE.md`, `DATABASE_LIVE.md`, `EVENTS_TELEMETRY.md`. Inclui diagrama Mermaid do fluxo: mensagem WhatsApp → `evolution-webhook` → `pipeline-deterministic` → `pipeline-classify` → `pipeline-move` → `pipeline-post-move-verifier`. Cron diário → `pipeline-position-auditor`.
 
-`formatMessages` passa a usar `Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })` — assim "15:07" vira "18/06 15:07" e bate com o que o lead vê no WhatsApp.
+### Fase 3 — Componentes de IA (o que o usuário mais quer auditar)
 
-### 3. Endurecer o system prompt
+Um arquivo por agente, cada um com a mesma estrutura: **Quando dispara · Inputs · Prompt (literal, copiado do código) · Schema de saída · Validações server-side · O que escreve no banco · Toggle/feature flag · Telemetria · Limitações conhecidas**.
 
-Adicionar regras explícitas:
+- `CLASSIFIER.md` — inclui o `buildSystemPrompt` atual com `LeadContext`, `fmtBR`, `sanitizeDateField`, tools (`get_lead_history`).
+- `AUDITORS.md` — A1 (cron) e A2 (hook async) lado a lado.
+- `SUMMARIZER.md` — quando regenera `ai_summary`, quais campos lê.
+- `HUMAN_REACTOR.md` — tabela de inferências (humano fez X → reator faz Y ou tag `precisa_atencao_humana`).
 
-- **Datas relativas** ("amanhã", "5a/quinta", "semana que vem"): resolva **a partir do timestamp da mensagem que cita a data**, não do `now`. Use o fuso `America/Sao_Paulo`. Devolva em ISO completo `YYYY-MM-DDTHH:mm:00-03:00`.
-- **Nunca aplique tag `1ª consulta`** se o lead:
-  - tem mais de 90 dias de idade, OU
-  - já passou por stage `Em tratamento` / `Consulta finalizada` / `Paciente antigo` em algum momento, OU
-  - tem tag `paciente_antigo`.
-  - Se uma dessas condições for verdadeira E `1ª consulta` existir, **inclua em `tags_remove`** e adicione `retorno` no lugar quando fizer sentido.
-- **`consulta_agendada_em` / `procedimento_agendado_em`** só devem ser preenchidos quando o lead **confirmou** dia E hora; em remarcação, sobrescreva o valor antigo (não some).
+### Fase 4 — Regras determinísticas + campos + tags
 
-### 4. Validar datas server-side antes de aplicar
+- `DETERMINISTIC_RULES.md` — uma seção por regra `auto:*` (precondição SQL, ação, idempotência, evento gerado).
+- `FIELDS_LIVE.md` — tabela de `lead_custom_fields` reais (chave, label, tipo, enum, writers, exemplos).
+- `TAGS_LIVE.md` — whitelist real com quem escreve, quando, e exemplo.
+- `GATES.md` — G1–G11 com link para o arquivo:linha que faz cumprir.
 
-Novo helper `sanitizeDateField(value, anchorIso)`:
+### Fase 5 — Auditoria e fechamento
 
-- Parse com `Date.parse`; se inválido → descarta.
-- Reject se a data resolvida cair **antes** do timestamp da última mensagem (data passada não faz sentido para "agendada").
-- Reject se cair **mais de 90 dias após** a última mensagem (provável alucinação).
-- Em caso de reject, o campo é removido do `custom_fields_patch` e o motivo entra em `lead_events.payload.applied.custom_fields_rejected`.
+- `KNOWN_ISSUES.md` — bugs reportados pelo usuário (data 19/06 vs 18/06, tag "1ª consulta" em paciente de 5 anos, lock manual sem botão até hoje) com status do fix.
+- `AUDIT_CHECKLIST.md` — 30 perguntas (ex.: "Onde se valida que `consulta_agendada_em` não está no passado?", "Qual o threshold de confiança que dispara `precisa_atencao_humana`?") com link para a doc que responde.
+- Atualizar `docs/pipeline/README.md` apontando para `runtime/` como fonte de verdade do **estado atual**, mantendo os outros docs como **planejamento histórico**.
+- Atualizar `mem://docs/pipeline-v4-2` registrando que existe agora um espelho runtime.
 
-### 5. Telemetria
+## Detalhes técnicos
 
-`lead_events` do tipo `auto:classifier` ganha `applied.custom_fields_rejected: { key, raw_value, reason }[]` para a gente ver no histórico do lead quando o modelo tentou meter uma data ruim e o servidor barrou.
+- **Frontmatter obrigatório** em todo `.md` (skill `docs-maintainer`): `title`, `topic: kanban`, `kind: reference|map|flow`, `audience: agent`, `updated: 2026-06-18`, `summary`, `code_refs`, `related_docs`.
+- **Prompts copiados literalmente** dos arquivos `supabase/functions/*/index.ts` — não parafrasear. Se >80 linhas, colocar em bloco ```` ```ts ```` com cabeçalho indicando arquivo:linha.
+- **Sem `scripts/docs-sync.mjs`** (não existe neste projeto, conforme memória). Sem regenerar `INDEX.json`.
+- **Não tocar em código** — só leitura + escrita de docs.
+- **Não inventar**: se um componente está no plano mas não no código, marcar `Status: planejado, não implementado` em vez de descrever como se rodasse.
 
-### 6. Fora de escopo (próximos passos se você quiser)
+## Estimativa
 
-- Campo `timezone` por clínica (hoje fixo em America/Sao_Paulo).
-- UI no card mostrando hora além da data quando relevante.
-- Tag `retorno` automática (a regra acima sugere, mas o canon de tags v4.2 precisa ser revisado antes de oficializar).
+- Fase 1: 1 subagent explore + 3 read_query (5 min).
+- Fases 2–4: ~10 arquivos `.md`, escritos em paralelo dentro de cada fase.
+- Fase 5: 3 arquivos + atualização de 2 índices.
 
-## Arquivos
+Total ~14 arquivos novos, zero código alterado.
 
-- `supabase/functions/pipeline-classify/index.ts` — `buildSystemPrompt`, `formatMessages`, `classifyOne` (contexto novo + sanitização), telemetria.
+## Pergunta antes de executar
 
-Nenhuma migration; nenhum schema mudou.
-
-## Como vou validar
-
-1. Rodar `pipeline-classify` ação `lead` no Marcio depois do deploy e conferir:
-   - `consulta_agendada_em` ISO bate com 18/06 10:30 BRT (ou foi rejeitado se o modelo ainda errar).
-   - `tags_remove` contém `"1ª consulta"`.
-2. Conferir `lead_events` recentes do Marcio: `applied.tags_diff.removed` e `applied.custom_fields_rejected`.
-3. Conferir no Kanban: chip "Consulta 18/06" e sem "1ª consulta".
+A documentação deve ser **em PT-BR** (padrão do projeto) e focar no **estado real implementado**, mantendo os docs `v4.2` atuais como referência de planejamento. Confirma? Se sim, aprovo e parto da Fase 1.
