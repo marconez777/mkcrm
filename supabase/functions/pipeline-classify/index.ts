@@ -74,6 +74,17 @@ const CANON_NAMES: Canon[] = [
   "B2B / Stakeholders",
 ];
 
+const INTENT_VALUES = [
+  "agendamento",
+  "reagendamento",
+  "duvida_geral",
+  "nf_reembolso",
+  "pagamento_alegado",
+  "desistencia",
+  "interesse_tratamento",
+  "outro",
+] as const;
+
 const ClassificationSchema = z.object({
   stage_suggestion: z.enum([
     "Novo",
@@ -87,6 +98,7 @@ const ClassificationSchema = z.object({
     "Paciente antigo",
     "B2B / Stakeholders",
   ]),
+  intent: z.enum(INTENT_VALUES).default("outro"),
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string()).max(8),
