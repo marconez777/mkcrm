@@ -1,61 +1,63 @@
-## Escopo confirmado
 
-- **DROP** das 5 tabelas do Pipeline IA.
-- Mexer **só no Pipeline IA** — `ai_agents`/Inbox/auto-reply ficam intactos.
-- Deletar `/admin/docs` junto com a limpeza de docs.
+# Plano v3 (final) — Atualizar `docs/pipeline/`
 
----
+v2 + 3 fechamentos do feedback. Pronto pra rodar.
 
-## Fase 1 — Banco (migration única)
+## Adições finais sobre v2
 
-- `cron.unschedule()` em: `extractor-tick-10min`, `extractor-tick-cron`, `vision-tick-cron`, `field-rules-tick-cron`.
-- `DELETE FROM automations` (12 linhas).
-- `DROP TABLE` em cascata:
-  - `pipeline_field_rules`
-  - `stage_ai_defaults`
-  - `lead_ai_settings`
-  - `lead_reclassify_proposals`
-  - `lead_reclassify_snapshot_2026_06`
-  - `lead_ai_extraction_runs`
+### 1. `auto:appointment-agendado` (fecha o bug original)
+Adicionar 5ª regra na Fase 1 do `AUTOMATION_PLAN.md`, mesma tabela das outras `auto:appointment-*`:
 
-## Fase 2 — Remover edge functions
+| Regra | Trigger | Ação |
+|---|---|---|
+| `auto:appointment-agendado` | INSERT em `appointments` com `status='agendado'` | Se `kind='consulta'` → mover lead para `Consulta agendada`. Se `kind='procedimento'` → mover para `Procedimento agendado`. Idempotente via `lead_events.type='appointment_status_synced'` com `appointment_id`. |
 
-Deletar dirs + `delete_edge_functions`:
-- `field-rules-tick`, `field-rules-suggest`
-- `extractor-tick`
-- `vision-tick`
-- `lead-reclassify-deep`
-- `pipeline-shadow-build`
-- `admin-search-leads`
+Disparo: mesmo trigger Postgres das outras `auto:appointment-*`. É o que **fecha o bug do estudo** — "pagou a consulta e ficou em Qualificação". Sem essa regra, a entrada nas colunas de agenda continua dependendo do humano lembrar de arrastar.
 
-## Fase 3 — Remover UI do Pipeline IA
+### 2. `Procedimento pago` recebe `lock_auto_move = true`
+Pagamento por texto ("paguei") não basta. No `STAGES.md` + `AUTOMATION_PLAN.md`:
+- Marcar stage `Procedimento pago` com `lock_auto_move=true` (migration na Fase 0).
+- `auto:payment-confirmed` só dispara com sinal real: webhook de provedor de pagamento, OU comprovante (imagem detectada) + confirmação humana, OU movimento manual. Texto sozinho só **sugere** (tag `pagamento_alegado` + task "Confirmar pagamento") — nunca move.
 
-- Deletar: `src/pages/admin/AdminReclassify.tsx`, `src/components/settings/FieldRulesCard.tsx`, `src/components/settings/SuggestRulesDialog.tsx`, `src/components/settings/ExtractorHistoryCard.tsx`.
-- `src/App.tsx` — remover rota `/admin/reclassify` + lazy import.
-- `src/layouts/AdminShell.tsx` — remover item "Reclassificar Leads".
-- `src/pages/Settings.tsx` — remover imports e os dois cards.
-- `src/components/kanban/EditStageDialog.tsx` — remover leitura/gravação em `stage_ai_defaults`.
-- `src/pages/Kanban.tsx` — remover invocações de `extractor-tick` e `field-rules-tick`.
-- `src/lib/manual-stage-move.ts` — remover cálculo de `manual_lock_until` (já não tem cron pra respeitar).
+### 3. Reativação consciente de no-show
+No `SCENARIOS.md` (C6) + `AUTOMATION_PLAN.md`:
+- `auto:reactivation` checa tags do lead antes de decidir destino:
+  - Se lead tem tag `no_show` → roteia para `Consulta agendada` (ou stage de agenda do tipo) + tag `reagendamento_solicitado` + task "Oferecer novo horário".
+  - Se lead tem tag `reagendamento_pendente` → idem.
+  - Caso contrário → `Qualificação` + tag `reativacao` (comportamento atual).
 
-## Fase 4 — Limpar `docs/` e `/admin/docs`
+### 4. Decisões pendentes fechadas no doc
+Em vez de "questões abertas", já registrar as decisões:
+- **Recuperação (no-show)**: tag `no_show` em `Sem resposta`. Não cria coluna nova.
+- **Sessões subsequentes**: `auto:procedure-realizado` move `Procedimento pago → Em tratamento` apenas na **1ª sessão** do ciclo. Sessões subsequentes incrementam `custom_fields.sessoes_realizadas` (numérico) sem mover stage. Lead só sai de `Em tratamento → Paciente antigo` quando humano marca ciclo completo (regra futura, fora desta rodada).
 
-Manter:
-- `docs/estudo/` (inteiro)
-- `docs/estudo-geral.md`
-- `docs/README.md` (reduzido a 2 linhas: "docs ativos vivem em `docs/estudo/`")
+## Lista final de arquivos (idêntica a v2, conteúdo expandido)
 
-Deletar:
-- Todos os outros dirs em `docs/` (`architecture/`, `conventions/`, `database/`, `edge-functions/`, `features/`, `flows/`, `frontend/`, `integracao/`, `integrations/`, `known-issues/`, `maps/`, `operations/`, `roadmap/`, `site/`, `support/`).
-- Todos os `.md`/`.json` soltos: `AI.md`, `AUDIT_PHASE1.md`, `CHANGELOG.md`, `DRIFT.md`, `EMAIL.md`, `GLOSSARY.md`, `INDEX.json`, `MAP.md`, `OVERVIEW.md`, `TRACKING.md`, `copilot.md`.
-- `scripts/docs-sync.mjs`, `scripts/gen-support-kb-manifest.mjs`.
-- `public/docs-index.json`, `public/docs-content.json`.
-- `src/pages/admin/AdminDocs.tsx` + rota em `App.tsx` + item no `AdminShell.tsx`.
-- `supabase/functions/_shared/support-kb/` (se existir) + `support-kb-manifest.ts`.
-- Memória `mem://docs/maintenance-progress` e a entrada Core no `mem://index.md`.
+| Arquivo | Tipo |
+|---|---|
+| `docs/pipeline/STAGES.md` | editar |
+| `docs/pipeline/DATABASE.md` | editar |
+| `docs/pipeline/SCENARIOS.md` | editar |
+| `docs/pipeline/AUTOMATION_PLAN.md` | editar |
+| `docs/pipeline/LEAD_SAMPLES.md` | criar |
+| `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md` | criar |
+| `docs/README.md` | editar |
 
-## Fase 5 — Verificação
+## Resumo das 5 regras `auto:appointment-*` (Fase 1, código puro)
 
-- Tipos do Supabase regenerados (sem as 5 tabelas).
-- Build limpo, sem imports quebrados.
-- Smoke: Kanban move manual, Settings sem cards de Pipeline IA, /admin sem itens "Reclassificar Leads" e "Docs".
+```
+auto:appointment-agendado      INSERT status=agendado  → Consulta/Procedimento agendado
+auto:appointment-realizado     UPDATE status=realizado → Consulta finalizada
+auto:appointment-faltou        UPDATE status=faltou    → Sem resposta + tag no_show + task D+1
+auto:appointment-cancelado     UPDATE status=cancelado → Qualificação + tag reagendamento_pendente
+auto:procedure-realizado       kind=procedimento status=realizado → 1ª sessão move pra Em tratamento; subsequentes incrementam custom_fields.sessoes_realizadas
+```
+
+Todas idempotentes via `lead_events.type='appointment_status_synced'` por `appointment_id`. Todas respeitam `manual_lock_until` (lock de mover) e `lock_auto_move` no stage destino.
+
+## Critério de pronto
+- 7 arquivos atualizados.
+- Próxima sessão implementa Fase 0 + Fase 1 lendo só `docs/pipeline/`, e a Fase 1 nasce **já movendo cards de agenda sozinha**.
+- Toda decisão tem rastreabilidade: erro do agente antigo, padrão cross-coluna, constraint/trigger do banco, OU decisão registrada nesta rodada.
+
+Aprovar pra eu rodar a atualização dos 7 arquivos.
