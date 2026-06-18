@@ -69,6 +69,17 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
   const ctx = loaded.ctx;
 
   if (!(await isClinicPipelineAllowed(client, ctx.lead.clinic_id))) {
+    // Limpa flag para não reciclar leads não-allowlistados a cada tick.
+    await writeSkipTelemetry(
+      client,
+      { clinic_id: ctx.lead.clinic_id, lead_id: leadId },
+      "clinic_not_allowlisted",
+    );
+    await updateWatermark(
+      client,
+      leadId,
+      ctx.lead.last_processed_message_id_classifier ?? "",
+    );
     return { skipped: "clinic_not_allowlisted" };
   }
 
