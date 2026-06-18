@@ -5070,6 +5070,55 @@ export type Database = {
           },
         ]
       }
+      stage_canonical_aliases: {
+        Row: {
+          canonical_name: string
+          clinic_id: string
+          created_at: string
+          id: string
+          pipeline_id: string
+          stage_id: string
+        }
+        Insert: {
+          canonical_name: string
+          clinic_id: string
+          created_at?: string
+          id?: string
+          pipeline_id: string
+          stage_id: string
+        }
+        Update: {
+          canonical_name?: string
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          pipeline_id?: string
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_canonical_aliases_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_canonical_aliases_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_canonical_aliases_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stage_sequence_bindings: {
         Row: {
           clinic_id: string
@@ -7015,6 +7064,10 @@ export type Database = {
           similarity: number
           title: string
         }[]
+      }
+      notify_pipeline_deterministic: {
+        Args: { _action: string; _payload: Json }
+        Returns: undefined
       }
       pick_ab_winner: { Args: { _campaign_id: string }; Returns: string }
       pick_rotation_domain: {
