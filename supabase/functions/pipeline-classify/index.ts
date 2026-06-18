@@ -40,12 +40,21 @@ async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> 
   return s === "true" || s === "1";
 }
 
+async function clearQueueFlag(client: SupabaseClient, leadId: string) {
+  await client
+    .from("leads")
+    .update({
+      needs_ai_review: false,
+      ai_review_reasons: [],
+      ai_review_queued_at: null,
+    })
+    .eq("id", leadId);
+}
+
 async function classifyOneV2(client: SupabaseClient, leadId: string) {
   const loaded = await loadLeadContext(client, leadId);
   if (loaded.kind === "skip") {
-    // best-effort: log skip without lead context if reason allows
     if (loaded.reason === "no_new_messages") {
-      // still advance watermark cleanup so the queue doesn't loop
       const { data: lead } = await client
         .from("leads")
         .select("clinic_id, last_processed_message_id_classifier")
@@ -64,12 +73,13 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
         );
       }
     }
+    // Sempre tira o lead da fila em qualquer skip — evita reciclagem infinita.
+    await clearQueueFlag(client, leadId);
     return { skipped: loaded.reason };
   }
   const ctx = loaded.ctx;
 
   if (!(await isClinicPipelineAllowed(client, ctx.lead.clinic_id))) {
-    // Limpa flag para não reciclar leads não-allowlistados a cada tick.
     await writeSkipTelemetry(
       client,
       { clinic_id: ctx.lead.clinic_id, lead_id: leadId },
@@ -80,6 +90,7 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
       leadId,
       ctx.lead.last_processed_message_id_classifier ?? "",
     );
+    await clearQueueFlag(client, leadId);
     return { skipped: "clinic_not_allowlisted" };
   }
 
