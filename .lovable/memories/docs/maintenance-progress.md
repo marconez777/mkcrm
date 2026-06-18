@@ -1,29 +1,33 @@
 # Memory: docs/maintenance-progress
 ---
 name: Docs maintenance progress
-description: Snapshot do que está documentado em docs/pipeline/runtime/ (espelho do estado deployado em 2026-06-18) e relação com docs/pipeline/ raiz (planejamento v4.2)
+description: Snapshot do que está documentado em docs/pipeline/runtime/ + estado da refatoração do Classifier V2 (2026-06-18)
 type: feature
 ---
 
-## docs/pipeline/runtime/ — criado 2026-06-18
+## docs/pipeline/runtime/ — atualizado 2026-06-18
 
-Espelho do código deployado. 14 arquivos cobrindo:
-- README.md (hub + status de cada componente)
-- ARCHITECTURE.md (diagrama end-to-end, crons, triggers pg_net)
-- STAGES_LIVE.md (11 stages reais com UUIDs)
-- CLASSIFIER.md (pipeline-classify completo: prompt literal, schema Zod, sanitizeDateField, tool A3)
-- DETERMINISTIC_RULES.md (regras auto:* do pipeline-deterministic)
-- AUDITORS.md (A1 cron + A2 hook async)
-- SUMMARIZER.md (runSummarize ≤800 chars)
-- HUMAN_REACTOR.md (lock manual 7d, botão Destravar, ruleHumanReactorTick cron)
-- FIELDS_LIVE.md (23 custom_fields reais da clínica)
-- TAGS_LIVE.md (tags em uso real + whitelist documental + protegidas)
-- DATABASE_LIVE.md (tabelas, triggers, crons pg_cron)
-- EVENTS_TELEMETRY.md (tipos de lead_events com volume real 30d)
-- GATES.md (G1–G11 + D3 com arquivo:linha)
-- KNOWN_ISSUES.md (8 bugs/gaps: 1ª consulta fixed, data BRT fixed, lock manual fixed, G10 ausente, etc.)
-- AUDIT_CHECKLIST.md (30 perguntas que outro agente deve responder)
+Espelho do código deployado. 14+ arquivos cobrindo arquitetura, stages, classifier, regras determinísticas, auditores, summarizer, human reactor, fields, tags, db, eventos, gates, known issues, checklist.
 
-docs/pipeline/README.md raiz atualizado com banner apontando para runtime/ como fonte de verdade.
+## Classifier V2 — DEPLOYADO (2026-06-18)
 
-Não há scripts/docs-sync.mjs neste projeto — não gerar INDEX.json.
+`supabase/functions/pipeline-classify/` agora é modular:
+- `index.ts` dispatcher v1/v2 (flag `automation.classifier.version`, default `'v1'`)
+- `index.v1.ts` fallback (handleV1 exportado, sem Deno.serve)
+- `schema.ts`, `context.ts`, `agent-core.ts`, `date-parser.ts`, `apply.ts`
+- `rules/first-consult.ts`, `rules/intent-effects.ts`
+- Testes Deno: `date-parser_test.ts` (4), `first-consult_test.ts` (5) — todos passam
+
+**1 chamada gpt-5-mini** (Extrator+Router fundidos). Datas 100% determinísticas via `parseFutureDateInTZ`. Strict no-move (apenas B2B com guards rígidos: conf≥0.95, tag b2b, sem histórico tratado).
+
+**Gate G10 IMPLEMENTADO**:
+- Migration `20260618...g10_human_edits.sql`: coluna `leads.custom_fields_last_human_edit jsonb`, trigger `track_custom_fields_human_edits`, RPC `apply_lead_automation_patch`.
+- Apply.ts checa `last_human_edit[key]` < 7d → descarta sugestão IA.
+
+**Telemetria v2**: `lead_events.payload.version=2` com `extractor`, `date_parser`, `first_consult`, `applied.{tags, custom_fields.blocked_by_g10, stage_suggestion_only}`, `cost`.
+
+**Rollout**: cron ativo, mas dispatcher ainda em v1. Para ativar V2: `UPDATE app_settings SET value='"v2"' WHERE key='automation.classifier.version'` (criar se não existir). Smoke via `{action:'lead', lead_id, force_version:'v2'}`.
+
+**Cards strict-no-move**: vão acumular em Qualificação até Fase 2 (SumUp + appointment-extractor). Conhecido e aceito.
+
+Não há scripts/docs-sync.mjs neste projeto.
