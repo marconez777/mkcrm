@@ -28,7 +28,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
-import { manualLockUntilIso, customFieldsPatchForStage } from "@/lib/manual-stage-move";
+import { manualLockUntilIso, customFieldsPatchForStage, unlockLeadManually } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
 import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, Lock, CircleDollarSign, CalendarClock, AlertTriangle, Wand2 } from "lucide-react";
