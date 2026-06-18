@@ -206,17 +206,11 @@ async function auditOne(client: SupabaseClient, c: AuditCandidate) {
   const ordered = (msgs ?? []).reverse();
   if (ordered.length === 0) return { skipped: "no_messages" };
 
-  const gateway = createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": LOVABLE_KEY,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+  const ai = await getClinicOpenAI(client, c.clinic_id);
+  if (!ai) return { skipped: "no_clinic_openai_key" };
 
   const { output } = await generateText({
-    model: gateway(MODEL),
+    model: ai.model(MODEL),
     system: buildSystemPrompt(c.stage_name),
     prompt:
       `Lead id=${c.id}\n` +
