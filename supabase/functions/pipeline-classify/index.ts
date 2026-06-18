@@ -298,6 +298,32 @@ async function classifyOne(client: SupabaseClient, leadId: string) {
       stageName: stage?.name ?? null,
     });
   }
+
+  // Marco 4 — judicialização, renovação receita, sugestão objeção.
+  let judResult: unknown = null;
+  let renovResult: unknown = null;
+  let objResult: unknown = null;
+  if (cls.intent === "judicializacao") {
+    judResult = await runJudicializacao(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      reasons: cls.reasons,
+    });
+  }
+  if (cls.intent === "renovacao_receita") {
+    renovResult = await runRenovacaoReceita(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      stageName: stage?.name ?? null,
+    });
+  }
+  if (cls.intent === "objecao") {
+    objResult = await runObjectionSuggest(client, {
+      leadId,
+      clinicId: lead.clinic_id,
+      reasons: cls.reasons,
+    });
+  }
   if (cls.intent === "pagamento_alegado") {
     paymentAllegedResult = await runPaymentAlleged(client, {
       leadId,
