@@ -174,6 +174,9 @@ Campo intent (escolha UM):
 - "pagamento_alegado": lead afirma ter pago/enviou comprovante (sem confirmação oficial).
 - "desistencia": lead diz que não quer mais.
 - "interesse_tratamento": lead demonstra interesse em começar tratamento.
+- "judicializacao": lead/familiar menciona processo judicial, advogado, ação, Procon, ou ameaça legal.
+- "renovacao_receita": lead pedindo renovação de receita/prescrição (paciente já tratado).
+- "objecao": lead levantou objeção clara (preço, distância, medo, descrença) que pode ser respondida.
 - "outro": nenhum acima se encaixa.
 
 Contexto do pipeline atual do lead: ${pipelineSummary}`;
