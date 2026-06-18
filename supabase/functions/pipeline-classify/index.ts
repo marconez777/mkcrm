@@ -29,13 +29,13 @@
 //   - Invocação manual com action=lead + lead_id (smoke test)
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
 import { generateText, tool, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 import { runNfTask, runPaymentAlleged } from "../_shared/pipeline-tasks.ts";
 import { runJudicializacao, runRenovacaoReceita, runObjectionSuggest } from "../_shared/pipeline-fase4.ts";
+import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,8 +45,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const MODEL = "openai/gpt-5-mini";
+const MODEL = "gpt-5-mini";
 const BATCH_LIMIT = 50;
 const MAX_MSGS = 30;
 
