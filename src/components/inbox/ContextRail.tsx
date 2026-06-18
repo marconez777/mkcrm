@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, Bot, History, Sparkles, Pin, PinOff, Loader2, GitBranch, UserCheck, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Trash2, Archive, ArchiveRestore, X, Phone, Mail, Building2, History, Sparkles, Pin, PinOff, Loader2, GitBranch, UserCheck, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { deleteLead } from "@/lib/delete-lead";
