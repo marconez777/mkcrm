@@ -6,6 +6,7 @@
 //  - runObjectionSuggest: intent='objecao' → cria internal_note sugerindo resposta (NÃO envia).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -61,6 +62,7 @@ async function hasOpenTaskWithPrefix(
 export interface JudInput { leadId: string; clinicId: string; reasons: string[] }
 
 export async function runJudicializacao(client: SupabaseClient, input: JudInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.judicializacao.enabled"))) return { skipped: "toggle_off" };
   if (await hasOpenTaskWithPrefix(client, input.leadId, "Judicialização")) return { skipped: "duplicate_task" };
   await addTags(client, input.leadId, ["judicializacao", "precisa_atencao_humana"]);
@@ -84,6 +86,7 @@ export async function runJudicializacao(client: SupabaseClient, input: JudInput)
 export interface RenovInput { leadId: string; clinicId: string; stageName: string | null }
 
 export async function runRenovacaoReceita(client: SupabaseClient, input: RenovInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.renovacao_receita.enabled"))) return { skipped: "toggle_off" };
   // Só em pacientes/leads pós-atendimento (inbound). Stages aceitos:
   const ok = ["Em tratamento", "Consulta finalizada", "Paciente antigo"];
@@ -109,6 +112,7 @@ export async function runRenovacaoReceita(client: SupabaseClient, input: RenovIn
 export interface ObjInput { leadId: string; clinicId: string; reasons: string[]; suggestion?: string }
 
 export async function runObjectionSuggest(client: SupabaseClient, input: ObjInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.objection_suggest.enabled"))) return { skipped: "toggle_off" };
   // Dedup: já existe nota recente do mesmo tipo?
   const since = new Date(Date.now() - 3 * 86_400_000).toISOString();

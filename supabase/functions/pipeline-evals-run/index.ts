@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText } from "npm:ai@^6";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,6 +67,10 @@ Deno.serve(async (req) => {
   const results: Array<{ id: string; passed: boolean; missing: string[]; error?: string }> = [];
   for (const ev of evals ?? []) {
     try {
+      if (!(await isClinicPipelineAllowed(client, ev.clinic_id as string))) {
+        results.push({ id: ev.id, passed: false, missing: [], error: "clinic_not_allowlisted" });
+        continue;
+      }
       const ai = await aiFor(ev.clinic_id as string);
       if (!ai) {
         results.push({ id: ev.id, passed: false, missing: [], error: "no_clinic_openai_key" });

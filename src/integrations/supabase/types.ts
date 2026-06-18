@@ -4485,6 +4485,176 @@ export type Database = {
           },
         ]
       }
+      pipeline_automation_allowlist: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          enabled?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_automation_allowlist_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_run_items: {
+        Row: {
+          clinic_id: string
+          comment: string | null
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          lead_id: string | null
+          result: Json | null
+          retry_requested: boolean
+          run_id: string
+          stage_id: string | null
+          stage_name: string | null
+          started_at: string | null
+          status: string
+          step: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          comment?: string | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lead_id?: string | null
+          result?: Json | null
+          retry_requested?: boolean
+          run_id: string
+          stage_id?: string | null
+          stage_name?: string | null
+          started_at?: string | null
+          status?: string
+          step: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          comment?: string | null
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lead_id?: string | null
+          result?: Json | null
+          retry_requested?: boolean
+          run_id?: string
+          stage_id?: string | null
+          stage_name?: string | null
+          started_at?: string | null
+          status?: string
+          step?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_run_items_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_run_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_runs: {
+        Row: {
+          clinic_id: string
+          comment: string | null
+          created_at: string
+          finished_at: string | null
+          id: string
+          last_heartbeat_at: string | null
+          parent_run_id: string | null
+          pipeline_id: string | null
+          requested_by: string | null
+          scope: Json
+          started_at: string | null
+          status: string
+          totals: Json
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          comment?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          last_heartbeat_at?: string | null
+          parent_run_id?: string | null
+          pipeline_id?: string | null
+          requested_by?: string | null
+          scope?: Json
+          started_at?: string | null
+          status?: string
+          totals?: Json
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          comment?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          last_heartbeat_at?: string | null
+          parent_run_id?: string | null
+          pipeline_id?: string | null
+          requested_by?: string | null
+          scope?: Json
+          started_at?: string | null
+          status?: string
+          totals?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_runs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_runs_parent_run_id_fkey"
+            columns: ["parent_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_stages: {
         Row: {
           clinic_id: string
@@ -6989,6 +7159,10 @@ export type Database = {
         Returns: number
       }
       is_clinic_admin: { Args: { _user_id?: string }; Returns: boolean }
+      is_pipeline_automation_allowed: {
+        Args: { _clinic_id: string }
+        Returns: boolean
+      }
       is_pure_super_admin: { Args: { _uid: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       lead_matches_segment: {

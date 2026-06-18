@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText } from "npm:ai@^6";
 import { getClinicOpenAI } from "./clinic-openai.ts";
+import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 const MODEL = "gpt-5-mini";
 const MAX_MSGS_SUMMARY = 60;
@@ -50,6 +51,10 @@ export async function runSummarize(
     .eq("id", leadId)
     .single();
   if (!lead) return { status: "skipped", reason: "lead_not_found" };
+  if (!(await isClinicPipelineAllowed(client, lead.clinic_id as string))) {
+    return { status: "skipped", reason: "clinic_not_allowlisted" };
+  }
+
 
   const { data: msgs } = await client
     .from("messages")

@@ -5,6 +5,7 @@
 //  - runPaymentAlleged: intent='pagamento_alegado' (sem webhook) → tag + custom_field + task.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -66,6 +67,7 @@ export interface NfTaskInput {
 }
 
 export async function runNfTask(client: SupabaseClient, input: NfTaskInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.nf_task.enabled"))) {
     return { skipped: "toggle_off" };
   }
@@ -100,6 +102,7 @@ export interface PaymentAllegedInput {
 }
 
 export async function runPaymentAlleged(client: SupabaseClient, input: PaymentAllegedInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.payment_confirmed.enabled"))) {
     return { skipped: "toggle_off" };
   }
@@ -136,6 +139,7 @@ export interface PaymentConfirmedInput {
 
 /** Caminho A: webhook real de pagamento. NÃO move stage (D1). */
 export async function runPaymentConfirmed(client: SupabaseClient, input: PaymentConfirmedInput) {
+  if (!(await isClinicPipelineAllowed(client, input.clinicId))) return { skipped: "clinic_not_allowlisted" };
   if (!(await isEnabled(client, "automation.payment_confirmed.enabled"))) {
     return { skipped: "toggle_off" };
   }
