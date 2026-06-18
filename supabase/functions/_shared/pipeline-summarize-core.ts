@@ -13,10 +13,10 @@
 // Idempotência: se watermark == última mensagem, no-op.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
 import { generateText } from "npm:ai@^6";
+import { getClinicOpenAI } from "./clinic-openai.ts";
 
-const MODEL = "openai/gpt-5-mini";
+const MODEL = "gpt-5-mini";
 const MAX_MSGS_SUMMARY = 60;
 const MIN_NEW_MSGS = 3;
 const MAX_SUMMARY_CHARS = 800;
