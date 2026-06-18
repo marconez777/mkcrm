@@ -403,6 +403,7 @@ Deno.serve(async (req) => {
       if (input.pipeline_id) scope.pipeline_id = input.pipeline_id;
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
+      if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
 
       const { data: run, error } = await service
         .from("pipeline_runs")
