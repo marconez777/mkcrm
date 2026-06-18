@@ -69,31 +69,22 @@ export const DATE_FIELD_KEYS = new Set<string>([
 // G10: janela de respeito a edições humanas em custom_fields (7 dias)
 export const G10_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Schema RELAXADO para structured outputs (gpt-5-mini rejeita enums profundos).
+// Strings livres validadas/coercidas em `normalizeClassification` abaixo.
 export const ClassificationSchemaV2 = z.object({
   mentioned_dates: z
     .array(
       z.object({
         raw: z.string().max(120),
         anchor_iso: z.string(),
-        kind: z.enum(["consulta", "procedimento"]),
+        kind: z.string(),
       }),
     )
     .max(4)
     .default([]),
-  mentioned_intents: z.array(z.enum(INTENT_VALUES)).max(3).default([]),
-  stage_suggestion: z.enum([
-    "Novo",
-    "Qualificação",
-    "Consulta agendada",
-    "Tratamento agendado",
-    "Consulta finalizada",
-    "Em tratamento",
-    "Sem resposta",
-    "Nutrição inativa",
-    "Paciente antigo",
-    "B2B / Stakeholders",
-  ]),
-  intent: z.enum(INTENT_VALUES).default("outro"),
+  mentioned_intents: z.array(z.string()).max(3).default([]),
+  stage_suggestion: z.string(),
+  intent: z.string().default("outro"),
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string().max(40)).max(8).default([]),
@@ -106,4 +97,49 @@ export const ClassificationSchemaV2 = z.object({
   reasons: z.array(z.string()).min(1).max(5),
 });
 
-export type ClassificationV2 = z.infer<typeof ClassificationSchemaV2>;
+export type ClassificationRaw = z.infer<typeof ClassificationSchemaV2>;
+
+export type ClassificationV2 = {
+  mentioned_dates: Array<{ raw: string; anchor_iso: string; kind: "consulta" | "procedimento" }>;
+  mentioned_intents: Array<(typeof INTENT_VALUES)[number]>;
+  stage_suggestion: Canon;
+  intent: (typeof INTENT_VALUES)[number];
+  confidence: number;
+  is_b2b: boolean;
+  tags_suggested: string[];
+  custom_fields_patch: Record<string, string | number | boolean | null>;
+  reasons: string[];
+};
+
+const CANON_SET = new Set<string>(CANON_NAMES);
+const INTENT_SET = new Set<string>(INTENT_VALUES);
+
+export function normalizeClassification(raw: ClassificationRaw): ClassificationV2 {
+  const stage: Canon = CANON_SET.has(raw.stage_suggestion)
+    ? (raw.stage_suggestion as Canon)
+    : "Qualificação";
+  const intent = INTENT_SET.has(raw.intent)
+    ? (raw.intent as (typeof INTENT_VALUES)[number])
+    : "outro";
+  const mentioned_intents = (raw.mentioned_intents ?? []).filter((i) =>
+    INTENT_SET.has(i),
+  ) as Array<(typeof INTENT_VALUES)[number]>;
+  const mentioned_dates = (raw.mentioned_dates ?? []).map((d) => ({
+    raw: d.raw,
+    anchor_iso: d.anchor_iso,
+    kind: (d.kind === "procedimento" ? "procedimento" : "consulta") as
+      | "consulta"
+      | "procedimento",
+  }));
+  return {
+    mentioned_dates,
+    mentioned_intents,
+    stage_suggestion: stage,
+    intent,
+    confidence: raw.confidence,
+    is_b2b: raw.is_b2b,
+    tags_suggested: raw.tags_suggested ?? [],
+    custom_fields_patch: raw.custom_fields_patch ?? {},
+    reasons: raw.reasons,
+  };
+}
