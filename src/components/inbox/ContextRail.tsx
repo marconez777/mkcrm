@@ -73,10 +73,8 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   useEffect(() => {
     let active = true;
     (async () => {
-      const [{ data: ev }, { data: ag }, { data: cfg }, { data: defs }] = await Promise.all([
+      const [{ data: ev }, { data: defs }] = await Promise.all([
         supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(50),
-        supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
-        supabase.from("lead_ai_settings").select("agent_id, auto_reply").eq("lead_id", lead.id).maybeSingle(),
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
       ]);
       if (!active) return;
@@ -90,8 +88,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           if (active) setUserMap((prev) => ({ ...prev, ...m }));
         }
       }
-      setAgents(ag ?? []);
-      setAiCfg({ agent_id: cfg?.agent_id ?? null, auto_reply: cfg?.auto_reply ?? false });
       setCustomDefs((defs ?? []) as any);
     })();
     // Realtime: append new events
@@ -109,14 +105,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     return () => { active = false; supabase.removeChannel(ch); };
   }, [lead.id]);
 
-  async function saveAiCfg(next: { agent_id: string | null; auto_reply: boolean }) {
-    setAiCfg(next);
-    await supabase.from("lead_ai_settings").upsert({
-      lead_id: lead.id,
-      agent_id: next.agent_id,
-      auto_reply: next.auto_reply,
-    }, { onConflict: "lead_id" });
-  }
+
 
   async function patch(p: Partial<Lead>) {
     setForm((f) => ({ ...f, ...p }));
