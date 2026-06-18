@@ -103,18 +103,24 @@ export default function PipelineRuns() {
     };
   }, [clinicId]);
 
-  const handleStart = async () => {
+  const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => {
     if (!clinicId) return;
-    if (!confirm("Iniciar execução do pipeline INTEIRO da clínica? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
+    const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length);
+    if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da clínica? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
     setStarting(true);
     try {
-      const res = await callExecutor<{ run_id?: string }>({ action: "start", clinic_id: clinicId });
+      const payload: Record<string, unknown> = { action: "start", clinic_id: clinicId };
+      if (scope?.pipeline_id) payload.pipeline_id = scope.pipeline_id;
+      if (scope?.stage_ids?.length) payload.stage_ids = scope.stage_ids;
+      if (scope?.lead_ids?.length) payload.lead_ids = scope.lead_ids;
+      const res = await callExecutor<{ run_id?: string }>(payload);
       if (res.error) {
         toast.error(`Erro: ${res.error}`);
         return;
       }
-      toast.success("Execução iniciada");
+      toast.success(isScoped ? "Execução focada iniciada" : "Execução iniciada");
       if (res.run_id) setSelectedRunId(res.run_id);
+      setScopeOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
