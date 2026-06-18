@@ -317,6 +317,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const action: string = body.action;
+    console.log("[executor v2] action=", action);
     const service = createClient(SUPABASE_URL, SERVICE_KEY);
 
     if (action === "start") {
