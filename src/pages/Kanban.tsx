@@ -302,7 +302,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       )}
       {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
       {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
-      {locked && <Chip tone="neutral" icon={<Lock className="h-3 w-3" />}>Lock manual</Chip>}
+      {locked && <LockManualChip leadId={lead.id} lockUntil={lead.manual_lock_until!} />}
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
