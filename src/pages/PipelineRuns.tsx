@@ -493,7 +493,7 @@ function ScopeDialog({
   onOpenChange: (v: boolean) => void;
   clinicId: string | null;
   starting: boolean;
-  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[] }) => void;
+  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number }) => void;
 }) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
