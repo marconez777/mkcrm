@@ -347,7 +347,7 @@ function Column({
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(stage.name);
-  const [runningAI, setRunningAI] = useState(false);
+  
   useEffect(() => { setNameDraft(stage.name); }, [stage.name]);
   async function commitRename() {
     setRenaming(false);
@@ -357,30 +357,6 @@ function Column({
     if (error) { toast.error(error.message); setNameDraft(stage.name); }
   }
 
-  async function runAIOnColumn() {
-    if (runningAI) return;
-    if (leads.length === 0) { toast.info("Coluna sem leads."); return; }
-    const leadIds = leads.map((l) => l.id);
-    const { data: row } = await supabase.from("leads").select("clinic_id").eq("id", leadIds[0]).maybeSingle();
-    const clinicId = (row as any)?.clinic_id as string | undefined;
-    if (!clinicId) { toast.error("Clínica não identificada."); return; }
-    setRunningAI(true);
-    const t = toast.loading(`Rodando IA em ${leadIds.length} lead(s)…`);
-    try {
-      const [ext, rules] = await Promise.all([
-        supabase.functions.invoke("extractor-tick", { body: { clinic_id: clinicId, lead_ids: leadIds, force: true } }),
-        supabase.functions.invoke("field-rules-tick", { body: { clinic_id: clinicId, lead_ids: leadIds } }),
-      ]);
-      if (ext.error) throw ext.error;
-      if (rules.error) throw rules.error;
-      const moved = (rules.data?.results ?? []).reduce((s: number, r: any) => s + (r.moved ?? 0), 0);
-      toast.success(`IA executada. ${moved} card(s) movido(s).`, { id: t });
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao rodar IA", { id: t });
-    } finally {
-      setRunningAI(false);
-    }
-  }
 
   const menu = (
     <DropdownMenu>

@@ -18,8 +18,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
-import ExtractorHistoryCard from "@/components/settings/ExtractorHistoryCard";
-import FieldRulesCard from "@/components/settings/FieldRulesCard";
 import AILimitsCard from "@/components/settings/AILimitsCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -399,8 +397,6 @@ export default function SettingsPage() {
                 </Card>
               )}
               {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}
-              {membership?.clinic_id && <ExtractorHistoryCard clinicId={membership.clinic_id} />}
-              {membership?.clinic_id && <FieldRulesCard clinicId={membership.clinic_id} />}
             </TabsContent>
           )}
         </Tabs>
