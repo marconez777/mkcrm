@@ -106,9 +106,28 @@ const ClassificationSchema = z.object({
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   tags_suggested: z.array(z.string()).max(8),
+  tags_remove: z.array(z.string()).max(8).default([]),
   custom_fields_patch: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   reasons: z.array(z.string()).min(1).max(5),
 });
+
+// Tags que NUNCA podem ser removidas por automação (humano-only).
+const PROTECTED_TAGS = new Set([
+  "risco_clinico",
+  "b2b",
+  "vip",
+  "paciente_antigo",
+  "precisa_atencao_humana",
+  "Lock manual",
+  "lock_manual",
+]);
+
+async function getSettingNumber(client: SupabaseClient, key: string, fallback: number): Promise<number> {
+  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
+  if (!data) return fallback;
+  const n = Number(String(data.value).replace(/"/g, ""));
+  return Number.isFinite(n) ? n : fallback;
+}
 
 type Classification = z.infer<typeof ClassificationSchema>;
 
