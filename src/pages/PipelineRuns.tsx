@@ -599,6 +599,38 @@ function ScopeDialog({
 
           <div className="space-y-1">
             <Label className="text-xs">
+              Quantidade do topo (opcional) — processa os N primeiros leads da coluna na mesma ordem do Kanban
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                placeholder="ex: 10, 20, 50"
+                value={topN}
+                onChange={(e) => setTopN(e.target.value)}
+                className="w-40"
+              />
+              <div className="flex gap-1">
+                {[10, 20, 50, 100].map((n) => (
+                  <Button key={n} size="sm" variant="outline" type="button" onClick={() => setTopN(String(n))} className="h-8 px-2 text-xs">
+                    {n}
+                  </Button>
+                ))}
+                {topN && (
+                  <Button size="sm" variant="ghost" type="button" onClick={() => setTopN("")} className="h-8 px-2 text-xs">
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Se preenchido, ignora a seleção manual de leads abaixo e roda apenas os N primeiros da coluna selecionada.
+            </p>
+          </div>
+
+
+          <div className="space-y-1">
+            <Label className="text-xs">
               Leads (opcional) — deixe vazio para processar todos da coluna · {selectedCount} selecionado(s)
             </Label>
             <Input
