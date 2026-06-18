@@ -61,7 +61,7 @@ UI /automations ─────► automations-tick (lembretes — SEM código n
 | G8 | NUNCA escrever `leads.pipeline_id` direto (trigger deriva) | E9, R3 |
 | G9 | Custom fields enum-validados usam strings exatas do enum | R4 |
 | G10 | Para a mesma `custom_fields.<key>`, valor humano-escrito nos últimos 7 dias NÃO é sobrescrito por classifier | precedência humano>IA |
-| **G11** | **Classifier NUNCA cria/altera `appointments`**. Só sugere via task + tag `agendamento_sugerido`. Criação real é humano ou webhook externo. | E11 (v4.1) |
+| **G11** | **Classifier NUNCA cria/altera `appointments`**. Só sugere via task + tag `agendamento_sugerido`. Criação real é humano ou webhook externo. **v4.2: cobre também A1 e A2 — nenhum agente auditor cria/edita `appointments` nem move stage; apenas tag + task.** | E11 (v4.1) |
 
 **Stages excluídos de scans temporais** (`auto:followup-*`): `Paciente antigo`, `Nutrição inativa`, `B2B`, `Desqualificado`, **+ qualquer lead com `appointments.scheduled_at > now()`**.
 
