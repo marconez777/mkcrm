@@ -28,7 +28,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
-import { manualLockUntilIso, customFieldsPatchForStage } from "@/lib/manual-stage-move";
+import { manualLockUntilIso, customFieldsPatchForStage, unlockLeadManually } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
 import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, Lock, CircleDollarSign, CalendarClock, AlertTriangle, Wand2 } from "lucide-react";
@@ -302,7 +302,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       )}
       {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
       {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
-      {locked && <Chip tone="neutral" icon={<Lock className="h-3 w-3" />}>Lock manual</Chip>}
+      {locked && <LockManualChip leadId={lead.id} lockUntil={lead.manual_lock_until!} />}
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
@@ -311,6 +311,67 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   );
 }
 
+
+function LockManualChip({ leadId, lockUntil }: { leadId: string; lockUntil: string }) {
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const untilLabel = useMemo(() => {
+    try {
+      return new Date(lockUntil).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    } catch { return ""; }
+  }, [lockUntil]);
+
+  const onConfirm = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      await unlockLeadManually(supabase, leadId);
+      toast.success("Lead destravado. Automações liberadas.");
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao destravar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        title={`Travado para automações até ${untilLabel}. Clique para destravar.`}
+        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer ${
+          hover ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+        }`}
+      >
+        <Lock className="h-3 w-3" />
+        {hover ? "Destravar" : "Lock manual"}
+      </button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Destravar este lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              As automações (classifier, auditores, B2B move) voltarão a poder mover este card.
+              {untilLabel && <> O lock atual expiraria em <strong>{untilLabel}</strong>.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => e.stopPropagation()} disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirm} disabled={busy}>
+              {busy ? "Destravando..." : "Destravar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
 
 function Chip({ children, tone = "neutral", icon }: {
   children: React.ReactNode;

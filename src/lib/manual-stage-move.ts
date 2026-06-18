@@ -6,11 +6,48 @@
 //   reclassificá-lo como "interessado".
 
 import type { Stage } from "@/types/crm";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const MANUAL_LOCK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function manualLockUntilIso(): string {
   return new Date(Date.now() + MANUAL_LOCK_MS).toISOString();
+}
+
+/**
+ * Remove o lock manual de um lead (manual_lock_until = null) e registra o
+ * evento em `lead_events` (best-effort). Libera o card para automações.
+ */
+export async function unlockLeadManually(
+  client: SupabaseClient,
+  leadId: string,
+): Promise<void> {
+  const { data: cur } = await client
+    .from("leads")
+    .select("manual_lock_until, clinic_id")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  const { error } = await client
+    .from("leads")
+    .update({ manual_lock_until: null })
+    .eq("id", leadId);
+  if (error) throw error;
+
+  try {
+    const { data: auth } = await client.auth.getUser();
+    await client.from("lead_events").insert({
+      clinic_id: cur?.clinic_id ?? null,
+      lead_id: leadId,
+      type: "manual:unlock",
+      payload: {
+        previous_lock_until: cur?.manual_lock_until ?? null,
+        by_user_id: auth?.user?.id ?? null,
+      },
+    });
+  } catch (e) {
+    console.warn("unlockLeadManually: failed to write lead_event", e);
+  }
 }
 
 function normalize(s: string): string {
