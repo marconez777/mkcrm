@@ -3499,6 +3499,58 @@ export type Database = {
           },
         ]
       }
+      lead_ai_settings: {
+        Row: {
+          agent_id: string | null
+          auto_reply: boolean
+          clinic_id: string | null
+          created_at: string
+          lead_id: string
+          paused_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          clinic_id?: string | null
+          created_at?: string
+          lead_id: string
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          clinic_id?: string | null
+          created_at?: string
+          lead_id?: string
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ai_settings_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_settings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_settings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_custom_fields: {
         Row: {
           clinic_id: string
@@ -4975,6 +5027,42 @@ export type Database = {
           webhook_token?: string
         }
         Relationships: []
+      }
+      stage_ai_defaults: {
+        Row: {
+          agent_id: string | null
+          auto_reply: boolean
+          stage_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          stage_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          auto_reply?: boolean
+          stage_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_ai_defaults_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_ai_defaults_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_agent_config: {
         Row: {
