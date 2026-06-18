@@ -333,6 +333,11 @@ Para últimos 7d, por regra:
 - Tempo médio trigger → ação humana correlata.
 - **Volume de `precisa_atencao_humana` aplicadas** (proxy de saúde do classifier).
 
+**v4.2 — métricas dos agentes auditores**:
+- **A1 (`position_auditor`)**: leads auditados, % discordância, % discordância que virou move humano em 7d.
+- **A2 (`post_move_verifier`)**: moves verificados, % com `post_move_warning`, % warning seguido de undo humano em 24h.
+- **A3 (`classifier.history_tool`)**: % execuções do classifier que chamaram `get_lead_history`, média de chamadas por execução, delta de `confidence` vs execuções sem tool.
+
 **Critério para manter regra ligada**: <5% undo humano em 7d, zero spam/loop detectado.
 
 ## Coisas que NÃO automatizamos
