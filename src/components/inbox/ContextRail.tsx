@@ -34,8 +34,6 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [userMap, setUserMap] = useState<Record<string, string>>({});
   const [savingNotes, setSavingNotes] = useState(false);
-  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
-  const [aiCfg, setAiCfg] = useState<{ agent_id: string | null; auto_reply: boolean }>({ agent_id: null, auto_reply: false });
   const [aiHistory, setAiHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([]);
