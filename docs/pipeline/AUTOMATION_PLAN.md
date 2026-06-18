@@ -1,10 +1,10 @@
 ---
-title: "Pipeline — Plano de automação v4.1 (priorizado)"
+title: "Pipeline — Plano de automação v4.2 (priorizado)"
 topic: kanban
 kind: roadmap
 audience: agent
 updated: 2026-06-18
-summary: "Roadmap em fases para automatizar o pipeline (v4.1). Arquitetura: 1 Classifier + 1 Summarizer + Rule Engine + Reator humano. Inclui 8 decisões D1–D8, 11 gates de segurança e tabela completa de inferências do reator humano."
+summary: "Roadmap em fases para automatizar o pipeline (v4.2). Arquitetura: 1 Classifier + 1 Summarizer + Rule Engine + Reator humano + agentes auditores (A1 position-auditor, A2 post-move-verifier, A3 history tool no classifier). Inclui 8 decisões D1–D8 e 11 gates de segurança."
 related_docs:
   - docs/pipeline/STAGES.md
   - docs/pipeline/SCENARIOS.md
@@ -12,9 +12,14 @@ related_docs:
   - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
 ---
 
-# Plano de automação v4.1 — pipeline
+# Plano de automação v4.2 — pipeline
 
 **Premissa**: começar pequeno, observável e reversível. Cada regra tem toggle independente em `app_settings`, off by default. Lembretes ficam na UI `/automations` (D6).
+
+**v4.2 (incremento sobre v4.1)** adiciona 3 agentes de auditoria que **nunca movem cards**, só sinalizam via tag `precisa_atencao_humana` + task:
+- **A1** — `pipeline-position-auditor` (cron diário) revisa leads parados ≥7d.
+- **A2** — `pipeline-post-move-verifier` (hook async no `pipeline-move`) dá segunda opinião barata em todo move automático.
+- **A3** — Classifier ganha tool `get_lead_history` para puxar contexto sob demanda.
 
 ## Arquitetura
 
