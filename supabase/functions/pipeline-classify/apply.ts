@@ -157,17 +157,30 @@ export async function applyClassification(
   const fieldsRejected: Array<{ key: string; raw_value: unknown; reason: string }> = [];
   let fieldsChanged = false;
 
+  // G10: override de datas só com confiança ≥ 0.85 do classifier (paciente
+  // mudou a data no chat depois da edição humana).
+  const G10_DATE_OVERRIDE_CONF = 0.85;
+  const allowG10DateOverride = cls.confidence >= G10_DATE_OVERRIDE_CONF;
+
   function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
-    // G10: respeita edição humana < 7d, EXCETO para datas (override da IA)
     const humanIso = lead.custom_fields_last_human_edit?.[k];
-    if (humanIso && !isDateFromParser) {
+    if (humanIso) {
       const humanMs = Date.parse(humanIso);
-      if (
-        Number.isFinite(humanMs) &&
-        ctx.nowMs - humanMs < G10_WINDOW_MS
-      ) {
-        blockedByG10[k] = humanIso;
-        return;
+      const insideWindow =
+        Number.isFinite(humanMs) && ctx.nowMs - humanMs < G10_WINDOW_MS;
+      if (insideWindow) {
+        const canOverride =
+          isDateFromParser &&
+          DATE_FIELD_KEYS.has(k) &&
+          allowG10DateOverride &&
+          v !== null &&
+          currentFields[k] !== v;
+        if (!canOverride) {
+          blockedByG10[k] = humanIso;
+          return;
+        }
+        // Override aplicado — registra valor anterior na telemetria.
+        fieldsApplied[`${k}__g10_overridden_from`] = currentFields[k] ?? null;
       }
     }
     if (v === null) {
