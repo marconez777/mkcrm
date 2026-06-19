@@ -323,10 +323,10 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <h2 className="text-base font-semibold">Sua IA nas últimas 24h</h2>
-                  <InfoDot text="Visão simples do que a IA do pipeline fez no último dia. Cada lead passa por 3 mini-agentes que leem, classificam e decidem o que fazer." />
+                  <InfoDot text="Visão simples do que a IA do pipeline fez no último dia. Cada lead passa por 5 mini-agentes: Resumidor, depois Agendador + Tipificador + Movimentador em paralelo, e por fim o Maestro." />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Cada lead é lido pelos 3 agentes (Resumidor → Tipificador → Maestro) sempre que recebe novas mensagens.
+                  Cada lead é lido por 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro) sempre que recebe novas mensagens.
                 </p>
               </div>
               <div className="flex items-center gap-2">
