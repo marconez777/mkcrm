@@ -33,6 +33,7 @@ export const CANON_NAMES: Canon[] = [
 export const INTENT_VALUES = [
   "agendamento",
   "reagendamento",
+  "agendamento_retorno",
   "duvida_geral",
   "nf_reembolso",
   "pagamento_alegado",
@@ -43,6 +44,7 @@ export const INTENT_VALUES = [
   "objecao",
   "outro",
 ] as const;
+
 
 export const TREATED_STAGES = new Set<string>([
   "Em tratamento",
