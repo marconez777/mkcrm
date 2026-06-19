@@ -51,8 +51,13 @@ const TABLE: Record<string, SkipReasonInfo> = {
     tone: "error",
   },
   classify_timeout_55s: {
-    label: "Timeout 55s",
-    desc: "Chamada ao classify estourou 55 s — possível travamento da OpenAI ou cold start.",
+    label: "Timeout antigo 55s",
+    desc: "Run antigo marcou timeout em 55 s; o limite atual foi aumentado para 120 s.",
+    tone: "error",
+  },
+  classify_timeout_120s: {
+    label: "Timeout 120s",
+    desc: "Chamada ao classify estourou 120 s — possível travamento do modelo ou cold start.",
     tone: "error",
   },
 };
