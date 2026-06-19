@@ -29,8 +29,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const CHUNK_SIZE = 2; // máx. leads por invocação
-const CLASSIFY_TIMEOUT_MS = 55_000;
+const CHUNK_SIZE = 1; // máx. leads por invocação; evita estourar a runtime com modelos superiores
+const CLASSIFY_TIMEOUT_MS = 120_000;
 const STALE_AFTER_MS = 3 * 60 * 1000; // 3min sem heartbeat = considerado morto
 
 type EdgeRuntimeShape = { waitUntil(p: Promise<unknown>): void } | undefined;
