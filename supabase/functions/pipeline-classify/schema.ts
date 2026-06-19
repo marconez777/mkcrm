@@ -154,13 +154,16 @@ export const SummarizerOutputSchema = z.object({
   summary: z.string().max(1600),
   mentioned_dates: z
     .array(
-      z.object({
-        raw: z.string().max(120),
-        anchor_iso: z.string(),
-        kind: z.string(),
-      }),
+      z
+        .object({
+          raw: z.string().max(120).optional().default(""),
+          anchor_iso: z.string().optional().default(""),
+          kind: z.string().optional().default("consulta"),
+        })
+        .passthrough(),
     )
-    .max(4)
+    .max(8)
+    .optional()
     .default([]),
 });
 export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
