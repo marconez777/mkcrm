@@ -3,7 +3,7 @@ title: "Bugs conhecidos do pipeline"
 topic: kanban
 kind: troubleshooting
 audience: agent
-updated: 2026-06-18
+updated: 2026-06-19
 summary: "Bugs reportados e seu status: tag 1ª consulta em paciente antigo (CORRIGIDO), data 19/06 vs 18/06 (CORRIGIDO via fmtBR + sanitizeDateField), lock manual sem botão Destravar (CORRIGIDO), gaps estruturais (G10 ausente, whitelist de tags não enforced)."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
