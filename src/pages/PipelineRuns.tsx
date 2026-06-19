@@ -11,13 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter, FileText, Tags, Target, Sparkles } from "lucide-react";
+import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter, FileText, Tags, Target, Sparkles, GitBranch, Calendar, MoveRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { describeReason, toneClasses, type SkipReasonInfo } from "@/lib/pipeline-skip-reasons";
 
-type OnlyAgent = "summarizer" | "typifier" | "maestro";
+type OnlyAgent = "summarizer" | "parallel" | "maestro";
 
 type RunStatus = "queued" | "running" | "done" | "error" | "cancelled";
 
@@ -422,7 +422,7 @@ function StageGroup({
 
 type ItemResult = {
   skipped?: string;
-  mode?: "full" | "summarizer" | "typifier" | "maestro";
+  mode?: "full" | "summarizer" | "parallel" | "typifier" | "maestro";
   classification?: {
     stage_suggestion?: string;
     intent?: string;
@@ -436,12 +436,14 @@ type ItemResult = {
     mode?: string;
     agents?: {
       summarizer_model?: string;
+      agendador_model?: string;
       typifier_model?: string;
+      movimentador_model?: string;
       maestro_model?: string;
       summary?: string;
       summary_chars?: number;
-      latency_ms?: { summarizer?: number; typifier?: number; maestro?: number };
-      ran?: { summarizer?: boolean; typifier?: boolean; maestro?: boolean };
+      latency_ms?: { summarizer?: number; agendador?: number; typifier?: number; movimentador?: number; maestro?: number };
+      ran?: { summarizer?: boolean; agendador?: boolean; typifier?: boolean; movimentador?: boolean; maestro?: boolean };
     } | null;
     applied?: {
       tags?: { added?: string[]; removed_computed?: string[]; skipped?: string } & Record<string, unknown>;
@@ -517,7 +519,8 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
   const applied = result?.telemetry?.applied ?? null;
   const stepLabel =
     item.step === "classify:summarizer" ? "🔁 só Resumidor"
-    : item.step === "classify:typifier" ? "🔁 só Tipificador"
+    : item.step === "classify:parallel" ? "🔁 paralelos (Agendador+Tipificador+Movimentador)"
+    : item.step === "classify:typifier" ? "🔁 só Tipificador (legado V3)"
     : item.step === "classify:maestro" ? "🔁 só Maestro"
     : null;
 
@@ -586,9 +589,9 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
             </div>
           )}
 
-          {/* Cards dos 3 agentes */}
+          {/* Cards dos 5 agentes (Resumidor → Paralelos → Maestro) */}
           {(agents || cls) && (
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <div className="space-y-2">
               <AgentCard
                 icon={<FileText className="h-3.5 w-3.5 text-blue-300" />}
                 name="Resumidor"
@@ -604,38 +607,80 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                   )
                 }
               />
-              <AgentCard
-                icon={<Tags className="h-3.5 w-3.5 text-violet-300" />}
-                name="Tipificador"
-                model={agents?.typifier_model}
-                latencyMs={agents?.latency_ms?.typifier}
-                ran={agents?.ran?.typifier !== false}
-                status="ok"
-                body={
-                  applied?.tags && "added" in applied.tags ? (
-                    <div className="space-y-1">
-                      {applied.tags.added && applied.tags.added.length > 0 && (
-                        <div><span className="text-emerald-400">+</span> {applied.tags.added.join(", ")}</div>
-                      )}
-                      {applied.tags.removed_computed && applied.tags.removed_computed.length > 0 && (
-                        <div><span className="text-red-400">−</span> {applied.tags.removed_computed.join(", ")}</div>
-                      )}
-                      {(!applied.tags.added?.length && !applied.tags.removed_computed?.length) && (
-                        <span className="italic text-muted-foreground">nenhuma alteração</span>
-                      )}
-                      {applied.custom_fields && "set" in applied.custom_fields && Object.keys(applied.custom_fields.set ?? {}).length > 0 && (
-                        <div className="text-muted-foreground">
-                          campos: {Object.keys(applied.custom_fields.set ?? {}).join(", ")}
+
+              {/* Bloco paralelo */}
+              <div className="rounded-md border border-dashed border-primary/30 bg-gradient-to-br from-muted/30 to-transparent p-2">
+                <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
+                  <GitBranch className="h-2.5 w-2.5" />
+                  Execução paralela
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <AgentCard
+                    icon={<Calendar className="h-3.5 w-3.5 text-violet-300" />}
+                    name="Agendador"
+                    model={agents?.agendador_model}
+                    latencyMs={agents?.latency_ms?.agendador}
+                    ran={agents?.ran?.agendador !== false}
+                    status="ok"
+                    body={
+                      <span className="italic text-muted-foreground">
+                        {agents?.ran?.agendador === false ? "não executado" : "avaliou intenção de agenda"}
+                      </span>
+                    }
+                  />
+                  <AgentCard
+                    icon={<Tags className="h-3.5 w-3.5 text-amber-300" />}
+                    name="Tipificador"
+                    model={agents?.typifier_model}
+                    latencyMs={agents?.latency_ms?.typifier}
+                    ran={agents?.ran?.typifier !== false}
+                    status="ok"
+                    body={
+                      applied?.tags && "added" in applied.tags ? (
+                        <div className="space-y-1">
+                          {applied.tags.added && applied.tags.added.length > 0 && (
+                            <div><span className="text-emerald-400">+</span> {applied.tags.added.join(", ")}</div>
+                          )}
+                          {applied.tags.removed_computed && applied.tags.removed_computed.length > 0 && (
+                            <div><span className="text-red-400">−</span> {applied.tags.removed_computed.join(", ")}</div>
+                          )}
+                          {(!applied.tags.added?.length && !applied.tags.removed_computed?.length) && (
+                            <span className="italic text-muted-foreground">nenhuma alteração</span>
+                          )}
+                          {applied.custom_fields && "set" in applied.custom_fields && Object.keys(applied.custom_fields.set ?? {}).length > 0 && (
+                            <div className="text-muted-foreground">
+                              campos: {Object.keys(applied.custom_fields.set ?? {}).join(", ")}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="italic text-muted-foreground">{applied?.tags?.skipped ? "modo parcial" : "sem dados"}</span>
-                  )
-                }
-              />
+                      ) : (
+                        <span className="italic text-muted-foreground">{applied?.tags?.skipped ? "modo parcial" : "sem dados"}</span>
+                      )
+                    }
+                  />
+                  <AgentCard
+                    icon={<MoveRight className="h-3.5 w-3.5 text-pink-300" />}
+                    name="Movimentador"
+                    model={agents?.movimentador_model}
+                    latencyMs={agents?.latency_ms?.movimentador}
+                    ran={agents?.ran?.movimentador !== false}
+                    status="ok"
+                    body={
+                      applied?.stage_suggestion_only ? (
+                        <div className="space-y-0.5">
+                          <div><span className="text-muted-foreground">sugestão:</span> {applied.stage_suggestion_only.suggested ?? "—"}</div>
+                          <div><span className="text-muted-foreground">moveu?</span> {applied.stage_suggestion_only.would_move ? "sim" : "não"}</div>
+                        </div>
+                      ) : (
+                        <span className="italic text-muted-foreground">avaliou stage do funil</span>
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
               <AgentCard
-                icon={<Target className="h-3.5 w-3.5 text-amber-300" />}
+                icon={<Target className="h-3.5 w-3.5 text-emerald-300" />}
                 name="Maestro"
                 model={agents?.maestro_model}
                 latencyMs={agents?.latency_ms?.maestro}
@@ -678,9 +723,9 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                 {rerunning === "summarizer" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
                 Só Resumidor
               </Button>
-              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("typifier")} className="h-6 gap-1 px-2 text-[10px]">
-                {rerunning === "typifier" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Tags className="h-3 w-3" />}
-                Só Tipificador
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("parallel")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "parallel" ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitBranch className="h-3 w-3" />}
+                Paralelos
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("maestro")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "maestro" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
@@ -823,10 +868,10 @@ function ScopeDialog({
             <Label className="text-xs">Quais agentes rodar</Label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {([
-                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Completo", desc: "Os 3 agentes" },
+                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Forçar Pipeline V6", desc: "Os 5 agentes (Resumidor → Paralelos → Maestro)" },
                 { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: "Só Resumidor", desc: "Refaz ai_summary" },
-                { id: "typifier", icon: <Tags className="h-3.5 w-3.5" />, title: "Só Tipificador", desc: "Refaz tags + campos" },
-                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz stage + intent" },
+                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: "Só Paralelos", desc: "Agendador + Tipificador + Movimentador" },
+                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz decisão final (stage + intent)" },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -846,12 +891,18 @@ function ScopeDialog({
                 ⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.
               </p>
             )}
-            {(onlyAgent === "typifier" || onlyAgent === "maestro") && (
+            {(onlyAgent === "parallel" || onlyAgent === "maestro") && (
               <p className="text-[11px] text-muted-foreground">
                 Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.
               </p>
             )}
+            {onlyAgent === "parallel" && (
+              <p className="text-[11px] text-violet-400">
+                ⑂ Dispara Agendador, Tipificador e Movimentador no mesmo `Promise.all` — backend precisa aceitar `only_agent: "parallel"`.
+              </p>
+            )}
           </div>
+
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
