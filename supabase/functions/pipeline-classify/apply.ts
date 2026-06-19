@@ -355,11 +355,65 @@ export async function applyClassification(
           ...stageOutcome,
           path: "nurture",
           reason: `nurture_guard_failed:${failed.join(",")}`,
+      }
+    }
+
+    // ----- 6c) General Move (Maestro) -----
+    if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
+      // General move allows the AI to move the lead to normal stages (e.g. Consulta agendada)
+      const confOk = cls.confidence >= 0.8;
+      
+      // Anti-conflito: não move se houve stage move humano nas últimas 24h.
+      const since = new Date(ctx.nowMs - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentHuman } = await client
+        .from("lead_stage_history")
+        .select("id")
+        .eq("lead_id", lead.id)
+        .gte("moved_at", since)
+        .not("moved_by_user_id", "is", null)
+        .limit(1);
+      const noRecentHumanMove = !recentHuman || recentHuman.length === 0;
+
+      if (confOk && noRecentHumanMove) {
+        const destId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, stageSuggestion);
+        if (destId && lead.stage_id !== destId) {
+          const res = await pipelineMove(client, {
+            leadId: lead.id,
+            toStageId: destId,
+            source: "auto:classifier-general",
+            reason: `Classifier general move (intent=${cls.intent}, conf=${cls.confidence.toFixed(2)})`,
+            ruleKey: "automation.general_move.enabled",
+            idempotencyKey: `general:${lead.id}:${lastMessageId}`,
+          });
+          stageOutcome = {
+            suggested: stageSuggestion,
+            current_stage_name: ctx.stageName,
+            would_move: res.moved,
+            path: "general",
+            reason: res.moved
+              ? "general_move_applied"
+              : (res as { reason: string }).reason ?? "general_move_failed",
+            confidence: cls.confidence,
+          };
+        } else {
+          stageOutcome = {
+            ...stageOutcome,
+            path: "general",
+            reason: destId ? "already_at_destination" : "stage_alias_not_found",
+          };
+        }
+      } else {
+        const failed: string[] = [];
+        if (!confOk) failed.push(`confidence<0.8(${cls.confidence.toFixed(2)})`);
+        if (!noRecentHumanMove) failed.push("recent_human_move_24h");
+        stageOutcome = {
+          ...stageOutcome,
+          path: "general",
+          reason: `general_guard_failed:${failed.join(",")}`,
         };
       }
     }
   }
-
 
   // ===== 7) Side-effects por intent (só em modo full ou maestro) =====
   const intentResults = applyMaestro

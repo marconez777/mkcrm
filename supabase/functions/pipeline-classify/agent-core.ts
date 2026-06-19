@@ -87,14 +87,15 @@ de 3 a 4 linhas em PT-BR. Separe claramente PASSADO (tratamentos, pagamentos,
 consultas já realizadas) de PRESENTE (o que o lead quer, recusou ou pediu na
 ÚLTIMA mensagem). Não invente nada que não esteja no histórico.
 
-Além do resumo, devolva "mentioned_dates" SOMENTE para agendamentos
-confirmados (dia + hora). NÃO converta datas — devolva a string crua exatamente
-como aparece ("amanhã às 15h", "quinta-feira", "dia 24/06") e "anchor_iso" = o
+IMPORTANTÍSSIMO NO RESUMO:
+- Se o paciente mencionar a MODALIDADE de atendimento (ex: "presencial", "online", "teleconsulta"), você DEVE citar isso no resumo.
+- Se o paciente mencionar QUALQUER campo personalizado ou dado cadastral importante, inclua no resumo.
+
+Além do resumo, devolva "mentioned_dates" contendo as datas citadas pelo paciente ou pela secretária.
+NÃO converta datas — devolva a string crua exatamente como aparece ("amanhã às 15h", "quinta-feira", "dia 24/06") e "anchor_iso" = o
 timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
 histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
-consultas/avaliações; "procedimento" para procedimento/tratamento agendado.
-Se houver qualquer ambiguidade ou só uma das partes (só dia OU só hora), NÃO
-inclua.
+consultas/avaliações/retornos; "procedimento" para procedimento/tratamento agendado.
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
