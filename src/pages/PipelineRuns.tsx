@@ -723,9 +723,9 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                 {rerunning === "summarizer" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
                 Só Resumidor
               </Button>
-              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("typifier")} className="h-6 gap-1 px-2 text-[10px]">
-                {rerunning === "typifier" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Tags className="h-3 w-3" />}
-                Só Tipificador
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("parallel")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "parallel" ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitBranch className="h-3 w-3" />}
+                Paralelos
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("maestro")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "maestro" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
