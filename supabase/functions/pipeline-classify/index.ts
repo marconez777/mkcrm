@@ -55,29 +55,10 @@ async function classifyOneV2(
   client: SupabaseClient,
   leadId: string,
   onlyAgent?: "summarizer" | "typifier" | "maestro",
+  force?: boolean,
 ) {
-  const loaded = await loadLeadContext(client, leadId);
+  const loaded = await loadLeadContext(client, leadId, { bypassWatermark: !!force });
   if (loaded.kind === "skip") {
-    // Em modo manual (only_agent) bypassamos o early-return de "no_new_messages":
-    // o usuário pediu reprocessamento intencional.
-    if (loaded.reason === "no_new_messages" && onlyAgent) {
-      // Refaz com bypass: recarrega ignorando watermark
-      const { data: leadRow } = await client
-        .from("leads")
-        .select("last_processed_message_id_classifier")
-        .eq("id", leadId)
-        .single();
-      // Limpa watermark temporariamente seria invasivo — em vez disso, retornamos skip
-      // mas marcado como manual_skip para a UI saber que foi pelo watermark.
-      if (leadRow) {
-        await writeSkipTelemetry(
-          client,
-          { clinic_id: "", lead_id: leadId },
-          `manual_skip_no_new_messages_${onlyAgent}`,
-        );
-      }
-      return { skipped: `no_new_messages_in_${onlyAgent}_mode` };
-    }
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
         .from("leads")
@@ -207,7 +188,8 @@ async function handleV2(req: Request): Promise<Response> {
       const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
         ? body.only_agent as "summarizer" | "typifier" | "maestro"
         : undefined;
-      result = await classifyOneV2(client, body.lead_id, onlyAgent);
+      const force = body.force === true;
+      result = await classifyOneV2(client, body.lead_id, onlyAgent, force);
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
         status: 400,

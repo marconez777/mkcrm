@@ -96,7 +96,10 @@ async function callClassify(
   let timeoutId: number | undefined;
   try {
     const ctrl = new AbortController();
-    const body: Record<string, unknown> = { action: "lead", lead_id: leadId };
+    // Execuções disparadas pelo executor (botões "Executar pipeline inteiro" /
+    // "Executar com escopo" / "Reprocessar") são atos manuais → sempre força,
+    // ignorando o watermark de no_new_messages.
+    const body: Record<string, unknown> = { action: "lead", lead_id: leadId, force: true };
     if (onlyAgent) body.only_agent = onlyAgent;
     const request = fetch(`${SUPABASE_URL}/functions/v1/pipeline-classify`, {
       method: "POST",
