@@ -88,18 +88,22 @@ interface StartInput {
   parent_run_id?: string;
 }
 
-async function callClassify(leadId: string): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+async function callClassify(
+  leadId: string,
+  onlyAgent?: "summarizer" | "typifier" | "maestro",
+): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   let timeoutId: number | undefined;
   try {
-    // hard timeout para não pendurar o worker se a função interna travar
     const ctrl = new AbortController();
+    const body: Record<string, unknown> = { action: "lead", lead_id: leadId };
+    if (onlyAgent) body.only_agent = onlyAgent;
     const request = fetch(`${SUPABASE_URL}/functions/v1/pipeline-classify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_KEY}`,
       },
-      body: JSON.stringify({ action: "lead", lead_id: leadId }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     const timeout = new Promise<Response>((_, reject) => {
