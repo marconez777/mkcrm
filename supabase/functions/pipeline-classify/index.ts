@@ -114,13 +114,15 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
     ctx,
     agentOut.classification,
     agentOut.usage,
+    agentOut.agents,
   );
 
   await writeTelemetry(client, ctx, telemetry);
   await updateWatermark(client, ctx.lead.id, lastMessageId);
 
-  return { version: 2, classification: agentOut.classification, telemetry };
+  return { version: 3, classification: agentOut.classification, telemetry };
 }
+
 
 async function tickQueueV2(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.classifier.enabled"))) {

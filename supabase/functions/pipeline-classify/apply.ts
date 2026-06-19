@@ -18,7 +18,7 @@ import { runIntentEffects } from "./rules/intent-effects.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 
-const TELEMETRY_VERSION = 2;
+const TELEMETRY_VERSION = 3;
 
 async function isEnabled(
   client: SupabaseClient,
@@ -72,7 +72,14 @@ export async function applyClassification(
   ctx: LeadContext,
   cls: ClassificationV2,
   usage?: unknown,
+  agents?: {
+    summarizer_model: string;
+    typifier_model: string;
+    maestro_model: string;
+    summary_chars: number;
+  },
 ): Promise<ApplyOutput> {
+
   const lead = ctx.lead;
   const lastMessageId = ctx.messages[ctx.messages.length - 1].id;
   const now = new Date(ctx.nowMs);
@@ -319,8 +326,10 @@ export async function applyClassification(
       intent_effects: intentResults,
       summarize: summarizeResult,
     },
-    cost: { model: "gpt-5-mini", usage: usage ?? null },
+    cost: { model: agents?.maestro_model ?? "gpt-5-mini", usage: usage ?? null },
+    agents: agents ?? null,
   };
+
 
   return { telemetry, lastMessageId };
 }
