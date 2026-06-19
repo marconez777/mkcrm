@@ -67,6 +67,8 @@ export type ApplyOutput = {
   lastMessageId: string;
 };
 
+export type ApplyMode = "full" | "summarizer" | "typifier" | "maestro";
+
 export async function applyClassification(
   client: SupabaseClient,
   ctx: LeadContext,
@@ -79,7 +81,9 @@ export async function applyClassification(
     summary_chars: number;
     summary?: string;
     latency_ms?: { summarizer: number; typifier: number; maestro: number };
+    ran?: { summarizer: boolean; typifier: boolean; maestro: boolean };
   },
+  mode: ApplyMode = "full",
 ): Promise<ApplyOutput> {
 
 
