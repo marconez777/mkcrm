@@ -422,7 +422,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   const { data: aliases } = await client
     .from("stage_canonical_aliases")
     .select("clinic_id, pipeline_id, canonical_name, stage_id")
-    .in("canonical_name", [...ACTIVE, "Nutrição inativa"]);
+    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Paciente antigo"]);
 
   const stageIdsActive = new Set(
     (aliases ?? [])
