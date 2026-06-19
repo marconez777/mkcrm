@@ -121,7 +121,7 @@ async function classifyOneV2(
     client,
     "automation.classifier.history_tool_enabled",
   );
-  const agentOut = await runAgent(client, ctx, { historyToolEnabled });
+  const agentOut = await runAgent(client, ctx, { historyToolEnabled, onlyAgent });
   if ("error" in agentOut) {
     await writeSkipTelemetry(
       client,
@@ -138,12 +138,18 @@ async function classifyOneV2(
     agentOut.classification,
     agentOut.usage,
     agentOut.agents,
+    agentOut.mode,
   );
 
   await writeTelemetry(client, ctx, telemetry);
-  await updateWatermark(client, ctx.lead.id, lastMessageId);
+  // Em modo parcial não avança o watermark — usuário pode querer rodar outro agente.
+  if (agentOut.mode === "full") {
+    await updateWatermark(client, ctx.lead.id, lastMessageId);
+  } else {
+    await clearQueueFlag(client, ctx.lead.id);
+  }
 
-  return { version: 3, classification: agentOut.classification, telemetry };
+  return { version: 3, mode: agentOut.mode, classification: agentOut.classification, telemetry };
 }
 
 
