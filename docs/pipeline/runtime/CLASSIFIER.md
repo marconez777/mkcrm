@@ -3,7 +3,7 @@ title: "Classifier LLM (pipeline-classify) — runtime V2"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
+updated: 2026-06-19
 summary: "Edge function pipeline-classify V2: arquitetura modular (context → agent-core → date-parser → apply), 1 chamada gpt-5-mini, schema enxuto, parser de datas determinístico, strict no-move (exceto B2B com guards rígidos), G10 implementado via trigger PG + RPC apply_lead_automation_patch."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
@@ -135,11 +135,13 @@ Estado V1: G10 era apenas mitigação por prompt. V2:
 > serão marcados como "humanos", o que na prática faz o classifier respeitar
 > regras determinísticas (comportamento desejável). Ver KNOWN_ISSUES.
 
-## Movimentações e Auto-Move (General Move / B2B)
+## Movimentações e Auto-Move (General Move / B2B / Lock D3)
 
-Com a aprovação dos ajustes recentes, o caminho genérico do Classifier possui auto-move:
+Com a aprovação dos ajustes recentes (V5), o caminho genérico do Classifier possui auto-move + lock explícito de Paciente antigo:
 
-1. **Consulta Agendada (Ajuste B)**: Se a IA extrair com confiança a data de uma consulta confirmada no chat, ela aciona o General Move e move o lead para "Consulta agendada" via `pipelineMove`, exceto se o lead estiver travado em "Paciente antigo".
+0. **Lock D3 (Paciente antigo)** (`apply.ts:245-255`): se `ctx.stageName === "Paciente antigo"`, o Classifier **nem tenta** sugerir movimentação. `stageOutcome = { path: "guard_d3", reason: "locked_in_paciente_antigo", would_move: false }`. B2B/Nurture/General são pulados. Defesa em profundidade junto com o Guard D3 do `pipelineMove`.
+
+1. **Consulta Agendada (Ajuste B)**: Se a IA extrair com confiança a data de uma consulta confirmada no chat, ela aciona o General Move e move o lead para "Consulta agendada" via `pipelineMove`.
 
 Caminho **B2B** (Move automático estrito): exige **TODOS** os guards:
 

@@ -3,7 +3,7 @@ title: "Gates G1–G11 — runtime"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
+updated: 2026-06-19
 summary: "Onde cada um dos 11 gates de segurança do pipeline v4.2 é efetivamente aplicado no código. Inclui guard D3 e link arquivo:linha para verificação rápida."
 code_refs:
   - supabase/functions/_shared/pipeline-move.ts
@@ -33,7 +33,7 @@ Todos os gates síncronos rodam em `_shared/pipeline-move.ts::pipelineMove()`. G
 | **G9** | Classifier usa string exata do enum dos custom_fields | controlado pelo prompt + Zod schema enum em `pipeline-classify.ts:78-90, 92-112` | rejeição via Zod (`generateText` retorna erro de schema) |
 | **G10** | Humano > IA em conflitos recentes (<7d) em custom_fields | **IMPLEMENTADO** (2026-06-18, V2). Trigger PG `track_custom_fields_human_edits` em `leads` + coluna `custom_fields_last_human_edit jsonb` + RPC `apply_lead_automation_patch`. Classifier `apply.ts` descarta sugestão se chave foi editada por humano há <7d. | `blocked_by_g10:{key}` em `applied.custom_fields` |
 | **G11** | Classifier/A1/A2 **nunca** criam/editam `appointments` | invariante manual; nenhuma das funções `pipeline-classify`, `pipeline-position-auditor`, `pipeline-post-move-verifier` importa a tabela `appointments` para escrita | — |
-| **D3** | "Paciente antigo" não sai por automação | `pipeline-move.ts:177-179` | `guard_d3_paciente_antigo` |
+| **D3** | "Paciente antigo" não sai por automação, **exceto** quando `toStage.name === "Nutrição inativa"` (única saída permitida, executada pelo cron de inatividade 60d). Estreitado em V5 (2026-06-19). | `pipeline-move.ts:173-181` | `guard_d3_paciente_antigo` |
 | **Allowlist** | Clínica precisa estar em `pipeline_automation_allowlist` para qualquer `auto:*` | `pipeline-move.ts:138-141` (e cada edge function checa também) | `clinic_not_allowlisted` |
 
 ## Verificação rápida
@@ -84,3 +84,30 @@ rg -n 'from\("appointments"\).update|insert.*appointments|.from\("appointments"\
 ```
 
 Resultado esperado: **vazio**. As únicas escritas em `appointments` vêm da UI (`/automations`, `/appointments`) ou de `evolution-webhook` (não confirmado nesta auditoria).
+
+## V5 (2026-06-19) — Mudanças nos gates
+
+### Guard D3 estreitado
+"Paciente antigo" agora **pode** ser movido por automação se e somente se `toStage.name === "Nutrição inativa"`. Qualquer outro destino continua bloqueado com `guard_d3_paciente_antigo`. Quem usa a exceção: o branch novo `tier60pa` em `pipeline-deterministic/index.ts::ruleInactivityTick` (cron de SLA 60d).
+
+### Wipe centralizado de chips (`pipeline-move.ts:183-226`)
+Antes do UPDATE de stage, o helper manipula `leads.custom_fields` (coluna JSONB — **nunca** `lead_custom_fields`, que guarda definições):
+
+- Saindo de `"Qualificação"`: remove a chave `interessado`.
+- Entrando em `"Consulta finalizada"`: remove `consulta_agendada_em`, `procedimento_agendado_em`, `consulta_confirmada`, `procedimento_confirmado`, e seta `aguardando=true`.
+
+Chaves removidas/adicionadas aparecem em `lead_stage_history.metadata.wiped_keys`. Falha de wipe não bloqueia o move (warning).
+
+### Lock de Classifier por "Paciente antigo" (`pipeline-classify/apply.ts:245-255`)
+Defesa em profundidade junto com D3: se `ctx.stageName === "Paciente antigo"`, o Classifier nem tenta sugerir movimentação. `stageOutcome.path = "guard_d3"`, `reason = "locked_in_paciente_antigo"`. Tipificador segue livre para editar chips/campos.
+
+### Refator MCP/Automations → pipelineMove
+- `ai-chat/index.ts` (tool `move_lead_stage`): substitui `update({stage_id})` direto por `pipelineMove({ source: "auto:ai-chat-tool", ruleKey: "automation.ai_chat_move.enabled" })`.
+- `automations-tick/index.ts` (action `move_stage`): mesmo refator, `source: "auto:automation-rule"`, `ruleKey: "automation.ui_rule_move.enabled"`.
+
+### Toggles novos em `app_settings`
+| Key | Default | Quem consome |
+|---|---|---|
+| `automation.ai_chat_move.enabled` | `true` | tool MCP `move_lead_stage` |
+| `automation.ui_rule_move.enabled` | `true` | action `move_stage` em automações da UI |
+| `automation.inactivity_paciente_antigo.enabled` | `true` | branch `tier60pa` do cron de inatividade |
