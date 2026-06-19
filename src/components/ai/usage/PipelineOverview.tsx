@@ -718,28 +718,28 @@ function LeadRunDetail({
         </div>
       )}
 
-      {/* 3 agentes timeline */}
+      {/* 5 agentes timeline */}
       <div>
-        <div className="mb-2 text-[11px] text-muted-foreground">Os 3 agentes desta execução</div>
-        <div className="space-y-2">
-          {PIPELINE_OPS.map((op) => {
+        <div className="mb-2 text-[11px] text-muted-foreground">Os 5 agentes desta execução</div>
+        {(() => {
+          const renderAgent = (op: string) => {
             const meta = AGENT_META[op];
             const r = runUsage.find((x) => x.operation === op);
-            const modelFromAgents =
-              op === "classifier:summarizer"
-                ? agents?.summarizer_model
-                : op === "classifier:typifier"
-                  ? agents?.typifier_model
-                  : agents?.maestro_model;
+            const modelKey = op.split(":")[1] + "_model";
+            const modelFromAgents = (agents as Record<string, unknown> | undefined)?.[modelKey] as string | undefined;
             const latMap = (agents?.latency_ms ?? {}) as Record<string, number>;
             const latKey = op.split(":")[1];
             const lat = r?.latency_ms ?? latMap[latKey];
+            const didRun = agents?.ran ? agents.ran[latKey] !== false : true;
             return (
-              <div key={op} className={`rounded-md border p-2 ${meta.accent}`}>
+              <div key={op} className={`rounded-md border p-2 ${meta.accent} ${!didRun && !r ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span>{meta.emoji}</span>
                     <span className="text-xs font-semibold">{meta.label}</span>
+                    {meta.parallel && (
+                      <span className="text-[9px] uppercase tracking-wide opacity-60">paralelo</span>
+                    )}
                   </div>
                   <span className="text-[10px] font-mono opacity-70">{r?.model ?? modelFromAgents ?? "—"}</span>
                 </div>
@@ -753,13 +753,29 @@ function LeadRunDetail({
                 </div>
               </div>
             );
-          })}
-        </div>
+          };
+          return (
+            <div className="space-y-2">
+              {renderAgent("classifier:summarizer")}
+              <div className="rounded-md border border-dashed border-primary/30 bg-gradient-to-br from-muted/30 to-transparent p-2">
+                <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
+                  <GitBranch className="h-2.5 w-2.5" />
+                  Execução paralela
+                </div>
+                <div className="space-y-1.5">
+                  {PARALLEL_OPS.map((op) => renderAgent(op))}
+                </div>
+              </div>
+              {renderAgent("classifier:maestro")}
+            </div>
+          );
+        })()}
         <div className="mt-2 text-right text-[11px] text-muted-foreground">
           Total desta execução:{" "}
           <span className="font-semibold tabular-nums text-foreground">{fmtUSD(totalCost)}</span>
         </div>
       </div>
+
 
       {/* Reasons */}
       {cls?.reasons && cls.reasons.length > 0 && (
