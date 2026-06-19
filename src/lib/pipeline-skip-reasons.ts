@@ -50,6 +50,11 @@ const TABLE: Record<string, SkipReasonInfo> = {
     desc: "Worker do executor parou de bater heartbeat por mais de 3 min — marcado como erro.",
     tone: "error",
   },
+  classify_timeout_55s: {
+    label: "Timeout antigo 55s",
+    desc: "Run antigo marcou timeout em 55 s; o limite atual foi aumentado para 120 s.",
+    tone: "error",
+  },
   classify_timeout_120s: {
     label: "Timeout 120s",
     desc: "Chamada ao classify estourou 120 s — possível travamento do modelo ou cold start.",
