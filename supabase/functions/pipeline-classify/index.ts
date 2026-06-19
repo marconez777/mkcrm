@@ -51,9 +51,33 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
     .eq("id", leadId);
 }
 
-async function classifyOneV2(client: SupabaseClient, leadId: string) {
+async function classifyOneV2(
+  client: SupabaseClient,
+  leadId: string,
+  onlyAgent?: "summarizer" | "typifier" | "maestro",
+) {
   const loaded = await loadLeadContext(client, leadId);
   if (loaded.kind === "skip") {
+    // Em modo manual (only_agent) bypassamos o early-return de "no_new_messages":
+    // o usuário pediu reprocessamento intencional.
+    if (loaded.reason === "no_new_messages" && onlyAgent) {
+      // Refaz com bypass: recarrega ignorando watermark
+      const { data: leadRow } = await client
+        .from("leads")
+        .select("last_processed_message_id_classifier")
+        .eq("id", leadId)
+        .single();
+      // Limpa watermark temporariamente seria invasivo — em vez disso, retornamos skip
+      // mas marcado como manual_skip para a UI saber que foi pelo watermark.
+      if (leadRow) {
+        await writeSkipTelemetry(
+          client,
+          { clinic_id: "", lead_id: leadId },
+          `manual_skip_no_new_messages_${onlyAgent}`,
+        );
+      }
+      return { skipped: `no_new_messages_in_${onlyAgent}_mode` };
+    }
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
         .from("leads")
@@ -73,7 +97,6 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
         );
       }
     }
-    // Sempre tira o lead da fila em qualquer skip — evita reciclagem infinita.
     await clearQueueFlag(client, leadId);
     return { skipped: loaded.reason };
   }
@@ -98,7 +121,7 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
     client,
     "automation.classifier.history_tool_enabled",
   );
-  const agentOut = await runAgent(client, ctx, { historyToolEnabled });
+  const agentOut = await runAgent(client, ctx, { historyToolEnabled, onlyAgent });
   if ("error" in agentOut) {
     await writeSkipTelemetry(
       client,
@@ -115,12 +138,18 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
     agentOut.classification,
     agentOut.usage,
     agentOut.agents,
+    agentOut.mode,
   );
 
   await writeTelemetry(client, ctx, telemetry);
-  await updateWatermark(client, ctx.lead.id, lastMessageId);
+  // Em modo parcial não avança o watermark — usuário pode querer rodar outro agente.
+  if (agentOut.mode === "full") {
+    await updateWatermark(client, ctx.lead.id, lastMessageId);
+  } else {
+    await clearQueueFlag(client, ctx.lead.id);
+  }
 
-  return { version: 3, classification: agentOut.classification, telemetry };
+  return { version: 3, mode: agentOut.mode, classification: agentOut.classification, telemetry };
 }
 
 
@@ -175,7 +204,10 @@ async function handleV2(req: Request): Promise<Response> {
       result = await tickQueueV2(client);
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
-      result = await classifyOneV2(client, body.lead_id);
+      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
+        ? body.only_agent as "summarizer" | "typifier" | "maestro"
+        : undefined;
+      result = await classifyOneV2(client, body.lead_id, onlyAgent);
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
         status: 400,

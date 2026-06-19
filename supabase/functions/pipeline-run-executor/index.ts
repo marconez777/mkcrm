@@ -85,21 +85,26 @@ interface StartInput {
   stage_ids?: string[];
   lead_ids?: string[];
   top_n?: number;
+  only_agent?: "summarizer" | "typifier" | "maestro";
   parent_run_id?: string;
 }
 
-async function callClassify(leadId: string): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+async function callClassify(
+  leadId: string,
+  onlyAgent?: "summarizer" | "typifier" | "maestro",
+): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   let timeoutId: number | undefined;
   try {
-    // hard timeout para não pendurar o worker se a função interna travar
     const ctrl = new AbortController();
+    const body: Record<string, unknown> = { action: "lead", lead_id: leadId };
+    if (onlyAgent) body.only_agent = onlyAgent;
     const request = fetch(`${SUPABASE_URL}/functions/v1/pipeline-classify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${SERVICE_KEY}`,
       },
-      body: JSON.stringify({ action: "lead", lead_id: leadId }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     const timeout = new Promise<Response>((_, reject) => {
@@ -217,6 +222,12 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const explicitLeadIds = Array.isArray(scope.lead_ids) ? (scope.lead_ids as string[]) : null;
   const topNRaw = typeof scope.top_n === "number" ? (scope.top_n as number) : null;
   const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
+  const onlyAgent =
+    typeof scope.only_agent === "string" &&
+    ["summarizer", "typifier", "maestro"].includes(scope.only_agent as string)
+      ? (scope.only_agent as "summarizer" | "typifier" | "maestro")
+      : undefined;
+  const stepName = onlyAgent ? `classify:${onlyAgent}` : "classify";
   const totals = (run.totals ?? {}) as Record<string, number> & {
     ok?: number; skipped?: number; error?: number; leads?: number; stages?: number;
   };
@@ -308,7 +319,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
             lead_id: lead.id,
             stage_id: stage.id,
             stage_name: stage.name,
-            step: "classify",
+            step: stepName,
             status: "pending",
             started_at: itemStart,
           })
@@ -322,7 +333,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
           .update({ last_heartbeat_at: new Date().toISOString(), totals })
           .eq("id", runId);
 
-        const result = await callClassify(lead.id as string);
+        const result = await callClassify(lead.id as string, onlyAgent);
         const finishedAt = new Date().toISOString();
 
         let status: "ok" | "skipped" | "error" = "ok";
@@ -404,6 +415,9 @@ Deno.serve(async (req) => {
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
       if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
+      if (input.only_agent && ["summarizer", "typifier", "maestro"].includes(input.only_agent)) {
+        scope.only_agent = input.only_agent;
+      }
 
       const { data: run, error } = await service
         .from("pipeline_runs")

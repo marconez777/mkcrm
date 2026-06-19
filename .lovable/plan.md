@@ -1,122 +1,104 @@
-## Reformular `/ai/usage` — visão "Pipeline IA" para leigos
+# Plano — `/pipeline-runs` adaptado ao classificador V3 (3 agentes)
 
-Hoje a página `MetricsAiUsage` é uma tabela técnica de `ai_usage`. Vou transformá-la em um painel narrativo focado nos 3 agentes do pipeline-classify (Resumidor → Tipificador → Maestro), fila, execuções por lead e motivos de skip — sem perder o detalhe técnico atual (vira aba "Avançado").
+Hoje a página `PipelineRuns.tsx` mostra cada lead como **uma única linha** com `status: ok/skip/error` e um `result` cru em JSON. Com o V3 o `result` já vem com `telemetry.agents` (summarizer / typifier / maestro + latências, modelos, summary, decisões), mas a UI ignora isso. Também não dá pra rodar **só um agente** manualmente, e os motivos de skip aparecem como string técnica (`no_new_messages`, `agent_error:typifier_failed`).
 
-### ⚠️ Dependência backend obrigatória
+Vamos atacar 3 frentes: **detalhe por agente**, **execução manual seletiva**, **erros/skips legíveis**.
 
-`ai_usage` está **vazia para o pipeline-classify**. O classificador chama `generateText` direto via `clinic-openai` e não passa por `logUsage`. Sem instrumentar isso, a aba "Custo por agente" mostra zero.
+---
 
-**Passo 0 — instrumentar `agent-core.ts`:**
-- Após cada `runSummarizer`/`runTypifier`/`runMaestro`, chamar `logUsage({...})` de `_shared/metrics.ts` com:
-  - `clinic_id: ctx.lead.clinic_id`, `lead_id: ctx.lead.id`
-  - `model`: `summarizerModel` / `TYPIFIER_MODEL` / `MAESTRO_MODEL`
-  - `operation`: `classifier:summarizer` | `classifier:typifier` | `classifier:maestro`
-  - `input_tokens`/`output_tokens`/`total_tokens`: extrair de `result.usage` (AI SDK v6: `inputTokens`, `outputTokens`, `totalTokens`)
-  - `latency_ms`: medir com `performance.now()` por passo
-  - `status`: `"success"` ou `"error"` (no caminho de erro, registrar antes do `return { error }`)
-- `_shared/metrics.ts` já preenche `cost_usd` via `ai-pricing.ts` — só preciso garantir que `gpt-4o`, `gpt-5-mini` estejam em `src/lib/ai-pricing.ts`/`_shared/ai-pricing.ts` (validar; adicionar se faltar).
+## 1) UI — Detalhe por agente em cada lead
 
-### Página `/ai/usage` reformulada
-
-Layout em 3 zonas + drawer:
+Em `ItemRow` (quando o usuário expande), trocar o `<pre>` cru por um bloco visual com 3 cards lado a lado:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Hero — "Sua IA hoje" (linguagem leiga)                      │
-│  • X leads classificados nas últimas 24h                    │
-│  • US$ Y gastos · ~US$ Y/lead                               │
-│  • Z na fila · tempo médio de espera                        │
-│  • [⏸ Pausar IA] (toggle automation.classifier.enabled)    │
-└─────────────────────────────────────────────────────────────┘
-
-┌──────────────────────┐ ┌──────────────────────────────────┐
-│ Fila ao vivo         │ │ Pipeline de 3 agentes (donut/    │
-│ (realtime leads)     │ │ barras horizontais empilhadas)   │
-│ • Aguardando: N      │ │ Resumidor (gpt-4o) ━━━━ $X       │
-│ • Travados >30min: M │ │ Tipificador  ━━ $Y               │
-│ • Processados/hora   │ │ Maestro      ━━ $Z               │
-│ • [Limpar travados]  │ │ Tooltip: "o que cada um faz"     │
-└──────────────────────┘ └──────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│ Últimas execuções por lead (timeline, 50 mais recentes)     │
-│  ✅ Maria S.   12:03  →  movida p/ Consulta agendada · $0.003│
-│  ⚠️ João P.    12:01  →  pulada: precisa atenção humana     │
-│  ❌ Ana R.     11:58  →  erro no agente Resumidor            │
-│  [clique → drawer com detalhe completo]                     │
-└─────────────────────────────────────────────────────────────┘
-
-┌────────────────────┐ ┌────────────────────────────────────┐
-│ Motivos de skip    │ │ Erros (últimas 24h)                │
-│ pizza/lista        │ │ agrupados por mensagem · count     │
-│ (clinic_not_       │ │                                    │
-│  allowlisted: 676) │ │                                    │
-└────────────────────┘ └────────────────────────────────────┘
-
-[Aba "Avançado"] — preserva a tabela técnica atual (filtros, CSV, drawer de chamada)
+┌──────────────────┬──────────────────┬──────────────────┐
+│ 📝 Resumidor      │ 🏷️ Tipificador   │ 🎯 Maestro        │
+│ gpt-4o · 820 ms  │ gpt-5-mini·410ms │ gpt-5-mini·1.1s   │
+│ ✅ ok            │ ✅ ok            │ ✅ ok             │
+│ "resumo curto…"  │ +2 tags, 1 field │ Stage: Qualific.  │
+│                  │ tags: pago, nf   │ Intent: pagamento │
+│                  │                  │ Conf: 0.82        │
+└──────────────────┴──────────────────┴──────────────────┘
 ```
 
-### Fontes de dados
+Fonte de dados: `item.result.telemetry.agents` (já existe — `summarizer_model`, `typifier_model`, `maestro_model`, `latency_ms.{summarizer|typifier|maestro}`, `summary`) + `item.result.classification` (stage, intent, confidence, tags_suggested, custom_fields_patch).
 
-| Widget | Fonte |
-|---|---|
-| Hero "leads classificados 24h" | `lead_events` `type='auto:classifier'` AND `payload->>'skipped' IS NULL` |
-| Hero "custo 24h" | `ai_usage` filtrado por `operation LIKE 'classifier:%'` |
-| Fila | `leads`: `count(*) FILTER (WHERE needs_ai_review)`, idem com `ai_review_queued_at < now()-30min` |
-| Processados/hora | `leads.last_classified_at > now()-1h` |
-| Custo por agente | `ai_usage` `GROUP BY operation` para `classifier:*` |
-| Execuções por lead | `lead_events` últimas 50 com `type='auto:classifier'` + JOIN leads(name,phone) |
-| Motivos de skip | `lead_events.payload->>'skipped' GROUP BY` |
-| Erros | `lead_events.payload->>'skipped' LIKE 'agent_error:%' GROUP BY` |
+Abaixo dos cards, manter: `reasons[]` em bullets + accordion "JSON bruto" (fechado) para quem quiser inspecionar.
 
-Tudo em uma query agregadora client-side (até 30d). Subscrição realtime em `leads` (filtro `clinic_id`) só para o widget Fila.
+Para erros vindos do agent-core (`agent_error:summarizer_failed:<msg>` etc.), destacar **qual agente falhou** com badge vermelho no card correspondente e a mensagem original embaixo.
 
-### Drawer "Execução do lead"
+## 2) UI — Execução manual seletiva (3 agentes)
 
-Ao clicar numa linha da timeline, abrir `Sheet` mostrando:
-1. **Lead** (nome, telefone, link `/inbox/:id`)
-2. **Linha do tempo dos 3 agentes** com tempo/custo de cada um, lido de `payload.agents` + `ai_usage` por `lead_id`+timestamp próximo
-3. **Resumo gerado** (campo `summary` precisa ser exposto — ver nota abaixo)
-4. **Decisão final**: stage_suggestion, intent, confidence (barra), is_b2b, reasons (bullet)
-5. **O que foi aplicado**: tags adicionadas/removidas, custom_fields setados, datas resolvidas, bloqueios G10
-6. **Bruto** (collapsed `<details>` com `payload` cru, pra suporte)
+Adicionar no **ScopeDialog** uma seção "Quais agentes rodar":
 
-> **Sub-decisão técnica:** o `summary` do Agente 1 não é persistido hoje. Para o drawer mostrá-lo, adicionar `summary` e `summary_chars` no `telemetry.applied` (em `apply.ts`) recebendo de `agents` no parâmetro novo (passar via `runAgent` → `applyClassification`). Sem migration; só payload de evento.
+```
+( ) Pipeline completo (3 agentes)   ← default
+( ) Só Resumidor      (refaz ai_summary; não mexe em tags/stage)
+( ) Só Tipificador    (refaz tags + custom_fields; usa summary atual)
+( ) Só Maestro        (refaz stage + intent; usa summary + tags atuais)
+```
 
-### Linguagem leiga
+Mesma opção disponível por lead em `ItemRow` via menu "Rodar de novo só…" (botões pequenos no detalhe expandido).
 
-- Substituir jargão: "stage_suggestion" → "Etapa sugerida", "intent" → "Intenção", "G10" → "respeita edição humana recente", "skipped" → "pulada", "needs_ai_review" → "aguardando IA".
-- Cada bloco com tooltip `<HelpCircle />` explicando em 1 frase.
-- Status com cores semânticas + emoji: ✅ aplicada · ⚠️ pulada · ❌ erro · ⏸ pausada.
-- Custos em US$ com 4 casas + equivalente "≈ R$ X" (taxa fixa configurável, ou só USD se preferir simplicidade).
+## 3) UI — Skip/erro humanizado
 
-### Estrutura de arquivos
+Criar `src/lib/pipeline-skip-reasons.ts` com mapa:
 
-- `src/pages/MetricsAiUsage.tsx` → vira shell com `Tabs`: **Visão geral** (novo) e **Avançado** (conteúdo atual movido).
-- Novos componentes em `src/components/ai/usage/`:
-  - `PipelineHero.tsx`
-  - `LiveQueueCard.tsx` (com subscription realtime)
-  - `AgentBreakdown.tsx` (donut + legenda)
-  - `RecentExecutions.tsx`
-  - `SkipReasons.tsx`
-  - `ErrorsPanel.tsx`
-  - `LeadRunDrawer.tsx`
-- Hook `src/hooks/usePipelineUsage.ts` centraliza queries (data range + clinic).
+```ts
+{
+  no_messages: { label: "Sem mensagens", desc: "Lead ainda não conversou." },
+  no_new_messages: { label: "Sem novidade", desc: "Nada novo desde a última classificação (watermark)." },
+  no_pipeline: { label: "Sem pipeline", desc: "Lead não está em nenhum pipeline." },
+  lead_not_found: { label: "Lead não existe", desc: "Lead foi removido." },
+  clinic_not_allowlisted: { label: "Clínica não autorizada", desc: "Feature não liberada para esta clínica." },
+  toggle_off: { label: "IA pausada", desc: "Toggle automation.classifier.enabled está off." },
+  "agent_error:summarizer_failed": { label: "Resumidor falhou", desc: "GPT-4o devolveu erro/JSON inválido." },
+  "agent_error:typifier_failed":   { label: "Tipificador falhou", desc: "GPT-5-mini devolveu erro." },
+  "agent_error:maestro_failed":    { label: "Maestro falhou", desc: "GPT-5-mini devolveu erro." },
+}
+```
 
-### Fora de escopo
+`StatusBadge` quando skip mostra o `label` no chip (ex.: "Skip · Sem novidade") e o `desc` no tooltip. No accordion expandido, bloco "Por que pulou?" com a descrição completa.
 
-- Não alterar pipeline-deterministic, summarizer, auditores.
-- Não migrar tabela `ai_usage` (operação é text livre, só novos valores).
-- Não mexer em RLS.
-- Não tocar na sidebar / navegação superior.
+Aplicar também na coluna esquerda (lista de execuções recentes) usando o agregado: hoje mostra `skip 7` cru — adicionar barra empilhada miniatura por motivo (cores diferentes para `no_new_messages` vs `agent_error:*`), e top‑3 motivos em `text-[10px]` abaixo.
 
-### Validação
+## 4) Backend — Suportar `only_agent` no classify
 
-1. Deploy `pipeline-classify` com `logUsage` por agente.
-2. Forçar 1 tick V2 em clínica allowlisted; conferir 3 linhas em `ai_usage` (`operation='classifier:*'`) e custo > 0.
-3. Abrir `/ai/usage` — hero não-zerado, fila batendo com `SELECT count` direto, drawer abrindo um lead recente sem erros.
-4. Aba Avançado intacta (mesma tabela e CSV).
+Atualmente `classifyOneV2` em `supabase/functions/pipeline-classify/index.ts` sempre roda os 3 agentes. Adicionar parâmetro:
 
-### Pergunta única antes de seguir
+- `action: "lead", lead_id, only_agent: "summarizer" | "typifier" | "maestro" | undefined`
 
-Quer o **toggle "Pausar IA"** no hero (flipa `automation.classifier.enabled` em `app_settings`, só super-admin)? É 1 botão a mais, útil em incidentes — mas posso deixar fora se preferir só leitura nessa página.
+Em `agent-core.ts`:
+- Se `only_agent === "summarizer"`: roda só `summarizerModel`, persiste `ai_summary`, **pula** typifier/maestro (não altera tags/stage). Marca `telemetry.partial = "summarizer_only"`.
+- Se `only_agent === "typifier"`: reutiliza `ctx.lead.ai_summary` como input do Tipificador. Pula Maestro.
+- Se `only_agent === "maestro"`: reutiliza `ai_summary` + tags/custom_fields **atuais** do lead como input. Não chama Resumidor/Tipificador.
+
+`apply.ts` precisa respeitar `partial` e só aplicar os campos do(s) agente(s) executado(s).
+
+## 5) Backend — Propagar `only_agent` no executor
+
+`supabase/functions/pipeline-run-executor/index.ts`:
+- Aceitar `only_agent` no `action: "start"` e armazenar em `pipeline_runs.scope.only_agent`.
+- Repassar para `callClassify(leadId, only_agent)` → `pipeline-classify` body.
+- Em `pipeline_run_items.step`, gravar `"classify:summarizer"`, `"classify:typifier"`, `"classify:maestro"` ou `"classify"` (full) para a UI agrupar.
+
+---
+
+## Arquivos afetados
+
+- `src/pages/PipelineRuns.tsx` — refator de `ItemRow`, `StatusBadge`, `StageGroup`; `ScopeDialog` ganha seletor de agente; menu por-lead.
+- `src/lib/pipeline-skip-reasons.ts` — novo mapa.
+- `supabase/functions/pipeline-classify/index.ts` — aceita `only_agent`.
+- `supabase/functions/pipeline-classify/agent-core.ts` — execução parcial; reaproveita `ai_summary`/tags atuais.
+- `supabase/functions/pipeline-classify/apply.ts` — aplica patch parcial conforme `partial`.
+- `supabase/functions/pipeline-run-executor/index.ts` — propaga `only_agent`; grava `step` granular.
+
+## Fora do escopo
+
+- Mudanças no `/ai/usage` (já feito na rodada anterior).
+- Nova tabela / migration — tudo encaixa em `pipeline_runs.scope` + `pipeline_run_items.step`/`result` existentes.
+- Reprocessar lotes históricos com novo agente — só novas execuções terão `partial`.
+
+## Ponto de atenção
+
+Rodar **só o Maestro** com tags desatualizadas pode levar a um stage inconsistente (ex.: tag "pago" antiga ainda presente). Vou deixar um aviso no diálogo: *"Rodar só Maestro usa as tags/campos atuais — se o lead estiver desatualizado, rode o pipeline completo."*
