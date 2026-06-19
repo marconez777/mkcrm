@@ -414,10 +414,32 @@ export async function ingestMessage(
         unread_count: fromMe || silent ? 0 : 1,
       })
       .select("id, name, whatsapp_instance_id")
-      .single();
-    if (error) throw error;
-    lead = created;
-    createdLead = true;
+      .maybeSingle();
+
+    if (error) {
+      if (String(error.message).includes("duplicate") || error.code === "23505") {
+        // Outro webhook venceu a corrida e inseriu antes! Re-seleciona.
+        const { data: existingRace } = await supabase
+          .from("leads")
+          .select("id, name, whatsapp_instance_id")
+          .eq("phone", phone)
+          .eq("clinic_id", clinicId)
+          .maybeSingle();
+        if (existingRace) {
+          lead = existingRace;
+          createdLead = false;
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    } else if (created) {
+      lead = created;
+      createdLead = true;
+    } else {
+      throw new Error("Insert returned no data and no error");
+    }
     if (pipelineFallback) {
       try {
         await supabase.from("lead_events").insert({
