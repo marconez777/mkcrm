@@ -734,7 +734,7 @@ function ScopeDialog({
   onOpenChange: (v: boolean) => void;
   clinicId: string | null;
   starting: boolean;
-  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number }) => void;
+  onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => void;
 }) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -745,6 +745,7 @@ function ScopeDialog({
   const [selectedLeads, setSelectedLeads] = useState<Record<string, LeadOpt>>({});
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [topN, setTopN] = useState<string>("");
+  const [onlyAgent, setOnlyAgent] = useState<"full" | OnlyAgent>("full");
 
   useEffect(() => {
     if (!open || !clinicId) return;
