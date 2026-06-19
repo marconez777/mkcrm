@@ -97,6 +97,11 @@ timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
 histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
 consultas/avaliações/retornos; "procedimento" para procedimento/tratamento agendado.
 
+CRÍTICO: SEMPRE que mencionar uma data no resumo, você DEVE replicar no array mentioned_dates.
+Exemplos:
+- Texto do histórico: "[2026-06-18T10:00:00-03:00] Paciente: Pode ser amanhã às 15h" -> mentioned_dates: [{ "raw": "amanhã às 15h", "anchor_iso": "2026-06-18T10:00:00-03:00", "kind": "consulta" }]
+- Texto do histórico: "[2026-06-18T11:00:00-03:00] Secretária: Marcado para dia 24/06 presencial." -> mentioned_dates: [{ "raw": "dia 24/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "consulta" }]
+
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 

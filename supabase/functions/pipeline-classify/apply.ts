@@ -157,10 +157,10 @@ export async function applyClassification(
   const fieldsRejected: Array<{ key: string; raw_value: unknown; reason: string }> = [];
   let fieldsChanged = false;
 
-  function tryApplyField(k: string, v: unknown) {
-    // G10: respeita edição humana < 7d
+  function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
+    // G10: respeita edição humana < 7d, EXCETO para datas (override da IA)
     const humanIso = lead.custom_fields_last_human_edit?.[k];
-    if (humanIso) {
+    if (humanIso && !isDateFromParser) {
       const humanMs = Date.parse(humanIso);
       if (
         Number.isFinite(humanMs) &&
@@ -193,7 +193,7 @@ export async function applyClassification(
       });
       continue;
     }
-    tryApplyField(fieldKeyFor(d.kind), d.resolved);
+    tryApplyField(fieldKeyFor(d.kind), d.resolved, true); // true = isDateFromParser (bypass G10)
   }
 
   // 4b) Demais chaves (ignora chaves de data — já tratadas via mentioned_dates)
@@ -382,7 +382,7 @@ export async function applyClassification(
             toStageId: destId,
             source: "auto:classifier-general",
             reason: `Classifier general move (intent=${cls.intent}, conf=${cls.confidence.toFixed(2)})`,
-            ruleKey: "automation.general_move.enabled",
+            // ruleKey omitido para garantir que o move sempre ocorra, forçando 100% automação
             idempotencyKey: `general:${lead.id}:${lastMessageId}`,
           });
           stageOutcome = {
