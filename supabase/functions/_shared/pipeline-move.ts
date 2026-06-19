@@ -241,6 +241,7 @@ export async function pipelineMove(
   const historyMeta = {
     ...(metadata ?? {}),
     ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+    ...(wipedKeys.length > 0 ? { wiped_keys: wipedKeys } : {}),
     rule_key: ruleKey ?? null,
   };
   const { error: histErr } = await client.from("lead_stage_history").insert({
