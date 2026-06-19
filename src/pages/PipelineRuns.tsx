@@ -868,10 +868,10 @@ function ScopeDialog({
             <Label className="text-xs">Quais agentes rodar</Label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {([
-                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Completo", desc: "Os 3 agentes" },
+                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Forçar Pipeline V6", desc: "Os 5 agentes (Resumidor → Paralelos → Maestro)" },
                 { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: "Só Resumidor", desc: "Refaz ai_summary" },
-                { id: "typifier", icon: <Tags className="h-3.5 w-3.5" />, title: "Só Tipificador", desc: "Refaz tags + campos" },
-                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz stage + intent" },
+                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: "Só Paralelos", desc: "Agendador + Tipificador + Movimentador" },
+                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz decisão final (stage + intent)" },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -891,12 +891,18 @@ function ScopeDialog({
                 ⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.
               </p>
             )}
-            {(onlyAgent === "typifier" || onlyAgent === "maestro") && (
+            {(onlyAgent === "parallel" || onlyAgent === "maestro") && (
               <p className="text-[11px] text-muted-foreground">
                 Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.
               </p>
             )}
+            {onlyAgent === "parallel" && (
+              <p className="text-[11px] text-violet-400">
+                ⑂ Dispara Agendador, Tipificador e Movimentador no mesmo `Promise.all` — backend precisa aceitar `only_agent: "parallel"`.
+              </p>
+            )}
           </div>
+
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
