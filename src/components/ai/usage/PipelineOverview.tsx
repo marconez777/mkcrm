@@ -57,28 +57,44 @@ type QueueStats = {
   done_last_hour: number;
 };
 
-const AGENT_META: Record<string, { label: string; emoji: string; explain: string; accent: string }> = {
+const AGENT_META: Record<string, { label: string; emoji: string; explain: string; accent: string; parallel?: boolean }> = {
   "classifier:summarizer": {
     label: "Resumidor",
     emoji: "📝",
     explain: "Lê o histórico do paciente e escreve um resumo factual do que aconteceu.",
     accent: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
   },
+  "classifier:agendador": {
+    label: "Agendador",
+    emoji: "📅",
+    explain: "Avalia intenção de marcar/desmarcar consulta — roda em paralelo.",
+    accent: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+    parallel: true,
+  },
   "classifier:typifier": {
     label: "Tipificador",
     emoji: "🏷️",
-    explain: "Decide tags e preenche campos personalizados baseando-se no resumo.",
+    explain: "Decide tags e preenche campos personalizados — roda em paralelo.",
     accent: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    parallel: true,
+  },
+  "classifier:movimentador": {
+    label: "Movimentador",
+    emoji: "🎯",
+    explain: "Avalia o estágio do funil (stage) do lead — roda em paralelo.",
+    accent: "bg-pink-500/10 text-pink-700 dark:text-pink-300 border-pink-500/20",
+    parallel: true,
   },
   "classifier:maestro": {
     label: "Maestro",
-    emoji: "🎯",
-    explain: "Decide a etapa do funil e a intenção principal da conversa.",
+    emoji: "🎼",
+    explain: "Valida tudo e dá a decisão final: intent, stage e confiança.",
     accent: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
   },
 };
 
 const PIPELINE_OPS = Object.keys(AGENT_META);
+const PARALLEL_OPS = PIPELINE_OPS.filter((op) => AGENT_META[op].parallel);
 
 // ----------------- helpers -----------------
 function timeAgo(iso: string): string {
