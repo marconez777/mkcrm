@@ -1,0 +1,1 @@
+UPDATE public.leads SET last_processed_message_id_classifier = NULL WHERE id = 'dded43d5-205e-4214-b607-7eedcb811ee8';

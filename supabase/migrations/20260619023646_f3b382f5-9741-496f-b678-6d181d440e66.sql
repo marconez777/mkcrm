@@ -1,0 +1,1 @@
+INSERT INTO public.app_settings (key, value) VALUES ('automation.nurture_move.enabled', 'true'::jsonb) ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb;

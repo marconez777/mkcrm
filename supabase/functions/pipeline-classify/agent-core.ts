@@ -74,7 +74,7 @@ async function recordStep(opts: {
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
 const TYPIFIER_MODEL = "gpt-5-mini";
-const MAESTRO_MODEL = "gpt-5-mini";
+const MAESTRO_MODEL = "gpt-5";
 
 export const AGENT_MODEL = MAESTRO_MODEL; // retro-compat (apply.ts lia esse símbolo)
 
@@ -200,18 +200,26 @@ Devolva tags_suggested e custom_fields_patch.`,
 
 function buildMaestroSystem(): string {
   return `Você é o maestro do classificador. Define stage e intent baseando-se
-SOMENTE no resumo factual e nas tags já tipificadas. Não invente contexto.
+SOMENTE no resumo factual, nas tags já tipificadas e nos sinais determinísticos.
+Não invente contexto.
 
 Pipeline canônico (use EXATAMENTE estes nomes em stage_suggestion):
 ${CANON_NAMES.map((n) => `- ${n}`).join("\n")}
 
 Diretrizes de stage:
 - "Novo": primeira interação, sem qualificação humana.
-- "Qualificação": atendente humano já interagiu descobrindo demanda.
+- "Qualificação": atendente ainda está em descoberta ativa de demanda; o lead
+  ainda NÃO recebeu proposta/preço, OU recebeu e está em diálogo ativo (sem
+  objeção fechada e sem silêncio prolongado).
 - "Consulta agendada"/"Tratamento agendado": agendamento confirmado (dia+hora).
 - "Consulta finalizada"/"Em tratamento": atendimento já realizado.
-- "Sem resposta": lead parou de responder.
-- "Nutrição inativa": sem retorno há muito tempo.
+- "Sem resposta": lead parou de responder em fases iniciais sem demonstrar
+  interesse claro em tratamento.
+- "Nutrição inativa": (a) lead sem retorno há muito tempo, OU (b) lead com
+  interesse claro no tratamento/consulta mas que NÃO fechou agendamento
+  (objeção de preço, pediu desconto que não foi aceito, "vou pensar", disse
+  estar sem cartão/dinheiro no momento, parou de responder depois que a
+  secretaria/atendente IA informou o preço, etc.).
 - "Paciente antigo": ciclo de tratamento já encerrado.
 - "B2B / Stakeholders": contato comercial/parceria, NÃO paciente.
 
@@ -225,6 +233,16 @@ REGRAS ESTRITAS:
    (c) o lead está inativo há MAIS de 6 meses e está retomando contato agora.
    Em qualquer outro caso, NÃO use "Paciente antigo".
 3) is_b2b=true SOMENTE se o resumo claramente caracteriza empresa/parceiro/fornecedor.
+4) **Interesse-sem-fechamento → Nutrição inativa.** Se o resumo indicar que o
+   lead tem interesse no tratamento/consulta MAS o agendamento NÃO foi
+   confirmado (objeção de preço, pediu desconto recusado, "vou pensar", sem
+   cartão/dinheiro no momento, **parou de responder depois que a secretaria
+   ou atendente IA informou o preço por mais de 4 horas** — use o sinal
+   determinístico \`hours_since_last_message > 4\` combinado com
+   \`last_message_from_attendant=true\` para detectar esse silêncio —, etc.),
+   use stage="Nutrição inativa" e intent="objecao" (ou "desistencia" se ele
+   desistiu explicitamente). **NÃO deixe em "Qualificação" só por inércia.**
+   Essa decisão exige confidence ≥ 0.8 para que o sistema de fato mova o lead.
 
 Intents disponíveis (escolha UM em "intent"):
 ${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
@@ -242,13 +260,16 @@ async function runMaestro(
   summary: string,
   typified: TypifierOutput,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
+  const lastMsg = ctx.messages[ctx.messages.length - 1];
+  const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
   const monthsInactive =
-    ctx.lead.created_at && ctx.messages.length
-      ? Math.floor(
-          (ctx.nowMs - Date.parse(ctx.messages[ctx.messages.length - 1].created_at)) /
-            (30 * 86_400_000),
-        )
+    ctx.lead.created_at && lastMsgMs
+      ? Math.floor((ctx.nowMs - lastMsgMs) / (30 * 86_400_000))
       : null;
+  const hoursSinceLastMessage = lastMsgMs
+    ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10
+    : null;
+  const lastMessageFromAttendant = lastMsg ? lastMsg.from_me === true : null;
 
   const signals = {
     current_stage: ctx.stageName,
@@ -256,6 +277,8 @@ async function runMaestro(
     treated_before: ctx.hasBeenTreatedBefore,
     has_paciente_antigo_tag: ctx.lead.tags.includes("paciente_antigo"),
     months_since_last_message: monthsInactive,
+    hours_since_last_message: hoursSinceLastMessage,
+    last_message_from_attendant: lastMessageFromAttendant,
     recent_stage_history: ctx.recentStageHistory,
   };
 

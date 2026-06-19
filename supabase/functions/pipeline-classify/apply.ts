@@ -287,7 +287,79 @@ export async function applyClassification(
         reason: `b2b_guard_failed:${failedGuards.join(",")}`,
       };
     }
+
+    // ----- 6b) Nurture move (interesse-sem-fechamento → Nutrição inativa) -----
+    const nurtureCandidate =
+      cls.stage_suggestion === "Nutrição inativa" &&
+      !cls.is_b2b &&
+      (stageOutcome.would_move !== true);
+
+    if (nurtureCandidate) {
+      const nurtureEnabled = await isEnabled(client, "automation.nurture_move.enabled");
+      const validIntent = cls.intent === "objecao" || cls.intent === "desistencia";
+      const fromStageOk = ctx.stageName === "Novo" || ctx.stageName === "Qualificação";
+      const confOk = cls.confidence >= 0.8;
+      const noTreatmentHistory = !ctx.hasBeenTreatedBefore;
+
+      // Anti-conflito: não move se houve stage move humano nas últimas 24h.
+      const since = new Date(ctx.nowMs - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentHuman } = await client
+        .from("lead_stage_history")
+        .select("id")
+        .eq("lead_id", lead.id)
+        .gte("moved_at", since)
+        .not("moved_by_user_id", "is", null)
+        .limit(1);
+      const noRecentHumanMove = !recentHuman || recentHuman.length === 0;
+
+      const guardsOk =
+        nurtureEnabled && validIntent && fromStageOk && confOk && noTreatmentHistory && noRecentHumanMove;
+
+      if (guardsOk) {
+        const nurtureId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa");
+        if (nurtureId && lead.stage_id !== nurtureId) {
+          const res = await pipelineMove(client, {
+            leadId: lead.id,
+            toStageId: nurtureId,
+            source: "auto:classifier-nurture",
+            reason: `Classifier nurture (intent=${cls.intent}, conf=${cls.confidence.toFixed(2)})`,
+            ruleKey: "automation.nurture_move.enabled",
+            idempotencyKey: `nurture:${lead.id}:${lastMessageId}`,
+          });
+          stageOutcome = {
+            suggested: stageSuggestion,
+            current_stage_name: ctx.stageName,
+            would_move: res.moved,
+            path: "nurture",
+            reason: res.moved
+              ? "nurture_move_applied"
+              : (res as { reason: string }).reason ?? "nurture_move_failed",
+            confidence: cls.confidence,
+          };
+        } else {
+          stageOutcome = {
+            ...stageOutcome,
+            path: "nurture",
+            reason: nurtureId ? "nurture_already_at_destination" : "nurture_stage_alias_not_found",
+          };
+        }
+      } else {
+        const failed: string[] = [];
+        if (!nurtureEnabled) failed.push("toggle_off");
+        if (!validIntent) failed.push(`intent_not_in_objecao_desistencia(${cls.intent})`);
+        if (!fromStageOk) failed.push(`from_stage_not_eligible(${ctx.stageName})`);
+        if (!confOk) failed.push(`confidence<0.8(${cls.confidence.toFixed(2)})`);
+        if (!noTreatmentHistory) failed.push("has_treatment_history");
+        if (!noRecentHumanMove) failed.push("recent_human_move_24h");
+        stageOutcome = {
+          ...stageOutcome,
+          path: "nurture",
+          reason: `nurture_guard_failed:${failed.join(",")}`,
+        };
+      }
+    }
   }
+
 
   // ===== 7) Side-effects por intent (só em modo full ou maestro) =====
   const intentResults = applyMaestro
