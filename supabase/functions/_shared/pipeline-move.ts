@@ -197,9 +197,9 @@ export async function pipelineMove(
       .maybeSingle();
     const cur = (leadCF?.custom_fields ?? {}) as Record<string, unknown>;
     const next: Record<string, unknown> = { ...cur };
-    if (fromStage?.name === "Qualificação" && "interessado" in next) {
-      delete next.interessado;
-      wipedKeys.push("interessado");
+    if (fromStage?.name === "Qualificação" && "interesse" in next) {
+      delete next.interesse;
+      wipedKeys.push("interesse");
     }
     if (toStage.name === "Consulta finalizada") {
       for (const k of [
