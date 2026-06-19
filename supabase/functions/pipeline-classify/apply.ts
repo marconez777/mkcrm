@@ -18,7 +18,7 @@ import { runIntentEffects } from "./rules/intent-effects.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
 
-const TELEMETRY_VERSION = 2;
+const TELEMETRY_VERSION = 3;
 
 async function isEnabled(
   client: SupabaseClient,
