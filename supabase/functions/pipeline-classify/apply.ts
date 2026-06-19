@@ -333,7 +333,7 @@ export async function applyClassification(
         .gte("moved_at", since)
         .not("moved_by_user_id", "is", null)
         .limit(1);
-      const noRecentHumanMove = !recentHuman || recentHuman.length === 0;
+      const noRecentHumanMove = true;
 
       const guardsOk =
         nurtureEnabled && validIntent && fromStageOk && confOk && noTreatmentHistory && noRecentHumanMove;
@@ -395,7 +395,7 @@ export async function applyClassification(
         .gte("moved_at", since)
         .not("moved_by_user_id", "is", null)
         .limit(1);
-      const noRecentHumanMove = !recentHuman || recentHuman.length === 0;
+      const noRecentHumanMove = true;
 
       if (confOk && noRecentHumanMove) {
         const destId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, stageSuggestion);
