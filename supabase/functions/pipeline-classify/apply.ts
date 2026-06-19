@@ -87,6 +87,10 @@ export async function applyClassification(
 ): Promise<ApplyOutput> {
 
 
+  const applyTypifier = mode === "full" || mode === "typifier";
+  const applyMaestro = mode === "full" || mode === "maestro";
+  const applySummarizer = mode === "full" || mode === "summarizer";
+
   const lead = ctx.lead;
   const lastMessageId = ctx.messages[ctx.messages.length - 1].id;
   const now = new Date(ctx.nowMs);
