@@ -77,8 +77,11 @@ export async function applyClassification(
     typifier_model: string;
     maestro_model: string;
     summary_chars: number;
+    summary?: string;
+    latency_ms?: { summarizer: number; typifier: number; maestro: number };
   },
 ): Promise<ApplyOutput> {
+
 
   const lead = ctx.lead;
   const lastMessageId = ctx.messages[ctx.messages.length - 1].id;
