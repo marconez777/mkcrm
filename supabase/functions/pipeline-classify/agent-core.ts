@@ -220,7 +220,9 @@ ${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
 
 "confidence" reflete sua certeza: 0.0-0.5 ambíguo, 0.5-0.75 razoável,
 0.75-0.9 alto, 0.9-1 inequívoco.
-"reasons": 1-5 frases curtas em PT-BR justificando a decisão.`;
+"reasons": 1-5 frases curtas em PT-BR justificando a decisão.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runMaestro(
