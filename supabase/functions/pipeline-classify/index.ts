@@ -204,7 +204,10 @@ async function handleV2(req: Request): Promise<Response> {
       result = await tickQueueV2(client);
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
-      result = await classifyOneV2(client, body.lead_id);
+      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
+        ? body.only_agent as "summarizer" | "typifier" | "maestro"
+        : undefined;
+      result = await classifyOneV2(client, body.lead_id, onlyAgent);
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
         status: 400,
