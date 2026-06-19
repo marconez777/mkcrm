@@ -11,6 +11,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Coins, Activity, AlertTriangle, Download, RefreshCw, Bot, Users, MessageSquare } from "lucide-react";
 import { calcCost, fmtUSD, isModelKnown } from "@/lib/ai-pricing";
 import { AiSpendLimitCard } from "@/components/admin/AiSpendLimitCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PipelineOverview } from "@/components/ai/usage/PipelineOverview";
+
 
 type Row = {
   id: string;
@@ -266,6 +269,16 @@ export default function MetricsAiUsage() {
     <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto max-w-6xl space-y-5">
         {membership?.clinic_id && <AiSpendLimitCard clinicId={membership.clinic_id} />}
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="advanced">Avançado</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview" className="mt-4">
+            <PipelineOverview clinicId={membership?.clinic_id ?? null} />
+          </TabsContent>
+          <TabsContent value="advanced" className="mt-4 space-y-5">
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">Custos de IA</h1>
@@ -444,7 +457,10 @@ export default function MetricsAiUsage() {
             </div>
           )}
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+
 
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <SheetContent className="w-[480px] sm:max-w-md">

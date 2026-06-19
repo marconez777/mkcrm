@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText, Output } from "npm:ai@^6";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { logUsage } from "../_shared/metrics.ts";
 import { buildContextBlock, formatMessages, type LeadContext } from "./context.ts";
 import {
   CANON_NAMES,
@@ -23,6 +24,52 @@ import {
   type SummarizerOutput,
   type TypifierOutput,
 } from "./schema.ts";
+
+type AiUsageShape = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+};
+
+function extractTokens(usage: unknown): {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+} {
+  const u = (usage ?? {}) as AiUsageShape;
+  const input = u.inputTokens ?? u.promptTokens ?? null;
+  const output = u.outputTokens ?? u.completionTokens ?? null;
+  const total =
+    u.totalTokens ?? ((input ?? 0) + (output ?? 0) || null);
+  return { input_tokens: input, output_tokens: output, total_tokens: total };
+}
+
+async function recordStep(opts: {
+  ctx: LeadContext;
+  model: string;
+  operation: string;
+  status: "success" | "error";
+  latencyMs: number;
+  usage?: unknown;
+  error?: string | null;
+}) {
+  const tokens = extractTokens(opts.usage);
+  await logUsage({
+    clinic_id: opts.ctx.lead.clinic_id,
+    lead_id: opts.ctx.lead.id,
+    model: opts.model,
+    operation: opts.operation as "chat",
+    status: opts.status,
+    input_tokens: tokens.input_tokens,
+    output_tokens: tokens.output_tokens,
+    total_tokens: tokens.total_tokens,
+    latency_ms: Math.round(opts.latencyMs),
+    error: opts.error ?? null,
+  });
+}
+
 
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
@@ -226,6 +273,8 @@ export type RunAgentSuccess = {
     typifier_model: string;
     maestro_model: string;
     summary_chars: number;
+    summary: string;
+    latency_ms: { summarizer: number; typifier: number; maestro: number };
   };
 };
 
@@ -237,43 +286,97 @@ export async function runAgent(
   const ai = await getClinicOpenAI(client, ctx.lead.clinic_id);
   if (!ai) return { error: "no_clinic_openai_key" };
 
-  // Passo 1
+  // Passo 1 — Resumidor
   let s1: SummarizerOutput;
   let summarizerModel: string;
   let usage1: unknown;
+  const t1 = performance.now();
   try {
     const r1 = await runSummarizer(ai, ctx);
     s1 = r1.output;
     summarizerModel = r1.model;
     usage1 = r1.usage;
+    await recordStep({
+      ctx,
+      model: summarizerModel.split(" ")[0],
+      operation: "classifier:summarizer",
+      status: "success",
+      latencyMs: performance.now() - t1,
+      usage: usage1,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    await recordStep({
+      ctx,
+      model: SUMMARIZER_MODEL_PRIMARY,
+      operation: "classifier:summarizer",
+      status: "error",
+      latencyMs: performance.now() - t1,
+      error: msg.slice(0, 500),
+    });
     return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
+  const lat1 = performance.now() - t1;
 
-  // Passo 2
+  // Passo 2 — Tipificador
   let s2: TypifierOutput;
   let usage2: unknown;
+  const t2 = performance.now();
   try {
     const r2 = await runTypifier(ai, ctx, s1.summary);
     s2 = r2.output;
     usage2 = r2.usage;
+    await recordStep({
+      ctx,
+      model: TYPIFIER_MODEL,
+      operation: "classifier:typifier",
+      status: "success",
+      latencyMs: performance.now() - t2,
+      usage: usage2,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    await recordStep({
+      ctx,
+      model: TYPIFIER_MODEL,
+      operation: "classifier:typifier",
+      status: "error",
+      latencyMs: performance.now() - t2,
+      error: msg.slice(0, 500),
+    });
     return { error: `agent_step2_failed: ${msg.slice(0, 200)}` };
   }
+  const lat2 = performance.now() - t2;
 
-  // Passo 3
+  // Passo 3 — Maestro
   let s3: MaestroOutput;
   let usage3: unknown;
+  const t3 = performance.now();
   try {
     const r3 = await runMaestro(ai, ctx, s1.summary, s2);
     s3 = r3.output;
     usage3 = r3.usage;
+    await recordStep({
+      ctx,
+      model: MAESTRO_MODEL,
+      operation: "classifier:maestro",
+      status: "success",
+      latencyMs: performance.now() - t3,
+      usage: usage3,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    await recordStep({
+      ctx,
+      model: MAESTRO_MODEL,
+      operation: "classifier:maestro",
+      status: "error",
+      latencyMs: performance.now() - t3,
+      error: msg.slice(0, 500),
+    });
     return { error: `agent_step3_failed: ${msg.slice(0, 200)}` };
   }
+  const lat3 = performance.now() - t3;
 
   return {
     classification: mergeV3Outputs(s1, s2, s3),
@@ -283,6 +386,9 @@ export async function runAgent(
       typifier_model: TYPIFIER_MODEL,
       maestro_model: MAESTRO_MODEL,
       summary_chars: s1.summary.length,
+      summary: s1.summary,
+      latency_ms: { summarizer: Math.round(lat1), typifier: Math.round(lat2), maestro: Math.round(lat3) },
     },
   };
 }
+
