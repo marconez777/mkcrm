@@ -145,3 +145,63 @@ export function normalizeClassification(raw: ClassificationRaw): ClassificationV
     reasons: raw.reasons,
   };
 }
+
+// ============================================================
+// V3 — sub-schemas para o pipeline de 3 agentes
+// ============================================================
+
+export const SummarizerOutputSchema = z.object({
+  summary: z.string().max(1600),
+  mentioned_dates: z
+    .array(
+      z.object({
+        raw: z.string().max(120),
+        anchor_iso: z.string(),
+        kind: z.string(),
+      }),
+    )
+    .max(4)
+    .default([]),
+});
+export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
+
+export const TypifierOutputSchema = z.object({
+  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
+  custom_fields_patch: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean(), z.null()]),
+    )
+    .default({}),
+});
+export type TypifierOutput = z.infer<typeof TypifierOutputSchema>;
+
+export const MaestroOutputSchema = z.object({
+  stage_suggestion: z.string(),
+  intent: z.string().default("outro"),
+  mentioned_intents: z.array(z.string()).max(3).default([]),
+  is_b2b: z.boolean(),
+  confidence: z.number().min(0).max(1),
+  reasons: z.array(z.string()).min(1).max(5),
+});
+export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
+
+/** Combina as saídas dos 3 agentes V3 em um ClassificationV2 normalizado. */
+export function mergeV3Outputs(
+  s1: SummarizerOutput,
+  s2: TypifierOutput,
+  s3: MaestroOutput,
+): ClassificationV2 {
+  return normalizeClassification({
+    mentioned_dates: s1.mentioned_dates,
+    mentioned_intents: s3.mentioned_intents,
+    stage_suggestion: s3.stage_suggestion,
+    intent: s3.intent,
+    confidence: s3.confidence,
+    is_b2b: s3.is_b2b,
+    tags_suggested: s2.tags_suggested,
+    custom_fields_patch: s2.custom_fields_patch,
+    reasons: s3.reasons,
+  });
+}
+
