@@ -126,13 +126,15 @@ export function normalizeClassification(raw: ClassificationRaw): ClassificationV
   const mentioned_intents = (raw.mentioned_intents ?? []).filter((i) =>
     INTENT_SET.has(i),
   ) as Array<(typeof INTENT_VALUES)[number]>;
-  const mentioned_dates = (raw.mentioned_dates ?? []).map((d) => ({
-    raw: d.raw,
-    anchor_iso: d.anchor_iso,
-    kind: (d.kind === "procedimento" ? "procedimento" : "consulta") as
-      | "consulta"
-      | "procedimento",
-  }));
+  const mentioned_dates = (raw.mentioned_dates ?? [])
+    .filter((d) => d && typeof d.raw === "string" && d.raw.trim() && typeof d.anchor_iso === "string" && d.anchor_iso.trim())
+    .map((d) => ({
+      raw: d.raw,
+      anchor_iso: d.anchor_iso,
+      kind: (d.kind === "procedimento" ? "procedimento" : "consulta") as
+        | "consulta"
+        | "procedimento",
+    }));
   return {
     mentioned_dates,
     mentioned_intents,
@@ -154,13 +156,16 @@ export const SummarizerOutputSchema = z.object({
   summary: z.string().max(1600),
   mentioned_dates: z
     .array(
-      z.object({
-        raw: z.string().max(120),
-        anchor_iso: z.string(),
-        kind: z.string(),
-      }),
+      z
+        .object({
+          raw: z.string().max(120).optional().default(""),
+          anchor_iso: z.string().optional().default(""),
+          kind: z.string().optional().default("consulta"),
+        })
+        .passthrough(),
     )
-    .max(4)
+    .max(8)
+    .optional()
     .default([]),
 });
 export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
