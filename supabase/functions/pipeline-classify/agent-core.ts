@@ -97,10 +97,35 @@ timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
 histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
 consultas/avaliações/retornos; "procedimento" para procedimento/tratamento agendado.
 
-CRÍTICO: SEMPRE que mencionar uma data no resumo, você DEVE replicar no array mentioned_dates.
-Exemplos:
-- Texto do histórico: "[2026-06-18T10:00:00-03:00] Paciente: Pode ser amanhã às 15h" -> mentioned_dates: [{ "raw": "amanhã às 15h", "anchor_iso": "2026-06-18T10:00:00-03:00", "kind": "consulta" }]
-- Texto do histórico: "[2026-06-18T11:00:00-03:00] Secretária: Marcado para dia 24/06 presencial." -> mentioned_dates: [{ "raw": "dia 24/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "consulta" }]
+CRÍTICO — REGRA OBRIGATÓRIA SOBRE DATAS:
+Se você escrever QUALQUER referência a data/horário de consulta, retorno, avaliação, procedimento ou tratamento no campo "summary" (ex: "19/06 às 10:00", "amanhã", "quinta-feira", "dia 24/06", "semana que vem", "próxima terça"), você é OBRIGADO a replicar essa data no array "mentioned_dates". NUNCA deixe "mentioned_dates" vazio se o summary cita uma data. Se você não tiver certeza de qual mensagem citou a data, use o "anchor_iso" da última mensagem do histórico que fala sobre essa data.
+
+"raw" deve ser a string crua exatamente como aparece na conversa (NÃO converta nem normalize). "anchor_iso" é o timestamp ISO em colchetes da mensagem que citou a data. "kind": "consulta" para 1ª consulta/avaliação/retorno; "procedimento" para procedimento/tratamento agendado.
+
+Exemplos few-shot (siga este padrão à risca):
+
+EX1 — paciente confirma horário proposto pela secretária:
+Histórico:
+[2026-06-18T10:00:00-03:00] Secretária: Posso agendar para 19/06 às 10h com Dr. Ivan?
+[2026-06-18T10:05:00-03:00] Paciente: Pode sim, confirmado!
+Summary correto: "PRESENTE: Paciente confirmou consulta presencial com Dr. Ivan em 19/06 às 10:00."
+mentioned_dates correto: [{ "raw": "19/06 às 10h", "anchor_iso": "2026-06-18T10:00:00-03:00", "kind": "consulta" }]
+
+EX2 — paciente pede reagendamento:
+Histórico:
+[2026-06-18T14:00:00-03:00] Paciente: Preciso remarcar, pode ser quinta-feira à tarde?
+Summary correto: "PRESENTE: Lead solicitou reagendamento para quinta-feira à tarde."
+mentioned_dates correto: [{ "raw": "quinta-feira à tarde", "anchor_iso": "2026-06-18T14:00:00-03:00", "kind": "consulta" }]
+
+EX3 — duas datas (consulta + procedimento):
+[2026-06-18T11:00:00-03:00] Secretária: Avaliação dia 20/06 e procedimento dia 27/06.
+mentioned_dates correto: [
+  { "raw": "dia 20/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "consulta" },
+  { "raw": "dia 27/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "procedimento" }
+]
+
+EX4 — nenhuma data no histórico:
+mentioned_dates correto: []
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
