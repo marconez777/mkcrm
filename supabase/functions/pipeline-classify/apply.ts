@@ -242,7 +242,17 @@ export async function applyClassification(
     confidence: cls.confidence,
   };
 
-  if (applyMaestro) {
+  // Lock D3 (V5): se o lead já está em "Paciente antigo", o Classifier NEM TENTA
+  // sugerir movimentação. Defesa em profundidade junto com o Guard D3 do helper
+  // pipelineMove. O Tipificador continua livre p/ editar chips/campos.
+  if (applyMaestro && ctx.stageName === "Paciente antigo") {
+    stageOutcome = {
+      ...stageOutcome,
+      would_move: false,
+      reason: "locked_in_paciente_antigo",
+      path: "guard_d3",
+    };
+  } else if (applyMaestro) {
     const b2bEnabled = await isEnabled(client, "automation.b2b_move.enabled");
     const b2bGuardPassed =
       cls.is_b2b &&

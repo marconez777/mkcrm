@@ -1,6 +1,7 @@
 // AI chat with advanced RAG, MCP tools, parallel tool calls, citations.
 // Hardening: tool budget, duplicate-call detection, partial-failure handling, traces, timeouts.
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
+import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { chatCompletion, embed, type Agent, type ChatMessage } from "../_shared/ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { assertSpendAllowed, SpendLimitExceeded } from "../_shared/spend-guard.ts";
@@ -247,7 +248,20 @@ async function executeTool(name: string, args: any, ctx: { leadId: string | null
           return { error: "stage_locked_source", current_stage: (curStage as any)?.name, reason: "Lead está em etapa travada" };
         }
       }
-      await supabase.from("leads").update({ stage_id: stage.id, stage_changed_at: new Date().toISOString() }).eq("id", leadId);
+      // V5: TODO update direto em leads.stage_id é proibido — toda movimentação
+      // passa pelo helper central pipelineMove (Guards G1..G5, G8, D3 + wipe de chips).
+      const moveRes = await pipelineMove(supabase, {
+        leadId,
+        toStageId: stage.id,
+        source: "auto:ai-chat-tool",
+        reason: `move_lead_stage via agent ${agent.name}`,
+        ruleKey: "automation.ai_chat_move.enabled",
+        idempotencyKey: `ai-chat:${agent.id}:${leadId}:${stage.id}:${Date.now()}`,
+        metadata: { agent_id: agent.id, agent_name: agent.name },
+      });
+      if (!moveRes.moved) {
+        return { error: "move_blocked", reason: (moveRes as { reason: string }).reason, stage: stage.name };
+      }
       await supabase.from("lead_events").insert({
         lead_id: leadId, type: "stage_changed_by_ai",
         payload: { from: leadRow?.stage_id, to: stage.id, agent_id: agent.id, agent_name: agent.name },
