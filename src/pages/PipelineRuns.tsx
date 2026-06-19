@@ -519,7 +519,8 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
   const applied = result?.telemetry?.applied ?? null;
   const stepLabel =
     item.step === "classify:summarizer" ? "🔁 só Resumidor"
-    : item.step === "classify:typifier" ? "🔁 só Tipificador"
+    : item.step === "classify:parallel" ? "🔁 paralelos (Agendador+Tipificador+Movimentador)"
+    : item.step === "classify:typifier" ? "🔁 só Tipificador (legado V3)"
     : item.step === "classify:maestro" ? "🔁 só Maestro"
     : null;
 
