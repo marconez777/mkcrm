@@ -15,6 +15,7 @@ export type Canon =
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
+  | "Desqualificado"
   | "B2B / Stakeholders";
 
 export const CANON_NAMES: Canon[] = [
@@ -27,6 +28,7 @@ export const CANON_NAMES: Canon[] = [
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
+  "Desqualificado",
   "B2B / Stakeholders",
 ];
 
