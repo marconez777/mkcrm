@@ -74,7 +74,7 @@ async function recordStep(opts: {
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
 const TYPIFIER_MODEL = "gpt-5-mini";
-const MAESTRO_MODEL = "gpt-5-mini";
+const MAESTRO_MODEL = "gpt-5";
 
 export const AGENT_MODEL = MAESTRO_MODEL; // retro-compat (apply.ts lia esse símbolo)
 
