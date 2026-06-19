@@ -11,10 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter } from "lucide-react";
+import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter, FileText, Tags, Target, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { describeReason, toneClasses, type SkipReasonInfo } from "@/lib/pipeline-skip-reasons";
+
+type OnlyAgent = "summarizer" | "typifier" | "maestro";
 
 type RunStatus = "queued" | "running" | "done" | "error" | "cancelled";
 
