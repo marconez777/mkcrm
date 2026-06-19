@@ -225,86 +225,92 @@ export async function applyClassification(
     suggested: stageSuggestion,
     current_stage_name: ctx.stageName,
     would_move: false,
-    reason: "strict_no_move",
+    reason: applyMaestro ? "strict_no_move" : "skipped_partial_mode",
     confidence: cls.confidence,
   };
 
-  const b2bEnabled = await isEnabled(client, "automation.b2b_move.enabled");
-  const b2bGuardPassed =
-    cls.is_b2b &&
-    cls.confidence >= 0.95 &&
-    suggested.includes("b2b") &&
-    !ctx.recentStageHistory.some(
-      (h) =>
-        (h.to && TREATED_STAGES.has(h.to)) ||
-        (h.from && TREATED_STAGES.has(h.from)),
-    );
-
-  if (cls.is_b2b && b2bEnabled && b2bGuardPassed) {
-    const b2bId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "B2B / Stakeholders");
-    if (b2bId && lead.stage_id !== b2bId) {
-      const res = await pipelineMove(client, {
-        leadId: lead.id,
-        toStageId: b2bId,
-        source: "auto:classifier-b2b",
-        reason: `Classifier B2B (conf=${cls.confidence.toFixed(2)})`,
-        ruleKey: "automation.b2b_move.enabled",
-        idempotencyKey: `b2b:${lead.id}:${lastMessageId}`,
-      });
-      stageOutcome = {
-        suggested: stageSuggestion,
-        current_stage_name: ctx.stageName,
-        would_move: res.moved,
-        path: "b2b",
-        reason: res.moved ? "b2b_move_applied" : (res as { reason: string }).reason ?? "b2b_move_failed",
-        confidence: cls.confidence,
-      };
-    } else {
-      stageOutcome = {
-        ...stageOutcome,
-        path: "b2b",
-        reason: b2bId ? "b2b_already_at_destination" : "b2b_stage_alias_not_found",
-      };
-    }
-  } else if (cls.is_b2b) {
-    const failedGuards: string[] = [];
-    if (cls.confidence < 0.95) failedGuards.push(`confidence<0.95(${cls.confidence.toFixed(2)})`);
-    if (!suggested.includes("b2b")) failedGuards.push("missing_tag_b2b");
-    if (!b2bEnabled) failedGuards.push("toggle_off");
-    if (
-      ctx.recentStageHistory.some(
+  if (applyMaestro) {
+    const b2bEnabled = await isEnabled(client, "automation.b2b_move.enabled");
+    const b2bGuardPassed =
+      cls.is_b2b &&
+      cls.confidence >= 0.95 &&
+      suggested.includes("b2b") &&
+      !ctx.recentStageHistory.some(
         (h) =>
           (h.to && TREATED_STAGES.has(h.to)) ||
           (h.from && TREATED_STAGES.has(h.from)),
-      )
-    ) {
-      failedGuards.push("lead_has_treatment_history");
+      );
+
+    if (cls.is_b2b && b2bEnabled && b2bGuardPassed) {
+      const b2bId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "B2B / Stakeholders");
+      if (b2bId && lead.stage_id !== b2bId) {
+        const res = await pipelineMove(client, {
+          leadId: lead.id,
+          toStageId: b2bId,
+          source: "auto:classifier-b2b",
+          reason: `Classifier B2B (conf=${cls.confidence.toFixed(2)})`,
+          ruleKey: "automation.b2b_move.enabled",
+          idempotencyKey: `b2b:${lead.id}:${lastMessageId}`,
+        });
+        stageOutcome = {
+          suggested: stageSuggestion,
+          current_stage_name: ctx.stageName,
+          would_move: res.moved,
+          path: "b2b",
+          reason: res.moved ? "b2b_move_applied" : (res as { reason: string }).reason ?? "b2b_move_failed",
+          confidence: cls.confidence,
+        };
+      } else {
+        stageOutcome = {
+          ...stageOutcome,
+          path: "b2b",
+          reason: b2bId ? "b2b_already_at_destination" : "b2b_stage_alias_not_found",
+        };
+      }
+    } else if (cls.is_b2b) {
+      const failedGuards: string[] = [];
+      if (cls.confidence < 0.95) failedGuards.push(`confidence<0.95(${cls.confidence.toFixed(2)})`);
+      if (!suggested.includes("b2b")) failedGuards.push("missing_tag_b2b");
+      if (!b2bEnabled) failedGuards.push("toggle_off");
+      if (
+        ctx.recentStageHistory.some(
+          (h) =>
+            (h.to && TREATED_STAGES.has(h.to)) ||
+            (h.from && TREATED_STAGES.has(h.from)),
+        )
+      ) {
+        failedGuards.push("lead_has_treatment_history");
+      }
+      stageOutcome = {
+        ...stageOutcome,
+        path: "b2b",
+        reason: `b2b_guard_failed:${failedGuards.join(",")}`,
+      };
     }
-    stageOutcome = {
-      ...stageOutcome,
-      path: "b2b",
-      reason: `b2b_guard_failed:${failedGuards.join(",")}`,
-    };
   }
 
-  // ===== 7) Side-effects por intent =====
-  const intentResults = await runIntentEffects(client, {
-    intent: cls.intent,
-    leadId: lead.id,
-    clinicId: lead.clinic_id,
-    stageName: ctx.stageName,
-    reasons: cls.reasons,
-  });
+  // ===== 7) Side-effects por intent (só em modo full ou maestro) =====
+  const intentResults = applyMaestro
+    ? await runIntentEffects(client, {
+        intent: cls.intent,
+        leadId: lead.id,
+        clinicId: lead.clinic_id,
+        stageName: ctx.stageName,
+        reasons: cls.reasons,
+      })
+    : { skipped: "partial_mode" as const };
 
-  // ===== 8) Summarizer =====
-  const summarizeForce = cls.intent !== "outro";
-  const summarizeResult = await runSummarize(client, lead.id, {
-    force: summarizeForce,
-    reason: summarizeForce ? `intent:${cls.intent}` : "post_classify_v2",
-  }).catch((err) => ({
-    status: "error" as const,
-    reason: err instanceof Error ? err.message : String(err),
-  }));
+  // ===== 8) Summarizer (só dispara se rodamos o summarizer ou se intent novo) =====
+  const summarizeForce = applyMaestro && cls.intent !== "outro";
+  const summarizeResult = applySummarizer
+    ? await runSummarize(client, lead.id, {
+        force: summarizeForce,
+        reason: summarizeForce ? `intent:${cls.intent}` : `post_classify_v3_${mode}`,
+      }).catch((err) => ({
+        status: "error" as const,
+        reason: err instanceof Error ? err.message : String(err),
+      }))
+    : { skipped: "partial_mode" as const };
 
   // ===== 9) Telemetria =====
   const telemetry = {
