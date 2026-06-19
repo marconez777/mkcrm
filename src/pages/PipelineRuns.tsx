@@ -238,7 +238,7 @@ export default function PipelineRuns() {
 
         <Card className="p-4">
           {selectedRunId ? (
-            <RunDetail runId={selectedRunId} />
+            <RunDetail runId={selectedRunId} clinicId={clinicId} />
           ) : (
             <p className="text-sm text-muted-foreground">Selecione uma execução para ver o detalhe.</p>
           )}
