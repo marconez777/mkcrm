@@ -188,7 +188,8 @@ async function handleV2(req: Request): Promise<Response> {
       const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
         ? body.only_agent as "summarizer" | "typifier" | "maestro"
         : undefined;
-      result = await classifyOneV2(client, body.lead_id, onlyAgent);
+      const force = body.force === true;
+      result = await classifyOneV2(client, body.lead_id, onlyAgent, force);
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
         status: 400,
