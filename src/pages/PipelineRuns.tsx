@@ -248,7 +248,7 @@ export default function PipelineRuns() {
   );
 }
 
-function StatusBadge({ status }: { status: RunStatus | RunItem["status"] }) {
+function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"]; label?: string }) {
   const cfg: Record<string, { label: string; cls: string }> = {
     queued: { label: "Na fila", cls: "bg-slate-500/15 text-slate-300" },
     running: { label: "Rodando", cls: "bg-blue-500/15 text-blue-400" },
@@ -260,7 +260,7 @@ function StatusBadge({ status }: { status: RunStatus | RunItem["status"] }) {
     skipped: { label: "Skip", cls: "bg-slate-500/15 text-slate-400" },
   };
   const c = cfg[status] ?? cfg.queued;
-  return <Badge variant="outline" className={`border-0 ${c.cls}`}>{c.label}</Badge>;
+  return <Badge variant="outline" className={`border-0 ${c.cls}`}>{label ?? c.label}</Badge>;
 }
 
 type LeadInfo = { name: string | null; phone: string | null };
