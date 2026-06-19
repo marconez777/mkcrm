@@ -13,6 +13,7 @@ import {
   Clock,
   Coins,
   ExternalLink,
+  GitBranch,
   HelpCircle,
   Inbox,
   Pause,
