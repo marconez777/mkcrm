@@ -158,7 +158,9 @@ Tarefa:
   Use só chaves estritamente justificadas pelo resumo. NÃO escreva datas aqui —
   o pipeline determinístico cuida disso.
 
-Se nada justificar uma tag ou campo, devolva arrays/objetos vazios.`;
+Se nada justificar uma tag ou campo, devolva arrays/objetos vazios.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runTypifier(
