@@ -7275,7 +7275,7 @@ export type Database = {
         }[]
       }
       notify_pipeline_deterministic: {
-        Args: { _action: string; _payload: Json }
+        Args: { _action: string; _payload?: Json }
         Returns: undefined
       }
       pick_ab_winner: { Args: { _campaign_id: string }; Returns: string }
