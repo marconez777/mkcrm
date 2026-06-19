@@ -378,6 +378,7 @@ export async function applyClassification(
           ...stageOutcome,
           path: "nurture",
           reason: `nurture_guard_failed:${failed.join(",")}`,
+        };
       }
     }
 
