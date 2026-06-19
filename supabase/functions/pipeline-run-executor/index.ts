@@ -85,6 +85,7 @@ interface StartInput {
   stage_ids?: string[];
   lead_ids?: string[];
   top_n?: number;
+  only_agent?: "summarizer" | "typifier" | "maestro";
   parent_run_id?: string;
 }
 
