@@ -1,74 +1,61 @@
-# Mover lead com interesse-sem-fechamento para "Nutrição inativa" + upgrade do Maestro
+# Remover bloqueio de "no_new_messages" nas execuções manuais do pipeline
 
 ## Diagnóstico
 
-No caso do Sérgio:
-- Resumo (Agente 1) está correto: "informou estar sem cartão; último atendente respondeu que não consegue chegar a esse valor — agendamento não foi confirmado".
-- Maestro sugeriu `stage="Qualificação"` (igual ao atual), `would_move=false`, `reason="strict_no_move"`.
+Quando o usuário clica em **Executar pipeline inteiro** / **Executar com escopo**:
 
-Dois problemas:
+1. `pipeline-run-executor` chama `pipeline-classify` (`action:"lead"`) para cada lead.
+2. `pipeline-classify` → `loadLeadContext` (`context.ts:96-99`) compara o `id` da última mensagem com `leads.last_processed_message_id_classifier`. Se for igual, retorna `{kind:"skip", reason:"no_new_messages"}`.
+3. `index.ts:81-101` grava telemetria `no_new_messages`, "re-confirma" o watermark e devolve skip.
+4. Resultado: a UI mostra `skip = N` (na print, "1 leads · ok 0 · skip 1") e os 3 agentes V3 nunca rodam de novo, mesmo tendo mudado prompts/modelo.
 
-1. **Prompt do Maestro** não tem regra para "interesse sem fechamento" → fica em Qualificação por inércia.
-2. **apply.ts** está em **strict_no_move** — só B2B tem auto-move. Mesmo que o Maestro sugerisse "Nutrição inativa", o sistema não moveria.
-3. **Maestro roda em `gpt-5-mini`** — é o agente mais "intelectual" do trio (decide stage/intent) e precisa de modelo superior.
-
-> O stage real na ÓR é "Nutrição inativa" (posição 8) — é o que você chama de "nutrição de leads".
+O bypass existente em `classifyOneV2` (linha 63) só aciona quando há `only_agent` (modos "Só Resumidor/Tipificador/Maestro"), e mesmo assim ele só **escreve um skip de telemetria** — não reclassifica.
 
 ## O que ajustar
 
-### 1. `agent-core.ts` — trocar modelo do Maestro
+### 1. `supabase/functions/pipeline-classify/context.ts`
+
+Aceitar `bypassWatermark` em `loadLeadContext`:
 
 ```ts
-const MAESTRO_MODEL = "gpt-5";   // antes: "gpt-5-mini"
+export async function loadLeadContext(
+  client: SupabaseClient,
+  leadId: string,
+  opts?: { bypassWatermark?: boolean },
+): Promise<LoadResult> { ... }
 ```
 
-Resumidor e Tipificador continuam em `gpt-4o`/`gpt-5-mini` (são extratores; custo/latência importam mais lá).
+Quando `opts?.bypassWatermark === true`, pula o early-return de `no_new_messages` (continua carregando contexto normalmente). Watermark continua presente em `ctx.lead.last_processed_message_id_classifier` apenas como informação.
 
-### 2. `agent-core.ts` — refinar prompt do Maestro
+### 2. `supabase/functions/pipeline-classify/index.ts`
 
-- Reescrever descrição de **"Nutrição inativa"** cobrindo 2 casos:
-  - (a) Lead sem retorno há muito tempo, **ou**
-  - (b) Lead com interesse mas SEM fechamento de agendamento.
-- Nova REGRA ESTRITA (texto literal do usuário):
-  > Se o resumo indicar que o lead tem interesse no tratamento/consulta MAS o agendamento NÃO foi confirmado (objeção de preço, pediu desconto recusado, "vou pensar", sem cartão/dinheiro no momento, **parou de responder depois que a secretaria ou atendente IA informou o preço por mais de 4 horas**, etc.), use `stage="Nutrição inativa"` e `intent="objecao"` (ou `"desistencia"` se ele desistiu explicitamente). **NÃO deixe em "Qualificação" só por inércia.**
+- `classifyOneV2(client, leadId, onlyAgent, force?)`:
+  - aceitar `force?: boolean`;
+  - chamar `loadLeadContext(client, leadId, { bypassWatermark: !!force })`;
+  - remover o branch "manual_skip_no_new_messages" (quando force=true não chega mais aqui);
+  - em modo `full` + `force` re-avança o watermark normalmente ao final (já é o fluxo atual).
+- `handleV2`: ler `body.force` (boolean) e propagar para `classifyOneV2`.
+- `tickQueueV2` (cron) **não** força — preserva o comportamento de fila por watermark (evita reprocessar tudo a cada tick).
 
-Para suportar a regra de "4h após o preço", incluir no bloco de sinais determinísticos enviado ao Maestro:
-- `hours_since_last_message` (já temos `messages[-1].created_at` e `nowMs`).
-- `last_message_from_attendant` (boolean: a última mensagem foi do atendente?).
+### 3. `supabase/functions/pipeline-run-executor/index.ts`
 
-Assim o Maestro tem o sinal numérico para aplicar o ">4h" com confiança.
+- `callClassify(leadId, onlyAgent, force=true)`: sempre passar `force: true` no body. Execução pelo botão é ato deliberado do usuário.
+- Adiciona o campo no body junto com `only_agent`.
 
-### 3. `apply.ts` — auto-move guardado para "Nutrição inativa"
+### 4. UI — sem mudanças visíveis
 
-Espelhar o padrão do B2B:
+Nenhuma alteração em `PipelineRuns.tsx`. O comportamento dos botões "Executar pipeline inteiro" / "Executar com escopo" / "Reprocessar erros" / "Reprocessar comentados" passa a sempre forçar reclassificação. A UI já mostra `ok`/`skip`/`err` — só vai ver menos `skip` por watermark.
 
-- Toggle: `app_settings.automation.nurture_move.enabled`.
-- Guards (todos obrigatórios):
-  - `stage_suggestion === "Nutrição inativa"`
-  - `intent ∈ {"objecao", "desistencia"}`
-  - `confidence ≥ 0.8`
-  - `ctx.hasBeenTreatedBefore === false`
-  - `ctx.stageName ∈ {"Novo", "Qualificação"}` (não tira de agendamento/tratamento)
-  - Sem stage move humano nas últimas 24h.
-- Idempotência: `nurture:${leadId}:${lastMessageId}`.
-- Reusa `pipelineMove(...)` com source `auto:classifier-nurture`.
-- Telemetria: `stageOutcome.path = "nurture"`, `reason ∈ {nurture_move_applied, nurture_guard_failed:<lista>}`.
-
-### 4. Banco — ligar a regra (global, igual ao B2B)
-
-```sql
-INSERT INTO app_settings (key, value) VALUES ('automation.nurture_move.enabled', 'true')
-ON CONFLICT (key) DO UPDATE SET value = 'true';
-```
+> Os skips legítimos (`no_messages`, `no_pipeline`, `lead_not_found`, `clinic_not_allowlisted`, `agent_error:*`) continuam acontecendo normalmente.
 
 ### 5. Validação
 
-- Re-rodar `classifyOneV2` no lead do Sérgio (`dded43d5-…`), modo `full`.
-- Conferir: Maestro retornou `stage_suggestion="Nutrição inativa"`, `intent="objecao"`, `confidence ≥ 0.8`; `apply` aplicou move (`path="nurture"`); lead saiu de "Qualificação" → "Nutrição inativa" no kanban.
-- Conferir custo do Maestro com `gpt-5` (token usage no `lead_events.payload.agents`).
+- Re-rodar **Executar pipeline inteiro** na ÓR (3 leads de teste recentes).
+- Esperado: `skip = 0` por `no_new_messages`; os 3 agentes (Resumidor/Tipificador/Maestro `gpt-5`) executam em cada lead e geram um novo `lead_event` com `payload.agents`.
+- Conferir no `lead_events` mais recente de um dos leads que `agents.ran = {summarizer:true, typifier:true, maestro:true}`.
 
 ## Fora de escopo
 
-- Sem mudanças em UI (PipelineRuns já mostra `path/reason`).
-- Sem mexer em outros caminhos de move — strict_no_move segue para todos os demais stages.
-- Sem UI de toggle — habilito direto via SQL.
+- Não alterar a fila por trigger / `tg_enqueue_classifier` — o cron continua respeitando watermark.
+- Não mexer no V1 (`index.v1.ts`).
+- Não criar toggle de UI — força é implícita nas execuções manuais.

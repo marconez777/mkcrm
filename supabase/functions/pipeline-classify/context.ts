@@ -71,6 +71,7 @@ function ageHuman(fromIso: string, nowMs: number): string {
 export async function loadLeadContext(
   client: SupabaseClient,
   leadId: string,
+  opts?: { bypassWatermark?: boolean },
 ): Promise<LoadResult> {
   const { data: leadRow } = await client
     .from("leads")
@@ -93,9 +94,10 @@ export async function loadLeadContext(
   if (messages.length === 0) return { kind: "skip", reason: "no_messages" };
 
   // Early-return: nada de novo desde a última classificação.
+  // Pulado quando opts.bypassWatermark = true (execução manual forçada).
   const watermark = leadRow.last_processed_message_id_classifier as string | null;
   const lastId = messages[messages.length - 1].id;
-  if (watermark && watermark === lastId) {
+  if (!opts?.bypassWatermark && watermark && watermark === lastId) {
     return { kind: "skip", reason: "no_new_messages" };
   }
   const newMessageCount = watermark
