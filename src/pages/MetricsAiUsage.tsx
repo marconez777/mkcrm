@@ -11,6 +11,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Coins, Activity, AlertTriangle, Download, RefreshCw, Bot, Users, MessageSquare } from "lucide-react";
 import { calcCost, fmtUSD, isModelKnown } from "@/lib/ai-pricing";
 import { AiSpendLimitCard } from "@/components/admin/AiSpendLimitCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PipelineOverview } from "@/components/ai/usage/PipelineOverview";
+
 
 type Row = {
   id: string;
