@@ -3505,8 +3505,11 @@ export type Database = {
           auto_reply: boolean
           clinic_id: string | null
           created_at: string
+          current_stage_id: string | null
+          last_followup_at: string | null
           lead_id: string
           paused_until: string | null
+          stage_entered_at: string | null
           updated_at: string
         }
         Insert: {
@@ -3514,8 +3517,11 @@ export type Database = {
           auto_reply?: boolean
           clinic_id?: string | null
           created_at?: string
+          current_stage_id?: string | null
+          last_followup_at?: string | null
           lead_id: string
           paused_until?: string | null
+          stage_entered_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -3523,8 +3529,11 @@ export type Database = {
           auto_reply?: boolean
           clinic_id?: string | null
           created_at?: string
+          current_stage_id?: string | null
+          last_followup_at?: string | null
           lead_id?: string
           paused_until?: string | null
+          stage_entered_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3540,6 +3549,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ai_settings_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
           },
           {
@@ -7259,7 +7275,7 @@ export type Database = {
         }[]
       }
       notify_pipeline_deterministic: {
-        Args: { _action: string; _payload: Json }
+        Args: { _action: string; _payload?: Json }
         Returns: undefined
       }
       pick_ab_winner: { Args: { _campaign_id: string }; Returns: string }
