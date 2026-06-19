@@ -265,7 +265,7 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
       byOp.set(r.operation, cur);
     }
     const successEvents = events.filter((e) => !e.payload?.skipped).length;
-    const classifiedRuns = Math.max(successEvents, Math.round(rows.length / 3));
+    const classifiedRuns = Math.max(successEvents, Math.round(rows.length / 5));
     return {
       cost,
       tokens,
