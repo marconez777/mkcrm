@@ -5,29 +5,27 @@ description: Snapshot do que está documentado em docs/pipeline/runtime/ + estad
 type: feature
 ---
 
-## docs/pipeline/runtime/ — atualizado 2026-06-18
+## docs/pipeline/runtime/ — atualizado 2026-06-19
 
-Espelho do código deployado. 14+ arquivos cobrindo arquitetura, stages, classifier, regras determinísticas, auditores, summarizer, human reactor, fields, tags, db, eventos, gates, known issues, checklist.
+Espelho do código deployado. `GATES.md` e `CLASSIFIER.md` refletem Fase 1 V5 (2026-06-19).
+
+## Fase 1 V5 — DEPLOYADA (2026-06-19)
+
+Mudanças aplicadas ao código (+ docs atualizadas):
+
+1. **MCP/Automations refatoradas** — `ai-chat/index.ts` (tool `move_lead_stage`) e `automations-tick/index.ts` (action `move_stage`) agora chamam `pipelineMove` (toggles `automation.ai_chat_move.enabled`, `automation.ui_rule_move.enabled`).
+2. **Wipe centralizado** — `_shared/pipeline-move.ts` manipula `leads.custom_fields` JSONB antes do UPDATE: remove `interessado` ao sair de Qualificação; remove `consulta_agendada_em`/`procedimento_agendado_em`/`consulta_confirmada`/`procedimento_confirmado` e seta `aguardando=true` ao entrar em Consulta finalizada. NUNCA tocar em `lead_custom_fields` (schema).
+3. **Guard D3 estreitado** — exceção apenas para `toStage.name === "Nutrição inativa"`.
+4. **SLA 60d Paciente antigo** — branch `tier60pa` em `pipeline-deterministic/ruleInactivityTick` move leads inativos há 60+ dias para Nutrição inativa (toggle `automation.inactivity_paciente_antigo.enabled`).
+5. **Lock D3 no Classifier** — `apply.ts:245-255` bloqueia tentativa de move se `ctx.stageName === "Paciente antigo"` (`reason: 'locked_in_paciente_antigo'`).
+6. **Desqualificado no Canon** — `pipeline-classify/schema.ts` agora aceita stage "Desqualificado" sem cair no fallback "Qualificação".
 
 ## Classifier V2 — DEPLOYADO (2026-06-18)
 
-`supabase/functions/pipeline-classify/` agora é modular:
-- `index.ts` dispatcher v1/v2 (flag `automation.classifier.version`, default `'v1'`)
-- `index.v1.ts` fallback (handleV1 exportado, sem Deno.serve)
-- `schema.ts`, `context.ts`, `agent-core.ts`, `date-parser.ts`, `apply.ts`
-- `rules/first-consult.ts`, `rules/intent-effects.ts`
-- Testes Deno: `date-parser_test.ts` (4), `first-consult_test.ts` (5) — todos passam
+`supabase/functions/pipeline-classify/` modular: dispatcher v1/v2, schema/context/agent-core/date-parser/apply, rules. 1 chamada gpt-5-mini. Datas determinísticas. G10 implementado via trigger PG + RPC + override de datas (`isDateFromParser` + `confidence ≥ 0.85`).
 
-**1 chamada gpt-5-mini** (Extrator+Router fundidos). Datas 100% determinísticas via `parseFutureDateInTZ`. Strict no-move (apenas B2B com guards rígidos: conf≥0.95, tag b2b, sem histórico tratado).
+**Telemetria v2**: `lead_events.payload.version=2`.
 
-**Gate G10 IMPLEMENTADO**:
-- Migration `20260618...g10_human_edits.sql`: coluna `leads.custom_fields_last_human_edit jsonb`, trigger `track_custom_fields_human_edits`, RPC `apply_lead_automation_patch`.
-- Apply.ts checa `last_human_edit[key]` < 7d → descarta sugestão IA.
+**Cards strict-no-move**: Fase 1 V5 destravou General Move (Consulta agendada) — não mais acumulam em Qualificação.
 
-**Telemetria v2**: `lead_events.payload.version=2` com `extractor`, `date_parser`, `first_consult`, `applied.{tags, custom_fields.blocked_by_g10, stage_suggestion_only}`, `cost`.
-
-**Rollout**: cron ativo, mas dispatcher ainda em v1. Para ativar V2: `UPDATE app_settings SET value='"v2"' WHERE key='automation.classifier.version'` (criar se não existir). Smoke via `{action:'lead', lead_id, force_version:'v2'}`.
-
-**Cards strict-no-move**: vão acumular em Qualificação até Fase 2 (SumUp + appointment-extractor). Conhecido e aceito.
-
-Não há scripts/docs-sync.mjs neste projeto.
+Não há `scripts/docs-sync.mjs` neste projeto.
