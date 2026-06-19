@@ -94,7 +94,9 @@ timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
 histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
 consultas/avaliações; "procedimento" para procedimento/tratamento agendado.
 Se houver qualquer ambiguidade ou só uma das partes (só dia OU só hora), NÃO
-inclua.`;
+inclua.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runSummarizer(
@@ -128,16 +130,27 @@ Produza o resumo agora.`;
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Sinais comuns: 404 model not found, model_not_found, does not have access
-    if (!/404|not.?found|does not have access|model_not_found|unsupported/i.test(msg)) {
+    console.error("[summarizer] primary failed", SUMMARIZER_MODEL_PRIMARY, msg);
+    // Fallback em casos comuns: modelo indisponível, ou o modelo gerou JSON inválido.
+    if (
+      !/404|not.?found|does not have access|model_not_found|unsupported|no object generated|response did not match|invalid.*json|could not parse/i.test(
+        msg,
+      )
+    ) {
       throw err;
     }
-    const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-    return {
-      output: result.output as SummarizerOutput,
-      model: `${SUMMARIZER_MODEL_FALLBACK} (fallback from ${SUMMARIZER_MODEL_PRIMARY})`,
-      usage: (result as { usage?: unknown }).usage,
-    };
+    try {
+      const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
+      return {
+        output: result.output as SummarizerOutput,
+        model: `${SUMMARIZER_MODEL_FALLBACK} (fallback from ${SUMMARIZER_MODEL_PRIMARY})`,
+        usage: (result as { usage?: unknown }).usage,
+      };
+    } catch (err2) {
+      const msg2 = err2 instanceof Error ? err2.message : String(err2);
+      console.error("[summarizer] fallback failed", SUMMARIZER_MODEL_FALLBACK, msg2);
+      throw err2;
+    }
   }
 }
 
@@ -156,7 +169,9 @@ Tarefa:
   Use só chaves estritamente justificadas pelo resumo. NÃO escreva datas aqui —
   o pipeline determinístico cuida disso.
 
-Se nada justificar uma tag ou campo, devolva arrays/objetos vazios.`;
+Se nada justificar uma tag ou campo, devolva arrays/objetos vazios.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runTypifier(
@@ -216,7 +231,9 @@ ${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
 
 "confidence" reflete sua certeza: 0.0-0.5 ambíguo, 0.5-0.75 razoável,
 0.75-0.9 alto, 0.9-1 inequívoco.
-"reasons": 1-5 frases curtas em PT-BR justificando a decisão.`;
+"reasons": 1-5 frases curtas em PT-BR justificando a decisão.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runMaestro(
