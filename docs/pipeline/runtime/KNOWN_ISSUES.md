@@ -17,6 +17,24 @@ related_docs:
 
 # Bugs conhecidos e limitações
 
+## -1. Triggers e crons silenciosamente quebrados por `extensions.http_post` (CORRIGIDO 2026-06-19)
+
+**Sintoma**: 0 eventos `auto:novo-lead`, `auto:secretary-replied`, `auto:appointment-sync`, `auto:followup-*` em 24h. Fila `needs_ai_review` crescendo (440+) sem ser drenada. Em `net._http_response`: ~120 × 404 por hora.
+
+**Causa-raiz**: a função `public.notify_pipeline_deterministic(...)` E 4 cron jobs (`pipeline-classify-tick`, `pipeline-inactivity-tick`, `pipeline-reactivation-tick`, `pipeline-human-reactor-tick`) chamavam `extensions.http_post(...)`. A extensão `http` **não está instalada** — só `pg_net` (schema `net`). Resultado:
+
+- Triggers de pipeline: cada chamada quebrava, mas o `EXCEPTION WHEN OTHERS` na função engolia o erro → silêncio total.
+- Crons: `cron.job_run_details.status='failed'` com `function extensions.http_post(...) does not exist`.
+
+**Fix**:
+- Migration: `notify_pipeline_deterministic` reescrita usando `net.http_post(...)` (com `SET search_path = public, extensions, net`).
+- 4 crons reagendados via `cron.unschedule()` + `cron.schedule()` para usar `net.http_post(...)`.
+- Backfill one-shot: `notify_pipeline_deterministic('novo-lead', …)` para todos os leads das últimas 24h + `secretary-replied` para a primeira `from_me` por lead em "Novo".
+
+**Status**: ✅ Corrigido. Em 3 min após o fix: 100 `auto:classifier`, 0 erros 500, 404s reduzidos a 3 residuais, fila caiu de 457 → 376 e continua drenando.
+
+**Schema drift correlato (mesma janela)**: tabela `lead_ai_settings` não tinha `current_stage_id`, `stage_entered_at`, `last_followup_at` — colunas referenciadas por `agent-followups-tick` e `ai-chat`, gerando 500s. Colunas criadas + backfill a partir de `leads.stage_id`/`stage_changed_at` + trigger `trg_sync_lead_ai_settings_stage` mantendo sincronizado. Agente de Follow-up agora roda.
+
 ## 0. Fila "IA na fila" não drenava (CORRIGIDO 2026-06-18)
 
 **Sintoma**: badge "IA na fila" persistindo horas/dias em cards (256 leads acumulados, mais antigo de 11/06).
