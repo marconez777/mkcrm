@@ -514,6 +514,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
     const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
     const paStageIds = new Set(paAliases.map((a) => a.stage_id));
+    console.log("[tier60pa] toggle_on", { cutoff60, paAliasesCount: paAliases.length, paStageIds: Array.from(paStageIds), nutricaoMapSize: nutricaoByPipeline.size });
     if (paStageIds.size > 0) {
       const { data: paLeads } = await client
         .from("leads")
