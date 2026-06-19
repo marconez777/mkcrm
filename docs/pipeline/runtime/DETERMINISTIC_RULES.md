@@ -81,12 +81,17 @@ Quando `modalidade_preferida` muda para `online` → adiciona tag `modalidade_on
 
 ### Inatividade tiered (cron `*/15 * * * *`)
 
-Roda em leads não-arquivados, `is_internal_contact=false`, stage ∈ {Novo, Qualificação, Consulta agendada, Tratamento agendado} (resolvidos por alias). Limit 2000/tick.
+Roda em leads não-arquivados, `is_internal_contact=false`.
+- **Tiers 24h, 3d, 7d**: stage ∈ {Novo, Qualificação, Consulta agendada, Tratamento agendado}
+- **Tier 60d**: stage = Paciente antigo
+
+Limit 2000/tick.
 
 Hierarquia (cada lead cai em UMA tier por vez):
 
 | Tier | Condição | Ação | Idempotência |
 |---|---|---|---|
+| **60d Paciente antigo** | `last_message_at < now()-60d` em Paciente antigo | Move → Nutrição inativa (`source='auto:inactivity-tick'`) | idempotencyKey `inactivity:paciente_antigo:<leadId>:<YYYY-MM>` |
 | **7d nutrição** | `last_message_at < now()-7d` | Move → Nutrição inativa (`source='auto:followup-7d'`) + tag `precisa_atencao_humana` + event | idempotencyKey `inactivity:<leadId>:7d:<YYYY-MM-DD>` |
 | **3d follow-up** | else if `last_message_at < now()-3d` | Só `lead_events.type='auto:followup-3d'` (sem tag/sem move) | event lookup do dia |
 | **24h follow-up** | else if `last_human_activity_at < now()-24h` | Só `lead_events.type='auto:followup-24h'` | event lookup do dia |

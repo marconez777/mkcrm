@@ -4,10 +4,9 @@ topic: kanban
 kind: reference
 audience: agent
 updated: 2026-06-19
-summary: "Edge function pipeline-classify V2: arquitetura modular (context → agent-core → date-parser → apply), 1 chamada gpt-5-mini, schema enxuto, parser de datas determinístico, strict no-move (exceto B2B com guards rígidos), G10 implementado via trigger PG + RPC apply_lead_automation_patch."
+summary: "Edge function pipeline-classify V5: Arquitetura de 3 Agentes (Resumidor, Tipificador, Maestro), parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
-  - supabase/functions/pipeline-classify/index.v1.ts
   - supabase/functions/pipeline-classify/schema.ts
   - supabase/functions/pipeline-classify/context.ts
   - supabase/functions/pipeline-classify/agent-core.ts
@@ -27,21 +26,22 @@ related_docs:
   - docs/pipeline/runtime/DATABASE_LIVE.md
 ---
 
-# Classifier `pipeline-classify` — V2
+# Classifier `pipeline-classify` — V5 (3 Agentes)
 
-> Reconstrução multi-step (junho/2026). Substitui o monolito V1 de 696 linhas por
-> uma estrutura modular (v2). O classificador agora possui **General Move** (auto-move)
-> ativado para cenários de alta confiança (ex: Consulta agendada), realiza override
-> de G10 para datas extraídas do chat, suporta uma whitelist de tags expandida, e
-> utiliza few-shots no summarizer para melhor extração.
+> Reconstrução multi-step (junho/2026). Substitui o monolito V2 por uma **Linha de Montagem de 3 Agentes**:
+> 1. **Resumidor (gpt-4o)**: Extrai passado/presente e datas puras.
+> 2. **Tipificador (gpt-5-mini)**: Sugere tags (whitelist) e preenche chips.
+> 3. **Maestro (gpt-5-mini)**: Decide o intent e para qual stage o card deve se mover.
+> 
+> O classificador possui **General Move** (auto-move) ativado para cenários de alta confiança, 
+> realiza override de G10 para datas extraídas do chat, suporta uma whitelist de tags expandida.
 
 ## Resumo
 
 | | |
 |---|---|
-| Entry | `supabase/functions/pipeline-classify/index.ts` (dispatcher v1/v2) |
-| Fallback V1 | `supabase/functions/pipeline-classify/index.v1.ts` (intacto, sem `Deno.serve`) |
-| Modelo | `gpt-5-mini` (1 chamada por classificação) |
+| Entry | `supabase/functions/pipeline-classify/index.ts` |
+| Modelos | `gpt-4o` (Resumidor) + 2x `gpt-5-mini` (Tipificador e Maestro) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
 | Toggle versão | `automation.classifier.version` (`'v1'` default; `'v2'` rollout) |
@@ -54,36 +54,51 @@ related_docs:
 
 ```text
 pipeline-classify/
-├── index.ts             dispatcher (lê automation.classifier.version) + cron tick
-├── index.v1.ts          handler V1 antigo, exporta handleV1(req)
-├── schema.ts            Zod único + canon names, intents, tags protegidas, G10_WINDOW_MS
+├── index.ts             dispatcher + cron tick
+├── schema.ts            Zod schemas p/ 3 Agentes + canon names, intents, tags protegidas
 ├── context.ts           loadLeadContext: lê lead + ai_summary + watermark; early-return
-├── agent-core.ts        1 chamada gpt-5-mini com prompt enxuto + tool A3 opcional
+├── agent-core.ts        Orquestra a pipeline sequencial dos 3 Agentes (generateText)
 ├── date-parser.ts       wrapper sobre parseFutureDateInTZ (ZERO LLM)
-├── apply.ts             ordem de aplicação: first-consult → datas (G10) → fields (G10) → tags (whitelist) → strict-no-move (exceto B2B) → intent-effects → summarizer → telemetria → watermark
+├── apply.ts             ordem de aplicação: first-consult → datas (G10) → fields (G10) → tags (whitelist) → B2B/General Move → intent-effects → telemetria → watermark
 ├── rules/first-consult.ts   regra "1ª consulta" com fallback no ai_summary
 ├── rules/intent-effects.ts  wrapper sobre runNfTask / runPaymentAlleged / runJudicializacao / runRenovacaoReceita / runObjectionSuggest
 ├── date-parser_test.ts      4 testes Deno
 └── first-consult_test.ts    5 testes Deno
 ```
 
-## Schema do agente (`schema.ts`)
+## Schemas dos Agentes (`schema.ts`)
 
+A saída é dividida em 3 partes, refletindo os 3 Agentes:
+
+**Agente 1 (Resumidor)**
 ```ts
 z.object({
+  summary: z.string(),
   mentioned_dates: z.array(z.object({
     raw: z.string().max(120),       // string crua, NÃO ISO
     anchor_iso: z.string(),         // timestamp da mensagem que cita
-    kind: z.string()                // "consulta" | "procedimento" (validado pós-LLM)
-  })).max(4),
-  mentioned_intents: z.array(z.string()).max(3),   // filtrado contra INTENT_VALUES
+    kind: z.string()                // "consulta" | "procedimento"
+  })).max(4)
+})
+```
+
+**Agente 2 (Tipificador)**
+```ts
+z.object({
+  tags_suggested: z.array(z.string().max(40)).max(8),
+  custom_fields_patch: z.record(z.string(), z.union([z.string(),z.number(),z.boolean(),z.null()]))
+})
+```
+
+**Agente 3 (Maestro)**
+```ts
+z.object({
   stage_suggestion: z.string(),                    // coercido p/ Canon (fallback "Qualificação")
   intent: z.string().default("outro"),             // coercido p/ INTENT_VALUES
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
-  tags_suggested: z.array(z.string().max(40)).max(8),
-  custom_fields_patch: z.record(z.string(), z.union([z.string(),z.number(),z.boolean(),z.null()])),
-  reasons: z.array(z.string()).min(1).max(5)
+  reasons: z.array(z.string()).min(1).max(5),
+  mentioned_intents: z.array(z.string()).max(3)
 })
 ```
 
@@ -176,47 +191,18 @@ Inalterados em relação a V1. `rules/intent-effects.ts` chama:
 | `renovacao_receita` | `runRenovacaoReceita` |
 | `objecao` | `runObjectionSuggest` |
 
-## Summarizer
-
-Inalterado: `runSummarize(leadId, { force: intent !== 'outro' })`.
-
 ## Dispatcher (`index.ts`)
 
-```ts
-// 1. Lê body uma vez (clona request)
-// 2. Se body.force_version === 'v2' OU 'v1' → usa esse (override de teste)
-// 3. Senão lê app_settings 'automation.classifier.version' (default 'v1')
-// 4. Roteia para handleV2(req) ou handleV1(req)
-```
+O cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto. O dispatcher lê a fila e invoca `agent-core.ts` para processar a "linha de montagem" de agentes sequenciais.
 
-Cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto.
-
-## Smoke test (V2)
+## Smoke test (V5)
 
 ```bash
-# Tick V2 forçado:
+# Tick forçado:
 curl -X POST <function_url>/pipeline-classify \
-  -d '{"action":"tick","force_version":"v2"}'
+  -d '{"action":"tick"}'
 
-# Lead específico V2:
+# Lead específico:
 curl -X POST <function_url>/pipeline-classify \
-  -d '{"action":"lead","lead_id":"<uuid>","force_version":"v2"}'
+  -d '{"action":"lead","lead_id":"<uuid>"}'
 ```
-
-## Rollout
-
-1. Migration aplicada → trigger G10 ativo.
-2. Função deployada com `version` flag default `'v1'`.
-3. Smoke V2 em N leads via `force_version:'v2'`.
-4. Validar `payload.version=2` em `lead_events`.
-5. `UPDATE app_settings SET value='"v2"' WHERE key='automation.classifier.version'`.
-6. Após 24h estáveis, deletar `index.v1.ts` em PR separado.
-
-## Rollback
-
-```sql
-UPDATE app_settings SET value='"v1"' WHERE key='automation.classifier.version';
--- ou: DELETE FROM app_settings WHERE key='automation.classifier.version';
-```
-
-Próximo tick volta a V1 imediatamente.

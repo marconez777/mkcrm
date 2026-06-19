@@ -95,7 +95,7 @@ export const ClassificationSchemaV2 = z.object({
   custom_fields_patch: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.null()]),
+      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
     )
     .default({}),
   reasons: z.array(z.string()).min(1).max(5),
@@ -111,7 +111,7 @@ export type ClassificationV2 = {
   confidence: number;
   is_b2b: boolean;
   tags_suggested: string[];
-  custom_fields_patch: Record<string, string | number | boolean | null>;
+  custom_fields_patch: Record<string, string | number | boolean | string[] | null>;
   reasons: string[];
 };
 
@@ -151,7 +151,7 @@ export function normalizeClassification(raw: ClassificationRaw): ClassificationV
 }
 
 // ============================================================
-// V3 — sub-schemas para o pipeline de 3 agentes
+// V6 — sub-schemas para o pipeline de 5 agentes
 // ============================================================
 
 export const SummarizerOutputSchema = z.object({
@@ -172,16 +172,32 @@ export const SummarizerOutputSchema = z.object({
 });
 export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
 
+export const AgendadorOutputSchema = z.object({
+  is_scheduling_action: z.boolean(),
+  scheduling_intent: z.enum(["novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda", "nenhum"]).default("nenhum"),
+  reasons: z.array(z.string()).min(1).max(3),
+});
+export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
+
 export const TypifierOutputSchema = z.object({
   tags_suggested: z.array(z.string().max(40)).max(8).default([]),
   custom_fields_patch: z
     .record(
       z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.null()]),
+      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
     )
     .default({}),
 });
 export type TypifierOutput = z.infer<typeof TypifierOutputSchema>;
+
+export const MovimentadorOutputSchema = z.object({
+  stage_suggestion: z.string(),
+  intent: z.string().default("outro"),
+  mentioned_intents: z.array(z.string()).max(3).default([]),
+  is_b2b: z.boolean(),
+  reasons: z.array(z.string()).min(1).max(3),
+});
+export type MovimentadorOutput = z.infer<typeof MovimentadorOutputSchema>;
 
 export const MaestroOutputSchema = z.object({
   stage_suggestion: z.string(),
@@ -189,26 +205,32 @@ export const MaestroOutputSchema = z.object({
   mentioned_intents: z.array(z.string()).max(3).default([]),
   is_b2b: z.boolean(),
   confidence: z.number().min(0).max(1),
+  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
+  custom_fields_patch: z
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
+    )
+    .default({}),
   reasons: z.array(z.string()).min(1).max(5),
 });
 export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
 
-/** Combina as saídas dos 3 agentes V3 em um ClassificationV2 normalizado. */
-export function mergeV3Outputs(
+/** Combina as saídas dos 5 agentes V6 em um ClassificationV2 normalizado. */
+export function mergeV6Outputs(
   s1: SummarizerOutput,
-  s2: TypifierOutput,
-  s3: MaestroOutput,
+  s_maestro: MaestroOutput,
 ): ClassificationV2 {
   return normalizeClassification({
     mentioned_dates: s1.mentioned_dates,
-    mentioned_intents: s3.mentioned_intents,
-    stage_suggestion: s3.stage_suggestion,
-    intent: s3.intent,
-    confidence: s3.confidence,
-    is_b2b: s3.is_b2b,
-    tags_suggested: s2.tags_suggested,
-    custom_fields_patch: s2.custom_fields_patch,
-    reasons: s3.reasons,
+    mentioned_intents: s_maestro.mentioned_intents,
+    stage_suggestion: s_maestro.stage_suggestion,
+    intent: s_maestro.intent,
+    confidence: s_maestro.confidence,
+    is_b2b: s_maestro.is_b2b,
+    tags_suggested: s_maestro.tags_suggested,
+    custom_fields_patch: s_maestro.custom_fields_patch,
+    reasons: s_maestro.reasons,
   });
 }
 

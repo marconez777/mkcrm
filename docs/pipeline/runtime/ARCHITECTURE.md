@@ -70,19 +70,19 @@ related_docs:
    0 */3 * * *   classifier-daily-batch  ┘ tudo via net.http_post
                                           │
                                           ▼
-   pipeline-classify  (gpt-5-mini)
+   pipeline-classify  (V5 - 3 Agentes)
      • lê fila: leads c/ needs_ai_review=true + reason 'pipeline-classifier'
      • monta LeadContext (idade, msgs, stage history, treated-before)
-     • prompt PT-BR com regras ("1ª consulta", datas relativas em BRT)
-     • valida datas (sanitizeDateField: anchor = última msg)
-     • aplica tags (whitelist + protegidas) e custom_fields_patch
-     • intent → dispara: runNfTask | runPaymentAlleged | runJudicializacao
-                      | runRenovacaoReceita | runObjectionSuggest
+     • Agente 1 (Resumidor - gpt-4o): Extrai datas (anchor_iso) + gera summary.
+     • Agente 2 (Tipificador - gpt-5-mini): Sugere tags + custom_fields_patch (Chips).
+     • Agente 3 (Maestro - gpt-5-mini): Define intent + stage_suggestion (Move).
+     • valida datas (date-parser) com bypass do G10 se alta confiança.
+     • aplica tags (whitelist + protegidas) e custom_fields_patch.
+     • intent → dispara hooks (runNfTask, etc).
      • Move por 2 caminhos:
-         - B2B path (is_b2b + conf ≥ 0.9) → auto:classifier-b2b
-         - Generic path (conf ≥ stage_move_min_confidence) → auto:classifier-stage
+         - B2B path (is_b2b + conf ≥ 0.95) → auto:classifier-b2b
+         - Generic path (General Move) → auto:classifier-stage (lock em Paciente antigo)
      • Confidence < 0.6 → tag precisa_atencao_humana
-     • SEMPRE chama runSummarize() ao final
      • Grava lead_events 'auto:classifier' com payload + applied{}
 
    pipeline-position-auditor (A1, gpt-5-mini, cron diário 03h BRT)
@@ -125,7 +125,7 @@ related_docs:
 1. **Captura** — `evolution-webhook` (whatsapp) e form submissions populam `leads` e `messages`.
 2. **Roteamento determinístico** — triggers Postgres invocam `pipeline-deterministic` via `pg_net`. Decisões binárias (regras `auto:*`).
 3. **Move centralizado** — toda regra que move card passa por `_shared/pipeline-move.ts`, que aplica os 7 gates síncronos + 2 hooks async (A2 verifier + stage bindings).
-4. **Classificação LLM** — `pipeline-classify` consome a fila `needs_ai_review`, devolve JSON estruturado, e aplica tags/fields/move-de-B2B/move-genérico. NUNCA toca `appointments`.
-5. **Resumo** — `runSummarize` (chamado pelo classifier ou standalone) atualiza `leads.ai_summary` (≤800 chars).
+4. **Classificação LLM** — `pipeline-classify` consome a fila `needs_ai_review`, roda a linha de montagem de 3 Agentes (Resumidor, Tipificador, Maestro) e devolve JSON estruturado, aplicando tags/fields/move-de-B2B/move-genérico. NUNCA toca `appointments`.
+5. **Resumo** — O Agente 1 (Resumidor) agora é nativo ao processo de classificação, garantindo que o histórico e o momento atual estejam sempre sintetizados.
 6. **Auditoria** — A1 (cron) e A2 (hook) sinalizam via tag, nunca alteram stage.
 7. **Reator humano** — cron diário cria task "Revisar lead travado" para leads com tag `precisa_atencao_humana` parados ≥7d.

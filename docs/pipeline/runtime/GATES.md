@@ -93,7 +93,7 @@ Resultado esperado: **vazio**. As únicas escritas em `appointments` vêm da UI 
 ### Wipe centralizado de chips (`pipeline-move.ts:183-226`)
 Antes do UPDATE de stage, o helper manipula `leads.custom_fields` (coluna JSONB — **nunca** `lead_custom_fields`, que guarda definições):
 
-- Saindo de `"Qualificação"`: remove a chave `interessado`.
+- Saindo de `"Qualificação"`: remove a chave `interesse`.
 - Entrando em `"Consulta finalizada"`: remove `consulta_agendada_em`, `procedimento_agendado_em`, `consulta_confirmada`, `procedimento_confirmado`, e seta `aguardando=true`.
 
 Chaves removidas/adicionadas aparecem em `lead_stage_history.metadata.wiped_keys`. Falha de wipe não bloqueia o move (warning).

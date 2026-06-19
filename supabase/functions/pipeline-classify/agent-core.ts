@@ -1,11 +1,10 @@
 // supabase/functions/pipeline-classify/agent-core.ts
-// V3 — pipeline de 3 agentes sequenciais:
+// V6 — pipeline de 5 agentes:
 //   1) Resumidor   (gpt-4o, fallback gpt-5-mini) → {summary, mentioned_dates}
-//   2) Tipificador (gpt-5-mini)                  → {tags_suggested, custom_fields_patch}
-//   3) Maestro     (gpt-5-mini)                  → {stage_suggestion, intent, is_b2b, confidence, reasons, mentioned_intents}
-//
-// Datas NUNCA são convertidas pelo LLM. O Agente 1 é o único que vê o histórico
-// completo (formatMessages) e por isso é o único que pode emitir anchor_iso real.
+//   2) Agendador   (gpt-5-mini)                  → {is_scheduling_action, scheduling_intent, reasons}
+//   3) Preenchedor (gpt-5-mini)                  → {tags_suggested, custom_fields_patch}
+//   4) Movimentador(gpt-5-mini)                  → {stage_suggestion, intent, mentioned_intents, is_b2b, reasons}
+//   5) Maestro     (gpt-5)                       → Validador final
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText, Output } from "npm:ai@^6";
@@ -15,12 +14,16 @@ import { buildContextBlock, formatMessages, type LeadContext } from "./context.t
 import {
   CANON_NAMES,
   INTENT_VALUES,
+  AgendadorOutputSchema,
   MaestroOutputSchema,
+  MovimentadorOutputSchema,
   SummarizerOutputSchema,
   TypifierOutputSchema,
-  mergeV3Outputs,
+  mergeV6Outputs,
+  type AgendadorOutput,
   type ClassificationV2,
   type MaestroOutput,
+  type MovimentadorOutput,
   type SummarizerOutput,
   type TypifierOutput,
 } from "./schema.ts";
@@ -70,13 +73,14 @@ async function recordStep(opts: {
   });
 }
 
-
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
+const AGENDADOR_MODEL = "gpt-5-mini";
 const TYPIFIER_MODEL = "gpt-5-mini";
+const MOVIMENTADOR_MODEL = "gpt-5-mini";
 const MAESTRO_MODEL = "gpt-5";
 
-export const AGENT_MODEL = MAESTRO_MODEL; // retro-compat (apply.ts lia esse símbolo)
+export const AGENT_MODEL = MAESTRO_MODEL;
 
 // ===== Agente 1: Resumidor =====
 
@@ -88,19 +92,17 @@ consultas já realizadas) de PRESENTE (o que o lead quer, recusou ou pediu na
 ÚLTIMA mensagem). Não invente nada que não esteja no histórico.
 
 IMPORTANTÍSSIMO NO RESUMO:
+- **AUTORIDADE DA SECRETÁRIA**: A palavra da secretária vale mais que a do paciente. Se o paciente diz "já paguei", mas a secretária não confirmou nem enviou comprovante, você DEVE escrever: "Paciente alega ter pago, mas não há confirmação da clínica". SÓ AFIRME "pagamento recebido" ou "agendamento confirmado" se a *secretária* confirmar de forma clara.
 - Se o paciente mencionar a MODALIDADE de atendimento (ex: "presencial", "online", "teleconsulta"), você DEVE citar isso no resumo.
 - Se o paciente mencionar QUALQUER campo personalizado ou dado cadastral importante, inclua no resumo.
 
 Além do resumo, devolva "mentioned_dates" contendo as datas citadas pelo paciente ou pela secretária.
 NÃO converta datas — devolva a string crua exatamente como aparece ("amanhã às 15h", "quinta-feira", "dia 24/06") e "anchor_iso" = o
-timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
-histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
+timestamp ISO da MENSAGEM que cita a data. "kind": "consulta" para primeiras
 consultas/avaliações/retornos; "procedimento" para procedimento/tratamento agendado.
 
 CRÍTICO — REGRA OBRIGATÓRIA SOBRE DATAS:
-Se você escrever QUALQUER referência a data/horário de consulta, retorno, avaliação, procedimento ou tratamento no campo "summary" (ex: "19/06 às 10:00", "amanhã", "quinta-feira", "dia 24/06", "semana que vem", "próxima terça"), você é OBRIGADO a replicar essa data no array "mentioned_dates". NUNCA deixe "mentioned_dates" vazio se o summary cita uma data. Se você não tiver certeza de qual mensagem citou a data, use o "anchor_iso" da última mensagem do histórico que fala sobre essa data.
-
-"raw" deve ser a string crua exatamente como aparece na conversa (NÃO converta nem normalize). "anchor_iso" é o timestamp ISO em colchetes da mensagem que citou a data. "kind": "consulta" para 1ª consulta/avaliação/retorno; "procedimento" para procedimento/tratamento agendado.
+Se você escrever QUALQUER referência a data/horário no campo "summary", você é OBRIGADO a replicar essa data no array "mentioned_dates". NUNCA deixe "mentioned_dates" vazio se o summary cita uma data.
 
 Exemplos few-shot (siga este padrão à risca):
 
@@ -110,22 +112,6 @@ Histórico:
 [2026-06-18T10:05:00-03:00] Paciente: Pode sim, confirmado!
 Summary correto: "PRESENTE: Paciente confirmou consulta presencial com Dr. Ivan em 19/06 às 10:00."
 mentioned_dates correto: [{ "raw": "19/06 às 10h", "anchor_iso": "2026-06-18T10:00:00-03:00", "kind": "consulta" }]
-
-EX2 — paciente pede reagendamento:
-Histórico:
-[2026-06-18T14:00:00-03:00] Paciente: Preciso remarcar, pode ser quinta-feira à tarde?
-Summary correto: "PRESENTE: Lead solicitou reagendamento para quinta-feira à tarde."
-mentioned_dates correto: [{ "raw": "quinta-feira à tarde", "anchor_iso": "2026-06-18T14:00:00-03:00", "kind": "consulta" }]
-
-EX3 — duas datas (consulta + procedimento):
-[2026-06-18T11:00:00-03:00] Secretária: Avaliação dia 20/06 e procedimento dia 27/06.
-mentioned_dates correto: [
-  { "raw": "dia 20/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "consulta" },
-  { "raw": "dia 27/06", "anchor_iso": "2026-06-18T11:00:00-03:00", "kind": "procedimento" }
-]
-
-EX4 — nenhuma data no histórico:
-mentioned_dates correto: []
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
@@ -154,185 +140,174 @@ Produza o resumo agora.`;
 
   try {
     const result = await tryModel(SUMMARIZER_MODEL_PRIMARY);
-    return {
-      output: result.output as SummarizerOutput,
-      model: SUMMARIZER_MODEL_PRIMARY,
-      usage: (result as { usage?: unknown }).usage,
-    };
+    return { output: result.output as SummarizerOutput, model: SUMMARIZER_MODEL_PRIMARY, usage: (result as { usage?: unknown }).usage };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[summarizer] primary failed", SUMMARIZER_MODEL_PRIMARY, msg);
-    // Fallback em casos comuns: modelo indisponível, ou o modelo gerou JSON inválido.
-    if (
-      !/404|not.?found|does not have access|model_not_found|unsupported|no object generated|response did not match|invalid.*json|could not parse/i.test(
-        msg,
-      )
-    ) {
-      throw err;
-    }
     try {
       const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-      return {
-        output: result.output as SummarizerOutput,
-        model: `${SUMMARIZER_MODEL_FALLBACK} (fallback from ${SUMMARIZER_MODEL_PRIMARY})`,
-        usage: (result as { usage?: unknown }).usage,
-      };
+      return { output: result.output as SummarizerOutput, model: \`\${SUMMARIZER_MODEL_FALLBACK} (fallback)\`, usage: (result as { usage?: unknown }).usage };
     } catch (err2) {
-      const msg2 = err2 instanceof Error ? err2.message : String(err2);
-      console.error("[summarizer] fallback failed", SUMMARIZER_MODEL_FALLBACK, msg2);
       throw err2;
     }
   }
 }
 
-// ===== Agente 2: Tipificador =====
+// ===== Agente 2: Agendador =====
+
+function buildAgendadorSystem(): string {
+  return `Você é o Agendador do CRM médico. Baseie-se SOMENTE no resumo factual.
+Sua única função é descobrir se a mensagem trata de uma ação de agenda.
+Não tente deduzir data exata (o parser já fez isso). Foque na INTENÇÃO.
+
+"scheduling_intent": "novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda" ou "nenhum".
+"is_scheduling_action": true se for novo, reagendamento ou cancelamento.
+"reasons": Justifique sua decisão com base no resumo.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido.`;
+}
+
+async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
+  const result = await generateText({
+    model: ai.model(AGENDADOR_MODEL),
+    system: buildAgendadorSystem(),
+    prompt: \`RESUMO factual do lead:
+\${summary}\`,
+    output: Output.object({ schema: AgendadorOutputSchema }),
+  });
+  return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
+}
+
+// ===== Agente 3: Preenchedor (Tipificador) =====
 
 function buildTypifierSystem(): string {
-  return `Você é o tipificador do CRM médico. Recebe um RESUMO já produzido por
-outro agente — NÃO leia histórico cru, não invente contexto, baseie-se SOMENTE
-no resumo + nos campos atuais do lead.
+  return `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
 
 Tarefa:
-- "tags_suggested": liste TODAS as tags que devem estar no lead após a
-  classificação (snake_case ou Título curto, máx 8). O sistema computa o que
-  adicionar e o que remover.
-- "custom_fields_patch": objeto com chaves de campos personalizados a atualizar.
-  Use só chaves estritamente justificadas pelo resumo. NÃO escreva datas aqui —
-  o pipeline determinístico cuida disso.
+- "tags_suggested": liste TODAS as tags da whitelist:
+  [welcome_sent, b2b_auto, urgencia_clinica, reativacao, no_show, reagendamento_pendente, reagendamento_solicitado, aguardando_nova_data, pagamento_alegado, consulta_agendada, tratamento_em_andamento, agendamento_sugerido, judicializacao, precisa_atencao_humana]
 
-Se nada justificar uma tag ou campo, devolva arrays/objetos vazios.
+- "custom_fields_patch": objeto com chaves a atualizar. VOCÊ SÓ PODE PREENCHER AS SEGUINTES CHAVES:
+  1. "status_financeiro": ("pago", "pendente", "parcial", "atrasado", "nao_aplicavel")
+     **ATENÇÃO**: SÓ USE "pago" SE O RESUMO AFIRMAR QUE A SECRETÁRIA CONFIRMOU O PAGAMENTO. Se o paciente apenas alega, NÃO coloque "pago". Em vez disso, coloque a tag "pagamento_alegado".
+  2. "interesse_consulta": array de string (ex: ["ivan", "maisa"])
+  3. "interesse_tratamento": array de string (ex: ["cetamina", "emt", "hipnose", "outro", "nenhum"])
+  4. "nome_responsavel_financeiro": string
+  5. "possui_liminar_judicial": boolean
+  6. "saldo_sessoes_pacote": number
+  7. "modalidade_preferida": string ("presencial", "online", "indiferente")
+  8. "motivo_cancelamento": string
+  
+  CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested".
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
-async function runTypifier(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
-  ctx: LeadContext,
-  summary: string,
-): Promise<{ output: TypifierOutput; usage?: unknown }> {
+async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await generateText({
     model: ai.model(TYPIFIER_MODEL),
     system: buildTypifierSystem(),
-    prompt: `${buildContextBlock(ctx)}
+    prompt: \`\${buildContextBlock(ctx)}
 
-RESUMO factual do lead (gerado pelo Agente 1):
-${summary}
-
-Devolva tags_suggested e custom_fields_patch.`,
+RESUMO factual do lead:
+\${summary}\`,
     output: Output.object({ schema: TypifierOutputSchema }),
   });
-  return {
-    output: result.output as TypifierOutput,
-    usage: (result as { usage?: unknown }).usage,
-  };
+  return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };
 }
 
-// ===== Agente 3: Maestro =====
+// ===== Agente 4: Movimentador =====
 
-function buildMaestroSystem(): string {
-  return `Você é o maestro do classificador. Define stage e intent baseando-se
-SOMENTE no resumo factual e nos sinais determinísticos.
-Não invente contexto.
-
+function buildMovimentadorSystem(): string {
+  return `Você é o Movimentador de Funil do CRM médico. Define stage e intent baseando-se SOMENTE no resumo factual e sinais.
 Pipeline canônico (use EXATAMENTE estes nomes em stage_suggestion):
 ${CANON_NAMES.map((n) => `- ${n}`).join("\n")}
 
 Diretrizes de stage:
-- "Novo": primeira interação, sem qualificação humana.
-- "Qualificação": atendente ainda está em descoberta ativa de demanda; o lead
-  ainda NÃO recebeu proposta/preço, OU recebeu e está em diálogo ativo (sem
-  objeção fechada e sem silêncio prolongado).
-- "Consulta agendada"/"Tratamento agendado": agendamento confirmado (dia+hora).
-- "Consulta finalizada"/"Em tratamento": atendimento já realizado.
-- "Sem resposta": lead parou de responder em fases iniciais sem demonstrar
-  interesse claro em tratamento.
-- "Nutrição inativa": (a) lead sem retorno há muito tempo, OU (b) lead com
-  interesse claro no tratamento/consulta mas que NÃO fechou agendamento
-  (objeção de preço, pediu desconto que não foi aceito, "vou pensar", disse
-  estar sem cartão/dinheiro no momento, parou de responder depois que a
-  secretaria/atendente IA informou o preço, etc.).
-- "Paciente antigo": ciclo de tratamento já encerrado.
-- "B2B / Stakeholders": contato comercial/parceria, NÃO paciente.
+- "Novo": primeira interação.
+- "Qualificação": atendente em descoberta ativa; em diálogo.
+- "Consulta agendada"/"Tratamento agendado": agendamento confirmado.
+- "Consulta finalizada"/"Em tratamento": atendimento realizado.
+- "Sem resposta": parou de responder em fase inicial.
+- "Nutrição inativa": (a) silêncio longo, ou (b) Interesse claro MAS sem fechamento de agendamento (objeção, parou de responder após preço).
+- "Paciente antigo": ciclo de tratamento já encerrado (não use se o lead não fechou nada).
 
-REGRAS ESTRITAS:
-1) Se o paciente JÁ foi tratado/atendido antes (flag treated_before=true ou
-   tag "paciente_antigo" presente) E está marcando uma próxima consulta de
-   acompanhamento/ciclo → intent="agendamento_retorno", stage="Consulta agendada".
-2) Stage "Paciente antigo" SÓ pode ser usado quando:
-   (a) houve alta clínica explícita, OU
-   (b) o ciclo de tratamento foi encerrado, OU
-   (c) o lead está inativo há MAIS de 6 meses e está retomando contato agora.
-   Em qualquer outro caso, NÃO use "Paciente antigo".
-3) is_b2b=true SOMENTE se o resumo claramente caracteriza empresa/parceiro/fornecedor.
-4) **Interesse-sem-fechamento → Nutrição inativa.** Se o resumo indicar que o
-   lead tem interesse no tratamento/consulta MAS o agendamento NÃO foi
-   confirmado (objeção de preço, pediu desconto recusado, "vou pensar", sem
-   cartão/dinheiro no momento, **parou de responder depois que a secretaria
-   ou atendente IA informou o preço por mais de 4 horas** — use o sinal
-   determinístico \`hours_since_last_message > 4\` combinado com
-   \`last_message_from_attendant=true\` para detectar esse silêncio —, etc.),
-   use stage="Nutrição inativa" e intent="objecao" (ou "desistencia" se ele
-   desistiu explicitamente). **NÃO deixe em "Qualificação" só por inércia.**
-   Essa decisão exige confidence ≥ 0.8 para que o sistema de fato mova o lead.
-
-Intents disponíveis (escolha UM em "intent"):
+Intents (escolha UM em "intent"):
 ${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
-
-"confidence" reflete sua certeza: 0.0-0.5 ambíguo, 0.5-0.75 razoável,
-0.75-0.9 alto, 0.9-1 inequívoco.
-"reasons": 1-5 frases curtas em PT-BR justificando a decisão.
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
-async function runMaestro(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
-  ctx: LeadContext,
-  summary: string,
-): Promise<{ output: MaestroOutput; usage?: unknown }> {
+async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
   const lastMsg = ctx.messages[ctx.messages.length - 1];
   const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
-  const monthsInactive =
-    ctx.lead.created_at && lastMsgMs
-      ? Math.floor((ctx.nowMs - lastMsgMs) / (30 * 86_400_000))
-      : null;
-  const hoursSinceLastMessage = lastMsgMs
-    ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10
-    : null;
-  const lastMessageFromAttendant = lastMsg ? lastMsg.from_me === true : null;
+  const hoursSinceLastMessage = lastMsgMs ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10 : null;
 
   const signals = {
     current_stage: ctx.stageName,
-    current_tags: ctx.lead.tags,
     treated_before: ctx.hasBeenTreatedBefore,
     has_paciente_antigo_tag: ctx.lead.tags.includes("paciente_antigo"),
-    months_since_last_message: monthsInactive,
     hours_since_last_message: hoursSinceLastMessage,
-    last_message_from_attendant: lastMessageFromAttendant,
-    recent_stage_history: ctx.recentStageHistory,
+    last_message_from_attendant: lastMsg ? lastMsg.from_me === true : null,
   };
 
   const result = await generateText({
+    model: ai.model(MOVIMENTADOR_MODEL),
+    system: buildMovimentadorSystem(),
+    prompt: \`Sinais determinísticos:
+\${JSON.stringify(signals, null, 2)}
+
+RESUMO:
+\${summary}\`,
+    output: Output.object({ schema: MovimentadorOutputSchema }),
+  });
+  return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
+}
+
+// ===== Agente 5: Maestro =====
+
+function buildMaestroSystem(): string {
+  return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador).
+Sua tarefa é cruzar essas informações, resolver quaisquer contradições e emitir a Classificação CANÔNICA perfeita.
+
+Exemplo de contradição:
+- O Agendador diz "reagendamento", mas o Movimentador sugere stage "Novo".
+-> Você corrige: O stage correto de reagendamento pendente é "Qualificação" (se não há data ainda).
+
+Regras de Autoridade:
+- Para intenções de agenda, confie mais no Agendador.
+- Para tags e campos, confie no Preenchedor.
+- Para movimentação de funil, confie no Movimentador, mas evite movimentos bruscos ilógicos.
+- Se a inteligência deles falhou (ex: Preenchedor colocou status "pago" mas o resumo diz que a secretária não confirmou), CORRIJA IMEDIATAMENTE (Gate 10 de segurança).
+
+Devolva todos os campos exigidos.`;
+}
+
+async function runMaestro(
+  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
+  summary: string,
+  outAgendador: AgendadorOutput,
+  outPreenchedor: TypifierOutput,
+  outMovimentador: MovimentadorOutput
+): Promise<{ output: MaestroOutput; usage?: unknown }> {
+  const result = await generateText({
     model: ai.model(MAESTRO_MODEL),
     system: buildMaestroSystem(),
-    prompt: `Sinais determinísticos do lead (não-LLM):
-${JSON.stringify(signals, null, 2)}
+    prompt: \`RESUMO Factual:
+\${summary}
 
-RESUMO factual (Agente 1):
-${summary}
+OPINIÕES DOS AGENTES:
+Agendador: \${JSON.stringify(outAgendador, null, 2)}
+Preenchedor: \${JSON.stringify(outPreenchedor, null, 2)}
+Movimentador: \${JSON.stringify(outMovimentador, null, 2)}
 
-Devolva stage_suggestion, intent, mentioned_intents, is_b2b, confidence, reasons.`,
+Emita o veredicto final resolvendo inconsistências.\`,
     output: Output.object({ schema: MaestroOutputSchema }),
   });
-  return {
-    output: result.output as MaestroOutput,
-    usage: (result as { usage?: unknown }).usage,
-  };
+  return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
 
 // ===== Orquestração =====
 
-export type AgentMode = "full" | "summarizer" | "typifier" | "maestro";
+export type AgentMode = "full";
 
 export type RunAgentSuccess = {
   classification: ClassificationV2;
@@ -340,12 +315,14 @@ export type RunAgentSuccess = {
   mode: AgentMode;
   agents?: {
     summarizer_model: string;
+    agendador_model: string;
     typifier_model: string;
+    movimentador_model: string;
     maestro_model: string;
     summary_chars: number;
     summary: string;
-    latency_ms: { summarizer: number; typifier: number; maestro: number };
-    ran: { summarizer: boolean; typifier: boolean; maestro: boolean };
+    latency_ms: { summarizer: number; agendador: number; typifier: number; movimentador: number; maestro: number };
+    ran: { summarizer: boolean; agendador: boolean; typifier: boolean; movimentador: boolean; maestro: boolean };
   };
 };
 
@@ -357,144 +334,102 @@ export async function runAgent(
   const ai = await getClinicOpenAI(client, ctx.lead.clinic_id);
   if (!ai) return { error: "no_clinic_openai_key" };
 
-  const mode: AgentMode = opts.onlyAgent ?? "full";
-  const runSummarizerStep = mode === "full" || mode === "summarizer";
-  const runTypifierStep = mode === "full" || mode === "typifier";
-  const runMaestroStep = mode === "full" || mode === "maestro";
-
   // ----- Passo 1 — Resumidor -----
   let summary: string;
   let summarizerModel = SUMMARIZER_MODEL_PRIMARY;
   let mentionedDates: SummarizerOutput["mentioned_dates"] = [];
   let usage1: unknown;
-  let lat1 = 0;
   const t1 = performance.now();
-  if (runSummarizerStep) {
-    try {
-      const r1 = await runSummarizer(ai, ctx);
-      summary = r1.output.summary;
-      mentionedDates = r1.output.mentioned_dates ?? [];
-      summarizerModel = r1.model;
-      usage1 = r1.usage;
-      await recordStep({
-        ctx,
-        model: summarizerModel.split(" ")[0],
-        operation: "classifier:summarizer",
-        status: "success",
-        latencyMs: performance.now() - t1,
-        usage: usage1,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await recordStep({
-        ctx,
-        model: SUMMARIZER_MODEL_PRIMARY,
-        operation: "classifier:summarizer",
-        status: "error",
-        latencyMs: performance.now() - t1,
-        error: msg.slice(0, 500),
-      });
-      return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
-    }
-    lat1 = performance.now() - t1;
-  } else {
-    summary = (ctx.lead.ai_summary ?? "").trim();
-    if (!summary) {
-      return { error: `agent_step1_failed: missing_ai_summary_for_partial_mode_${mode}` };
-    }
-    summarizerModel = "(reused ai_summary)";
-  }
 
-  // ----- Passo 2 e 3 — Paralelizados para evitar Timeout -----
-  let typified: TypifierOutput = { tags_suggested: ctx.lead.tags, custom_fields_patch: {} };
-  let usage2: unknown;
+  try {
+    const r1 = await runSummarizer(ai, ctx);
+    summary = r1.output.summary;
+    mentionedDates = r1.output.mentioned_dates ?? [];
+    summarizerModel = r1.model;
+    usage1 = r1.usage;
+    await recordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await recordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
+    return { error: \`agent_step1_failed: \${msg.slice(0, 200)}\` };
+  }
+  const lat1 = performance.now() - t1;
+
+  // ----- Passo 2 — Paralelo (Agendador, Preenchedor, Movimentador) -----
+  let outAgendador: AgendadorOutput | null = null;
+  let outPreenchedor: TypifierOutput | null = null;
+  let outMovimentador: MovimentadorOutput | null = null;
+  let usage2: any = {};
   let lat2 = 0;
-  let err2Str: string | null = null;
+  const t2 = performance.now();
 
-  let maestro: MaestroOutput = {
-    stage_suggestion: ctx.stageName,
-    intent: "outro",
-    mentioned_intents: [],
-    is_b2b: false,
-    confidence: 0.5,
-    reasons: ["partial_mode_skipped_maestro"],
-  };
+  try {
+    const [rAg, rPr, rMo] = await Promise.all([
+      runAgendador(ai, ctx, summary),
+      runTypifier(ai, ctx, summary),
+      runMovimentador(ai, ctx, summary)
+    ]);
+    outAgendador = rAg.output;
+    outPreenchedor = rPr.output;
+    outMovimentador = rMo.output;
+    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage };
+    const stepLat = performance.now() - t2;
+    await Promise.all([
+      recordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
+      recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      recordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
+    ]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const stepLat = performance.now() - t2;
+    await Promise.all([
+      recordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      recordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
+    ]);
+    return { error: `agent_step2_parallel_failed: ${msg.slice(0, 200)}` };
+  }
+  lat2 = performance.now() - t2;
+
+  // ----- Passo 3 — Maestro -----
+  let maestroOut: MaestroOutput | null = null;
   let usage3: unknown;
-  let lat3 = 0;
-  let err3Str: string | null = null;
+  const t3 = performance.now();
 
-  const promises = [];
-
-  if (runTypifierStep) {
-    promises.push(
-      (async () => {
-        const t2 = performance.now();
-        try {
-          const r2 = await runTypifier(ai, ctx, summary);
-          typified = r2.output;
-          usage2 = r2.usage;
-          await recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: performance.now() - t2, usage: usage2 });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          err2Str = msg;
-          await recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: performance.now() - t2, error: msg.slice(0, 500) });
-        }
-        lat2 = performance.now() - t2;
-      })()
-    );
+  try {
+    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador);
+    maestroOut = r3.output;
+    usage3 = r3.usage;
+    await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
+    return { error: \`agent_step3_maestro_failed: \${msg.slice(0, 200)}\` };
   }
+  const lat3 = performance.now() - t3;
 
-  if (runMaestroStep) {
-    promises.push(
-      (async () => {
-        const t3 = performance.now();
-        try {
-          // Maestro não precisa mais esperar a tipificação terminar
-          const r3 = await runMaestro(ai, ctx, summary);
-          maestro = r3.output;
-          usage3 = r3.usage;
-          await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          err3Str = msg;
-          await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
-        }
-        lat3 = performance.now() - t3;
-      })()
-    );
-  }
-
-  await Promise.all(promises);
-
-  if (err2Str) return { error: `agent_step2_failed: ${err2Str.slice(0, 200)}` };
-  if (err3Str) return { error: `agent_step3_failed: ${err3Str.slice(0, 200)}` };
-
-  const summarizerOut: SummarizerOutput = {
-    summary,
-    mentioned_dates: mentionedDates,
-  };
+  const summarizerOut: SummarizerOutput = { summary, mentioned_dates: mentionedDates };
 
   return {
-    classification: mergeV3Outputs(summarizerOut, typified, maestro),
-    usage: { agent1: usage1, agent2: usage2, agent3: usage3 },
-    mode,
+    classification: mergeV6Outputs(summarizerOut, maestroOut),
+    usage: { agent1: usage1, agent2_parallel: usage2, agent3: usage3 },
+    mode: "full",
     agents: {
       summarizer_model: summarizerModel,
+      agendador_model: AGENDADOR_MODEL,
       typifier_model: TYPIFIER_MODEL,
+      movimentador_model: MOVIMENTADOR_MODEL,
       maestro_model: MAESTRO_MODEL,
       summary_chars: summary.length,
       summary,
       latency_ms: {
         summarizer: Math.round(lat1),
+        agendador: Math.round(lat2),
         typifier: Math.round(lat2),
-        maestro: Math.round(lat3),
+        movimentador: Math.round(lat2),
+        maestro: Math.round(lat3)
       },
-      ran: {
-        summarizer: runSummarizerStep,
-        typifier: runTypifierStep,
-        maestro: runMaestroStep,
-      },
+      ran: { summarizer: true, agendador: true, typifier: true, movimentador: true, maestro: true },
     },
   };
 }
-

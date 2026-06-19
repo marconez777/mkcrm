@@ -83,7 +83,7 @@ Desqualificado · Lead não qualificado
 
 ## Guards específicos
 
-- **D3** (`pipeline-move.ts:177`): se o stage **atual** é "Paciente antigo" e o move é `auto:*`, abort com `guard_d3_paciente_antigo`. Lead só sai dessa coluna manualmente.
+- **D3** (`pipeline-move.ts:177`): se o stage **atual** é "Paciente antigo" e o move é `auto:*`, abort com `guard_d3_paciente_antigo`. Exceção (V5): Pode ser movido para "Nutrição inativa" pelo cron de SLA de 60 dias. Sem a exceção, o lead só sairia dessa coluna manualmente.
 - **Terminais**: `is_terminal=true` em B2B e Desqualificado. Não bloqueia o helper (sem regra `lock_auto_move`), mas a UI esconde de relatórios de funil ativos.
 
 ## Histórico do `position=1`
