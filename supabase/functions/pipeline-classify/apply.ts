@@ -315,6 +315,7 @@ export async function applyClassification(
   // ===== 9) Telemetria =====
   const telemetry = {
     version: TELEMETRY_VERSION,
+    mode,
     classification: {
       stage_suggestion: cls.stage_suggestion,
       intent: cls.intent,
@@ -329,17 +330,21 @@ export async function applyClassification(
     date_parser: dateParser,
     first_consult: firstConsult,
     applied: {
-      tags: {
-        added: tagsAdded,
-        removed_computed: removeComputed,
-        dropped_by_whitelist: tagsDropped,
-        low_confidence_tag_injected: lowConf,
-      },
-      custom_fields: {
-        set: fieldsApplied,
-        blocked_by_g10: blockedByG10,
-        rejected: fieldsRejected,
-      },
+      tags: applyTypifier
+        ? {
+            added: tagsAdded,
+            removed_computed: removeComputed,
+            dropped_by_whitelist: tagsDropped,
+            low_confidence_tag_injected: lowConf,
+          }
+        : { skipped: "partial_mode" as const },
+      custom_fields: applyTypifier
+        ? {
+            set: fieldsApplied,
+            blocked_by_g10: blockedByG10,
+            rejected: fieldsRejected,
+          }
+        : { skipped: "partial_mode" as const },
       stage_suggestion_only: stageOutcome,
       intent_effects: intentResults,
       summarize: summarizeResult,
@@ -347,7 +352,6 @@ export async function applyClassification(
     cost: { model: agents?.maestro_model ?? "gpt-5-mini", usage: usage ?? null },
     agents: agents ?? null,
   };
-
 
   return { telemetry, lastMessageId };
 }
