@@ -1,176 +1,50 @@
-# Fase 1 V5 — Segurança + Wipe + SLA + Lock D3
+## Diagnóstico
 
-Vou aplicar 6 mudanças. Diffs serão exibidos ao final.
+Na clínica `cf038458…` existem **200 leads** com o telefone `5511994709447`, criados em rajadas de ~4 por minuto. Outras clínicas têm casos piores (2.080 dupes em um único número). Total: **6 grupos duplicados, 7.795 linhas extras**.
 
-## 1) `supabase/functions/ai-chat/index.ts` (tool `move_lead_stage`, linhas 226-256)
+Causa raiz em `supabase/functions/_shared/evolution.ts` → `ingestMessage`:
 
-Mantém pre-checks de `lock_auto_move` (para preservar os erros granulares `stage_locked`/`stage_locked_source`) e substitui o `update({stage_id})` direto + insert manual em `lead_events` por chamada a `pipelineMove`:
+1. Faz `SELECT ... eq(phone).eq(clinic_id).maybeSingle()`
+2. Se não achar → `INSERT` em `leads`
 
-```ts
-import { pipelineMove } from "../_shared/pipeline-move.ts";
-// ...
-const moveRes = await pipelineMove(supabase, {
-  leadId,
-  toStageId: stage.id,
-  source: "auto:ai-chat-tool",
-  reason: `move_lead_stage via agent ${agent.name}`,
-  ruleKey: "automation.ai_chat_move.enabled",
-  idempotencyKey: `ai-chat:${agent.id}:${leadId}:${stage.id}:${Date.now()}`,
-  metadata: { agent_id: agent.id, agent_name: agent.name },
-});
-if (!moveRes.moved) return { error: "move_blocked", reason: moveRes.reason, stage: stage.name };
-// lead_events 'stage_changed_by_ai' continua sendo gravado p/ telemetria de UI.
-```
+Quando 4 webhooks da Evolution chegam quase ao mesmo tempo para o mesmo número (mensagem de texto + mídia + status + ack), os 4 SELECTs rodam em paralelo, todos retornam vazio, e os 4 INSERTs sobem leads diferentes. **Não existe índice único em `(clinic_id, phone)` na tabela `leads`** — só `leads_pkey(id)`. Sem trava no banco, a aplicação sozinha não consegue serializar.
 
-## 2) `supabase/functions/automations-tick/index.ts` (action `move_stage`, linhas 266-317)
+Evidência: `pipeline_fallback_used` aparece 50× nos eventos, ou seja, cada lead duplicado também caiu no fallback de pipeline.
 
-Remove o `update({stage_id})` direto + o "enriquecer histórico" manual (que duplicava lógica do helper). Tudo passa a ser uma chamada:
+## Plano
 
-```ts
-import { pipelineMove } from "../_shared/pipeline-move.ts";
-// ...
-const moveRes = await pipelineMove(supabase, {
-  leadId,
-  toStageId: stageId,
-  source: "auto:automation-rule",
-  reason: `automation:${a.id} (${a.trigger_type})`,
-  ruleKey: "automation.ui_rule_move.enabled",
-  idempotencyKey: `automation:${a.id}:${leadId}:${stageId}`,
-  metadata: { automation_id: a.id, trigger_type: a.trigger_type },
-});
-return moveRes.moved ? { ok: true } : { ok: false, detail: moveRes.reason };
-```
+### 1. Migration — proteção definitiva no banco
+- Limpeza prévia (mesma migration, antes do índice):
+  - Para cada grupo `(clinic_id, phone)` com `count > 1`, eleger o lead **mais antigo** (menor `created_at`) como canônico.
+  - Repointar para o canônico (em ordem, mesma transação): `messages`, `lead_events`, `lead_stage_history`, `lead_custom_fields`, `lead_tasks`, `lead_internal_notes`, `lead_thread_classifications`, `lead_reply_counters`, `lead_ai_settings`, `pending_replies`, `scheduled_messages`, `appointments`, `message_sequence_enrollments`, `task_assignees` (via tasks), `tracking_lead_sources` e quaisquer outras FKs que apontem para `leads.id`.
+  - `DELETE` nos leads duplicados perdedores (sem `tombstone` em `deleted_leads`, pois é limpeza de bug, não exclusão manual).
+  - Recalcular `unread_count`, `last_message_at`, `last_message_preview` no canônico via agregação de `messages`.
+- Criar índice único:
+  ```sql
+  CREATE UNIQUE INDEX leads_clinic_phone_uniq
+    ON public.leads (clinic_id, phone)
+    WHERE phone IS NOT NULL AND phone <> '';
+  ```
 
-`pipelineMove` já cobre G2 (lock_auto_move), G5 (history) e G4 (idempotência).
+### 2. Código — fechar a janela de race
+Em `supabase/functions/_shared/evolution.ts` (`ingestMessage`, bloco `if (!lead)` linhas 361-430):
+- Trocar o `INSERT` puro por `upsert` com `onConflict: 'clinic_id,phone', ignoreDuplicates: false` e `select('id, name, whatsapp_instance_id').single()`.
+- Após o upsert, se a linha retornada tem `created_at` anterior ao início da chamada (ou se outra coluna já tinha valor), tratar como `createdLead = false` para não emitir `pipeline_fallback_used` indevidamente.
+- Forma defensiva alternativa caso o upsert não consiga distinguir insert vs update: re-`select` por `(clinic_id, phone)` depois do upsert e comparar `id` com o retornado, ou usar `INSERT ... ON CONFLICT DO UPDATE SET phone=EXCLUDED.phone RETURNING xmax=0 AS inserted` via RPC. Vou seguir pela primeira abordagem.
 
-## 3) `supabase/functions/_shared/pipeline-move.ts` — Wipe + D3 estreitado
+### 3. Verificação pós-deploy
+- `SELECT count(*) FROM leads WHERE clinic_id='cf038458…' AND phone='5511994709447'` deve retornar 1.
+- Forçar reenvio de webhook (ou aguardar próximo ciclo) e checar que só existe 1 lead por número novo.
+- Conferir que `lead_events.type='pipeline_fallback_used'` para de crescer em rajada.
 
-**3a) Guard D3 (linha 176)** — apertar exceção para destino estrito "Nutrição inativa":
-```ts
-if (isAutoSource && fromStage?.name === PACIENTE_ANTIGO_NAME && toStage.name !== "Nutrição inativa") {
-  return { moved: false, reason: "guard_d3_paciente_antigo" };
-}
-```
-(Guard preservado — apenas a única saída permitida agora é Nutrição inativa.)
+## Detalhes técnicos relevantes
 
-**3b) Wipe centralizado** — antes do `UPDATE leads` (linha 179), inserir:
+- Como o INSERT escolhe `stage_id` da primeira coluna do pipeline e cria com `unread_count = 1`, o canônico (mais antigo) já está na coluna certa — repointar mensagens para ele preserva o histórico real.
+- `deleted_leads` **não** será tocada (não houve exclusão pelo usuário).
+- O índice é parcial (`WHERE phone IS NOT NULL AND phone <> ''`) para não bloquear leads sem telefone (importação manual / form).
+- A migration é grande e mexe em ~7.8k linhas — vou rodar a limpeza em CTEs por clínica para manter dentro do timeout.
 
-```ts
-// V5: wipe de chips ao trocar de stage. Mexemos APENAS na coluna JSONB
-// leads.custom_fields (NUNCA em lead_custom_fields, que guarda o schema).
-const wipedKeys: string[] = [];
-if (
-  (isAutoSource || source === "manual" || source === "ui") &&
-  (fromStage?.name === "Qualificação" || toStage.name === "Consulta finalizada")
-) {
-  const { data: leadCF } = await client
-    .from("leads")
-    .select("custom_fields")
-    .eq("id", leadId)
-    .maybeSingle();
-  const cur = (leadCF?.custom_fields ?? {}) as Record<string, unknown>;
-  const next: Record<string, unknown> = { ...cur };
-  if (fromStage?.name === "Qualificação" && "interessado" in next) {
-    delete next.interessado;
-    wipedKeys.push("interessado");
-  }
-  if (toStage.name === "Consulta finalizada") {
-    for (const k of ["consulta_agendada_em", "procedimento_agendado_em", "consulta_confirmada", "procedimento_confirmado"]) {
-      if (k in next) { delete next[k]; wipedKeys.push(k); }
-    }
-    next.aguardando = true;
-    wipedKeys.push("+aguardando");
-  }
-  if (wipedKeys.length > 0) {
-    const { error: wipeErr } = await client.from("leads").update({ custom_fields: next }).eq("id", leadId);
-    if (wipeErr) console.warn("[pipeline-move] chip wipe failed", wipeErr); // non-blocking
-  }
-}
-```
+## Arquivos afetados
 
-Anexo `wiped_keys: wipedKeys` ao `historyMeta` do G5.
-
-## 4) `supabase/functions/pipeline-deterministic/index.ts` — SLA 60d Paciente antigo
-
-Em `ruleInactivityTick` (linha 402+), depois do loop atual, adicionar branch independente (toggle próprio para não interferir nos demais):
-
-```ts
-const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
-if (t60pa) {
-  const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
-  const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
-  const paStageIds = new Set(paAliases.map((a) => a.stage_id));
-  if (paStageIds.size > 0) {
-    const { data: paLeads } = await client
-      .from("leads")
-      .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
-      .in("stage_id", Array.from(paStageIds))
-      .is("archived_at", null)
-      .eq("is_internal_contact", false)
-      .lt("last_message_at", cutoff60)
-      .limit(2000);
-    for (const lead of paLeads ?? []) {
-      const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
-      if (!nutricaoId) continue;
-      const ym = new Date().toISOString().slice(0, 7);
-      const res = await pipelineMove(client, {
-        leadId: lead.id,
-        toStageId: nutricaoId,
-        source: "auto:inactivity-tick",
-        reason: "60d sem inbound em Paciente antigo — Nutrição inativa",
-        ruleKey: "automation.inactivity_paciente_antigo.enabled",
-        idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
-      });
-      if ((res as { moved?: boolean }).moved) {
-        await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
-      }
-    }
-  }
-}
-```
-
-O Guard D3 atualizado em (3a) permite esse move (destino == "Nutrição inativa").
-
-## 5) `supabase/functions/pipeline-classify/apply.ts` — Lock D3 no Classifier
-
-Apenas adicionar o bloqueio de tentativa de move (G10 override de datas já existe nas linhas 162-209). Trocar `if (applyMaestro) {` (linha 245) por:
-
-```ts
-if (applyMaestro && ctx.stageName === "Paciente antigo") {
-  stageOutcome = {
-    ...stageOutcome,
-    would_move: false,
-    reason: "locked_in_paciente_antigo",
-    path: "guard_d3",
-  };
-} else if (applyMaestro) {
-  // ... bloco b2b/nurture/general existente intacto
-}
-```
-
-Resultado: Classifier nem chama `pipelineMove` p/ esses leads.
-
-## 6) Migration — toggles novos
-
-```sql
-INSERT INTO app_settings (key, value) VALUES
-  ('automation.ai_chat_move.enabled', '"true"'),
-  ('automation.ui_rule_move.enabled', '"true"'),
-  ('automation.inactivity_paciente_antigo.enabled', '"true"')
-ON CONFLICT (key) DO NOTHING;
-```
-
-## Regras de Ouro respeitadas
-- Guard D3 mantido — só permite saída p/ "Nutrição inativa".
-- Wipe usa SELECT + `{...cur}` spread + UPDATE em `leads.custom_fields` (JSONB). NUNCA toca em `lead_custom_fields`.
-- Comentários, TODOs, `idempotencyKey` e `ruleKey` preservados em todas as chamadas.
-- Não removo o early-return `unchanged` do ai-chat nem o `recentlyRan` cooldown do automations-tick.
-
-## Validação pós-deploy
-1. `move_lead_stage` via ai-chat em "Paciente antigo" → `guard_d3_paciente_antigo`.
-2. Mover lead de "Qualificação" → outra → `custom_fields.interessado` removido.
-3. Mover lead → "Consulta finalizada" → campos de agendamento sumiram, `aguardando=true`.
-4. Cron move Paciente antigo (>60d sem msg) → Nutrição inativa.
-5. Classifier em lead "Paciente antigo" → `would_move=false, reason='locked_in_paciente_antigo'`.
-
-Aprove o plano p/ eu aplicar os diffs.
+- `supabase/migrations/<novo>.sql` — dedup + índice único
+- `supabase/functions/_shared/evolution.ts` — upsert em vez de insert
