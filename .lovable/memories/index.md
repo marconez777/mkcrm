@@ -9,6 +9,7 @@ Lembretes vivem em `/automations` (UI), não em código. Reator humano = cron di
 Classifier (gpt-5-mini) roda 1/min, valida datas via sanitizeDateField (anchor=última msg), tem PROTECTED_TAGS, e regra anti "1ª consulta" em leads >90d ou tratados.
 Auditores A1 (cron 03h BRT) e A2 (hook pós-move) só sinalizam via tag — nunca movem card.
 Não existe scripts/docs-sync.mjs neste projeto.
+**Triggers e crons de pipeline DEVEM usar `net.http_post` (pg_net) — NUNCA `extensions.http_post` (extensão `http` não está instalada). Em 2026-06-19 isso travou todas as automações por horas.**
 
 ## Memories
 - [Pipeline v4.2 decisions](mem://docs/pipeline-v4-2) — D1–D8, gates G1–G11, fases incluindo Fase 2.5 (A1/A2/A3)
