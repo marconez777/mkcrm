@@ -422,7 +422,7 @@ function StageGroup({
 
 type ItemResult = {
   skipped?: string;
-  mode?: "full" | "summarizer" | "typifier" | "maestro";
+  mode?: "full" | "summarizer" | "parallel" | "typifier" | "maestro";
   classification?: {
     stage_suggestion?: string;
     intent?: string;
@@ -436,12 +436,14 @@ type ItemResult = {
     mode?: string;
     agents?: {
       summarizer_model?: string;
+      agendador_model?: string;
       typifier_model?: string;
+      movimentador_model?: string;
       maestro_model?: string;
       summary?: string;
       summary_chars?: number;
-      latency_ms?: { summarizer?: number; typifier?: number; maestro?: number };
-      ran?: { summarizer?: boolean; typifier?: boolean; maestro?: boolean };
+      latency_ms?: { summarizer?: number; agendador?: number; typifier?: number; movimentador?: number; maestro?: number };
+      ran?: { summarizer?: boolean; agendador?: boolean; typifier?: boolean; movimentador?: boolean; maestro?: boolean };
     } | null;
     applied?: {
       tags?: { added?: string[]; removed_computed?: string[]; skipped?: string } & Record<string, unknown>;
