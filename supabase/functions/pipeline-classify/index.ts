@@ -100,7 +100,13 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
   );
   const agentOut = await runAgent(client, ctx, { historyToolEnabled });
   if ("error" in agentOut) {
-    return { skipped: agentOut.error };
+    await writeSkipTelemetry(
+      client,
+      { clinic_id: ctx.lead.clinic_id, lead_id: ctx.lead.id },
+      `agent_error:${agentOut.error}`,
+    );
+    await clearQueueFlag(client, ctx.lead.id);
+    return { skipped: `agent_error:${agentOut.error}` };
   }
 
   const { telemetry, lastMessageId } = await applyClassification(
