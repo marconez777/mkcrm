@@ -332,7 +332,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
           .update({ last_heartbeat_at: new Date().toISOString(), totals })
           .eq("id", runId);
 
-        const result = await callClassify(lead.id as string);
+        const result = await callClassify(lead.id as string, onlyAgent);
         const finishedAt = new Date().toISOString();
 
         let status: "ok" | "skipped" | "error" = "ok";
