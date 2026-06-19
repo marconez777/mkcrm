@@ -207,7 +207,8 @@ export async function applyClassification(
   }
 
   // ===== 5) UPDATE atômico via RPC (não dispara G10) =====
-  if (tagsChanged || fieldsChanged) {
+  // Em modo maestro-only, NÃO aplica tags/custom_fields (são reaproveitados).
+  if (applyTypifier && (tagsChanged || fieldsChanged)) {
     const { error: rpcErr } = await client.rpc("apply_lead_automation_patch", {
       p_lead_id: lead.id,
       p_custom_fields: fieldsChanged ? nextFields : null,
