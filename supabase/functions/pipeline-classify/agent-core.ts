@@ -260,13 +260,16 @@ async function runMaestro(
   summary: string,
   typified: TypifierOutput,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
+  const lastMsg = ctx.messages[ctx.messages.length - 1];
+  const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
   const monthsInactive =
-    ctx.lead.created_at && ctx.messages.length
-      ? Math.floor(
-          (ctx.nowMs - Date.parse(ctx.messages[ctx.messages.length - 1].created_at)) /
-            (30 * 86_400_000),
-        )
+    ctx.lead.created_at && lastMsgMs
+      ? Math.floor((ctx.nowMs - lastMsgMs) / (30 * 86_400_000))
       : null;
+  const hoursSinceLastMessage = lastMsgMs
+    ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10
+    : null;
+  const lastMessageFromAttendant = lastMsg ? lastMsg.from_me === true : null;
 
   const signals = {
     current_stage: ctx.stageName,
@@ -274,6 +277,8 @@ async function runMaestro(
     treated_before: ctx.hasBeenTreatedBefore,
     has_paciente_antigo_tag: ctx.lead.tags.includes("paciente_antigo"),
     months_since_last_message: monthsInactive,
+    hours_since_last_message: hoursSinceLastMessage,
+    last_message_from_attendant: lastMessageFromAttendant,
     recent_stage_history: ctx.recentStageHistory,
   };
 
