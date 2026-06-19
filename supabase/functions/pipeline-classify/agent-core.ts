@@ -94,7 +94,9 @@ timestamp ISO da MENSAGEM que cita a data (já presente entre colchetes no
 histórico, no fuso America/Sao_Paulo). "kind": "consulta" para primeiras
 consultas/avaliações; "procedimento" para procedimento/tratamento agendado.
 Se houver qualquer ambiguidade ou só uma das partes (só dia OU só hora), NÃO
-inclua.`;
+inclua.
+
+IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runSummarizer(
