@@ -265,9 +265,12 @@ Devolva stage_suggestion, intent, mentioned_intents, is_b2b, confidence, reasons
 
 // ===== Orquestração =====
 
+export type AgentMode = "full" | "summarizer" | "typifier" | "maestro";
+
 export type RunAgentSuccess = {
   classification: ClassificationV2;
   usage?: unknown;
+  mode: AgentMode;
   agents?: {
     summarizer_model: string;
     typifier_model: string;
@@ -275,119 +278,167 @@ export type RunAgentSuccess = {
     summary_chars: number;
     summary: string;
     latency_ms: { summarizer: number; typifier: number; maestro: number };
+    ran: { summarizer: boolean; typifier: boolean; maestro: boolean };
   };
 };
 
 export async function runAgent(
   client: SupabaseClient,
   ctx: LeadContext,
-  _opts: { historyToolEnabled: boolean }, // compat — ignorado em V3
+  opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
 ): Promise<RunAgentSuccess | { error: string }> {
   const ai = await getClinicOpenAI(client, ctx.lead.clinic_id);
   if (!ai) return { error: "no_clinic_openai_key" };
 
-  // Passo 1 — Resumidor
-  let s1: SummarizerOutput;
-  let summarizerModel: string;
+  const mode: AgentMode = opts.onlyAgent ?? "full";
+  const runSummarizerStep = mode === "full" || mode === "summarizer";
+  const runTypifierStep = mode === "full" || mode === "typifier";
+  const runMaestroStep = mode === "full" || mode === "maestro";
+
+  // ----- Passo 1 — Resumidor -----
+  let summary: string;
+  let summarizerModel = SUMMARIZER_MODEL_PRIMARY;
+  let mentionedDates: SummarizerOutput["mentioned_dates"] = [];
   let usage1: unknown;
+  let lat1 = 0;
   const t1 = performance.now();
-  try {
-    const r1 = await runSummarizer(ai, ctx);
-    s1 = r1.output;
-    summarizerModel = r1.model;
-    usage1 = r1.usage;
-    await recordStep({
-      ctx,
-      model: summarizerModel.split(" ")[0],
-      operation: "classifier:summarizer",
-      status: "success",
-      latencyMs: performance.now() - t1,
-      usage: usage1,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await recordStep({
-      ctx,
-      model: SUMMARIZER_MODEL_PRIMARY,
-      operation: "classifier:summarizer",
-      status: "error",
-      latencyMs: performance.now() - t1,
-      error: msg.slice(0, 500),
-    });
-    return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
+  if (runSummarizerStep) {
+    try {
+      const r1 = await runSummarizer(ai, ctx);
+      summary = r1.output.summary;
+      mentionedDates = r1.output.mentioned_dates ?? [];
+      summarizerModel = r1.model;
+      usage1 = r1.usage;
+      await recordStep({
+        ctx,
+        model: summarizerModel.split(" ")[0],
+        operation: "classifier:summarizer",
+        status: "success",
+        latencyMs: performance.now() - t1,
+        usage: usage1,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordStep({
+        ctx,
+        model: SUMMARIZER_MODEL_PRIMARY,
+        operation: "classifier:summarizer",
+        status: "error",
+        latencyMs: performance.now() - t1,
+        error: msg.slice(0, 500),
+      });
+      return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
+    }
+    lat1 = performance.now() - t1;
+  } else {
+    summary = (ctx.lead.ai_summary ?? "").trim();
+    if (!summary) {
+      return { error: `agent_step1_failed: missing_ai_summary_for_partial_mode_${mode}` };
+    }
+    summarizerModel = "(reused ai_summary)";
   }
-  const lat1 = performance.now() - t1;
 
-  // Passo 2 — Tipificador
-  let s2: TypifierOutput;
+  // ----- Passo 2 — Tipificador -----
+  let typified: TypifierOutput = {
+    tags_suggested: ctx.lead.tags,
+    custom_fields_patch: {},
+  };
   let usage2: unknown;
+  let lat2 = 0;
   const t2 = performance.now();
-  try {
-    const r2 = await runTypifier(ai, ctx, s1.summary);
-    s2 = r2.output;
-    usage2 = r2.usage;
-    await recordStep({
-      ctx,
-      model: TYPIFIER_MODEL,
-      operation: "classifier:typifier",
-      status: "success",
-      latencyMs: performance.now() - t2,
-      usage: usage2,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await recordStep({
-      ctx,
-      model: TYPIFIER_MODEL,
-      operation: "classifier:typifier",
-      status: "error",
-      latencyMs: performance.now() - t2,
-      error: msg.slice(0, 500),
-    });
-    return { error: `agent_step2_failed: ${msg.slice(0, 200)}` };
+  if (runTypifierStep) {
+    try {
+      const r2 = await runTypifier(ai, ctx, summary);
+      typified = r2.output;
+      usage2 = r2.usage;
+      await recordStep({
+        ctx,
+        model: TYPIFIER_MODEL,
+        operation: "classifier:typifier",
+        status: "success",
+        latencyMs: performance.now() - t2,
+        usage: usage2,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordStep({
+        ctx,
+        model: TYPIFIER_MODEL,
+        operation: "classifier:typifier",
+        status: "error",
+        latencyMs: performance.now() - t2,
+        error: msg.slice(0, 500),
+      });
+      return { error: `agent_step2_failed: ${msg.slice(0, 200)}` };
+    }
+    lat2 = performance.now() - t2;
   }
-  const lat2 = performance.now() - t2;
 
-  // Passo 3 — Maestro
-  let s3: MaestroOutput;
+  // ----- Passo 3 — Maestro -----
+  let maestro: MaestroOutput = {
+    stage_suggestion: ctx.stageName,
+    intent: "outro",
+    mentioned_intents: [],
+    is_b2b: false,
+    confidence: 0.5,
+    reasons: ["partial_mode_skipped_maestro"],
+  };
   let usage3: unknown;
+  let lat3 = 0;
   const t3 = performance.now();
-  try {
-    const r3 = await runMaestro(ai, ctx, s1.summary, s2);
-    s3 = r3.output;
-    usage3 = r3.usage;
-    await recordStep({
-      ctx,
-      model: MAESTRO_MODEL,
-      operation: "classifier:maestro",
-      status: "success",
-      latencyMs: performance.now() - t3,
-      usage: usage3,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await recordStep({
-      ctx,
-      model: MAESTRO_MODEL,
-      operation: "classifier:maestro",
-      status: "error",
-      latencyMs: performance.now() - t3,
-      error: msg.slice(0, 500),
-    });
-    return { error: `agent_step3_failed: ${msg.slice(0, 200)}` };
+  if (runMaestroStep) {
+    try {
+      const r3 = await runMaestro(ai, ctx, summary, typified);
+      maestro = r3.output;
+      usage3 = r3.usage;
+      await recordStep({
+        ctx,
+        model: MAESTRO_MODEL,
+        operation: "classifier:maestro",
+        status: "success",
+        latencyMs: performance.now() - t3,
+        usage: usage3,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordStep({
+        ctx,
+        model: MAESTRO_MODEL,
+        operation: "classifier:maestro",
+        status: "error",
+        latencyMs: performance.now() - t3,
+        error: msg.slice(0, 500),
+      });
+      return { error: `agent_step3_failed: ${msg.slice(0, 200)}` };
+    }
+    lat3 = performance.now() - t3;
   }
-  const lat3 = performance.now() - t3;
+
+  const summarizerOut: SummarizerOutput = {
+    summary,
+    mentioned_dates: mentionedDates,
+  };
 
   return {
-    classification: mergeV3Outputs(s1, s2, s3),
+    classification: mergeV3Outputs(summarizerOut, typified, maestro),
     usage: { agent1: usage1, agent2: usage2, agent3: usage3 },
+    mode,
     agents: {
       summarizer_model: summarizerModel,
       typifier_model: TYPIFIER_MODEL,
       maestro_model: MAESTRO_MODEL,
-      summary_chars: s1.summary.length,
-      summary: s1.summary,
-      latency_ms: { summarizer: Math.round(lat1), typifier: Math.round(lat2), maestro: Math.round(lat3) },
+      summary_chars: summary.length,
+      summary,
+      latency_ms: {
+        summarizer: Math.round(lat1),
+        typifier: Math.round(lat2),
+        maestro: Math.round(lat3),
+      },
+      ran: {
+        summarizer: runSummarizerStep,
+        typifier: runTypifierStep,
+        maestro: runMaestroStep,
+      },
     },
   };
 }
