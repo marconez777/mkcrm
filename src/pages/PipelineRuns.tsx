@@ -265,7 +265,7 @@ function StatusBadge({ status }: { status: RunStatus | RunItem["status"] }) {
 
 type LeadInfo = { name: string | null; phone: string | null };
 
-function RunDetail({ runId }: { runId: string }) {
+function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null }) {
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
   const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
