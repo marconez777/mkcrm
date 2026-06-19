@@ -514,9 +514,8 @@ async function ruleInactivityTick(client: SupabaseClient) {
     const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
     const paStageIds = new Set(paAliases.map((a) => a.stage_id));
-    console.log("[tier60pa] toggle_on", { cutoff60, paAliasesCount: paAliases.length, paStageIds: Array.from(paStageIds), nutricaoMapSize: nutricaoByPipeline.size });
     if (paStageIds.size > 0) {
-      const { data: paLeads, error: paErr } = await client
+      const { data: paLeads } = await client
         .from("leads")
         .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
         .in("stage_id", Array.from(paStageIds))
@@ -524,10 +523,9 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .eq("is_internal_contact", false)
         .lt("last_message_at", cutoff60)
         .limit(2000);
-      console.log("[tier60pa] candidates", { count: paLeads?.length ?? 0, error: paErr?.message });
       for (const lead of paLeads ?? []) {
         const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
-        if (!nutricaoId) { console.log("[tier60pa] no_nutricao_id_for_pipeline", lead.pipeline_id); continue; }
+        if (!nutricaoId) continue;
         const ym = new Date().toISOString().slice(0, 7);
         const res = await pipelineMove(client, {
           leadId: lead.id,
@@ -537,7 +535,6 @@ async function ruleInactivityTick(client: SupabaseClient) {
           ruleKey: "automation.inactivity_paciente_antigo.enabled",
           idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
         });
-        console.log("[tier60pa] move_attempt", { lead: lead.id, res });
         if ((res as { moved?: boolean }).moved) {
           tier60pa++;
           await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
