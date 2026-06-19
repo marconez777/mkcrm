@@ -1,94 +1,122 @@
-## V3 — Pipeline de 3 agentes em `pipeline-classify`
+## Reformular `/ai/usage` — visão "Pipeline IA" para leigos
 
-Plano aprovado em linhas gerais, mas com **2 ajustes técnicos obrigatórios** antes de codar — senão a refatoração quebra extração de datas e custa caro à toa.
+Hoje a página `MetricsAiUsage` é uma tabela técnica de `ai_usage`. Vou transformá-la em um painel narrativo focado nos 3 agentes do pipeline-classify (Resumidor → Tipificador → Maestro), fila, execuções por lead e motivos de skip — sem perder o detalhe técnico atual (vira aba "Avançado").
 
----
+### ⚠️ Dependência backend obrigatória
 
-### ⚠️ Ponto de atenção 1 — Datas precisam ficar no Agente 1, não no 2
+`ai_usage` está **vazia para o pipeline-classify**. O classificador chama `generateText` direto via `clinic-openai` e não passa por `logUsage`. Sem instrumentar isso, a aba "Custo por agente" mostra zero.
 
-No V2, `mentioned_dates` carrega `{ raw, anchor_iso, kind }`, onde `anchor_iso` é o **timestamp ISO da mensagem que cita a data**. Esse anchor é o que o `date-parser.ts` (`parseFutureDateInTZ`) usa para resolver "amanhã às 15h", "quinta", etc. de forma determinística.
+**Passo 0 — instrumentar `agent-core.ts`:**
+- Após cada `runSummarizer`/`runTypifier`/`runMaestro`, chamar `logUsage({...})` de `_shared/metrics.ts` com:
+  - `clinic_id: ctx.lead.clinic_id`, `lead_id: ctx.lead.id`
+  - `model`: `summarizerModel` / `TYPIFIER_MODEL` / `MAESTRO_MODEL`
+  - `operation`: `classifier:summarizer` | `classifier:typifier` | `classifier:maestro`
+  - `input_tokens`/`output_tokens`/`total_tokens`: extrair de `result.usage` (AI SDK v6: `inputTokens`, `outputTokens`, `totalTokens`)
+  - `latency_ms`: medir com `performance.now()` por passo
+  - `status`: `"success"` ou `"error"` (no caminho de erro, registrar antes do `return { error }`)
+- `_shared/metrics.ts` já preenche `cost_usd` via `ai-pricing.ts` — só preciso garantir que `gpt-4o`, `gpt-5-mini` estejam em `src/lib/ai-pricing.ts`/`_shared/ai-pricing.ts` (validar; adicionar se faltar).
 
-Se movermos `mentioned_dates` para o Agente 2 (Tipificador) — que só recebe o **resumo em prosa** do Agente 1 —, perdemos os timestamps por mensagem e o parser de datas para de funcionar (ou passa a chutar anchor = "agora", causando datas erradas).
+### Página `/ai/usage` reformulada
 
-**Correção:** O Agente 1 deixa de retornar `string` pura e passa a retornar um objeto:
-```ts
-{ summary: string; mentioned_dates: Array<{raw, anchor_iso, kind}> }
-```
-O resumo (texto) alimenta Agentes 2 e 3. As `mentioned_dates` saem direto do Agente 1 para o output final (passam batido pelo Agente 2). É o único agente que enxerga `formatMessages(ctx.messages)` com timestamps por linha — então é o único que pode produzir `anchor_iso` válido.
+Layout em 3 zonas + drawer:
 
-### ⚠️ Ponto de atenção 2 — Modelo do Agente 1
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Hero — "Sua IA hoje" (linguagem leiga)                      │
+│  • X leads classificados nas últimas 24h                    │
+│  • US$ Y gastos · ~US$ Y/lead                               │
+│  • Z na fila · tempo médio de espera                        │
+│  • [⏸ Pausar IA] (toggle automation.classifier.enabled)    │
+└─────────────────────────────────────────────────────────────┘
 
-A chave OpenAI é **BYOK por clínica** (`clinic_secrets.openai_api_key`, via `getClinicOpenAI`). `gpt-4o` é acessível pelo endpoint OpenAI padrão, então funciona. Mas:
-- Custo: 3 chamadas LLM por lead em vez de 1 (~3-4× mais caro). Aceito explicitamente?
-- Fallback: se `gpt-4o` der 404/model-not-allowed (chave da clínica sem acesso), cair para `gpt-5-mini` no Agente 1 e logar `agent1_fallback_to_mini` em telemetria. Sem fallback silencioso para o V2 monolítico.
+┌──────────────────────┐ ┌──────────────────────────────────┐
+│ Fila ao vivo         │ │ Pipeline de 3 agentes (donut/    │
+│ (realtime leads)     │ │ barras horizontais empilhadas)   │
+│ • Aguardando: N      │ │ Resumidor (gpt-4o) ━━━━ $X       │
+│ • Travados >30min: M │ │ Tipificador  ━━ $Y               │
+│ • Processados/hora   │ │ Maestro      ━━ $Z               │
+│ • [Limpar travados]  │ │ Tooltip: "o que cada um faz"     │
+└──────────────────────┘ └──────────────────────────────────┘
 
----
+┌─────────────────────────────────────────────────────────────┐
+│ Últimas execuções por lead (timeline, 50 mais recentes)     │
+│  ✅ Maria S.   12:03  →  movida p/ Consulta agendada · $0.003│
+│  ⚠️ João P.    12:01  →  pulada: precisa atenção humana     │
+│  ❌ Ana R.     11:58  →  erro no agente Resumidor            │
+│  [clique → drawer com detalhe completo]                     │
+└─────────────────────────────────────────────────────────────┘
 
-## FASE 1 — `schema.ts`
+┌────────────────────┐ ┌────────────────────────────────────┐
+│ Motivos de skip    │ │ Erros (últimas 24h)                │
+│ pizza/lista        │ │ agrupados por mensagem · count     │
+│ (clinic_not_       │ │                                    │
+│  allowlisted: 676) │ │                                    │
+└────────────────────┘ └────────────────────────────────────┘
 
-1. Adicionar `"agendamento_retorno"` em `INTENT_VALUES` (entre `"reagendamento"` e `"duvida_geral"`).
-2. Criar três sub-schemas Zod:
-   - `SummarizerOutputSchema` → `{ summary: z.string().max(1200), mentioned_dates: z.array(...).max(4) }`
-   - `TypifierOutputSchema` → `{ tags_suggested, custom_fields_patch }` (sem stage/intent)
-   - `MaestroOutputSchema` → `{ stage_suggestion, intent, is_b2b, confidence, reasons, mentioned_intents }`
-3. Manter `ClassificationSchemaV2` + `normalizeClassification` (são o **contrato de saída** consumido por `apply.ts` — não mexer).
-4. Adicionar helper `mergeV3Outputs(s1, s2, s3): ClassificationV2` para a Fase 3.
-
-## FASE 2 — `agent-core.ts`
-
-Substituir `runAgent` por orquestração sequencial. Cada passo usa `generateText` + `Output.object` com seu sub-schema:
-
-| Passo | Modelo | Input | Output |
-|---|---|---|---|
-| 1. Resumidor | `gpt-4o` (fallback `gpt-5-mini`) | `buildContextBlock(ctx)` + `formatMessages(ctx.messages)` | `{summary, mentioned_dates}` |
-| 2. Tipificador | `gpt-5-mini` | `buildContextBlock(ctx)` (tags/cf atuais) + `summary` do passo 1 | `{tags_suggested, custom_fields_patch}` |
-| 3. Maestro | `gpt-5-mini` | `summary` + saída do passo 2 + `stageName`/`hasBeenTreatedBefore` do ctx | `{stage_suggestion, intent, is_b2b, confidence, reasons, mentioned_intents}` |
-
-Detalhes:
-- Tratamento de erro por passo: se qualquer um falhar, `return { error: "agent_step{N}_failed:<msg>" }`. O caller (`index.ts`) já trata `agent_error:*` limpando a flag (fix recente).
-- Remover a tool `get_lead_history` (`historyToolEnabled`) — Agente 1 já tem o histórico cru; Agentes 2 e 3 não devem voltar a ler mensagens. Manter a flag no parâmetro por compat, mas ignorar.
-- Prompts do Agente 3 com as regras estritas do usuário:
-  - `agendamento_retorno` quando paciente já tratado/com histórico está marcando próxima consulta → stage `Consulta agendada`.
-  - `Paciente antigo` só se: alta clínica explícita, ciclo encerrado, OU inativo > 6 meses retomando contato. (Esses sinais vêm de `hasBeenTreatedBefore`, `recentStageHistory`, `firstMessageAt`/`nowMs` no ctx — passar pro prompt como flags booleanas, não pedir pro LLM inferir.)
-- `confidence` continua vindo só do Maestro.
-
-## FASE 3 — Merge e contrato
-
-```ts
-return {
-  classification: mergeV3Outputs(s1, s2, s3), // ClassificationV2 normalizado
-  usage: { agent1: u1, agent2: u2, agent3: u3 },
-};
+[Aba "Avançado"] — preserva a tabela técnica atual (filtros, CSV, drawer de chamada)
 ```
 
-- `mentioned_dates` ← Agente 1 (com anchor real).
-- `tags_suggested`, `custom_fields_patch` ← Agente 2.
-- `stage_suggestion`, `intent`, `is_b2b`, `confidence`, `reasons`, `mentioned_intents` ← Agente 3.
-- Passar pelo `normalizeClassification` existente (coerção Canon/intent + defaults) antes de devolver.
+### Fontes de dados
 
-## FASE 4 — Telemetria + docs (não pedido, mas necessário)
+| Widget | Fonte |
+|---|---|
+| Hero "leads classificados 24h" | `lead_events` `type='auto:classifier'` AND `payload->>'skipped' IS NULL` |
+| Hero "custo 24h" | `ai_usage` filtrado por `operation LIKE 'classifier:%'` |
+| Fila | `leads`: `count(*) FILTER (WHERE needs_ai_review)`, idem com `ai_review_queued_at < now()-30min` |
+| Processados/hora | `leads.last_classified_at > now()-1h` |
+| Custo por agente | `ai_usage` `GROUP BY operation` para `classifier:*` |
+| Execuções por lead | `lead_events` últimas 50 com `type='auto:classifier'` + JOIN leads(name,phone) |
+| Motivos de skip | `lead_events.payload->>'skipped' GROUP BY` |
+| Erros | `lead_events.payload->>'skipped' LIKE 'agent_error:%' GROUP BY` |
 
-- Em `apply.ts`, no payload `auto:classifier`, bumpar `payload.version = 3` e adicionar `payload.agents = { summarizer_model, typifier_model, maestro_model, summary_chars }`.
-- Atualizar `docs/pipeline/runtime/CLASSIFIER.md` com a arquitetura nova (substituir seção "Schema do agente" e "Datas").
-- Nota em `docs/pipeline/runtime/KNOWN_ISSUES.md`: V3 multiplica custo OpenAI por ~3 e exige chave da clínica com acesso a `gpt-4o`.
+Tudo em uma query agregadora client-side (até 30d). Subscrição realtime em `leads` (filtro `clinic_id`) só para o widget Fila.
 
-## Deploy & validação
+### Drawer "Execução do lead"
 
-1. `supabase--deploy_edge_functions` em `pipeline-classify`.
-2. Smoke V3 forçado em 3-5 leads com casos conhecidos de alucinação (o do paciente que recusou tratamento, ex.). Verificar `lead_events.payload.version=3` e `reasons` coerentes.
-3. Monitorar `pipeline_classifier_skips` por `agent_step{1,2,3}_failed:*` na primeira hora.
-4. Comparar tags/stage gerados antes vs depois nos mesmos leads.
+Ao clicar numa linha da timeline, abrir `Sheet` mostrando:
+1. **Lead** (nome, telefone, link `/inbox/:id`)
+2. **Linha do tempo dos 3 agentes** com tempo/custo de cada um, lido de `payload.agents` + `ai_usage` por `lead_id`+timestamp próximo
+3. **Resumo gerado** (campo `summary` precisa ser exposto — ver nota abaixo)
+4. **Decisão final**: stage_suggestion, intent, confidence (barra), is_b2b, reasons (bullet)
+5. **O que foi aplicado**: tags adicionadas/removidas, custom_fields setados, datas resolvidas, bloqueios G10
+6. **Bruto** (collapsed `<details>` com `payload` cru, pra suporte)
 
-## Fora de escopo
+> **Sub-decisão técnica:** o `summary` do Agente 1 não é persistido hoje. Para o drawer mostrá-lo, adicionar `summary` e `summary_chars` no `telemetry.applied` (em `apply.ts`) recebendo de `agents` no parâmetro novo (passar via `runAgent` → `applyClassification`). Sem migration; só payload de evento.
 
-- Não alterar `apply.ts` (orquestração, gates G10, strict no-move, B2B) — só telemetria.
-- Não mexer em `date-parser.ts`, `rules/*`, `index.ts` (dispatcher v1/v2).
-- Não tocar UI.
+### Linguagem leiga
 
----
+- Substituir jargão: "stage_suggestion" → "Etapa sugerida", "intent" → "Intenção", "G10" → "respeita edição humana recente", "skipped" → "pulada", "needs_ai_review" → "aguardando IA".
+- Cada bloco com tooltip `<HelpCircle />` explicando em 1 frase.
+- Status com cores semânticas + emoji: ✅ aplicada · ⚠️ pulada · ❌ erro · ⏸ pausada.
+- Custos em US$ com 4 casas + equivalente "≈ R$ X" (taxa fixa configurável, ou só USD se preferir simplicidade).
 
-**Confirma os 2 pontos de atenção?**
-- (1) Agente 1 retorna `{summary, mentioned_dates}` em vez de só string — ok?
-- (2) Aceita o custo ~3× e o fallback `gpt-4o → gpt-5-mini` quando a clínica não tem acesso?
+### Estrutura de arquivos
 
-Se sim em ambos, sigo direto para implementar quando passarmos para build mode.
+- `src/pages/MetricsAiUsage.tsx` → vira shell com `Tabs`: **Visão geral** (novo) e **Avançado** (conteúdo atual movido).
+- Novos componentes em `src/components/ai/usage/`:
+  - `PipelineHero.tsx`
+  - `LiveQueueCard.tsx` (com subscription realtime)
+  - `AgentBreakdown.tsx` (donut + legenda)
+  - `RecentExecutions.tsx`
+  - `SkipReasons.tsx`
+  - `ErrorsPanel.tsx`
+  - `LeadRunDrawer.tsx`
+- Hook `src/hooks/usePipelineUsage.ts` centraliza queries (data range + clinic).
+
+### Fora de escopo
+
+- Não alterar pipeline-deterministic, summarizer, auditores.
+- Não migrar tabela `ai_usage` (operação é text livre, só novos valores).
+- Não mexer em RLS.
+- Não tocar na sidebar / navegação superior.
+
+### Validação
+
+1. Deploy `pipeline-classify` com `logUsage` por agente.
+2. Forçar 1 tick V2 em clínica allowlisted; conferir 3 linhas em `ai_usage` (`operation='classifier:*'`) e custo > 0.
+3. Abrir `/ai/usage` — hero não-zerado, fila batendo com `SELECT count` direto, drawer abrindo um lead recente sem erros.
+4. Aba Avançado intacta (mesma tabela e CSV).
+
+### Pergunta única antes de seguir
+
+Quer o **toggle "Pausar IA"** no hero (flipa `automation.classifier.enabled` em `app_settings`, só super-admin)? É 1 botão a mais, útil em incidentes — mas posso deixar fora se preferir só leitura nessa página.
