@@ -639,7 +639,16 @@ function LeadRunDetail({
     | { stage_suggestion?: string; intent?: string; confidence?: number; is_b2b?: boolean; reasons?: string[] }
     | undefined;
   const agents = latest?.payload?.agents as
-    | { summarizer_model?: string; typifier_model?: string; maestro_model?: string; summary?: string; latency_ms?: any }
+    | {
+        summarizer_model?: string;
+        agendador_model?: string;
+        typifier_model?: string;
+        movimentador_model?: string;
+        maestro_model?: string;
+        summary?: string;
+        latency_ms?: Record<string, number>;
+        ran?: Record<string, boolean>;
+      }
     | undefined;
   const applied = latest?.payload?.applied as Record<string, any> | undefined;
   const skipped = latest?.payload?.skipped as string | undefined;
