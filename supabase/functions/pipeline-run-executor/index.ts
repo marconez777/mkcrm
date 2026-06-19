@@ -318,7 +318,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
             lead_id: lead.id,
             stage_id: stage.id,
             stage_name: stage.name,
-            step: "classify",
+            step: stepName,
             status: "pending",
             started_at: itemStart,
           })
