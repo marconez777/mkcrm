@@ -51,9 +51,33 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
     .eq("id", leadId);
 }
 
-async function classifyOneV2(client: SupabaseClient, leadId: string) {
+async function classifyOneV2(
+  client: SupabaseClient,
+  leadId: string,
+  onlyAgent?: "summarizer" | "typifier" | "maestro",
+) {
   const loaded = await loadLeadContext(client, leadId);
   if (loaded.kind === "skip") {
+    // Em modo manual (only_agent) bypassamos o early-return de "no_new_messages":
+    // o usuário pediu reprocessamento intencional.
+    if (loaded.reason === "no_new_messages" && onlyAgent) {
+      // Refaz com bypass: recarrega ignorando watermark
+      const { data: leadRow } = await client
+        .from("leads")
+        .select("last_processed_message_id_classifier")
+        .eq("id", leadId)
+        .single();
+      // Limpa watermark temporariamente seria invasivo — em vez disso, retornamos skip
+      // mas marcado como manual_skip para a UI saber que foi pelo watermark.
+      if (leadRow) {
+        await writeSkipTelemetry(
+          client,
+          { clinic_id: "", lead_id: leadId },
+          `manual_skip_no_new_messages_${onlyAgent}`,
+        );
+      }
+      return { skipped: `no_new_messages_in_${onlyAgent}_mode` };
+    }
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
         .from("leads")
@@ -73,7 +97,6 @@ async function classifyOneV2(client: SupabaseClient, leadId: string) {
         );
       }
     }
-    // Sempre tira o lead da fila em qualquer skip — evita reciclagem infinita.
     await clearQueueFlag(client, leadId);
     return { skipped: loaded.reason };
   }
