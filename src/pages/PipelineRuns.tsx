@@ -803,6 +803,7 @@ function ScopeDialog({
       stage_ids: stageId && stageId !== "__all__" ? [stageId] : undefined,
       lead_ids: selectedCount > 0 ? Object.keys(selectedLeads) : undefined,
       top_n: Number.isFinite(n) && n > 0 ? n : undefined,
+      only_agent: onlyAgent === "full" ? undefined : onlyAgent,
     });
   };
 
