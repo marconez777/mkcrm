@@ -415,6 +415,9 @@ Deno.serve(async (req) => {
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
       if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
+      if (input.only_agent && ["summarizer", "typifier", "maestro"].includes(input.only_agent)) {
+        scope.only_agent = input.only_agent;
+      }
 
       const { data: run, error } = await service
         .from("pipeline_runs")
