@@ -1,7 +1,7 @@
 // supabase/functions/_shared/stage-bindings.ts
 //
 // Marco 4 — aplica stage_sequence_bindings ativos após mover lead de stage.
-// Inscreve o lead na message_sequence vinculada (trigger='stage_enter') de forma
+// Inscreve o lead na message_sequence vinculada (trigger='on_enter') de forma
 // idempotente: 1 enrollment ativo por (lead, sequence).
 // Toggle global: automation.stage_bindings.enabled
 
@@ -32,7 +32,7 @@ export async function applyStageBindings(
     .select("id, sequence_id")
     .eq("stage_id", toStageId)
     .eq("clinic_id", clinicId)
-    .eq("trigger", "stage_enter")
+    .eq("trigger", "on_enter")
     .eq("enabled", true);
   if (!bindings || bindings.length === 0) return { enrolled: [], skipped: "no_bindings" };
 

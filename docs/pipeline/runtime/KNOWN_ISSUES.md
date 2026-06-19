@@ -155,8 +155,8 @@ Classifier escreve essa chave no JSONB de `leads.custom_fields`, mas a UI de cam
 
 **Status**: cosmético — o valor é salvo, só não aparece como campo gerenciado.
 
-## 8. Mismatch `trigger` em `stage_sequence_bindings`
+## 8. Mismatch `trigger` em `stage_sequence_bindings` (CORRIGIDO)
 
-CHECK aceita `'on_enter'|'on_exit'` (migration `20260618021516`). Código em `applyStageBindings` filtra por `trigger='stage_enter'` (sem underscore antes do 'enter'). **Bindings novos com `'on_enter'` não vão disparar**, e bindings com `'stage_enter'` violariam o CHECK.
+CHECK aceita `'on_enter'|'on_exit'` (migration `20260618021516`). Código em `applyStageBindings` estava filtrando por `trigger='stage_enter'`. 
 
-**Status**: bug latente — só ativa se alguém criar bindings. Antes de ligar `automation.stage_bindings.enabled` em produção, alinhar os dois nomes.
+**Status**: ✅ Corrigido. A função `applyStageBindings` em `supabase/functions/_shared/stage-bindings.ts` foi atualizada para filtrar por `trigger='on_enter'`, alinhando-se com a constraint do banco de dados. Os bindings criados agora funcionarão corretamente em produção.
