@@ -400,7 +400,10 @@ export async function ingestMessage(
       .order("position")
       .limit(1)
       .maybeSingle();
-    const { data: created, error } = await supabase
+    // Defesa contra race: vários webhooks da Evolution para o mesmo número
+    // podem chegar simultâneos. Tenta inserir; se já existir (índice único
+    // leads_clinic_phone_uniq) ou for criado por outro processo, re-busca.
+    const { error: insErr } = await supabase
       .from("leads")
       .insert({
         phone,
@@ -412,12 +415,22 @@ export async function ingestMessage(
         last_message_at: ts,
         last_message_preview: content?.slice(0, 120) ?? null,
         unread_count: fromMe || silent ? 0 : 1,
-      })
+      });
+    const isDupErr =
+      !!insErr &&
+      (String((insErr as any).code) === "23505" ||
+        String(insErr.message ?? "").toLowerCase().includes("duplicate"));
+    if (insErr && !isDupErr) throw insErr;
+    const { data: resolved, error: selErr } = await supabase
+      .from("leads")
       .select("id, name, whatsapp_instance_id")
-      .single();
-    if (error) throw error;
-    lead = created;
-    createdLead = true;
+      .eq("phone", phone)
+      .eq("clinic_id", clinicId)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!resolved) return { skipped: true, reason: "lead-insert-race-unresolved" };
+    lead = resolved;
+    createdLead = !isDupErr;
     if (pipelineFallback) {
       try {
         await supabase.from("lead_events").insert({
