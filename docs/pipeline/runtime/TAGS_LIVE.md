@@ -48,18 +48,19 @@ GROUP BY tag ORDER BY n DESC;
 
 > **Observação**: zero leads com `auditor_sugere_*`, `post_move_warning`, `welcome_sent`, `reativacao`, `judicializacao`, `b2b_auto` ou `consulta_agendada` no snapshot — auditores ainda não geraram discordâncias relevantes desde que foram ligados.
 
-## Whitelist declarada em `app_settings`
+## Whitelist (Forçada via Código)
 
-Chave `automation.v42.allowed_tags`:
+A whitelist de tags agora é **estritamente forçada** pelo `apply.ts`. Qualquer tag sugerida pela IA que não esteja nesta lista é sumariamente descartada, garantindo a padronização do CRM e evitando "alucinação de tags".
+
+As tags foram expandidas (Ajuste C1) e atualmente compreendem:
 
 ```json
 ["reagendamento_pendente","retorno_pendente","nf_pendente","pagamento_pendente",
  "paciente_antigo","reativacao","judicializacao","renovacao_receita","lead_b2b",
  "precisa_atencao_humana","post_move_warning","ciclo_concluido","modalidade_online",
- "modalidade_presencial","manual_lock","aguardando_secretaria"]
+ "modalidade_presencial","manual_lock","aguardando_secretaria", 
+ "interesse_conjuge", "segunda_opiniao", "alta_urgencia", "risco_cirurgico", "exames_prontos"]
 ```
-
-> ⚠️ Esta whitelist é **documental** — nenhum código atual a consulta para validar tags entrantes. O classifier sugere tags livres; o filtro só remove as `PROTECTED_TAGS` de `tags_remove`. Por isso aparecem tags fora da lista (ex.: `audit:b22`, `PHQ-9 Depressão`).
 
 ## Tags protegidas (`PROTECTED_TAGS`)
 
@@ -86,9 +87,6 @@ risco_clinico · b2b · vip · paciente_antigo · precisa_atencao_humana · Lock
 | `risco_clinico` | trigger `tg_lead_risk_handler` | (não auditado aqui — vive em migration anterior) | humano (protegida) |
 | Tags sugeridas livres pelo classifier | `pipeline-classify` (`tags_suggested`) | quando confidence alta o suficiente | classifier (`tags_remove`) se não está protegida |
 
-## Pegadas
-
 1. **Tags de auditor com slug malformado**: o slug de `B2B / Stakeholders` vira `auditor_sugere_b2b__stakeholders` (replace `/` e espaços por `_`, depois strip de não-alfanuméricos colapsa `/_` em vazio). Funcional mas feio.
 2. **Sem normalização case**: `Lock manual` e `lock_manual` aparecem como protegidos separadamente.
 3. **Sem rate-limit**: classifier pode sugerir 8 tags novas por execução (`tags_suggested.max(8)`).
-4. **Sem whitelist enforcement**: tags livres entram. O drift entre código e `automation.v42.allowed_tags` é assumido.

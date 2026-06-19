@@ -57,14 +57,11 @@ rg -n "isClinicPipelineAllowed" supabase/functions/
 
 ## Gate G10 — implementação V2
 
-Implementado em 2026-06-18 junto com o Classifier V2.
-
-**Mecânica:**
-
-1. Migration adiciona `leads.custom_fields_last_human_edit jsonb DEFAULT '{}'`.
-2. Trigger PG `track_custom_fields_human_edits` (BEFORE UPDATE OF custom_fields) detecta diff por chave e grava `{key: now_iso}` no jsonb — exceto se `current_setting('app.actor') = 'system'`.
-3. RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)` (SECURITY DEFINER) seta `app.actor='system'` na transação e aplica o UPDATE. Classifier V2 sempre escreve por aqui.
+1. Migration `20260618_100000_g10_human_edits.sql` adiciona a coluna `leads.custom_fields_last_human_edit jsonb DEFAULT '{}'`.
+2. Trigger do PostgreSQL `track_custom_fields_human_edits` dispara `BEFORE UPDATE OF custom_fields`. Para cada chave alterada no JSON, ele grava `{ key: now_iso }`, **exceto** quando a transação declara `SET LOCAL app.actor = 'system'`.
+3. Edge function (ex: `apply.ts`) ou qualquer automação que queira escrever em custom_fields **deve** usar a RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)` se não quiser ser marcada como ação humana. A RPC seta o actor=system e faz o UPDATE.
 4. `pipeline-classify/apply.ts` lê `lead.custom_fields_last_human_edit[key]` antes de aplicar cada chave; se < 7d, descarta e grava em `applied.custom_fields.blocked_by_g10`.
+   - **Exceção (Override de Data)**: Se o parser identificar uma data confirmada (`isDateFromParser = true`) e a confiança da IA for `>= 0.85`, o G10 é ignorado, sobrepondo a data da secretária.
 
 **Verificação:**
 

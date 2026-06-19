@@ -30,9 +30,10 @@ related_docs:
 # Classifier `pipeline-classify` — V2
 
 > Reconstrução multi-step (junho/2026). Substitui o monolito V1 de 696 linhas por
-> uma estrutura modular focada em **strict no-move**: o classificador **NÃO move
-> cards** (exceto B2B com guards rígidos). Os agendamentos passam a ser
-> autoridade de webhooks deterministas (SumUp + appointment-extractor — Fase 2).
+> uma estrutura modular (v2). O classificador agora possui **General Move** (auto-move)
+> ativado para cenários de alta confiança (ex: Consulta agendada), realiza override
+> de G10 para datas extraídas do chat, suporta uma whitelist de tags expandida, e
+> utiliza few-shots no summarizer para melhor extração.
 
 ## Resumo
 
@@ -122,6 +123,10 @@ Estado V1: G10 era apenas mitigação por prompt. V2:
 4. **`apply.ts`** lê `lead.custom_fields_last_human_edit[key]`; se o timestamp
    for mais novo que `now − 7d`, descarta a sugestão da IA para essa chave e
    registra em `applied.custom_fields.blocked_by_g10`.
+   - **Exceção (Override de Data)**: Se o parser identificar uma data e a confiança 
+     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`) para as 
+     chaves de `consulta_agendada_em` e `procedimento_agendado_em`, sobrepondo a 
+     edição humana.
 
 > Edições humanas via PostgREST (frontend, inbox, lead drawer) **não setam**
 > `app.actor` → o trigger as marca corretamente como humanas. Outras edge
@@ -130,14 +135,13 @@ Estado V1: G10 era apenas mitigação por prompt. V2:
 > serão marcados como "humanos", o que na prática faz o classifier respeitar
 > regras determinísticas (comportamento desejável). Ver KNOWN_ISSUES.
 
-## Strict no-move
+## Movimentações e Auto-Move (General Move / B2B)
 
-Caminho **genérico** (`stage_suggestion ≠ current`): **NUNCA move**. Registra em
-`applied.stage_suggestion_only` com `reason: "strict_no_move"`. Os cards ficam
-estacionados na coluna atual até a Fase 2 (webhook SumUp +
-`appointment-extractor`).
+Com a aprovação dos ajustes recentes, o caminho genérico do Classifier possui auto-move:
 
-Caminho **B2B** (único move automático): exige **TODOS** os guards:
+1. **Consulta Agendada (Ajuste B)**: Se a IA extrair com confiança a data de uma consulta confirmada no chat, ela aciona o General Move e move o lead para "Consulta agendada" via `pipelineMove`, exceto se o lead estiver travado em "Paciente antigo".
+
+Caminho **B2B** (Move automático estrito): exige **TODOS** os guards:
 
 - `is_b2b === true`
 - `confidence ≥ 0.95`
