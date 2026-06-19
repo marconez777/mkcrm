@@ -326,8 +326,10 @@ export async function applyClassification(
       intent_effects: intentResults,
       summarize: summarizeResult,
     },
-    cost: { model: "gpt-5-mini", usage: usage ?? null },
+    cost: { model: agents?.maestro_model ?? "gpt-5-mini", usage: usage ?? null },
+    agents: agents ?? null,
   };
+
 
   return { telemetry, lastMessageId };
 }
