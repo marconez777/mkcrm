@@ -818,6 +818,41 @@ function ScopeDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Seletor de agente */}
+          <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-3">
+            <Label className="text-xs">Quais agentes rodar</Label>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {([
+                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Completo", desc: "Os 3 agentes" },
+                { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: "Só Resumidor", desc: "Refaz ai_summary" },
+                { id: "typifier", icon: <Tags className="h-3.5 w-3.5" />, title: "Só Tipificador", desc: "Refaz tags + campos" },
+                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz stage + intent" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setOnlyAgent(opt.id as typeof onlyAgent)}
+                  className={`flex flex-col items-start gap-1 rounded-md border p-2 text-left text-xs transition ${
+                    onlyAgent === opt.id ? "border-primary bg-primary/10" : "border-border/50 bg-background/30 hover:border-border"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-medium">{opt.icon}{opt.title}</div>
+                  <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+            {onlyAgent === "maestro" && (
+              <p className="text-[11px] text-amber-400">
+                ⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.
+              </p>
+            )}
+            {(onlyAgent === "typifier" || onlyAgent === "maestro") && (
+              <p className="text-[11px] text-muted-foreground">
+                Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Pipeline</Label>
