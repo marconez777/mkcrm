@@ -2,6 +2,7 @@
 // Triggered by pg_cron every 5 minutes.
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
+import { pipelineMove } from "../_shared/pipeline-move.ts";
 
 type Automation = {
   id: string;
@@ -267,51 +268,23 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
     const stageId = a.action_config?.stage_id;
     if (!stageId) return { ok: false, detail: "missing stage_id" };
 
-    // Verifica trava de etapa (lock_auto_move) tanto na origem quanto no destino
-    const { data: targetStage } = await supabase
-      .from("pipeline_stages")
-      .select("lock_auto_move")
-      .eq("id", stageId)
-      .maybeSingle();
-    if (targetStage?.lock_auto_move) {
-      return { ok: false, detail: "stage_locked:target" };
-    }
-    const { data: leadRow } = await supabase
-      .from("leads").select("stage_id").eq("id", leadId).maybeSingle();
-    if (leadRow?.stage_id) {
-      const { data: curStage } = await supabase
-        .from("pipeline_stages")
-        .select("lock_auto_move")
-        .eq("id", leadRow.stage_id)
-        .maybeSingle();
-      if (curStage?.lock_auto_move) {
-        return { ok: false, detail: "stage_locked:source" };
-      }
-    }
-
-    const fromStage = leadRow?.stage_id ?? null;
-    const { error } = await supabase.from("leads").update({ stage_id: stageId }).eq("id", leadId);
-    if (error) return { ok: false, detail: error.message };
-
-    // Onda 7 / Fase 1: enriquecer histórico (sem inserir 2ª linha — trigger já criou).
-    const { data: latest } = await supabase
-      .from("lead_stage_history")
-      .select("id")
-      .eq("lead_id", leadId)
-      .order("moved_at", { ascending: false })
-      .limit(1);
-    const rowId = (latest?.[0] as { id?: string } | undefined)?.id;
-    if (rowId) {
-      await supabase.from("lead_stage_history").update({
-        reason: `automation:${a.id}`,
-        source: "automations_tick",
-        metadata: {
-          automation_id: a.id,
-          from_stage_id: fromStage,
-          to_stage_id: stageId,
-          at: new Date().toISOString(),
-        },
-      }).eq("id", rowId);
+    // V5: TODO move passa por pipelineMove (gates G1..G5, G8 + D3 + wipe de chips).
+    // O helper já valida lock_auto_move (G2), grava lead_stage_history (G5) via
+    // trigger + metadata, e garante idempotência (G4). Sem update direto em leads.
+    const moveRes = await pipelineMove(supabase, {
+      leadId,
+      toStageId: stageId,
+      source: "auto:automation-rule",
+      reason: `automation:${a.id} (${a.trigger_type})`,
+      ruleKey: "automation.ui_rule_move.enabled",
+      idempotencyKey: `automation:${a.id}:${leadId}:${stageId}`,
+      metadata: {
+        automation_id: a.id,
+        trigger_type: a.trigger_type,
+      },
+    });
+    if (!moveRes.moved) {
+      return { ok: false, detail: (moveRes as { reason: string }).reason };
     }
     return { ok: true };
   }

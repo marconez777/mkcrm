@@ -505,7 +505,45 @@ async function ruleInactivityTick(client: SupabaseClient) {
       }
     }
   }
-  return { tier24, tier3, tier7, scanned: leads?.length ?? 0 };
+
+  // V5 — SLA 60d em "Paciente antigo" → "Nutrição inativa".
+  // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
+  let tier60pa = 0;
+  const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+  if (t60pa) {
+    const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
+    const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
+    const paStageIds = new Set(paAliases.map((a) => a.stage_id));
+    if (paStageIds.size > 0) {
+      const { data: paLeads } = await client
+        .from("leads")
+        .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
+        .in("stage_id", Array.from(paStageIds))
+        .is("archived_at", null)
+        .eq("is_internal_contact", false)
+        .lt("last_message_at", cutoff60)
+        .limit(2000);
+      for (const lead of paLeads ?? []) {
+        const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
+        if (!nutricaoId) continue;
+        const ym = new Date().toISOString().slice(0, 7);
+        const res = await pipelineMove(client, {
+          leadId: lead.id,
+          toStageId: nutricaoId,
+          source: "auto:inactivity-tick",
+          reason: "60d sem inbound em Paciente antigo — Nutrição inativa",
+          ruleKey: "automation.inactivity_paciente_antigo.enabled",
+          idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
+        });
+        if ((res as { moved?: boolean }).moved) {
+          tier60pa++;
+          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
+        }
+      }
+    }
+  }
+
+  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0 };
 }
 
 async function ruleReactivationTick(client: SupabaseClient) {

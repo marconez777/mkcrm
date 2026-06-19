@@ -1,61 +1,176 @@
-# Remover bloqueio de "no_new_messages" nas execuções manuais do pipeline
+# Fase 1 V5 — Segurança + Wipe + SLA + Lock D3
 
-## Diagnóstico
+Vou aplicar 6 mudanças. Diffs serão exibidos ao final.
 
-Quando o usuário clica em **Executar pipeline inteiro** / **Executar com escopo**:
+## 1) `supabase/functions/ai-chat/index.ts` (tool `move_lead_stage`, linhas 226-256)
 
-1. `pipeline-run-executor` chama `pipeline-classify` (`action:"lead"`) para cada lead.
-2. `pipeline-classify` → `loadLeadContext` (`context.ts:96-99`) compara o `id` da última mensagem com `leads.last_processed_message_id_classifier`. Se for igual, retorna `{kind:"skip", reason:"no_new_messages"}`.
-3. `index.ts:81-101` grava telemetria `no_new_messages`, "re-confirma" o watermark e devolve skip.
-4. Resultado: a UI mostra `skip = N` (na print, "1 leads · ok 0 · skip 1") e os 3 agentes V3 nunca rodam de novo, mesmo tendo mudado prompts/modelo.
-
-O bypass existente em `classifyOneV2` (linha 63) só aciona quando há `only_agent` (modos "Só Resumidor/Tipificador/Maestro"), e mesmo assim ele só **escreve um skip de telemetria** — não reclassifica.
-
-## O que ajustar
-
-### 1. `supabase/functions/pipeline-classify/context.ts`
-
-Aceitar `bypassWatermark` em `loadLeadContext`:
+Mantém pre-checks de `lock_auto_move` (para preservar os erros granulares `stage_locked`/`stage_locked_source`) e substitui o `update({stage_id})` direto + insert manual em `lead_events` por chamada a `pipelineMove`:
 
 ```ts
-export async function loadLeadContext(
-  client: SupabaseClient,
-  leadId: string,
-  opts?: { bypassWatermark?: boolean },
-): Promise<LoadResult> { ... }
+import { pipelineMove } from "../_shared/pipeline-move.ts";
+// ...
+const moveRes = await pipelineMove(supabase, {
+  leadId,
+  toStageId: stage.id,
+  source: "auto:ai-chat-tool",
+  reason: `move_lead_stage via agent ${agent.name}`,
+  ruleKey: "automation.ai_chat_move.enabled",
+  idempotencyKey: `ai-chat:${agent.id}:${leadId}:${stage.id}:${Date.now()}`,
+  metadata: { agent_id: agent.id, agent_name: agent.name },
+});
+if (!moveRes.moved) return { error: "move_blocked", reason: moveRes.reason, stage: stage.name };
+// lead_events 'stage_changed_by_ai' continua sendo gravado p/ telemetria de UI.
 ```
 
-Quando `opts?.bypassWatermark === true`, pula o early-return de `no_new_messages` (continua carregando contexto normalmente). Watermark continua presente em `ctx.lead.last_processed_message_id_classifier` apenas como informação.
+## 2) `supabase/functions/automations-tick/index.ts` (action `move_stage`, linhas 266-317)
 
-### 2. `supabase/functions/pipeline-classify/index.ts`
+Remove o `update({stage_id})` direto + o "enriquecer histórico" manual (que duplicava lógica do helper). Tudo passa a ser uma chamada:
 
-- `classifyOneV2(client, leadId, onlyAgent, force?)`:
-  - aceitar `force?: boolean`;
-  - chamar `loadLeadContext(client, leadId, { bypassWatermark: !!force })`;
-  - remover o branch "manual_skip_no_new_messages" (quando force=true não chega mais aqui);
-  - em modo `full` + `force` re-avança o watermark normalmente ao final (já é o fluxo atual).
-- `handleV2`: ler `body.force` (boolean) e propagar para `classifyOneV2`.
-- `tickQueueV2` (cron) **não** força — preserva o comportamento de fila por watermark (evita reprocessar tudo a cada tick).
+```ts
+import { pipelineMove } from "../_shared/pipeline-move.ts";
+// ...
+const moveRes = await pipelineMove(supabase, {
+  leadId,
+  toStageId: stageId,
+  source: "auto:automation-rule",
+  reason: `automation:${a.id} (${a.trigger_type})`,
+  ruleKey: "automation.ui_rule_move.enabled",
+  idempotencyKey: `automation:${a.id}:${leadId}:${stageId}`,
+  metadata: { automation_id: a.id, trigger_type: a.trigger_type },
+});
+return moveRes.moved ? { ok: true } : { ok: false, detail: moveRes.reason };
+```
 
-### 3. `supabase/functions/pipeline-run-executor/index.ts`
+`pipelineMove` já cobre G2 (lock_auto_move), G5 (history) e G4 (idempotência).
 
-- `callClassify(leadId, onlyAgent, force=true)`: sempre passar `force: true` no body. Execução pelo botão é ato deliberado do usuário.
-- Adiciona o campo no body junto com `only_agent`.
+## 3) `supabase/functions/_shared/pipeline-move.ts` — Wipe + D3 estreitado
 
-### 4. UI — sem mudanças visíveis
+**3a) Guard D3 (linha 176)** — apertar exceção para destino estrito "Nutrição inativa":
+```ts
+if (isAutoSource && fromStage?.name === PACIENTE_ANTIGO_NAME && toStage.name !== "Nutrição inativa") {
+  return { moved: false, reason: "guard_d3_paciente_antigo" };
+}
+```
+(Guard preservado — apenas a única saída permitida agora é Nutrição inativa.)
 
-Nenhuma alteração em `PipelineRuns.tsx`. O comportamento dos botões "Executar pipeline inteiro" / "Executar com escopo" / "Reprocessar erros" / "Reprocessar comentados" passa a sempre forçar reclassificação. A UI já mostra `ok`/`skip`/`err` — só vai ver menos `skip` por watermark.
+**3b) Wipe centralizado** — antes do `UPDATE leads` (linha 179), inserir:
 
-> Os skips legítimos (`no_messages`, `no_pipeline`, `lead_not_found`, `clinic_not_allowlisted`, `agent_error:*`) continuam acontecendo normalmente.
+```ts
+// V5: wipe de chips ao trocar de stage. Mexemos APENAS na coluna JSONB
+// leads.custom_fields (NUNCA em lead_custom_fields, que guarda o schema).
+const wipedKeys: string[] = [];
+if (
+  (isAutoSource || source === "manual" || source === "ui") &&
+  (fromStage?.name === "Qualificação" || toStage.name === "Consulta finalizada")
+) {
+  const { data: leadCF } = await client
+    .from("leads")
+    .select("custom_fields")
+    .eq("id", leadId)
+    .maybeSingle();
+  const cur = (leadCF?.custom_fields ?? {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...cur };
+  if (fromStage?.name === "Qualificação" && "interessado" in next) {
+    delete next.interessado;
+    wipedKeys.push("interessado");
+  }
+  if (toStage.name === "Consulta finalizada") {
+    for (const k of ["consulta_agendada_em", "procedimento_agendado_em", "consulta_confirmada", "procedimento_confirmado"]) {
+      if (k in next) { delete next[k]; wipedKeys.push(k); }
+    }
+    next.aguardando = true;
+    wipedKeys.push("+aguardando");
+  }
+  if (wipedKeys.length > 0) {
+    const { error: wipeErr } = await client.from("leads").update({ custom_fields: next }).eq("id", leadId);
+    if (wipeErr) console.warn("[pipeline-move] chip wipe failed", wipeErr); // non-blocking
+  }
+}
+```
 
-### 5. Validação
+Anexo `wiped_keys: wipedKeys` ao `historyMeta` do G5.
 
-- Re-rodar **Executar pipeline inteiro** na ÓR (3 leads de teste recentes).
-- Esperado: `skip = 0` por `no_new_messages`; os 3 agentes (Resumidor/Tipificador/Maestro `gpt-5`) executam em cada lead e geram um novo `lead_event` com `payload.agents`.
-- Conferir no `lead_events` mais recente de um dos leads que `agents.ran = {summarizer:true, typifier:true, maestro:true}`.
+## 4) `supabase/functions/pipeline-deterministic/index.ts` — SLA 60d Paciente antigo
 
-## Fora de escopo
+Em `ruleInactivityTick` (linha 402+), depois do loop atual, adicionar branch independente (toggle próprio para não interferir nos demais):
 
-- Não alterar a fila por trigger / `tg_enqueue_classifier` — o cron continua respeitando watermark.
-- Não mexer no V1 (`index.v1.ts`).
-- Não criar toggle de UI — força é implícita nas execuções manuais.
+```ts
+const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+if (t60pa) {
+  const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
+  const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
+  const paStageIds = new Set(paAliases.map((a) => a.stage_id));
+  if (paStageIds.size > 0) {
+    const { data: paLeads } = await client
+      .from("leads")
+      .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
+      .in("stage_id", Array.from(paStageIds))
+      .is("archived_at", null)
+      .eq("is_internal_contact", false)
+      .lt("last_message_at", cutoff60)
+      .limit(2000);
+    for (const lead of paLeads ?? []) {
+      const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
+      if (!nutricaoId) continue;
+      const ym = new Date().toISOString().slice(0, 7);
+      const res = await pipelineMove(client, {
+        leadId: lead.id,
+        toStageId: nutricaoId,
+        source: "auto:inactivity-tick",
+        reason: "60d sem inbound em Paciente antigo — Nutrição inativa",
+        ruleKey: "automation.inactivity_paciente_antigo.enabled",
+        idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
+      });
+      if ((res as { moved?: boolean }).moved) {
+        await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
+      }
+    }
+  }
+}
+```
+
+O Guard D3 atualizado em (3a) permite esse move (destino == "Nutrição inativa").
+
+## 5) `supabase/functions/pipeline-classify/apply.ts` — Lock D3 no Classifier
+
+Apenas adicionar o bloqueio de tentativa de move (G10 override de datas já existe nas linhas 162-209). Trocar `if (applyMaestro) {` (linha 245) por:
+
+```ts
+if (applyMaestro && ctx.stageName === "Paciente antigo") {
+  stageOutcome = {
+    ...stageOutcome,
+    would_move: false,
+    reason: "locked_in_paciente_antigo",
+    path: "guard_d3",
+  };
+} else if (applyMaestro) {
+  // ... bloco b2b/nurture/general existente intacto
+}
+```
+
+Resultado: Classifier nem chama `pipelineMove` p/ esses leads.
+
+## 6) Migration — toggles novos
+
+```sql
+INSERT INTO app_settings (key, value) VALUES
+  ('automation.ai_chat_move.enabled', '"true"'),
+  ('automation.ui_rule_move.enabled', '"true"'),
+  ('automation.inactivity_paciente_antigo.enabled', '"true"')
+ON CONFLICT (key) DO NOTHING;
+```
+
+## Regras de Ouro respeitadas
+- Guard D3 mantido — só permite saída p/ "Nutrição inativa".
+- Wipe usa SELECT + `{...cur}` spread + UPDATE em `leads.custom_fields` (JSONB). NUNCA toca em `lead_custom_fields`.
+- Comentários, TODOs, `idempotencyKey` e `ruleKey` preservados em todas as chamadas.
+- Não removo o early-return `unchanged` do ai-chat nem o `recentlyRan` cooldown do automations-tick.
+
+## Validação pós-deploy
+1. `move_lead_stage` via ai-chat em "Paciente antigo" → `guard_d3_paciente_antigo`.
+2. Mover lead de "Qualificação" → outra → `custom_fields.interessado` removido.
+3. Mover lead → "Consulta finalizada" → campos de agendamento sumiram, `aguardando=true`.
+4. Cron move Paciente antigo (>60d sem msg) → Nutrição inativa.
+5. Classifier em lead "Paciente antigo" → `would_move=false, reason='locked_in_paciente_antigo'`.
+
+Aprove o plano p/ eu aplicar os diffs.

@@ -173,9 +173,56 @@ export async function pipelineMove(
     return { moved: false, reason: `gate_g2_destination_locked:${toStage.name}` };
   }
 
-  // Guard D3 — paciente antigo não sai do stage por automação.
-  if (isAutoSource && fromStage?.name === PACIENTE_ANTIGO_NAME) {
+  // Guard D3 — paciente antigo não sai do stage por automação, EXCETO p/
+  // "Nutrição inativa" (única saída permitida, executada pelo cron de inatividade 60d).
+  if (
+    isAutoSource &&
+    fromStage?.name === PACIENTE_ANTIGO_NAME &&
+    toStage.name !== "Nutrição inativa"
+  ) {
     return { moved: false, reason: "guard_d3_paciente_antigo" };
+  }
+
+  // V5 — Wipe centralizado de chips (custom_fields JSONB em leads).
+  // NUNCA tocar em lead_custom_fields (essa tabela guarda a DEFINIÇÃO dos campos,
+  // não os valores). Manipulamos o objeto JSONB com spread e UPDATE atômico.
+  const wipedKeys: string[] = [];
+  const shouldWipe =
+    fromStage?.name === "Qualificação" || toStage.name === "Consulta finalizada";
+  if (shouldWipe) {
+    const { data: leadCF } = await client
+      .from("leads")
+      .select("custom_fields")
+      .eq("id", leadId)
+      .maybeSingle();
+    const cur = (leadCF?.custom_fields ?? {}) as Record<string, unknown>;
+    const next: Record<string, unknown> = { ...cur };
+    if (fromStage?.name === "Qualificação" && "interessado" in next) {
+      delete next.interessado;
+      wipedKeys.push("interessado");
+    }
+    if (toStage.name === "Consulta finalizada") {
+      for (const k of [
+        "consulta_agendada_em",
+        "procedimento_agendado_em",
+        "consulta_confirmada",
+        "procedimento_confirmado",
+      ]) {
+        if (k in next) {
+          delete next[k];
+          wipedKeys.push(k);
+        }
+      }
+      next.aguardando = true;
+      wipedKeys.push("+aguardando");
+    }
+    if (wipedKeys.length > 0) {
+      const { error: wipeErr } = await client
+        .from("leads")
+        .update({ custom_fields: next })
+        .eq("id", leadId);
+      if (wipeErr) console.warn("[pipeline-move] chip wipe failed", wipeErr); // non-blocking
+    }
   }
 
   // G8 — UPDATE limitado a stage_id + stage_changed_at.
@@ -194,6 +241,7 @@ export async function pipelineMove(
   const historyMeta = {
     ...(metadata ?? {}),
     ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+    ...(wipedKeys.length > 0 ? { wiped_keys: wipedKeys } : {}),
     rule_key: ruleKey ?? null,
   };
   const { error: histErr } = await client.from("lead_stage_history").insert({
