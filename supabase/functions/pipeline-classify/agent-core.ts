@@ -130,16 +130,27 @@ Produza o resumo agora.`;
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Sinais comuns: 404 model not found, model_not_found, does not have access
-    if (!/404|not.?found|does not have access|model_not_found|unsupported/i.test(msg)) {
+    console.error("[summarizer] primary failed", SUMMARIZER_MODEL_PRIMARY, msg);
+    // Fallback em casos comuns: modelo indisponível, ou o modelo gerou JSON inválido.
+    if (
+      !/404|not.?found|does not have access|model_not_found|unsupported|no object generated|response did not match|invalid.*json|could not parse/i.test(
+        msg,
+      )
+    ) {
       throw err;
     }
-    const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-    return {
-      output: result.output as SummarizerOutput,
-      model: `${SUMMARIZER_MODEL_FALLBACK} (fallback from ${SUMMARIZER_MODEL_PRIMARY})`,
-      usage: (result as { usage?: unknown }).usage,
-    };
+    try {
+      const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
+      return {
+        output: result.output as SummarizerOutput,
+        model: `${SUMMARIZER_MODEL_FALLBACK} (fallback from ${SUMMARIZER_MODEL_PRIMARY})`,
+        usage: (result as { usage?: unknown }).usage,
+      };
+    } catch (err2) {
+      const msg2 = err2 instanceof Error ? err2.message : String(err2);
+      console.error("[summarizer] fallback failed", SUMMARIZER_MODEL_FALLBACK, msg2);
+      throw err2;
+    }
   }
 }
 
