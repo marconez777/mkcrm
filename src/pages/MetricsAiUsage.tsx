@@ -457,7 +457,10 @@ export default function MetricsAiUsage() {
             </div>
           )}
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+
 
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <SheetContent className="w-[480px] sm:max-w-md">
