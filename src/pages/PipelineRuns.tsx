@@ -395,7 +395,9 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
   );
 }
 
-function StageGroup({ stageName, items, leadsMap }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo> }) {
+function StageGroup({
+  stageName, items, leadsMap, clinicId,
+}: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo>; clinicId: string | null }) {
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -409,22 +411,115 @@ function StageGroup({ stageName, items, leadsMap }: { stageName: string; items: 
       </button>
       {open && (
         <div className="divide-y divide-border/40">
-          {items.map((it) => <ItemRow key={it.id} item={it} lead={it.lead_id ? leadsMap[it.lead_id] : undefined} />)}
+          {items.map((it) => (
+            <ItemRow key={it.id} item={it} lead={it.lead_id ? leadsMap[it.lead_id] : undefined} clinicId={clinicId} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
+type ItemResult = {
+  skipped?: string;
+  mode?: "full" | "summarizer" | "typifier" | "maestro";
+  classification?: {
+    stage_suggestion?: string;
+    intent?: string;
+    confidence?: number;
+    is_b2b?: boolean;
+    reasons?: string[];
+    tags_suggested?: string[];
+    custom_fields_patch?: Record<string, unknown>;
+  };
+  telemetry?: {
+    mode?: string;
+    agents?: {
+      summarizer_model?: string;
+      typifier_model?: string;
+      maestro_model?: string;
+      summary?: string;
+      summary_chars?: number;
+      latency_ms?: { summarizer?: number; typifier?: number; maestro?: number };
+      ran?: { summarizer?: boolean; typifier?: boolean; maestro?: boolean };
+    } | null;
+    applied?: {
+      tags?: { added?: string[]; removed_computed?: string[]; skipped?: string } & Record<string, unknown>;
+      custom_fields?: { set?: Record<string, unknown>; skipped?: string } & Record<string, unknown>;
+      stage_suggestion_only?: { suggested?: string; would_move?: boolean; reason?: string };
+    };
+  };
+};
+
+function AgentCard({
+  icon, name, model, latencyMs, ran, status, body,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  model?: string;
+  latencyMs?: number;
+  ran: boolean;
+  status: "ok" | "error" | "skipped";
+  body: React.ReactNode;
+}) {
+  const tone =
+    status === "error" ? "border-red-500/40 bg-red-500/5"
+    : !ran ? "border-border/40 bg-muted/20 opacity-60"
+    : "border-border/60 bg-background/40";
+  return (
+    <div className={`flex flex-1 flex-col gap-1 rounded-md border p-2 text-[11px] ${tone}`}>
+      <div className="flex items-center gap-1.5 font-medium">
+        {icon}
+        <span>{name}</span>
+      </div>
+      <div className="text-muted-foreground">
+        {ran ? (
+          <>
+            <span>{model ?? "—"}</span>
+            {typeof latencyMs === "number" && latencyMs > 0 && <span> · {latencyMs} ms</span>}
+          </>
+        ) : (
+          <span className="italic">não executado</span>
+        )}
+      </div>
+      <div className="mt-1 leading-snug">{body}</div>
+    </div>
+  );
+}
+
+function ReasonChip({ info }: { info: SkipReasonInfo }) {
+  return (
+    <span
+      title={info.desc}
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${toneClasses(info.tone)}`}
+    >
+      {info.label}
+    </span>
+  );
+}
+
+function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; clinicId: string | null }) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
   const [saving, setSaving] = useState(false);
+  const [rerunning, setRerunning] = useState<OnlyAgent | "full" | null>(null);
   useEffect(() => {
     setComment(item.comment ?? "");
     setRetry(item.retry_requested);
   }, [item.id, item.comment, item.retry_requested]);
+
+  const result = (item.result ?? null) as ItemResult | null;
+  const skipReasonRaw = result?.skipped ?? (item.status === "error" ? item.error ?? null : null);
+  const skipInfo = skipReasonRaw ? describeReason(skipReasonRaw) : null;
+  const agents = result?.telemetry?.agents ?? null;
+  const cls = result?.classification ?? null;
+  const applied = result?.telemetry?.applied ?? null;
+  const stepLabel =
+    item.step === "classify:summarizer" ? "🔁 só Resumidor"
+    : item.step === "classify:typifier" ? "🔁 só Tipificador"
+    : item.step === "classify:maestro" ? "🔁 só Maestro"
+    : null;
 
   const icon =
     item.status === "ok" ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -444,6 +539,26 @@ function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
     }
   };
 
+  const rerun = async (agent: OnlyAgent | "full") => {
+    if (!clinicId || !item.lead_id) return;
+    setRerunning(agent);
+    try {
+      const payload: Record<string, unknown> = {
+        action: "start",
+        clinic_id: clinicId,
+        lead_ids: [item.lead_id],
+      };
+      if (agent !== "full") payload.only_agent = agent;
+      const res = await callExecutor<{ run_id?: string }>(payload);
+      if (res.error) toast.error(`Erro: ${res.error}`);
+      else toast.success(agent === "full" ? "Reprocessando lead (pipeline completo)" : `Reprocessando só ${agent}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRerunning(null);
+    }
+  };
+
   return (
     <div className="px-3 py-2 text-xs">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-start gap-2 text-left">
@@ -451,19 +566,130 @@ function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
         <span className="flex-1 truncate">
           <span className="font-medium">{lead?.name || lead?.phone || (item.lead_id ? item.lead_id.slice(0, 8) : "—")}</span>
           {lead?.name && lead?.phone && <span className="ml-2 text-muted-foreground">{lead.phone}</span>}
+          {stepLabel && <span className="ml-2 text-[10px] text-muted-foreground">{stepLabel}</span>}
         </span>
+        {skipInfo && (item.status === "skipped" || item.status === "error") && <ReasonChip info={skipInfo} />}
         <StatusBadge status={item.status} />
         {item.retry_requested && <Badge variant="outline" className="border-amber-500/40 text-amber-400">retry</Badge>}
         {item.comment && <span className="text-amber-400">●</span>}
       </button>
       {open && (
-        <div className="mt-2 space-y-2 rounded bg-muted/30 p-2">
-          {item.error && <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] text-red-400">{item.error}</pre>}
-          {item.result && (
-            <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] text-muted-foreground">
-              {JSON.stringify(item.result, null, 2).slice(0, 4000)}
-            </pre>
+        <div className="mt-2 space-y-3 rounded bg-muted/30 p-2">
+          {/* Skip / erro detalhado */}
+          {skipInfo && (
+            <div className={`rounded border px-2 py-1.5 ${toneClasses(skipInfo.tone)}`}>
+              <div className="text-[11px] font-medium">{skipInfo.label}</div>
+              <div className="text-[11px] opacity-90">{skipInfo.desc}</div>
+              {item.error && item.error !== skipReasonRaw && (
+                <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-[10px] opacity-80">{item.error}</pre>
+              )}
+            </div>
           )}
+
+          {/* Cards dos 3 agentes */}
+          {(agents || cls) && (
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <AgentCard
+                icon={<FileText className="h-3.5 w-3.5 text-blue-300" />}
+                name="Resumidor"
+                model={agents?.summarizer_model}
+                latencyMs={agents?.latency_ms?.summarizer}
+                ran={agents?.ran?.summarizer !== false}
+                status="ok"
+                body={
+                  agents?.summary ? (
+                    <p className="line-clamp-4 text-muted-foreground">{agents.summary}</p>
+                  ) : (
+                    <span className="italic text-muted-foreground">sem resumo</span>
+                  )
+                }
+              />
+              <AgentCard
+                icon={<Tags className="h-3.5 w-3.5 text-violet-300" />}
+                name="Tipificador"
+                model={agents?.typifier_model}
+                latencyMs={agents?.latency_ms?.typifier}
+                ran={agents?.ran?.typifier !== false}
+                status="ok"
+                body={
+                  applied?.tags && "added" in applied.tags ? (
+                    <div className="space-y-1">
+                      {applied.tags.added && applied.tags.added.length > 0 && (
+                        <div><span className="text-emerald-400">+</span> {applied.tags.added.join(", ")}</div>
+                      )}
+                      {applied.tags.removed_computed && applied.tags.removed_computed.length > 0 && (
+                        <div><span className="text-red-400">−</span> {applied.tags.removed_computed.join(", ")}</div>
+                      )}
+                      {(!applied.tags.added?.length && !applied.tags.removed_computed?.length) && (
+                        <span className="italic text-muted-foreground">nenhuma alteração</span>
+                      )}
+                      {applied.custom_fields && "set" in applied.custom_fields && Object.keys(applied.custom_fields.set ?? {}).length > 0 && (
+                        <div className="text-muted-foreground">
+                          campos: {Object.keys(applied.custom_fields.set ?? {}).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="italic text-muted-foreground">{applied?.tags?.skipped ? "modo parcial" : "sem dados"}</span>
+                  )
+                }
+              />
+              <AgentCard
+                icon={<Target className="h-3.5 w-3.5 text-amber-300" />}
+                name="Maestro"
+                model={agents?.maestro_model}
+                latencyMs={agents?.latency_ms?.maestro}
+                ran={agents?.ran?.maestro !== false}
+                status="ok"
+                body={
+                  cls ? (
+                    <div className="space-y-0.5">
+                      <div><span className="text-muted-foreground">stage:</span> {cls.stage_suggestion ?? "—"}</div>
+                      <div><span className="text-muted-foreground">intent:</span> {cls.intent ?? "—"}</div>
+                      <div><span className="text-muted-foreground">conf:</span> {cls.confidence?.toFixed(2) ?? "—"}{cls.is_b2b ? " · b2b" : ""}</div>
+                    </div>
+                  ) : (
+                    <span className="italic text-muted-foreground">sem decisão</span>
+                  )
+                }
+              />
+            </div>
+          )}
+
+          {/* Motivos do Maestro */}
+          {cls?.reasons && cls.reasons.length > 0 && (
+            <div className="rounded border border-border/40 bg-background/40 p-2 text-[11px]">
+              <div className="mb-1 font-medium">Por quê?</div>
+              <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+                {cls.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Rerun manual */}
+          {item.lead_id && clinicId && (
+            <div className="flex flex-wrap items-center gap-1.5 rounded border border-dashed border-border/50 p-1.5">
+              <span className="text-[10px] text-muted-foreground">Rodar de novo:</span>
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("full")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                Completo
+              </Button>
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("summarizer")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "summarizer" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                Só Resumidor
+              </Button>
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("typifier")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "typifier" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Tags className="h-3 w-3" />}
+                Só Tipificador
+              </Button>
+              <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("maestro")} className="h-6 gap-1 px-2 text-[10px]">
+                {rerunning === "maestro" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
+                Só Maestro
+              </Button>
+            </div>
+          )}
+
+          {/* Comentário */}
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -480,6 +706,17 @@ function ItemRow({ item, lead }: { item: RunItem; lead?: LeadInfo }) {
               {saving ? "Salvando…" : "Salvar"}
             </Button>
           </div>
+
+          {/* JSON bruto colapsado */}
+          <details className="text-[10px] text-muted-foreground">
+            <summary className="cursor-pointer select-none">JSON bruto</summary>
+            {item.error && <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-red-400">{item.error}</pre>}
+            {item.result && (
+              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(item.result, null, 2).slice(0, 4000)}
+              </pre>
+            )}
+          </details>
         </div>
       )}
     </div>
