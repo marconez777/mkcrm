@@ -221,6 +221,12 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const explicitLeadIds = Array.isArray(scope.lead_ids) ? (scope.lead_ids as string[]) : null;
   const topNRaw = typeof scope.top_n === "number" ? (scope.top_n as number) : null;
   const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
+  const onlyAgent =
+    typeof scope.only_agent === "string" &&
+    ["summarizer", "typifier", "maestro"].includes(scope.only_agent as string)
+      ? (scope.only_agent as "summarizer" | "typifier" | "maestro")
+      : undefined;
+  const stepName = onlyAgent ? `classify:${onlyAgent}` : "classify";
   const totals = (run.totals ?? {}) as Record<string, number> & {
     ok?: number; skipped?: number; error?: number; leads?: number; stages?: number;
   };
