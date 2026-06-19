@@ -380,27 +380,42 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
         {/* AGENTS BREAKDOWN */}
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <h3 className="text-sm font-semibold">Os 3 agentes do pipeline</h3>
-            <InfoDot text="Cada classificação chama 3 modelos em sequência. Aqui você vê quanto cada um custou e quanto demorou." />
+            <h3 className="text-sm font-semibold">Os 5 agentes do pipeline</h3>
+            <InfoDot text="Cada classificação chama 5 modelos: o Resumidor abre, então Agendador + Tipificador + Movimentador rodam em paralelo, e o Maestro fecha. Aqui você vê quanto cada um custou e quanto demorou." />
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {totals.byOp.map((b) => {
-              const meta = AGENT_META[b.op];
+          {(() => {
+            const byOpMap = new Map(totals.byOp.map((b) => [b.op, b]));
+            const renderCard = (op: string, fullWidth = false) => {
+              const meta = AGENT_META[op];
+              const b = byOpMap.get(op) ?? { op, calls: 0, cost: 0, tokens: 0, lat: 0, errors: 0 };
               const avgLat = b.calls ? Math.round(b.lat / b.calls) : 0;
               const pctOfTotal = totals.cost ? (b.cost / totals.cost) * 100 : 0;
+              const noData = b.calls === 0;
               return (
-                <Card key={b.op} className={`p-4 ${meta.accent} border`}>
+                <Card key={op} className={`p-4 ${meta.accent} border ${fullWidth ? "w-full" : ""}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-lg">{meta.emoji}</div>
-                      <div className="mt-1 text-sm font-semibold">{meta.label}</div>
-                      <p className="mt-0.5 text-[11px] opacity-80">{meta.explain}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{meta.emoji}</span>
+                        <span className="text-sm font-semibold">{meta.label}</span>
+                        {meta.parallel && (
+                          <Badge variant="outline" className="border-current/40 text-[9px] uppercase tracking-wide opacity-70">
+                            paralelo
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] opacity-80">{meta.explain}</p>
                     </div>
-                    {b.errors > 0 && (
-                      <Badge variant="destructive" className="text-[10px]">
-                        {b.errors} erro{b.errors > 1 ? "s" : ""}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {b.errors > 0 && (
+                        <Badge variant="destructive" className="text-[10px]">
+                          {b.errors} erro{b.errors > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                      {noData && (
+                        <Badge variant="outline" className="text-[9px] opacity-60">sem dados</Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <Stat tiny label="Custo" value={fmtUSD(b.cost)} />
@@ -413,9 +428,35 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
                   <div className="mt-1 text-[10px] opacity-70">{pctOfTotal.toFixed(0)}% do custo total</div>
                 </Card>
               );
-            })}
-          </div>
+            };
+            return (
+              <div className="space-y-3">
+                {/* Linha 1: Resumidor */}
+                {renderCard("classifier:summarizer", true)}
+
+                {/* Linha 2: Paralelos */}
+                <div className="rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-3 backdrop-blur-sm">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-background/60 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      <GitBranch className="h-3 w-3" />
+                      Execução paralela
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      despachados juntos pelo `Promise.all` — latência ≈ a do mais lento
+                    </span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {PARALLEL_OPS.map((op) => renderCard(op))}
+                  </div>
+                </div>
+
+                {/* Linha 3: Maestro */}
+                {renderCard("classifier:maestro", true)}
+              </div>
+            );
+          })()}
         </div>
+
 
         {/* RECENT EXECUTIONS + SKIP REASONS */}
         <div className="grid gap-4 lg:grid-cols-3">
