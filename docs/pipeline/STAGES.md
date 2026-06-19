@@ -3,18 +3,18 @@ title: "Pipeline — Stages atuais (Clínica ÓR)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
-summary: "Mapa das 11 colunas do pipeline da Clínica ÓR (v4.1), critério de entrada/saída, flags por stage e migração desde a versão de 12 colunas com 'Procedimento pago'."
+updated: 2026-06-19
+summary: "Mapa das 11 colunas do pipeline da Clínica ÓR (v5), critério de entrada/saída, e automações de inatividade."
 related_docs:
   - docs/pipeline/SCENARIOS.md
-  - docs/pipeline/AUTOMATION_PLAN.md
+  - docs/pipeline/AUTOMATION_V5_ARCHITECTURE.md
   - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
   - docs/estudo/README.md
 ---
 
-# Stages atuais — pipeline `Clínica ÓR` (v4.1)
+# Stages atuais — pipeline `Clínica ÓR` (v5)
 
-Pipeline default da clínica `cf038458-457d-4c1a-9ac4-c88c3c8353a1`, id `17c27f4d-8256-4ea7-b5b9-ed706494f686`. Hoje **100% manual**. Esta versão (v4.1) consolida o brief da clínica e fecha as 8 decisões D1–D8 — ver `AUTOMATION_PLAN.md` seção "Decisões v4.1".
+Pipeline default da clínica `cf038458-457d-4c1a-9ac4-c88c3c8353a1`. Totalmente autônomo (v5).
 
 **Mudanças vs v3**:
 - D1: "Procedimento pago" **removida** como coluna. Pagamento vira campo `status_financeiro`.
@@ -26,21 +26,21 @@ Pipeline default da clínica `cf038458-457d-4c1a-9ac4-c88c3c8353a1`, id `17c27f4
 | # | Stage | Terminal? | Entrada via automação | Excluído de scans temporais |
 |---|---|---|---|---|
 | 0 | **Leads de entrada** | não | sim (lead novo via `evolution-webhook`) | não |
-| 1 | **Qualificação** | não | sim (`auto:secretary-replied`, reativação default, `auto:appointment-cancelado`) | não |
-| 2 | **Consulta agendada** | não | sim (`auto:appointment-agendado` kind=consulta; reativação se tag `no_show`/`reagendamento_pendente`) | não |
-| 3 | **Consulta finalizada** | não | sim (`auto:appointment-realizado` kind=consulta) | não |
+| 1 | **Qualificação** | não | sim (`auto:secretary-replied`, `auto:classifier` após resposta) | não |
+| 2 | **Consulta agendada** | não | sim (`auto:appointment-agendado`, `auto:classifier` se extrair data confirmada) | não |
+| 3 | **Consulta finalizada** | não | sim (`auto:appointment-realizado`) | não |
 | 4 | **Tratamento agendado** | não | sim (`auto:appointment-agendado` kind=procedimento) | não |
 | 5 | **Em tratamento** | não | sim (`auto:procedure-realizado` na 1ª sessão do ciclo) | não |
-| 6 | **Paciente antigo** | não | só por humano (ciclo concluído via `custom_fields.ciclo_concluido=true` → `auto:ciclo-concluido`) | **sim** (final state) |
-| 7 | **Sem resposta** | não | sim (`auto:followup-7d` em última instância, `auto:appointment-faltou`) | não |
-| 8 | **Nutrição inativa** | não | sim (`auto:followup-7d` move pra cá após esgotar tentativas em Sem resposta) | **sim** (final state) |
-| 9 | **B2B / Stakeholders** | **sim** | sim (`auto:b2b-move` Fase 2) | sim |
-| 10 | **Desqualificado / Fora de escopo** | **sim** | só por humano | sim |
+| 6 | **Paciente antigo** | não | manual (ciclo concluído). **Travado para saída (Guard D3)**, exceto inatividade extrema. | **sim** (final state) |
+| 7 | **Sem resposta** | não | sim (Automação UI: SLA de 24h sem resposta) | não |
+| 8 | **Nutrição inativa** | não | sim (Automação UI: +48h sem resposta, ou cron `pipeline-deterministic` após 60d para Paciente antigo) | **sim** (final state) |
+| 9 | **B2B / Stakeholders** | **sim** | sim (Classificação IA) | sim |
+| 10 | **Desqualificado / Fora de escopo** | **sim** | sim (Classificação IA) | sim |
 
 ### Notas das flags
 
 - **Excluído de scans temporais**: jobs `auto:followup-*` e demais varreduras por tempo **NÃO** processam stages finais. Custo zero de retorno.
-- **Exceção do inactivity**: leads com `appointments.scheduled_at > now()` (consulta ou tratamento futuro agendado) também são **excluídos** dos `auto:followup-*`, mesmo em stages não-finais. Criar appointment hoje NÃO seta `manual_lock_until` — sem essa exceção, lead com consulta marcada pra daqui 10 dias cairia em "Sem resposta".
+- **Exceção do inactivity**: leads com agendamentos futuros não caem nas regras de inatividade (SLA).
 
 ## Lock manual vs lock de auto-mover
 
@@ -49,18 +49,14 @@ São coisas **diferentes**:
 | Lock | O que bloqueia | O que NÃO bloqueia | Duração |
 |---|---|---|---|
 | `leads.manual_lock_until` | Movimentação automática de stage (qualquer regra `auto:*`) | Classificador escrevendo `tags`, `custom_fields`, `ai_summary`; criação de tasks | **7 dias** após arraste humano. **Renovado** a cada nova ação humana detectada pelo reator (D7). |
-| `pipeline_stages.lock_auto_move` | Entrada automática NESTE stage destino | Saída automática | Permanente (flag de schema) — hoje **nenhum stage tem essa flag** na v4.1. |
+| `pipeline_stages.lock_auto_move` | Entrada automática NESTE stage destino | Saída automática | Permanente (flag de schema). |
 
-**Implicação:** dentro do lock manual de 7 dias, o classificador continua taggeando, resumindo conversa e sugerindo. Só **não move** o card. Reativação durante lock taggeia `reativacao_durante_lock` + notifica.
+**Implicação:** dentro do lock manual de 7 dias, o classificador continua taggeando, resumindo conversa e sugerindo. Só **não move** o card.
 
-## Critério de "Paciente antigo" (D3)
+## Critério de "Paciente antigo" (Guard D3 / V5)
 
-Lead em "Paciente antigo" que agenda nova consulta ou tratamento **NÃO sai do stage**. Em vez disso:
-- `auto:appointment-agendado` checa `current_stage = Paciente antigo` → aborta a movimentação.
-- Anexa tag `consulta_agendada` ou `tratamento_em_andamento` conforme `kind`.
-- Campos no card mostram o próximo agendamento ativo; calendário exibe todos.
-
-Saída de "Paciente antigo" só acontece por humano arrastar pra outra coluna (ex: novo episódio de qualificação).
+A IA não tem autorização para tirar cards dessa coluna (`pipelineMove` bloqueia). Se o lead agenda uma nova consulta, a IA **atualiza apenas os Chips** (custom fields de data/procedimento) e o card permanece na coluna para preservar o histórico visual do médico.
+Saída de "Paciente antigo" só acontece por humano arrastando para outra coluna, ou por cron caindo em Nutrição Inativa após 60 dias de silêncio.
 
 ## Critério de "Em tratamento" (D-bonus)
 
