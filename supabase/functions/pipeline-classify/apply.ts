@@ -72,7 +72,14 @@ export async function applyClassification(
   ctx: LeadContext,
   cls: ClassificationV2,
   usage?: unknown,
+  agents?: {
+    summarizer_model: string;
+    typifier_model: string;
+    maestro_model: string;
+    summary_chars: number;
+  },
 ): Promise<ApplyOutput> {
+
   const lead = ctx.lead;
   const lastMessageId = ctx.messages[ctx.messages.length - 1].id;
   const now = new Date(ctx.nowMs);
