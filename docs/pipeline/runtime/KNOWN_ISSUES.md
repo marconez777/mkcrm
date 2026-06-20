@@ -3,8 +3,8 @@ title: "Bugs conhecidos do pipeline"
 topic: kanban
 kind: troubleshooting
 audience: agent
-updated: 2026-06-19
-summary: "Bugs reportados e seu status: tag 1ª consulta em paciente antigo (CORRIGIDO), data 19/06 vs 18/06 (CORRIGIDO via fmtBR + sanitizeDateField), lock manual sem botão Destravar (CORRIGIDO), gaps estruturais (G10 ausente, whitelist de tags não enforced)."
+updated: 2026-06-20
+summary: "Bugs reportados e seu status: telemetria agrupada do classifier (CORRIGIDO 2026-06-20 com V6), tag 1ª consulta em paciente antigo (CORRIGIDO), data 19/06 vs 18/06 (CORRIGIDO), lock manual sem botão Destravar (CORRIGIDO), gaps estruturais (G10 implementado, whitelist de tags não enforced)."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
   - src/lib/manual-stage-move.ts
@@ -16,6 +16,21 @@ related_docs:
 ---
 
 # Bugs conhecidos e limitações
+
+## -2. Telemetria do classifier agrupada sob um único `operation` (CORRIGIDO 2026-06-20 — V6)
+
+**Sintoma**: o painel `/metrics/ai-usage` mostrava o classifier como uma única linha (`classifier`), impossibilitando comparar custo/latência por agente quando a linha de montagem rodava de fato 3+ chamadas LLM em sequência.
+
+**Causa-raiz**: ao paralelizar Agendador/Tipificador/Movimentador no `agent-core.ts`, todos os `recordStep()` da fase paralela gravavam sob a mesma `operation`, e o Resumidor/Maestro caíam em rótulos genéricos.
+
+**Fix** (refator V6, `supabase/functions/pipeline-classify/agent-core.ts:350,378-380,403`):
+- Cada agente grava **uma linha própria** em `ai_usage`:
+  `classifier:summarizer` · `classifier:agendador` · `classifier:typifier` · `classifier:movimentador` · `classifier:maestro`.
+- `lead_events.payload.agents` ganha modelo + latência + flag `ran` por agente (ver `EVENTS_TELEMETRY.md`).
+- UI `/pipeline-runs` e card de Custos passaram a renderizar Resumidor → bloco "Execução Paralela" (3 cards) → Maestro.
+
+**Status**: ✅ Corrigido (frontend + backend deployados 2026-06-20).
+
 
 ## -1. Triggers e crons silenciosamente quebrados por `extensions.http_post` (CORRIGIDO 2026-06-19)
 

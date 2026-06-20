@@ -1,10 +1,10 @@
 ---
-title: "Classifier LLM (pipeline-classify) — runtime V2"
+title: "Classifier LLM (pipeline-classify) — runtime V6 (5 Agentes)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-19
-summary: "Edge function pipeline-classify V5: Arquitetura de 3 Agentes (Resumidor, Tipificador, Maestro), parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch."
+updated: 2026-06-20
+summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro). Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
   - supabase/functions/pipeline-classify/schema.ts
@@ -26,40 +26,57 @@ related_docs:
   - docs/pipeline/runtime/DATABASE_LIVE.md
 ---
 
-# Classifier `pipeline-classify` — V5 (3 Agentes)
+# Classifier `pipeline-classify` — V6 (5 Agentes)
 
-> Reconstrução multi-step (junho/2026). Substitui o monolito V2 por uma **Linha de Montagem de 3 Agentes**:
-> 1. **Resumidor (gpt-4o)**: Extrai passado/presente e datas puras.
-> 2. **Tipificador (gpt-5-mini)**: Sugere tags (whitelist) e preenche chips.
-> 3. **Maestro (gpt-5-mini)**: Decide o intent e para qual stage o card deve se mover.
-> 
-> O classificador possui **General Move** (auto-move) ativado para cenários de alta confiança, 
-> realiza override de G10 para datas extraídas do chat, suporta uma whitelist de tags expandida.
+> Reconstrução multi-step (junho/2026). Substitui o monolito V2 e a linha de 3 agentes (V5) por uma **Linha de Montagem de 5 Agentes** com fase paralela no meio:
+>
+> ```text
+>          Resumidor (gpt-4o, fallback gpt-5-mini)
+>                       │
+>                       ▼
+>   ┌──────────────────────────────────────────────────────┐
+>   │  Agendador  ∥  Tipificador  ∥  Movimentador          │
+>   │  (gpt-5-mini)   (gpt-5-mini)   (gpt-5-mini)          │
+>   │  Promise.all — 3 chamadas concorrentes               │
+>   └──────────────────────────────────────────────────────┘
+>                       │
+>                       ▼
+>                Maestro (gpt-5)
+>           decide intent + stage + confiança
+> ```
+>
+> O Maestro recebe os 3 outputs paralelos + o resumo e emite o veredicto final.
+> O classifier possui **General Move** (auto-move) ativado para cenários de alta
+> confiança, faz override de G10 para datas extraídas do chat e suporta uma
+> whitelist de tags expandida.
 
 ## Resumo
 
 | | |
 |---|---|
 | Entry | `supabase/functions/pipeline-classify/index.ts` |
-| Modelos | `gpt-4o` (Resumidor) + 2x `gpt-5-mini` (Tipificador e Maestro) |
+| Modelos | `gpt-4o` (Resumidor) + `gpt-5-mini` × 3 (Agendador, Tipificador, Movimentador, paralelos) + `gpt-5` (Maestro) |
+| Chamadas LLM por execução | até **5** (3 fases: serial → paralela → serial) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
-| Toggle versão | `automation.classifier.version` (`'v1'` default; `'v2'` rollout) |
+| Toggle versão | `automation.classifier.version` (`'v1'` default; `'v2'` rollout — `'v2'` hoje serve o motor V6) |
 | Override de teste | body `{ "force_version": "v2" }` na invocação manual |
+| `only_agent` (smoke) | aceita `"summarizer" \| "typifier" \| "maestro"` em `index.ts:188` (modos `agendador`/`movimentador`/`parallel` **ainda não implementados** — TODO se a UI `/pipeline-runs` precisar) |
 | Batch | 50 leads/tick |
 | Watermark | `leads.last_processed_message_id_classifier` |
-| Telemetria | `lead_events.type='auto:classifier'` com `payload.version=2` |
+| Telemetria | `lead_events.type='auto:classifier'` com `payload.version=3` (envelope V6) — ver `EVENTS_TELEMETRY.md` |
+| Operations em `ai_usage` | `classifier:summarizer`, `classifier:agendador`, `classifier:typifier`, `classifier:movimentador`, `classifier:maestro` (1 row por agente por execução) |
 
 ## Arquivos
 
 ```text
 pipeline-classify/
-├── index.ts             dispatcher + cron tick
-├── schema.ts            Zod schemas p/ 3 Agentes + canon names, intents, tags protegidas
+├── index.ts             dispatcher v1/v2 + cron tick + smoke only_agent
+├── schema.ts            Zod schemas dos 5 Agentes + canon names, intents, tags protegidas
 ├── context.ts           loadLeadContext: lê lead + ai_summary + watermark; early-return
-├── agent-core.ts        Orquestra a pipeline sequencial dos 3 Agentes (generateText)
+├── agent-core.ts        Orquestra a linha de montagem (runSummarizer → Promise.all([runAgendador, runTypifier, runMovimentador]) → runMaestro)
 ├── date-parser.ts       wrapper sobre parseFutureDateInTZ (ZERO LLM)
-├── apply.ts             ordem de aplicação: first-consult → datas (G10) → fields (G10) → tags (whitelist) → B2B/General Move → intent-effects → telemetria → watermark
+├── apply.ts             ordem: first-consult → datas (G10) → fields (G10) → tags (whitelist) → B2B/General Move → intent-effects → telemetria → watermark
 ├── rules/first-consult.ts   regra "1ª consulta" com fallback no ai_summary
 ├── rules/intent-effects.ts  wrapper sobre runNfTask / runPaymentAlleged / runJudicializacao / runRenovacaoReceita / runObjectionSuggest
 ├── date-parser_test.ts      4 testes Deno
@@ -68,9 +85,9 @@ pipeline-classify/
 
 ## Schemas dos Agentes (`schema.ts`)
 
-A saída é dividida em 3 partes, refletindo os 3 Agentes:
+A saída é dividida em 5 partes, refletindo os 5 Agentes:
 
-**Agente 1 (Resumidor)**
+**Agente 1 — Resumidor** (`gpt-4o`, fallback `gpt-5-mini`)
 ```ts
 z.object({
   summary: z.string(),
@@ -82,7 +99,10 @@ z.object({
 })
 ```
 
-**Agente 2 (Tipificador)**
+**Agente 2a — Agendador** (`gpt-5-mini`, paralelo)
+- Foca em sinais de agendamento/reagendamento: extrai candidatos a `consulta_agendada_em` / `procedimento_agendado_em` em formato cru + intent de agendamento.
+
+**Agente 2b — Tipificador** (`gpt-5-mini`, paralelo)
 ```ts
 z.object({
   tags_suggested: z.array(z.string().max(40)).max(8),
@@ -90,7 +110,10 @@ z.object({
 })
 ```
 
-**Agente 3 (Maestro)**
+**Agente 2c — Movimentador** (`gpt-5-mini`, paralelo)
+- Avalia, com base no resumo, se há sinal suficiente para sugerir mudança de stage e qual stage canônico seria o destino.
+
+**Agente 3 — Maestro** (`gpt-5`)
 ```ts
 z.object({
   stage_suggestion: z.string(),                    // coercido p/ Canon (fallback "Qualificação")
@@ -102,14 +125,46 @@ z.object({
 })
 ```
 
+O Maestro recebe `summary + outAgendador + outTipificador + outMovimentador` e emite o veredicto final resolvendo inconsistências entre os paralelos. `mergeV6Outputs(summarizerOut, maestroOut)` no `agent-core.ts:414` combina tudo no `ClassificationV2` consumido por `apply.ts`.
+
 > **Enums relaxados (junho/2026)**: `gpt-5-mini` rejeitava o schema quando enums
 > eram declarados diretamente (`"No object generated: response did not match schema"`).
 > Solução: declarar como `z.string()` e normalizar em `normalizeClassification()` —
 > stages/intents inválidos caem para defaults (`"Qualificação"` / `"outro"`).
 >
-> **`tags_remove` removido do LLM** (V2). O `apply.ts` computa removeções como
+> **`tags_remove` removido do LLM**. O `apply.ts` computa removeções como
 > `currentTags − tags_suggested − PROTECTED_TAGS` (quando `tag_replace.enabled`),
 > além de forçar a remoção de "1ª consulta" quando a regra bloqueia.
+
+## Telemetria individual por agente
+
+Cada agente grava **uma linha própria** em `ai_usage` via `recordStep()` (`agent-core.ts:350,378-380,403`):
+
+| Operation | Modelo | Latência | Quando |
+|---|---|---|---|
+| `classifier:summarizer` | `gpt-4o` (ou `gpt-5-mini (fallback)`) | `lat1` | sempre |
+| `classifier:agendador` | `gpt-5-mini` | `lat2` (paralelo, mesmo valor p/ os 3) | sempre |
+| `classifier:typifier` | `gpt-5-mini` | `lat2` | sempre |
+| `classifier:movimentador` | `gpt-5-mini` | `lat2` | sempre |
+| `classifier:maestro` | `gpt-5` | `lat3` | sempre (se 2 passou) |
+
+Erros gravam a mesma linha com `status='error'` + `error` truncado em 500 chars. Falha no Resumidor aborta tudo (`agent_step1_failed`); falha em qualquer paralelo aborta os 3 + maestro (`agent_step2_parallel_failed`); falha no Maestro aborta (`agent_step3_maestro_failed`).
+
+O bloco `agents` retornado para `apply.ts` e gravado no `lead_events.payload.agents` (ver `EVENTS_TELEMETRY.md`):
+
+```ts
+{
+  summarizer_model:   "gpt-4o",
+  agendador_model:    "gpt-5-mini",
+  typifier_model:     "gpt-5-mini",
+  movimentador_model: "gpt-5-mini",
+  maestro_model:      "gpt-5",
+  summary_chars:      <n>,
+  summary:            "<resumo>",
+  latency_ms:         { summarizer, agendador, typifier, movimentador, maestro },
+  ran:                { summarizer, agendador, typifier, movimentador, maestro } // todas true em sucesso
+}
+```
 
 ## Datas — extração + parser determinístico
 
@@ -125,8 +180,6 @@ Cobre DST, DD/MM, DD/MM/AAAA, ISO. Datas resolvidas viram `consulta_agendada_em`
 
 ## Gate G10 — implementado via DB
 
-Estado V1: G10 era apenas mitigação por prompt. V2:
-
 1. **Migration `20260618...g10_human_edits.sql`** adiciona
    `leads.custom_fields_last_human_edit jsonb DEFAULT '{}'`.
 2. **Trigger PG `track_custom_fields_human_edits`** dispara BEFORE UPDATE OF
@@ -134,13 +187,13 @@ Estado V1: G10 era apenas mitigação por prompt. V2:
    **exceto** quando `current_setting('app.actor') = 'system'`.
 3. **RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)`**
    (SECURITY DEFINER) seta `app.actor='system'` dentro da transação e aplica o
-   UPDATE. O classifier V2 sempre usa essa RPC para persistir mudanças.
+   UPDATE. O classifier V6 sempre usa essa RPC para persistir mudanças.
 4. **`apply.ts`** lê `lead.custom_fields_last_human_edit[key]`; se o timestamp
    for mais novo que `now − 7d`, descarta a sugestão da IA para essa chave e
    registra em `applied.custom_fields.blocked_by_g10`.
-   - **Exceção (Override de Data)**: Se o parser identificar uma data e a confiança 
-     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`) para as 
-     chaves de `consulta_agendada_em` e `procedimento_agendado_em`, sobrepondo a 
+   - **Exceção (Override de Data)**: Se o parser identificar uma data e a confiança
+     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`) para as
+     chaves de `consulta_agendada_em` e `procedimento_agendado_em`, sobrepondo a
      edição humana.
 
 > Edições humanas via PostgREST (frontend, inbox, lead drawer) **não setam**
@@ -152,7 +205,7 @@ Estado V1: G10 era apenas mitigação por prompt. V2:
 
 ## Movimentações e Auto-Move (General Move / B2B / Lock D3)
 
-Com a aprovação dos ajustes recentes (V5), o caminho genérico do Classifier possui auto-move + lock explícito de Paciente antigo:
+Com a aprovação dos ajustes recentes (V5 → V6), o caminho genérico do Classifier possui auto-move + lock explícito de Paciente antigo:
 
 0. **Lock D3 (Paciente antigo)** (`apply.ts:245-255`): se `ctx.stageName === "Paciente antigo"`, o Classifier **nem tenta** sugerir movimentação. `stageOutcome = { path: "guard_d3", reason: "locked_in_paciente_antigo", would_move: false }`. B2B/Nurture/General são pulados. Defesa em profundidade junto com o Guard D3 do `pipelineMove`.
 
@@ -181,7 +234,7 @@ Se bloqueada e a tag está presente, `apply.ts` força `removeComputed += ["1ª 
 
 ## Side-effects por intent
 
-Inalterados em relação a V1. `rules/intent-effects.ts` chama:
+Inalterados em relação a V1/V2. `rules/intent-effects.ts` chama:
 
 | intent | função |
 |---|---|
@@ -193,16 +246,20 @@ Inalterados em relação a V1. `rules/intent-effects.ts` chama:
 
 ## Dispatcher (`index.ts`)
 
-O cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto. O dispatcher lê a fila e invoca `agent-core.ts` para processar a "linha de montagem" de agentes sequenciais.
+O cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto. O dispatcher lê a fila e invoca `agent-core.ts::runAgent`, que processa a linha de montagem de 5 agentes (3 fases). O modo `onlyAgent` aceito hoje no body é restrito a `"summarizer" | "typifier" | "maestro"` (linha 188). Se a UI `/pipeline-runs` precisar disparar apenas a fase paralela (`agendador + typifier + movimentador`), o dispatcher precisa ganhar suporte a `"parallel"`.
 
-## Smoke test (V5)
+## Smoke test (V6)
 
 ```bash
 # Tick forçado:
 curl -X POST <function_url>/pipeline-classify \
   -d '{"action":"tick"}'
 
-# Lead específico:
+# Lead específico (full V6):
 curl -X POST <function_url>/pipeline-classify \
-  -d '{"action":"lead","lead_id":"<uuid>"}'
+  -d '{"action":"lead","lead_id":"<uuid>","force_version":"v2"}'
+
+# Apenas Resumidor (smoke):
+curl -X POST <function_url>/pipeline-classify \
+  -d '{"action":"lead","lead_id":"<uuid>","only_agent":"summarizer"}'
 ```

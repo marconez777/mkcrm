@@ -3,8 +3,8 @@ title: "Telemetria — lead_events, lead_stage_history, pipeline_runs"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
-summary: "Catálogo de tipos de evento em lead_events com volume real (últimos 30d), sources de lead_stage_history, e estrutura de pipeline_runs/run_items. Queries de diagnóstico prontas."
+updated: 2026-06-20
+summary: "Catálogo de tipos de evento em lead_events com volume real (últimos 30d), sources de lead_stage_history, estrutura de pipeline_runs/run_items e shape do payload V6 do classifier (5 agentes). Queries de diagnóstico prontas."
 code_refs:
   - supabase/functions/_shared/pipeline-move.ts
   - supabase/functions/pipeline-classify/index.ts
@@ -69,45 +69,91 @@ Tipos esperados mas ainda **0 ocorrências** no snapshot:
 
 > A ausência de `auto:novo-lead`, `auto:secretary-replied` e `auto:appointment-sync` é **suspeita**: os toggles estão ligados e os triggers estão criados desde a migration `20260618022933`. Possíveis causas: (a) tráfego baixo nesses 30d, (b) `pg_net.http_post` está falhando silenciosamente (a função wrapper engole exceções com `RAISE WARNING`), (c) edge function está reagindo mas só registra o evento dentro do success path do `pipelineMove`. Vale checar `pg_net.deliveries` se houver suspeita.
 
-## Payload do `auto:classifier`
+## Payload do `auto:classifier` (envelope V6, `version: 3`)
+
+A partir de 2026-06-20 (refactor V6 — 5 agentes), o payload inclui o bloco `agents` com modelo + latência + flag `ran` por agente. O dispatcher em `pipeline-classify/index.ts:133` retorna `version: 3` (envelope V6, mesmo número desde o refator multi-step — não é "V3 de 3 agentes").
 
 ```jsonc
 {
-  // Campos da classificação:
+  "version": 3,
+  "mode": "full",
+  // Campos da classificação (output do Maestro mesclado com o Resumidor):
   "stage_suggestion": "Qualificação",
   "intent": "agendamento",
   "confidence": 0.82,
   "is_b2b": false,
   "tags_suggested": ["interessado"],
-  "tags_remove": ["1ª consulta"],
   "custom_fields_patch": { "consulta_agendada_em": "2026-06-18T10:30:00-03:00" },
   "reasons": ["..."],
+  "mentioned_dates": [
+    { "raw": "quinta-feira às 14h", "anchor_iso": "2026-06-18T10:05:00-03:00", "kind": "consulta" }
+  ],
+
+  // NOVO V6 — telemetria por agente:
+  "agents": {
+    "summarizer_model":   "gpt-4o",
+    "agendador_model":    "gpt-5-mini",
+    "typifier_model":     "gpt-5-mini",
+    "movimentador_model": "gpt-5-mini",
+    "maestro_model":      "gpt-5",
+    "summary_chars": 412,
+    "summary": "Paciente …",
+    "latency_ms": {
+      "summarizer": 1820, "agendador": 940, "typifier": 940,
+      "movimentador": 940, "maestro": 1110
+    },
+    "ran": {
+      "summarizer": true, "agendador": true, "typifier": true,
+      "movimentador": true, "maestro": true
+    }
+  },
 
   // Telemetria do que foi de fato aplicado:
   "applied": {
     "stage_move": {
-      "applied": true|false,
+      "applied": true,
       "from": "<uuid|null>",
       "to":   "<uuid>",
-      "path": "b2b"|"generic",
+      "path": "b2b" | "generic" | "guard_d3",
       "reason": "ok" | "low_confidence" | "below_threshold(0.75)" | "same_stage"
               | "stage_alias_not_found:<canon>" | "gate_g1_manual_lock_until:<iso>"
-              | "gate_g3_disabled:<key>" | "idempotent:<key>" | "toggle_off",
+              | "gate_g3_disabled:<key>" | "idempotent:<key>" | "toggle_off"
+              | "locked_in_paciente_antigo" | "b2b_guard_failed:<...>",
       "suggestion": "<canon>",
       "confidence": 0.82
     },
     "tags_diff": {
       "added":   ["interessado"],
       "removed": ["1ª consulta"],
-      "requested_remove": ["1ª consulta", "antigo"]  // antes do filtro PROTECTED
+      "requested_remove": ["1ª consulta", "antigo"]
     },
     "custom_fields": { "consulta_agendada_em": "2026-06-18T10:30:00-03:00" },
     "custom_fields_rejected": [
       { "key": "consulta_agendada_em", "raw_value": "2025-01-10T08:00:00Z", "reason": "in_past" }
-    ]
+    ],
+    "blocked_by_g10": []
   }
 }
 ```
+
+> **Compat V2/V3**: a UI `/pipeline-runs` e `/metrics/ai-usage` ainda tolera
+> payloads antigos (V2 monolítico: sem bloco `agents`; V5 de 3 agentes: bloco
+> `agents` só com `summarizer`/`typifier`/`maestro`). Renderiza "—" para os
+> agentes ausentes do payload.
+
+### Operations em `ai_usage` (1 linha por agente por execução)
+
+`agent-core.ts::recordStep` grava 5 linhas por execução bem-sucedida do classifier:
+
+| `operation` | `model` | Observação |
+|---|---|---|
+| `classifier:summarizer` | `gpt-4o` (ou `gpt-5-mini (fallback)`) | sempre primeiro |
+| `classifier:agendador` | `gpt-5-mini` | paralelo |
+| `classifier:typifier` | `gpt-5-mini` | paralelo |
+| `classifier:movimentador` | `gpt-5-mini` | paralelo |
+| `classifier:maestro` | `gpt-5` | sempre por último (se 2 passou) |
+
+Em erro, a linha do agente que falhou tem `status='error'` + `error` truncado a 500 chars. Falha em qualquer paralelo aborta os 3 + maestro com `agent_step2_parallel_failed`.
 
 ## Estrutura `pipeline_runs` / `pipeline_run_items`
 

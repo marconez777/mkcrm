@@ -27,12 +27,12 @@ Todos os gates síncronos rodam em `_shared/pipeline-move.ts::pipelineMove()`. G
 | **G3** | Toggle off (`app_settings.<ruleKey>` ≠ `'true'`) bloqueia regra | `pipeline-move.ts:96-108` | `gate_g3_disabled:<ruleKey>` |
 | **G4** | Idempotência: se `lead_events.type='pipeline_move_attempted'` com mesma `idempotency_key` já existe, no-op | `pipeline-move.ts:110-126` | `idempotent:<key>` |
 | **G5** | Toda mudança de stage cria `lead_stage_history` com `source` preenchido | `pipeline-move.ts:199-211` (insert obrigatório, warning se falhar) | — |
-| **G6** | Tags sempre MERGE, nunca SET | classifier `pipeline-classify.ts:439-445`, auditores `addTags()`, regras determinísticas `addTag()` | — |
+| **G6** | Tags sempre MERGE, nunca SET | classifier `pipeline-classify/apply.ts` (whitelist + protected merge), auditores `addTags()`, regras determinísticas `addTag()` | — |
 | **G7** | `qualificacao='desqualificado'` exige `motivo_desqualificacao` | trigger PG `enforce_motivo_desqualificacao` (migration anterior) + frontend `customFieldsPatchForStage()` em `src/lib/manual-stage-move.ts:67-83` | rejeição no UPDATE |
 | **G8** | `pipelineMove()` UPDATE só toca `stage_id + stage_changed_at` — nunca `pipeline_id` | `pipeline-move.ts:182-188`. `pipeline_id` é derivado por trigger `sync_lead_pipeline_id` | — |
 | **G9** | Classifier usa string exata do enum dos custom_fields | controlado pelo prompt + Zod schema enum em `pipeline-classify.ts:78-90, 92-112` | rejeição via Zod (`generateText` retorna erro de schema) |
 | **G10** | Humano > IA em conflitos recentes (<7d) em custom_fields | **IMPLEMENTADO** (2026-06-18, V2). Trigger PG `track_custom_fields_human_edits` em `leads` + coluna `custom_fields_last_human_edit jsonb` + RPC `apply_lead_automation_patch`. Classifier `apply.ts` descarta sugestão se chave foi editada por humano há <7d. | `blocked_by_g10:{key}` em `applied.custom_fields` |
-| **G11** | Classifier/A1/A2 **nunca** criam/editam `appointments` | invariante manual; nenhuma das funções `pipeline-classify`, `pipeline-position-auditor`, `pipeline-post-move-verifier` importa a tabela `appointments` para escrita | — |
+| **G11** | Classifier (5 agentes V6) / A1 / A2 **nunca** criam/editam `appointments` | invariante manual; nenhuma das funções `pipeline-classify` (Resumidor, Agendador, Tipificador, Movimentador, Maestro), `pipeline-position-auditor`, `pipeline-post-move-verifier` importa a tabela `appointments` para escrita | — |
 | **D3** | "Paciente antigo" não sai por automação, **exceto** quando `toStage.name === "Nutrição inativa"` (única saída permitida, executada pelo cron de inatividade 60d). Estreitado em V5 (2026-06-19). | `pipeline-move.ts:173-181` | `guard_d3_paciente_antigo` |
 | **Allowlist** | Clínica precisa estar em `pipeline_automation_allowlist` para qualquer `auto:*` | `pipeline-move.ts:138-141` (e cada edge function checa também) | `clinic_not_allowlisted` |
 
