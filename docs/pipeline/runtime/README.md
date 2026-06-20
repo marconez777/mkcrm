@@ -3,8 +3,8 @@ title: "Pipeline runtime — Clínica ÓR (estado real)"
 topic: kanban
 kind: map
 audience: agent
-updated: 2026-06-18
-summary: "Hub da documentação de runtime do pipeline da Clínica ÓR. Reflete o que está deployado e ligado HOJE (2026-06-18), não o plano v4.2. Use esta pasta para auditar o sistema sem abrir código nem banco."
+updated: 2026-06-20
+summary: "Hub da documentação de runtime do pipeline da Clínica ÓR. Reflete o que está deployado e ligado HOJE (2026-06-20, classifier V6 de 5 agentes), não o plano v4.2. Use esta pasta para auditar o sistema sem abrir código nem banco."
 code_refs:
   - supabase/functions/pipeline-classify/
   - supabase/functions/pipeline-deterministic/
@@ -57,7 +57,7 @@ related_docs:
 | Componente | Arquivo | Dispara via | Toggle principal (`app_settings`) | Status |
 |---|---|---|---|---|
 | **Regras determinísticas** (`auto:novo-lead`, `auto:secretary-replied`, `auto:appointment-sync`, `auto:field-changed`, inatividade, reativação, reator humano) | `pipeline-deterministic/index.ts` | Triggers PG + cron pg_net | 17 toggles individuais — todos `true` hoje | ✅ Ativo |
-| **Classifier LLM** (gpt-5-mini) | `pipeline-classify/index.ts` | Cron `pipeline-classify-tick` (1/min) + executor manual + smoke `{action:'lead'}` | `automation.classifier.enabled` = true | ✅ Ativo |
+| **Classifier LLM V6** (5 agentes: `gpt-4o` Resumidor + 3× `gpt-5-mini` paralelos + `gpt-5` Maestro) | `pipeline-classify/index.ts` → `agent-core.ts` | Cron `pipeline-classify-tick` (1/min) + executor manual + smoke `{action:'lead'}` | `automation.classifier.enabled` = true | ✅ Ativo |
 | **A1 Position Auditor** | `pipeline-position-auditor/index.ts` | Cron diário 03:00 BRT (`pipeline-position-auditor-daily`) | `automation.position_auditor.enabled` = true | ✅ Ativo |
 | **A2 Post-Move Verifier** | `pipeline-post-move-verifier/index.ts` | Hook async dentro de `pipelineMove()` em moves `auto:*` | `automation.post_move_verifier.enabled` = true; whitelist em `automation.post_move_verifier.rules_enabled` = `[]` (= todas) | ✅ Ativo |
 | **Summarizer** | `_shared/pipeline-summarize-core.ts` (chamado pelo classifier) + `pipeline-summarize` (entry standalone) | Acoplado ao classifier; `force` em intents não triviais | `automation.summarizer.enabled` = true | ✅ Ativo |
