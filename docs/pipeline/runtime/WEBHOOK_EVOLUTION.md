@@ -1,68 +1,58 @@
 ---
-title: "Webhook Evolution API (evolution.ts)"
+title: "Webhook e Mensageria Evolution API (V6)"
 topic: integration
 kind: reference
 audience: agent
-updated: 2026-06-19
-summary: "Documentação do tratamento de concorrência e race condition no webhook da Evolution API usando try-catch no erro 23505 e constraint de unique index no banco de dados."
+updated: 2026-06-20
+summary: "Documentação do sistema de mensageria da Evolution API. Como as mensagens entram, o controle anti-corrida (23505), a lib compartilhada e como o sistema despacha mídias e textos."
 code_refs:
   - supabase/functions/_shared/evolution.ts
-  - supabase/migrations/20260619_unique_index_leads.sql
+  - supabase/functions/evolution-webhook/index.ts
+  - supabase/functions/evolution-send/index.ts
 ---
 
-# Webhook Evolution API (`evolution.ts`)
+# Webhook e Mensageria Evolution API
 
-O módulo `evolution.ts` atua como o ponto de entrada principal para mensagens do WhatsApp capturadas via Evolution API.
+Todo o tráfego do WhatsApp da clínica passa pelas APIs do projeto Evolution. A integração é via Webhooks de entrada e REST API de saída, gerenciados por Edge Functions dedicadas.
 
-## Problema da Corrida de Webhooks (Race Condition)
+## 1. Recepção de Mensagens (`evolution-webhook`)
 
-No passado, múltiplos webhooks disparados simultaneamente para a mesma mensagem ou para mensagens muito próximas do mesmo contato causavam a duplicação de Leads no banco de dados. Como a ferramenta não possuía uma trava estrita a nível de banco de dados, o código Node.js tentava inserir o mesmo lead várias vezes quando o banco estava lento, causando milhares de duplicações.
+Quando o celular recebe uma mensagem (texto, áudio, imagem), a Evolution API posta um payload para a função `evolution-webhook`.
 
-## A Solução (V5)
+### O Problema da Corrida de Webhooks (Race Condition)
 
-A solução definitiva implementada em junho de 2026 consiste em duas camadas de proteção (Defesa em Profundidade):
+Se o paciente enviar 5 mensagens rápidas, a Evolution fará 5 requisições simultâneas ao Webhook. Anteriormente, isso causava a inserção de 5 leads duplicados para o mesmo número.
 
-### 1. Unique Index no Banco de Dados (PostgreSQL)
+### A Solução Estrita
 
-Foi criado um índice único para garantir que um mesmo telefone de uma mesma clínica nunca possa ser inserido duas vezes.
+A plataforma hoje lida com a concorrência usando o modelo de **Upsert Seguro com Captura de Erro 23505**:
 
-```sql
-CREATE UNIQUE INDEX leads_clinic_phone_uniq
-  ON public.leads (clinic_id, phone)
-  WHERE phone IS NOT NULL AND phone <> '';
-```
+1. Há um índice de banco `UNIQUE INDEX leads_clinic_phone_uniq` (garante que 1 clínica não tenha 2 leads com mesmo telefone).
+2. O webhook tenta inserir o lead no banco de forma otimista.
+3. Se dois webhooks baterem ao mesmo tempo, o segundo falha com erro Postgres `23505` (Unique Violation).
+4. O código na função `_shared/evolution.ts` captura o erro 23505 num `try-catch`, não quebra a execução, e imediatamente busca (`SELECT`) o ID do lead recém-criado pelo primeiro webhook.
+5. Ambas as requisições prosseguem e anexam as mensagens à mesma linha de lead de forma atômica.
 
-### 2. Tratamento no Código (`evolution.ts`)
+### Atualização Contínua do Lead
 
-O código agora implementa um fluxo de concorrência segura (Upsert manual) utilizando `try-catch` no erro específico de violação de unique constraint do Postgres (`23505`).
+Além de criar mensagens em `messages`, o webhook faz:
+- Seta `needs_ai_review = true` (Ativa o Gatilho para a classificação dos Agentes V6).
+- Atualiza `last_message_at`, `last_message_preview` e `unread_count`.
 
-1. **Tentativa de Insert**: O código tenta fazer um `INSERT` direto do novo lead.
-2. **Colisão (23505)**: Se outro webhook "vencer a corrida", o insert falhará com o erro `23505`. O código intercepta este erro sem quebrar a execução.
-3. **Re-Select**: Após interceptar o erro `23505`, o código realiza um `SELECT` imediato buscando o lead recém-criado pelo concorrente.
-4. **Continuidade**: A execução segue normalmente anexando a mensagem ao lead correto.
+## 2. Envio de Mensagens (`evolution-send` e `_shared/evolution.ts`)
 
-```typescript
-// Exemplo conceitual da trava de corrida em evolution.ts
-const { data: created, error } = await supabase
-  .from("leads")
-  .insert({ phone, name: pushName, clinic_id: clinicId })
-  .select("id")
-  .single();
+O envio de mensagens do CRM para o WhatsApp é gerenciado pelo módulo compartilhado `sendMessageToEvolution()`. 
 
-if (error) {
-  if (error.code === "23505") { // Unique violation
-    // Outro webhook venceu a corrida! Re-buscando o lead...
-    const { data: existing } = await supabase
-      .from("leads")
-      .select("id")
-      .eq("clinic_id", clinicId)
-      .eq("phone", phone)
-      .single();
-    return existing;
-  }
-  throw error;
-}
-return created;
-```
+A função é capaz de enviar textos simples, ou anexar `mediaUrl` + `mediaType` para enviar arquivos (PDFs, imagens e áudios).
 
-Com esta trava, webhooks paralelos e picos de uso nunca mais gerarão duplicações de leads, e o frontend (Kanban) permanecerá limpo.
+### Fila e Assincronia
+
+- Não seguramos a interface do usuário esperando a resposta da Evolution. O envio pela UI faz um POST para `evolution-send`, que retorna sucesso rápido, enquanto a entrega real corre por baixo.
+- Mensagens de automação ou e-mails que engatilham WhatsApp também batem nessa mesma função.
+
+## 3. Controle de Instâncias e Sessões
+
+Funções de suporte existem para manter a conexão ativa (pareamento do WhatsApp):
+- `evolution-qr`: Busca QRCode para a secretária escanear.
+- `evolution-health` e `evolution-status`: Conferem se a bateria está acabando, se a conexão caiu ou se está sincronizando mensagens.
+- `evolution-restart`: Reinicia o worker da API Evolution em caso de travamento.

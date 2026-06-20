@@ -1,91 +1,78 @@
 ---
-title: "Stages do pipeline (estado real)"
+title: "Stages do pipeline e Intents (Estado Real V6)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
-summary: "11 colunas reais do pipeline 17c27f4d-… com ID, ordem, flags (is_terminal, lock_auto_move) e mapeamento canônico para o classifier."
+updated: 2026-06-20
+summary: "11 colunas reais do pipeline com ID, ordem, flags e mapeamento canônico para o classifier V6. Inclui a lista oficial de Intents suportados pela arquitetura."
 code_refs:
+  - supabase/functions/pipeline-classify/schema.ts
   - supabase/migrations/20260618022933_e4ca1829-7d6c-4cd1-8f70-e5bcb788f35a.sql
 related_docs:
   - docs/pipeline/runtime/README.md
   - docs/pipeline/runtime/CLASSIFIER.md
-  - docs/pipeline/STAGES.md
 ---
 
-# Stages reais — pipeline `17c27f4d-…`
+# Stages e Intents (V6)
 
-Consulta direta:
+A arquitetura de 5 Agentes (V6) separa estritamente o "Desejo do Paciente" (Intent) e a "Posição no Funil" (Stage).
 
-```sql
-SELECT id, name, position, is_terminal, lock_auto_move, color
-FROM pipeline_stages
-WHERE pipeline_id='17c27f4d-8256-4ea7-b5b9-ed706494f686'
-ORDER BY position;
-```
+## 1. Intents Oficiais
 
-| # | Nome | UUID | `is_terminal` | `lock_auto_move` | Color |
-|---|---|---|---|---|---|
-| 0 | Leads de entrada | `b1aa2fc9-d221-4d4f-b53a-7303ec4b75b0` | false | false | `#94a3b8` |
-| 1 | Paciente antigo | `7fea97d7-c2af-4e6f-8f39-af8375bb4468` | false | false | `#a3a3a3` |
-| 2 | Qualificação | `c6eb67f3-cba9-41e5-949c-aa12d34d962d` | false | false | `#6366f1` |
-| 3 | Consulta agendada | `e12f004a-6445-4815-8d6b-22f928507a9a` | false | false | `#0ea5e9` |
-| 4 | Consulta finalizada | `7584241f-6e4b-4824-aaea-e271e865227d` | false | false | `#06b6d4` |
-| 5 | Tratamento agendado | `98320189-6002-4f75-b99d-0b407189efe8` | false | false | `#8b5cf6` |
-| 6 | Em tratamento | `2a352661-01e2-41f8-be10-032f803e2387` | false | false | `#14b8a6` |
-| 7 | Sem resposta | `9f408ae6-649e-44b2-bc56-f93d138c87ed` | false | false | `#f59e0b` |
-| 8 | Nutrição inativa | `64356dbe-3889-4b49-9429-260501cdb3d8` | false | false | `#eab308` |
-| 9 | B2B / Stakeholders | `23a7bfd7-2baf-4d0f-8ed1-2b59b719020d` | **true** | false | `#64748b` |
-| 10 | Desqualificado / Fora de escopo | `35670cad-3f95-4e11-8f73-e8b27b865f89` | **true** | false | `#ef4444` |
+Os agentes (Agendador e Movimentador) devem classificar a mensagem do paciente em UMA das intenções abaixo (definidas em `INTENT_VALUES` no `schema.ts`):
 
-> ⚠️ **Observação importante**: a ordem real coloca "Paciente antigo" em `position=1`, antes de Qualificação. Isso difere do plano em `docs/pipeline/README.md` (que lista Paciente antigo em `position=6`). O código não depende dessa ordem para nada — só a UI usa.
+- `agendamento`: Paciente quer marcar uma primeira consulta ou novo procedimento.
+- `reagendamento`: Paciente precisa mudar a data/hora de algo já marcado.
+- `agendamento_retorno`: Paciente que já passou por atendimento quer marcar o retorno.
+- `duvida_geral`: Dúvidas de preço, localização, convênio ou sobre os médicos.
+- `nf_reembolso`: Pedidos burocráticos de Nota Fiscal ou recibos.
+- `pagamento_alegado`: Paciente enviou comprovante ou diz que pagou (Aciona autoridade da secretária).
+- `desistencia`: Paciente não quer mais ser atendido de forma explícita.
+- `interesse_tratamento`: Demonstrou interesse avançado, mas ainda não marcou.
+- `judicializacao`: Menção a processos judiciais, liminares ou advogados (Critical).
+- `renovacao_receita`: Paciente antigo precisando apenas renovar prescrição.
+- `objecao`: O paciente acha caro, ou tem medo, exigindo "quebra de objeção".
+- `outro`: Fallback caso não se encaixe em nada acima.
 
-> Nenhum stage tem `lock_auto_move=true` hoje. Se algum stage receber esse flag, o helper `pipelineMove` bloqueia entradas vindas de `source LIKE 'auto:%'` (gate G2).
+## 2. Stages reais — pipeline Kanban
 
-## Stages canônicos usados pelo código
+| # | Nome do Stage no Banco | Canonical Name (usado pela IA) | `is_terminal` |
+|---|---|---|---|
+| 0 | Leads de entrada | `Novo` | false |
+| 1 | Paciente antigo | `Paciente antigo` | false |
+| 2 | Qualificação | `Qualificação` | false |
+| 3 | Consulta agendada | `Consulta agendada` | false |
+| 4 | Consulta finalizada | `Consulta finalizada` | false |
+| 5 | Tratamento agendado | `Tratamento agendado` | false |
+| 6 | Em tratamento | `Em tratamento` | false |
+| 7 | Sem resposta | `Sem resposta` | false |
+| 8 | Nutrição inativa | `Nutrição inativa` | false |
+| 9 | B2B / Stakeholders | `B2B / Stakeholders` | **true** |
+| 10 | Desqualificado / Fora de escopo | `Desqualificado` | **true** |
 
-Os agentes LLM e regras determinísticas referenciam stages por **nome canônico**, resolvido em runtime via `stage_canonical_aliases`. Lista canônica fixa em `pipeline-classify/index.ts` e `pipeline-deterministic/index.ts`:
+> ⚠️ **Observação importante**: A ordem física no banco pode variar, mas o motor usa o **Canonical Name** (resolvido na tabela de aliases em tempo de execução).
 
-```
-Novo · Qualificação · Consulta agendada · Tratamento agendado ·
-Consulta finalizada · Em tratamento · Sem resposta · Nutrição inativa ·
-Paciente antigo · B2B / Stakeholders
-```
+## Aliases seedados no Banco
 
-Nota: o canônico `Novo` resolve para o stage real **"Leads de entrada"** via alias.
+Para evitar erros caso a clínica mude o nome de "Consulta agendada" para "Reunião Agendada" na UI, o banco mantém aliases mapeados:
 
-### Aliases seedados (migration `20260618022933`)
-
-| Alias `name` (case-insensitive) | `canonical_name` |
+| Alias `name` detectado | Resolvido para `canonical_name` |
 |---|---|
 | `Novo` | Novo |
 | `Qualificação`, `Qualificacao` | Qualificação |
-| `Consulta agendada`, `consulta agendada`, `Reunião Agendada`, `reuniao agendada` | Consulta agendada |
+| `Consulta agendada`, `Reunião Agendada` | Consulta agendada |
 | `Tratamento agendado`, `Procedimento agendado` | Tratamento agendado |
 | `Consulta finalizada` | Consulta finalizada |
 | `Em tratamento` | Em tratamento |
-| `Sem resposta`, `Lead - Sem resposta`, `Parou de Responder` | Sem resposta |
-| `Nutrição inativa`, `Nutricao inativa` | Nutrição inativa |
+| `Sem resposta`, `Parou de Responder` | Sem resposta |
+| `Nutrição inativa` | Nutrição inativa |
 | `Paciente antigo` | Paciente antigo |
 
-Se o canônico não bate via alias, o classifier tenta `ilike` exato em `pipeline_stages.name` no mesmo pipeline. Falha total → o move é abortado com `stage_alias_not_found:<canon>` e fica registrado no payload do `auto:classifier`.
+Se o Maestro (Agente 5) sugerir um stage que não possui Alias configurado no banco, o move falha silenciosamente por `stage_alias_not_found` mas as tags continuam sendo processadas.
 
-## Excluídos do A1 (position-auditor)
-
-Set em `pipeline-position-auditor/index.ts:35`:
-
-```
-Paciente antigo · Nutrição inativa · B2B / Stakeholders · B2B ·
-Desqualificado · Lead não qualificado
-```
-
-→ A1 nunca audita leads parados nesses stages.
-
-## Guards específicos
-
-- **D3** (`pipeline-move.ts:177`): se o stage **atual** é "Paciente antigo" e o move é `auto:*`, abort com `guard_d3_paciente_antigo`. Exceção (V5): Pode ser movido para "Nutrição inativa" pelo cron de SLA de 60 dias. Sem a exceção, o lead só sairia dessa coluna manualmente.
-- **Terminais**: `is_terminal=true` em B2B e Desqualificado. Não bloqueia o helper (sem regra `lock_auto_move`), mas a UI esconde de relatórios de funil ativos.
-
-## Histórico do `position=1`
-
-A migration `20260618021516` eliminou a coluna "Procedimento pago" (D1) e renomeou "Procedimento agendado" → "Tratamento agendado" (D2). 9 leads que estavam em "Procedimento pago" foram movidos para "Tratamento agendado" com `status_financeiro=pago` no `custom_fields`, e o evento registrado em `lead_stage_history` com `source='system:d1-eliminate-procedimento-pago'`.
+## Stages Excluídos da Auditoria
+Os leads que pararem nas seguintes colunas NUNCA sofrerão alertas de atraso pelo Cron diário (Positon Auditor A1):
+- `Paciente antigo`
+- `Nutrição inativa`
+- `B2B / Stakeholders`
+- `Desqualificado`

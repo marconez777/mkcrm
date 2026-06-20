@@ -1,10 +1,10 @@
 ---
-title: "Classifier LLM (pipeline-classify) — runtime V2"
+title: "Classifier LLM (pipeline-classify) — runtime V6"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-19
-summary: "Edge function pipeline-classify V5: Arquitetura de 3 Agentes (Resumidor, Tipificador, Maestro), parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch."
+updated: 2026-06-20
+summary: "Edge function pipeline-classify V6: Arquitetura paralela de 5 Agentes (Resumidor, Agendador, Tipificador, Movimentador, Maestro), parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
   - supabase/functions/pipeline-classify/schema.ts
@@ -26,12 +26,14 @@ related_docs:
   - docs/pipeline/runtime/DATABASE_LIVE.md
 ---
 
-# Classifier `pipeline-classify` — V5 (3 Agentes)
+# Classifier `pipeline-classify` — V6 (5 Agentes)
 
-> Reconstrução multi-step (junho/2026). Substitui o monolito V2 por uma **Linha de Montagem de 3 Agentes**:
-> 1. **Resumidor (gpt-4o)**: Extrai passado/presente e datas puras.
-> 2. **Tipificador (gpt-5-mini)**: Sugere tags (whitelist) e preenche chips.
-> 3. **Maestro (gpt-5-mini)**: Decide o intent e para qual stage o card deve se mover.
+> Reconstrução multi-step (junho/2026). Substitui o modelo sequencial V5 por uma **Linha de Montagem Paralela de 5 Agentes**:
+> 1. **Resumidor (gpt-4o)**: Extrai passado/presente e datas puras, blindado à Autoridade da Secretária.
+> 2. **Agendador (gpt-5-mini)**: Roda em PARALELO, foca exclusivamente na intenção de agenda (novo, reagendamento, cancelamento).
+> 3. **Tipificador / Preenchedor (gpt-5-mini)**: Roda em PARALELO, sugere tags (whitelist) e preenche chips. Obedece rigorosamente à Autoridade da Secretária para campos de pagamento.
+> 4. **Movimentador (gpt-5-mini)**: Roda em PARALELO, foca apenas na recomendação de estágio (`stage_suggestion`) baseada na inatividade temporal e intent.
+> 5. **Maestro (gpt-5)**: Juiz final. Recebe os 3 outputs dos especialistas, valida contradições cruzadas e formata a resposta canônica.
 > 
 > O classificador possui **General Move** (auto-move) ativado para cenários de alta confiança, 
 > realiza override de G10 para datas extraídas do chat, suporta uma whitelist de tags expandida.
@@ -41,23 +43,21 @@ related_docs:
 | | |
 |---|---|
 | Entry | `supabase/functions/pipeline-classify/index.ts` |
-| Modelos | `gpt-4o` (Resumidor) + 2x `gpt-5-mini` (Tipificador e Maestro) |
+| Modelos | `gpt-4o` (Resumidor) + 3x `gpt-5-mini` (Especialistas) + `gpt-5` (Maestro) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
-| Toggle versão | `automation.classifier.version` (`'v1'` default; `'v2'` rollout) |
-| Override de teste | body `{ "force_version": "v2" }` na invocação manual |
 | Batch | 50 leads/tick |
 | Watermark | `leads.last_processed_message_id_classifier` |
-| Telemetria | `lead_events.type='auto:classifier'` com `payload.version=2` |
+| Telemetria | `lead_events.type='auto:classifier'` com `payload.agents` refletindo os 5 modelos e latências. |
 
 ## Arquivos
 
 ```text
 pipeline-classify/
 ├── index.ts             dispatcher + cron tick
-├── schema.ts            Zod schemas p/ 3 Agentes + canon names, intents, tags protegidas
+├── schema.ts            Zod schemas p/ 5 Agentes independentes + canon names, intents, tags protegidas
 ├── context.ts           loadLeadContext: lê lead + ai_summary + watermark; early-return
-├── agent-core.ts        Orquestra a pipeline sequencial dos 3 Agentes (generateText)
+├── agent-core.ts        Orquestra a pipeline Promise.all dos Agentes (generateText)
 ├── date-parser.ts       wrapper sobre parseFutureDateInTZ (ZERO LLM)
 ├── apply.ts             ordem de aplicação: first-consult → datas (G10) → fields (G10) → tags (whitelist) → B2B/General Move → intent-effects → telemetria → watermark
 ├── rules/first-consult.ts   regra "1ª consulta" com fallback no ai_summary
@@ -68,21 +68,33 @@ pipeline-classify/
 
 ## Schemas dos Agentes (`schema.ts`)
 
-A saída é dividida em 3 partes, refletindo os 3 Agentes:
+A saída é dividida em 5 esquemas blindados:
 
 **Agente 1 (Resumidor)**
+Extrai fatos. Obriga a registrar o que a Secretária confirmou versus o que o Paciente alegou.
 ```ts
 z.object({
   summary: z.string(),
   mentioned_dates: z.array(z.object({
-    raw: z.string().max(120),       // string crua, NÃO ISO
-    anchor_iso: z.string(),         // timestamp da mensagem que cita
-    kind: z.string()                // "consulta" | "procedimento"
+    raw: z.string().max(120),
+    anchor_iso: z.string(),
+    kind: z.string()
   })).max(4)
 })
 ```
 
-**Agente 2 (Tipificador)**
+**Agente 2 (Agendador)**
+Especialista temporal e de intenções de marcação.
+```ts
+z.object({
+  is_scheduling_action: z.boolean(),
+  scheduling_intent: z.enum(["novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda", "nenhum"]),
+  reasons: z.array(z.string()).max(3)
+})
+```
+
+**Agente 3 (Tipificador / Preenchedor)**
+Responsável pelo data entry dos chips.
 ```ts
 z.object({
   tags_suggested: z.array(z.string().max(40)).max(8),
@@ -90,11 +102,24 @@ z.object({
 })
 ```
 
-**Agente 3 (Maestro)**
+**Agente 4 (Movimentador)**
+Responsável exclusivo pelo Funil Kanban.
 ```ts
 z.object({
-  stage_suggestion: z.string(),                    // coercido p/ Canon (fallback "Qualificação")
-  intent: z.string().default("outro"),             // coercido p/ INTENT_VALUES
+  stage_suggestion: z.string(),
+  intent: z.string().default("outro"),
+  mentioned_intents: z.array(z.string()).max(3),
+  is_b2b: z.boolean(),
+  reasons: z.array(z.string()).max(3)
+})
+```
+
+**Agente 5 (Maestro)**
+Responsável pela validação cruzada dos schemas 2, 3 e 4.
+```ts
+z.object({
+  stage_suggestion: z.string(),
+  intent: z.string().default("outro"),
   confidence: z.number().min(0).max(1),
   is_b2b: z.boolean(),
   reasons: z.array(z.string()).min(1).max(5),
@@ -102,100 +127,45 @@ z.object({
 })
 ```
 
-> **Enums relaxados (junho/2026)**: `gpt-5-mini` rejeitava o schema quando enums
-> eram declarados diretamente (`"No object generated: response did not match schema"`).
-> Solução: declarar como `z.string()` e normalizar em `normalizeClassification()` —
+> **Enums relaxados**: `gpt-5-mini` rejeitava o schema quando enums
+> eram declarados diretamente. Declaramos como `z.string()` e normalizamos em `mergeV6Outputs()` —
 > stages/intents inválidos caem para defaults (`"Qualificação"` / `"outro"`).
->
-> **`tags_remove` removido do LLM** (V2). O `apply.ts` computa removeções como
-> `currentTags − tags_suggested − PROTECTED_TAGS` (quando `tag_replace.enabled`),
-> além de forçar a remoção de "1ª consulta" quando a regra bloqueia.
 
 ## Datas — extração + parser determinístico
 
 O LLM **NUNCA converte data**. Devolve apenas a string crua + o timestamp ISO da
 mensagem que cita (`anchor_iso`). O `date-parser.ts` chama
-`parseFutureDateInTZ(raw, "America/Sao_Paulo", anchor)` e gera:
-
-- `resolved`: ISO UTC quando determinístico.
-- `rejected_reason`: `"anchor_invalid" | "ambiguous_or_past" | "too_far_future"`.
-
-Cobre DST, DD/MM, DD/MM/AAAA, ISO. Datas resolvidas viram `consulta_agendada_em` ou
-`procedimento_agendado_em` (mapeado por `kind`).
+`parseFutureDateInTZ(raw, "America/Sao_Paulo", anchor)` e gera o ISO UTC determinístico, que vira `consulta_agendada_em` ou `procedimento_agendado_em`.
 
 ## Gate G10 — implementado via DB
 
-Estado V1: G10 era apenas mitigação por prompt. V2:
-
-1. **Migration `20260618...g10_human_edits.sql`** adiciona
-   `leads.custom_fields_last_human_edit jsonb DEFAULT '{}'`.
-2. **Trigger PG `track_custom_fields_human_edits`** dispara BEFORE UPDATE OF
+1. **Trigger PG `track_custom_fields_human_edits`** dispara BEFORE UPDATE OF
    `custom_fields`. Para cada chave alterada, grava `{key: now_iso}` no jsonb,
    **exceto** quando `current_setting('app.actor') = 'system'`.
-3. **RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)`**
-   (SECURITY DEFINER) seta `app.actor='system'` dentro da transação e aplica o
-   UPDATE. O classifier V2 sempre usa essa RPC para persistir mudanças.
-4. **`apply.ts`** lê `lead.custom_fields_last_human_edit[key]`; se o timestamp
+2. **RPC `apply_lead_automation_patch(p_lead_id, p_custom_fields, p_tags)`** aplica como 'system'.
+3. **`apply.ts`** lê `lead.custom_fields_last_human_edit[key]`; se o timestamp
    for mais novo que `now − 7d`, descarta a sugestão da IA para essa chave e
    registra em `applied.custom_fields.blocked_by_g10`.
    - **Exceção (Override de Data)**: Se o parser identificar uma data e a confiança 
-     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`) para as 
-     chaves de `consulta_agendada_em` e `procedimento_agendado_em`, sobrepondo a 
+     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`), sobrepondo a 
      edição humana.
 
-> Edições humanas via PostgREST (frontend, inbox, lead drawer) **não setam**
-> `app.actor` → o trigger as marca corretamente como humanas. Outras edge
-> functions automáticas (pipeline-deterministic, fase4, pipeline-move) que
-> escrevem em `custom_fields` ainda **não** usam a RPC → seus writes também
-> serão marcados como "humanos", o que na prática faz o classifier respeitar
-> regras determinísticas (comportamento desejável). Ver KNOWN_ISSUES.
+## Autoridade da Secretária (A Regra de Ouro)
+
+O modelo V6 é estrito: A palavra da secretária tem prioridade absoluta sobre o paciente.
+Se o paciente diz "já paguei" e não há envio de comprovante/confirmação pela atendente, o sistema atribui a TAG `pagamento_alegado` ao invés de setar o status `pago`. A IA só preencherá status pagos/agendados quando houver validação da clínica no chat (e.g. templates ou confirmações verbais).
 
 ## Movimentações e Auto-Move (General Move / B2B / Lock D3)
 
-Com a aprovação dos ajustes recentes (V5), o caminho genérico do Classifier possui auto-move + lock explícito de Paciente antigo:
-
-0. **Lock D3 (Paciente antigo)** (`apply.ts:245-255`): se `ctx.stageName === "Paciente antigo"`, o Classifier **nem tenta** sugerir movimentação. `stageOutcome = { path: "guard_d3", reason: "locked_in_paciente_antigo", would_move: false }`. B2B/Nurture/General são pulados. Defesa em profundidade junto com o Guard D3 do `pipelineMove`.
-
-1. **Consulta Agendada (Ajuste B)**: Se a IA extrair com confiança a data de uma consulta confirmada no chat, ela aciona o General Move e move o lead para "Consulta agendada" via `pipelineMove`.
-
-Caminho **B2B** (Move automático estrito): exige **TODOS** os guards:
-
-- `is_b2b === true`
-- `confidence ≥ 0.95`
-- `tags_suggested.includes("b2b")`
-- Lead **nunca** passou por `Em tratamento | Consulta finalizada | Paciente antigo`
-- `automation.b2b_move.enabled = true`
-
-Falha em qualquer guard → `reason: "b2b_guard_failed:<...>"` em telemetria.
-
-## Regra "1ª consulta"
-
-`rules/first-consult.ts::evaluateFirstConsult` bloqueia a tag quando:
-
-- Lead com mais de 90 dias, OU
-- Passou por stage tratado, OU
-- Tem tag `paciente_antigo`, OU
-- `ai_summary` cita atendimento prévio (regex: `já realizou | paciente antig | retorno | tratamento anterior | sessão anterior | já atend | alta médica | alta do tratamento`).
-
-Se bloqueada e a tag está presente, `apply.ts` força `removeComputed += ["1ª consulta"]`.
-
-## Side-effects por intent
-
-Inalterados em relação a V1. `rules/intent-effects.ts` chama:
-
-| intent | função |
-|---|---|
-| `nf_reembolso` | `runNfTask` |
-| `pagamento_alegado` | `runPaymentAlleged` |
-| `judicializacao` | `runJudicializacao` |
-| `renovacao_receita` | `runRenovacaoReceita` |
-| `objecao` | `runObjectionSuggest` |
+0. **Lock D3 (Paciente antigo)**: se o lead já está em "Paciente antigo", o Classifier nem tenta. `would_move = false`. B2B/Nurture/General pulados.
+1. **General Move**: IA sugere move se `confidence >= 0.8` e se não houve move humano nas últimas 24h.
+2. **B2B Path**: exige `is_b2b === true`, `confidence >= 0.95`, tag `b2b`, e ausência de histórico de tratamento.
 
 ## Dispatcher (`index.ts`)
 
-O cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto. O dispatcher lê a fila e invoca `agent-core.ts` para processar a "linha de montagem" de agentes sequenciais.
+O cron `pipeline-classify-tick` continua chamando `action:'tick'` a cada minuto. O dispatcher lê a fila e invoca `agent-core.ts` que agora executa o Resumidor, depois despacha 3 chamadas HTTP paralelas no SDK da OpenAI e por fim aciona o Maestro.
 
-## Smoke test (V5)
+## Smoke test (V6)
 
 ```bash
 # Tick forçado:
