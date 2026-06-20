@@ -17,6 +17,21 @@ related_docs:
 
 # Bugs conhecidos e limitações
 
+## -2. Telemetria do classifier agrupada sob um único `operation` (CORRIGIDO 2026-06-20 — V6)
+
+**Sintoma**: o painel `/metrics/ai-usage` mostrava o classifier como uma única linha (`classifier`), impossibilitando comparar custo/latência por agente quando a linha de montagem rodava de fato 3+ chamadas LLM em sequência.
+
+**Causa-raiz**: ao paralelizar Agendador/Tipificador/Movimentador no `agent-core.ts`, todos os `recordStep()` da fase paralela gravavam sob a mesma `operation`, e o Resumidor/Maestro caíam em rótulos genéricos.
+
+**Fix** (refator V6, `supabase/functions/pipeline-classify/agent-core.ts:350,378-380,403`):
+- Cada agente grava **uma linha própria** em `ai_usage`:
+  `classifier:summarizer` · `classifier:agendador` · `classifier:typifier` · `classifier:movimentador` · `classifier:maestro`.
+- `lead_events.payload.agents` ganha modelo + latência + flag `ran` por agente (ver `EVENTS_TELEMETRY.md`).
+- UI `/pipeline-runs` e card de Custos passaram a renderizar Resumidor → bloco "Execução Paralela" (3 cards) → Maestro.
+
+**Status**: ✅ Corrigido (frontend + backend deployados 2026-06-20).
+
+
 ## -1. Triggers e crons silenciosamente quebrados por `extensions.http_post` (CORRIGIDO 2026-06-19)
 
 **Sintoma**: 0 eventos `auto:novo-lead`, `auto:secretary-replied`, `auto:appointment-sync`, `auto:followup-*` em 24h. Fila `needs_ai_review` crescendo (440+) sem ser drenada. Em `net._http_response`: ~120 × 404 por hora.

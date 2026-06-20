@@ -3,8 +3,8 @@ title: "Summarizer — runtime"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
-summary: "runSummarize() em _shared/pipeline-summarize-core.ts. Acoplado ao classifier (sempre rodado ao final, force em intents não triviais). Mantém leads.ai_summary ≤800 chars."
+updated: 2026-06-20
+summary: "runSummarize() em _shared/pipeline-summarize-core.ts. Acoplado ao classifier V6 (sempre rodado ao final, force em intents não triviais — independe do Agente Resumidor interno do classifier). Mantém leads.ai_summary ≤800 chars."
 code_refs:
   - supabase/functions/_shared/pipeline-summarize-core.ts
   - supabase/functions/pipeline-summarize/index.ts
@@ -28,6 +28,7 @@ related_docs:
 ## Quando roda
 
 1. **Sempre** ao final de `pipeline-classify::classifyOne`, com `force = (intent !== 'outro')`. Ou seja: intents triviais respeitam o threshold de 3 novas mensagens; intents notáveis forçam regen.
+   > Nota: este `runSummarize` é **distinto** do *Agente 1 — Resumidor* interno da linha de montagem V6 do classifier (`agent-core.ts::runSummarizer`). O Resumidor V6 alimenta os 3 paralelos + Maestro **dentro** da execução; o `runSummarize` aqui atualiza `leads.ai_summary` para uso fora do classifier (inbox, drawer, agente WhatsApp).
 2. Standalone via HTTP POST `{lead_id, force?, reason?}` na função `pipeline-summarize`.
 3. Não há cron próprio.
 
