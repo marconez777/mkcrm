@@ -21,11 +21,11 @@ related_docs:
 - **A2** — `pipeline-post-move-verifier` (hook async no `pipeline-move`) dá segunda opinião barata em todo move automático.
 - **A3** — Classifier ganha tool `get_lead_history` para puxar contexto sob demanda.
 
-## Arquitetura
+## Arquitetura (planejamento — ver runtime para estado real)
 
 ```text
 inbound WhatsApp ──► Orchestrator (código)
-                       ├─► Classifier (LLM, 1 agente, stateless)
+                       ├─► Classifier (LLM)
                        │     output: intent, tags, custom_fields_patch,
                        │             urgency, suggested_stage_id, confidence
                        │
@@ -44,6 +44,17 @@ lead_stage_history ──► Reator humano (escuta source='manual'|'ui')
                          └─► infere consequência ou tag precisa_atencao_humana
 UI /automations ─────► automations-tick (lembretes — SEM código novo, D6)
 ```
+
+> ⚠️ **Estado real (2026-06-20)**: o bloco "Classifier (LLM)" do plano foi
+> implementado como uma **linha de montagem V6 de 5 agentes** em
+> `supabase/functions/pipeline-classify/agent-core.ts`:
+> Resumidor (`gpt-4o`, fallback `gpt-5-mini`) → fase paralela com Agendador,
+> Tipificador e Movimentador (3× `gpt-5-mini` em `Promise.all`) → Maestro
+> (`gpt-5`). Os 11 gates abaixo continuam aplicados em `_shared/pipeline-move.ts`
+> exatamente como descrito. Cada agente grava sua própria linha em `ai_usage`
+> (`classifier:summarizer|agendador|typifier|movimentador|maestro`). Detalhes
+> em [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md) e
+> [`runtime/EVENTS_TELEMETRY.md`](./runtime/EVENTS_TELEMETRY.md).
 
 **O que NÃO fazemos**: ❌ 12 agentes por coluna, ❌ agente "gerente" via LLM, ❌ RAG com embeddings agora, ❌ auto-reply via pipeline (agente WhatsApp é separado), ❌ lembretes reescritos em código (D6).
 

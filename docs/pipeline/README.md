@@ -80,9 +80,11 @@ Esta pasta consolida **tudo o que é preciso para planejar e implementar a autom
 | Plano de fases + 11 gates + reator humano + D1–D8 | [`AUTOMATION_PLAN.md`](./AUTOMATION_PLAN.md) |
 | Evidência detalhada por coluna do estudo | [`docs/estudo/`](../estudo/README.md) |
 
-## Arquitetura v4.1 em uma frase
+## Arquitetura v4.1 em uma frase (planejamento)
 
 **1 Classifier (LLM) + 1 Summarizer (LLM incremental) + Rule Engine (código puro) + Reator humano (Postgres trigger + edge function).** Stages se movem por código determinístico via 11 gates de segurança. LLM só sugere; nunca decide movimento. Lembretes vivem em `/automations`.
+
+> ⚠️ **Estado real (2026-06-20)**: o "1 Classifier" do plano evoluiu, em produção, para uma **linha de montagem V6 de 5 agentes** — Resumidor (`gpt-4o`) → [Agendador ∥ Tipificador ∥ Movimentador] (3× `gpt-5-mini` paralelos) → Maestro (`gpt-5`). Os 11 gates continuam valendo. Detalhes em [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md).
 
 ## Princípios
 
