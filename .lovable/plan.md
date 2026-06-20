@@ -1,121 +1,98 @@
-# Migração UI V3 → V6 (5 agentes do pipeline)
+# Validação e sync das docs do pipeline → arquitetura V6
 
-## Contrato confirmado
+## Diagnóstico (drift confirmado)
 
-- `ai_usage.operation`: `classifier:summarizer`, `classifier:agendador`, `classifier:typifier`, `classifier:movimentador`, `classifier:maestro`.
-- `lead_events.payload.agents`:
-  - modelos: `summarizer_model`, `agendador_model`, `typifier_model`, `movimentador_model`, `maestro_model`
-  - `latency_ms: { summarizer, agendador, typifier, movimentador, maestro }`
-  - `ran: { summarizer, agendador, typifier, movimentador, maestro }`
-- Compat: UI deve degradar quando vier payload V3 antigo (sem chaves de agendador/movimentador).
+O código em `supabase/functions/pipeline-classify/agent-core.ts` já roda a **arquitetura V6 de 5 agentes**:
 
-## Arquivos afetados
-
-1. `src/components/ai/usage/PipelineOverview.tsx` — aba de Custos.
-2. `src/pages/PipelineRuns.tsx` — tela de execuções + drawer + dialog de escopo.
-
-Nenhuma mudança em backend, types ou tabelas.
-
----
-
-## 1. `PipelineOverview.tsx` (Custos)
-
-### Metadata
-Expandir `AGENT_META` para 5 entradas com cor/emoji/explicação distintos. Ordem de exibição lógica:
-
-1. `classifier:summarizer` — Resumidor 📝 (azul) — sequencial
-2. `classifier:agendador` — Agendador 📅 (violeta) — paralelo
-3. `classifier:typifier` — Tipificador 🏷️ (âmbar) — paralelo
-4. `classifier:movimentador` — Movimentador 🎯 (rosa) — paralelo
-5. `classifier:maestro` — Maestro 🎼 (esmeralda) — sequencial
-
-`PIPELINE_OPS` passa a ter 5 itens (a query `in("operation", PIPELINE_OPS)` continua valendo).
-
-### Cabeçalho
-- `h3` "Os 3 agentes do pipeline" → **"Os 5 agentes do pipeline"**.
-- Hero subtitle muda para: "Cada lead é lido por 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro)".
-- `classifiedRuns = Math.max(successEvents, Math.round(rows.length / 3))` → dividir por **5** (uma execução completa = 5 linhas de `ai_usage`).
-
-### Novo layout 3-linhas (substitui `grid md:grid-cols-3`)
-
-```text
-[      Resumidor (full)       ]
-[Agendador][Tipificador][Movimentador]   ← faixa "Execução Paralela"
-[       Maestro (full)        ]
+```
+Resumidor → [ Agendador ∥ Tipificador ∥ Movimentador ] → Maestro
 ```
 
-- Linha 1 e 3: `Card` ocupando largura total, mesmo visual atual (`p-4`, `meta.accent`, barra de % do custo).
-- Linha 2: wrapper `Card` translúcido com label "⑂ Execução paralela" (ícone `GitBranch` lucide) + `grid grid-cols-1 md:grid-cols-3 gap-3` dentro; conectores visuais por gradient/borda lateral (`border-l-2 border-dashed border-primary/30`).
-- Manter Custo / Chamadas / Latência média / barra de % do custo total por card (já existe).
+Operations gravadas em `ai_usage.operation`:
+- `classifier:summarizer`
+- `classifier:agendador`
+- `classifier:typifier`
+- `classifier:movimentador`
+- `classifier:maestro`
 
-### Compat V3
-Se `byOp` para `agendador`/`movimentador` vier zerado em todas as métricas, ainda renderiza os cards (com "—" e badge "sem dados" sutil), pois o usuário pode estar vendo janela onde só rodou V3.
+Payload em `lead_events.payload.agents` contém: `summarizer_model`, `agendador_model`, `typifier_model`, `movimentador_model`, `maestro_model`, `latency_ms.{...}`, `ran.{...}`.
 
-### Drawer (`LeadRunDetail`)
-- Título: "Os 5 agentes desta execução".
-- Iterar os 5 `PIPELINE_OPS`. Para mapear modelo via `agents`:
-  - `summarizer` → `agents.summarizer_model`
-  - `agendador` → `agents.agendador_model`
-  - `typifier` → `agents.typifier_model`
-  - `movimentador` → `agents.movimentador_model`
-  - `maestro` → `agents.maestro_model`
-- Latência: `latency_ms[op.split(':')[1]]` (já compatível com nomes novos).
-- Visualmente: Resumidor sozinho em cima → bloco "⑂ Paralelos" com os 3 cards agrupados (`rounded-md border border-dashed p-2 space-y-1.5`) → Maestro sozinho embaixo.
-- Tipos atualizados (chaves opcionais de V6, mantendo as antigas opcionais para compat).
+Porém **as docs em `docs/pipeline/` ainda descrevem V2 / 3 agentes** (snapshot 2026-06-18/19, anterior ao refactor V6). Exemplos:
 
----
+| Doc | Conteúdo defasado |
+|---|---|
+| `docs/pipeline/runtime/CLASSIFIER.md` | Título "runtime V2"; descreve "Linha de Montagem de 3 Agentes" (summarizer/typifier/maestro); `payload.version=2`; sem agendador/movimentador. |
+| `docs/pipeline/runtime/ARCHITECTURE.md` | Fluxo do classifier listado como 3 agentes. |
+| `docs/pipeline/runtime/EVENTS_TELEMETRY.md` | Esquema de `lead_events.payload.agents` com 3 modelos; sem `version=6`. |
+| `docs/pipeline/runtime/README.md` | Tabela de runtime menciona Classifier como monolito/V2 com 3 etapas. |
+| `docs/pipeline/runtime/GATES.md` | Cita G10/G11 ancorados em "3 etapas LLM". |
+| `docs/pipeline/runtime/KNOWN_ISSUES.md` | Issue de "agrupamento de telemetria" descrito como ativo — já corrigido. |
+| `docs/pipeline/runtime/STAGES_LIVE.md` / `SUMMARIZER.md` | Referências cruzadas ao "classifier de 3 passos". |
+| `docs/pipeline/README.md` + `AUTOMATION_PLAN.md` | Visão geral menciona 3 agentes; falta sub-bloco "paralelos". |
+| `.lovable/memories/docs/maintenance-progress.md` | Diz "1 chamada gpt-5-mini" — desatualizado (agora 5 chamadas em 3 fases). |
 
-## 2. `PipelineRuns.tsx`
+## Escopo da entrega
 
-### Tipos
-```ts
-type OnlyAgent = "summarizer" | "parallel" | "maestro";  // 3 opções (confirmado)
+Atualizar **somente arquivos de documentação** (sem mexer em código). Foco em deixar cada arquivo condizente com o que o código realmente faz hoje.
+
+### 1. `docs/pipeline/runtime/CLASSIFIER.md` (reescrita parcial)
+- Título: "Classifier LLM (pipeline-classify) — runtime V6".
+- Substituir o bloco "Linha de Montagem de 3 Agentes" por diagrama ASCII de 5 agentes com a fase paralela:
+  ```text
+  Resumidor
+      │
+      ▼
+  ┌───────────────────────────────┐
+  │ Agendador ∥ Tipificador ∥ Movimentador │
+  └───────────────────────────────┘
+      │
+      ▼
+   Maestro
+  ```
+- Tabela "Operations" com os 5 valores exatos de `ai_usage.operation`.
+- Atualizar `payload.version` para `6` e listar todos os campos novos de `agents` (`agendador_model`, `movimentador_model`, latências e flags `ran` por agente).
+- Documentar `only_agent` aceitos hoje (`summarizer`, `parallel`, `maestro`) usados pelo botão "Executar com escopo" em `/pipeline-runs`.
+- Manter seções de G10/A3/tool `get_lead_history` (continuam válidas).
+
+### 2. `docs/pipeline/runtime/ARCHITECTURE.md`
+- Atualizar fluxo do classifier (3 → 5 agentes, com bloco paralelo).
+- Ajustar nº de chamadas LLM por execução (1 → 3 fases / até 5 chamadas).
+
+### 3. `docs/pipeline/runtime/EVENTS_TELEMETRY.md`
+- Atualizar shape de `lead_events.payload.agents` (5 modelos, 5 latências, 5 flags).
+- Bump `payload.version` para 6; nota de compat retro (UI tolera V3+V6).
+- Listar os 5 valores de `ai_usage.operation`.
+
+### 4. `docs/pipeline/runtime/README.md`
+- Linha do Classifier: "5 agentes (Resumidor → Paralelos → Maestro)".
+
+### 5. `docs/pipeline/runtime/GATES.md`
+- Trocar "3 etapas LLM" por "5 agentes (Resumidor + 3 paralelos + Maestro)" onde G10/G11 fazem referência.
+
+### 6. `docs/pipeline/runtime/KNOWN_ISSUES.md`
+- Marcar como **resolvido** o item de "telemetria agrupada do classifier" (com data 2026-06-19).
+
+### 7. `docs/pipeline/runtime/SUMMARIZER.md` e `docs/pipeline/runtime/STAGES_LIVE.md`
+- Pequenos ajustes de menção cruzada ("classifier de 3 passos" → "classifier V6 de 5 agentes").
+
+### 8. `docs/pipeline/README.md` + `docs/pipeline/AUTOMATION_PLAN.md`
+- Atualizar visão geral / diagrama ao mesmo padrão V6.
+- Atualizar `LEAD_SAMPLES.md` / `SCENARIOS.md` somente se citarem nominalmente os 3 agentes (verificar e ajustar trechos pontuais).
+
+### 9. `.lovable/memories/docs/maintenance-progress.md`
+- Adicionar bloco "Pipeline V6 — DEPLOYADO (2026-06-20)" descrevendo 5 agentes + operations + `payload.version=6` + UI `/pipeline-runs` adaptada (`only_agent: summarizer|parallel|maestro`).
+- Marcar trechos da Fase 1 V5 como históricos.
+
+## Validação final
+
+Após as edições rodar:
+```bash
+grep -RIn -E "3 agentes|version=2|Linha de Montagem de 3" docs/pipeline/
 ```
-Backend já aceita `summarizer`/`typifier`/`maestro`; quando o usuário escolher `parallel`, mandar o novo valor `"parallel"` no campo `only_agent`. **Pré-requisito do backend**: aceitar `"parallel"` como alias que roda os 3 paralelos. Documentar isso no diff e fallback: se `parallel` falhar com 400, exibir toast "Backend ainda não suporta escopo paralelo — atualize o pipeline-classify". *(Se o usuário preferir já mapear `parallel` para 3 chamadas sequenciais no frontend, sinalizar na revisão do plano.)*
+Resultado esperado: zero ocorrências em texto descritivo (apenas em notas históricas claramente datadas).
 
-### Drawer da execução (`RunItemDetailDrawer`)
-- Atualizar tipo `agents` para incluir `agendador_model`, `movimentador_model` e respectivos `latency_ms.{agendador,movimentador}`, `ran.{agendador,movimentador}`.
-- Substituir os 3 `AgentCard` por layout idêntico ao novo PipelineOverview drawer:
-  - Resumidor (full)
-  - Card "⑂ Execução paralela" envolvendo Agendador / Tipificador / Movimentador em `grid-cols-3`
-  - Maestro (full)
-- Mantém props `model`, `latencyMs`, `ran` para cada agente (chaves V6).
-- Botões "🔁 só X" (linhas 677-686): substituir os 3 botões individuais por 3 botões que correspondem ao novo escopo: **Resumidor / Paralelos / Maestro**. Ícone para "Paralelos": `GitBranch`.
-- Mapeamento `item.step`:
-  - `classify:summarizer` → "🔁 só Resumidor"
-  - `classify:parallel` → "🔁 paralelos (Agendador+Tipificador+Movimentador)"
-  - `classify:maestro` → "🔁 só Maestro"
-  - Compat antigo: `classify:typifier` continua reconhecido como "🔁 só Tipificador (legado V3)".
+## Fora de escopo
 
-### Dialog "Executar com escopo"
-- Opções (linhas 826-829) viram 3:
-  1. `full` — Sparkles — "Completo" — **"Forçar Pipeline V6"** (era "Os 3 agentes")
-  2. `summarizer` — FileText — "Só Resumidor"
-  3. `parallel` — GitBranch — "Só Paralelos" — "Agendador + Tipificador + Movimentador"
-  4. `maestro` — Target — "Só Maestro"
-- Ajustar condicionais nas linhas 844/849 (que controlam campos visíveis dependendo de `onlyAgent === "maestro"` etc.) para o novo set; manter mesma lógica de hidratação para `parallel` (assume comportamento como `typifier` para visibilidade de campos extras).
-
-### Botões principais (linha 190-194)
-- Manter "Executar com escopo" e "Executar pipeline inteiro".
-- Sem renomeação (já genéricos). A label "Forçar Pipeline V6" vai dentro do dialog conforme item acima.
-
----
-
-## Visual / design tokens
-
-- Reusar paleta semântica existente (`bg-*-500/10`, `text-*-700`, `border-*-500/20`).
-- Wrapper "Execução paralela": fundo `bg-gradient-to-br from-muted/30 to-transparent`, `backdrop-blur-sm`, `border border-dashed`, label em pill com ícone `GitBranch`.
-- Manter glassmorphism atual de scrollbars (sem mudanças globais).
-
-## Validação
-
-1. Visual em /metrics (aba Custos) com clínica vazia e clínica com tráfego — checar fallback "—".
-2. Drawer em /pipeline-runs abrindo um RunItem antigo (V3) e novo (V6) — ambos renderizam sem erro.
-3. Dialog de escopo: selecionar `parallel` e enviar — confirmar request payload `only_agent: "parallel"`.
-4. Tipos TS compilam (build automático do harness).
-
-## Fora do escopo
-
-- Mudanças em edge functions (`pipeline-classify`, `pipeline-run-executor`).
-- Migrações DB.
-- Atualização de docs em `docs/pipeline/runtime/CLASSIFIER.md` (pode ser próxima fase).
+- Nenhuma alteração em código (`src/**`, `supabase/functions/**`).
+- Não recriar `scripts/docs-sync.mjs` / `docs/INDEX.json` (memória confirma que não existem neste projeto).
+- Não revisar docs fora de `docs/pipeline/**` (email, inbox, admin, etc.).
