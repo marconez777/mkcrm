@@ -17,6 +17,22 @@ related_docs:
 
 # Bugs conhecidos e limitações
 
+## -3. Dispatcher do `pipeline-run-executor` não aceita `only_agent='parallel'` (ABERTO — 2026-06-21)
+
+**Sintoma**: a UI `/pipeline-runs` oferece o botão "Só Paralelos" (Agendador + Tipificador + Movimentador), mas ao clicar nenhum dos três roda isoladamente — a request é descartada pelo backend.
+
+**Causa-raiz**: em `supabase/functions/pipeline-run-executor/index.ts`:
+- linha 88: `only_agent?: "summarizer" | "typifier" | "maestro"`
+- linhas 229-231 e 421-422: whitelist literal `["summarizer", "typifier", "maestro"]`.
+
+`parallel`, `agendador` e `movimentador` caem fora dessa lista e o campo é silenciosamente dropado, fazendo o executor rodar o flow completo (V6).
+
+**Workaround**: usar "Completo (V6)" enquanto isso.
+
+**Fix futuro**: estender a whitelist para incluir `agendador`, `movimentador` e o atalho `parallel`; em `agent-core.ts`, mapear `parallel` para rodar os 3 do meio em `Promise.all` pulando Resumidor/Maestro. Ver também `TRIGGERS_AUDIT.md §5 (G3)`.
+
+
+
 ## -2. Telemetria do classifier agrupada sob um único `operation` (CORRIGIDO 2026-06-20 — V6)
 
 **Sintoma**: o painel `/metrics/ai-usage` mostrava o classifier como uma única linha (`classifier`), impossibilitando comparar custo/latência por agente quando a linha de montagem rodava de fato 3+ chamadas LLM em sequência.
