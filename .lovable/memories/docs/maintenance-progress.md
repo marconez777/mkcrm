@@ -4,9 +4,12 @@ description: Snapshot do que está documentado em docs/pipeline/runtime/ + estad
 type: feature
 ---
 
-## docs/pipeline/runtime/ — atualizado 2026-06-20
+## docs/pipeline/runtime/ — atualizado 2026-06-21
 
-Espelho do código deployado. Todos os arquivos refletem o **Classifier V6 de 5 agentes** (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro). `CLASSIFIER.md` reescrito; `ARCHITECTURE.md`, `EVENTS_TELEMETRY.md`, `README.md`, `GATES.md`, `KNOWN_ISSUES.md`, `SUMMARIZER.md` atualizados em 2026-06-20. `docs/pipeline/README.md` e `AUTOMATION_PLAN.md` ganharam nota apontando para runtime/.
+Espelho do código deployado. Todos os arquivos refletem o **Classifier V6 de 5 agentes** (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro).
+
+**Auditoria de gatilhos (2026-06-21)** em `docs/pipeline/runtime/TRIGGERS_AUDIT.md` — snapshot vivo de `cron.job` (29 jobs), `pg_trigger` (~80) e webhooks públicos. `DATABASE_LIVE.md` ganhou §Triggers expandida (11 triggers a mais) e §Crons com `outreach-recovery-tick-daily`. `KNOWN_ISSUES.md -3` registra que `only_agent='parallel'` ainda não é aceito pelo dispatcher (`pipeline-run-executor/index.ts:88,229,421`). `AUDIT_CHECKLIST.md` Q29 atualizado para 9 jobs.
+
 
 ## Pipeline V6 — DEPLOYADO (2026-06-20)
 
