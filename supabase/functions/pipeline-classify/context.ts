@@ -183,15 +183,6 @@ export async function loadLeadContext(
       (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
     ) || tags.includes("paciente_antigo");
 
-  return {
-    kind: "ok",
-    ctx: {
-  const tags = ((leadRow.tags ?? []) as string[]).map(String);
-  const hasBeenTreatedBefore =
-    recentStageHistory.some(
-      (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
-    ) || tags.includes("paciente_antigo");
-
   const clinicFieldSchema: ClinicFieldDef[] = (clinicFieldsRaw ?? [])
     .filter((r: { field_type: string }) => AI_FILLABLE_TYPES.has(r.field_type))
     .map((r: { field_key: string; label: string; field_type: string; options: unknown }) => ({
