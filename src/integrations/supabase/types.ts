@@ -1849,6 +1849,47 @@ export type Database = {
           },
         ]
       }
+      clinic_monthly_reports: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          email_sent_at: string | null
+          id: string
+          payload: Json
+          report_kind: string
+          report_month: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          email_sent_at?: string | null
+          id?: string
+          payload?: Json
+          report_kind?: string
+          report_month: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          email_sent_at?: string | null
+          id?: string
+          payload?: Json
+          report_kind?: string
+          report_month?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_monthly_reports_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_secrets: {
         Row: {
           clinic_id: string
@@ -4676,6 +4717,7 @@ export type Database = {
       }
       pipeline_stages: {
         Row: {
+          auto_tag_on_enter: string[]
           clinic_id: string
           color: string
           created_at: string
@@ -4687,6 +4729,7 @@ export type Database = {
           position: number
         }
         Insert: {
+          auto_tag_on_enter?: string[]
           clinic_id?: string
           color?: string
           created_at?: string
@@ -4698,6 +4741,7 @@ export type Database = {
           position: number
         }
         Update: {
+          auto_tag_on_enter?: string[]
           clinic_id?: string
           color?: string
           created_at?: string
