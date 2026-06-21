@@ -4,16 +4,20 @@ topic: kanban
 kind: flow
 audience: agent
 updated: 2026-06-21
-summary: "Fluxo novo do pipeline da Clínica ÓR: 2 follow-ups antes de Sem Resposta, ciclo mensal para Paciente Antigo e duas geladeiras de nutrição com tags/segmentos automáticos."
+summary: "Fluxo novo do pipeline da Clínica ÓR: 2 follow-ups antes de Sem Resposta, ciclo mensal para Paciente Antigo, duas geladeiras de nutrição com tags/segmentos automáticos e relatório Dia 1."
 code_refs:
   - supabase/functions/automations-tick/
   - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+  - src/components/tracking/MonthlyFinalizadosReportCard.tsx
   - src/pages/Tracking.tsx
 related_docs:
   - docs/pipeline/runtime/STAGES_LIVE.md
   - docs/pipeline/runtime/DETERMINISTIC_RULES.md
   - docs/pipeline/runtime/TRIGGERS_AUDIT.md
 ---
+
 
 # Clínica ÓR — Fluxo novo do pipeline
 
@@ -52,7 +56,7 @@ flowchart TD
 | Qualificação | +48h sem resposta | IA follow-up #2 (mantém stage) |
 | Qualificação | após #2 ainda sem resposta | Move → Sem Resposta |
 | Sem Resposta | +7 dias parado | Move → Nutrição Inativa (Geladeira) |
-| 1ª Sessão Finalizada | Dia 1 do mês 03:00 (cron) | Move → Paciente Antigo |
+| 1ª Sessão Finalizada | Dia 1 do mês (cron `pipeline-monthly-cycle-or`) | Move → Paciente Antigo |
 | Paciente Antigo | +60d sem inbound | Move → Nutrição Antigos (>60d) |
 | Qualquer geladeira | mensagem inbound | Move → Qualificação |
 
@@ -78,4 +82,15 @@ Trigger: `apply_stage_auto_tags()` após INSERT em `lead_stage_history` mescla a
 
 ## Relatório Dia 1
 
-Edge function `report-finalizados-mensal-or` (cron `0 6 1 * *`) conta leads que entraram em `Consulta Finalizada` e `1ª Sessão Finalizada` no mês anterior (via `lead_stage_history`), persiste em `clinic_monthly_reports`, envia email para o admin e renderiza card em `/tracking`.
+Edge function `report-finalizados-mensal-or` (cron `0 6 1 * *`, job `report-finalizados-mensal-or-day1`) conta leads que entraram em `Consulta Finalizada` e `1ª Sessão Finalizada` no mês anterior via `lead_stage_history`, persiste em `clinic_monthly_reports` (upsert), envia email para o admin usando o template `or-monthly-finalizados-report` e renderiza card em `/tracking` via `MonthlyFinalizadosReportCard.tsx` (últimos 12 meses).
+
+## Sequências (Fase 5)
+
+3 sequências `pipeline_enter` criadas em `message_sequences` + `stage_sequence_bindings` (`on_enter`), todas **disabled** aguardando copy:
+
+- `ÓR — Nutrição Leads` → stage Nutrição Inativa (Geladeira de Leads)
+- `ÓR — Nutrição Antigos` → stage Nutrição Antigos (>60d)
+- `ÓR — Reativação Paciente Antigo` → stage Paciente antigo
+
+Todas com `stop_on_reply=true`. Ativar em `/sequences` quando as mensagens estiverem prontas.
+
