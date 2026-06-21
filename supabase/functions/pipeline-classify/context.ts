@@ -186,6 +186,26 @@ export async function loadLeadContext(
   return {
     kind: "ok",
     ctx: {
+  const tags = ((leadRow.tags ?? []) as string[]).map(String);
+  const hasBeenTreatedBefore =
+    recentStageHistory.some(
+      (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
+    ) || tags.includes("paciente_antigo");
+
+  const clinicFieldSchema: ClinicFieldDef[] = (clinicFieldsRaw ?? [])
+    .filter((r: { field_type: string }) => AI_FILLABLE_TYPES.has(r.field_type))
+    .map((r: { field_key: string; label: string; field_type: string; options: unknown }) => ({
+      field_key: String(r.field_key),
+      label: String(r.label ?? r.field_key),
+      field_type: String(r.field_type),
+      options: Array.isArray(r.options)
+        ? (r.options as unknown[]).map((o) => String(o))
+        : [],
+    }));
+
+  return {
+    kind: "ok",
+    ctx: {
       lead: {
         id: leadRow.id as string,
         clinic_id: leadRow.clinic_id as string,
@@ -205,6 +225,7 @@ export async function loadLeadContext(
       firstMessageAt: firstMsg?.created_at ?? null,
       recentStageHistory,
       hasBeenTreatedBefore,
+      clinicFieldSchema,
       nowMs: Date.now(),
     },
   };
