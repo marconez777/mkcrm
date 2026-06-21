@@ -8,6 +8,7 @@ type Automation = {
   id: string;
   name: string;
   enabled: boolean;
+  clinic_id: string;
   trigger_type: string;
   trigger_config: any;
   action_type: string;
@@ -90,7 +91,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
     let q = supabase
       .from("leads")
-      .select("id, stage_id, last_message_at")
+      .select("id, stage_id, last_message_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .lte("last_message_at", cutoff)
       .is("archived_at", null)
       .limit(50);
@@ -115,7 +117,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
     let q = supabase
       .from("leads")
-      .select("id, stage_id, stage_changed_at")
+      .select("id, stage_id, stage_changed_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .lte("stage_changed_at", cutoff)
       .is("archived_at", null)
       .limit(50);
@@ -142,7 +145,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
 
     let q = supabase
       .from("leads")
-      .select("id, stage_id, custom_fields, updated_at")
+      .select("id, stage_id, custom_fields, updated_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .not("custom_fields->>" + fieldKey, "is", null)
       .is("archived_at", null)
       .limit(200);
@@ -354,6 +358,17 @@ Deno.serve(async (req) => {
         ? Math.max(a.cooldown_hours ?? 0, Math.ceil((offsetMin / 60) * 1.5), 1)
         : Math.max(a.cooldown_hours ?? 0, 1);
       for (const lead of candidates) {
+        // Defesa: nunca execute uma automação contra lead de outra clínica.
+        if (lead.clinic_id && lead.clinic_id !== a.clinic_id) {
+          console.warn("[automations-tick] skipped cross-clinic", {
+            automation_id: a.id,
+            automation_clinic: a.clinic_id,
+            lead_id: lead.id,
+            lead_clinic: lead.clinic_id,
+          });
+          skipped++;
+          continue;
+        }
         const apptISO: string | null = lead.appointment_at ?? null;
         const skip = isAppt && apptISO
           ? await shouldSkipForAppointment(supabase, a.id, lead.id, effectiveCooldownH, apptISO)
