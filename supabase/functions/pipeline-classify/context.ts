@@ -15,6 +15,25 @@ export type Msg = {
   created_at: string;
 };
 
+// Tipos de campo que o Preenchedor (LLM) pode escrever a partir do conteúdo
+// das mensagens. Outros tipos (datetime/date/url/currency) são preenchidos
+// determinísticamente por outros agentes/regras e NÃO devem ir no prompt.
+const AI_FILLABLE_TYPES = new Set<string>([
+  "text",
+  "textarea",
+  "select",
+  "multiselect",
+  "boolean",
+  "number",
+]);
+
+export type ClinicFieldDef = {
+  field_key: string;
+  label: string;
+  field_type: string;
+  options: string[]; // [] quando não-enum
+};
+
 export type LeadContext = {
   lead: {
     id: string;
@@ -35,6 +54,9 @@ export type LeadContext = {
   firstMessageAt: string | null;
   recentStageHistory: Array<{ at: string; from: string | null; to: string | null }>;
   hasBeenTreatedBefore: boolean;
+  /** Schema de custom_fields declarado pela clínica (lead_custom_fields).
+   *  Filtrado a tipos preenchíveis por IA. Vazio → fallback hardcoded. */
+  clinicFieldSchema: ClinicFieldDef[];
   nowMs: number;
 };
 
