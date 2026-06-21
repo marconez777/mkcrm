@@ -69,7 +69,7 @@ related_docs:
 
 27. **Como o `pipeline_id` é mantido em sync com `stage_id`?** → `DATABASE_LIVE.md` (trigger `sync_lead_pipeline_id` deriva)
 28. **Onde a idempotência de moves é gravada?** → `DATABASE_LIVE.md` + `EVENTS_TELEMETRY.md` (`lead_events.type='pipeline_move_attempted'`)
-29. **Quais crons estão registrados?** → `DATABASE_LIVE.md` § crons (tabela com 8 jobs do pipeline)
+29. **Quais crons estão registrados?** → `DATABASE_LIVE.md` § crons + `TRIGGERS_AUDIT.md` (9 jobs do pipeline + 3 das automações da ferramenta)
 
 ## Operação
 
