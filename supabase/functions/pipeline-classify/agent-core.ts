@@ -10,7 +10,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4
 import { generateText, Output } from "npm:ai@^6";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 import { logUsage } from "../_shared/metrics.ts";
-import { buildContextBlock, formatMessages, type LeadContext } from "./context.ts";
+import { buildContextBlock, formatMessages, type ClinicFieldDef, type LeadContext } from "./context.ts";
 import {
   CANON_NAMES,
   INTENT_VALUES,
@@ -178,15 +178,9 @@ async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicO
 
 // ===== Agente 3: Preenchedor (Tipificador) =====
 
-function buildTypifierSystem(): string {
-  return `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
-
-Tarefa:
-- "tags_suggested": liste TODAS as tags da whitelist:
-  [welcome_sent, b2b_auto, urgencia_clinica, reativacao, no_show, reagendamento_pendente, reagendamento_solicitado, aguardando_nova_data, pagamento_alegado, consulta_agendada, tratamento_em_andamento, agendamento_sugerido, judicializacao, precisa_atencao_humana]
-
-- "custom_fields_patch": objeto com chaves a atualizar. VOCÊ SÓ PODE PREENCHER AS SEGUINTES CHAVES:
-  1. "status_financeiro": ("pago", "pendente", "parcial", "atrasado", "nao_aplicavel")
+// Chaves canônicas hardcoded — usadas como FALLBACK quando a clínica não
+// declarou nenhum lead_custom_fields. Preserva o comportamento anterior.
+const FALLBACK_TYPIFIER_KEYS = `  1. "status_financeiro": ("pago", "pendente", "parcial", "atrasado", "nao_aplicavel")
      **ATENÇÃO**: SÓ USE "pago" SE O RESUMO AFIRMAR QUE A SECRETÁRIA CONFIRMOU O PAGAMENTO. Se o paciente apenas alega, NÃO coloque "pago". Em vez disso, coloque a tag "pagamento_alegado".
   2. "interesse_consulta": array de string (ex: ["ivan", "maisa"])
   3. "interesse_tratamento": array de string (ex: ["cetamina", "emt", "hipnose", "outro", "nenhum"])
@@ -194,9 +188,58 @@ Tarefa:
   5. "possui_liminar_judicial": boolean
   6. "saldo_sessoes_pacote": number
   7. "modalidade_preferida": string ("presencial", "online", "indiferente")
-  8. "motivo_cancelamento": string
-  
-  CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested".
+  8. "motivo_cancelamento": string`;
+
+function describeFieldType(def: ClinicFieldDef): string {
+  switch (def.field_type) {
+    case "select":
+      return def.options.length
+        ? `string — UM dos valores: [${def.options.map((o) => JSON.stringify(o)).join(", ")}]`
+        : "string";
+    case "multiselect":
+      return def.options.length
+        ? `array de string — subconjunto de: [${def.options.map((o) => JSON.stringify(o)).join(", ")}]`
+        : "array de string";
+    case "boolean":
+      return "boolean (true/false)";
+    case "number":
+      return "number";
+    case "textarea":
+      return "string (texto livre, várias linhas)";
+    case "text":
+    default:
+      return "string";
+  }
+}
+
+/** Monta a seção de chaves do prompt do Preenchedor a partir do schema
+ *  declarado pela clínica. Schema vazio → fallback hardcoded. */
+function buildTypifierKeysBlock(schema: ClinicFieldDef[]): string {
+  if (!schema.length) return FALLBACK_TYPIFIER_KEYS;
+  return schema
+    .map((def, idx) => {
+      const desc = describeFieldType(def);
+      const special =
+        def.field_key === "status_financeiro"
+          ? `\n     **ATENÇÃO**: SÓ USE "pago" SE A SECRETÁRIA CONFIRMOU O PAGAMENTO. Se o paciente apenas alega, NÃO coloque "pago" — use a tag "pagamento_alegado".`
+          : "";
+      return `  ${idx + 1}. "${def.field_key}" (${def.label}): ${desc}${special}`;
+    })
+    .join("\n");
+}
+
+function buildTypifierSystem(schema: ClinicFieldDef[]): string {
+  const keysBlock = buildTypifierKeysBlock(schema);
+  return `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
+
+Tarefa:
+- "tags_suggested": liste TODAS as tags da whitelist:
+  [welcome_sent, b2b_auto, urgencia_clinica, reativacao, no_show, reagendamento_pendente, reagendamento_solicitado, aguardando_nova_data, pagamento_alegado, consulta_agendada, tratamento_em_andamento, agendamento_sugerido, judicializacao, precisa_atencao_humana]
+
+- "custom_fields_patch": objeto com chaves a atualizar. VOCÊ SÓ PODE PREENCHER AS SEGUINTES CHAVES (declaradas pela clínica). NÃO invente chaves fora desta lista — elas serão descartadas:
+${keysBlock}
+
+  CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
@@ -204,11 +247,11 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await generateText({
     model: ai.model(TYPIFIER_MODEL),
-    system: buildTypifierSystem(),
-    prompt: \`\${buildContextBlock(ctx)}
+    system: buildTypifierSystem(ctx.clinicFieldSchema),
+    prompt: `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
-\${summary}\`,
+${summary}`,
     output: Output.object({ schema: TypifierOutputSchema }),
   });
   return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };

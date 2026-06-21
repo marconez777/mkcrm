@@ -15,6 +15,25 @@ export type Msg = {
   created_at: string;
 };
 
+// Tipos de campo que o Preenchedor (LLM) pode escrever a partir do conteúdo
+// das mensagens. Outros tipos (datetime/date/url/currency) são preenchidos
+// determinísticamente por outros agentes/regras e NÃO devem ir no prompt.
+const AI_FILLABLE_TYPES = new Set<string>([
+  "text",
+  "textarea",
+  "select",
+  "multiselect",
+  "boolean",
+  "number",
+]);
+
+export type ClinicFieldDef = {
+  field_key: string;
+  label: string;
+  field_type: string;
+  options: string[]; // [] quando não-enum
+};
+
 export type LeadContext = {
   lead: {
     id: string;
@@ -35,6 +54,9 @@ export type LeadContext = {
   firstMessageAt: string | null;
   recentStageHistory: Array<{ at: string; from: string | null; to: string | null }>;
   hasBeenTreatedBefore: boolean;
+  /** Schema de custom_fields declarado pela clínica (lead_custom_fields).
+   *  Filtrado a tipos preenchíveis por IA. Vazio → fallback hardcoded. */
+  clinicFieldSchema: ClinicFieldDef[];
   nowMs: number;
 };
 
@@ -110,23 +132,32 @@ export async function loadLeadContext(
     .eq("id", leadRow.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
 
-  const [{ count: totalMessages }, { data: firstMsg }, { data: stageHistRaw }] =
-    await Promise.all([
-      client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
-      client
-        .from("messages")
-        .select("created_at")
-        .eq("lead_id", leadId)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      client
-        .from("lead_stage_history")
-        .select("moved_at, from_stage_id, to_stage_id")
-        .eq("lead_id", leadId)
-        .order("moved_at", { ascending: false })
-        .limit(8),
-    ]);
+  const [
+    { count: totalMessages },
+    { data: firstMsg },
+    { data: stageHistRaw },
+    { data: clinicFieldsRaw },
+  ] = await Promise.all([
+    client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
+    client
+      .from("messages")
+      .select("created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from("lead_stage_history")
+      .select("moved_at, from_stage_id, to_stage_id")
+      .eq("lead_id", leadId)
+      .order("moved_at", { ascending: false })
+      .limit(8),
+    client
+      .from("lead_custom_fields")
+      .select("field_key, label, field_type, options, position")
+      .eq("clinic_id", leadRow.clinic_id as string)
+      .order("position", { ascending: true }),
+  ]);
 
   const stageIds = new Set<string>();
   for (const h of stageHistRaw ?? []) {
@@ -152,6 +183,17 @@ export async function loadLeadContext(
       (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
     ) || tags.includes("paciente_antigo");
 
+  const clinicFieldSchema: ClinicFieldDef[] = (clinicFieldsRaw ?? [])
+    .filter((r: { field_type: string }) => AI_FILLABLE_TYPES.has(r.field_type))
+    .map((r: { field_key: string; label: string; field_type: string; options: unknown }) => ({
+      field_key: String(r.field_key),
+      label: String(r.label ?? r.field_key),
+      field_type: String(r.field_type),
+      options: Array.isArray(r.options)
+        ? (r.options as unknown[]).map((o) => String(o))
+        : [],
+    }));
+
   return {
     kind: "ok",
     ctx: {
@@ -174,6 +216,7 @@ export async function loadLeadContext(
       firstMessageAt: firstMsg?.created_at ?? null,
       recentStageHistory,
       hasBeenTreatedBefore,
+      clinicFieldSchema,
       nowMs: Date.now(),
     },
   };
