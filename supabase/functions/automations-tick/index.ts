@@ -358,6 +358,17 @@ Deno.serve(async (req) => {
         ? Math.max(a.cooldown_hours ?? 0, Math.ceil((offsetMin / 60) * 1.5), 1)
         : Math.max(a.cooldown_hours ?? 0, 1);
       for (const lead of candidates) {
+        // Defesa: nunca execute uma automação contra lead de outra clínica.
+        if (lead.clinic_id && lead.clinic_id !== a.clinic_id) {
+          console.warn("[automations-tick] skipped cross-clinic", {
+            automation_id: a.id,
+            automation_clinic: a.clinic_id,
+            lead_id: lead.id,
+            lead_clinic: lead.clinic_id,
+          });
+          skipped++;
+          continue;
+        }
         const apptISO: string | null = lead.appointment_at ?? null;
         const skip = isAppt && apptISO
           ? await shouldSkipForAppointment(supabase, a.id, lead.id, effectiveCooldownH, apptISO)
