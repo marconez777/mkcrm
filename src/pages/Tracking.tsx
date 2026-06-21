@@ -1008,6 +1008,8 @@ export default function Tracking() {
         />
       </div>
 
+      <MonthlyFinalizadosReportCard clinicId={clinicId} />
+
       <div className="relative">
       <Tabs defaultValue="visitors">
 
