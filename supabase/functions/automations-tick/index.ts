@@ -91,7 +91,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
     let q = supabase
       .from("leads")
-      .select("id, stage_id, last_message_at")
+      .select("id, stage_id, last_message_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .lte("last_message_at", cutoff)
       .is("archived_at", null)
       .limit(50);
