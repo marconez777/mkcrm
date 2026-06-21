@@ -145,7 +145,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
 
     let q = supabase
       .from("leads")
-      .select("id, stage_id, custom_fields, updated_at")
+      .select("id, stage_id, custom_fields, updated_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .not("custom_fields->>" + fieldKey, "is", null)
       .is("archived_at", null)
       .limit(200);
