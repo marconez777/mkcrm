@@ -132,23 +132,32 @@ export async function loadLeadContext(
     .eq("id", leadRow.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
 
-  const [{ count: totalMessages }, { data: firstMsg }, { data: stageHistRaw }] =
-    await Promise.all([
-      client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
-      client
-        .from("messages")
-        .select("created_at")
-        .eq("lead_id", leadId)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      client
-        .from("lead_stage_history")
-        .select("moved_at, from_stage_id, to_stage_id")
-        .eq("lead_id", leadId)
-        .order("moved_at", { ascending: false })
-        .limit(8),
-    ]);
+  const [
+    { count: totalMessages },
+    { data: firstMsg },
+    { data: stageHistRaw },
+    { data: clinicFieldsRaw },
+  ] = await Promise.all([
+    client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
+    client
+      .from("messages")
+      .select("created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from("lead_stage_history")
+      .select("moved_at, from_stage_id, to_stage_id")
+      .eq("lead_id", leadId)
+      .order("moved_at", { ascending: false })
+      .limit(8),
+    client
+      .from("lead_custom_fields")
+      .select("field_key, label, field_type, options, position")
+      .eq("clinic_id", leadRow.clinic_id as string)
+      .order("position", { ascending: true }),
+  ]);
 
   const stageIds = new Set<string>();
   for (const h of stageHistRaw ?? []) {
