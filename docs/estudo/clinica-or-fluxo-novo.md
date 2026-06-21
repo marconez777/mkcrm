@@ -56,7 +56,7 @@ flowchart TD
 | Qualificação | +48h sem resposta | IA follow-up #2 (mantém stage) |
 | Qualificação | após #2 ainda sem resposta | Move → Sem Resposta |
 | Sem Resposta | +7 dias parado | Move → Nutrição Inativa (Geladeira) |
-| 1ª Sessão Finalizada | Dia 1 do mês 03:00 (cron) | Move → Paciente Antigo |
+| 1ª Sessão Finalizada | Dia 1 do mês (cron `pipeline-monthly-cycle-or`) | Move → Paciente Antigo |
 | Paciente Antigo | +60d sem inbound | Move → Nutrição Antigos (>60d) |
 | Qualquer geladeira | mensagem inbound | Move → Qualificação |
 
