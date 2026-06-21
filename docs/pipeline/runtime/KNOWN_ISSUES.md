@@ -3,19 +3,69 @@ title: "Bugs conhecidos do pipeline"
 topic: kanban
 kind: troubleshooting
 audience: agent
-updated: 2026-06-20
-summary: "Bugs reportados e seu status: telemetria agrupada do classifier (CORRIGIDO 2026-06-20 com V6), tag 1ª consulta em paciente antigo (CORRIGIDO), data 19/06 vs 18/06 (CORRIGIDO), lock manual sem botão Destravar (CORRIGIDO), gaps estruturais (G10 implementado, whitelist de tags não enforced)."
+updated: 2026-06-21
+summary: "Bugs reportados e seu status: cross-clinic em automations-tick + leads MKart no funil ÓR (CORRIGIDO 2026-06-21 com trigger), dispatcher do executor sem `parallel`, telemetria classifier (CORRIGIDO V6), gaps estruturais."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
+  - supabase/functions/automations-tick/index.ts
   - src/lib/manual-stage-move.ts
   - src/pages/Kanban.tsx
 related_docs:
   - docs/pipeline/runtime/CLASSIFIER.md
   - docs/pipeline/runtime/HUMAN_REACTOR.md
   - docs/pipeline/runtime/TAGS_LIVE.md
+  - docs/pipeline/runtime/TRIGGERS_AUDIT.md
 ---
 
 # Bugs conhecidos e limitações
+
+## -5. Leads MKart vazando no funil ÓR (CORRIGIDO 2026-06-21)
+
+**Sintoma**: a coluna "Leads de entrada" do Kanban da ÓR mostrava 27 leads, mas 19 eram da clínica MKart (`clinic_id='d0a57fa2-10f2-4d86-888f-39f5d977705d'`) com `pipeline_id` apontando para o pipeline da ÓR (`17c27f4d-8256-4ea7-b5b9-ed706494f686`).
+
+**Causa-raiz**: `leads.pipeline_id` / `leads.stage_id` não tinham FK composta `(clinic_id, *)`. Migração antiga ou import manual cruzou os IDs.
+
+**Fix aplicado**:
+- 1ª onda (20 leads): `UPDATE leads SET pipeline_id='7ee3b834-…', stage_id='f2ab32fd-de68-…'` filtrando `clinic_id` MKart + `pipeline_id` ÓR. Histórico em `lead_stage_history` com `reason='correcao_cross_clinic_or_to_mkart'`.
+- 2ª onda (2 leads residuais, 2026-06-21): mesmo `UPDATE`, `reason='correcao_cross_clinic_or_to_mkart_residual'`.
+- Trigger `trg_leads_enforce_coherence` (`BEFORE INS/UPD` de `clinic_id, pipeline_id, stage_id`) valida que `pipeline.clinic_id = lead.clinic_id` e `stage.pipeline_id = lead.pipeline_id`. Vide `TRIGGERS_AUDIT.md §2.3`.
+
+**Como verificar regressão**:
+```sql
+SELECT count(*) FROM leads l
+  JOIN pipelines p ON p.id = l.pipeline_id
+ WHERE p.clinic_id <> l.clinic_id;
+-- deve ser sempre 0
+```
+
+**Invariante**: nunca mover lead entre pipelines de clínicas diferentes. Toda edge function que faz `UPDATE leads SET pipeline_id/stage_id` deve buscar o destino dentro da mesma `clinic_id`.
+
+## -4. `automations-tick` rodando cross-clinic (CORRIGIDO 2026-06-21)
+
+**Sintoma**: 7.891 linhas em `automation_runs` onde `automation.clinic_id <> lead.clinic_id`. Risco de envio de WhatsApp/templates de uma clínica para leads de outra.
+
+**Causa-raiz**: em `supabase/functions/automations-tick/index.ts`, a função `findCandidates()` consultava `leads` sem filtrar por `clinic_id`. Cada automação habilitada iterava o universo completo de leads do projeto, filtrando só por `stage_id`/`last_message_at` — sem isolamento de tenant.
+
+**Fix aplicado**:
+- 3 queries de `leads` em `findCandidates()` ganharam `.eq("clinic_id", a.clinic_id)` (branches `no_reply_after`, `stage_idle`, `before_appointment`).
+- Guard defensivo no loop principal de `Deno.serve`: `if (lead.clinic_id !== a.clinic_id) { skipped++; console.warn(...); continue; }`.
+- `UPDATE automation_runs SET status='failed_cross_clinic'` em 7.891 linhas históricas (preserva registro, exclui das métricas).
+- Trigger `trg_automation_runs_clinic_coherence` (`BEFORE INS/UPD OF automation_id, lead_id`) bloqueia futuras gravações cross-clinic com `EXCEPTION` (errcode `check_violation`). Vide `TRIGGERS_AUDIT.md §2.3`.
+- Snapshot pré-fix: `/mnt/documents/snapshot-automation-runs-cross-clinic-pre-fix.csv` (7.891 linhas).
+
+**Como verificar regressão**:
+```sql
+SELECT count(*) FROM automation_runs ar
+  JOIN automations a ON a.id = ar.automation_id
+  JOIN leads       l ON l.id = ar.lead_id
+ WHERE a.clinic_id <> l.clinic_id
+   AND ar.status <> 'failed_cross_clinic';
+-- deve ser sempre 0
+```
+
+**Invariante**: qualquer edge function que itere `automations × leads` (ou `sequences × leads`, `email_automations × leads`, etc.) **DEVE** filtrar `leads.clinic_id = parent.clinic_id` na própria query do Postgres. O trigger é a última linha de defesa, mas falha o run inteiro — não confiar nele para correção silenciosa. Auditoria completa em `/mnt/documents/auditoria-cross-clinic.md`.
+
+
 
 ## -3. Dispatcher do `pipeline-run-executor` não aceita `only_agent='parallel'` (ABERTO — 2026-06-21)
 
