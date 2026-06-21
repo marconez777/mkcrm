@@ -82,4 +82,15 @@ Trigger: `apply_stage_auto_tags()` após INSERT em `lead_stage_history` mescla a
 
 ## Relatório Dia 1
 
-Edge function `report-finalizados-mensal-or` (cron `0 6 1 * *`) conta leads que entraram em `Consulta Finalizada` e `1ª Sessão Finalizada` no mês anterior (via `lead_stage_history`), persiste em `clinic_monthly_reports`, envia email para o admin e renderiza card em `/tracking`.
+Edge function `report-finalizados-mensal-or` (cron `0 6 1 * *`, job `report-finalizados-mensal-or-day1`) conta leads que entraram em `Consulta Finalizada` e `1ª Sessão Finalizada` no mês anterior via `lead_stage_history`, persiste em `clinic_monthly_reports` (upsert), envia email para o admin usando o template `or-monthly-finalizados-report` e renderiza card em `/tracking` via `MonthlyFinalizadosReportCard.tsx` (últimos 12 meses).
+
+## Sequências (Fase 5)
+
+3 sequências `pipeline_enter` criadas em `message_sequences` + `stage_sequence_bindings` (`on_enter`), todas **disabled** aguardando copy:
+
+- `ÓR — Nutrição Leads` → stage Nutrição Inativa (Geladeira de Leads)
+- `ÓR — Nutrição Antigos` → stage Nutrição Antigos (>60d)
+- `ÓR — Reativação Paciente Antigo` → stage Paciente antigo
+
+Todas com `stop_on_reply=true`. Ativar em `/sequences` quando as mensagens estiverem prontas.
+
