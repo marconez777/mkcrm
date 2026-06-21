@@ -89,9 +89,19 @@ related_docs:
 | `trg_validate_lead_custom_fields_enums` | `leads` | BEFORE INS/UPD | Valida enums `qualificacao`, `tentou_*`, etc. |
 | `trg_track_custom_fields_human_edits` | `leads` | BEFORE UPDATE | Marca edição humana para não ser sobrescrito pela IA |
 
-### 2.3 Outros triggers de domínio (fora do funil)
+### 2.3 Triggers de coerência multi-tenant (defesa cross-clinic)
+
+| Trigger | Tabela | Quando | Função | Origem |
+|---|---|---|---|---|
+| `trg_leads_enforce_coherence` | `leads` | BEFORE INS/UPD OF `clinic_id, pipeline_id, stage_id` | `enforce_lead_clinic_coherence()` | KNOWN_ISSUES §-5 (2026-06-21) |
+| `trg_automation_runs_clinic_coherence` | `automation_runs` | BEFORE INS/UPD OF `automation_id, lead_id` | `enforce_automation_run_clinic_coherence()` | KNOWN_ISSUES §-4 (2026-06-21) |
+
+Ambos são `SECURITY DEFINER` com `SET search_path = public` e levantam `EXCEPTION` (errcode `check_violation`) ao detectar mistura de clínicas. **Última linha de defesa** — não confiar para correção silenciosa; o filtro `clinic_id` deve sempre existir na query da edge function.
+
+### 2.4 Outros triggers de domínio (fora do funil)
 
 `email_queue_health_trigger`, `email_logs_bounce_health_trigger`, `trg_email_queue_campaign_counters`, `trg_cancel_pending_on_unsubscribe`, `trg_ai_usage_spend_guard`, `trg_assert_clinic_id` em várias tabelas. Não fazem parte da V6 mas valem citar.
+
 
 ## 3. Webhooks públicos (`verify_jwt=false` em `config.toml`)
 
