@@ -8,6 +8,7 @@ type Automation = {
   id: string;
   name: string;
   enabled: boolean;
+  clinic_id: string;
   trigger_type: string;
   trigger_config: any;
   action_type: string;
