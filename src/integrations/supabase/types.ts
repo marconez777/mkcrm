@@ -3944,6 +3944,7 @@ export type Database = {
           created_at: string
           custom_fields: Json
           custom_fields_last_human_edit: Json
+          custom_fields_legacy: Json
           deal_value: number | null
           email: string | null
           fbclid: string | null
@@ -3991,6 +3992,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json
           custom_fields_last_human_edit?: Json
+          custom_fields_legacy?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
@@ -4038,6 +4040,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json
           custom_fields_last_human_edit?: Json
+          custom_fields_legacy?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
