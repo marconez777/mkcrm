@@ -9,7 +9,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText, Output } from "npm:ai@^6";
-import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { getClassifierAi, pickModel, type ClassifierAi } from "../_shared/classifier-ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { buildContextBlock, formatMessages, type ClinicFieldDef, type LeadContext } from "./context.ts";
 import {
