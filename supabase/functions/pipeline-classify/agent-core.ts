@@ -139,16 +139,17 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
 }
 
 
-const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
-const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
-const AGENDADOR_MODEL = "gpt-5-nano";    // PR11.9: nano (schema trivial; ~5× mais barato)
-const TYPIFIER_MODEL = "gpt-5-mini";      // mantido: schema com whitelist + custom_fields_patch livre
-const MOVIMENTADOR_MODEL = "gpt-5-nano"; // PR11.9: nano (decisão binária + label)
+// Modelos por provider. `pickModel(ai.provider, ...)` escolhe em runtime.
+// Lovable AI: Gemini via Lovable Gateway (créditos do workspace, teto rígido).
+// OpenAI BYOK: legado, mantido para rollback via CLASSIFIER_PROVIDER=openai.
+const SUMMARIZER_SPEC          = { openai: "gpt-4o",      lovable: "google/gemini-2.5-flash" };
+const SUMMARIZER_FALLBACK_SPEC = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash-lite" };
+const AGENDADOR_SPEC           = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
+const TYPIFIER_SPEC            = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash" };
+const MOVIMENTADOR_SPEC        = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
+const MAESTRO_SPEC             = { openai: "gpt-5",       lovable: "google/gemini-2.5-flash" };
 
-const MAESTRO_MODEL = "gpt-5";
-
-
-export const AGENT_MODEL = MAESTRO_MODEL;
+export const AGENT_MODEL = "classifier"; // legado — não é mais um id único
 
 // ===== Agente 1: Resumidor =====
 
