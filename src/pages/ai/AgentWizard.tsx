@@ -1349,7 +1349,7 @@ function Step3({
   keySource: "builder" | "own";
   setKeySource: (s: "builder" | "own") => void;
   builderAvailable: boolean;
-  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key: string | null } | null;
+  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key_set: boolean } | null;
   provider: Provider;
   setProvider: (p: Provider) => void;
   apiKey: string;
