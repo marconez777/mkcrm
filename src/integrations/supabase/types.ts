@@ -5762,6 +5762,36 @@ export type Database = {
           },
         ]
       }
+      tag_usage_weekly: {
+        Row: {
+          applied_count: number
+          created_at: string
+          emit_count: number
+          id: string
+          tag: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          applied_count?: number
+          created_at?: string
+          emit_count?: number
+          id?: string
+          tag: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          applied_count?: number
+          created_at?: string
+          emit_count?: number
+          id?: string
+          tag?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       task_assignees: {
         Row: {
           attendant_id: string

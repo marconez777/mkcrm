@@ -613,5 +613,7 @@ Plano encerrado. Próximas correções devem abrir novo documento ou seção de 
 |---|---|
 | G1 — Views SQL (`v_maestro_outcomes_daily`, `v_classify_health_daily`, `v_ai_cost_daily`) com filtro `is_super_admin()` embutido | ✅ done |
 | G2 — Página `/admin/pipeline-health` (KPIs + stacked bar 14d + tabelas) com link no menu Admin > Operações | ✅ done |
-| G3 — Alerta de fila travada (`pipeline-queue-alert`) | ⏸ próximo passo |
-| G4 — `tag_usage_weekly` para podar whitelist | ⏸ próximo passo |
+| G3 — Alerta de fila travada (`pipeline-queue-alert`) | ✅ done — edge function + cron `*/10 * * * *`; insere em `error_events` (severity `warning`) com dedup de 30 min quando `pending>10` ou `error_rate>5%`. Teste manual: `alerted: true` (pending=13). |
+| G4 — `tag_usage_weekly` para podar whitelist | ✅ done — tabela criada (RLS super_admin), edge function `tag-usage-weekly-rollup` + cron semanal `0 6 * * 1` agregando `tags_suggested` (emit) e `applied.tags.added` (applied). Primeira execução manual: 39 tags da semana 2026-06-15. |
+
+**Fase G encerrada.** Próximos passos: Fase G+ (notificações ativas Slack/e-mail, UI de poda de tags) ou Fase H (qualidade de classificação).
