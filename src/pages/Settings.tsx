@@ -183,6 +183,7 @@ export default function SettingsPage() {
                   {showEmail && <TabsTrigger value="email" className={triggerCls}>Email Marketing</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>Importações</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>IA do Pipeline</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>Tipos de agendamento</TabsTrigger>}
                 </>
               );
             })()}
