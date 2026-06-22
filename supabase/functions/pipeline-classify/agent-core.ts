@@ -160,7 +160,7 @@ Produza o resumo agora.`;
   } catch (err) {
     try {
       const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-      return { output: result.output as SummarizerOutput, model: \`\${SUMMARIZER_MODEL_FALLBACK} (fallback)\`, usage: (result as { usage?: unknown }).usage };
+      return { output: result.output as SummarizerOutput, model: `${SUMMARIZER_MODEL_FALLBACK} (fallback)`, usage: (result as { usage?: unknown }).usage };
     } catch (err2) {
       throw err2;
     }
@@ -185,8 +185,8 @@ async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicO
   const result = await generateText({
     model: ai.model(AGENDADOR_MODEL),
     system: buildAgendadorSystem(),
-    prompt: \`RESUMO factual do lead:
-\${summary}\`,
+    prompt: `RESUMO factual do lead:
+${summary}`,
     output: Output.object({ schema: AgendadorOutputSchema }),
   });
   return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
@@ -311,11 +311,11 @@ async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClin
   const result = await generateText({
     model: ai.model(MOVIMENTADOR_MODEL),
     system: buildMovimentadorSystem(),
-    prompt: \`Sinais determinísticos:
-\${JSON.stringify(signals, null, 2)}
+    prompt: `Sinais determinísticos:
+${JSON.stringify(signals, null, 2)}
 
 RESUMO:
-\${summary}\`,
+${summary}`,
     output: Output.object({ schema: MovimentadorOutputSchema }),
   });
   return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
@@ -350,15 +350,15 @@ async function runMaestro(
   const result = await generateText({
     model: ai.model(MAESTRO_MODEL),
     system: buildMaestroSystem(),
-    prompt: \`RESUMO Factual:
-\${summary}
+    prompt: `RESUMO Factual:
+${summary}
 
 OPINIÕES DOS AGENTES:
-Agendador: \${JSON.stringify(outAgendador, null, 2)}
-Preenchedor: \${JSON.stringify(outPreenchedor, null, 2)}
-Movimentador: \${JSON.stringify(outMovimentador, null, 2)}
+Agendador: ${JSON.stringify(outAgendador, null, 2)}
+Preenchedor: ${JSON.stringify(outPreenchedor, null, 2)}
+Movimentador: ${JSON.stringify(outMovimentador, null, 2)}
 
-Emita o veredicto final resolvendo inconsistências.\`,
+Emita o veredicto final resolvendo inconsistências.`,
     output: Output.object({ schema: MaestroOutputSchema }),
   });
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
@@ -410,7 +410,7 @@ export async function runAgent(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await recordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
-    return { error: \`agent_step1_failed: \${msg.slice(0, 200)}\` };
+    return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
   const lat1 = performance.now() - t1;
 
@@ -463,7 +463,7 @@ export async function runAgent(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
-    return { error: \`agent_step3_maestro_failed: \${msg.slice(0, 200)}\` };
+    return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
   const lat3 = performance.now() - t3;
 
