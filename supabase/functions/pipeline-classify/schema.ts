@@ -176,7 +176,8 @@ export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
 export const AgendadorOutputSchema = z.object({
   is_scheduling_action: z.boolean(),
   scheduling_intent: z.enum(["novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda", "nenhum"]).default("nenhum"),
-  reasons: z.array(z.string()).max(3).optional().default([]),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
 
