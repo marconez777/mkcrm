@@ -13,6 +13,7 @@ import {
   writeSkipTelemetry,
   updateWatermark,
 } from "./apply.ts";
+import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
