@@ -460,6 +460,7 @@ export type Database = {
       ai_agents: {
         Row: {
           api_key: string | null
+          api_key_set: boolean | null
           base_url: string | null
           builder_verified_at: string | null
           clinic_id: string
@@ -468,6 +469,7 @@ export type Database = {
           description: string | null
           draft_mode: boolean
           embedding_api_key: string | null
+          embedding_api_key_set: boolean | null
           embedding_model: string | null
           enabled: boolean
           id: string
@@ -482,6 +484,7 @@ export type Database = {
           provider: string
           rag_top_k: number
           reranker_api_key: string | null
+          reranker_api_key_set: boolean | null
           reranker_provider: string | null
           role: string | null
           silent: boolean
@@ -497,6 +500,7 @@ export type Database = {
         }
         Insert: {
           api_key?: string | null
+          api_key_set?: boolean | null
           base_url?: string | null
           builder_verified_at?: string | null
           clinic_id?: string
@@ -505,6 +509,7 @@ export type Database = {
           description?: string | null
           draft_mode?: boolean
           embedding_api_key?: string | null
+          embedding_api_key_set?: boolean | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
@@ -519,6 +524,7 @@ export type Database = {
           provider?: string
           rag_top_k?: number
           reranker_api_key?: string | null
+          reranker_api_key_set?: boolean | null
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
@@ -534,6 +540,7 @@ export type Database = {
         }
         Update: {
           api_key?: string | null
+          api_key_set?: boolean | null
           base_url?: string | null
           builder_verified_at?: string | null
           clinic_id?: string
@@ -542,6 +549,7 @@ export type Database = {
           description?: string | null
           draft_mode?: boolean
           embedding_api_key?: string | null
+          embedding_api_key_set?: boolean | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
@@ -556,6 +564,7 @@ export type Database = {
           provider?: string
           rag_top_k?: number
           reranker_api_key?: string | null
+          reranker_api_key_set?: boolean | null
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
@@ -7022,16 +7031,16 @@ export type Database = {
       admin_get_ai_agent: {
         Args: { _id: string }
         Returns: {
-          api_key: string | null
-          base_url: string | null
-          builder_verified_at: string | null
+          api_key_set: boolean
+          base_url: string
+          builder_verified_at: string
           clinic_id: string
           created_at: string
           debounce_seconds: number
-          description: string | null
+          description: string
           draft_mode: boolean
-          embedding_api_key: string | null
-          embedding_model: string | null
+          embedding_api_key_set: boolean
+          embedding_model: string
           enabled: boolean
           id: string
           is_system: boolean
@@ -7039,17 +7048,17 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
-          niche: string | null
-          niche_other: string | null
+          niche: string
+          niche_other: string
           planning_mode: boolean
           provider: string
           rag_top_k: number
-          reranker_api_key: string | null
-          reranker_provider: string | null
-          role: string | null
+          reranker_api_key_set: boolean
+          reranker_provider: string
+          role: string
           silent: boolean
           stages_enabled: boolean
-          system_key: string | null
+          system_key: string
           system_prompt: string
           temperature: number
           tools: Json
@@ -7058,12 +7067,6 @@ export type Database = {
           use_hyde: boolean
           use_memory: boolean
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "ai_agents"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       admin_get_last_seen: {
         Args: { _user_ids: string[] }
@@ -7094,16 +7097,16 @@ export type Database = {
       admin_list_ai_agents: {
         Args: never
         Returns: {
-          api_key: string | null
-          base_url: string | null
-          builder_verified_at: string | null
+          api_key_set: boolean
+          base_url: string
+          builder_verified_at: string
           clinic_id: string
           created_at: string
           debounce_seconds: number
-          description: string | null
+          description: string
           draft_mode: boolean
-          embedding_api_key: string | null
-          embedding_model: string | null
+          embedding_api_key_set: boolean
+          embedding_model: string
           enabled: boolean
           id: string
           is_system: boolean
@@ -7111,17 +7114,17 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
-          niche: string | null
-          niche_other: string | null
+          niche: string
+          niche_other: string
           planning_mode: boolean
           provider: string
           rag_top_k: number
-          reranker_api_key: string | null
-          reranker_provider: string | null
-          role: string | null
+          reranker_api_key_set: boolean
+          reranker_provider: string
+          role: string
           silent: boolean
           stages_enabled: boolean
-          system_key: string | null
+          system_key: string
           system_prompt: string
           temperature: number
           tools: Json
@@ -7130,12 +7133,6 @@ export type Database = {
           use_hyde: boolean
           use_memory: boolean
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "ai_agents"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       admin_overdue_list: {
         Args: never
@@ -7346,7 +7343,7 @@ export type Database = {
       get_builder_agent_for_clinic: {
         Args: { _clinic_id: string }
         Returns: {
-          api_key: string
+          api_key_set: boolean
           base_url: string
           builder_verified_at: string
           id: string
