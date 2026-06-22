@@ -998,6 +998,12 @@ export default function KanbanPage() {
           })()}
         </AlertDialogContent>
       </AlertDialog>
+      <CalendarSheet
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        pipelineId={currentId ?? null}
+        pipelineName={current?.name}
+      />
     </div>
   );
 }
