@@ -229,11 +229,14 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
   }
 
-  const tokenMasked = showToken ? data.token : data.token.slice(0, 8) + "•••••••••••••••";
-  const snippetCode = `<script async src="${SNIPPET_URL}?token=${data.token}"></script>`;
+  const tokenValue = data.token ?? "";
+  const tokenMasked = showToken
+    ? tokenValue
+    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : "Carregando…";
+  const snippetCode = `<script async src="${SNIPPET_URL}?token=${tokenValue}"></script>`;
   const pixelCode = `<script async src="${SUPABASE_URL}/functions/v1/tracking-pixel?project_id=${data.clinic_id}"></script>`;
   const primaryDomain = (data.allowed_domains || [])[0] || "seu-site.com";
-  const curlCode = `curl -X POST "${INGEST_URL}" \\\n  -H "Content-Type: application/json" \\\n  -H "x-form-token: ${data.token}" \\\n  -d '{"form_key":"contato-home","fields":{"name":"João","email":"joao@x.com","phone":"11999999999"}}'`;
+  const curlCode = `curl -X POST "${INGEST_URL}" \\\n  -H "Content-Type: application/json" \\\n  -H "x-form-token: ${tokenValue}" \\\n  -d '{"form_key":"contato-home","fields":{"name":"João","email":"joao@x.com","phone":"11999999999"}}'`;
 
   const aiPrompt = buildAiPrompt({
     pixelCode,
