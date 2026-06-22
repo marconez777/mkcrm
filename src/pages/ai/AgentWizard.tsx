@@ -720,11 +720,9 @@ export default function AgentWizard() {
       return;
     }
     const useBuilder = keySource === "builder";
-    const effectiveProvider = useBuilder ? (builderInfo?.provider as Provider) ?? provider : provider;
-    const effectiveApiKey = useBuilder ? builderInfo?.api_key ?? "" : apiKey;
-    const effectiveBaseUrl = useBuilder ? builderInfo?.base_url ?? null : baseUrl || null;
     const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
-    if (!effectiveApiKey || !effectiveModel) {
+    const hasKey = useBuilder ? !!builderInfo?.api_key_set : !!apiKey;
+    if (!hasKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
     }
@@ -754,31 +752,27 @@ export default function AgentWizard() {
       const description = [goalLabel, nicheLabel].filter(Boolean).join(" · ");
       const tools = filterKnownTools(bundle.suggested_tools);
 
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .insert({
-          clinic_id: clinicId,
+      // Criação via edge function: a "builder shared key" nunca trafega pelo client.
+      const { data, error } = await supabase.functions.invoke("agent-create", {
+        body: {
           name,
           description: description || null,
           role: goal || null,
           niche: niche || null,
           niche_other: nicheOther || null,
-          provider: effectiveProvider,
-          api_key: effectiveApiKey,
-          base_url: effectiveBaseUrl,
-          model: effectiveModel,
+          key_source: useBuilder ? "builder" : "own",
+          own_provider: useBuilder ? undefined : provider,
+          own_api_key: useBuilder ? undefined : apiKey,
+          own_base_url: useBuilder ? undefined : (baseUrl || null),
+          own_model: useBuilder ? undefined : effectiveModel,
           system_prompt: bundle.system_prompt,
           temperature: bundle.suggested_temperature,
           max_iterations: bundle.suggested_max_iterations,
           rag_top_k: bundle.suggested_top_k,
           tools,
-          enabled: false,
-          draft_mode: true,
-          builder_verified_at: useBuilder ? new Date().toISOString() : verifiedAt,
-        } as never)
-
-        .select("id")
-        .single();
+          verified_at: verifiedAt,
+        },
+      });
 
       if (error) throw error;
       const newId = (data as { id: string }).id;
