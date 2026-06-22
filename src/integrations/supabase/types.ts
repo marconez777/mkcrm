@@ -3955,6 +3955,7 @@ export type Database = {
           landing_page: string | null
           last_classified_at: string | null
           last_human_activity_at: string | null
+          last_inbound_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
           last_processed_message_id_classifier: string | null
@@ -4003,6 +4004,7 @@ export type Database = {
           landing_page?: string | null
           last_classified_at?: string | null
           last_human_activity_at?: string | null
+          last_inbound_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
@@ -4051,6 +4053,7 @@ export type Database = {
           landing_page?: string | null
           last_classified_at?: string | null
           last_human_activity_at?: string | null
+          last_inbound_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
