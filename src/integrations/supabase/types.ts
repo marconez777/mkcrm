@@ -7165,6 +7165,7 @@ export type Database = {
         }[]
       }
       cleanup_agent_caches: { Args: never; Returns: undefined }
+      cleanup_g10_expired: { Args: never; Returns: number }
       cleanup_stale_ai_agent_drafts: { Args: never; Returns: number }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
