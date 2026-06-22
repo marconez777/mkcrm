@@ -55,16 +55,19 @@ type Agent = {
   description: string | null;
   system_prompt: string;
   provider: Provider;
-  api_key: string | null;
+  api_key?: string | null; // write-only via update payload; never returned by reads
+  api_key_set?: boolean;
   base_url: string | null;
   model: string;
   temperature: number;
   enabled: boolean;
   tools: string[];
   embedding_model: string | null;
-  embedding_api_key: string | null;
+  embedding_api_key?: string | null; // write-only
+  embedding_api_key_set?: boolean;
   reranker_provider?: string | null;
-  reranker_api_key?: string | null;
+  reranker_api_key?: string | null; // write-only
+  reranker_api_key_set?: boolean;
   max_iterations?: number;
   use_hyde?: boolean;
   use_hybrid_search?: boolean;
