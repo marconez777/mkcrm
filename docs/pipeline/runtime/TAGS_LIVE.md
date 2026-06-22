@@ -3,10 +3,12 @@ title: "Tags reais no pipeline"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-18
-summary: "Inventário de tags efetivamente em uso na Clínica ÓR (top 15), whitelist v4.2 declarada em app_settings, tags protegidas do classifier, e mapa de quem escreve cada tag automática."
+updated: 2026-06-22
+summary: "Inventário de tags efetivamente em uso na Clínica ÓR, whitelist v4.2 dinâmica em app_settings (44 tags pós Fase A/P7), tags protegidas do classifier, e mapa de quem escreve cada tag automática."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
+  - supabase/functions/pipeline-classify/agent-core.ts
+  - supabase/functions/pipeline-classify/apply.ts
   - supabase/functions/pipeline-deterministic/index.ts
   - supabase/functions/pipeline-position-auditor/index.ts
   - supabase/functions/pipeline-post-move-verifier/index.ts
@@ -15,6 +17,7 @@ code_refs:
 related_docs:
   - docs/pipeline/runtime/CLASSIFIER.md
   - docs/pipeline/runtime/AUDITORS.md
+  - docs/pipeline/runtime/plan-correcoes.md
   - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
 ---
 
