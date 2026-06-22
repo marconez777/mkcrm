@@ -182,14 +182,15 @@ export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
 
 export const TypifierOutputSchema = z.object({
   tags_suggested: z.array(z.string().max(40)).max(8).default([]),
-  custom_fields_patch: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
-    )
-    .default({}),
+  // Schema relaxado: gpt-5-mini ocasionalmente devolve valores fora do union
+  // (objeto aninhado, número-como-string, array misto) e o SDK retornava
+  // "No object generated: response did not match schema". A validação de
+  // tipo por chave acontece em apply.ts::tryApplyField contra o clinicFieldSchema
+  // declarado pela clínica — chaves inválidas são descartadas com segurança.
+  custom_fields_patch: z.record(z.string(), z.any()).default({}),
 });
 export type TypifierOutput = z.infer<typeof TypifierOutputSchema>;
+
 
 export const MovimentadorOutputSchema = z.object({
   stage_suggestion: z.string(),

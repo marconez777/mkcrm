@@ -3,8 +3,9 @@ title: "Classifier LLM (pipeline-classify) — runtime V6 (5 Agentes)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-20
-summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro). Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
+updated: 2026-06-22
+summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor gpt-4o → [Agendador gpt-5-nano ∥ Tipificador gpt-5-mini ∥ Movimentador gpt-5-nano] → Maestro gpt-5). Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
+
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
   - supabase/functions/pipeline-classify/schema.ts
@@ -55,7 +56,7 @@ related_docs:
 | | |
 |---|---|
 | Entry | `supabase/functions/pipeline-classify/index.ts` |
-| Modelos | `gpt-4o` (Resumidor) + `gpt-5-mini` × 3 (Agendador, Tipificador, Movimentador, paralelos) + `gpt-5` (Maestro) |
+| Modelos | `gpt-4o` (Resumidor) + `gpt-5-nano` (Agendador) + `gpt-5-mini` (Tipificador) + `gpt-5-nano` (Movimentador), os 3 paralelos + `gpt-5` (Maestro). **PR11.9**: Agendador/Movimentador rebaixados de mini→nano (schemas triviais; ~5× mais barato; latência igual ou melhor). |
 | Chamadas LLM por execução | até **5** (3 fases: serial → paralela → serial) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
@@ -99,19 +100,23 @@ z.object({
 })
 ```
 
-**Agente 2a — Agendador** (`gpt-5-mini`, paralelo)
+**Agente 2a — Agendador** (`gpt-5-nano`, paralelo)
 - Foca em sinais de agendamento/reagendamento: extrai candidatos a `consulta_agendada_em` / `procedimento_agendado_em` em formato cru + intent de agendamento.
 
 **Agente 2b — Tipificador** (`gpt-5-mini`, paralelo)
 ```ts
 z.object({
   tags_suggested: z.array(z.string().max(40)).max(8),
-  custom_fields_patch: z.record(z.string(), z.union([z.string(),z.number(),z.boolean(),z.null()]))
+  // Relaxado p/ z.any() (PR11.9): gpt-5-mini estourava o union antigo
+  // (string|number|boolean|string[]|null). Validação por chave acontece
+  // em apply.ts::tryApplyField contra clinicFieldSchema.
+  custom_fields_patch: z.record(z.string(), z.any()).default({})
 })
 ```
 
-**Agente 2c — Movimentador** (`gpt-5-mini`, paralelo)
+**Agente 2c — Movimentador** (`gpt-5-nano`, paralelo)
 - Avalia, com base no resumo, se há sinal suficiente para sugerir mudança de stage e qual stage canônico seria o destino.
+
 
 **Agente 3 — Maestro** (`gpt-5`)
 ```ts
@@ -143,9 +148,9 @@ Cada agente grava **uma linha própria** em `ai_usage` via `recordStep()` (`agen
 | Operation | Modelo | Latência | Quando |
 |---|---|---|---|
 | `classifier:summarizer` | `gpt-4o` (ou `gpt-5-mini (fallback)`) | `lat1` | sempre |
-| `classifier:agendador` | `gpt-5-mini` | `lat2` (paralelo, mesmo valor p/ os 3) | sempre |
+| `classifier:agendador` | `gpt-5-nano` | `lat2` (paralelo, mesmo valor p/ os 3) | sempre |
 | `classifier:typifier` | `gpt-5-mini` | `lat2` | sempre |
-| `classifier:movimentador` | `gpt-5-mini` | `lat2` | sempre |
+| `classifier:movimentador` | `gpt-5-nano` | `lat2` | sempre |
 | `classifier:maestro` | `gpt-5` | `lat3` | sempre (se 2 passou) |
 
 Erros gravam a mesma linha com `status='error'` + `error` truncado em 500 chars. Falha no Resumidor aborta tudo (`agent_step1_failed`); falha em qualquer paralelo aborta os 3 + maestro (`agent_step2_parallel_failed`); falha no Maestro aborta (`agent_step3_maestro_failed`).
@@ -155,9 +160,10 @@ O bloco `agents` retornado para `apply.ts` e gravado no `lead_events.payload.age
 ```ts
 {
   summarizer_model:   "gpt-4o",
-  agendador_model:    "gpt-5-mini",
+  agendador_model:    "gpt-5-nano",
   typifier_model:     "gpt-5-mini",
-  movimentador_model: "gpt-5-mini",
+  movimentador_model: "gpt-5-nano",
+
   maestro_model:      "gpt-5",
   summary_chars:      <n>,
   summary:            "<resumo>",

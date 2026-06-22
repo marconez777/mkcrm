@@ -1,9 +1,10 @@
 // supabase/functions/pipeline-classify/agent-core.ts
 // V6 — pipeline de 5 agentes:
 //   1) Resumidor   (gpt-4o, fallback gpt-5-mini) → {summary, mentioned_dates}
-//   2) Agendador   (gpt-5-mini)                  → {is_scheduling_action, scheduling_intent, reasons}
+//   2) Agendador   (gpt-5-nano)                  → {is_scheduling_action, scheduling_intent, reasons}
 //   3) Preenchedor (gpt-5-mini)                  → {tags_suggested, custom_fields_patch}
-//   4) Movimentador(gpt-5-mini)                  → {stage_suggestion, intent, mentioned_intents, is_b2b, reasons}
+//   4) Movimentador(gpt-5-nano)                  → {stage_suggestion, intent, mentioned_intents, is_b2b, reasons}
+
 //   5) Maestro     (gpt-5)                       → Validador final
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -89,9 +90,10 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
 
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
-const AGENDADOR_MODEL = "gpt-5-mini";
-const TYPIFIER_MODEL = "gpt-5-mini";
-const MOVIMENTADOR_MODEL = "gpt-5-mini";
+const AGENDADOR_MODEL = "gpt-5-nano";    // PR11.9: nano (schema trivial; ~5× mais barato)
+const TYPIFIER_MODEL = "gpt-5-mini";      // mantido: schema com whitelist + custom_fields_patch livre
+const MOVIMENTADOR_MODEL = "gpt-5-nano"; // PR11.9: nano (decisão binária + label)
+
 const MAESTRO_MODEL = "gpt-5";
 
 
@@ -259,7 +261,10 @@ ${keysBlock}
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
-IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
+Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
+
+IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
+
 }
 
 async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {

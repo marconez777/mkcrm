@@ -75,10 +75,11 @@ related_docs:
      • monta LeadContext (idade, msgs, stage history, treated-before)
      • Fase 1 (serial)  — Resumidor (gpt-4o, fallback gpt-5-mini):
          extrai datas (anchor_iso) + gera summary
-     • Fase 2 (paralela, Promise.all) — 3 agentes gpt-5-mini concorrentes:
-         ├─ Agendador     → sinais de agendamento/reagendamento + datas cruas
-         ├─ Tipificador   → tags_suggested + custom_fields_patch
-         └─ Movimentador  → candidato a stage_suggestion (baseado no summary)
+     • Fase 2 (paralela, Promise.all) — 3 agentes concorrentes:
+         ├─ Agendador (gpt-5-nano)     → sinais de agendamento/reagendamento + datas cruas
+         ├─ Tipificador (gpt-5-mini)   → tags_suggested + custom_fields_patch
+         └─ Movimentador (gpt-5-nano)  → candidato a stage_suggestion (baseado no summary)
+
      • Fase 3 (serial)  — Maestro (gpt-5):
          recebe summary + 3 outputs paralelos → veredicto final
          { stage_suggestion, intent, confidence, is_b2b, reasons }

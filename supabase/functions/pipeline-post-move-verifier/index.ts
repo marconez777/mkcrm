@@ -127,8 +127,9 @@ async function verifyMove(client: SupabaseClient, payload: VerifierPayload) {
     model: ai.model(MODEL),
     system:
       "Você é um revisor curto de movimentações de pipeline CRM médico. " +
-      "Responda APENAS via schema: verdict ∈ {sim, nao, incerto}, confidence ∈ [0,1], reason ≤ 200 chars em PT-BR. " +
+      "Responda APENAS em JSON conforme o schema: verdict ∈ {sim, nao, incerto}, confidence ∈ [0,1], reason ≤ 200 chars em PT-BR. " +
       "Use 'nao' apenas quando há evidência clara de que o move foi inadequado dado o histórico.",
+
     prompt:
       `Move automático aplicado:\n` +
       `- regra/source: ${source}\n` +
