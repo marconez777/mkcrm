@@ -182,7 +182,8 @@ export const AgendadorOutputSchema = z.object({
 export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
 
 export const TypifierOutputSchema = z.object({
-  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
+  tags_suggested: z.array(z.string().max(40)).default([]),
+
   // Schema relaxado: gpt-5-mini ocasionalmente devolve valores fora do union
   // (objeto aninhado, número-como-string, array misto) e o SDK retornava
   // "No object generated: response did not match schema". A validação de
