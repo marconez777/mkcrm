@@ -491,20 +491,45 @@ export async function runAgent(
   let lat2 = 0;
   const t2 = performance.now();
 
+  // P12: se TODAS as chaves do schema da clínica estão protegidas por G10
+  // (editadas por humano há <7d), o Preenchedor seria 100% descartado por
+  // apply.ts. Pula o agente para economizar tokens — Agendador e
+  // Movimentador continuam (não tocam custom_fields).
+  const G10_MS = 7 * 24 * 60 * 60_000;
+  const lastEdits = ctx.lead.custom_fields_last_human_edit ?? {};
+  const allKeysProtected =
+    ctx.clinicFieldSchema.length > 0 &&
+    ctx.clinicFieldSchema.every((f) => {
+      const iso = lastEdits[f.field_key];
+      if (!iso) return false;
+      const ms = Date.parse(iso);
+      return Number.isFinite(ms) && ctx.nowMs - ms < G10_MS;
+    });
+
   try {
+    const typifierTask = allKeysProtected
+      ? Promise.resolve({
+          output: { tags_suggested: [], custom_fields_patch: {}, reasons: ["skipped:all_keys_g10_protected"] } as TypifierOutput,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          skipped: true as const,
+        })
+      : runTypifier(ai, ctx, summary).then((r) => ({ ...r, skipped: false as const }));
+
     const [rAg, rPr, rMo] = await Promise.all([
       runAgendador(ai, ctx, summary),
-      runTypifier(ai, ctx, summary),
+      typifierTask,
       runMovimentador(ai, ctx, summary)
     ]);
     outAgendador = rAg.output;
     outPreenchedor = rPr.output;
     outMovimentador = rMo.output;
-    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage };
+    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage, typifier_skipped: rPr.skipped };
     const stepLat = performance.now() - t2;
     await Promise.all([
       safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
-      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      rPr.skipped
+        ? Promise.resolve()
+        : safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
       safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
     ]);
   } catch (err) {
@@ -524,8 +549,17 @@ export async function runAgent(
   let usage3: unknown;
   const t3 = performance.now();
 
+  // P2: sinais determinísticos para regras de conflito do Maestro.
+  const maestroSignals = {
+    manual_lock_until: ctx.lead.manual_lock_until,
+    has_precisa_atencao_humana: ctx.lead.tags.includes("precisa_atencao_humana"),
+    current_stage: ctx.stageName,
+    treated_before: ctx.hasBeenTreatedBefore,
+    typifier_skipped: allKeysProtected,
+  };
+
   try {
-    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador);
+    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
     await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
@@ -534,6 +568,7 @@ export async function runAgent(
     await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
+
 
   const lat3 = performance.now() - t3;
 
