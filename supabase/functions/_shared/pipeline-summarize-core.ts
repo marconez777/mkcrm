@@ -19,6 +19,7 @@ import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
 
 const MODEL = "gpt-5-mini";
 const MAX_MSGS_SUMMARY = 60;
+const MAX_INPUT_CHARS = 40_000; // P4: cap por caracteres para evitar estouro de context window
 const MIN_NEW_MSGS = 3;
 const MAX_SUMMARY_CHARS = 800;
 
