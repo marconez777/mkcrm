@@ -75,7 +75,7 @@ export default function SettingsForms() {
     setLoading(true);
     try {
       const data = await fetchAllPaged<any>(() =>
-        supabase.from("form_integrations").select("*").order("created_at", { ascending: false }),
+        supabase.from("form_integrations").select("id, clinic_id, name, slug, allowed_domains, status, default_tags, total_submissions, last_submission_at, created_at, token_set").order("created_at", { ascending: false }),
       );
       setList(data as any);
     } catch (e: any) { toast.error(e.message); }
