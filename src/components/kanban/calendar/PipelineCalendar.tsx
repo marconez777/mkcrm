@@ -140,8 +140,23 @@ export default function PipelineCalendar({ pipelineId }: Props) {
         eventDrop={handleDrop}
         eventResize={handleResize}
         dragRevertDuration={150}
-        selectable={false}
+        selectable
+        selectMirror
+        select={handleSelect}
       />
+      {dialog && (
+        <AppointmentDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setDialog(null);
+          }}
+          pipelineId={pipelineId}
+          mode={dialog.mode}
+          appointmentId={dialog.mode === "edit" ? dialog.appointmentId : undefined}
+          initialStart={dialog.mode === "create" ? dialog.start : undefined}
+          initialEnd={dialog.mode === "create" ? dialog.end : undefined}
+        />
+      )}
     </div>
   );
 }
