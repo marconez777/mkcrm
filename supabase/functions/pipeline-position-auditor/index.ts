@@ -66,7 +66,6 @@ type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
@@ -78,7 +77,6 @@ const CANON_NAMES: Canon[] = [
   "Consulta agendada",
   "Tratamento agendado",
   "Consulta finalizada",
-  "Em tratamento",
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
@@ -92,7 +90,6 @@ const AuditSchema = z.object({
     "Consulta agendada",
     "Tratamento agendado",
     "Consulta finalizada",
-    "Em tratamento",
     "Sem resposta",
     "Nutrição inativa",
     "Paciente antigo",
@@ -102,6 +99,7 @@ const AuditSchema = z.object({
   agrees_with_current: z.boolean(),
   reasoning: z.string().max(400),
 });
+
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
