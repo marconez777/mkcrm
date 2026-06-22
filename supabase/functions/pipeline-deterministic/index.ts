@@ -856,7 +856,7 @@ Deno.serve(async (req) => {
           consulta_passou: await ruleConsultaPassou(client),
         };
         break;
-
+      case "reactivation-tick":
         result = await ruleReactivationTick(client);
         break;
       case "human-reactor-tick":
