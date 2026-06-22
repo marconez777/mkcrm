@@ -100,19 +100,23 @@ z.object({
 })
 ```
 
-**Agente 2a — Agendador** (`gpt-5-mini`, paralelo)
+**Agente 2a — Agendador** (`gpt-5-nano`, paralelo)
 - Foca em sinais de agendamento/reagendamento: extrai candidatos a `consulta_agendada_em` / `procedimento_agendado_em` em formato cru + intent de agendamento.
 
 **Agente 2b — Tipificador** (`gpt-5-mini`, paralelo)
 ```ts
 z.object({
   tags_suggested: z.array(z.string().max(40)).max(8),
-  custom_fields_patch: z.record(z.string(), z.union([z.string(),z.number(),z.boolean(),z.null()]))
+  // Relaxado p/ z.any() (PR11.9): gpt-5-mini estourava o union antigo
+  // (string|number|boolean|string[]|null). Validação por chave acontece
+  // em apply.ts::tryApplyField contra clinicFieldSchema.
+  custom_fields_patch: z.record(z.string(), z.any()).default({})
 })
 ```
 
-**Agente 2c — Movimentador** (`gpt-5-mini`, paralelo)
+**Agente 2c — Movimentador** (`gpt-5-nano`, paralelo)
 - Avalia, com base no resumo, se há sinal suficiente para sugerir mudança de stage e qual stage canônico seria o destino.
+
 
 **Agente 3 — Maestro** (`gpt-5`)
 ```ts
