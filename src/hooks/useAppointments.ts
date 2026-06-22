@@ -155,6 +155,7 @@ export function appointmentToEvent(
   const start = new Date(a.scheduled_at);
   const end = new Date(start.getTime() + a.duration_min * 60_000);
   const alpha = STATUS_OPACITY[a.status] ?? 1;
+  const editable = a.status === "agendado";
   return {
     id: a.id,
     title: `${a.lead_name ?? "Lead"} — ${label}`,
@@ -162,6 +163,9 @@ export function appointmentToEvent(
     end: end.toISOString(),
     backgroundColor: hexWithAlpha(baseColor, alpha),
     borderColor: baseColor,
+    editable,
+    startEditable: editable,
+    durationEditable: editable,
     extendedProps: {
       leadId: a.lead_id,
       status: a.status,
