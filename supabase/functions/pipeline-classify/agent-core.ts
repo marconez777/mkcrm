@@ -379,8 +379,14 @@ ${summary}`,
 // ===== Agente 5: Maestro =====
 
 function buildMaestroSystem(): string {
-  return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador).
-Sua tarefa é cruzar essas informações, resolver quaisquer contradições e emitir a Classificação CANÔNICA perfeita.
+  return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador) + sinais determinísticos do lead.
+Sua tarefa é cruzar essas informações, resolver contradições e emitir a Classificação CANÔNICA perfeita.
+
+REGRAS DE RESOLUÇÃO DE CONFLITO (P2):
+1. Conflito agendamento × desqualificação → desqualificação SEMPRE vence (intent='desistencia'|'objecao', custom_fields.qualificacao='desqualificado'). Nunca sugira mover para "Consulta agendada" se houver sinal de desistência.
+2. Se SIGNALS.manual_lock_until estiver no futuro → NÃO mover (mantenha stage atual). Tags e custom_fields podem ser aplicados normalmente.
+3. Se SIGNALS.has_precisa_atencao_humana=true → NÃO mover de stage (humano vai revisar). Tags e custom_fields ok.
+4. Se a confiança média dos 3 agentes for < 0.6 → emita mode='stage_suggestion_only' e confidence baixa (≤0.6) — a sugestão fica registrada mas não move o card.
 
 Exemplo de contradição:
 - O Agendador diz "reagendamento", mas o Movimentador sugere stage "Novo".
@@ -400,7 +406,8 @@ async function runMaestro(
   summary: string,
   outAgendador: AgendadorOutput,
   outPreenchedor: TypifierOutput,
-  outMovimentador: MovimentadorOutput
+  outMovimentador: MovimentadorOutput,
+  signals: Record<string, unknown>,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
     generateText({
@@ -408,6 +415,9 @@ async function runMaestro(
       system: buildMaestroSystem(),
       prompt: `RESUMO Factual:
 ${summary}
+
+SIGNALS determinísticos do lead:
+${JSON.stringify(signals, null, 2)}
 
 OPINIÕES DOS AGENTES:
 Agendador: ${JSON.stringify(outAgendador, null, 2)}
@@ -420,6 +430,7 @@ Emita o veredicto final resolvendo inconsistências.`,
   );
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 
 // ===== Orquestração =====
@@ -480,20 +491,45 @@ export async function runAgent(
   let lat2 = 0;
   const t2 = performance.now();
 
+  // P12: se TODAS as chaves do schema da clínica estão protegidas por G10
+  // (editadas por humano há <7d), o Preenchedor seria 100% descartado por
+  // apply.ts. Pula o agente para economizar tokens — Agendador e
+  // Movimentador continuam (não tocam custom_fields).
+  const G10_MS = 7 * 24 * 60 * 60_000;
+  const lastEdits = ctx.lead.custom_fields_last_human_edit ?? {};
+  const allKeysProtected =
+    ctx.clinicFieldSchema.length > 0 &&
+    ctx.clinicFieldSchema.every((f) => {
+      const iso = lastEdits[f.field_key];
+      if (!iso) return false;
+      const ms = Date.parse(iso);
+      return Number.isFinite(ms) && ctx.nowMs - ms < G10_MS;
+    });
+
   try {
+    const typifierTask = allKeysProtected
+      ? Promise.resolve({
+          output: { tags_suggested: [], custom_fields_patch: {}, reasons: ["skipped:all_keys_g10_protected"] } as TypifierOutput,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          skipped: true as const,
+        })
+      : runTypifier(ai, ctx, summary).then((r) => ({ ...r, skipped: false as const }));
+
     const [rAg, rPr, rMo] = await Promise.all([
       runAgendador(ai, ctx, summary),
-      runTypifier(ai, ctx, summary),
+      typifierTask,
       runMovimentador(ai, ctx, summary)
     ]);
     outAgendador = rAg.output;
     outPreenchedor = rPr.output;
     outMovimentador = rMo.output;
-    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage };
+    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage, typifier_skipped: rPr.skipped };
     const stepLat = performance.now() - t2;
     await Promise.all([
       safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
-      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      rPr.skipped
+        ? Promise.resolve()
+        : safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
       safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
     ]);
   } catch (err) {
@@ -513,8 +549,17 @@ export async function runAgent(
   let usage3: unknown;
   const t3 = performance.now();
 
+  // P2: sinais determinísticos para regras de conflito do Maestro.
+  const maestroSignals = {
+    manual_lock_until: ctx.lead.manual_lock_until,
+    has_precisa_atencao_humana: ctx.lead.tags.includes("precisa_atencao_humana"),
+    current_stage: ctx.stageName,
+    treated_before: ctx.hasBeenTreatedBefore,
+    typifier_skipped: allKeysProtected,
+  };
+
   try {
-    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador);
+    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
     await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
@@ -523,6 +568,7 @@ export async function runAgent(
     await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
+
 
   const lat3 = performance.now() - t3;
 
@@ -547,7 +593,7 @@ export async function runAgent(
         movimentador: Math.round(lat2),
         maestro: Math.round(lat3)
       },
-      ran: { summarizer: true, agendador: true, typifier: true, movimentador: true, maestro: true },
+      ran: { summarizer: true, agendador: true, typifier: !allKeysProtected, movimentador: true, maestro: true },
     },
   };
 }

@@ -210,14 +210,32 @@ export async function applyClassification(
   }
 
   // 4b) Demais chaves (ignora chaves de data — já tratadas via mentioned_dates)
+  // P10: sanitiza enums contra clinicFieldSchema antes do RPC. Sem isso, 1
+  // valor inválido (ex.: qualificacao='talvez') faz o trigger
+  // trg_validate_lead_custom_fields_enums abortar a RPC inteira — perdendo
+  // tags válidas e custom_fields legítimos.
+  const schemaByKey = new Map(
+    ctx.clinicFieldSchema.map((f) => [f.field_key, f]),
+  );
   for (const [k, v] of Object.entries(cls.custom_fields_patch ?? {})) {
     if (DATE_FIELD_KEYS.has(k)) {
       // Se o LLM mandou data direta, rejeita — datas SÓ via mentioned_dates
       fieldsRejected.push({ key: k, raw_value: v, reason: "use_mentioned_dates_instead" });
       continue;
     }
+    const def = schemaByKey.get(k);
+    if (def && def.options.length > 0 && v !== null && v !== undefined) {
+      // Enum (select/multiselect): valida contra options declaradas pela clínica.
+      const values = Array.isArray(v) ? v : [v];
+      const invalid = values.find((x) => !def.options.includes(String(x)));
+      if (invalid !== undefined) {
+        fieldsRejected.push({ key: k, raw_value: v, reason: "invalid_enum" });
+        continue;
+      }
+    }
     tryApplyField(k, v);
   }
+
 
   // ===== 5) UPDATE atômico via RPC (não dispara G10) =====
   // Em modo maestro-only, NÃO aplica tags/custom_fields (são reaproveitados).

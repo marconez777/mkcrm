@@ -32,14 +32,33 @@ const MODEL = "gpt-5-mini";
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
-const EXCLUDED_STAGES = new Set([
+// P16+P17: stages a EXCLUIR resolvidos por nome canônico via
+// stage_canonical_aliases (em vez de comparação literal de stage.name).
+// Antes: hardcoded "Nutrição inativa" (i minúsculo) e "Em tratamento"
+// (stage fantasma) — não batiam com nomes reais da clínica
+// (ex.: "Nutrição Inativa (Geladeira de Leads)").
+const EXCLUDED_CANONICALS = new Set<string>([
   "Paciente antigo",
-  "Nutrição inativa",
   "B2B / Stakeholders",
-  "B2B",
-  "Desqualificado",
-  "Lead não qualificado",
+  "Nutrição inativa",
+  "nutricao_inativa",
+  "geladeira_de_leads",
+  "Nutrição Antigos",
+  "nutricao_antigos",
 ]);
+
+async function loadExcludedStageIds(client: SupabaseClient): Promise<Set<string>> {
+  const { data } = await client
+    .from("stage_canonical_aliases")
+    .select("stage_id, canonical_name")
+    .in("canonical_name", Array.from(EXCLUDED_CANONICALS));
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.stage_id) out.add(row.stage_id as string);
+  }
+  return out;
+}
+
 
 type Canon =
   | "Novo"
@@ -47,7 +66,6 @@ type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
@@ -59,7 +77,6 @@ const CANON_NAMES: Canon[] = [
   "Consulta agendada",
   "Tratamento agendado",
   "Consulta finalizada",
-  "Em tratamento",
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
@@ -73,7 +90,6 @@ const AuditSchema = z.object({
     "Consulta agendada",
     "Tratamento agendado",
     "Consulta finalizada",
-    "Em tratamento",
     "Sem resposta",
     "Nutrição inativa",
     "Paciente antigo",
@@ -83,6 +99,7 @@ const AuditSchema = z.object({
   agrees_with_current: z.boolean(),
   reasoning: z.string().max(400),
 });
+
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -145,6 +162,11 @@ async function selectCandidates(client: SupabaseClient, batchSize: number): Prom
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60_000).toISOString();
 
+  // P16+P17: resolve stages excluídos por canonical (geladeira, paciente
+  // antigo, etc.) por clínica — evita auditar leads que estão corretamente
+  // parados onde deveriam estar.
+  const excludedStageIds = await loadExcludedStageIds(client);
+
   // 1) Leads candidatos por critério temporal + stage não excluído + não desqualificado.
   const { data: leads, error } = await client
     .from("leads")
@@ -159,7 +181,8 @@ async function selectCandidates(client: SupabaseClient, batchSize: number): Prom
   for (const l of leads ?? []) {
     const stageName = (l as Record<string, unknown>).pipeline_stages as { name?: string } | null;
     const name = stageName?.name ?? "";
-    if (EXCLUDED_STAGES.has(name)) continue;
+    if (excludedStageIds.has(l.stage_id as string)) continue;
+
     const cf = (l as { custom_fields?: Record<string, unknown> }).custom_fields ?? {};
     if (cf?.qualificacao === "desqualificado") continue;
 

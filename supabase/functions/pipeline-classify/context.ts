@@ -46,6 +46,7 @@ export type LeadContext = {
     last_processed_message_id_classifier: string | null;
     created_at: string | null;
     ai_summary: string | null;
+    manual_lock_until: string | null;
   };
   stageName: string;
   messages: Msg[];
@@ -62,6 +63,7 @@ export type LeadContext = {
   allowedTags: string[];
   nowMs: number;
 };
+
 
 
 export type LoadResult =
@@ -102,7 +104,7 @@ export async function loadLeadContext(
   const { data: leadRow } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary",
+      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary, manual_lock_until",
     )
     .eq("id", leadId)
     .single();
@@ -230,6 +232,8 @@ export async function loadLeadContext(
         last_processed_message_id_classifier: watermark,
         created_at: (leadRow.created_at as string | null) ?? null,
         ai_summary: (leadRow.ai_summary as string | null) ?? null,
+        manual_lock_until: (leadRow.manual_lock_until as string | null) ?? null,
+
       },
       stageName: stage?.name ?? "?",
       messages,
