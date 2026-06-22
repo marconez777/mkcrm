@@ -379,8 +379,14 @@ ${summary}`,
 // ===== Agente 5: Maestro =====
 
 function buildMaestroSystem(): string {
-  return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador).
-Sua tarefa é cruzar essas informações, resolver quaisquer contradições e emitir a Classificação CANÔNICA perfeita.
+  return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador) + sinais determinísticos do lead.
+Sua tarefa é cruzar essas informações, resolver contradições e emitir a Classificação CANÔNICA perfeita.
+
+REGRAS DE RESOLUÇÃO DE CONFLITO (P2):
+1. Conflito agendamento × desqualificação → desqualificação SEMPRE vence (intent='desistencia'|'objecao', custom_fields.qualificacao='desqualificado'). Nunca sugira mover para "Consulta agendada" se houver sinal de desistência.
+2. Se SIGNALS.manual_lock_until estiver no futuro → NÃO mover (mantenha stage atual). Tags e custom_fields podem ser aplicados normalmente.
+3. Se SIGNALS.has_precisa_atencao_humana=true → NÃO mover de stage (humano vai revisar). Tags e custom_fields ok.
+4. Se a confiança média dos 3 agentes for < 0.6 → emita mode='stage_suggestion_only' e confidence baixa (≤0.6) — a sugestão fica registrada mas não move o card.
 
 Exemplo de contradição:
 - O Agendador diz "reagendamento", mas o Movimentador sugere stage "Novo".
@@ -400,7 +406,8 @@ async function runMaestro(
   summary: string,
   outAgendador: AgendadorOutput,
   outPreenchedor: TypifierOutput,
-  outMovimentador: MovimentadorOutput
+  outMovimentador: MovimentadorOutput,
+  signals: Record<string, unknown>,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
     generateText({
@@ -408,6 +415,9 @@ async function runMaestro(
       system: buildMaestroSystem(),
       prompt: `RESUMO Factual:
 ${summary}
+
+SIGNALS determinísticos do lead:
+${JSON.stringify(signals, null, 2)}
 
 OPINIÕES DOS AGENTES:
 Agendador: ${JSON.stringify(outAgendador, null, 2)}
@@ -420,6 +430,7 @@ Emita o veredicto final resolvendo inconsistências.`,
   );
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 
 // ===== Orquestração =====
