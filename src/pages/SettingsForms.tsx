@@ -242,7 +242,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     pixelCode,
     snippetCode,
     clinicId: data.clinic_id,
-    token: data.token,
+    token: tokenValue,
     domain: primaryDomain,
     supabaseUrl: SUPABASE_URL,
   });
@@ -290,7 +290,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                 <div className="flex gap-2 mt-1.5">
                   <Input readOnly value={tokenMasked} className="font-mono text-xs" />
                   <Button variant="outline" size="icon" onClick={() => setShowToken((s) => !s)}>{showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-                  <Button variant="outline" size="icon" onClick={() => copy(data.token, "Token copiado")}><Copy className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => copy(tokenValue, "Token copiado")}><Copy className="h-4 w-4" /></Button>
                   {canManage && <Button variant="outline" size="icon" onClick={rotate} disabled={busy}><RotateCcw className="h-4 w-4" /></Button>}
                 </div>
               </div>
