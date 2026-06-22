@@ -182,14 +182,19 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   useEffect(() => { loadAll(); }, [integration.id]);
 
   async function loadAll() {
-    const [d, s, fresh] = await Promise.all([
+    const integrationCols = "id, clinic_id, name, slug, allowed_domains, status, default_tags, total_submissions, last_submission_at, created_at, token_set";
+    const [d, s, fresh, tokenRes] = await Promise.all([
       supabase.from("form_definitions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }),
       supabase.from("form_submissions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }).limit(200),
-      supabase.from("form_integrations").select("*").eq("id", integration.id).single(),
+      supabase.from("form_integrations").select(integrationCols).eq("id", integration.id).single(),
+      supabase.functions.invoke("forms-admin", { body: { action: "get_token", id: integration.id } }),
     ]);
     if (d.data) setDefs(d.data as any);
     if (s.data) setSubs(s.data as any);
-    if (fresh.data) setData(fresh.data as any);
+    if (fresh.data) {
+      const token = (tokenRes.data as { token?: string } | null)?.token ?? "";
+      setData({ ...(fresh.data as any), token });
+    }
   }
 
   function copy(s: string, label = "Copiado") {
