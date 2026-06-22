@@ -462,7 +462,106 @@ Não é bug per se, é **dívida**: rodar trigger pra olhar tabela vazia em todo
 
 ---
 
-> **Status:** batch 2 concluído. Pendente: batch 3 (RPCs do `clinic-openai`, RLS do `pipeline_automation_allowlist`, `custom_fields_last_human_edit` consistency, summarizer-core token budget, MCP de auditoria).
+# Rodada 2 — batch 3
+
+## P25 — Agendador e Movimentador silenciosamente não registrando em `ai_usage` 🔴 crit
+
+**Evidência (7 dias):**
+```text
+classifier:typifier     success=53 error=2
+classifier:maestro      success=53 error=1
+classifier:summarizer   success=55
+classifier:agendador    error=2    success=0   ← deveria ser ~53 também
+classifier:movimentador error=2    success=0   ← idem
+```
+
+**Local:** `agent-core.ts:449-463`. O `Promise.all` chama `runAgendador`, `runTypifier`, `runMovimentador` em paralelo, e em sucesso o **segundo `Promise.all`** grava 3 `recordStep` (linhas 460-462). Se os 3 são gravados juntos, deveriam ter contagem idêntica — mas typifier tem 53 e agendador/movimentador têm 0.
+
+**Hipótese principal:** após a troca para `gpt-5-nano` (Fase 2 anterior), `recordStep`/`computeCost` lança exceção desconhecida para o modelo, e o `Promise.all` rejeita silenciosamente — **mas o evento de classifier no `lead_events.payload.agents` é gravado antes**, sem o status correto. Resultado: telemetria de custo zero (`sum(cost_usd)=0` para nano), invisibilidade de erro real, e a iteração do Maestro recebe `outAgendador=null` quietamente nos retries.
+
+**Impacto:**
+- Agendador e Movimentador efetivamente off há 24-72h, mas dashboards mostram "tudo verde".
+- Maestro decide apenas com o Tipificador → degrada precisão de stage moves.
+- O cost dashboard subestima gasto em ~30%.
+
+**Fix (Fase A):**
+1. Encapsular cada `recordStep` em try/catch para nunca derrubar o `Promise.all` de telemetria.
+2. Adicionar tabela de preços para `gpt-5-nano` em `_shared/clinic-openai.ts` ou na função de cálculo (verificar onde está `computeCost`).
+3. Garantir que `recordStep` use `status='success'` mesmo quando `usage` é null/undefined.
+
+## P26 — `MAX_MSGS_SUMMARY=60` sem truncamento por tokens 🟡 robust
+
+`pipeline-summarize-core.ts:21`: usa últimas 60 mensagens. Sem cap de caracteres ou tokens. Lead com 60 áudios transcritos longos pode estourar context window do `gpt-5-mini` (~128k) ou simplesmente pagar 5x mais que necessário.
+
+`SUMMARIZER.md` deve registrar este limite — e o ideal é truncar por **caracteres** (e.g. 40k chars) ou aplicar `head:30 + tail:30` em janelas longas.
+
+**Fix:** após carregar mensagens, calcular soma de `length` e dropar mais antigas até cair em 40k chars.
+
+## P27 — RLS de `pipeline_automation_allowlist` permite SELECT por membros 🟡 sec
+
+```sql
+allowlist_select_member_or_admin: is_super_admin() OR (clinic_id = current_clinic_id())
+```
+
+OK para multitenancy básico, mas: membro da clínica pode ler que SUA clínica está allowlistada (info operacional). Não é vazamento de outras clínicas. Aceitável, mas deveria estar documentado em `KNOWN_ISSUES.md` ou no security memory para evitar futuras varreduras flag de novo.
+
+**Fix:** registrar em security memory.
+
+## P28 — G10 sem limpeza periódica (`custom_fields_last_human_edit` infla) 🟡 oper
+
+**Evidência:**
+```sql
+SELECT count(*) FILTER (WHERE custom_fields_last_human_edit <> '{}') FROM leads;
+-- 344 leads com timestamps; janela de proteção é 7d
+```
+
+A coluna `leads.custom_fields_last_human_edit jsonb` acumula timestamps indefinidamente. Após 7d a entrada não tem efeito mas continua ocupando espaço e sendo lida em todo classify (G10 check em `apply.ts:166`). Em 6 meses pode chegar a milhares de entradas por lead.
+
+**Fix:** cron diário que faz `UPDATE leads SET custom_fields_last_human_edit = ... WHERE ts > now()-'7 days'` removendo entradas expiradas. Pequeno mas mantém payload do classifier enxuto.
+
+## P29 — `automation.summarizer.enabled` ausente em `app_settings` 🟠 média
+
+`pipeline-summarize-core.ts:36` checa toggle `automation.summarizer.enabled` com mesma lógica do G3 (default = false se ausente). Conferência:
+
+```sql
+SELECT key FROM app_settings WHERE key = 'automation.summarizer.enabled';
+-- (não existe)
+```
+
+E mesmo assim summarizer rodou 55x em 24h e gerou $0.39. Então **a checagem de toggle do summarizer NÃO está bloqueando** (provavelmente lê de outro path). Tem comportamento divergente do `pipeline-move.ts` G3 — fonte de confusão.
+
+**Fix:** unificar a leitura de toggles num helper `getToggle(client, key, defaultValue)` compartilhado entre `pipeline-move.ts`, `pipeline-summarize-core.ts`, `agent-core.ts`, `pipeline-position-auditor`, etc.
+
+---
+
+# Consolidação final
+
+## Total de achados: 29 itens em 6 fases
+
+```text
+Fase A — Raiz (P0, P7, P20, P25)         CRÍTICO (faz hoje)
+Fase B — Fila/saúde (P8, P9, P15, P21)   ALTO (24-48h após A)
+Fase C — Precisão (P2, P10, P12, P16-19, P23, P29)  MÉDIO
+Fase D — Robustez (P3-P6, P13, P26, P28) BAIXO
+Fase E — Documentação (P11, P14, P18, P22, P24, P27)  CONTÍNUO
+Investigação — sem fix óbvio ainda: G10 expire, A1 cron silencioso
+```
+
+## ROI por fase (estimativa)
+
+| Fase | Esforço | Impacto qualitativo | Custo evitado/dia |
+|---|---|---|---|
+| A | 4-6h | Recupera 99% das tags + elimina erros silenciosos + restaura ag/mov | ~30% |
+| B | 2-3h | Fila drena, A1/A2 ressuscitam | invisível mas alto |
+| C | 4-8h | Maestro confiável, doc bate com código | médio |
+| D | 4h | Robustez sob pico/falha | baixo direto, alto em incidente |
+| E | 2h | Reduz tempo de onboarding de futuros agentes | n/a |
+
+## Próxima ação recomendada
+
+**Executar Fase A inteira** (P0 + P7 + P20 + P25) num único sprint. São interdependentes: P0 corrige transport, P7+P20 corrigem valor, P25 corrige telemetria — sem todos juntos não dá pra medir se o resto funcionou.
+
+
 
 
 
