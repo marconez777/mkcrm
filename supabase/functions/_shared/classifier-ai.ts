@@ -43,3 +43,24 @@ export function pickModel(
 ): string {
   return provider === "lovable" ? spec.lovable : spec.openai;
 }
+
+/** Erros de provider que valem retentar: quota/rate-limit/timeout/rede.
+ *  Quando true, o classifier deve manter o lead na fila e aplicar backoff
+ *  em vez de marcar o lead como classificado-sem-resultado. */
+export function isTransientAgentError(reason: string | null | undefined): boolean {
+  if (!reason) return false;
+  const r = reason.toLowerCase();
+  return (
+    r.includes("quota") ||
+    r.includes("rate_limit") ||
+    r.includes("rate limit") ||
+    r.includes(" 429") || r.includes(":429") ||
+    r.includes(" 402") || r.includes(":402") ||
+    r.includes(" 503") || r.includes(":503") ||
+    r.includes(" 504") || r.includes(":504") ||
+    r.includes("timeout") || r.includes("timed out") ||
+    r.includes("econnreset") || r.includes("network") ||
+    r.includes("fetch failed") || r.includes("overloaded") ||
+    r.includes("temporarily unavailable")
+  );
+}

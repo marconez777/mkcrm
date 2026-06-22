@@ -13,6 +13,7 @@ import {
   writeSkipTelemetry,
   updateWatermark,
 } from "./apply.ts";
+import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,6 +138,12 @@ async function classifyOneV2(
       { clinic_id: ctx.lead.clinic_id, lead_id: ctx.lead.id },
       `agent_error:${agentOut.error}`,
     );
+    // Transient (quota/rate-limit/timeout/rede): NÃO limpa a fila — joga para
+    // o catch do worker que aplica backoff (2/5/30 min) e mantém o lead em
+    // needs_ai_review para o próximo tick reprocessar (já no Gemini/Lovable).
+    if (isTransientAgentError(agentOut.error)) {
+      throw new Error(`agent_error_transient:${agentOut.error}`);
+    }
     await clearQueueFlag(client, ctx.lead.id);
     return { skipped: `agent_error:${agentOut.error}` };
   }
