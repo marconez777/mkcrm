@@ -259,7 +259,10 @@ ${keysBlock}
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
-IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
+Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
+
+IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
+
 }
 
 async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
