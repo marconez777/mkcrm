@@ -3402,9 +3402,11 @@ export type Database = {
           name: string
           previous_token: string | null
           previous_token_expires_at: string | null
+          previous_token_set: boolean | null
           slug: string
           status: string
           token: string
+          token_set: boolean | null
           total_submissions: number
           updated_at: string
         }
@@ -3420,9 +3422,11 @@ export type Database = {
           name: string
           previous_token?: string | null
           previous_token_expires_at?: string | null
+          previous_token_set?: boolean | null
           slug: string
           status?: string
           token?: string
+          token_set?: boolean | null
           total_submissions?: number
           updated_at?: string
         }
@@ -3438,9 +3442,11 @@ export type Database = {
           name?: string
           previous_token?: string | null
           previous_token_expires_at?: string | null
+          previous_token_set?: boolean | null
           slug?: string
           status?: string
           token?: string
+          token_set?: boolean | null
           total_submissions?: number
           updated_at?: string
         }
