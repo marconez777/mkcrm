@@ -194,7 +194,7 @@ interface DraftRow {
   goal: string | null;
   goal_other: string | null;
   provider: string | null;
-  api_key: string | null;
+  api_key?: string | null;
   base_url: string | null;
   model: string | null;
   provider_verified_at: string | null;
