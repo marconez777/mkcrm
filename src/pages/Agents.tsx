@@ -930,7 +930,7 @@ export default function Agents() {
                         <option value="voyage">Voyage</option>
                       </select></div>
                     <div><Label className="text-xs">API key reranker</Label>
-                      <Input type="password" value={selected.reranker_api_key ?? ""}
+                      <Input type="password" placeholder={selected.reranker_api_key_set ? "•••••• (configurada)" : ""} value={selected.reranker_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, reranker_api_key: e.target.value })} /></div>
                   </div>
                   <p className="text-xs text-muted-foreground">
