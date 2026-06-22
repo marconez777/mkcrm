@@ -74,12 +74,36 @@ async function recordStep(opts: {
   });
 }
 
+/** Defesa em profundidade: NUNCA permite que uma falha de telemetria
+ *  derrube o Promise.all que registra os 3 agentes paralelos. Sem isso,
+ *  uma exceção em recordStep (token parsing, pricing desconhecido) silencia
+ *  agendador e movimentador no `ai_usage` (P25 da auditoria 2026-06-22). */
+async function safeRecordStep(opts: Parameters<typeof recordStep>[0]) {
+  try {
+    await recordStep(opts);
+  } catch (e) {
+    console.error(
+      `[classify] recordStep failed (${opts.operation}):`,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+}
+
+
 /** Retry once if the LLM call fails with a schema-mismatch / transient error. */
 async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const anyErr = err as { text?: string; cause?: unknown };
+    if (anyErr.text || anyErr.cause) {
+      const causeMsg = anyErr.cause instanceof Error ? anyErr.cause.message : JSON.stringify(anyErr.cause);
+      console.warn(
+        `[classify] ${label} schema mismatch — modelText=<<<${String(anyErr.text ?? "").slice(0, 200)}>>> causeFull=<<<${String(causeMsg).slice(0, 1500)}>>>`,
+      );
+    }
+
     const isSchema = /did not match schema|No object generated|Output validation/i.test(msg);
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;
@@ -87,6 +111,7 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     return await fn();
   }
 }
+
 
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
@@ -248,13 +273,23 @@ function buildTypifierKeysBlock(schema: ClinicFieldDef[]): string {
     .join("\n");
 }
 
-function buildTypifierSystem(schema: ClinicFieldDef[]): string {
+function buildTypifierSystem(schema: ClinicFieldDef[], allowedTags: string[]): string {
   const keysBlock = buildTypifierKeysBlock(schema);
+  // P7+P20: whitelist agora vem de app_settings.automation.v42.allowed_tags
+  // (carregada em context.ts). Fallback para lista mínima quando o setting
+  // não existe — preserva comportamento anterior sem perder validação.
+  const FALLBACK_TAGS = [
+    "welcome_sent", "b2b_auto", "urgencia_clinica", "reativacao", "no_show",
+    "reagendamento_pendente", "reagendamento_solicitado", "aguardando_nova_data",
+    "pagamento_alegado", "consulta_agendada", "tratamento_em_andamento",
+    "agendamento_sugerido", "judicializacao", "precisa_atencao_humana",
+  ];
+  const tagList = allowedTags.length ? allowedTags : FALLBACK_TAGS;
   return `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
 
 Tarefa:
-- "tags_suggested": liste TODAS as tags da whitelist:
-  [welcome_sent, b2b_auto, urgencia_clinica, reativacao, no_show, reagendamento_pendente, reagendamento_solicitado, aguardando_nova_data, pagamento_alegado, consulta_agendada, tratamento_em_andamento, agendamento_sugerido, judicializacao, precisa_atencao_humana]
+- "tags_suggested": liste tags da whitelist abaixo que se aplicam ao lead (use o slug EXATO; tags fora desta lista serão descartadas):
+  [${tagList.join(", ")}]
 
 - "custom_fields_patch": objeto com chaves a atualizar. VOCÊ SÓ PODE PREENCHER AS SEGUINTES CHAVES (declaradas pela clínica). NÃO invente chaves fora desta lista — elas serão descartadas:
 ${keysBlock}
@@ -264,14 +299,14 @@ ${keysBlock}
 Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
-
 }
 
 async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
     generateText({
       model: ai.model(TYPIFIER_MODEL),
-      system: buildTypifierSystem(ctx.clinicFieldSchema),
+      system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
+
       prompt: `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
@@ -429,10 +464,10 @@ export async function runAgent(
     mentionedDates = r1.output.mentioned_dates ?? [];
     summarizerModel = r1.model;
     usage1 = r1.usage;
-    await recordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
+    await safeRecordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await recordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
     return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
   const lat1 = performance.now() - t1;
@@ -457,17 +492,17 @@ export async function runAgent(
     usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage };
     const stepLat = performance.now() - t2;
     await Promise.all([
-      recordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
-      recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
-      recordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
+      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
+      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
     ]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const stepLat = performance.now() - t2;
     await Promise.all([
-      recordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      recordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      recordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
+      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
     ]);
     return { error: `agent_step2_parallel_failed: ${msg.slice(0, 200)}` };
   }
@@ -482,12 +517,13 @@ export async function runAgent(
     const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador);
     maestroOut = r3.output;
     usage3 = r3.usage;
-    await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
+    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await recordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
+
   const lat3 = performance.now() - t3;
 
   const summarizerOut: SummarizerOutput = { summary, mentioned_dates: mentionedDates };

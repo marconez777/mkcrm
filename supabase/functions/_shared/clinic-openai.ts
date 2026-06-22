@@ -9,15 +9,21 @@
 //   const { output } = await generateText({ model: ai.model("gpt-5-mini"), ... });
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@^2";
+import { createOpenAI } from "npm:@ai-sdk/openai@^2";
 
 export interface ClinicOpenAI {
   apiKey: string;
-  /** Provider AI SDK pronto pra usar. Ex.: ai.model("gpt-5-mini"). */
-  model: ReturnType<typeof createOpenAICompatible>;
+  /** Devolve LanguageModel via Chat Completions API com structured outputs.
+   *  Uso: `ai.model("gpt-5-mini")`. */
+  model: (id: string) => ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
 }
 
-/** Lê a chave OpenAI da clínica e devolve um provider AI SDK pronto. */
+/** Lê a chave OpenAI da clínica e devolve um provider AI SDK pronto.
+ *  IMPORTANTE: usa `@ai-sdk/openai` v2 via `provider.chat(id)` (Chat Completions)
+ *  em vez de `provider(id)` (Responses API). Apenas a Chat Completions API
+ *  com `structuredOutputs: true` (default em strict) emite `response_format:
+ *  json_schema`, eliminando os ~10% de erros silenciosos `No object generated`
+ *  vistos com `@ai-sdk/openai-compatible`. */
 export async function getClinicOpenAI(
   client: SupabaseClient,
   clinicId: string,
@@ -29,13 +35,17 @@ export async function getClinicOpenAI(
     .maybeSingle();
   if (error || !data?.openai_api_key) return null;
   const apiKey = String(data.openai_api_key);
-  const provider = createOpenAICompatible({
-    name: "openai",
-    baseURL: "https://api.openai.com/v1",
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  return { apiKey, model: provider };
+  // Sem `compatibility: "strict"`: nossos schemas Zod usam .default() em
+  // vários campos, o que vira `optional` no JSON schema. O modo strict do
+  // OpenAI json_schema rejeita schemas com properties opcionais, fazendo o
+  // SDK cair de volta em `json_object` (texto livre) e gerar
+  // `No object generated`. O modo padrão (não-strict) aceita defaults.
+  const provider = createOpenAI({ apiKey });
+
+  return { apiKey, model: (id: string) => provider.chat(id) };
 }
+
+
 
 /** Lê só a chave (pra chamadas raw fetch — ex.: /v1/models pra ping). */
 export async function getClinicOpenAIKey(

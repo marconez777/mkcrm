@@ -57,8 +57,12 @@ export type LeadContext = {
   /** Schema de custom_fields declarado pela clínica (lead_custom_fields).
    *  Filtrado a tipos preenchíveis por IA. Vazio → fallback hardcoded. */
   clinicFieldSchema: ClinicFieldDef[];
+  /** Whitelist de tags lida de app_settings.automation.v42.allowed_tags.
+   *  Usada tanto no prompt do Tipificador quanto na validação em apply.ts. */
+  allowedTags: string[];
   nowMs: number;
 };
+
 
 export type LoadResult =
   | { kind: "ok"; ctx: LeadContext }
@@ -137,6 +141,7 @@ export async function loadLeadContext(
     { data: firstMsg },
     { data: stageHistRaw },
     { data: clinicFieldsRaw },
+    { data: allowedTagsRaw },
   ] = await Promise.all([
     client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
     client
@@ -157,7 +162,13 @@ export async function loadLeadContext(
       .select("field_key, label, field_type, options, position")
       .eq("clinic_id", leadRow.clinic_id as string)
       .order("position", { ascending: true }),
+    client
+      .from("app_settings")
+      .select("value")
+      .eq("key", "automation.v42.allowed_tags")
+      .maybeSingle(),
   ]);
+
 
   const stageIds = new Set<string>();
   for (const h of stageHistRaw ?? []) {
@@ -194,6 +205,17 @@ export async function loadLeadContext(
         : [],
     }));
 
+  // Whitelist de tags — lida de app_settings.automation.v42.allowed_tags.
+  // Fallback para [] (apply.ts dropa tudo se vazio, comportamento atual seguro).
+  let allowedTags: string[] = [];
+  try {
+    const raw = allowedTagsRaw?.value;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) allowedTags = parsed.map((s) => String(s));
+  } catch {
+    /* ignore — mantém [] */
+  }
+
   return {
     kind: "ok",
     ctx: {
@@ -217,10 +239,12 @@ export async function loadLeadContext(
       recentStageHistory,
       hasBeenTreatedBefore,
       clinicFieldSchema,
+      allowedTags,
       nowMs: Date.now(),
     },
   };
 }
+
 
 export function buildContextBlock(ctx: LeadContext): string {
   const nowIso = new Date(ctx.nowMs).toISOString();
