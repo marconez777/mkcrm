@@ -46,6 +46,7 @@ export type LeadContext = {
     last_processed_message_id_classifier: string | null;
     created_at: string | null;
     ai_summary: string | null;
+    manual_lock_until: string | null;
   };
   stageName: string;
   messages: Msg[];
@@ -62,6 +63,7 @@ export type LeadContext = {
   allowedTags: string[];
   nowMs: number;
 };
+
 
 
 export type LoadResult =
