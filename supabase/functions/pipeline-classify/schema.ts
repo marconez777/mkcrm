@@ -175,7 +175,7 @@ export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
 export const AgendadorOutputSchema = z.object({
   is_scheduling_action: z.boolean(),
   scheduling_intent: z.enum(["novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda", "nenhum"]).default("nenhum"),
-  reasons: z.array(z.string()).min(1).max(3),
+  reasons: z.array(z.string()).max(3).optional().default([]),
 });
 export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
 
@@ -195,7 +195,7 @@ export const MovimentadorOutputSchema = z.object({
   intent: z.string().default("outro"),
   mentioned_intents: z.array(z.string()).max(3).default([]),
   is_b2b: z.boolean(),
-  reasons: z.array(z.string()).min(1).max(3),
+  reasons: z.array(z.string()).max(3).optional().default([]),
 });
 export type MovimentadorOutput = z.infer<typeof MovimentadorOutputSchema>;
 
@@ -212,9 +212,10 @@ export const MaestroOutputSchema = z.object({
       z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
     )
     .default({}),
-  reasons: z.array(z.string()).min(1).max(5),
+  reasons: z.array(z.string()).max(5).optional().default([]),
 });
 export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
+
 
 /** Combina as saídas dos 5 agentes V6 em um ClassificationV2 normalizado. */
 export function mergeV6Outputs(
