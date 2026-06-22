@@ -16,6 +16,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4
 import { generateText } from "npm:ai@^6";
 import { getClinicOpenAI } from "./clinic-openai.ts";
 import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
+import { getToggle } from "./app-settings.ts";
 
 const MODEL = "gpt-5-mini";
 const MAX_MSGS_SUMMARY = 60;
@@ -30,19 +31,12 @@ export interface SummarizeResult {
   last_message_id?: string;
 }
 
-async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
-}
-
 export async function runSummarize(
   client: SupabaseClient,
   leadId: string,
   opts: { force?: boolean; reason?: string } = {},
 ): Promise<SummarizeResult> {
-  if (!(await isEnabled(client, "automation.summarizer.enabled"))) {
+  if (!(await getToggle(client, "automation.summarizer.enabled"))) {
     return { status: "skipped", reason: "toggle_off" };
   }
 
