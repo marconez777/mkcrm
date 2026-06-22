@@ -512,7 +512,7 @@ export async function runAgent(
     await safeRecordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_SUMMARIZER, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
     return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
   const lat1 = performance.now() - t1;
@@ -560,19 +560,19 @@ export async function runAgent(
     usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage, typifier_skipped: rPr.skipped };
     const stepLat = performance.now() - t2;
     await Promise.all([
-      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
+      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
       rPr.skipped
         ? Promise.resolve()
-        : safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
-      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
+        : safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
     ]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const stepLat = performance.now() - t2;
     await Promise.all([
-      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
+      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
     ]);
     return { error: `agent_step2_parallel_failed: ${msg.slice(0, 200)}` };
   }
@@ -596,10 +596,10 @@ export async function runAgent(
     const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
-    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
 
@@ -614,10 +614,10 @@ export async function runAgent(
     mode: "full",
     agents: {
       summarizer_model: summarizerModel,
-      agendador_model: AGENDADOR_MODEL,
-      typifier_model: TYPIFIER_MODEL,
-      movimentador_model: MOVIMENTADOR_MODEL,
-      maestro_model: MAESTRO_MODEL,
+      agendador_model: M_AGENDADOR,
+      typifier_model: M_TYPIFIER,
+      movimentador_model: M_MOVIMENTADOR,
+      maestro_model: M_MAESTRO,
       summary_chars: summary.length,
       summary,
       latency_ms: {
