@@ -3995,6 +3995,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ai_review_fail_count: number
           ai_review_queued_at: string | null
           ai_review_reasons: string[]
           ai_summary: string | null
@@ -4044,6 +4045,7 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
+          ai_review_fail_count?: number
           ai_review_queued_at?: string | null
           ai_review_reasons?: string[]
           ai_summary?: string | null
@@ -4093,6 +4095,7 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Update: {
+          ai_review_fail_count?: number
           ai_review_queued_at?: string | null
           ai_review_reasons?: string[]
           ai_summary?: string | null
@@ -7498,6 +7501,7 @@ export type Database = {
       revert_builder_manual: { Args: { _version: number }; Returns: number }
       seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
       support_chat_spent_this_month_usd: { Args: never; Returns: number }
+      try_classify_lock: { Args: { _lead_id: string }; Returns: boolean }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }
         Returns: boolean
