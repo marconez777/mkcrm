@@ -50,20 +50,17 @@ function backoffMsForFail(fails: number): number {
 }
 
 
-async function getSettingString(
+import { getSettingString, getToggle } from "../_shared/app-settings.ts";
+
+async function getSettingStringLocal(
   client: SupabaseClient,
   key: string,
 ): Promise<string | null> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return null;
-  return String(data.value).replace(/^"|"$/g, "");
+  return getSettingString(client, key);
 }
 
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const v = await getSettingString(client, key);
-  if (!v) return false;
-  const s = v.toLowerCase();
-  return s === "true" || s === "1";
+  return getToggle(client, key);
 }
 
 async function clearQueueFlag(client: SupabaseClient, leadId: string) {
