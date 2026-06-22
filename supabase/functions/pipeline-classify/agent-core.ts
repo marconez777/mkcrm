@@ -355,10 +355,11 @@ async function runMaestro(
   outPreenchedor: TypifierOutput,
   outMovimentador: MovimentadorOutput
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
-  const result = await generateText({
-    model: ai.model(MAESTRO_MODEL),
-    system: buildMaestroSystem(),
-    prompt: `RESUMO Factual:
+  const result = await withSchemaRetry("maestro", () =>
+    generateText({
+      model: ai.model(MAESTRO_MODEL),
+      system: buildMaestroSystem(),
+      prompt: `RESUMO Factual:
 ${summary}
 
 OPINIÕES DOS AGENTES:
@@ -367,10 +368,12 @@ Preenchedor: ${JSON.stringify(outPreenchedor, null, 2)}
 Movimentador: ${JSON.stringify(outMovimentador, null, 2)}
 
 Emita o veredicto final resolvendo inconsistências.`,
-    output: Output.object({ schema: MaestroOutputSchema }),
-  });
+      output: Output.object({ schema: MaestroOutputSchema }),
+    }),
+  );
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 // ===== Orquestração =====
 
