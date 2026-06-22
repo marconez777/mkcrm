@@ -96,12 +96,14 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     return await fn();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const anyErr = err as { text?: string; cause?: { message?: string } };
+    const anyErr = err as { text?: string; cause?: unknown };
     if (anyErr.text || anyErr.cause) {
+      const causeMsg = anyErr.cause instanceof Error ? anyErr.cause.message : JSON.stringify(anyErr.cause);
       console.warn(
-        `[classify] ${label} schema mismatch — modelText="${String(anyErr.text ?? "").slice(0, 400)}" cause=${String(anyErr.cause?.message ?? "").slice(0, 200)}`,
+        `[classify] ${label} schema mismatch — modelText=<<<${String(anyErr.text ?? "").slice(0, 200)}>>> causeFull=<<<${String(causeMsg).slice(0, 1500)}>>>`,
       );
     }
+
     const isSchema = /did not match schema|No object generated|Output validation/i.test(msg);
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;
