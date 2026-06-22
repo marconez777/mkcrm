@@ -337,7 +337,23 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
           .update({ last_heartbeat_at: new Date().toISOString(), totals })
           .eq("id", runId);
 
-        const result = await callClassify(lead.id as string, onlyAgent);
+        // heartbeat periódico (a cada 30s) durante a chamada da IA — o pipeline
+        // V6 (5 agentes) pode passar de 3min, então mantemos o watchdog satisfeito.
+        const hbInterval = setInterval(() => {
+          service
+            .from("pipeline_runs")
+            .update({ last_heartbeat_at: new Date().toISOString() })
+            .eq("id", runId)
+            .then(() => {}, () => {});
+        }, 30_000);
+
+        let result: Awaited<ReturnType<typeof callClassify>>;
+        try {
+          result = await callClassify(lead.id as string, onlyAgent);
+        } finally {
+          clearInterval(hbInterval);
+        }
+
         const finishedAt = new Date().toISOString();
 
         let status: "ok" | "skipped" | "error" = "ok";
