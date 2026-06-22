@@ -56,7 +56,7 @@ related_docs:
 | | |
 |---|---|
 | Entry | `supabase/functions/pipeline-classify/index.ts` |
-| Modelos | `gpt-4o` (Resumidor) + `gpt-5-mini` × 3 (Agendador, Tipificador, Movimentador, paralelos) + `gpt-5` (Maestro) |
+| Modelos | `gpt-4o` (Resumidor) + `gpt-5-nano` (Agendador) + `gpt-5-mini` (Tipificador) + `gpt-5-nano` (Movimentador), os 3 paralelos + `gpt-5` (Maestro). **PR11.9**: Agendador/Movimentador rebaixados de mini→nano (schemas triviais; ~5× mais barato; latência igual ou melhor). |
 | Chamadas LLM por execução | até **5** (3 fases: serial → paralela → serial) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
