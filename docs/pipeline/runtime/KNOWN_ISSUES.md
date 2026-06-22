@@ -3,10 +3,13 @@ title: "Bugs conhecidos do pipeline"
 topic: kanban
 kind: troubleshooting
 audience: agent
-updated: 2026-06-21
-summary: "Bugs reportados e seu status: cross-clinic em automations-tick + leads MKart no funil ÓR (CORRIGIDO 2026-06-21 com trigger), dispatcher do executor sem `parallel`, telemetria classifier (CORRIGIDO V6), gaps estruturais."
+updated: 2026-06-22
+summary: "Bugs reportados e seu status. Resolvidos nas Fases A-D (2026-06-22): AI SDK structured outputs, whitelist dinâmica, advisory lock + backoff escalonado, cleanup G10. Aberto: stage_sequence_bindings dormente."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
+  - supabase/functions/pipeline-classify/agent-core.ts
+  - supabase/functions/pipeline-classify/apply.ts
+  - supabase/functions/pipeline-run-executor/index.ts
   - supabase/functions/automations-tick/index.ts
   - src/lib/manual-stage-move.ts
   - src/pages/Kanban.tsx
@@ -15,9 +18,45 @@ related_docs:
   - docs/pipeline/runtime/HUMAN_REACTOR.md
   - docs/pipeline/runtime/TAGS_LIVE.md
   - docs/pipeline/runtime/TRIGGERS_AUDIT.md
+  - docs/pipeline/runtime/plan-correcoes.md
 ---
 
 # Bugs conhecidos e limitações
+
+## -10. `stage_sequence_bindings` dormente (ABERTO — 2026-06-22)
+
+`SELECT count(*) FROM stage_sequence_bindings` = **3** em todo o projeto. O trigger `trg_enroll_on_stage_change` continua rodando em todo move de stage para olhar uma tabela praticamente vazia.
+
+**Não é bug**, é dívida operacional. Custo agregado pequeno mas presente em ~100 moves/dia.
+
+**Recomendação**: revisar em 30 dias (2026-07-22). Se ainda <10 bindings, desligar o trigger e arquivar a UI `message_sequences`. Ver `docs/pipeline/runtime/USER_AUTOMATIONS.md §Gap conhecido`.
+
+## -9. Cleanup periódico do G10 (CORRIGIDO 2026-06-22 — Fase D/P28)
+
+Coluna `leads.custom_fields_last_human_edit jsonb` acumulava timestamps indefinidamente; após 7d (janela do G10) as entradas eram lidas em todo classify mas sem efeito útil.
+
+**Fix**: função `public.cleanup_g10_expired()` (SECURITY DEFINER) + cron `cleanup-g10-expired-daily` (`0 4 * * *` UTC). Drop de qualquer entrada com timestamp > 14d (margem dupla).
+
+## -8. Advisory lock + backoff escalonado (CORRIGIDO 2026-06-22 — Fase B/P8+P9)
+
+Fila `needs_ai_review` podia ter o mesmo lead processado por 2 workers concorrentes; falhas usavam backoff flat de 10 min (sem distinção transient vs persistente).
+
+**Fix**:
+- RPC `try_classify_lock(_lead_id)` via `pg_try_advisory_xact_lock` — `classifyOneV2` aborta com `skipped: 'locked_by_other_worker'` se já houver lock.
+- `backoffMsForFail()` agora escalona 2 → 5 → 30 min conforme `leads.ai_review_fail_count` (coluna nova).
+- `tickQueueV2` faz `.in("clinic_id", allowedClinicIds)` no SELECT (evita SELECT no universo de todas as clínicas).
+
+## -7. Whitelist de tags dinâmica (CORRIGIDO 2026-06-22 — Fase A/P7+P20)
+
+Whitelist hardcoded em `apply.ts` descartava 99% das tags sugeridas (278 descartadas / 6 aplicadas em 24h).
+
+**Fix**: `app_settings.automation.v42.allowed_tags` (jsonb array). `agent-core.ts` injeta no system do Tipificador; `apply.ts` filtra contra ela. Adicionar tag = `UPDATE app_settings` (sem deploy). Ver `TAGS_LIVE.md §Whitelist`.
+
+## -6. AI SDK structured outputs (CORRIGIDO 2026-06-22 — Fase A/P0)
+
+12 erros `No object generated` em 48h (todos agentes) causados por uso de `@ai-sdk/openai-compatible` sem suporte a structured outputs.
+
+**Fix**: `_shared/clinic-openai.ts` migrado para `createOpenAI` do `@ai-sdk/openai`. Schemas dos agentes (`schema.ts`) reativados como `z.object(...)` tipado em vez de `z.any()`. Erros zerados.
 
 ## -5. Leads MKart vazando no funil ÓR (CORRIGIDO 2026-06-21)
 
