@@ -73,12 +73,27 @@ async function recordStep(opts: {
   });
 }
 
+/** Retry once if the LLM call fails with a schema-mismatch / transient error. */
+async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isSchema = /did not match schema|No object generated|Output validation/i.test(msg);
+    const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
+    if (!isSchema && !isTransient) throw err;
+    console.warn(`[classify] ${label} retry after: ${msg.slice(0, 160)}`);
+    return await fn();
+  }
+}
+
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
 const AGENDADOR_MODEL = "gpt-5-mini";
 const TYPIFIER_MODEL = "gpt-5-mini";
 const MOVIMENTADOR_MODEL = "gpt-5-mini";
 const MAESTRO_MODEL = "gpt-5";
+
 
 export const AGENT_MODEL = MAESTRO_MODEL;
 
