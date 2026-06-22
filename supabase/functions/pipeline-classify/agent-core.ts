@@ -486,12 +486,19 @@ export async function runAgent(
   ctx: LeadContext,
   opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
 ): Promise<RunAgentSuccess | { error: string }> {
-  const ai = await getClinicOpenAI(client, ctx.lead.clinic_id);
-  if (!ai) return { error: "no_clinic_openai_key" };
+  const ai = await getClassifierAi(client, ctx.lead.clinic_id);
+  if (!ai) return { error: ai === null ? "no_ai_provider" : "no_clinic_openai_key" };
+
+  // Resolve ids reais (provider-dependent) para usar nas chamadas e na telemetria.
+  const M_SUMMARIZER   = pickModel(ai.provider, SUMMARIZER_SPEC);
+  const M_AGENDADOR    = pickModel(ai.provider, AGENDADOR_SPEC);
+  const M_TYPIFIER     = pickModel(ai.provider, TYPIFIER_SPEC);
+  const M_MOVIMENTADOR = pickModel(ai.provider, MOVIMENTADOR_SPEC);
+  const M_MAESTRO      = pickModel(ai.provider, MAESTRO_SPEC);
 
   // ----- Passo 1 — Resumidor -----
   let summary: string;
-  let summarizerModel = SUMMARIZER_MODEL_PRIMARY;
+  let summarizerModel = M_SUMMARIZER;
   let mentionedDates: SummarizerOutput["mentioned_dates"] = [];
   let usage1: unknown;
   const t1 = performance.now();
