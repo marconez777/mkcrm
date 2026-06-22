@@ -629,6 +629,105 @@ async function ruleHumanReactorTick(client: SupabaseClient) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ruleConsultaPassou — PR6
+// Quando a data da consulta/procedimento já passou (+ buffer de 2h) e o lead
+// continua em "Consulta agendada" / "Tratamento agendado" sem reagendamento
+// pendente, presume-se que foi realizada e move-se para o stage final. No-show
+// continua sendo move manual da secretária.
+// ─────────────────────────────────────────────────────────────────────────────
+async function ruleConsultaPassou(client: SupabaseClient) {
+  if (!(await isEnabled(client, "automation.consulta_passou_finaliza.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+
+  const BUFFER_MS = 2 * 3600 * 1000;
+  const cutoffIso = new Date(Date.now() - BUFFER_MS).toISOString();
+
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("pipeline_id, stage_id, canonical_name")
+    .in("canonical_name", [
+      "Consulta agendada",
+      "Tratamento agendado",
+      "Consulta finalizada",
+      "Em tratamento",
+    ]);
+
+  type Pair = { fromCanon: "Consulta agendada" | "Tratamento agendado"; toCanon: "Consulta finalizada" | "Em tratamento"; tag: string; source: string };
+  const PAIRS: Pair[] = [
+    { fromCanon: "Consulta agendada", toCanon: "Consulta finalizada", tag: "consulta_realizada", source: "auto:consulta-passou" },
+    { fromCanon: "Tratamento agendado", toCanon: "Em tratamento", tag: "procedimento_realizado", source: "auto:procedimento-passou" },
+  ];
+
+  const REAGENDAMENTO_TAGS = new Set(["reagendamento_pendente", "reagendamento_solicitado", "aguardando_nova_data"]);
+
+  let moved = 0;
+  let scanned = 0;
+  const moves: unknown[] = [];
+
+  for (const pair of PAIRS) {
+    const fromStageIds = (aliases ?? [])
+      .filter((a) => a.canonical_name === pair.fromCanon)
+      .map((a) => a.stage_id);
+    if (fromStageIds.length === 0) continue;
+
+    const toByPipeline = new Map<string, string>();
+    for (const a of aliases ?? []) {
+      if (a.canonical_name === pair.toCanon) toByPipeline.set(a.pipeline_id, a.stage_id);
+    }
+
+    const { data: leads } = await client
+      .from("leads")
+      .select("id, clinic_id, pipeline_id, stage_id, tags, custom_fields")
+      .in("stage_id", fromStageIds)
+      .is("archived_at", null)
+      .eq("is_internal_contact", false)
+      .limit(2000);
+
+    for (const lead of leads ?? []) {
+      scanned++;
+      const cf = (lead.custom_fields ?? {}) as Record<string, unknown>;
+      const rawDate =
+        (cf.procedimento_agendado_em as string | undefined) ??
+        (cf.consulta_agendada_em as string | undefined);
+      if (!rawDate) continue;
+      const ts = Date.parse(rawDate);
+      if (!Number.isFinite(ts)) continue;
+      if (ts >= Date.now() - BUFFER_MS) continue; // ainda futuro / dentro do buffer
+
+      const tags = (lead.tags ?? []) as string[];
+      if (tags.some((t) => REAGENDAMENTO_TAGS.has(t))) continue;
+
+      const toStageId = toByPipeline.get(lead.pipeline_id);
+      if (!toStageId || lead.stage_id === toStageId) continue;
+
+      const ymd = new Date(ts).toISOString().slice(0, 10);
+      const res = await pipelineMove(client, {
+        leadId: lead.id,
+        toStageId,
+        source: pair.source,
+        reason: `${pair.fromCanon} → ${pair.toCanon}: data ${ymd} já passou (+2h buffer); no-show fica manual`,
+        ruleKey: "automation.consulta_passou_finaliza.enabled",
+        idempotencyKey: `consulta-passou:${lead.id}:${ymd}`,
+      });
+      if ((res as { moved?: boolean }).moved) {
+        await addTag(client, lead.id, pair.tag);
+        await logEvent(client, lead.clinic_id, lead.id, pair.source, {
+          from: pair.fromCanon,
+          to: pair.toCanon,
+          data_agendada: rawDate,
+        });
+        moved++;
+        moves.push({ lead_id: lead.id, to: pair.toCanon, data: rawDate });
+      }
+    }
+  }
+
+  return { moved, scanned, sample: moves.slice(0, 10) };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HTTP entry
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -663,9 +762,12 @@ Deno.serve(async (req) => {
         );
         break;
       case "inactivity-tick":
-        result = await ruleInactivityTick(client);
+        result = {
+          inactivity: await ruleInactivityTick(client),
+          consulta_passou: await ruleConsultaPassou(client),
+        };
         break;
-      case "reactivation-tick":
+
         result = await ruleReactivationTick(client);
         break;
       case "human-reactor-tick":
