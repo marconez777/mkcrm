@@ -4,11 +4,14 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
-import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
+import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
+import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useServiceTypes } from "@/hooks/useServiceTypes";
 import { useAppointments, appointmentToEvent } from "@/hooks/useAppointments";
+import { updateAppointmentSchedule } from "@/lib/appointments-mutations";
 
 type Props = {
   pipelineId: string;
