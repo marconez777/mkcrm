@@ -313,18 +313,21 @@ async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClin
     last_message_from_attendant: lastMsg ? lastMsg.from_me === true : null,
   };
 
-  const result = await generateText({
-    model: ai.model(MOVIMENTADOR_MODEL),
-    system: buildMovimentadorSystem(),
-    prompt: `Sinais determinísticos:
+  const result = await withSchemaRetry("movimentador", () =>
+    generateText({
+      model: ai.model(MOVIMENTADOR_MODEL),
+      system: buildMovimentadorSystem(),
+      prompt: `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
 
 RESUMO:
 ${summary}`,
-    output: Output.object({ schema: MovimentadorOutputSchema }),
-  });
+      output: Output.object({ schema: MovimentadorOutputSchema }),
+    }),
+  );
   return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 // ===== Agente 5: Maestro =====
 
