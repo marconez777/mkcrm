@@ -182,15 +182,17 @@ IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 }
 
 async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
-  const result = await generateText({
-    model: ai.model(AGENDADOR_MODEL),
-    system: buildAgendadorSystem(),
-    prompt: `RESUMO factual do lead:
-${summary}`,
-    output: Output.object({ schema: AgendadorOutputSchema }),
-  });
+  const result = await withSchemaRetry("agendador", () =>
+    generateText({
+      model: ai.model(AGENDADOR_MODEL),
+      system: buildAgendadorSystem(),
+      prompt: `RESUMO factual do lead:\n${summary}`,
+      output: Output.object({ schema: AgendadorOutputSchema }),
+    }),
+  );
   return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 // ===== Agente 3: Preenchedor (Tipificador) =====
 
