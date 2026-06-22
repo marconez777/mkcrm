@@ -1189,16 +1189,68 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_service_types: {
+        Row: {
+          active: boolean
+          clinic_id: string
+          color_hex: string
+          created_at: string
+          default_duration_min: number
+          id: string
+          kind: string
+          label: string
+          position: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          clinic_id: string
+          color_hex?: string
+          created_at?: string
+          default_duration_min?: number
+          id?: string
+          kind: string
+          label: string
+          position?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          clinic_id?: string
+          color_hex?: string
+          created_at?: string
+          default_duration_min?: number
+          id?: string
+          kind?: string
+          label?: string
+          position?: number
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_service_types_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           clinic_id: string
           created_at: string
           created_by: string | null
+          duration_min: number
           id: string
           kind: string
           lead_id: string
           notes: string | null
           scheduled_at: string
+          service_type_id: string | null
           status: string
           updated_at: string
         }
@@ -1206,11 +1258,13 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string | null
+          duration_min?: number
           id?: string
           kind: string
           lead_id: string
           notes?: string | null
           scheduled_at: string
+          service_type_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1218,11 +1272,13 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string | null
+          duration_min?: number
           id?: string
           kind?: string
           lead_id?: string
           notes?: string | null
           scheduled_at?: string
+          service_type_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1239,6 +1295,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_type_id_fkey"
+            columns: ["service_type_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_service_types"
             referencedColumns: ["id"]
           },
         ]
