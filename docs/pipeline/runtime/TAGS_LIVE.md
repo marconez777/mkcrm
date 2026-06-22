@@ -51,19 +51,43 @@ GROUP BY tag ORDER BY n DESC;
 
 > **Observação**: zero leads com `auditor_sugere_*`, `post_move_warning`, `welcome_sent`, `reativacao`, `judicializacao`, `b2b_auto` ou `consulta_agendada` no snapshot — auditores ainda não geraram discordâncias relevantes desde que foram ligados.
 
-## Whitelist (Forçada via Código)
+## Whitelist (dinâmica via `app_settings`)
 
-A whitelist de tags agora é **estritamente forçada** pelo `apply.ts`. Qualquer tag sugerida pela IA que não esteja nesta lista é sumariamente descartada, garantindo a padronização do CRM e evitando "alucinação de tags".
+Pós Fase A (P7, 2026-06-22) a whitelist deixou de ser hardcoded em `apply.ts` e passou a ser lida em tempo de execução de:
 
-As tags foram expandidas (Ajuste C1) e atualmente compreendem:
+```sql
+SELECT value FROM app_settings WHERE key = 'automation.v42.allowed_tags';
+```
+
+`agent-core.ts:304` carrega o array, injeta no system do Tipificador como lista de slugs válidos, e `apply.ts` filtra qualquer tag fora dessa lista (registrando em `applied.tags.dropped_by_whitelist`). Snapshot atual (44 tags):
 
 ```json
 ["reagendamento_pendente","retorno_pendente","nf_pendente","pagamento_pendente",
  "paciente_antigo","reativacao","judicializacao","renovacao_receita","lead_b2b",
  "precisa_atencao_humana","post_move_warning","ciclo_concluido","modalidade_online",
- "modalidade_presencial","manual_lock","aguardando_secretaria", 
- "interesse_conjuge", "segunda_opiniao", "alta_urgencia", "risco_cirurgico", "exames_prontos"]
+ "modalidade_presencial","manual_lock","aguardando_secretaria","agendamento_confirmado",
+ "aguardando_comparecimento","interesse_conjuge","dados_conjuge_pendentes",
+ "crise_ansiedade","no_show","consulta_agendada","tratamento_em_andamento",
+ "reagendamento_solicitado","aguardando_nova_data","psiquiatria","infusao_cetamina",
+ "emt","teleconsulta","consulta_presencial","primeira_consulta","agendamento_pendente",
+ "consentimento_pendente","comprovante_pix_pendente","confirmacao_textual_pendente",
+ "receita_disponivel","receita_enviada","aguardando_retirada","retirada_nao_confirmada",
+ "interesse_consulta","interesse_tratamento","contato_audio","pagamento_alegado"]
 ```
+
+### Como adicionar uma tag nova
+
+```sql
+UPDATE app_settings
+SET value = (
+  SELECT jsonb_agg(DISTINCT t) FROM jsonb_array_elements_text(
+    value || jsonb_build_array('nova_tag_slug')
+  ) t
+)
+WHERE key = 'automation.v42.allowed_tags';
+```
+
+A próxima execução do classifier já pegará o valor novo (sem deploy). Use `snake_case`, sempre em PT-BR, slug curto.
 
 ## Tags protegidas (`PROTECTED_TAGS`)
 
