@@ -208,18 +208,15 @@ Produza o resumo agora.`;
     );
 
 
+  const primary = pickModel(ai.provider, SUMMARIZER_SPEC);
+  const fallback = pickModel(ai.provider, SUMMARIZER_FALLBACK_SPEC);
   try {
-    const result = await tryModel(SUMMARIZER_MODEL_PRIMARY);
-    return { output: result.output as SummarizerOutput, model: SUMMARIZER_MODEL_PRIMARY, usage: (result as { usage?: unknown }).usage };
-  } catch (err) {
-    try {
-      const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-      return { output: result.output as SummarizerOutput, model: `${SUMMARIZER_MODEL_FALLBACK} (fallback)`, usage: (result as { usage?: unknown }).usage };
-    } catch (err2) {
-      throw err2;
-    }
+    const result = await tryModel(primary);
+    return { output: result.output as SummarizerOutput, model: primary, usage: (result as { usage?: unknown }).usage };
+  } catch (_err) {
+    const result = await tryModel(fallback);
+    return { output: result.output as SummarizerOutput, model: `${fallback} (fallback)`, usage: (result as { usage?: unknown }).usage };
   }
-}
 
 // ===== Agente 2: Agendador =====
 
