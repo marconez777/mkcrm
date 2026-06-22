@@ -32,14 +32,33 @@ const MODEL = "gpt-5-mini";
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
-const EXCLUDED_STAGES = new Set([
+// P16+P17: stages a EXCLUIR resolvidos por nome canônico via
+// stage_canonical_aliases (em vez de comparação literal de stage.name).
+// Antes: hardcoded "Nutrição inativa" (i minúsculo) e "Em tratamento"
+// (stage fantasma) — não batiam com nomes reais da clínica
+// (ex.: "Nutrição Inativa (Geladeira de Leads)").
+const EXCLUDED_CANONICALS = new Set<string>([
   "Paciente antigo",
-  "Nutrição inativa",
   "B2B / Stakeholders",
-  "B2B",
-  "Desqualificado",
-  "Lead não qualificado",
+  "Nutrição inativa",
+  "nutricao_inativa",
+  "geladeira_de_leads",
+  "Nutrição Antigos",
+  "nutricao_antigos",
 ]);
+
+async function loadExcludedStageIds(client: SupabaseClient): Promise<Set<string>> {
+  const { data } = await client
+    .from("stage_canonical_aliases")
+    .select("stage_id, canonical_name")
+    .in("canonical_name", Array.from(EXCLUDED_CANONICALS));
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.stage_id) out.add(row.stage_id as string);
+  }
+  return out;
+}
+
 
 type Canon =
   | "Novo"
