@@ -221,7 +221,11 @@ export async function applyClassification(
 
   // ===== 5) UPDATE atômico via RPC (não dispara G10) =====
   // Em modo maestro-only, NÃO aplica tags/custom_fields (são reaproveitados).
-  if (applyTypifier && (tagsChanged || fieldsChanged)) {
+  // Guard D3 (PR10.2): se o lead está travado em "Paciente antigo", NÃO grava
+  // tags/campos — antes da correção a escrita acontecia mesmo com o move
+  // bloqueado, deixando status/tag órfãos.
+  const lockedInPacienteAntigo = applyMaestro && ctx.stageName === "Paciente antigo";
+  if (applyTypifier && !lockedInPacienteAntigo && (tagsChanged || fieldsChanged)) {
     const { error: rpcErr } = await client.rpc("apply_lead_automation_patch", {
       p_lead_id: lead.id,
       p_custom_fields: fieldsChanged ? nextFields : null,
