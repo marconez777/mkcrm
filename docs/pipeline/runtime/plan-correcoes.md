@@ -377,6 +377,93 @@ SELECT key FROM app_settings WHERE key LIKE 'automation.%';
 
 ---
 
-> **Status da varredura:** batch 1 concluído. Pendente: batch 2 (intents extraction, message dedup, evolution-webhook, stage_sequence_bindings), batch 3 (RPCs do clinic-openai, custom_fields_last_human_edit, RLS do allowlist).
+# Rodada 2 — batch 2
+
+## P20 — Tags clinicamente úteis sendo descartadas (amplificação do P7) 🔴 crit
+
+**Top 15 tags descartadas por whitelist em 24h** (consumo real do Tipificador):
+
+```text
+agendamento_pendente              7
+psiquiatria                       6   ← especialidade médica
+consentimento_pendente            5
+infusao_cetamina                  5   ← protocolo clínico
+primeira_consulta                 5
+teleconsulta                      5
+segmento_paciente_antigo          5
+nutricao_inativa                  4
+interesse_consulta                4
+comprovante_pix_pendente          4
+emt                               4   ← estimulação magnética transcraniana
+segmento_nutricao_leads           4
+receita_enviada                   3
+confirmacao_textual_pendente      3
+consulta_presencial               3
+```
+
+A whitelist atual (14 tags) está perdendo **sinal clínico** (especialidades, protocolos), **operacional** (pix pendente, consentimento), e **de segmentação** (segmento_*). A seed proposta no P7 deve incluir estas — fica como **lista canônica oficial** para a Fase A.
+
+## P21 — `ai_review_reasons` órfãs travando 6 leads 🟠 alta
+
+**Evidência:**
+```sql
+SELECT unnest(ai_review_reasons), count(*) FROM leads WHERE needs_ai_review GROUP BY 1;
+-- audit-b2b-not-b2b            2
+-- audit-r2-not-b2b             2
+-- audit-r3-missing-agendamento 2
+-- pagamento                    1
+-- pipeline-classifier          1
+```
+
+`tickQueueV2` (`pipeline-classify/index.ts:146`) só processa leads com reason `pipeline-classifier`. As outras 4 reasons (`audit-b2b-not-b2b`, `audit-r2-not-b2b`, `audit-r3-missing-agendamento`, `pagamento`) **não têm consumidor em nenhuma edge function viva** (grep zero em `supabase/functions/`). 6 leads marcados `needs_ai_review=true` para sempre — nunca limpam, nunca rodam.
+
+Provavelmente sobras de auditoria manual via `watch-stale-leads` ou de uma versão antiga.
+
+**Fix:**
+1. Decidir: cada reason precisa de consumidor ou é histórica?
+2. Se histórica → migration `UPDATE leads SET needs_ai_review=false WHERE ai_review_reasons <@ ARRAY['audit-b2b-not-b2b','audit-r2-not-b2b','audit-r3-missing-agendamento','pagamento']`.
+3. Se viva → criar consumer ou redirecionar para `pipeline-classifier`.
+4. Documentar lista oficial de reasons em `CLASSIFIER.md` ou `KNOWN_ISSUES.md`.
+
+## P22 — Intent effects raramente populados, valor pouco visível 🟡 média
+
+`apply.ts:503` grava `intent_effects` no payload, mas amostragem de 24h retornou `payload->intent_effects` vazio ou ausente — exceto o caso `renovacao_receita.skipped:'duplicate_task'` visto antes. As funções `runPaymentAlleged`, `runRenovacaoReceita`, `runObjectionSuggest` (em `_shared/pipeline-tasks.ts`) existem mas raramente disparam.
+
+`TAGS_LIVE.md` confirma: `pagamento_alegado=4`, `renovacao_receita=4`, `objecao_detectada=2` em todo o histórico. Os triggers de intent estão dependentes de tags geradas pelo Tipificador — que, como visto no P7, são descartadas. **Cadeia quebrada:** P7 mata as tags → intents nunca disparam → tasks nunca criadas.
+
+Resolver P7 destrava P22 sem mais código.
+
+## P23 — `messages.external_id` sem unique constraint 🟠 média
+
+`evolution-webhook/index.ts:107-168` documenta dedup por `external_id` (sub-bloco "Ingest silently, idempotent by external_id"), mas o dedup é feito via `SELECT ... WHERE external_id=? LIMIT 1` antes de inserir. Sem unique constraint em `messages(external_id, clinic_id)`, **dois webhooks concorrentes** (raros mas possíveis com retry do Evolution) podem ambos passar o SELECT e inserir 2x.
+
+Hoje 24h: `total=255, distinct external_id=254` — **1 duplicata real já presente**.
+
+Os 2 inserts disparam 2x `trg_messages_enqueue_classifier` → 2x classifier no mesmo lead. Combinado com falta de advisory lock (P8), gera trabalho dobrado.
+
+**Fix:**
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY messages_external_id_clinic_uniq
+  ON public.messages (clinic_id, external_id) WHERE external_id IS NOT NULL;
+```
++ trocar SELECT-then-INSERT por `INSERT ... ON CONFLICT (clinic_id, external_id) DO NOTHING RETURNING id`.
+
+## P24 — `stage_sequence_bindings` quase vazio + sequências sem uso 🟡 oper
+
+```sql
+SELECT count(*) FROM stage_sequence_bindings;   -- 3
+```
+
+`DETERMINISTIC_RULES` e `TRIGGERS_AUDIT §2.2` documentam `trg_enroll_on_stage_change` que enrola lead em sequência baseado em `stage_sequence_bindings`. Apenas 3 bindings ativos no projeto inteiro — efetivamente desligado, mas a infra é mantida e testada a cada move.
+
+Não é bug per se, é **dívida**: rodar trigger pra olhar tabela vazia em todo move de stage. Pequeno custo agregado.
+
+**Recomendação:** registrar em `KNOWN_ISSUES` que o feature está dormente e considerar desligar o trigger se 30 dias sem novos bindings.
+
+---
+
+> **Status:** batch 2 concluído. Pendente: batch 3 (RPCs do `clinic-openai`, RLS do `pipeline_automation_allowlist`, `custom_fields_last_human_edit` consistency, summarizer-core token budget, MCP de auditoria).
+
+
 
 
