@@ -15,7 +15,7 @@
 // NUNCA move card. NUNCA toca em appointments (G11).
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { getClassifierAi, pickModel } from "../_shared/classifier-ai.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 import { getToggle, getSettingNumber } from "../_shared/app-settings.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
@@ -29,7 +29,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL = "gpt-5-mini";
+const MODEL_SPEC = { openai: "gpt-5-mini", lovable: "google/gemini-2.5-flash" };
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
@@ -225,11 +225,11 @@ async function auditOne(client: SupabaseClient, c: AuditCandidate) {
   const ordered = (msgs ?? []).reverse();
   if (ordered.length === 0) return { skipped: "no_messages" };
 
-  const ai = await getClinicOpenAI(client, c.clinic_id);
-  if (!ai) return { skipped: "no_clinic_openai_key" };
+  const ai = await getClassifierAi(client, c.clinic_id);
+  if (!ai) return { skipped: "no_ai_provider" };
 
   const { output } = await generateText({
-    model: ai.model(MODEL),
+    model: ai.model(pickModel(ai.provider, MODEL_SPEC)),
     system: buildSystemPrompt(c.stage_name),
     prompt:
       `Lead id=${c.id}\n` +
