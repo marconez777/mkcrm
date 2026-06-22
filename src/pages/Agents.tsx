@@ -876,7 +876,7 @@ export default function Agents() {
                       </Label>
                       <Input
                         type="password"
-                        placeholder="API key para embeddings (sk-... ou AIza...)"
+                        placeholder={selected.embedding_api_key_set ? "•••••• (configurada — deixe vazio para manter)" : "API key para embeddings (sk-... ou AIza...)"}
                         value={selected.embedding_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
                       />
