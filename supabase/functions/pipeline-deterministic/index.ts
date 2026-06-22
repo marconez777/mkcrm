@@ -26,6 +26,7 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 type Action =
   | "novo-lead"
   | "secretary-replied"
+  | "reactivation-inbound"
   | "appointment-sync"
   | "field-changed"
   | "inactivity-tick"
