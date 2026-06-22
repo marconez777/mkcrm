@@ -4,7 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
-import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
+import type { DateSelectArg, DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,13 +12,19 @@ import { toast } from "sonner";
 import { useServiceTypes } from "@/hooks/useServiceTypes";
 import { useAppointments, appointmentToEvent } from "@/hooks/useAppointments";
 import { updateAppointmentSchedule } from "@/lib/appointments-mutations";
+import AppointmentDialog from "./AppointmentDialog";
+
+type DialogState =
+  | { mode: "create"; start: Date; end: Date }
+  | { mode: "edit"; appointmentId: string }
+  | null;
 
 type Props = {
   pipelineId: string;
-  onEventClick?: (appointmentId: string) => void;
 };
 
-export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
+export default function PipelineCalendar({ pipelineId }: Props) {
+  const [dialog, setDialog] = useState<DialogState>(null);
   // Default range: current ISO week (will be replaced by FullCalendar's first datesSet)
   const [range, setRange] = useState<{ from: Date; to: Date }>(() => {
     const now = new Date();
@@ -52,12 +58,13 @@ export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
     });
   }, []);
 
-  const handleEventClick = useCallback(
-    (arg: EventClickArg) => {
-      onEventClick?.(arg.event.id);
-    },
-    [onEventClick],
-  );
+  const handleEventClick = useCallback((arg: EventClickArg) => {
+    setDialog({ mode: "edit", appointmentId: arg.event.id });
+  }, []);
+
+  const handleSelect = useCallback((arg: DateSelectArg) => {
+    setDialog({ mode: "create", start: arg.start, end: arg.end });
+  }, []);
 
   const handleDrop = useCallback(async (info: EventDropArg) => {
     if (!info.event.start) {
@@ -133,8 +140,23 @@ export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
         eventDrop={handleDrop}
         eventResize={handleResize}
         dragRevertDuration={150}
-        selectable={false}
+        selectable
+        selectMirror
+        select={handleSelect}
       />
+      {dialog && (
+        <AppointmentDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setDialog(null);
+          }}
+          pipelineId={pipelineId}
+          mode={dialog.mode}
+          appointmentId={dialog.mode === "edit" ? dialog.appointmentId : undefined}
+          initialStart={dialog.mode === "create" ? dialog.start : undefined}
+          initialEnd={dialog.mode === "create" ? dialog.end : undefined}
+        />
+      )}
     </div>
   );
 }
