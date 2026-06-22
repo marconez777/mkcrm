@@ -561,6 +561,28 @@ Investigação — sem fix óbvio ainda: G10 expire, A1 cron silencioso
 
 **Executar Fase A inteira** (P0 + P7 + P20 + P25) num único sprint. São interdependentes: P0 corrige transport, P7+P20 corrigem valor, P25 corrige telemetria — sem todos juntos não dá pra medir se o resto funcionou.
 
+---
+
+## Status de execução (encerramento 2026-06-22)
+
+| Fase | Itens | Status |
+|---|---|---|
+| A — Causa raiz + ROI | P0, P7, P20, P25 | ✅ done |
+| B — Saúde operacional | P8, P9 + drain 7 leads + P23 (dismissed: índice já existia) | ✅ done |
+| C — Precisão | P2, P10, P12, P16, P17, P19, P21, P29 | ✅ done |
+| D — Robustez | P3, P4, P5, P6, P13, P26 (doc), P28 | ✅ done |
+| E — Documentação | P11, P14, P18, P22, P24, P27 | ✅ done |
+
+**Notas:**
+- **P13** parcial: dispatcher aceita `parallel|agendador|movimentador`; semântica de execução por agente isolado fica como refactor futuro (`KNOWN_ISSUES §-3`).
+- **P22** resolvido por dependência: P7+P20 destravaram tags → intent_effects voltam a popular sem mudança de código.
+- **P24** documentado em `KNOWN_ISSUES §-10` (dívida, revisar em 30d).
+- **P27** registrado em `@security-memory` (não é vazamento, comportamento intencional).
+- **P28** com função SQL + cron diário 04:00 UTC.
+
+Plano encerrado. Próximas correções devem abrir novo documento ou seção de continuação.
+
+
 
 
 
