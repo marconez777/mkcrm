@@ -175,10 +175,16 @@ async function tickQueueV2(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.classifier.enabled"))) {
     return { skipped: "toggle_off" };
   }
+  // P9: filtra clínicas allowlistadas no SELECT em vez de descartar lead-a-lead
+  // dentro de classifyOneV2 — economiza slots de concorrência e tokens.
+  const allowedClinicIds = await loadAllowedClinicIds(client);
+  if (allowedClinicIds.length === 0) return { skipped: "no_allowlisted_clinics" };
+
   const { data: leads } = await client
     .from("leads")
-    .select("id")
+    .select("id, ai_review_fail_count")
     .eq("needs_ai_review", true)
+    .in("clinic_id", allowedClinicIds)
     .lte("ai_review_queued_at", new Date().toISOString())
     .contains("ai_review_reasons", ["pipeline-classifier"])
     .order("ai_review_queued_at", { ascending: true, nullsFirst: true })
@@ -193,6 +199,7 @@ async function tickQueueV2(client: SupabaseClient) {
     while (queue.length) {
       const l = queue.shift();
       if (!l) break;
+      const currentFails = (l.ai_review_fail_count as number | null) ?? 0;
       try {
         const r = await classifyOneV2(client, l.id as string);
         results.push({ lead_id: l.id, ok: true, ...r });
@@ -200,9 +207,14 @@ async function tickQueueV2(client: SupabaseClient) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("classify v2 failed", l.id, msg);
         results.push({ lead_id: l.id, ok: false, error: msg });
+        // P8: backoff escalonado por falhas consecutivas (2/5/30 min).
+        const nextFails = currentFails + 1;
         await client
           .from("leads")
-          .update({ ai_review_queued_at: new Date(Date.now() + 10 * 60_000).toISOString() })
+          .update({
+            ai_review_queued_at: new Date(Date.now() + backoffMsForFail(nextFails)).toISOString(),
+            ai_review_fail_count: nextFails,
+          })
           .eq("id", l.id);
       }
     }
@@ -211,6 +223,7 @@ async function tickQueueV2(client: SupabaseClient) {
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
   return { processed: results.length, results };
 }
+
 
 async function handleV2(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
