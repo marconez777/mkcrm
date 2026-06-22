@@ -62,6 +62,7 @@ const NAV: NavGroup[] = [
     title: "Operações",
     items: [
       { to: "/admin/observability", label: "Observabilidade", icon: Activity },
+      { to: "/admin/pipeline-health", label: "Pipeline Health", icon: Gauge },
       { to: "/admin/support", label: "Suporte IA", icon: LifeBuoy },
     ],
   },

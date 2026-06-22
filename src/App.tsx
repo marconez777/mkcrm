@@ -37,6 +37,7 @@ const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
 const AdminPipelineAutomations = lazy(() => import("./pages/admin/AdminPipelineAutomations"));
+const AdminPipelineHealth = lazy(() => import("./pages/admin/AdminPipelineHealth"));
 const PipelineRuns = lazy(() => import("./pages/PipelineRuns"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
@@ -124,6 +125,7 @@ const App = () => (
               <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
               <Route path="integrations/eduzz" element={<Suspense fallback={<AdminFallback />}><AdminEduzz /></Suspense>} />
               <Route path="pipeline-automations" element={<Suspense fallback={<AdminFallback />}><AdminPipelineAutomations /></Suspense>} />
+              <Route path="pipeline-health" element={<Suspense fallback={<AdminFallback />}><AdminPipelineHealth /></Suspense>} />
             </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route

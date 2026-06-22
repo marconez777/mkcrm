@@ -604,3 +604,14 @@ Plano encerrado. Próximas correções devem abrir novo documento ou seção de 
 - **Fase G — Observabilidade & custo:** dashboard `maestro_outcome` + alertas de fila + telemetria de uso de tags.
 - **Fase H — Qualidade de classificação:** análise de `low_confidence`, few-shots dinâmicos, A/B de prompt.
 - **Fase I — Documentação viva:** script CI `scripts/audit-docs.ts` para detectar drift entre `pg_trigger`/`app_settings` e docs.
+
+---
+
+# Fase G — Observabilidade (parcial, 2026-06-22)
+
+| Item | Status |
+|---|---|
+| G1 — Views SQL (`v_maestro_outcomes_daily`, `v_classify_health_daily`, `v_ai_cost_daily`) com filtro `is_super_admin()` embutido | ✅ done |
+| G2 — Página `/admin/pipeline-health` (KPIs + stacked bar 14d + tabelas) com link no menu Admin > Operações | ✅ done |
+| G3 — Alerta de fila travada (`pipeline-queue-alert`) | ⏸ próximo passo |
+| G4 — `tag_usage_weekly` para podar whitelist | ⏸ próximo passo |

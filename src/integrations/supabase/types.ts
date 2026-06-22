@@ -6897,6 +6897,37 @@ export type Database = {
         }
         Relationships: []
       }
+      v_ai_cost_daily: {
+        Row: {
+          calls: number | null
+          cost_usd: number | null
+          day: string | null
+          operation: string | null
+          tokens: number | null
+        }
+        Relationships: []
+      }
+      v_classify_health_daily: {
+        Row: {
+          calls: number | null
+          cost_usd: number | null
+          day: string | null
+          errors: number | null
+          latency_avg_ms: number | null
+          latency_p50_ms: number | null
+          latency_p95_ms: number | null
+          operation: string | null
+        }
+        Relationships: []
+      }
+      v_maestro_outcomes_daily: {
+        Row: {
+          day: string | null
+          n: number | null
+          outcome: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _email_segment_filters_to_where: {
