@@ -5471,6 +5471,7 @@ export type Database = {
       support_agent_config: {
         Row: {
           api_key: string | null
+          api_key_set: boolean | null
           created_at: string
           embedding_model: string
           enabled: boolean
@@ -5488,6 +5489,7 @@ export type Database = {
         }
         Insert: {
           api_key?: string | null
+          api_key_set?: boolean | null
           created_at?: string
           embedding_model?: string
           enabled?: boolean
@@ -5505,6 +5507,7 @@ export type Database = {
         }
         Update: {
           api_key?: string | null
+          api_key_set?: boolean | null
           created_at?: string
           embedding_model?: string
           enabled?: boolean
