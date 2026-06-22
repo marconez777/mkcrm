@@ -302,3 +302,27 @@
 @media (prefers-reduced-motion: reduce) {
   .site-marquee-track { animation: none; }
 }
+
+/* FullCalendar — alinha com design system (sem cores hard-coded). */
+@layer components {
+  .fc { font-family: inherit; color: hsl(var(--foreground)); }
+  .fc .fc-toolbar-title { @apply text-base font-semibold; }
+  .fc .fc-button {
+    @apply bg-secondary text-secondary-foreground border-0 shadow-none capitalize;
+  }
+  .fc .fc-button:hover { @apply bg-secondary/80; }
+  .fc .fc-button-primary:not(:disabled).fc-button-active,
+  .fc .fc-button-primary:not(:disabled):active {
+    @apply bg-primary text-primary-foreground;
+  }
+  .fc .fc-button-primary:focus { box-shadow: 0 0 0 2px hsl(var(--ring) / 0.4); }
+  .fc-theme-standard td, .fc-theme-standard th,
+  .fc-theme-standard .fc-scrollgrid { border-color: hsl(var(--border)); }
+  .fc .fc-col-header-cell-cushion,
+  .fc .fc-daygrid-day-number,
+  .fc .fc-timegrid-slot-label-cushion { color: hsl(var(--muted-foreground)); }
+  .fc-event { @apply cursor-pointer rounded-md text-xs; }
+  .fc-event-title { @apply font-medium; }
+  .fc .fc-timegrid-now-indicator-line { border-color: hsl(var(--primary)); }
+  .fc .fc-timegrid-now-indicator-arrow { border-color: hsl(var(--primary)); }
+}
