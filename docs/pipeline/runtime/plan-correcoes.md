@@ -278,3 +278,105 @@ Já registrado em `KNOWN_ISSUES.md §-3` como **aberto**. Botão "Só Paralelos"
 - Não toca código de movimentação (zero risco para gates).
 
 Após 24h estável em Fase A, encadear Fase B (fila) e Fase C (precisão).
+
+---
+
+# Rodada 2 — varredura cruzada doc × código (2026-06-22, batch 1)
+
+## P15 — A1 (`position-auditor`) e A2 (`post-move-verifier`) silenciosamente mortos 🔴 crit
+
+**Evidência:**
+```sql
+SELECT count(*) FROM lead_events
+ WHERE type IN ('position_audit_ok','position_audit_disagreement')
+   AND created_at > now() - interval '7 days';
+-- 0
+
+SELECT count(*) FROM ai_usage
+ WHERE operation LIKE 'position%' OR operation LIKE 'post_move%';
+-- 0 (nunca)
+```
+
+Toggles ativos (`automation.position_auditor.enabled=true`, `automation.post_move_verifier.enabled=true`), mas **nenhuma invocação registrada**. `AUDITORS.md` documenta A1 como diário 03:00 BRT e A2 como hook async pós-move — ambos invisíveis no banco.
+
+**Hipóteses (a investigar):**
+1. Cron `pipeline-position-auditor-daily` ausente/desativado em `cron.job` (sem permissão de leitura aqui — verificar via dashboard ou função interna).
+2. Hook do A2 em `_shared/pipeline-move.ts` faz `fire-and-forget` que está silenciando erros (sem `await`, sem catch logado).
+3. Ambas funções deployadas mas falhando no boot (sem entradas em `ai_usage`).
+
+**Impacto:** marco 2.5 da arquitetura inteiramente inativo. Discordâncias do A1 nunca viram tag `auditor_sugere_*` (confirma o que `TAGS_LIVE.md` já mostra: zero leads com essa tag). A2 nunca valida moves de B2B/IA.
+
+**Fix:** investigação dirigida (logs do cron + curl direto na função A1 com `{action:'lead', lead_id:<x>}` para isolar bug). Sem isso, qualquer P5 (whitelist do A2) é cosmético.
+
+## P16 — A1 canon hardcoded inclui stage fantasma "Em tratamento" 🟠 alta
+
+**Local:** `pipeline-position-auditor/index.ts:57-78` — type `Canon` e enum Zod incluem `"Em tratamento"`.
+
+**Real:**
+```sql
+SELECT canonical_name FROM stage_canonical_aliases;
+-- ...
+-- em_tratamento  (snake_case, mapeia para "1ª Sessão Finalizada")
+```
+
+Não existe alias `Em tratamento` (PascalCase) — só `em_tratamento`. Quando o A1 retornar `stage_suggestion="Em tratamento"`, ninguém resolve para um stage real e a tag vira `auditor_sugere_em_tratamento` apontando para o vácuo.
+
+`AUDITORS.md §A1` documenta o canon como espelho da realidade, mas a realidade não confere.
+
+**Fix:**
+- Trocar enum para usar canonical slugs (`em_tratamento`, `nutricao_inativa`, `geladeira_de_leads`, etc.) ou para resolver via consulta de aliases por clínica em runtime.
+- Atualizar `AUDITORS.md`.
+
+## P17 — A1 `EXCLUDED_STAGES` não cobre "Nutrição Inativa (Geladeira de Leads)" 🟠 alta
+
+**Local:** `pipeline-position-auditor/index.ts:35-42` — set hardcoded com `"Nutrição inativa"` (i minúsculo) e `"Paciente antigo"`.
+
+**Real ÓR:** stage chama-se `Nutrição Inativa (Geladeira de Leads)`. Não bate.
+
+**Consequência:** A1 vai auditar leads parados ≥7d em geladeira (que é o normal — a geladeira existe pra ficar parado!) e gerar `auditor_sugere_*` ruído sistemático.
+
+**Fix:** usar resolução por alias canônico (`geladeira_de_leads`, `nutricao_inativa`, `nutricao_antigos`) em vez de comparar `stage.name` literal.
+
+## P18 — Triggers existentes não documentados em `TRIGGERS_AUDIT.md` 🟡 doc
+
+**Achados na varredura `pg_trigger`** (não listados em `TRIGGERS_AUDIT §2.1/§2.2`):
+- `leads.leads_updated`
+- `leads.log_lead_changes_trg`
+- `messages.trg_messages_update_lead_last_inbound`
+
+`TRIGGERS_AUDIT §G2` já alerta sobre gap; estes 3 confirmam que o gap cresceu.
+
+**Fix:** adicionar à §2.2 do `TRIGGERS_AUDIT.md` na Fase E.
+
+## P19 — Toggles `automation.*` referenciados pela doc não existem em `app_settings` 🟠 média
+
+**Verificado:**
+```sql
+SELECT key FROM app_settings WHERE key LIKE 'automation.%';
+-- só existem: classifier.*, inactivity_paciente_antigo, position_auditor.*, post_move_verifier.*
+```
+
+**Faltando** (citados em `DETERMINISTIC_RULES.md`):
+- `automation.novo_lead.enabled`
+- `automation.secretary_replied.enabled`
+- `automation.modality_guard.enabled`
+- `automation.ciclo_concluido.enabled`
+- `automation.monthly_sweep_paciente_antigo.enabled`
+- `automation.reactivation.enabled`
+- `automation.human_reactor.enabled`
+- `automation.followup_24h.enabled` / `followup_3d.enabled` / `followup_7d.enabled`
+
+**Lógica do G3** (`pipeline-move.ts:96-108`): se `setting` não existe → bloqueia. Mas há 267 eventos `auto:followup-3d` nos últimos 7d com `reason=null` (passou). Então essas regras **não estão passando `ruleKey`** para `pipelineMove()`, contradizendo a tabela do `DETERMINISTIC_RULES.md` que lista toggle por regra.
+
+**Consequência:** painel de toggles na UI (se existir) é fictício; tudo roda sem freio. Ou seja, **`automation.novo_lead.enabled=false` não desliga `auto:novo-lead`**.
+
+**Fix:**
+- Auditar cada `pipelineMove()` em `pipeline-deterministic/index.ts` e confirmar passagem de `ruleKey`.
+- Seed dos toggles ausentes em `app_settings` com valor `true` (preserva comportamento atual).
+- Documentar invariante "todo `auto:*` DEVE passar `ruleKey` e o toggle DEVE existir em `app_settings`".
+
+---
+
+> **Status da varredura:** batch 1 concluído. Pendente: batch 2 (intents extraction, message dedup, evolution-webhook, stage_sequence_bindings), batch 3 (RPCs do clinic-openai, custom_fields_last_human_edit, RLS do allowlist).
+
+
