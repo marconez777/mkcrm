@@ -263,17 +263,20 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
-  const result = await generateText({
-    model: ai.model(TYPIFIER_MODEL),
-    system: buildTypifierSystem(ctx.clinicFieldSchema),
-    prompt: `${buildContextBlock(ctx)}
+  const result = await withSchemaRetry("typifier", () =>
+    generateText({
+      model: ai.model(TYPIFIER_MODEL),
+      system: buildTypifierSystem(ctx.clinicFieldSchema),
+      prompt: `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
 ${summary}`,
-    output: Output.object({ schema: TypifierOutputSchema }),
-  });
+      output: Output.object({ schema: TypifierOutputSchema }),
+    }),
+  );
   return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };
 }
+
 
 // ===== Agente 4: Movimentador =====
 
