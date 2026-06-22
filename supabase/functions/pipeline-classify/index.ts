@@ -73,9 +73,28 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
       needs_ai_review: false,
       ai_review_reasons: [],
       ai_review_queued_at: null,
+      ai_review_fail_count: 0,
     })
     .eq("id", leadId);
 }
+
+async function classifyOneV2(
+  client: SupabaseClient,
+  leadId: string,
+  onlyAgent?: "summarizer" | "typifier" | "maestro",
+  force?: boolean,
+) {
+  // Advisory lock: evita que dois ticks paralelos processem o mesmo lead
+  // quando um deles ultrapassa o intervalo de 60s do cron.
+  const { data: locked, error: lockErr } = await client.rpc("try_classify_lock", { _lead_id: leadId });
+  if (lockErr) {
+    console.warn("try_classify_lock failed:", lockErr.message);
+  } else if (locked === false) {
+    return { skipped: "locked_by_other_worker" };
+  }
+
+  const loaded = await loadLeadContext(client, leadId, { bypassWatermark: !!force });
+
 
 async function classifyOneV2(
   client: SupabaseClient,
