@@ -919,6 +919,10 @@ Deno.serve(async (req) => {
         if (!body.message_id) throw new Error("message_id required");
         result = await ruleSecretaryReplied(client, body.message_id);
         break;
+      case "reactivation-inbound":
+        if (!body.message_id) throw new Error("message_id required");
+        result = await ruleReactivationInbound(client, body.message_id);
+        break;
       case "appointment-sync":
         if (!body.appointment_id) throw new Error("appointment_id required");
         result = await ruleAppointmentSync(client, body.appointment_id);
