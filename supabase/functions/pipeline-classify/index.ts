@@ -95,14 +95,6 @@ async function classifyOneV2(
 
   const loaded = await loadLeadContext(client, leadId, { bypassWatermark: !!force });
 
-
-async function classifyOneV2(
-  client: SupabaseClient,
-  leadId: string,
-  onlyAgent?: "summarizer" | "typifier" | "maestro",
-  force?: boolean,
-) {
-  const loaded = await loadLeadContext(client, leadId, { bypassWatermark: !!force });
   if (loaded.kind === "skip") {
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
