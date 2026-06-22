@@ -298,6 +298,17 @@ async function ruleAppointmentSync(
   if (Object.keys(patch).length > 0) await patchCustomFields(client, lead.id, patch);
   if (extraTag) await addTag(client, lead.id, extraTag);
 
+  // PR10.3: auto-clear das tags de reagendamento quando o appointment efetivamente
+  // avança (agendado/realizado). Sem isso ruleConsultaPassou trava o lead
+  // indefinidamente se a secretária esquecer de limpar a tag.
+  if (appt.status === "agendado" || appt.status === "realizado") {
+    await removeTags(client, lead.id, [
+      "reagendamento_pendente",
+      "reagendamento_solicitado",
+      "aguardando_nova_data",
+    ]);
+  }
+
   if (!targetCanon) return { skipped: "no_target", patch };
   const toStageId = await resolveStageId(
     client,
