@@ -80,13 +80,16 @@ async function assertAllowlisted(service: SupabaseClient, clinicId: string): Pro
   return !!data?.enabled;
 }
 
+type OnlyAgent = "summarizer" | "typifier" | "maestro" | "parallel" | "agendador" | "movimentador";
+const ONLY_AGENT_VALUES: OnlyAgent[] = ["summarizer", "typifier", "maestro", "parallel", "agendador", "movimentador"];
+
 interface StartInput {
   clinic_id: string;
   pipeline_id?: string;
   stage_ids?: string[];
   lead_ids?: string[];
   top_n?: number;
-  only_agent?: "summarizer" | "typifier" | "maestro";
+  only_agent?: OnlyAgent;
   parent_run_id?: string;
 }
 
