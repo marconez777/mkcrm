@@ -249,7 +249,7 @@ export default function AgentWizard() {
     provider: string;
     model: string;
     base_url: string | null;
-    api_key: string | null;
+    api_key_set: boolean;
   } | null>(null);
 
   // Origem da chave no passo 3: reusar Builder ou usar chave própria
