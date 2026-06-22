@@ -58,12 +58,13 @@ export default function PipelineCalendar({ pipelineId }: Props) {
     });
   }, []);
 
-  const handleEventClick = useCallback(
-    (arg: EventClickArg) => {
-      onEventClick?.(arg.event.id);
-    },
-    [onEventClick],
-  );
+  const handleEventClick = useCallback((arg: EventClickArg) => {
+    setDialog({ mode: "edit", appointmentId: arg.event.id });
+  }, []);
+
+  const handleSelect = useCallback((arg: DateSelectArg) => {
+    setDialog({ mode: "create", start: arg.start, end: arg.end });
+  }, []);
 
   const handleDrop = useCallback(async (info: EventDropArg) => {
     if (!info.event.start) {
