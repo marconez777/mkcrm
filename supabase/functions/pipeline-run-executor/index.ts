@@ -231,8 +231,8 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
   const onlyAgent =
     typeof scope.only_agent === "string" &&
-    ["summarizer", "typifier", "maestro"].includes(scope.only_agent as string)
-      ? (scope.only_agent as "summarizer" | "typifier" | "maestro")
+    ONLY_AGENT_VALUES.includes(scope.only_agent as OnlyAgent)
+      ? (scope.only_agent as OnlyAgent)
       : undefined;
   const stepName = onlyAgent ? `classify:${onlyAgent}` : "classify";
   const totals = (run.totals ?? {}) as Record<string, number> & {
