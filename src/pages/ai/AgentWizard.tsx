@@ -291,7 +291,7 @@ export default function AgentWizard() {
           return;
         }
         const data = Array.isArray(rows) ? (rows[0] as any) : (rows as any);
-        const ok = !!(data && data.builder_verified_at && data.api_key);
+        const ok = !!(data && data.builder_verified_at && data.api_key_set);
         setBuilderStatus(ok ? "ok" : "missing");
         if (data) {
           setBuilderInfo({
@@ -299,7 +299,7 @@ export default function AgentWizard() {
             provider: (data.provider as string) ?? "openai",
             model: (data.model as string) ?? "",
             base_url: (data.base_url as string | null) ?? null,
-            api_key: (data.api_key as string | null) ?? null,
+            api_key_set: !!(data.api_key_set ?? false),
           });
         }
         if (!ok) setKeySource("own");
