@@ -131,9 +131,9 @@ Ambos são `SECURITY DEFINER` com `SET search_path = public` e levantam `EXCEPTI
 |---|---|---|---|
 | G1 | warn | 4 crons faltando em `DATABASE_LIVE.md §Crons` (`automations-tick`, `sequence-tick`, `agent_followups_tick`, `outreach-recovery-tick-daily`) | Patch nesta auditoria |
 | G2 | warn | 11 triggers PG não listados em `DATABASE_LIVE.md §Triggers` (tabela §2.2) | Patch nesta auditoria |
-| G3 | **crit** | UI envia `only_agent='parallel'` mas o dispatcher em `pipeline-run-executor/index.ts` só aceita `summarizer\|typifier\|maestro` (linhas 88, 229-231, 421-422). Clicar "Só Paralelos" hoje **não dispara `agendador` nem `movimentador`** isoladamente. | Registrado em `KNOWN_ISSUES.md` |
+| G3 | ~~crit~~ | UI envia `only_agent='parallel'` — dispatcher aceitou em 2026-06-22 (Fase D/P13). | ✅ Resolvido — ver `KNOWN_ISSUES §-3` |
 | G4 | info | `AUDIT_CHECKLIST.md` Q29 fala "8 jobs do pipeline" — número real é 9 (com `outreach-recovery`) | Patch |
-| G5 | info | Não existe `docs/pipeline/runtime/USER_AUTOMATIONS.md` descrevendo regras de `public.automations` consumidas por `automations-tick` | Backlog F-DOC |
+| G5 | ~~info~~ | `docs/pipeline/runtime/USER_AUTOMATIONS.md` criado em 2026-06-22 cobrindo `public.automations`. | ✅ Resolvido |
 
 ## 6. Como regenerar este snapshot
 
