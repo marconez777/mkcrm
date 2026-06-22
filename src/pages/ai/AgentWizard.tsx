@@ -458,7 +458,7 @@ export default function AgentWizard() {
   const isVerified = !!verifiedAt && !testError;
   const canNextFromStep3 =
     keySource === "builder"
-      ? builderStatus === "ok" && !!(builderInfo?.api_key)
+      ? builderStatus === "ok" && !!(builderInfo?.api_key_set)
       : !!apiKey && !!model && isVerified;
 
 
