@@ -556,6 +556,7 @@ export default function KanbanPage() {
   const [ui, setUi] = useState(loadUi);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
