@@ -90,8 +90,35 @@ async function safeRecordStep(opts: Parameters<typeof recordStep>[0]) {
 }
 
 
-/** Retry once if the LLM call fails with a schema-mismatch / transient error. */
+/** Retry on 429 (exponential backoff) and schema-mismatch / transient errors. */
 async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  // P3: backoff exponencial dedicado para rate-limit (429), antes do schema-retry legado.
+  const RL_DELAYS_MS = [200, 400, 800, 1600];
+  for (let attempt = 0; attempt < RL_DELAYS_MS.length; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const anyErr = err as {
+        status?: number;
+        statusCode?: number;
+        response?: { status?: number; headers?: Headers };
+        cause?: { status?: number };
+      };
+      const status = anyErr.status ?? anyErr.statusCode ?? anyErr.response?.status ?? anyErr.cause?.status;
+      const is429 = status === 429 || /\b429\b|rate.?limit|too many requests/i.test(msg);
+      if (!is429) break; // sai do loop e cai no fluxo de schema-retry abaixo
+      if (attempt === RL_DELAYS_MS.length - 1) throw err;
+      const retryAfterHdr = anyErr.response?.headers?.get?.("retry-after");
+      const retryAfterMs = retryAfterHdr ? Number(retryAfterHdr) * 1000 : NaN;
+      const wait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
+        ? Math.min(retryAfterMs, 5000)
+        : RL_DELAYS_MS[attempt];
+      console.warn(`[classify] ${label} 429 detected, sleeping ${wait}ms (attempt ${attempt + 1}/${RL_DELAYS_MS.length})`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  // Fluxo legado: 1 retry para schema-mismatch / transientes 5xx / network.
   try {
     return await fn();
   } catch (err) {
@@ -103,7 +130,6 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
         `[classify] ${label} schema mismatch — modelText=<<<${String(anyErr.text ?? "").slice(0, 200)}>>> causeFull=<<<${String(causeMsg).slice(0, 1500)}>>>`,
       );
     }
-
     const isSchema = /did not match schema|No object generated|Output validation/i.test(msg);
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;

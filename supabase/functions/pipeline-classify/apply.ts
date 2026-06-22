@@ -485,9 +485,30 @@ export async function applyClassification(
     : { skipped: "partial_mode" as const };
 
   // ===== 9) Telemetria =====
+  // P6: outcome do Maestro consolidado para filtros em pipeline_runs sem grep no payload.
+  let maestroOutcome: "applied" | "strict_blocked" | "no_signal" | "low_confidence" | "skipped_partial_mode" | "error";
+  if (!applyMaestro) {
+    maestroOutcome = "skipped_partial_mode";
+  } else if (!cls.stage_suggestion) {
+    maestroOutcome = "no_signal";
+  } else if (cls.confidence < 0.6) {
+    maestroOutcome = "low_confidence";
+  } else if (stageOutcome.would_move === true) {
+    maestroOutcome = "applied";
+  } else if (typeof stageOutcome.reason === "string" && (stageOutcome.reason as string).startsWith("strict_no_move")) {
+    maestroOutcome = "strict_blocked";
+  } else {
+    maestroOutcome = "no_signal";
+  }
+
+  const enrichedAgents = agents
+    ? { ...(agents as Record<string, unknown>), maestro_outcome: maestroOutcome }
+    : null;
+
   const telemetry = {
     version: TELEMETRY_VERSION,
     mode,
+    maestro_outcome: maestroOutcome,
     classification: {
       stage_suggestion: cls.stage_suggestion,
       intent: cls.intent,
@@ -522,7 +543,7 @@ export async function applyClassification(
       summarize: summarizeResult,
     },
     cost: { model: agents?.maestro_model ?? "gpt-5-mini", usage: usage ?? null },
-    agents: agents ?? null,
+    agents: enrichedAgents,
   };
 
   return { telemetry, lastMessageId };

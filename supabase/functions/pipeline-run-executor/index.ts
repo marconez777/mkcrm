@@ -80,19 +80,22 @@ async function assertAllowlisted(service: SupabaseClient, clinicId: string): Pro
   return !!data?.enabled;
 }
 
+type OnlyAgent = "summarizer" | "typifier" | "maestro" | "parallel" | "agendador" | "movimentador";
+const ONLY_AGENT_VALUES: OnlyAgent[] = ["summarizer", "typifier", "maestro", "parallel", "agendador", "movimentador"];
+
 interface StartInput {
   clinic_id: string;
   pipeline_id?: string;
   stage_ids?: string[];
   lead_ids?: string[];
   top_n?: number;
-  only_agent?: "summarizer" | "typifier" | "maestro";
+  only_agent?: OnlyAgent;
   parent_run_id?: string;
 }
 
 async function callClassify(
   leadId: string,
-  onlyAgent?: "summarizer" | "typifier" | "maestro",
+  onlyAgent?: OnlyAgent,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   let timeoutId: number | undefined;
   try {
@@ -228,8 +231,8 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
   const onlyAgent =
     typeof scope.only_agent === "string" &&
-    ["summarizer", "typifier", "maestro"].includes(scope.only_agent as string)
-      ? (scope.only_agent as "summarizer" | "typifier" | "maestro")
+    ONLY_AGENT_VALUES.includes(scope.only_agent as OnlyAgent)
+      ? (scope.only_agent as OnlyAgent)
       : undefined;
   const stepName = onlyAgent ? `classify:${onlyAgent}` : "classify";
   const totals = (run.totals ?? {}) as Record<string, number> & {
@@ -435,7 +438,7 @@ Deno.serve(async (req) => {
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
       if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
-      if (input.only_agent && ["summarizer", "typifier", "maestro"].includes(input.only_agent)) {
+      if (input.only_agent && ONLY_AGENT_VALUES.includes(input.only_agent)) {
         scope.only_agent = input.only_agent;
       }
 
