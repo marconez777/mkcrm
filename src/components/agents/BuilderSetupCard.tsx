@@ -10,7 +10,7 @@ import { ProviderErrorBanner } from "./ProviderErrorBanner";
 interface BuilderLike {
   id: string;
   name: string;
-  api_key: string | null;
+  api_key_set: boolean;
   model: string;
   provider: string;
   builder_verified_at?: string | null;
