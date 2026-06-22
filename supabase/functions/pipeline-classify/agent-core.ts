@@ -217,6 +217,9 @@ Produza o resumo agora.`;
     const result = await tryModel(fallback);
     return { output: result.output as SummarizerOutput, model: `${fallback} (fallback)`, usage: (result as { usage?: unknown }).usage };
   }
+}
+
+
 
 // ===== Agente 2: Agendador =====
 
