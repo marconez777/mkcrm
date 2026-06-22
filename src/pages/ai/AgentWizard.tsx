@@ -437,7 +437,7 @@ export default function AgentWizard() {
       const { data, error } = await supabase
         .from("ai_agent_drafts")
         .upsert(payload as never, { onConflict: "clinic_id,user_id" })
-        .select()
+        .select("id, clinic_id, user_id, step, niche, niche_other, goal, goal_other, provider, base_url, model, provider_verified_at, interview_answers, generated_prompt, settings, created_at, updated_at")
         .maybeSingle();
       if (error) throw error;
       if (data) setDraft(data as DraftRow);
