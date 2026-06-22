@@ -28,7 +28,7 @@ type Status = "missing_key" | "unverified" | "verified" | "error";
 
 function deriveStatus(b: BuilderLike | null): Status {
   if (!b) return "missing_key";
-  if (!b.api_key) return "missing_key";
+  if (!b.api_key_set) return "missing_key";
   if (!b.builder_verified_at) return "unverified";
   return "verified";
 }
@@ -119,7 +119,7 @@ export function BuilderSetupCard({ builder, clinicId, selected, onSelect, onVeri
         size="sm"
         variant={effective === "verified" ? "outline" : "default"}
         className="w-full"
-        disabled={testing || !builder?.api_key}
+        disabled={testing || !builder?.api_key_set}
         onClick={test}
       >
         {testing ? (
