@@ -1,9 +1,10 @@
 // supabase/functions/pipeline-classify/agent-core.ts
 // V6 — pipeline de 5 agentes:
 //   1) Resumidor   (gpt-4o, fallback gpt-5-mini) → {summary, mentioned_dates}
-//   2) Agendador   (gpt-5-mini)                  → {is_scheduling_action, scheduling_intent, reasons}
+//   2) Agendador   (gpt-5-nano)                  → {is_scheduling_action, scheduling_intent, reasons}
 //   3) Preenchedor (gpt-5-mini)                  → {tags_suggested, custom_fields_patch}
-//   4) Movimentador(gpt-5-mini)                  → {stage_suggestion, intent, mentioned_intents, is_b2b, reasons}
+//   4) Movimentador(gpt-5-nano)                  → {stage_suggestion, intent, mentioned_intents, is_b2b, reasons}
+
 //   5) Maestro     (gpt-5)                       → Validador final
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
