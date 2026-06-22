@@ -126,6 +126,18 @@ async function addTag(client: SupabaseClient, leadId: string, tag: string) {
     .eq("id", leadId);
 }
 
+async function removeTags(client: SupabaseClient, leadId: string, tagsToRemove: string[]) {
+  const { data: lead } = await client
+    .from("leads")
+    .select("tags")
+    .eq("id", leadId)
+    .single();
+  const current: string[] = lead?.tags ?? [];
+  const next = current.filter((t) => !tagsToRemove.includes(t));
+  if (next.length === current.length) return;
+  await client.from("leads").update({ tags: next }).eq("id", leadId);
+}
+
 async function logEvent(
   client: SupabaseClient,
   clinicId: string,
