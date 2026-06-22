@@ -888,7 +888,7 @@ export default function AgentWizard() {
                   });
                   if (s === "builder") setTestError(null);
                 }}
-                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key}
+                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key_set}
                 builderInfo={builderInfo}
                 provider={provider}
                 setProvider={setProvider}
