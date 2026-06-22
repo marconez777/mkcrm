@@ -289,16 +289,23 @@ Diretrizes de stage:
 - "Novo": primeira interação.
 - "Qualificação": atendente em descoberta ativa; em diálogo.
 - "Consulta agendada"/"Tratamento agendado": agendamento confirmado.
-- "Consulta finalizada"/"Em tratamento": atendimento realizado.
+- "Consulta finalizada"/"Em tratamento": atendimento realizado (data da consulta já passou e não há sinal claro de no-show).
 - "Sem resposta": parou de responder em fase inicial.
 - "Nutrição inativa": (a) silêncio longo, ou (b) Interesse claro MAS sem fechamento de agendamento (objeção, parou de responder após preço).
-- "Paciente antigo": ciclo de tratamento já encerrado (não use se o lead não fechou nada).
+- "Paciente antigo": já fez consulta/tratamento antes E o ciclo atual encerrou. **Regra adicional**: se o lead pede RENOVAÇÃO DE RECEITA, segunda via de prescrição, ou continuação de medicação prévia, e há qualquer sinal de consulta anterior (treated_before=true, has_paciente_antigo_tag=true, "minha última consulta", "Dr. X já me atendeu"), o stage é "Paciente antigo" — NÃO "Qualificação".
+
+Regras CRÍTICAS para is_b2b / "B2B / Stakeholders":
+- B2B é APENAS para parceiros institucionais: representantes comerciais de laboratórios/distribuidores, fornecedores, parcerias entre clínicas, jornalistas, recrutadores, propostas comerciais para a clínica.
+- NÃO é B2B: profissionais de saúde (psicólogo, médico, enfermeiro, etc.) que estão buscando tratamento PRÓPRIO ou para si mesmos → são pacientes normais.
+- NÃO é B2B: alguém comprando/agendando tratamento PARA TERCEIROS (familiar, chefe, filho, paciente próprio) — o pagador não é o paciente, mas o fluxo é de paciente. Use stage de paciente normal e registre o beneficiário em custom_fields.
+- Em dúvida entre paciente e B2B: assuma PACIENTE.
 
 Intents (escolha UM em "intent"):
 ${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
+
 
 async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
   const lastMsg = ctx.messages[ctx.messages.length - 1];

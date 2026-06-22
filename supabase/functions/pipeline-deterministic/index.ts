@@ -445,7 +445,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   const { data: leads } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_human_activity_at, tags",
+      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_inbound_at, last_human_activity_at, tags",
     )
     .in("stage_id", Array.from(stageIdsActive))
     .is("archived_at", null)
@@ -454,10 +454,13 @@ async function ruleInactivityTick(client: SupabaseClient) {
 
   let tier24 = 0, tier3 = 0, tier7 = 0;
   for (const lead of leads ?? []) {
-    const lastMsg = lead.last_message_at ?? "1970-01-01";
+    // PR5: relógio de inatividade usa last_inbound_at (somente mensagens do
+    // paciente). Follow-ups da clínica não resetam mais o timer. Fallback p/
+    // last_message_at quando o lead ainda não tem inbound registrado.
+    const lastInbound = lead.last_inbound_at ?? lead.last_message_at ?? "1970-01-01";
     const lastHuman = lead.last_human_activity_at ?? "1970-01-01";
 
-    if (t7d && lastMsg < cutoff7d) {
+    if (t7d && lastInbound < cutoff7d) {
       const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
       if (nutricaoId && lead.stage_id !== nutricaoId) {
         const today = new Date().toISOString().slice(0, 10);
@@ -477,7 +480,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
           });
         }
       }
-    } else if (t3d && lastMsg < cutoff3d) {
+    } else if (t3d && lastInbound < cutoff3d) {
       const today = new Date().toISOString().slice(0, 10);
       // tag + event only (no move); idempotency via event lookup
       const { data: existing } = await client
@@ -489,6 +492,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .maybeSingle();
       if (!existing) {
         await logEvent(client, lead.clinic_id, lead.id, "auto:followup-3d", {
+          last_inbound_at: lead.last_inbound_at,
           last_message_at: lead.last_message_at,
         });
         tier3++;
@@ -511,6 +515,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
     }
   }
 
+
   // V5 — SLA 60d em "Paciente antigo" → "Nutrição inativa".
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
   let tier60pa = 0;
@@ -522,12 +527,13 @@ async function ruleInactivityTick(client: SupabaseClient) {
     if (paStageIds.size > 0) {
       const { data: paLeads } = await client
         .from("leads")
-        .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
+        .select("id, clinic_id, pipeline_id, stage_id, last_inbound_at, last_message_at")
         .in("stage_id", Array.from(paStageIds))
         .is("archived_at", null)
         .eq("is_internal_contact", false)
-        .lt("last_message_at", cutoff60)
+        .or(`last_inbound_at.lt.${cutoff60},and(last_inbound_at.is.null,last_message_at.lt.${cutoff60})`)
         .limit(2000);
+
       for (const lead of paLeads ?? []) {
         const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
         if (!nutricaoId) continue;
