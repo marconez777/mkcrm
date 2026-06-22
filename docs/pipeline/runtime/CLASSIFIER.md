@@ -148,9 +148,9 @@ Cada agente grava **uma linha própria** em `ai_usage` via `recordStep()` (`agen
 | Operation | Modelo | Latência | Quando |
 |---|---|---|---|
 | `classifier:summarizer` | `gpt-4o` (ou `gpt-5-mini (fallback)`) | `lat1` | sempre |
-| `classifier:agendador` | `gpt-5-mini` | `lat2` (paralelo, mesmo valor p/ os 3) | sempre |
+| `classifier:agendador` | `gpt-5-nano` | `lat2` (paralelo, mesmo valor p/ os 3) | sempre |
 | `classifier:typifier` | `gpt-5-mini` | `lat2` | sempre |
-| `classifier:movimentador` | `gpt-5-mini` | `lat2` | sempre |
+| `classifier:movimentador` | `gpt-5-nano` | `lat2` | sempre |
 | `classifier:maestro` | `gpt-5` | `lat3` | sempre (se 2 passou) |
 
 Erros gravam a mesma linha com `status='error'` + `error` truncado em 500 chars. Falha no Resumidor aborta tudo (`agent_step1_failed`); falha em qualquer paralelo aborta os 3 + maestro (`agent_step2_parallel_failed`); falha no Maestro aborta (`agent_step3_maestro_failed`).
@@ -160,9 +160,10 @@ O bloco `agents` retornado para `apply.ts` e gravado no `lead_events.payload.age
 ```ts
 {
   summarizer_model:   "gpt-4o",
-  agendador_model:    "gpt-5-mini",
+  agendador_model:    "gpt-5-nano",
   typifier_model:     "gpt-5-mini",
-  movimentador_model: "gpt-5-mini",
+  movimentador_model: "gpt-5-nano",
+
   maestro_model:      "gpt-5",
   summary_chars:      <n>,
   summary:            "<resumo>",
