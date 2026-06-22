@@ -49,9 +49,10 @@ type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
+  | "1ª Sessão Finalizada"
   | "Sem resposta"
   | "Nutrição inativa"
+  | "Nutrição Antigos"
   | "Paciente antigo";
 
 /**
@@ -265,7 +266,7 @@ async function ruleAppointmentSync(
       targetCanon = "Consulta finalizada";
       patch["status_consulta"] = "realizada";
     } else if (appt.kind === "procedimento") {
-      targetCanon = "Em tratamento";
+      targetCanon = "1ª Sessão Finalizada";
       const prev = Number(
         (lead.custom_fields as Record<string, unknown>)?.sessoes_realizadas ?? 0,
       );
@@ -650,13 +651,13 @@ async function ruleConsultaPassou(client: SupabaseClient) {
       "Consulta agendada",
       "Tratamento agendado",
       "Consulta finalizada",
-      "Em tratamento",
+      "1ª Sessão Finalizada",
     ]);
 
-  type Pair = { fromCanon: "Consulta agendada" | "Tratamento agendado"; toCanon: "Consulta finalizada" | "Em tratamento"; tag: string; source: string };
+  type Pair = { fromCanon: "Consulta agendada" | "Tratamento agendado"; toCanon: "Consulta finalizada" | "1ª Sessão Finalizada"; tag: string; source: string };
   const PAIRS: Pair[] = [
     { fromCanon: "Consulta agendada", toCanon: "Consulta finalizada", tag: "consulta_realizada", source: "auto:consulta-passou" },
-    { fromCanon: "Tratamento agendado", toCanon: "Em tratamento", tag: "procedimento_realizado", source: "auto:procedimento-passou" },
+    { fromCanon: "Tratamento agendado", toCanon: "1ª Sessão Finalizada", tag: "procedimento_realizado", source: "auto:procedimento-passou" },
   ];
 
   const REAGENDAMENTO_TAGS = new Set(["reagendamento_pendente", "reagendamento_solicitado", "aguardando_nova_data"]);

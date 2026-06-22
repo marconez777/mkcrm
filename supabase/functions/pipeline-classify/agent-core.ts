@@ -289,7 +289,7 @@ Diretrizes de stage:
 - "Novo": primeira interação.
 - "Qualificação": atendente em descoberta ativa; em diálogo.
 - "Consulta agendada"/"Tratamento agendado": agendamento confirmado.
-- "Consulta finalizada"/"Em tratamento": atendimento realizado (data da consulta já passou e não há sinal claro de no-show).
+- "Consulta finalizada"/"1ª Sessão Finalizada": atendimento realizado (data da consulta já passou e não há sinal claro de no-show).
 - "Sem resposta": parou de responder em fase inicial.
 - "Nutrição inativa": (a) silêncio longo, ou (b) Interesse claro MAS sem fechamento de agendamento (objeção, parou de responder após preço).
 - "Paciente antigo": já fez consulta/tratamento antes E o ciclo atual encerrou. **Regra adicional**: se o lead pede RENOVAÇÃO DE RECEITA, segunda via de prescrição, ou continuação de medicação prévia, e há qualquer sinal de consulta anterior (treated_before=true, has_paciente_antigo_tag=true, "minha última consulta", "Dr. X já me atendeu"), o stage é "Paciente antigo" — NÃO "Qualificação".
