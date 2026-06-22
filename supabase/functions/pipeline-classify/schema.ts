@@ -197,9 +197,10 @@ export type TypifierOutput = z.infer<typeof TypifierOutputSchema>;
 export const MovimentadorOutputSchema = z.object({
   stage_suggestion: z.string(),
   intent: z.string().default("outro"),
-  mentioned_intents: z.array(z.string()).max(3).default([]),
+  mentioned_intents: z.array(z.string()).default([]),
   is_b2b: z.boolean(),
-  reasons: z.array(z.string()).max(3).optional().default([]),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type MovimentadorOutput = z.infer<typeof MovimentadorOutputSchema>;
 
