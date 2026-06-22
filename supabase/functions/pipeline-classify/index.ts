@@ -24,6 +24,32 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BATCH_LIMIT = 50;
 
+// Cache da allowlist (mesma TTL do pipeline-allowlist.ts).
+let allowedClinicsCache: { ids: string[]; ts: number } | null = null;
+const ALLOWLIST_TTL_MS = 30_000;
+async function loadAllowedClinicIds(client: SupabaseClient): Promise<string[]> {
+  const now = Date.now();
+  if (allowedClinicsCache && now - allowedClinicsCache.ts < ALLOWLIST_TTL_MS) {
+    return allowedClinicsCache.ids;
+  }
+  const { data } = await client
+    .from("pipeline_automation_allowlist")
+    .select("clinic_id")
+    .eq("enabled", true);
+  const ids = (data ?? []).map((r) => r.clinic_id as string);
+  allowedClinicsCache = { ids, ts: now };
+  return ids;
+}
+
+/** Backoff escalonado por falhas consecutivas (Fase B P8).
+ *  1ª falha = 2 min; 2ª = 5 min; ≥3ª = 30 min. */
+function backoffMsForFail(fails: number): number {
+  if (fails <= 1) return 2 * 60_000;
+  if (fails === 2) return 5 * 60_000;
+  return 30 * 60_000;
+}
+
+
 async function getSettingString(
   client: SupabaseClient,
   key: string,
