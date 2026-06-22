@@ -428,7 +428,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   const { data: aliases } = await client
     .from("stage_canonical_aliases")
     .select("clinic_id, pipeline_id, canonical_name, stage_id")
-    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Paciente antigo"]);
+    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Nutrição Antigos", "Paciente antigo"]);
 
   const stageIdsActive = new Set(
     (aliases ?? [])
@@ -436,9 +436,12 @@ async function ruleInactivityTick(client: SupabaseClient) {
       .map((a) => a.stage_id),
   );
   const nutricaoByPipeline = new Map<string, string>();
+  const nutricaoAntigosByPipeline = new Map<string, string>();
   for (const a of aliases ?? []) {
     if (a.canonical_name === "Nutrição inativa") {
       nutricaoByPipeline.set(a.pipeline_id, a.stage_id);
+    } else if (a.canonical_name === "Nutrição Antigos") {
+      nutricaoAntigosByPipeline.set(a.pipeline_id, a.stage_id);
     }
   }
   if (stageIdsActive.size === 0) return { skipped: "no_active_stages_mapped" };
@@ -517,7 +520,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   }
 
 
-  // V5 — SLA 60d em "Paciente antigo" → "Nutrição inativa".
+  // V5 — SLA 60d em "Paciente antigo" → "Nutrição Antigos".
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
   let tier60pa = 0;
   const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
@@ -536,20 +539,20 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .limit(2000);
 
       for (const lead of paLeads ?? []) {
-        const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
-        if (!nutricaoId) continue;
+        const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
+        if (!destId) continue;
         const ym = new Date().toISOString().slice(0, 7);
         const res = await pipelineMove(client, {
           leadId: lead.id,
-          toStageId: nutricaoId,
+          toStageId: destId,
           source: "auto:inactivity-tick",
-          reason: "60d sem inbound em Paciente antigo — Nutrição inativa",
+          reason: "60d sem inbound em Paciente antigo — Nutrição Antigos",
           ruleKey: "automation.inactivity_paciente_antigo.enabled",
-          idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
+          idempotencyKey: `inactivity:paciente_antigo:antigos:${lead.id}:${ym}`,
         });
         if ((res as { moved?: boolean }).moved) {
           tier60pa++;
-          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
+          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
         }
       }
     }
