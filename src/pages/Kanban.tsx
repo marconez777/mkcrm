@@ -46,6 +46,7 @@ import MoveColumnLeadsDialog from "@/components/kanban/MoveColumnLeadsDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
+import CalendarSheet from "@/components/kanban/calendar/CalendarSheet";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
