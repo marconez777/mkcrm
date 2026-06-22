@@ -66,6 +66,7 @@ related_docs:
 | `cleanup-webhook-dedup` | `*/10 * * * *` | RPC |
 | `cleanup-webhook-events-daily` | `0 3 * * *` | RPC |
 | `cron-expire-manual-grants-daily` | `10 3 * * *` | `cron-expire-manual-grants` |
+| `cleanup-g10-expired-daily` | `0 4 * * *` | RPC `public.cleanup_g10_expired()` (Fase D/P28) |
 | `mark-overdue-invoices-daily` | `0 3 * * *` | RPC |
 
 ## 2. Triggers Postgres do funil
