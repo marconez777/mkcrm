@@ -278,3 +278,291 @@ Já registrado em `KNOWN_ISSUES.md §-3` como **aberto**. Botão "Só Paralelos"
 - Não toca código de movimentação (zero risco para gates).
 
 Após 24h estável em Fase A, encadear Fase B (fila) e Fase C (precisão).
+
+---
+
+# Rodada 2 — varredura cruzada doc × código (2026-06-22, batch 1)
+
+## P15 — A1 (`position-auditor`) e A2 (`post-move-verifier`) silenciosamente mortos 🔴 crit
+
+**Evidência:**
+```sql
+SELECT count(*) FROM lead_events
+ WHERE type IN ('position_audit_ok','position_audit_disagreement')
+   AND created_at > now() - interval '7 days';
+-- 0
+
+SELECT count(*) FROM ai_usage
+ WHERE operation LIKE 'position%' OR operation LIKE 'post_move%';
+-- 0 (nunca)
+```
+
+Toggles ativos (`automation.position_auditor.enabled=true`, `automation.post_move_verifier.enabled=true`), mas **nenhuma invocação registrada**. `AUDITORS.md` documenta A1 como diário 03:00 BRT e A2 como hook async pós-move — ambos invisíveis no banco.
+
+**Hipóteses (a investigar):**
+1. Cron `pipeline-position-auditor-daily` ausente/desativado em `cron.job` (sem permissão de leitura aqui — verificar via dashboard ou função interna).
+2. Hook do A2 em `_shared/pipeline-move.ts` faz `fire-and-forget` que está silenciando erros (sem `await`, sem catch logado).
+3. Ambas funções deployadas mas falhando no boot (sem entradas em `ai_usage`).
+
+**Impacto:** marco 2.5 da arquitetura inteiramente inativo. Discordâncias do A1 nunca viram tag `auditor_sugere_*` (confirma o que `TAGS_LIVE.md` já mostra: zero leads com essa tag). A2 nunca valida moves de B2B/IA.
+
+**Fix:** investigação dirigida (logs do cron + curl direto na função A1 com `{action:'lead', lead_id:<x>}` para isolar bug). Sem isso, qualquer P5 (whitelist do A2) é cosmético.
+
+## P16 — A1 canon hardcoded inclui stage fantasma "Em tratamento" 🟠 alta
+
+**Local:** `pipeline-position-auditor/index.ts:57-78` — type `Canon` e enum Zod incluem `"Em tratamento"`.
+
+**Real:**
+```sql
+SELECT canonical_name FROM stage_canonical_aliases;
+-- ...
+-- em_tratamento  (snake_case, mapeia para "1ª Sessão Finalizada")
+```
+
+Não existe alias `Em tratamento` (PascalCase) — só `em_tratamento`. Quando o A1 retornar `stage_suggestion="Em tratamento"`, ninguém resolve para um stage real e a tag vira `auditor_sugere_em_tratamento` apontando para o vácuo.
+
+`AUDITORS.md §A1` documenta o canon como espelho da realidade, mas a realidade não confere.
+
+**Fix:**
+- Trocar enum para usar canonical slugs (`em_tratamento`, `nutricao_inativa`, `geladeira_de_leads`, etc.) ou para resolver via consulta de aliases por clínica em runtime.
+- Atualizar `AUDITORS.md`.
+
+## P17 — A1 `EXCLUDED_STAGES` não cobre "Nutrição Inativa (Geladeira de Leads)" 🟠 alta
+
+**Local:** `pipeline-position-auditor/index.ts:35-42` — set hardcoded com `"Nutrição inativa"` (i minúsculo) e `"Paciente antigo"`.
+
+**Real ÓR:** stage chama-se `Nutrição Inativa (Geladeira de Leads)`. Não bate.
+
+**Consequência:** A1 vai auditar leads parados ≥7d em geladeira (que é o normal — a geladeira existe pra ficar parado!) e gerar `auditor_sugere_*` ruído sistemático.
+
+**Fix:** usar resolução por alias canônico (`geladeira_de_leads`, `nutricao_inativa`, `nutricao_antigos`) em vez de comparar `stage.name` literal.
+
+## P18 — Triggers existentes não documentados em `TRIGGERS_AUDIT.md` 🟡 doc
+
+**Achados na varredura `pg_trigger`** (não listados em `TRIGGERS_AUDIT §2.1/§2.2`):
+- `leads.leads_updated`
+- `leads.log_lead_changes_trg`
+- `messages.trg_messages_update_lead_last_inbound`
+
+`TRIGGERS_AUDIT §G2` já alerta sobre gap; estes 3 confirmam que o gap cresceu.
+
+**Fix:** adicionar à §2.2 do `TRIGGERS_AUDIT.md` na Fase E.
+
+## P19 — Toggles `automation.*` referenciados pela doc não existem em `app_settings` 🟠 média
+
+**Verificado:**
+```sql
+SELECT key FROM app_settings WHERE key LIKE 'automation.%';
+-- só existem: classifier.*, inactivity_paciente_antigo, position_auditor.*, post_move_verifier.*
+```
+
+**Faltando** (citados em `DETERMINISTIC_RULES.md`):
+- `automation.novo_lead.enabled`
+- `automation.secretary_replied.enabled`
+- `automation.modality_guard.enabled`
+- `automation.ciclo_concluido.enabled`
+- `automation.monthly_sweep_paciente_antigo.enabled`
+- `automation.reactivation.enabled`
+- `automation.human_reactor.enabled`
+- `automation.followup_24h.enabled` / `followup_3d.enabled` / `followup_7d.enabled`
+
+**Lógica do G3** (`pipeline-move.ts:96-108`): se `setting` não existe → bloqueia. Mas há 267 eventos `auto:followup-3d` nos últimos 7d com `reason=null` (passou). Então essas regras **não estão passando `ruleKey`** para `pipelineMove()`, contradizendo a tabela do `DETERMINISTIC_RULES.md` que lista toggle por regra.
+
+**Consequência:** painel de toggles na UI (se existir) é fictício; tudo roda sem freio. Ou seja, **`automation.novo_lead.enabled=false` não desliga `auto:novo-lead`**.
+
+**Fix:**
+- Auditar cada `pipelineMove()` em `pipeline-deterministic/index.ts` e confirmar passagem de `ruleKey`.
+- Seed dos toggles ausentes em `app_settings` com valor `true` (preserva comportamento atual).
+- Documentar invariante "todo `auto:*` DEVE passar `ruleKey` e o toggle DEVE existir em `app_settings`".
+
+---
+
+# Rodada 2 — batch 2
+
+## P20 — Tags clinicamente úteis sendo descartadas (amplificação do P7) 🔴 crit
+
+**Top 15 tags descartadas por whitelist em 24h** (consumo real do Tipificador):
+
+```text
+agendamento_pendente              7
+psiquiatria                       6   ← especialidade médica
+consentimento_pendente            5
+infusao_cetamina                  5   ← protocolo clínico
+primeira_consulta                 5
+teleconsulta                      5
+segmento_paciente_antigo          5
+nutricao_inativa                  4
+interesse_consulta                4
+comprovante_pix_pendente          4
+emt                               4   ← estimulação magnética transcraniana
+segmento_nutricao_leads           4
+receita_enviada                   3
+confirmacao_textual_pendente      3
+consulta_presencial               3
+```
+
+A whitelist atual (14 tags) está perdendo **sinal clínico** (especialidades, protocolos), **operacional** (pix pendente, consentimento), e **de segmentação** (segmento_*). A seed proposta no P7 deve incluir estas — fica como **lista canônica oficial** para a Fase A.
+
+## P21 — `ai_review_reasons` órfãs travando 6 leads 🟠 alta
+
+**Evidência:**
+```sql
+SELECT unnest(ai_review_reasons), count(*) FROM leads WHERE needs_ai_review GROUP BY 1;
+-- audit-b2b-not-b2b            2
+-- audit-r2-not-b2b             2
+-- audit-r3-missing-agendamento 2
+-- pagamento                    1
+-- pipeline-classifier          1
+```
+
+`tickQueueV2` (`pipeline-classify/index.ts:146`) só processa leads com reason `pipeline-classifier`. As outras 4 reasons (`audit-b2b-not-b2b`, `audit-r2-not-b2b`, `audit-r3-missing-agendamento`, `pagamento`) **não têm consumidor em nenhuma edge function viva** (grep zero em `supabase/functions/`). 6 leads marcados `needs_ai_review=true` para sempre — nunca limpam, nunca rodam.
+
+Provavelmente sobras de auditoria manual via `watch-stale-leads` ou de uma versão antiga.
+
+**Fix:**
+1. Decidir: cada reason precisa de consumidor ou é histórica?
+2. Se histórica → migration `UPDATE leads SET needs_ai_review=false WHERE ai_review_reasons <@ ARRAY['audit-b2b-not-b2b','audit-r2-not-b2b','audit-r3-missing-agendamento','pagamento']`.
+3. Se viva → criar consumer ou redirecionar para `pipeline-classifier`.
+4. Documentar lista oficial de reasons em `CLASSIFIER.md` ou `KNOWN_ISSUES.md`.
+
+## P22 — Intent effects raramente populados, valor pouco visível 🟡 média
+
+`apply.ts:503` grava `intent_effects` no payload, mas amostragem de 24h retornou `payload->intent_effects` vazio ou ausente — exceto o caso `renovacao_receita.skipped:'duplicate_task'` visto antes. As funções `runPaymentAlleged`, `runRenovacaoReceita`, `runObjectionSuggest` (em `_shared/pipeline-tasks.ts`) existem mas raramente disparam.
+
+`TAGS_LIVE.md` confirma: `pagamento_alegado=4`, `renovacao_receita=4`, `objecao_detectada=2` em todo o histórico. Os triggers de intent estão dependentes de tags geradas pelo Tipificador — que, como visto no P7, são descartadas. **Cadeia quebrada:** P7 mata as tags → intents nunca disparam → tasks nunca criadas.
+
+Resolver P7 destrava P22 sem mais código.
+
+## P23 — `messages.external_id` sem unique constraint 🟠 média
+
+`evolution-webhook/index.ts:107-168` documenta dedup por `external_id` (sub-bloco "Ingest silently, idempotent by external_id"), mas o dedup é feito via `SELECT ... WHERE external_id=? LIMIT 1` antes de inserir. Sem unique constraint em `messages(external_id, clinic_id)`, **dois webhooks concorrentes** (raros mas possíveis com retry do Evolution) podem ambos passar o SELECT e inserir 2x.
+
+Hoje 24h: `total=255, distinct external_id=254` — **1 duplicata real já presente**.
+
+Os 2 inserts disparam 2x `trg_messages_enqueue_classifier` → 2x classifier no mesmo lead. Combinado com falta de advisory lock (P8), gera trabalho dobrado.
+
+**Fix:**
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY messages_external_id_clinic_uniq
+  ON public.messages (clinic_id, external_id) WHERE external_id IS NOT NULL;
+```
++ trocar SELECT-then-INSERT por `INSERT ... ON CONFLICT (clinic_id, external_id) DO NOTHING RETURNING id`.
+
+## P24 — `stage_sequence_bindings` quase vazio + sequências sem uso 🟡 oper
+
+```sql
+SELECT count(*) FROM stage_sequence_bindings;   -- 3
+```
+
+`DETERMINISTIC_RULES` e `TRIGGERS_AUDIT §2.2` documentam `trg_enroll_on_stage_change` que enrola lead em sequência baseado em `stage_sequence_bindings`. Apenas 3 bindings ativos no projeto inteiro — efetivamente desligado, mas a infra é mantida e testada a cada move.
+
+Não é bug per se, é **dívida**: rodar trigger pra olhar tabela vazia em todo move de stage. Pequeno custo agregado.
+
+**Recomendação:** registrar em `KNOWN_ISSUES` que o feature está dormente e considerar desligar o trigger se 30 dias sem novos bindings.
+
+---
+
+# Rodada 2 — batch 3
+
+## P25 — Agendador e Movimentador silenciosamente não registrando em `ai_usage` 🔴 crit
+
+**Evidência (7 dias):**
+```text
+classifier:typifier     success=53 error=2
+classifier:maestro      success=53 error=1
+classifier:summarizer   success=55
+classifier:agendador    error=2    success=0   ← deveria ser ~53 também
+classifier:movimentador error=2    success=0   ← idem
+```
+
+**Local:** `agent-core.ts:449-463`. O `Promise.all` chama `runAgendador`, `runTypifier`, `runMovimentador` em paralelo, e em sucesso o **segundo `Promise.all`** grava 3 `recordStep` (linhas 460-462). Se os 3 são gravados juntos, deveriam ter contagem idêntica — mas typifier tem 53 e agendador/movimentador têm 0.
+
+**Hipótese principal:** após a troca para `gpt-5-nano` (Fase 2 anterior), `recordStep`/`computeCost` lança exceção desconhecida para o modelo, e o `Promise.all` rejeita silenciosamente — **mas o evento de classifier no `lead_events.payload.agents` é gravado antes**, sem o status correto. Resultado: telemetria de custo zero (`sum(cost_usd)=0` para nano), invisibilidade de erro real, e a iteração do Maestro recebe `outAgendador=null` quietamente nos retries.
+
+**Impacto:**
+- Agendador e Movimentador efetivamente off há 24-72h, mas dashboards mostram "tudo verde".
+- Maestro decide apenas com o Tipificador → degrada precisão de stage moves.
+- O cost dashboard subestima gasto em ~30%.
+
+**Fix (Fase A):**
+1. Encapsular cada `recordStep` em try/catch para nunca derrubar o `Promise.all` de telemetria.
+2. Adicionar tabela de preços para `gpt-5-nano` em `_shared/clinic-openai.ts` ou na função de cálculo (verificar onde está `computeCost`).
+3. Garantir que `recordStep` use `status='success'` mesmo quando `usage` é null/undefined.
+
+## P26 — `MAX_MSGS_SUMMARY=60` sem truncamento por tokens 🟡 robust
+
+`pipeline-summarize-core.ts:21`: usa últimas 60 mensagens. Sem cap de caracteres ou tokens. Lead com 60 áudios transcritos longos pode estourar context window do `gpt-5-mini` (~128k) ou simplesmente pagar 5x mais que necessário.
+
+`SUMMARIZER.md` deve registrar este limite — e o ideal é truncar por **caracteres** (e.g. 40k chars) ou aplicar `head:30 + tail:30` em janelas longas.
+
+**Fix:** após carregar mensagens, calcular soma de `length` e dropar mais antigas até cair em 40k chars.
+
+## P27 — RLS de `pipeline_automation_allowlist` permite SELECT por membros 🟡 sec
+
+```sql
+allowlist_select_member_or_admin: is_super_admin() OR (clinic_id = current_clinic_id())
+```
+
+OK para multitenancy básico, mas: membro da clínica pode ler que SUA clínica está allowlistada (info operacional). Não é vazamento de outras clínicas. Aceitável, mas deveria estar documentado em `KNOWN_ISSUES.md` ou no security memory para evitar futuras varreduras flag de novo.
+
+**Fix:** registrar em security memory.
+
+## P28 — G10 sem limpeza periódica (`custom_fields_last_human_edit` infla) 🟡 oper
+
+**Evidência:**
+```sql
+SELECT count(*) FILTER (WHERE custom_fields_last_human_edit <> '{}') FROM leads;
+-- 344 leads com timestamps; janela de proteção é 7d
+```
+
+A coluna `leads.custom_fields_last_human_edit jsonb` acumula timestamps indefinidamente. Após 7d a entrada não tem efeito mas continua ocupando espaço e sendo lida em todo classify (G10 check em `apply.ts:166`). Em 6 meses pode chegar a milhares de entradas por lead.
+
+**Fix:** cron diário que faz `UPDATE leads SET custom_fields_last_human_edit = ... WHERE ts > now()-'7 days'` removendo entradas expiradas. Pequeno mas mantém payload do classifier enxuto.
+
+## P29 — `automation.summarizer.enabled` ausente em `app_settings` 🟠 média
+
+`pipeline-summarize-core.ts:36` checa toggle `automation.summarizer.enabled` com mesma lógica do G3 (default = false se ausente). Conferência:
+
+```sql
+SELECT key FROM app_settings WHERE key = 'automation.summarizer.enabled';
+-- (não existe)
+```
+
+E mesmo assim summarizer rodou 55x em 24h e gerou $0.39. Então **a checagem de toggle do summarizer NÃO está bloqueando** (provavelmente lê de outro path). Tem comportamento divergente do `pipeline-move.ts` G3 — fonte de confusão.
+
+**Fix:** unificar a leitura de toggles num helper `getToggle(client, key, defaultValue)` compartilhado entre `pipeline-move.ts`, `pipeline-summarize-core.ts`, `agent-core.ts`, `pipeline-position-auditor`, etc.
+
+---
+
+# Consolidação final
+
+## Total de achados: 29 itens em 6 fases
+
+```text
+Fase A — Raiz (P0, P7, P20, P25)         CRÍTICO (faz hoje)
+Fase B — Fila/saúde (P8, P9, P15, P21)   ALTO (24-48h após A)
+Fase C — Precisão (P2, P10, P12, P16-19, P23, P29)  MÉDIO
+Fase D — Robustez (P3-P6, P13, P26, P28) BAIXO
+Fase E — Documentação (P11, P14, P18, P22, P24, P27)  CONTÍNUO
+Investigação — sem fix óbvio ainda: G10 expire, A1 cron silencioso
+```
+
+## ROI por fase (estimativa)
+
+| Fase | Esforço | Impacto qualitativo | Custo evitado/dia |
+|---|---|---|---|
+| A | 4-6h | Recupera 99% das tags + elimina erros silenciosos + restaura ag/mov | ~30% |
+| B | 2-3h | Fila drena, A1/A2 ressuscitam | invisível mas alto |
+| C | 4-8h | Maestro confiável, doc bate com código | médio |
+| D | 4h | Robustez sob pico/falha | baixo direto, alto em incidente |
+| E | 2h | Reduz tempo de onboarding de futuros agentes | n/a |
+
+## Próxima ação recomendada
+
+**Executar Fase A inteira** (P0 + P7 + P20 + P25) num único sprint. São interdependentes: P0 corrige transport, P7+P20 corrigem valor, P25 corrige telemetria — sem todos juntos não dá pra medir se o resto funcionou.
+
+
+
+
+
+
