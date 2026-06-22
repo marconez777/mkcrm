@@ -11,7 +11,7 @@ export type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
+  | "1ª Sessão Finalizada"
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
@@ -24,7 +24,7 @@ export const CANON_NAMES: Canon[] = [
   "Consulta agendada",
   "Tratamento agendado",
   "Consulta finalizada",
-  "Em tratamento",
+  "1ª Sessão Finalizada",
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
@@ -49,7 +49,8 @@ export const INTENT_VALUES = [
 
 
 export const TREATED_STAGES = new Set<string>([
-  "Em tratamento",
+  "1ª Sessão Finalizada",
+  "Em tratamento", // alias antigo, mantido para compat com históricos
   "Consulta finalizada",
   "Paciente antigo",
 ]);
