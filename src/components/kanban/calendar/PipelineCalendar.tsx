@@ -4,7 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
-import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
+import type { DateSelectArg, DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,13 +12,19 @@ import { toast } from "sonner";
 import { useServiceTypes } from "@/hooks/useServiceTypes";
 import { useAppointments, appointmentToEvent } from "@/hooks/useAppointments";
 import { updateAppointmentSchedule } from "@/lib/appointments-mutations";
+import AppointmentDialog from "./AppointmentDialog";
+
+type DialogState =
+  | { mode: "create"; start: Date; end: Date }
+  | { mode: "edit"; appointmentId: string }
+  | null;
 
 type Props = {
   pipelineId: string;
-  onEventClick?: (appointmentId: string) => void;
 };
 
-export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
+export default function PipelineCalendar({ pipelineId }: Props) {
+  const [dialog, setDialog] = useState<DialogState>(null);
   // Default range: current ISO week (will be replaced by FullCalendar's first datesSet)
   const [range, setRange] = useState<{ from: Date; to: Date }>(() => {
     const now = new Date();
