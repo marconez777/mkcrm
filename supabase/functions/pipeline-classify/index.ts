@@ -52,13 +52,7 @@ function backoffMsForFail(fails: number): number {
 
 import { getSettingString, getToggle } from "../_shared/app-settings.ts";
 
-async function getSettingStringLocal(
-  client: SupabaseClient,
-  key: string,
-): Promise<string | null> {
-  return getSettingString(client, key);
-}
-
+// Wrapper retrocompatível — helpers reais vivem em _shared/app-settings.ts.
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
   return getToggle(client, key);
 }
