@@ -19,7 +19,8 @@ type Integration = {
   clinic_id: string;
   name: string;
   slug: string;
-  token: string;
+  token?: string; // populated via forms-admin "get_token" (server-side); not selectable from DB
+  token_set?: boolean;
   allowed_domains: string[];
   status: string;
   default_tags: string[];
