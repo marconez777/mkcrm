@@ -15,7 +15,7 @@
 //  - G11: nunca cria/edita appointments nem move stages.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { getClassifierAi, pickModel } from "../_shared/classifier-ai.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
@@ -28,7 +28,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL = "gpt-5-nano";
+const MODEL_SPEC = { openai: "gpt-5-nano", lovable: "google/gemini-2.5-flash-lite" };
 
 const VerdictSchema = z.object({
   verdict: z.enum(["sim", "nao", "incerto"]),
@@ -120,11 +120,11 @@ async function verifyMove(client: SupabaseClient, payload: VerifierPayload) {
     .map((e) => `[${(e.created_at as string).slice(0, 16)}] ${e.type}: ${JSON.stringify(e.payload ?? {}).slice(0, 200)}`)
     .join("\n");
 
-  const ai = await getClinicOpenAI(client, lead.clinic_id as string);
-  if (!ai) return { skipped: "no_clinic_openai_key" };
+  const ai = await getClassifierAi(client, lead.clinic_id as string);
+  if (!ai) return { skipped: "no_ai_provider" };
 
   const { output } = await generateText({
-    model: ai.model(MODEL),
+    model: ai.model(pickModel(ai.provider, MODEL_SPEC)),
     system:
       "Você é um revisor curto de movimentações de pipeline CRM médico. " +
       "Responda APENAS em JSON conforme o schema: verdict ∈ {sim, nao, incerto}, confidence ∈ [0,1], reason ≤ 200 chars em PT-BR. " +

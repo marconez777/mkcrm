@@ -9,7 +9,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { generateText, Output } from "npm:ai@^6";
-import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { getClassifierAi, pickModel, type ClassifierAi } from "../_shared/classifier-ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { buildContextBlock, formatMessages, type ClinicFieldDef, type LeadContext } from "./context.ts";
 import {
@@ -139,16 +139,17 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
 }
 
 
-const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
-const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
-const AGENDADOR_MODEL = "gpt-5-nano";    // PR11.9: nano (schema trivial; ~5× mais barato)
-const TYPIFIER_MODEL = "gpt-5-mini";      // mantido: schema com whitelist + custom_fields_patch livre
-const MOVIMENTADOR_MODEL = "gpt-5-nano"; // PR11.9: nano (decisão binária + label)
+// Modelos por provider. `pickModel(ai.provider, ...)` escolhe em runtime.
+// Lovable AI: Gemini via Lovable Gateway (créditos do workspace, teto rígido).
+// OpenAI BYOK: legado, mantido para rollback via CLASSIFIER_PROVIDER=openai.
+const SUMMARIZER_SPEC          = { openai: "gpt-4o",      lovable: "google/gemini-2.5-flash" };
+const SUMMARIZER_FALLBACK_SPEC = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash-lite" };
+const AGENDADOR_SPEC           = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
+const TYPIFIER_SPEC            = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash" };
+const MOVIMENTADOR_SPEC        = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
+const MAESTRO_SPEC             = { openai: "gpt-5",       lovable: "google/gemini-2.5-flash" };
 
-const MAESTRO_MODEL = "gpt-5";
-
-
-export const AGENT_MODEL = MAESTRO_MODEL;
+export const AGENT_MODEL = "classifier"; // legado — não é mais um id único
 
 // ===== Agente 1: Resumidor =====
 
@@ -185,7 +186,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runSummarizer(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
+  ai: ClassifierAi,
   ctx: LeadContext,
 ): Promise<{ output: SummarizerOutput; model: string; usage?: unknown }> {
   const prompt = `${buildContextBlock(ctx)}
@@ -207,18 +208,18 @@ Produza o resumo agora.`;
     );
 
 
+  const primary = pickModel(ai.provider, SUMMARIZER_SPEC);
+  const fallback = pickModel(ai.provider, SUMMARIZER_FALLBACK_SPEC);
   try {
-    const result = await tryModel(SUMMARIZER_MODEL_PRIMARY);
-    return { output: result.output as SummarizerOutput, model: SUMMARIZER_MODEL_PRIMARY, usage: (result as { usage?: unknown }).usage };
-  } catch (err) {
-    try {
-      const result = await tryModel(SUMMARIZER_MODEL_FALLBACK);
-      return { output: result.output as SummarizerOutput, model: `${SUMMARIZER_MODEL_FALLBACK} (fallback)`, usage: (result as { usage?: unknown }).usage };
-    } catch (err2) {
-      throw err2;
-    }
+    const result = await tryModel(primary);
+    return { output: result.output as SummarizerOutput, model: primary, usage: (result as { usage?: unknown }).usage };
+  } catch (_err) {
+    const result = await tryModel(fallback);
+    return { output: result.output as SummarizerOutput, model: `${fallback} (fallback)`, usage: (result as { usage?: unknown }).usage };
   }
 }
+
+
 
 // ===== Agente 2: Agendador =====
 
@@ -234,10 +235,10 @@ Não tente deduzir data exata (o parser já fez isso). Foque na INTENÇÃO.
 IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 }
 
-async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
+async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
   const result = await withSchemaRetry("agendador", () =>
     generateText({
-      model: ai.model(AGENDADOR_MODEL),
+      model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
       system: buildAgendadorSystem(),
       prompt: `RESUMO factual do lead:\n${summary}`,
       output: Output.object({ schema: AgendadorOutputSchema }),
@@ -327,10 +328,10 @@ Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 }
 
-async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
+async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
     generateText({
-      model: ai.model(TYPIFIER_MODEL),
+      model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
       system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
 
       prompt: `${buildContextBlock(ctx)}
@@ -373,7 +374,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 
-async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
+async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
   const lastMsg = ctx.messages[ctx.messages.length - 1];
   const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
   const hoursSinceLastMessage = lastMsgMs ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10 : null;
@@ -388,7 +389,7 @@ async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClin
 
   const result = await withSchemaRetry("movimentador", () =>
     generateText({
-      model: ai.model(MOVIMENTADOR_MODEL),
+      model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
       system: buildMovimentadorSystem(),
       prompt: `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
@@ -428,7 +429,7 @@ Devolva todos os campos exigidos.`;
 }
 
 async function runMaestro(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
+  ai: ClassifierAi,
   summary: string,
   outAgendador: AgendadorOutput,
   outPreenchedor: TypifierOutput,
@@ -437,7 +438,7 @@ async function runMaestro(
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
     generateText({
-      model: ai.model(MAESTRO_MODEL),
+      model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
       system: buildMaestroSystem(),
       prompt: `RESUMO Factual:
 ${summary}
@@ -485,12 +486,19 @@ export async function runAgent(
   ctx: LeadContext,
   opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
 ): Promise<RunAgentSuccess | { error: string }> {
-  const ai = await getClinicOpenAI(client, ctx.lead.clinic_id);
-  if (!ai) return { error: "no_clinic_openai_key" };
+  const ai = await getClassifierAi(client, ctx.lead.clinic_id);
+  if (!ai) return { error: "no_ai_provider" };
+
+  // Resolve ids reais (provider-dependent) para usar nas chamadas e na telemetria.
+  const M_SUMMARIZER   = pickModel(ai.provider, SUMMARIZER_SPEC);
+  const M_AGENDADOR    = pickModel(ai.provider, AGENDADOR_SPEC);
+  const M_TYPIFIER     = pickModel(ai.provider, TYPIFIER_SPEC);
+  const M_MOVIMENTADOR = pickModel(ai.provider, MOVIMENTADOR_SPEC);
+  const M_MAESTRO      = pickModel(ai.provider, MAESTRO_SPEC);
 
   // ----- Passo 1 — Resumidor -----
   let summary: string;
-  let summarizerModel = SUMMARIZER_MODEL_PRIMARY;
+  let summarizerModel = M_SUMMARIZER;
   let mentionedDates: SummarizerOutput["mentioned_dates"] = [];
   let usage1: unknown;
   const t1 = performance.now();
@@ -504,7 +512,7 @@ export async function runAgent(
     await safeRecordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: SUMMARIZER_MODEL_PRIMARY, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_SUMMARIZER, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
     return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
   const lat1 = performance.now() - t1;
@@ -552,19 +560,19 @@ export async function runAgent(
     usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage, typifier_skipped: rPr.skipped };
     const stepLat = performance.now() - t2;
     await Promise.all([
-      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
+      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
       rPr.skipped
         ? Promise.resolve()
-        : safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
-      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
+        : safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
+      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
     ]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const stepLat = performance.now() - t2;
     await Promise.all([
-      safeRecordStep({ ctx, model: AGENDADOR_MODEL, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: TYPIFIER_MODEL, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: MOVIMENTADOR_MODEL, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
+      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
+      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
     ]);
     return { error: `agent_step2_parallel_failed: ${msg.slice(0, 200)}` };
   }
@@ -588,10 +596,10 @@ export async function runAgent(
     const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
-    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: MAESTRO_MODEL, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
 
@@ -606,10 +614,10 @@ export async function runAgent(
     mode: "full",
     agents: {
       summarizer_model: summarizerModel,
-      agendador_model: AGENDADOR_MODEL,
-      typifier_model: TYPIFIER_MODEL,
-      movimentador_model: MOVIMENTADOR_MODEL,
-      maestro_model: MAESTRO_MODEL,
+      agendador_model: M_AGENDADOR,
+      typifier_model: M_TYPIFIER,
+      movimentador_model: M_MOVIMENTADOR,
+      maestro_model: M_MAESTRO,
       summary_chars: summary.length,
       summary,
       latency_ms: {
