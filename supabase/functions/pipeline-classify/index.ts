@@ -235,7 +235,7 @@ async function handleV2(req: Request): Promise<Response> {
       result = await tickQueueV2(client);
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
-      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
+      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro", "parallel", "agendador", "movimentador"].includes(body.only_agent)
         ? body.only_agent as "summarizer" | "typifier" | "maestro"
         : undefined;
       const force = body.force === true;
