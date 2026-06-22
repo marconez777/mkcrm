@@ -187,8 +187,8 @@ const FALLBACK_TYPIFIER_KEYS = `  1. "status_financeiro": ("pago", "pendente", "
   4. "nome_responsavel_financeiro": string
   5. "possui_liminar_judicial": boolean
   6. "saldo_sessoes_pacote": number
-  7. "modalidade_preferida": string ("presencial", "online", "indiferente")
-  8. "motivo_cancelamento": string`;
+  7. "motivo_cancelamento": string
+  8. "eh_paciente_antigo": boolean — true quando há evidência clara de que já é paciente da clínica (histórico mencionado, retorno, sessão prévia, "minha última consulta", etc).`;
 
 function describeFieldType(def: ClinicFieldDef): string {
   switch (def.field_type) {

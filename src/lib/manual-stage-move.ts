@@ -1,54 +1,8 @@
 // Helper para moves manuais de lead (Kanban / dialogs).
-// - Calcula `manual_lock_until` (7 dias) para o `field-rules-tick` pular o lead.
-// - Quando o destino é uma etapa de "desqualificado" (nome contém "não qualificado"),
-//   marca também `custom_fields.qualificacao = "desqualificado"` para que, ao
-//   expirar o lock, a regra automática mantenha o lead na coluna em vez de
-//   reclassificá-lo como "interessado".
+// PR4 — `manual_lock_until` foi removido. Este helper agora apenas calcula
+// o patch de `custom_fields` quando o destino é uma etapa de "desqualificado".
 
 import type { Stage } from "@/types/crm";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-export const MANUAL_LOCK_MS = 7 * 24 * 60 * 60 * 1000;
-
-export function manualLockUntilIso(): string {
-  return new Date(Date.now() + MANUAL_LOCK_MS).toISOString();
-}
-
-/**
- * Remove o lock manual de um lead (manual_lock_until = null) e registra o
- * evento em `lead_events` (best-effort). Libera o card para automações.
- */
-export async function unlockLeadManually(
-  client: SupabaseClient,
-  leadId: string,
-): Promise<void> {
-  const { data: cur } = await client
-    .from("leads")
-    .select("manual_lock_until, clinic_id")
-    .eq("id", leadId)
-    .maybeSingle();
-
-  const { error } = await client
-    .from("leads")
-    .update({ manual_lock_until: null })
-    .eq("id", leadId);
-  if (error) throw error;
-
-  try {
-    const { data: auth } = await client.auth.getUser();
-    await client.from("lead_events").insert({
-      clinic_id: cur?.clinic_id ?? null,
-      lead_id: leadId,
-      type: "manual:unlock",
-      payload: {
-        previous_lock_until: cur?.manual_lock_until ?? null,
-        by_user_id: auth?.user?.id ?? null,
-      },
-    });
-  } catch (e) {
-    console.warn("unlockLeadManually: failed to write lead_event", e);
-  }
-}
 
 function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -76,8 +30,6 @@ export function customFieldsPatchForStage(
   return {
     ...cur,
     qualificacao: "desqualificado",
-    // I6 (trigger no banco): desqualificado exige motivo. Default 'outro' em moves manuais
-    // — o usuário pode refinar depois (ex.: 'fora_perfil' p/ consulta fora do país).
     motivo_desqualificacao: hasMotivo ? cur.motivo_desqualificacao : "outro",
   };
 }

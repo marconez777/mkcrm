@@ -28,7 +28,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
-import { manualLockUntilIso, customFieldsPatchForStage, unlockLeadManually } from "@/lib/manual-stage-move";
+import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
 import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, Lock, CircleDollarSign, CalendarClock, AlertTriangle, Wand2 } from "lucide-react";
@@ -219,7 +219,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
     a.created_at === b.created_at &&
     a.deal_value === b.deal_value &&
     a.needs_ai_review === b.needs_ai_review &&
-    a.manual_lock_until === b.manual_lock_until &&
+    
     JSON.stringify(a.ai_review_reasons ?? []) === JSON.stringify(b.ai_review_reasons ?? []) &&
     JSON.stringify(a.custom_fields ?? {}) === JSON.stringify(b.custom_fields ?? {})
   );
@@ -267,7 +267,6 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const consultaDate = isFutureDateStr(consultaRaw);
   const procedimentoDate = isFutureDateStr(procedimentoRaw);
   const rawReasons = lead.ai_review_reasons ?? [];
-  const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
   const pending = !!lead.needs_ai_review;
 
   // Tags a esconder: ruído interno + duplicatas dos chips já renderizados acima.
@@ -293,7 +292,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
 
   if (
     !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
-    !locked && !pending && reasons.length === 0
+    !pending && reasons.length === 0
   ) return null;
 
   const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -320,7 +319,6 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
       )}
       {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
       {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
-      {locked && <LockManualChip leadId={lead.id} lockUntil={lead.manual_lock_until!} />}
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
@@ -330,66 +328,6 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
 }
 
 
-function LockManualChip({ leadId, lockUntil }: { leadId: string; lockUntil: string }) {
-  const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const untilLabel = useMemo(() => {
-    try {
-      return new Date(lockUntil).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    } catch { return ""; }
-  }, [lockUntil]);
-
-  const onConfirm = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBusy(true);
-    try {
-      await unlockLeadManually(supabase, leadId);
-      toast.success("Lead destravado. Automações liberadas.");
-      setOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao destravar");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        title={`Travado para automações até ${untilLabel}. Clique para destravar.`}
-        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer ${
-          hover ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-        }`}
-      >
-        <Lock className="h-3 w-3" />
-        {hover ? "Destravar" : "Lock manual"}
-      </button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Destravar este lead?</AlertDialogTitle>
-            <AlertDialogDescription>
-              As automações (classifier, auditores, B2B move) voltarão a poder mover este card.
-              {untilLabel && <> O lock atual expiraria em <strong>{untilLabel}</strong>.</>}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={(e) => e.stopPropagation()} disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirm} disabled={busy}>
-              {busy ? "Destravando..." : "Destravar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
 
 function Chip({ children, tone = "neutral", icon }: {
   children: React.ReactNode;
@@ -736,9 +674,8 @@ export default function KanbanPage() {
     const targetStage = stages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const manualLockUntil = manualLockUntilIso();
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; position: number; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     if (cfPatch) patch.custom_fields = cfPatch;
     await supabase.from("leads").update(patch).eq("id", lead.id);
@@ -748,7 +685,7 @@ export default function KanbanPage() {
         label: "Desfazer",
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition, manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
+          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
@@ -779,9 +716,8 @@ export default function KanbanPage() {
     const targetStage = allStages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const manualLockUntil = manualLockUntilIso();
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; position: number; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     if (cfPatch) patch.custom_fields = cfPatch;
     const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
@@ -796,7 +732,7 @@ export default function KanbanPage() {
         label: "Desfazer",
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition, manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
+          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
