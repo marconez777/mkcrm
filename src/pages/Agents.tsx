@@ -330,10 +330,8 @@ export default function Agents() {
     setDocs(docs);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode, niche, niche_other";
-
   const load = async () => {
-    // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
+    // RPC admin-only: retorna apenas indicadores *_set (api_key_set etc) — chaves nunca trafegam para o client.
     const { data, error } = await supabase.rpc("admin_list_ai_agents");
     if (error) { toast.error(error.message); return; }
     setAgents((data as any) ?? []);
