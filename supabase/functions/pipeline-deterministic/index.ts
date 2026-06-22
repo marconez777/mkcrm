@@ -30,7 +30,8 @@ type Action =
   | "field-changed"
   | "inactivity-tick"
   | "reactivation-tick"
-  | "human-reactor-tick";
+  | "human-reactor-tick"
+  | "monthly-sweep-tick";
 
 interface Body {
   action: Action;
@@ -732,6 +733,90 @@ async function ruleConsultaPassou(client: SupabaseClient) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ruleMonthlySweep — Dia 1 de cada mês: leads em "Consulta finalizada" ou
+// "1ª Sessão Finalizada" cuja stage_changed_at < primeiro dia do mês corrente
+// viram "Paciente antigo" + eh_paciente_antigo=true.
+// Idempotência mensal: monthly-sweep:{lead_id}:{YYYY-MM}
+// Toggle: automation.monthly_sweep_paciente_antigo.enabled (default false)
+// ─────────────────────────────────────────────────────────────────────────────
+async function ruleMonthlySweep(client: SupabaseClient, opts?: { dryRun?: boolean }) {
+  const dryRun = !!opts?.dryRun;
+  if (!dryRun && !(await isEnabled(client, "automation.monthly_sweep_paciente_antigo.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+
+  const now = new Date();
+  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const ym = now.toISOString().slice(0, 7);
+
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("pipeline_id, stage_id, canonical_name")
+    .in("canonical_name", ["Consulta finalizada", "1ª Sessão Finalizada", "Paciente antigo"]);
+
+  const FROM_CANON = new Set(["Consulta finalizada", "1ª Sessão Finalizada"]);
+  const fromStageIds = (aliases ?? [])
+    .filter((a) => FROM_CANON.has(a.canonical_name))
+    .map((a) => a.stage_id);
+  const paByPipeline = new Map<string, string>();
+  for (const a of aliases ?? []) {
+    if (a.canonical_name === "Paciente antigo") paByPipeline.set(a.pipeline_id, a.stage_id);
+  }
+
+  if (fromStageIds.length === 0 || paByPipeline.size === 0) {
+    return { skipped: "no_stages_mapped" };
+  }
+
+  const { data: leads } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id, stage_changed_at, custom_fields")
+    .in("stage_id", fromStageIds)
+    .lt("stage_changed_at", firstOfMonth)
+    .is("archived_at", null)
+    .eq("is_internal_contact", false)
+    .limit(5000);
+
+  let moved = 0;
+  let scanned = 0;
+  const sample: unknown[] = [];
+
+  for (const lead of leads ?? []) {
+    scanned++;
+    const toStageId = paByPipeline.get(lead.pipeline_id);
+    if (!toStageId || lead.stage_id === toStageId) continue;
+
+    if (dryRun) {
+      if (sample.length < 20) sample.push({ lead_id: lead.id, from: lead.stage_id, to: toStageId });
+      moved++;
+      continue;
+    }
+
+    const res = await pipelineMove(client, {
+      leadId: lead.id,
+      toStageId,
+      source: "auto:monthly-sweep",
+      reason: `Sweep mensal ${ym}: card de mês anterior → Paciente antigo`,
+      ruleKey: "automation.monthly_sweep_paciente_antigo.enabled",
+      idempotencyKey: `monthly-sweep:${lead.id}:${ym}`,
+    });
+
+    if ((res as { moved?: boolean }).moved) {
+      await patchCustomFields(client, lead.id, { eh_paciente_antigo: true });
+      await logEvent(client, lead.clinic_id, lead.id, "auto:monthly-sweep", {
+        ym,
+        from_stage_id: lead.stage_id,
+        to_stage_id: toStageId,
+      });
+      moved++;
+      if (sample.length < 20) sample.push({ lead_id: lead.id, to: toStageId });
+    }
+  }
+
+  return { ym, dryRun, moved, scanned, sample };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HTTP entry
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -777,6 +862,11 @@ Deno.serve(async (req) => {
       case "human-reactor-tick":
         result = await ruleHumanReactorTick(client);
         break;
+      case "monthly-sweep-tick": {
+        const dryRun = (body as unknown as { dry_run?: boolean }).dry_run === true;
+        result = await ruleMonthlySweep(client, { dryRun });
+        break;
+      }
       default:
         return new Response(
           JSON.stringify({ error: "unknown_action" }),
