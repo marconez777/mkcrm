@@ -17,17 +17,16 @@ import { evaluateFirstConsult } from "./rules/first-consult.ts";
 import { runIntentEffects } from "./rules/intent-effects.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
+import { getToggle } from "../_shared/app-settings.ts";
 
 const TELEMETRY_VERSION = 3;
 
+// Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
   key: string,
 ): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
+  return getToggle(client, key);
 }
 
 async function getAllowedTags(client: SupabaseClient): Promise<Set<string> | null> {

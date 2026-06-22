@@ -17,6 +17,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
+import { getToggle, getSettingNumber } from "../_shared/app-settings.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -101,22 +102,13 @@ const AuditSchema = z.object({
 });
 
 
+// F3: helpers unificados em _shared/app-settings.ts (wrappers retrocompatíveis).
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
+  return getToggle(client, key);
 }
 
 async function getBatchSize(client: SupabaseClient): Promise<number> {
-  const { data } = await client
-    .from("app_settings")
-    .select("value")
-    .eq("key", "automation.position_auditor.batch_size")
-    .maybeSingle();
-  if (!data) return DEFAULT_BATCH;
-  const n = parseInt(String(data.value).replace(/"/g, ""), 10);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 500) : DEFAULT_BATCH;
+  return getSettingNumber(client, "automation.position_auditor.batch_size", DEFAULT_BATCH, 500);
 }
 
 async function addTags(client: SupabaseClient, leadId: string, tags: string[]) {

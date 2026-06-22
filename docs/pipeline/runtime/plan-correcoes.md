@@ -588,3 +588,19 @@ Plano encerrado. Próximas correções devem abrir novo documento ou seção de 
 
 
 
+
+---
+
+# Fase F — Dívidas residuais (encerramento 2026-06-22)
+
+| Item | Status | Notas |
+|---|---|---|
+| F1 — Refactor `pipeline-run-executor` por modo (P13) | ⏸ deferido | Aceita schema novo; isolamento por agente vira sprint próprio. Registrado em `KNOWN_ISSUES §-3`. |
+| F2 — Decisão `stage_sequence_bindings` (P24) | ⏸ deferido | Aguarda input de produto (revisar em 30d, `KNOWN_ISSUES §-10`). |
+| F3 — Helper unificado `_shared/app-settings.ts` (P29) | ✅ done | Criado `getToggle / getSettingString / getSettingJSON / getSettingNumber`. Migrados: `pipeline-summarize-core`, `pipeline-classify/apply.ts`, `pipeline-classify/index.ts`, `pipeline-position-auditor/index.ts`. Wrappers `isEnabled` mantidos para diff mínimo. |
+| F4 — Verificar `cleanup_g10_expired` | ✅ done | Cron `cleanup-g10-expired-daily` ativo (`0 4 * * *`). Primeira execução: próxima janela 04:00 UTC. |
+
+**Próximas fases candidatas (não iniciadas, aguardam priorização):**
+- **Fase G — Observabilidade & custo:** dashboard `maestro_outcome` + alertas de fila + telemetria de uso de tags.
+- **Fase H — Qualidade de classificação:** análise de `low_confidence`, few-shots dinâmicos, A/B de prompt.
+- **Fase I — Documentação viva:** script CI `scripts/audit-docs.ts` para detectar drift entre `pg_trigger`/`app_settings` e docs.
