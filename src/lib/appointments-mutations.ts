@@ -5,7 +5,9 @@ export async function updateAppointmentSchedule(
   scheduled_at: Date,
   duration_min?: number,
 ): Promise<{ error: string | null }> {
-  const payload: Record<string, unknown> = { scheduled_at: scheduled_at.toISOString() };
+  const payload: { scheduled_at: string; duration_min?: number } = {
+    scheduled_at: scheduled_at.toISOString(),
+  };
   if (duration_min !== undefined) payload.duration_min = duration_min;
   const { error } = await supabase.from("appointments").update(payload).eq("id", id);
   return { error: error?.message ?? null };
