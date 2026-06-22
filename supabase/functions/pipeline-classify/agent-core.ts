@@ -487,7 +487,7 @@ export async function runAgent(
   opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
 ): Promise<RunAgentSuccess | { error: string }> {
   const ai = await getClassifierAi(client, ctx.lead.clinic_id);
-  if (!ai) return { error: ai === null ? "no_ai_provider" : "no_clinic_openai_key" };
+  if (!ai) return { error: "no_ai_provider" };
 
   // Resolve ids reais (provider-dependent) para usar nas chamadas e na telemetria.
   const M_SUMMARIZER   = pickModel(ai.provider, SUMMARIZER_SPEC);
