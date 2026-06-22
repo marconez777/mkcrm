@@ -11,10 +11,13 @@ code_refs:
   - supabase/functions/pipeline-deterministic/
   - supabase/migrations/20260617210036_3d27aae0-917b-48ee-849d-d18655543991.sql
 related_docs:
+  - docs/pipeline/CALENDAR.md
   - docs/pipeline/runtime/DETERMINISTIC_RULES.md
   - docs/pipeline/runtime/STAGES_LIVE.md
   - docs/pipeline/runtime/TRIGGERS_AUDIT.md
 ---
+
+> **Status: ENTREGUE em 2026-06-22.** PR11.1 schema · PR11.2 hooks/realtime · PR11.3 `PipelineCalendar` · PR11.4 botão + sheet · PR11.5 drag & resize · PR11.6 `AppointmentDialog` · PR11.7 `SettingsAppointmentTypes` · PR11.8 docs. Ver mapa vivo em `docs/pipeline/CALENDAR.md`.
 
 # Calendário de Agendamentos por Pipeline
 
