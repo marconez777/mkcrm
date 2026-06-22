@@ -183,6 +183,7 @@ export default function SettingsPage() {
                   {showEmail && <TabsTrigger value="email" className={triggerCls}>Email Marketing</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>Importações</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>IA do Pipeline</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>Tipos de agendamento</TabsTrigger>}
                 </>
               );
             })()}
@@ -397,6 +398,23 @@ export default function SettingsPage() {
                 </Card>
               )}
               {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}
+            </TabsContent>
+          )}
+          {canManage && (
+            <TabsContent value="appointment-types" className="space-y-4">
+              <Card className="p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold">Tipos de agendamento</div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Gerencie o catálogo de consultas, procedimentos e retornos exibido no calendário.
+                    </p>
+                  </div>
+                  <Button asChild>
+                    <Link to="/settings/appointment-types">Gerenciar tipos</Link>
+                  </Button>
+                </div>
+              </Card>
             </TabsContent>
           )}
         </Tabs>
