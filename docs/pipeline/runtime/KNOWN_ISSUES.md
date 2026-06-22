@@ -106,19 +106,15 @@ SELECT count(*) FROM automation_runs ar
 
 
 
-## -3. Dispatcher do `pipeline-run-executor` não aceita `only_agent='parallel'` (ABERTO — 2026-06-21)
+## -3. Dispatcher do `pipeline-run-executor` aceita `only_agent='parallel'` (CORRIGIDO 2026-06-22 — Fase D/P13)
 
-**Sintoma**: a UI `/pipeline-runs` oferece o botão "Só Paralelos" (Agendador + Tipificador + Movimentador), mas ao clicar nenhum dos três roda isoladamente — a request é descartada pelo backend.
+**Sintoma anterior**: a UI `/pipeline-runs` oferece o botão "Só Paralelos" (Agendador + Tipificador + Movimentador), mas ao clicar nenhum dos três rodava isoladamente — a request era descartada.
 
-**Causa-raiz**: em `supabase/functions/pipeline-run-executor/index.ts`:
-- linha 88: `only_agent?: "summarizer" | "typifier" | "maestro"`
-- linhas 229-231 e 421-422: whitelist literal `["summarizer", "typifier", "maestro"]`.
+**Fix aplicado**:
+- `pipeline-run-executor/index.ts`: union `OnlyAgent` estendido para `"summarizer" | "typifier" | "maestro" | "parallel" | "agendador" | "movimentador"`. Constante `ONLY_AGENT_VALUES` centraliza a whitelist.
+- `pipeline-classify/index.ts`: validador aceita os mesmos 6 valores.
 
-`parallel`, `agendador` e `movimentador` caem fora dessa lista e o campo é silenciosamente dropado, fazendo o executor rodar o flow completo (V6).
-
-**Workaround**: usar "Completo (V6)" enquanto isso.
-
-**Fix futuro**: estender a whitelist para incluir `agendador`, `movimentador` e o atalho `parallel`; em `agent-core.ts`, mapear `parallel` para rodar os 3 do meio em `Promise.all` pulando Resumidor/Maestro. Ver também `TRIGGERS_AUDIT.md §5 (G3)`.
+**Limitação remanescente**: a semântica de execução por agente individual (rodar **só** o `agendador` e pular os demais) ainda não está plumbada em `agent-core.ts` — runAgent sempre roda o pipeline V6 completo. O `only_agent` hoje apenas filtra os *side-effects* aplicados em `apply.ts` (via `ApplyMode`). Isto será endereçado em refactor futuro se houver demanda.
 
 
 
