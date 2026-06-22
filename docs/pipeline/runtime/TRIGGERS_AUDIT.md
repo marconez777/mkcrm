@@ -3,7 +3,7 @@ title: "Auditoria de gatilhos — Pipeline & Automações"
 topic: kanban
 kind: audit
 audience: agent
-updated: 2026-06-21
+updated: 2026-06-22
 summary: "Snapshot vivo (consultado direto em cron.job e pg_trigger) de TODOS os gatilhos que disparam o pipeline V6 e as automações operacionais. Inclui crons pg_cron, triggers Postgres, webhooks públicos e ações manuais. Marca gaps de documentação."
 code_refs:
   - supabase/functions/pipeline-run-executor/index.ts
@@ -15,6 +15,7 @@ related_docs:
   - docs/pipeline/runtime/DATABASE_LIVE.md
   - docs/pipeline/runtime/CLASSIFIER.md
   - docs/pipeline/runtime/KNOWN_ISSUES.md
+  - docs/pipeline/CALENDAR.md
 ---
 
 # Auditoria de gatilhos (2026-06-21)
@@ -81,7 +82,7 @@ related_docs:
 | `trg_stop_sequences_on_reply` | `messages` | AFTER INSERT (paciente) | Cancela enrollments ativos em `message_sequence_enrollments` |
 | `messages_lead_needs_extraction` | `messages` | AFTER INSERT | Marca `needs_ai_review=true` para forçar passada da V6 |
 | `trg_bump_human_activity_from_msg` / `_from_note` | `messages` / `lead_internal_notes` | AFTER INSERT | Atualiza `last_human_activity_at` (afeta lock manual + reator humano) |
-| `trg_appointments_recompute` | `appointments` | AFTER INS/UPD | Recalcula `status_consulta`/`status_procedimento` no lead |
+| `trg_appointments_recompute` | `appointments` | AFTER INS/UPD/DEL | Recalcula `consulta_agendada_em`/`procedimento_agendado_em` no lead. Drag & resize no calendário entram aqui (não disparam `appointment-sync`, que escuta `status`). Ver `docs/pipeline/CALENDAR.md`. |
 | `leads_stage_changed`, `trg_lead_stage_history`, `trg_enroll_on_stage_change` | `leads` | AFTER UPDATE OF `stage_id` | Grava histórico, dispara `stage_sequence_bindings`, emite eventos |
 | `trg_leads_sync_pipeline` | `leads` | BEFORE UPDATE | Mantém `pipeline_id` derivado de `stage_id` |
 | `trg_sync_lead_ai_settings_stage` | `leads` | AFTER UPDATE | Sincroniza `lead_ai_settings.current_stage` |
