@@ -569,7 +569,7 @@ export default function Agents() {
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         {canManage && (
           <BuilderSetupCard
-            builder={builder}
+            builder={builder ? { ...builder, api_key_set: !!builder.api_key_set } : null}
             clinicId={clinicId}
             selected={selected?.id === builder?.id}
             onSelect={() => builder && setSelected(builder)}
