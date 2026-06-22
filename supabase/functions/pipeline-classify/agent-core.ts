@@ -96,6 +96,12 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     return await fn();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const anyErr = err as { text?: string; cause?: { message?: string } };
+    if (anyErr.text || anyErr.cause) {
+      console.warn(
+        `[classify] ${label} schema mismatch — modelText="${String(anyErr.text ?? "").slice(0, 400)}" cause=${String(anyErr.cause?.message ?? "").slice(0, 200)}`,
+      );
+    }
     const isSchema = /did not match schema|No object generated|Output validation/i.test(msg);
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;
@@ -103,6 +109,7 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     return await fn();
   }
 }
+
 
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
