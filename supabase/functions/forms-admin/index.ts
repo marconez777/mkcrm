@@ -111,6 +111,20 @@ Deno.serve(async (req) => {
         return json(200, { integration: data });
       }
 
+      case "get_token": {
+        const p = z.object({ id: z.string().uuid() }).parse(body);
+        const { data: existing } = await admin
+          .from("form_integrations")
+          .select("clinic_id, token, previous_token, previous_token_expires_at")
+          .eq("id", p.id).single();
+        if (!existing || !(await assertClinicAdmin(existing.clinic_id))) return json(403, { error: "forbidden" });
+        return json(200, {
+          token: existing.token,
+          previous_token: existing.previous_token,
+          previous_token_expires_at: existing.previous_token_expires_at,
+        });
+      }
+
       case "delete_integration": {
         const p = z.object({ id: z.string().uuid() }).parse(body);
         const { data: existing } = await admin.from("form_integrations").select("clinic_id").eq("id", p.id).single();

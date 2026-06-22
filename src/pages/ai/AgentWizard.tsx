@@ -249,7 +249,7 @@ export default function AgentWizard() {
     provider: string;
     model: string;
     base_url: string | null;
-    api_key: string | null;
+    api_key_set: boolean;
   } | null>(null);
 
   // Origem da chave no passo 3: reusar Builder ou usar chave própria
@@ -291,7 +291,7 @@ export default function AgentWizard() {
           return;
         }
         const data = Array.isArray(rows) ? (rows[0] as any) : (rows as any);
-        const ok = !!(data && data.builder_verified_at && data.api_key);
+        const ok = !!(data && data.builder_verified_at && data.api_key_set);
         setBuilderStatus(ok ? "ok" : "missing");
         if (data) {
           setBuilderInfo({
@@ -299,7 +299,7 @@ export default function AgentWizard() {
             provider: (data.provider as string) ?? "openai",
             model: (data.model as string) ?? "",
             base_url: (data.base_url as string | null) ?? null,
-            api_key: (data.api_key as string | null) ?? null,
+            api_key_set: !!(data.api_key_set ?? false),
           });
         }
         if (!ok) setKeySource("own");
@@ -458,7 +458,7 @@ export default function AgentWizard() {
   const isVerified = !!verifiedAt && !testError;
   const canNextFromStep3 =
     keySource === "builder"
-      ? builderStatus === "ok" && !!(builderInfo?.api_key)
+      ? builderStatus === "ok" && !!(builderInfo?.api_key_set)
       : !!apiKey && !!model && isVerified;
 
 
@@ -720,11 +720,9 @@ export default function AgentWizard() {
       return;
     }
     const useBuilder = keySource === "builder";
-    const effectiveProvider = useBuilder ? (builderInfo?.provider as Provider) ?? provider : provider;
-    const effectiveApiKey = useBuilder ? builderInfo?.api_key ?? "" : apiKey;
-    const effectiveBaseUrl = useBuilder ? builderInfo?.base_url ?? null : baseUrl || null;
     const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
-    if (!effectiveApiKey || !effectiveModel) {
+    const hasKey = useBuilder ? !!builderInfo?.api_key_set : !!apiKey;
+    if (!hasKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
     }
@@ -754,31 +752,27 @@ export default function AgentWizard() {
       const description = [goalLabel, nicheLabel].filter(Boolean).join(" · ");
       const tools = filterKnownTools(bundle.suggested_tools);
 
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .insert({
-          clinic_id: clinicId,
+      // Criação via edge function: a "builder shared key" nunca trafega pelo client.
+      const { data, error } = await supabase.functions.invoke("agent-create", {
+        body: {
           name,
           description: description || null,
           role: goal || null,
           niche: niche || null,
           niche_other: nicheOther || null,
-          provider: effectiveProvider,
-          api_key: effectiveApiKey,
-          base_url: effectiveBaseUrl,
-          model: effectiveModel,
+          key_source: useBuilder ? "builder" : "own",
+          own_provider: useBuilder ? undefined : provider,
+          own_api_key: useBuilder ? undefined : apiKey,
+          own_base_url: useBuilder ? undefined : (baseUrl || null),
+          own_model: useBuilder ? undefined : effectiveModel,
           system_prompt: bundle.system_prompt,
           temperature: bundle.suggested_temperature,
           max_iterations: bundle.suggested_max_iterations,
           rag_top_k: bundle.suggested_top_k,
           tools,
-          enabled: false,
-          draft_mode: true,
-          builder_verified_at: useBuilder ? new Date().toISOString() : verifiedAt,
-        } as never)
-
-        .select("id")
-        .single();
+          verified_at: verifiedAt,
+        },
+      });
 
       if (error) throw error;
       const newId = (data as { id: string }).id;
@@ -894,7 +888,7 @@ export default function AgentWizard() {
                   });
                   if (s === "builder") setTestError(null);
                 }}
-                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key}
+                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key_set}
                 builderInfo={builderInfo}
                 provider={provider}
                 setProvider={setProvider}
@@ -1355,7 +1349,7 @@ function Step3({
   keySource: "builder" | "own";
   setKeySource: (s: "builder" | "own") => void;
   builderAvailable: boolean;
-  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key: string | null } | null;
+  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key_set: boolean } | null;
   provider: Provider;
   setProvider: (p: Provider) => void;
   apiKey: string;

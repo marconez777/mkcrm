@@ -250,7 +250,7 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
       const baselineCount = baselineRows?.length ?? 0;
 
       // snapshot full agent before update so we can revert
-      const { data: snap } = await supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle();
+      const { data: snap } = await supabase.from("ai_agents").select("id, name, description, system_prompt, model, temperature, enabled, tools, provider, base_url, embedding_model, reranker_provider, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, max_tool_calls, clinic_id, silent, role, is_system, system_key, builder_verified_at, draft_mode, niche, niche_other, stages_enabled").eq("id", agentId).maybeSingle();
       if (snap) setPreviousSnapshot(snap as Record<string, unknown>);
 
       const { error } = await supabase

@@ -55,16 +55,19 @@ type Agent = {
   description: string | null;
   system_prompt: string;
   provider: Provider;
-  api_key: string | null;
+  api_key?: string | null; // write-only via update payload; never returned by reads
+  api_key_set?: boolean;
   base_url: string | null;
   model: string;
   temperature: number;
   enabled: boolean;
   tools: string[];
   embedding_model: string | null;
-  embedding_api_key: string | null;
+  embedding_api_key?: string | null; // write-only
+  embedding_api_key_set?: boolean;
   reranker_provider?: string | null;
-  reranker_api_key?: string | null;
+  reranker_api_key?: string | null; // write-only
+  reranker_api_key_set?: boolean;
   max_iterations?: number;
   use_hyde?: boolean;
   use_hybrid_search?: boolean;
@@ -327,10 +330,8 @@ export default function Agents() {
     setDocs(docs);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode, niche, niche_other";
-
   const load = async () => {
-    // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
+    // RPC admin-only: retorna apenas indicadores *_set (api_key_set etc) — chaves nunca trafegam para o client.
     const { data, error } = await supabase.rpc("admin_list_ai_agents");
     if (error) { toast.error(error.message); return; }
     setAgents((data as any) ?? []);
@@ -566,7 +567,7 @@ export default function Agents() {
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         {canManage && (
           <BuilderSetupCard
-            builder={builder}
+            builder={builder ? { ...builder, api_key_set: !!builder.api_key_set } : null}
             clinicId={clinicId}
             selected={selected?.id === builder?.id}
             onSelect={() => builder && setSelected(builder)}
@@ -840,12 +841,12 @@ export default function Agents() {
                     <Label>API Key</Label>
                     <Input
                       type="password"
-                      placeholder={PROVIDER_KEY_PLACEHOLDER[selected.provider]}
+                      placeholder={selected.api_key_set ? "•••••• (configurada — deixe vazio para manter)" : PROVIDER_KEY_PLACEHOLDER[selected.provider]}
                       value={selected.api_key ?? ""}
                       onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
+                      Armazenada no banco e nunca devolvida em leituras. Para trocar, digite a nova chave; para manter, deixe em branco.
                     </p>
                   </div>
                   {uiMode === "advanced" && (
@@ -875,7 +876,7 @@ export default function Agents() {
                       </Label>
                       <Input
                         type="password"
-                        placeholder="API key para embeddings (sk-... ou AIza...)"
+                        placeholder={selected.embedding_api_key_set ? "•••••• (configurada — deixe vazio para manter)" : "API key para embeddings (sk-... ou AIza...)"}
                         value={selected.embedding_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
                       />
@@ -929,7 +930,7 @@ export default function Agents() {
                         <option value="voyage">Voyage</option>
                       </select></div>
                     <div><Label className="text-xs">API key reranker</Label>
-                      <Input type="password" value={selected.reranker_api_key ?? ""}
+                      <Input type="password" placeholder={selected.reranker_api_key_set ? "•••••• (configurada)" : ""} value={selected.reranker_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, reranker_api_key: e.target.value })} /></div>
                   </div>
                   <p className="text-xs text-muted-foreground">

@@ -19,7 +19,8 @@ type Integration = {
   clinic_id: string;
   name: string;
   slug: string;
-  token: string;
+  token?: string; // populated via forms-admin "get_token" (server-side); not selectable from DB
+  token_set?: boolean;
   allowed_domains: string[];
   status: string;
   default_tags: string[];
@@ -74,7 +75,7 @@ export default function SettingsForms() {
     setLoading(true);
     try {
       const data = await fetchAllPaged<any>(() =>
-        supabase.from("form_integrations").select("*").order("created_at", { ascending: false }),
+        supabase.from("form_integrations").select("id, clinic_id, name, slug, allowed_domains, status, default_tags, total_submissions, last_submission_at, created_at, token_set").order("created_at", { ascending: false }),
       );
       setList(data as any);
     } catch (e: any) { toast.error(e.message); }
@@ -181,14 +182,19 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   useEffect(() => { loadAll(); }, [integration.id]);
 
   async function loadAll() {
-    const [d, s, fresh] = await Promise.all([
+    const integrationCols = "id, clinic_id, name, slug, allowed_domains, status, default_tags, total_submissions, last_submission_at, created_at, token_set";
+    const [d, s, fresh, tokenRes] = await Promise.all([
       supabase.from("form_definitions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }),
       supabase.from("form_submissions").select("*").eq("integration_id", integration.id).order("created_at", { ascending: false }).limit(200),
-      supabase.from("form_integrations").select("*").eq("id", integration.id).single(),
+      supabase.from("form_integrations").select(integrationCols).eq("id", integration.id).single(),
+      supabase.functions.invoke("forms-admin", { body: { action: "get_token", id: integration.id } }),
     ]);
     if (d.data) setDefs(d.data as any);
     if (s.data) setSubs(s.data as any);
-    if (fresh.data) setData(fresh.data as any);
+    if (fresh.data) {
+      const token = (tokenRes.data as { token?: string } | null)?.token ?? "";
+      setData({ ...(fresh.data as any), token });
+    }
   }
 
   function copy(s: string, label = "Copiado") {
@@ -223,17 +229,20 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
   }
 
-  const tokenMasked = showToken ? data.token : data.token.slice(0, 8) + "•••••••••••••••";
-  const snippetCode = `<script async src="${SNIPPET_URL}?token=${data.token}"></script>`;
+  const tokenValue = data.token ?? "";
+  const tokenMasked = showToken
+    ? tokenValue
+    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : "Carregando…";
+  const snippetCode = `<script async src="${SNIPPET_URL}?token=${tokenValue}"></script>`;
   const pixelCode = `<script async src="${SUPABASE_URL}/functions/v1/tracking-pixel?project_id=${data.clinic_id}"></script>`;
   const primaryDomain = (data.allowed_domains || [])[0] || "seu-site.com";
-  const curlCode = `curl -X POST "${INGEST_URL}" \\\n  -H "Content-Type: application/json" \\\n  -H "x-form-token: ${data.token}" \\\n  -d '{"form_key":"contato-home","fields":{"name":"João","email":"joao@x.com","phone":"11999999999"}}'`;
+  const curlCode = `curl -X POST "${INGEST_URL}" \\\n  -H "Content-Type: application/json" \\\n  -H "x-form-token: ${tokenValue}" \\\n  -d '{"form_key":"contato-home","fields":{"name":"João","email":"joao@x.com","phone":"11999999999"}}'`;
 
   const aiPrompt = buildAiPrompt({
     pixelCode,
     snippetCode,
     clinicId: data.clinic_id,
-    token: data.token,
+    token: tokenValue,
     domain: primaryDomain,
     supabaseUrl: SUPABASE_URL,
   });
@@ -281,7 +290,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                 <div className="flex gap-2 mt-1.5">
                   <Input readOnly value={tokenMasked} className="font-mono text-xs" />
                   <Button variant="outline" size="icon" onClick={() => setShowToken((s) => !s)}>{showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-                  <Button variant="outline" size="icon" onClick={() => copy(data.token, "Token copiado")}><Copy className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => copy(tokenValue, "Token copiado")}><Copy className="h-4 w-4" /></Button>
                   {canManage && <Button variant="outline" size="icon" onClick={rotate} disabled={busy}><RotateCcw className="h-4 w-4" /></Button>}
                 </div>
               </div>
