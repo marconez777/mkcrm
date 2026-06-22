@@ -320,7 +320,7 @@ export default function AgentWizard() {
     (async () => {
       const { data } = await supabase
         .from("ai_agent_drafts")
-        .select("*")
+        .select("id, clinic_id, user_id, step, niche, niche_other, goal, goal_other, provider, base_url, model, provider_verified_at, interview_answers, generated_prompt, settings, created_at, updated_at")
         .eq("clinic_id", clinicId)
         .eq("user_id", userId)
         .maybeSingle();
