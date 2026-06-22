@@ -238,7 +238,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
   const result = await withSchemaRetry("agendador", () =>
     generateText({
-      model: ai.model(AGENDADOR_MODEL),
+      model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
       system: buildAgendadorSystem(),
       prompt: `RESUMO factual do lead:\n${summary}`,
       output: Output.object({ schema: AgendadorOutputSchema }),
@@ -331,7 +331,7 @@ IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
     generateText({
-      model: ai.model(TYPIFIER_MODEL),
+      model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
       system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
 
       prompt: `${buildContextBlock(ctx)}
@@ -389,7 +389,7 @@ async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: stri
 
   const result = await withSchemaRetry("movimentador", () =>
     generateText({
-      model: ai.model(MOVIMENTADOR_MODEL),
+      model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
       system: buildMovimentadorSystem(),
       prompt: `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
@@ -438,7 +438,7 @@ async function runMaestro(
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
     generateText({
-      model: ai.model(MAESTRO_MODEL),
+      model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
       system: buildMaestroSystem(),
       prompt: `RESUMO Factual:
 ${summary}
