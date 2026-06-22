@@ -1,90 +1,76 @@
+# Auditoria — Coluna "Qualificação" (Clínica ÓR)
 
-# Diagnóstico — 1ª coluna do pipeline ÓR ("Leads de entrada") — revisado
+A coluna **Leads de entrada** está vazia, então a primeira coluna com leads é **Qualificação** (44 leads). Vou auditar esses 44 contra a régua canônica do pipeline.
 
-Pipeline: `Clínica ÓR` (`17c27f4d…`) · Stage: `Leads de entrada` (`b1aa2fc9…`) · 8 leads.
+## Régua de referência (Qualificação)
 
-## 1) Campos personalizados — o que falta e por quê
+Lead deveria estar em Qualificação se:
+- `interesse_consulta = true` **OU** `interesse_tratamento = true` (ou ambos)
+- **Não** é paciente antigo (`paciente_antigo` ≠ true)
+- **Não** tem consulta agendada (`procedimento_agendado_em` / `consulta_agendada_em` vazio ou futuro confirmado pertence à próxima coluna)
+- Conversa ativa nos últimos N dias (sem resposta > 3 dias → "Sem resposta"; > 14 dias inativo → "Nutrição Inativa")
+- Não é B2B/stakeholder e não foi desqualificado
 
-Schema da clínica define 23 chaves canônicas (`interesse`, `procedimentos`, `tipo_contato`, `status_consulta`, `pagamento`, `status_financeiro`, etc.).
+## Quatro dimensões da auditoria
 
-| Lead | custom_fields hoje | Diagnóstico |
-|---|---|---|
-| 08453c76 (5511994709447, sem nome) | `{}` | Bot de farmacovigilância (PT/ES). Classifier rodou (`last_classified_at` preenchido) mas não extraiu nada — esperado p/ spam. |
-| 36a85fd2 Neto (+1 407…) | `demonstrou_interesse`, `procedimento_interesse=seguimento` | **`last_classified_at = NULL` → classifier nunca rodou**. Telefone +1 pode estar caindo em filtro. |
-| 26109147 Ariane | `demonstrou_interesse`, `procedimento_interesse=cetamina` | Classifier escreveu em **chaves legadas** que não existem no schema da ÓR. Os campos canônicos (`interesse`, `procedimentos`) ficaram vazios. |
-| efeb8aaa Aline | mistura legada + `form_submission` (CTA Cetamina) | `procedimentos=["Infusão de cetamina"]` OK, mas `interesse` (select canônico) vazio. |
-| 7a2df6c0 Rafael | `tipo_contato=paciente`, `contato_eh_terceiro=false` | **Spam** (imagem com convite p/ evento). Classifier não tem texto → nada a extrair. Comportamento correto. |
-| a1b8832b Ricardo | só `pagamento_alegado_em` | 17 mensagens, pagamento + NF concluídos. `pagamento`, `status_financeiro`, `interesse`, `procedimentos` ficaram vazios apesar dos dados estarem na conversa. |
-| e23295cd Andrea | `mensagem`, `observacoes`, `demonstrou_interesse` | Conversa B2B; `tipo_contato`/`interesse` não preenchidos. |
-| 4d140ec4 (sem nome) | `tipo_contato`, `contato_eh_terceiro` | 1 mensagem inbound vazia — nada a extrair. |
+### 1. Campos personalizados (`lead_custom_fields` da ÓR vs. `leads.custom_fields`)
 
-**Causas raízes**
-- (A) Classifier grava em **chaves legadas** (`demonstrou_interesse`, `procedimento_interesse`) em vez das chaves do schema da clínica (`interesse`, `procedimentos`).
-- (B) Neto (+1) nunca foi classificado — investigar filtro de DDI.
-- (C) Em leads ricos (Aline, Ricardo), classifier ignora campos clínicos óbvios (`pagamento`, `status_financeiro`, `procedimentos`).
+Para cada lead em Qualificação, comparar o schema de campos personalizados configurado para a ÓR com o que está preenchido em `custom_fields`. Reportar:
+- **Campos esperados mas vazios**: ex. `interesse_consulta`, `interesse_tratamento`, `tipo_contato`, `modalidade_preferida`, `nome_responsavel_financeiro` (se aplicável)
+- **Causa provável** (por categoria):
+  - classifier nunca rodou no lead (sem `last_classified_at`)
+  - classifier rodou mas falhou (`pipeline_run_items.status='skipped'` com `agent_error`)
+  - mensagem nunca trouxe sinal suficiente (heurística)
+  - campo bloqueado por edição humana (`custom_fields_last_human_edit`)
 
-## 2) Chip (WhatsApp instance)
+Entregável: tabela `lead_id | nome | campos_faltando | causa_provavel`.
 
-Chips da ÓR: `Recepção` (default), `Disparo pacientes`, `prospecção medico`. Nenhum chip antigo pendurado nos 8 leads.
+### 2. Chips / Tags
 
-Nota sobre Rafael: o registro guarda `whatsapp_instance_id = 40afc571` (`prospecção medico`), mas é spam e na UI o chip não aparece — irrelevante para o caso. **Não há ação de roteamento por chip necessária**; fica como observação para futura limpeza.
+Para cada lead, comparar `leads.tags` com o esperado:
+- **Auto-tags da etapa de entrada**: a stage Qualificação não define `auto_tag_on_enter`, mas leads herdam tags de etapas anteriores
+- **Tags legadas que deveriam ter sido removidas**: ex. `paciente_antigo` (lead deveria estar na coluna Paciente antigo), `sem_resposta` (mas voltou a responder), `nutricao_inativa`, `consulta_finalizada_mes`, segmentos antigos
+- **Tags faltando**: tag de segmento ativo para campanhas, tag de interesse
 
-## 3) Movimentação de estágio — quem deveria ter saído
+Entregável: tabela `lead_id | tags_atuais | tags_obsoletas | tags_faltando`.
 
-Histórico mostra 5 leads movidos em lote em 2026-06-17 22:44:01 vindos de stages inexistentes (`79746e04…`, `d6de683c…`) — resíduo do bug cross-clinic já corrigido. Depois disso ninguém promoveu.
+### 3. Movimentação por regra (classifier / determinístico)
 
-| Lead | Estágio sugerido | Por quê |
-|---|---|---|
-| 08453c76 | Desqualificado / Fora de escopo | bot farmacovigilância |
-| 7a2df6c0 Rafael | **Desqualificado / Fora de escopo** | spam (convite evento sexualidade) |
-| 36a85fd2 Neto | Qualificação (após reclassificar) | demonstrou interesse em seguimento |
-| 26109147 Ariane | Qualificação | 24 msgs qualificando cetamina |
-| efeb8aaa Aline | Qualificação | conversa clínica ativa |
-| a1b8832b Ricardo | Tratamento agendado / Em tratamento | pagamento + NF concluídos |
-| e23295cd Andrea | B2B / Stakeholders | propostas comerciais |
-| 4d140ec4 | Sem resposta | inbound sem follow-up há 6+ dias |
+Para cada lead, verificar se o conteúdo da conversa indica que ele deveria estar em outra etapa:
+- `interesse_consulta=false` e `interesse_tratamento=false` → deveria estar em Desqualificado
+- `procedimento_agendado_em` preenchido com data futura → Consulta agendada
+- Sinais de "já é paciente" na conversa → Paciente antigo
+- Mensagens de B2B/parceria → B2B/Stakeholders
 
-**Causa raiz da estagnação**: não há automação que promova `Leads de entrada → Qualificação` por classificação, nem regra "sem resposta após N horas" ativa neste pipeline.
+Checar também `pipeline_run_items` recente: erros, skip, último `result`. Cruzar com `lead_stage_history` para ver se houve tentativa de move bloqueada (`lock_auto_move`, `manual_lock_until`).
 
----
+Entregável: tabela `lead_id | etapa_atual | etapa_correta | motivo | bloqueio_detectado`.
 
-# Plano de correção
+### 4. Movimentação por inatividade
 
-## Parte A — Higiene imediata (data fix dos 8 leads)
+Cruzar `last_message_at` e última mensagem **inbound** (`messages.from_me=false`) com regras de inatividade:
+- Sem resposta do lead há > 3 dias → **Sem resposta**
+- Sem resposta há > 14 dias → **Nutrição Inativa**
+- Sem resposta há > 60 dias e paciente antigo → **Nutrição Antigos**
 
-1. Rafael (`7a2df6c0`) → `Desqualificado / Fora de escopo` (`35670cad…`).
-2. 08453c76 → `Desqualificado / Fora de escopo`.
-3. Andrea (`e23295cd`) → `B2B / Stakeholders` (`23a7bfd7…`).
-4. Ricardo (`a1b8832b`) → `Tratamento agendado` (`98320189…`); preencher `status_financeiro=pago` e `pagamento` (valor se conhecido).
-5. Ariane (`26109147`) e Aline (`efeb8aaa`) → `Qualificação` (`c6eb67f3…`).
-6. 4d140ec4 → `Sem resposta` (`9f408ae6…`).
-7. Manter Neto (`36a85fd2`) em `Leads de entrada` até reclassificar (Parte B.2).
+Para os que deveriam ter movido mas não moveram, investigar:
+- `pipeline-deterministic` tick falhou na clínica?
+- Lead tem `lock_auto_move` na stage atual? (a stage Qualificação tem `lock_auto_move=false`, então não é isso)
+- `manual_lock_until` ativo?
+- `is_internal_contact=true` (excluído da automação)?
 
-Cada move grava `lead_stage_history` com `clinic_id=cf038458…`, `source='manual'`, `reason='data fix 2026-06-21'`.
+Entregável: tabela `lead_id | dias_sem_resposta | etapa_destino | bloqueio`.
 
-## Parte B — Causas raízes (código)
+## Saída
 
-**B.1 — Classifier escreve nas chaves canônicas**
-- Atualizar `lead-classifier` (edge function) para mapear saída nas chaves do schema (`interesse`, `procedimentos`, `tipo_contato`, `status_consulta`, `pagamento`, `status_financeiro`) e **parar de gravar** chaves legadas.
-- Migration única reescrevendo `procedimento_interesse → interesse` e removendo `demonstrou_interesse` nos leads da ÓR.
-
-**B.2 — Filtro de DDI**
-- Investigar por que `36a85fd2` (+1) nunca foi classificado. Remover/ajustar filtro que ignora não-BR.
-
-**B.3 — Promoção automática `Leads de entrada → Qualificação`**
-- No classifier (ou em automação dedicada), promover stage quando intenção qualificada for detectada com confiança ≥ threshold. Gravar `lead_stage_history` com `source='ai'`.
-
-**B.4 — Regra "Sem resposta"**
-- Automação no pipeline ÓR: lead em `Leads de entrada` há > 48h sem inbound novo → `Sem resposta`.
+Um relatório único em `dry-run-pr2/AUDIT_QUALIFICACAO.md` com as 4 tabelas e um resumo executivo no topo. **Nenhuma alteração de dados** — apenas leitura e relatório, igual ao PR2 da migração. Decisões de correção (mover leads, limpar tags, repreencher campos) ficam para PRs separados que você aprova depois.
 
 ## Detalhes técnicos
 
-- Toda movimentação respeita o trigger `trg_leads_enforce_coherence`.
-- Schema de campos canônicos vive em `lead_custom_fields` filtrado por `clinic_id`.
-- Localizar edge function do classifier em `supabase/functions/` antes de editar.
+Consultas principais:
+- `leads JOIN messages` agregando `MAX(timestamp) FILTER (WHERE from_me=false)` por lead
+- `leads.custom_fields ?| array[<schema_keys>]` para detectar ausências
+- `pipeline_run_items` filtrado por `lead_id IN (...)` e `step='classify'` ordenado por `created_at DESC`
+- `lead_stage_history` últimos 30 dias para detectar tentativas de move
 
-## Fora de escopo
-
-- Roteamento por chip (`watcher_pipeline_id`) — removido após esclarecimento sobre Rafael.
-- Alterar schema de `lead_custom_fields` da ÓR.
-- Mexer em outras clínicas/pipelines.
+Tudo executado via `supabase--read_query` em batch único por dimensão.
