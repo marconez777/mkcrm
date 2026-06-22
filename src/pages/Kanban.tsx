@@ -835,6 +835,10 @@ export default function KanbanPage() {
                 Expandir todas ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setCalendarOpen(true)} disabled={!currentId}>
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Calendário
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
               <Pencil className="mr-1 h-4 w-4" />Editar
             </Button>
