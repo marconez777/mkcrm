@@ -163,3 +163,20 @@ WHERE type='auto:classifier' AND payload->>'skipped' LIKE 'agent_error%'
   AND created_at > now()-interval '2 days'
 ORDER BY created_at DESC;"
 ```
+
+---
+
+## Resolução (PR5 + moves manuais — 22/jun)
+
+**PR5 aplicado:**
+- Migration: nova coluna `leads.last_inbound_at` + trigger em `messages` (atualiza on insert quando `from_me=false`) + backfill.
+- `pipeline-deterministic/index.ts`: regras de 3d / 7d / 60d (Paciente antigo) agora leem `last_inbound_at` (follow-up da clínica não reseta mais o relógio). Fallback p/ `last_message_at` quando `last_inbound_at` é null.
+- `pipeline-classify/agent-core.ts` (Movimentador): prompt atualizado — B2B só para parceiros institucionais; profissionais de saúde buscando tratamento próprio e pagadores comprando p/ terceiros são pacientes normais. Regra "renovação de receita + histórico de consulta → Paciente antigo".
+
+**Moves manuais (source=`manual:audit-r2`):**
+| Lead | De | Para | Motivo |
+|---|---|---|---|
+| Juliana Alves (0ee236df) | Qualificação | Consulta finalizada | consulta 17/jun realizada |
+| Rafael Savassi (c42b41f1) | Qualificação | Paciente antigo | renovação receita, consulta 18/mai + `eh_paciente_antigo=true` |
+| Valéria Godoy (0d23bf1c) | — | — | reenfileirada no classifier (paciente, não B2B) |
+| Monique Pontes (7be2e675) | — | — | reenfileirada no classifier (paciente comprando p/ terceiro) |
