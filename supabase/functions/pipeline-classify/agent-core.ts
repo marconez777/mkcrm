@@ -593,7 +593,7 @@ export async function runAgent(
         movimentador: Math.round(lat2),
         maestro: Math.round(lat3)
       },
-      ran: { summarizer: true, agendador: true, typifier: true, movimentador: true, maestro: true },
+      ran: { summarizer: true, agendador: true, typifier: !allKeysProtected, movimentador: true, maestro: true },
     },
   };
 }
