@@ -70,11 +70,12 @@ const PACIENTE_ANTIGO_NAME = "Paciente antigo";
  * Gates aplicados nesta ordem:
  *  G3 — toggle off em app_settings → abort.
  *  G4 — `lead_events` já tem a `idempotencyKey` → abort idempotente.
- *  G1 — `leads.manual_lock_until > now()` e source começa com `auto:` → abort (lock manual).
  *  G2 — `pipeline_stages.lock_auto_move` no destino é true e source começa com `auto:` → abort.
  *  D3 — current_stage = "Paciente antigo" e source começa com `auto:` → abort (guard D3).
  *  G8 — UPDATE só toca em `stage_id` e `stage_changed_at` (nunca em `pipeline_id`).
  *  G5 — INSERT em `lead_stage_history` com `source` preenchido.
+ *
+ * PR4 — gate G1 (manual_lock_until) removido. A feature foi descontinuada.
  */
 export async function pipelineMove(
   client: SupabaseClient,
@@ -128,7 +129,7 @@ export async function pipelineMove(
   // Carrega lead + stage atual + stage destino (1 select cada para clareza).
   const { data: lead, error: leadErr } = await client
     .from("leads")
-    .select("id, clinic_id, stage_id, manual_lock_until")
+    .select("id, clinic_id, stage_id")
     .eq("id", leadId)
     .maybeSingle();
   if (leadErr || !lead) {
@@ -140,13 +141,7 @@ export async function pipelineMove(
     return { moved: false, reason: "clinic_not_allowlisted" };
   }
 
-  // G1 — lock manual.
-  if (isAutoSource && lead.manual_lock_until) {
-    const lockedUntil = new Date(lead.manual_lock_until).getTime();
-    if (lockedUntil > Date.now()) {
-      return { moved: false, reason: `gate_g1_manual_lock_until:${lead.manual_lock_until}` };
-    }
-  }
+  // PR4 — gate G1 (manual_lock_until) removido.
 
 
   // No-op se já está no destino.

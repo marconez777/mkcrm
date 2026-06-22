@@ -357,17 +357,7 @@ async function ruleFieldChanged(
           ruleKey: "automation.ciclo_concluido.enabled",
           idempotencyKey: `ciclo:${leadId}`,
         });
-        // congela com manual_lock 90 dias
-        if ((res as { moved?: boolean }).moved) {
-          await client
-            .from("leads")
-            .update({
-              manual_lock_until: new Date(
-                Date.now() + 90 * 24 * 3600 * 1000,
-              ).toISOString(),
-            })
-            .eq("id", leadId);
-        }
+        // PR4 — removido manual_lock_until de 90 dias após ciclo concluído.
         await logEvent(client, lead.clinic_id, leadId, "auto:ciclo-concluido", {
           res,
         });
@@ -376,23 +366,38 @@ async function ruleFieldChanged(
     }
   }
 
-  // modality-guard (flag de atenção quando muda preferência)
+  // PR4 — modality-guard removido (campo modalidade_preferida descontinuado).
+
+  // PR4 — eh_paciente_antigo: regra canônica para mover paciente antigo.
   if (
-    oldCf?.modalidade_preferida !== newCf?.modalidade_preferida &&
-    newCf?.modalidade_preferida === "online" &&
-    (await isEnabled(client, "automation.modality_guard.enabled"))
+    oldCf?.eh_paciente_antigo !== true &&
+    newCf?.eh_paciente_antigo === true &&
+    (await isEnabled(client, "automation.paciente_antigo_canonical.enabled"))
   ) {
     const { data: lead } = await client
       .from("leads")
-      .select("id, clinic_id, tags")
+      .select("id, clinic_id, pipeline_id, stage_id")
       .eq("id", leadId)
       .single();
-    if (lead) {
-      await addTag(client, leadId, "modalidade_online");
-      await logEvent(client, lead.clinic_id, leadId, "auto:modality-guard", {
-        modalidade: "online",
-      });
-      out.modality = "tagged";
+    if (lead?.pipeline_id) {
+      const pacAntigo = await resolveStageId(
+        client,
+        lead.clinic_id,
+        lead.pipeline_id,
+        "Paciente antigo",
+      );
+      if (pacAntigo && lead.stage_id !== pacAntigo) {
+        const res = await pipelineMove(client, {
+          leadId,
+          toStageId: pacAntigo,
+          source: "auto:paciente-antigo-canonical",
+          reason: "eh_paciente_antigo=true",
+          ruleKey: "automation.paciente_antigo_canonical.enabled",
+          idempotencyKey: `paciente-antigo:${leadId}`,
+        });
+        await logEvent(client, lead.clinic_id, leadId, "auto:paciente-antigo-canonical", { res });
+        out.paciente_antigo = res;
+      }
     }
   }
 

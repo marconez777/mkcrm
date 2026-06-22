@@ -1,76 +1,93 @@
-# Auditoria — Coluna "Qualificação" (Clínica ÓR)
+## PR4 — Higiene de regras do pipeline ÓR
 
-A coluna **Leads de entrada** está vazia, então a primeira coluna com leads é **Qualificação** (44 leads). Vou auditar esses 44 contra a régua canônica do pipeline.
+Consolida 4 decisões da auditoria de "Qualificação". Falhas do classifier ficam para PR separado (acordado).
 
-## Régua de referência (Qualificação)
+### Escopo
 
-Lead deveria estar em Qualificação se:
-- `interesse_consulta = true` **OU** `interesse_tratamento = true` (ou ambos)
-- **Não** é paciente antigo (`paciente_antigo` ≠ true)
-- **Não** tem consulta agendada (`procedimento_agendado_em` / `consulta_agendada_em` vazio ou futuro confirmado pertence à próxima coluna)
-- Conversa ativa nos últimos N dias (sem resposta > 3 dias → "Sem resposta"; > 14 dias inativo → "Nutrição Inativa")
-- Não é B2B/stakeholder e não foi desqualificado
+1. **Canonizar "paciente antigo"** (resolve 15 leads parados em Qualificação).
+2. **Auditar e desmarcar `is_internal_contact` indevido** (11 leads).
+3. **Remover feature `manual_lock_until`** (10 leads travados).
+4. **Remover campo `modalidade_preferida`** (não usado).
 
-## Quatro dimensões da auditoria
+---
 
-### 1. Campos personalizados (`lead_custom_fields` da ÓR vs. `leads.custom_fields`)
+### 1. Campo canônico `eh_paciente_antigo` (booleano)
 
-Para cada lead em Qualificação, comparar o schema de campos personalizados configurado para a ÓR com o que está preenchido em `custom_fields`. Reportar:
-- **Campos esperados mas vazios**: ex. `interesse_consulta`, `interesse_tratamento`, `tipo_contato`, `modalidade_preferida`, `nome_responsavel_financeiro` (se aplicável)
-- **Causa provável** (por categoria):
-  - classifier nunca rodou no lead (sem `last_classified_at`)
-  - classifier rodou mas falhou (`pipeline_run_items.status='skipped'` com `agent_error`)
-  - mensagem nunca trouxe sinal suficiente (heurística)
-  - campo bloqueado por edição humana (`custom_fields_last_human_edit`)
+**Por que:** `tipo_contato` é string livre e não casa com regras determinísticas. Um booleano canônico evita ambiguidade e conflito entre classifier e humano.
 
-Entregável: tabela `lead_id | nome | campos_faltando | causa_provavel`.
+- Adicionar definição em `lead_custom_fields` para a clínica ÓR: chave `eh_paciente_antigo`, tipo `boolean`, label "É paciente antigo?".
+- Regra de derivação (executada pelo classifier e por job único de backfill):
+  - `true` se qualquer um: `tipo_contato in ('paciente','paciente_antigo')` no `custom_fields_legacy`; tag legada `paciente_antigo`; `procedimento_pago_em` no passado; primeira mensagem > 60 dias atrás com histórico de atendimento.
+  - `false` caso contrário; humano pode sobrescrever (registra `source=human`).
+- `tipo_contato` continua existindo como descritivo, mas **não dispara movimentação**.
+- Atualizar `pipeline-deterministic`: nova regra → `if eh_paciente_antigo=true and stage in ('Leads de entrada','Qualificação') → move para Paciente antigo`. Roda antes das regras de inatividade.
+- Backfill: identificar os 15 leads em Qualificação com `tipo_contato=paciente*` no legacy, setar `eh_paciente_antigo=true`, mover para "Paciente antigo" registrando em `lead_stage_history` com `reason='backfill_pr4_canonical'`.
 
-### 2. Chips / Tags
+### 2. `is_internal_contact` — auditoria e correção
 
-Para cada lead, comparar `leads.tags` com o esperado:
-- **Auto-tags da etapa de entrada**: a stage Qualificação não define `auto_tag_on_enter`, mas leads herdam tags de etapas anteriores
-- **Tags legadas que deveriam ter sido removidas**: ex. `paciente_antigo` (lead deveria estar na coluna Paciente antigo), `sem_resposta` (mas voltou a responder), `nutricao_inativa`, `consulta_finalizada_mes`, segmentos antigos
-- **Tags faltando**: tag de segmento ativo para campanhas, tag de interesse
+- Listar os 11 leads marcados, com nome/telefone/última mensagem.
+- Classificar cada um em: (a) membro real da equipe/teste → mantém `true`; (b) paciente real marcado por engano → vira `false`.
+- Critério de "real": telefone bate com `clinic_members` ou `attendants`, ou conversa contém apenas testes internos.
+- Aplicar `UPDATE leads SET is_internal_contact=false WHERE id IN (...)` apenas para os reais.
+- Registrar no relatório `dry-run-pr2/AUDIT_INTERNAL_CONTACT.md` antes do update (lista + decisão por lead).
+- Após desmarcar, `pipeline-deterministic` passa a movê-los normalmente.
 
-Entregável: tabela `lead_id | tags_atuais | tags_obsoletas | tags_faltando`.
+### 3. Remover `manual_lock_until`
 
-### 3. Movimentação por regra (classifier / determinístico)
+**Estratégia conservadora** (1 release de transição):
 
-Para cada lead, verificar se o conteúdo da conversa indica que ele deveria estar em outra etapa:
-- `interesse_consulta=false` e `interesse_tratamento=false` → deveria estar em Desqualificado
-- `procedimento_agendado_em` preenchido com data futura → Consulta agendada
-- Sinais de "já é paciente" na conversa → Paciente antigo
-- Mensagens de B2B/parceria → B2B/Stakeholders
+- Limpar agora: `UPDATE leads SET manual_lock_until=NULL WHERE manual_lock_until > now()` (10 leads).
+- Remover leitura da coluna em todas as funções/edge functions que consultam (auditar com grep: `pipeline-deterministic`, `pipeline-classifier`, hooks de pipeline).
+- Remover UI que escreve nessa coluna (se existir em LeadDrawer/CustomFieldsPanel).
+- **Manter a coluna no banco** este PR — não dropar ainda. Vira morta. PR seguinte (após confirmar que nada quebrou) faz `DROP COLUMN`.
+- Substituto futuro (não neste PR): pausa por tag (`pausado_manual`) com TTL curto e motivo obrigatório.
 
-Checar também `pipeline_run_items` recente: erros, skip, último `result`. Cruzar com `lead_stage_history` para ver se houve tentativa de move bloqueada (`lock_auto_move`, `manual_lock_until`).
+### 4. Remover `modalidade_preferida`
 
-Entregável: tabela `lead_id | etapa_atual | etapa_correta | motivo | bloqueio_detectado`.
+- Remover a linha em `lead_custom_fields` para a clínica ÓR (`DELETE WHERE clinic_id=... AND key='modalidade_preferida'`).
+- Limpar valores em `leads.custom_fields` (`UPDATE ... SET custom_fields = custom_fields - 'modalidade_preferida'`).
+- Remover do prompt do classifier (se já existia) e da UI de CustomFieldsPanel se renderizar fixo.
 
-### 4. Movimentação por inatividade
+---
 
-Cruzar `last_message_at` e última mensagem **inbound** (`messages.from_me=false`) com regras de inatividade:
-- Sem resposta do lead há > 3 dias → **Sem resposta**
-- Sem resposta há > 14 dias → **Nutrição Inativa**
-- Sem resposta há > 60 dias e paciente antigo → **Nutrição Antigos**
+### Detalhes técnicos
 
-Para os que deveriam ter movido mas não moveram, investigar:
-- `pipeline-deterministic` tick falhou na clínica?
-- Lead tem `lock_auto_move` na stage atual? (a stage Qualificação tem `lock_auto_move=false`, então não é isso)
-- `manual_lock_until` ativo?
-- `is_internal_contact=true` (excluído da automação)?
+**Arquivos provavelmente tocados:**
+- `supabase/functions/pipeline-deterministic/index.ts` — nova regra `eh_paciente_antigo`, remover leitura de `manual_lock_until`.
+- `supabase/functions/pipeline-classifier/index.ts` — derivar `eh_paciente_antigo`, remover `modalidade_preferida` do schema/prompt.
+- `src/components/inbox/CustomFieldsPanel.tsx` e `src/hooks/useCustomFieldDefs.ts` — se houver referência fixa a `modalidade_preferida` ou `manual_lock_until`.
+- Migrations:
+  - Insert em `lead_custom_fields` (def `eh_paciente_antigo`).
+  - Delete em `lead_custom_fields` (def `modalidade_preferida`).
+- Data ops (via insert tool, sem migration):
+  - Update de `eh_paciente_antigo=true` nos 15 leads + move stage + lead_stage_history.
+  - Update `is_internal_contact=false` nos leads identificados como reais.
+  - Update `manual_lock_until=NULL` nos 10.
+  - Update `custom_fields - 'modalidade_preferida'` nos leads ÓR.
 
-Entregável: tabela `lead_id | dias_sem_resposta | etapa_destino | bloqueio`.
+**Ordem de execução:**
 
-## Saída
+```text
+1. Migration: add def eh_paciente_antigo, remove def modalidade_preferida
+2. Edit pipeline-deterministic (nova regra + remove manual_lock_until)
+3. Edit pipeline-classifier (deriva eh_paciente_antigo + remove modalidade_preferida)
+4. Remove UI/escrita de manual_lock_until
+5. Data ops:
+   a) backfill eh_paciente_antigo + move 15 leads
+   b) audit + update is_internal_contact
+   c) clear manual_lock_until
+   d) clear modalidade_preferida em leads.custom_fields
+6. Relatório final em dry-run-pr2/AUDIT_QUALIFICACAO_AFTER.md (verifica coluna vazia/correta)
+```
 
-Um relatório único em `dry-run-pr2/AUDIT_QUALIFICACAO.md` com as 4 tabelas e um resumo executivo no topo. **Nenhuma alteração de dados** — apenas leitura e relatório, igual ao PR2 da migração. Decisões de correção (mover leads, limpar tags, repreencher campos) ficam para PRs separados que você aprova depois.
+**Coluna `leads.manual_lock_until`:** mantida nesta release; dropar em PR posterior.
 
-## Detalhes técnicos
+**Reversibilidade:** todos os UPDATEs registram `reason='pr4_*'` no histórico. Coluna manual_lock_until ainda existe se precisar reverter.
 
-Consultas principais:
-- `leads JOIN messages` agregando `MAX(timestamp) FILTER (WHERE from_me=false)` por lead
-- `leads.custom_fields ?| array[<schema_keys>]` para detectar ausências
-- `pipeline_run_items` filtrado por `lead_id IN (...)` e `step='classify'` ordenado por `created_at DESC`
-- `lead_stage_history` últimos 30 dias para detectar tentativas de move
+### Fora do escopo (próximos PRs)
 
-Tudo executado via `supabase--read_query` em batch único por dimensão.
+- Falhas do classifier (timeout, schema, no_new_messages, heartbeat) — PR separado.
+- Substituto do `manual_lock_until` (pausa por tag) — após confirmação de que a remoção não impactou.
+- Tags vazias em 37 leads — PR de tags/segmentação.
+- DROP COLUMN `manual_lock_until` — PR de cleanup posterior.
+- Auditoria das próximas colunas do pipeline (Paciente antigo, Consulta agendada, etc).
