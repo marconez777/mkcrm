@@ -6689,6 +6689,7 @@ export type Database = {
           connection_state: string | null
           created_at: string
           evolution_api_key: string
+          evolution_api_key_set: boolean | null
           evolution_instance: string
           evolution_url: string
           id: string
@@ -6710,6 +6711,7 @@ export type Database = {
           webhook_last_set_at: string | null
           webhook_ok: boolean | null
           webhook_token: string
+          webhook_token_set: boolean | null
         }
         Insert: {
           auto_logout_count?: number
@@ -6718,6 +6720,7 @@ export type Database = {
           connection_state?: string | null
           created_at?: string
           evolution_api_key: string
+          evolution_api_key_set?: boolean | null
           evolution_instance: string
           evolution_url: string
           id?: string
@@ -6739,6 +6742,7 @@ export type Database = {
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
           webhook_token?: string
+          webhook_token_set?: boolean | null
         }
         Update: {
           auto_logout_count?: number
@@ -6747,6 +6751,7 @@ export type Database = {
           connection_state?: string | null
           created_at?: string
           evolution_api_key?: string
+          evolution_api_key_set?: boolean | null
           evolution_instance?: string
           evolution_url?: string
           id?: string
@@ -6768,6 +6773,7 @@ export type Database = {
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
           webhook_token?: string
+          webhook_token_set?: boolean | null
         }
         Relationships: [
           {
