@@ -186,7 +186,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 async function runSummarizer(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
+  ai: ClassifierAi,
   ctx: LeadContext,
 ): Promise<{ output: SummarizerOutput; model: string; usage?: unknown }> {
   const prompt = `${buildContextBlock(ctx)}
@@ -235,7 +235,7 @@ Não tente deduzir data exata (o parser já fez isso). Foque na INTENÇÃO.
 IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 }
 
-async function runAgendador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
+async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
   const result = await withSchemaRetry("agendador", () =>
     generateText({
       model: ai.model(AGENDADOR_MODEL),
@@ -328,7 +328,7 @@ Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 }
 
-async function runTypifier(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
+async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
     generateText({
       model: ai.model(TYPIFIER_MODEL),
@@ -374,7 +374,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 
-async function runMovimentador(ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
+async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
   const lastMsg = ctx.messages[ctx.messages.length - 1];
   const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
   const hoursSinceLastMessage = lastMsgMs ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10 : null;
@@ -429,7 +429,7 @@ Devolva todos os campos exigidos.`;
 }
 
 async function runMaestro(
-  ai: NonNullable<Awaited<ReturnType<typeof getClinicOpenAI>>>,
+  ai: ClassifierAi,
   summary: string,
   outAgendador: AgendadorOutput,
   outPreenchedor: TypifierOutput,
