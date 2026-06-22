@@ -207,17 +207,18 @@ export type MovimentadorOutput = z.infer<typeof MovimentadorOutputSchema>;
 export const MaestroOutputSchema = z.object({
   stage_suggestion: z.string(),
   intent: z.string().default("outro"),
-  mentioned_intents: z.array(z.string()).max(3).default([]),
+  mentioned_intents: z.array(z.string()).default([]),
   is_b2b: z.boolean(),
   confidence: z.number().min(0).max(1),
-  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
+  tags_suggested: z.array(z.string().max(40)).default([]),
   custom_fields_patch: z
     .record(
       z.string(),
       z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
     )
     .default({}),
-  reasons: z.array(z.string()).max(5).optional().default([]),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
 
