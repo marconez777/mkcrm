@@ -34,7 +34,13 @@ export async function updateAppointment(
   id: string,
   patch: AppointmentPatch,
 ): Promise<{ error: string | null }> {
-  const payload: Record<string, unknown> = {};
+  const payload: {
+    kind?: AppointmentKind;
+    service_type_id?: string | null;
+    scheduled_at?: string;
+    duration_min?: number;
+    notes?: string | null;
+  } = {};
   if (patch.kind !== undefined) payload.kind = patch.kind;
   if (patch.service_type_id !== undefined) payload.service_type_id = patch.service_type_id;
   if (patch.scheduled_at !== undefined) payload.scheduled_at = patch.scheduled_at.toISOString();
