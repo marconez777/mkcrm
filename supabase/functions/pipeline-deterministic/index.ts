@@ -26,6 +26,7 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 type Action =
   | "novo-lead"
   | "secretary-replied"
+  | "reactivation-inbound"
   | "appointment-sync"
   | "field-changed"
   | "inactivity-tick"
@@ -231,6 +232,64 @@ async function ruleSecretaryReplied(
   });
   await logEvent(client, lead.clinic_id, lead.id, "auto:secretary-replied", {
     message_id: messageId,
+    res,
+  });
+  return { res };
+}
+
+/**
+ * auto:reactivation-inbound
+ * Quando um lead em "Nutrição inativa" ou "Nutrição Antigos" recebe uma
+ * mensagem inbound (from_me=false), o card deve sair da geladeira:
+ *   - Nutrição inativa  → Qualificação
+ *   - Nutrição Antigos  → Paciente antigo
+ * Respeita gates (manual_lock, etc.) via pipelineMove.
+ */
+async function ruleReactivationInbound(
+  client: SupabaseClient,
+  messageId: string,
+) {
+  if (!(await isEnabled(client, "automation.reactivation_inbound.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const { data: msg } = await client
+    .from("messages")
+    .select("id, lead_id, from_me")
+    .eq("id", messageId)
+    .single();
+  if (!msg || msg.from_me) return { skipped: "not_inbound" };
+
+  const { data: lead } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id, archived_at, is_internal_contact")
+    .eq("id", msg.lead_id)
+    .single();
+  if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+  if (lead.archived_at) return { skipped: "archived" };
+  if (lead.is_internal_contact) return { skipped: "internal_contact" };
+
+  const inativaId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa");
+  const antigosId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição Antigos");
+
+  let targetCanon: Canon | null = null;
+  if (lead.stage_id === inativaId) targetCanon = "Qualificação";
+  else if (lead.stage_id === antigosId) targetCanon = "Paciente antigo";
+  else return { skipped: "not_in_nutricao" };
+
+  const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, targetCanon);
+  if (!toStageId) return { skipped: `stage_not_found:${targetCanon}` };
+
+  const res = await pipelineMove(client, {
+    leadId: lead.id,
+    toStageId,
+    source: "auto:reactivation-inbound",
+    reason: `Lead respondeu (msg ${messageId}) — saindo da geladeira`,
+    ruleKey: "automation.reactivation_inbound.enabled",
+    idempotencyKey: `reactivation-inbound:${messageId}`,
+  });
+  await logEvent(client, lead.clinic_id, lead.id, "auto:reactivation-inbound", {
+    message_id: messageId,
+    to_canon: targetCanon,
     res,
   });
   return { res };
@@ -859,6 +918,10 @@ Deno.serve(async (req) => {
       case "secretary-replied":
         if (!body.message_id) throw new Error("message_id required");
         result = await ruleSecretaryReplied(client, body.message_id);
+        break;
+      case "reactivation-inbound":
+        if (!body.message_id) throw new Error("message_id required");
+        result = await ruleReactivationInbound(client, body.message_id);
         break;
       case "appointment-sync":
         if (!body.appointment_id) throw new Error("appointment_id required");
