@@ -31,7 +31,7 @@ import { useStages, useLeads } from "@/hooks/useCrm";
 import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2 } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -46,6 +46,7 @@ import MoveColumnLeadsDialog from "@/components/kanban/MoveColumnLeadsDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
+import CalendarSheet from "@/components/kanban/calendar/CalendarSheet";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
@@ -555,6 +556,7 @@ export default function KanbanPage() {
   const [ui, setUi] = useState(loadUi);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
@@ -833,6 +835,10 @@ export default function KanbanPage() {
                 Expandir todas ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setCalendarOpen(true)} disabled={!currentId}>
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Calendário
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
               <Pencil className="mr-1 h-4 w-4" />Editar
             </Button>
@@ -992,6 +998,12 @@ export default function KanbanPage() {
           })()}
         </AlertDialogContent>
       </AlertDialog>
+      <CalendarSheet
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        pipelineId={currentId ?? null}
+        pipelineName={current?.name}
+      />
     </div>
   );
 }
