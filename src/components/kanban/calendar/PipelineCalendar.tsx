@@ -4,11 +4,14 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
-import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
+import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
+import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useServiceTypes } from "@/hooks/useServiceTypes";
 import { useAppointments, appointmentToEvent } from "@/hooks/useAppointments";
+import { updateAppointmentSchedule } from "@/lib/appointments-mutations";
 
 type Props = {
   pipelineId: string;
@@ -56,6 +59,38 @@ export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
     [onEventClick],
   );
 
+  const handleDrop = useCallback(async (info: EventDropArg) => {
+    if (!info.event.start) {
+      info.revert();
+      return;
+    }
+    const { error } = await updateAppointmentSchedule(info.event.id, info.event.start);
+    if (error) {
+      toast.error(`Não foi possível mover: ${error}`);
+      info.revert();
+      return;
+    }
+    toast.success("Agendamento movido");
+  }, []);
+
+  const handleResize = useCallback(async (info: EventResizeDoneArg) => {
+    if (!info.event.start || !info.event.end) {
+      info.revert();
+      return;
+    }
+    const duration = Math.max(
+      15,
+      Math.round((info.event.end.getTime() - info.event.start.getTime()) / 60_000),
+    );
+    const { error } = await updateAppointmentSchedule(info.event.id, info.event.start, duration);
+    if (error) {
+      toast.error(`Não foi possível redimensionar: ${error}`);
+      info.revert();
+      return;
+    }
+    toast.success("Duração atualizada");
+  }, []);
+
   return (
     <div className="relative h-full w-full">
       {loading && (
@@ -74,6 +109,8 @@ export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
         nowIndicator
         slotMinTime="07:00:00"
         slotMaxTime="21:00:00"
+        slotDuration="00:30:00"
+        snapDuration="00:15:00"
         allDaySlot={false}
         headerToolbar={{
           left: "prev,next today",
@@ -89,9 +126,13 @@ export default function PipelineCalendar({ pipelineId, onEventClick }: Props) {
         events={events}
         datesSet={handleDatesSet}
         eventClick={handleEventClick}
-        editable={false}
-        eventStartEditable={false}
-        eventDurationEditable={false}
+        editable
+        eventStartEditable
+        eventDurationEditable
+        eventResizableFromStart={false}
+        eventDrop={handleDrop}
+        eventResize={handleResize}
+        dragRevertDuration={150}
         selectable={false}
       />
     </div>
