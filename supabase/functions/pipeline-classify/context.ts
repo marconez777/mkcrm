@@ -104,7 +104,7 @@ export async function loadLeadContext(
   const { data: leadRow } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary",
+      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary, manual_lock_until",
     )
     .eq("id", leadId)
     .single();
