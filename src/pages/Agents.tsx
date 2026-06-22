@@ -841,12 +841,12 @@ export default function Agents() {
                     <Label>API Key</Label>
                     <Input
                       type="password"
-                      placeholder={PROVIDER_KEY_PLACEHOLDER[selected.provider]}
+                      placeholder={selected.api_key_set ? "•••••• (configurada — deixe vazio para manter)" : PROVIDER_KEY_PLACEHOLDER[selected.provider]}
                       value={selected.api_key ?? ""}
                       onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
+                      Armazenada no banco e nunca devolvida em leituras. Para trocar, digite a nova chave; para manter, deixe em branco.
                     </p>
                   </div>
                   {uiMode === "advanced" && (
