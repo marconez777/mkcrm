@@ -95,7 +95,7 @@ interface StartInput {
 
 async function callClassify(
   leadId: string,
-  onlyAgent?: "summarizer" | "typifier" | "maestro",
+  onlyAgent?: OnlyAgent,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   let timeoutId: number | undefined;
   try {
