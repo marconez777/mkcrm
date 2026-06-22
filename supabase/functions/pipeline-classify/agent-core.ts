@@ -89,9 +89,10 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
 
 const SUMMARIZER_MODEL_PRIMARY = "gpt-4o";
 const SUMMARIZER_MODEL_FALLBACK = "gpt-5-mini";
-const AGENDADOR_MODEL = "gpt-5-mini";
-const TYPIFIER_MODEL = "gpt-5-mini";
-const MOVIMENTADOR_MODEL = "gpt-5-mini";
+const AGENDADOR_MODEL = "gpt-5-nano";    // PR11.9: nano (schema trivial; ~5× mais barato)
+const TYPIFIER_MODEL = "gpt-5-mini";      // mantido: schema com whitelist + custom_fields_patch livre
+const MOVIMENTADOR_MODEL = "gpt-5-nano"; // PR11.9: nano (decisão binária + label)
+
 const MAESTRO_MODEL = "gpt-5";
 
 
