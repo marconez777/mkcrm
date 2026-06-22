@@ -134,6 +134,9 @@ export type CalendarEvent = {
   end: string;
   backgroundColor: string;
   borderColor: string;
+  editable: boolean;
+  startEditable: boolean;
+  durationEditable: boolean;
   extendedProps: {
     leadId: string;
     status: AppointmentStatus;
