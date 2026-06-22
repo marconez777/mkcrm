@@ -31,7 +31,8 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const CHUNK_SIZE = 1; // máx. leads por invocação; evita estourar a runtime com modelos superiores
 const CLASSIFY_TIMEOUT_MS = 120_000;
-const STALE_AFTER_MS = 3 * 60 * 1000; // 3min sem heartbeat = considerado morto
+const STALE_AFTER_MS = 6 * 60 * 1000; // 6min sem heartbeat = considerado morto (pipeline V6 de 5 agentes pode passar de 3min)
+
 
 type EdgeRuntimeShape = { waitUntil(p: Promise<unknown>): void } | undefined;
 
