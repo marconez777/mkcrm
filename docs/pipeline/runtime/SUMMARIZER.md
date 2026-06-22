@@ -23,6 +23,7 @@ related_docs:
 | Toggle | `automation.summarizer.enabled` (true) |
 | Max chars output | 800 |
 | Max msgs lidos | 60 |
+| Max chars input (P4) | 40.000 (mensagens mais antigas são droppadas; prefixo `…+N mensagens anteriores omitidas`) |
 | MIN_NEW_MSGS | 3 (ignorado quando `force=true`) |
 
 ## Quando roda
