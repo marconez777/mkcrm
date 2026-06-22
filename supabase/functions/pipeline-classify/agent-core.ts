@@ -143,15 +143,16 @@ ${formatMessages(ctx.messages)}
 
 Produza o resumo agora.`;
 
-  const tryModel = async (modelId: string) => {
-    const result = await generateText({
-      model: ai.model(modelId),
-      system: buildSummarizerSystem(),
-      prompt,
-      output: Output.object({ schema: SummarizerOutputSchema }),
-    });
-    return result;
-  };
+  const tryModel = async (modelId: string) =>
+    withSchemaRetry(`summarizer(${modelId})`, () =>
+      generateText({
+        model: ai.model(modelId),
+        system: buildSummarizerSystem(),
+        prompt,
+        output: Output.object({ schema: SummarizerOutputSchema }),
+      }),
+    );
+
 
   try {
     const result = await tryModel(SUMMARIZER_MODEL_PRIMARY);
