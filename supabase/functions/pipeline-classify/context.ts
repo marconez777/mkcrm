@@ -232,6 +232,8 @@ export async function loadLeadContext(
         last_processed_message_id_classifier: watermark,
         created_at: (leadRow.created_at as string | null) ?? null,
         ai_summary: (leadRow.ai_summary as string | null) ?? null,
+        manual_lock_until: (leadRow.manual_lock_until as string | null) ?? null,
+
       },
       stageName: stage?.name ?? "?",
       messages,
