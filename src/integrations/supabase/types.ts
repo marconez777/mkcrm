@@ -1109,11 +1109,14 @@ export type Database = {
       ai_usage: {
         Row: {
           agent_id: string | null
+          agent_step: string | null
           automation_id: string | null
           clinic_id: string
           cost_usd: number | null
           created_at: string
           error: string | null
+          error_category: string | null
+          error_details: Json
           id: string
           input_tokens: number | null
           latency_ms: number | null
@@ -1121,6 +1124,7 @@ export type Database = {
           model: string
           operation: string
           output_tokens: number | null
+          provider: string | null
           replied: boolean
           source: string
           status: string
@@ -1130,11 +1134,14 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          agent_step?: string | null
           automation_id?: string | null
           clinic_id?: string
           cost_usd?: number | null
           created_at?: string
           error?: string | null
+          error_category?: string | null
+          error_details?: Json
           id?: string
           input_tokens?: number | null
           latency_ms?: number | null
@@ -1142,6 +1149,7 @@ export type Database = {
           model: string
           operation?: string
           output_tokens?: number | null
+          provider?: string | null
           replied?: boolean
           source?: string
           status?: string
@@ -1151,11 +1159,14 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          agent_step?: string | null
           automation_id?: string | null
           clinic_id?: string
           cost_usd?: number | null
           created_at?: string
           error?: string | null
+          error_category?: string | null
+          error_details?: Json
           id?: string
           input_tokens?: number | null
           latency_ms?: number | null
@@ -1163,6 +1174,7 @@ export type Database = {
           model?: string
           operation?: string
           output_tokens?: number | null
+          provider?: string | null
           replied?: boolean
           source?: string
           status?: string
