@@ -470,10 +470,11 @@ async function runMaestro(
   signals: Record<string, unknown>,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
-      system: buildMaestroSystem(),
-      prompt: `RESUMO Factual:
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
+        system: buildMaestroSystem(),
+        prompt: `RESUMO Factual:
 ${summary}
 
 SIGNALS determinísticos do lead:
@@ -485,8 +486,11 @@ Preenchedor: ${JSON.stringify(outPreenchedor, null, 2)}
 Movimentador: ${JSON.stringify(outMovimentador, null, 2)}
 
 Emita o veredicto final resolvendo inconsistências.`,
-      output: Output.object({ schema: MaestroOutputSchema }),
-    }),
+        output: Output.object({ schema: MaestroOutputSchema }),
+      }),
+      TIMEOUT_MAESTRO_MS,
+      "maestro",
+    ),
   );
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
