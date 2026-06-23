@@ -326,3 +326,37 @@
   .fc .fc-timegrid-now-indicator-line { border-color: hsl(var(--primary)); }
   .fc .fc-timegrid-now-indicator-arrow { border-color: hsl(var(--primary)); }
 }
+
+/* ===== Proposta Comercial /apn ===== */
+.proposal-slide-wrap {
+  width: min(100%, 1280px);
+  display: flex;
+  justify-content: center;
+}
+@media (max-width: 1340px) {
+  .proposal-slide-wrap {
+    height: calc(min(100vw - 2rem, 1280px) * 0.5625);
+  }
+  .proposal-slide-wrap .proposal-slide {
+    transform: scale(calc(min(100vw - 2rem, 1280px) / 1280));
+    transform-origin: top center;
+  }
+}
+@media print {
+  @page { size: 1280px 720px; margin: 0; }
+  body { background: white !important; }
+  .proposal-toolbar { display: none !important; }
+  .proposal-stage { padding: 0 !important; gap: 0 !important; }
+  .proposal-slide-wrap {
+    width: 1280px !important;
+    height: 720px !important;
+    page-break-after: always;
+    break-after: page;
+  }
+  .proposal-slide-wrap .proposal-slide {
+    transform: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}

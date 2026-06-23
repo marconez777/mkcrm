@@ -54,6 +54,7 @@ import Broadcasts from "./pages/Broadcasts";
 import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
 import MarketingSite from "./pages/site/MarketingSite";
+import Apn from "./pages/Apn";
 import RootGate from "./components/RootGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -104,6 +105,7 @@ const App = () => (
           <CommandPalette />
           <Routes>
             <Route path="/site" element={<MarketingSite />} />
+            <Route path="/apn" element={<Apn />} />
             <Route path="/" element={<RootGate />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
