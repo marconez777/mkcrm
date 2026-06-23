@@ -863,7 +863,7 @@ async function runAgentOnce(
 
   if (sAg.status === "fulfilled") {
     outAgendador = sAg.value.output;
-    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: sAg.value.usage, provider: ai.provider });
+    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: sAg.value.usage, provider: ai.provider, details: { json_fallback_used: sAg.value.fallbackUsed === true } });
   } else {
     const msg = sAg.reason instanceof Error ? sAg.reason.message : String(sAg.reason);
     outAgendador = { is_scheduling_action: false, scheduling_intent: "nenhum", reasons: [`agendador_failed: ${msg.slice(0, 80)}`] };
@@ -873,7 +873,7 @@ async function runAgentOnce(
   if (sPr.status === "fulfilled") {
     outPreenchedor = sPr.value.output;
     if (!sPr.value.skipped) {
-      await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: sPr.value.usage, provider: ai.provider });
+      await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: sPr.value.usage, provider: ai.provider, details: { json_fallback_used: sPr.value.fallbackUsed === true } });
     }
   } else {
     const msg = sPr.reason instanceof Error ? sPr.reason.message : String(sPr.reason);
@@ -883,7 +883,7 @@ async function runAgentOnce(
 
   if (sMo.status === "fulfilled") {
     outMovimentador = sMo.value.output;
-    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: sMo.value.usage, provider: ai.provider });
+    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: sMo.value.usage, provider: ai.provider, details: { json_fallback_used: sMo.value.fallbackUsed === true } });
   } else {
     const msg = sMo.reason instanceof Error ? sMo.reason.message : String(sMo.reason);
     outMovimentador = { stage_suggestion: ctx.stageName, intent: "outro", mentioned_intents: [], is_b2b: false, reasons: [`movimentador_failed: ${msg.slice(0, 80)}`] };
@@ -927,7 +927,7 @@ async function runAgentOnce(
     const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
-    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider, details: { json_fallback_used: r3.fallbackUsed === true } });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "maestro", lead_requeued: true } });
