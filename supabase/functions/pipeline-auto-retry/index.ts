@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
       processed: totalLeads,
       eligible: eligible.length,
       runs: runIds.length,
+      skipped_by_quota: skippedByQuota,
     });
   } catch (err) {
     console.error("[pipeline-auto-retry] error", err);
