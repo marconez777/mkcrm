@@ -84,3 +84,18 @@ Fonte: queries em `pipeline_run_items` / `pipeline_runs` + leitura de
 5. **P2-5** Persistir `timings`+`provider`+`model` em
    `pipeline_run_items.result`.
 6. **P2-7** Índice `(retry_requested, status)`.
+
+---
+
+## Fase 10 — Limpeza estrutural (2026-06-23)
+
+Fechamento dos resíduos do `KNOWN_ISSUES.md` que ficaram após Fase 9.
+
+| Item | Antes | Depois |
+|------|-------|--------|
+| #4 whitelist de tags | "não é consultada por código" | Verificado: já implementado em `pipeline-classify/apply.ts` (`getAllowedTags` + log `dropped_by_whitelist`). Reclassificado como ✅. |
+| #6 `auto:*` com 0 eventos em 30d | hipóteses A/B/C | Causa raiz identificada: função `public.notify_pipeline_deterministic` órfã (sem trigger em `pg_trigger`). `pg_net` saudável (87% 200 em 24h). Documentado. |
+| #7 `consulta_agendada_em` | "não cadastrada em `lead_custom_fields`" | Verificado: já existe row; cobertura suficiente (1 clínica usa o campo). ✅. |
+| #-10 `stage_sequence_bindings` dormente | review previsto sem critério | Critério publicado em `USER_AUTOMATIONS.md`: se `count<10` em 2026-07-22 → drop trigger + arquivar UI. |
+
+Sem mudanças de código nesta fase — apenas verificação e documentação. Auditoria do pipeline encerrada.

@@ -55,6 +55,14 @@ Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 - **`AutoRetryRecoveryCard`** no painel: gráfico 14d (recuperados vs esgotados) + KPI 7d.
 - **Script `scripts/pipeline-replay.ts`** + `dry-run-pr2/AUDIT_REPLAY_FASE9.md`: replay E2E contra leads-controle, gera tabela markdown com status/provider/fallback/latency.
 
+**Fase 10 (commitada — limpeza estrutural):**
+- **Item #4 (whitelist de tags)** verificado já implementado em `pipeline-classify/apply.ts` (`getAllowedTags` + `tagsDropped` logado em `lead_events.payload.applied.dropped_by_whitelist`). Sem código novo. Status: ✅.
+- **Item #6 (auto:* events com 0 ocorrências)** investigado em 2026-06-23. Causa raiz: a função `public.notify_pipeline_deterministic` existe no banco mas **não está atrelada a nenhum trigger** (`pg_trigger` vazio para essa função). As invocações periódicas vistas em log (`secretary-replied → skipped: not_in_novo`) vêm de `automations-tick`/`pipeline-classify-tick`, que entram pelo caminho que pula `lead_events`. Não é falha de `pg_net` (24h: 4996/5735 = 87% 200 OK; erros são 404/timeouts DNS de outros endpoints). Status: DOCUMENTADO — wiring do trigger fica como pendência separada (não-bloqueante).
+- **Item #7 (`consulta_agendada_em`)** verificado: já existe linha em `lead_custom_fields` (1 row) e apenas 1 clínica usa o campo. Cobertura suficiente. Status: ✅.
+- **Item #-10 (`stage_sequence_bindings`)** critério de revisão documentado em `USER_AUTOMATIONS.md §Critério de revisão`. Reavaliar 2026-07-22. Status: AGENDADO.
+
+
+
 
 
 

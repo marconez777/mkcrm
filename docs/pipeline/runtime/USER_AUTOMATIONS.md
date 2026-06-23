@@ -87,3 +87,14 @@ SELECT count(*) FROM automation_runs ar
 ## Gap conhecido
 
 `stage_sequence_bindings` (3 bindings ativos em todo o projeto) é uma feature paralela, dormente. Ver `KNOWN_ISSUES.md §-10`.
+
+### Critério de revisão — 2026-07-22 (Fase 10)
+
+Reavaliar nessa data. Se `SELECT count(*) FROM stage_sequence_bindings` ainda for `< 10`:
+
+1. `DROP TRIGGER trg_enroll_on_stage_change ON public.leads;` (ou equivalente).
+2. Arquivar UI `message_sequences` (esconder rota, manter migrations).
+3. Manter tabela `stage_sequence_bindings` por mais 90d antes de droppar (compatibilidade com leads em flight).
+
+Se `≥ 10`, manter como está e reagendar revisão por mais 30d.
+
