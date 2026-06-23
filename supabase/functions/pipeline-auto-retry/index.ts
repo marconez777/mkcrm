@@ -67,8 +67,32 @@ Deno.serve(async (req) => {
 
     const runIds: string[] = [];
     let totalLeads = 0;
+    let skippedByQuota = 0;
+
+    // Pré-carrega provider_health de cada clinic_id afetado.
+    const clinicIds = Array.from(byClinic.keys());
+    const { data: healthRows } = await sb
+      .from("pipeline_provider_health")
+      .select("clinic_id, provider, blocked_until")
+      .in("clinic_id", clinicIds);
+    const blockedBoth = new Set<string>();
+    const byClinicHealth = new Map<string, Set<string>>();
+    for (const r of healthRows ?? []) {
+      if (new Date(r.blocked_until as string).getTime() <= Date.now()) continue;
+      const s = byClinicHealth.get(r.clinic_id as string) ?? new Set();
+      s.add(r.provider as string);
+      byClinicHealth.set(r.clinic_id as string, s);
+    }
+    for (const [cid, provs] of byClinicHealth) {
+      if (provs.has("lovable") && provs.has("openai")) blockedBoth.add(cid);
+    }
 
     for (const [cid, bucket] of byClinic) {
+      if (blockedBoth.has(cid)) {
+        // Adia: não consome attempt, apenas mantém auto_retry_pending=true.
+        skippedByQuota += bucket.leadIds.length;
+        continue;
+      }
       // Marca itens primeiro para evitar re-pickup pelo próximo tick.
       for (const itemId of bucket.itemIds) {
         const item = eligible.find((e) => e.id === itemId);

@@ -523,6 +523,43 @@ export type RunAgentSuccess = {
 
 /** Padrões de erro que valem retentar com provider alternativo. */
 const FALLBACK_PATTERN = /schema_retry_failed|No object generated|did not match schema|timeout after \d+ms|fetch failed|5\d\d/i;
+/** Erros que indicam saldo/quota esgotado — não adianta retentar este provider por um tempo. */
+const QUOTA_PATTERN = /quota|insufficient_quota|billing|payment required|402|exceeded your current/i;
+const QUOTA_BLOCK_MIN = 30; // bloqueia 30min após hit
+
+async function markProviderBlocked(
+  client: SupabaseClient,
+  clinicId: string,
+  provider: "lovable" | "openai",
+  err: string,
+) {
+  try {
+    const until = new Date(Date.now() + QUOTA_BLOCK_MIN * 60_000).toISOString();
+    await client
+      .from("pipeline_provider_health")
+      .upsert(
+        { clinic_id: clinicId, provider, blocked_until: until, last_error: err.slice(0, 500), updated_at: new Date().toISOString() },
+        { onConflict: "clinic_id,provider" },
+      );
+  } catch (e) {
+    console.error("markProviderBlocked failed", e);
+  }
+}
+
+async function isProviderBlocked(
+  client: SupabaseClient,
+  clinicId: string,
+  provider: "lovable" | "openai",
+): Promise<boolean> {
+  const { data } = await client
+    .from("pipeline_provider_health")
+    .select("blocked_until")
+    .eq("clinic_id", clinicId)
+    .eq("provider", provider)
+    .maybeSingle();
+  if (!data?.blocked_until) return false;
+  return new Date(data.blocked_until as string).getTime() > Date.now();
+}
 
 export async function runAgent(
   client: SupabaseClient,
@@ -532,25 +569,51 @@ export async function runAgent(
   const primary = await getClassifierAi(client, ctx.lead.clinic_id);
   if (!primary) return { error: "no_ai_provider" };
 
-  const first = await runAgentOnce(client, ctx, opts, primary);
+  // Se o provider primário está bloqueado por quota, já vai direto pro alternativo (se disponível).
+  let chosenPrimary = primary;
+  if (await isProviderBlocked(client, ctx.lead.clinic_id, primary.provider)) {
+    const altProv: "lovable" | "openai" = primary.provider === "lovable" ? "openai" : "lovable";
+    if (!(await isProviderBlocked(client, ctx.lead.clinic_id, altProv))) {
+      const alt = await getClassifierAi(client, ctx.lead.clinic_id, { forceProvider: altProv });
+      if (alt && alt.provider !== primary.provider) {
+        console.warn(JSON.stringify({ tag: "runAgent:primary_blocked", lead_id: ctx.lead.id, blocked: primary.provider, using: alt.provider }));
+        chosenPrimary = alt;
+      }
+    }
+  }
+
+  const first = await runAgentOnce(client, ctx, opts, chosenPrimary);
   if (!("error" in first)) return first;
+
+  if (QUOTA_PATTERN.test(first.error)) {
+    await markProviderBlocked(client, ctx.lead.clinic_id, chosenPrimary.provider, first.error);
+  }
 
   // P5-1: tenta UMA vez no provider alternativo se o erro for terminal
   // (schema/timeout/5xx) e houver chave do outro provider disponível.
-  if (!FALLBACK_PATTERN.test(first.error)) return first;
-  const altProvider: "lovable" | "openai" = primary.provider === "lovable" ? "openai" : "lovable";
+  if (!FALLBACK_PATTERN.test(first.error) && !QUOTA_PATTERN.test(first.error)) return first;
+  const altProvider: "lovable" | "openai" = chosenPrimary.provider === "lovable" ? "openai" : "lovable";
+  if (await isProviderBlocked(client, ctx.lead.clinic_id, altProvider)) {
+    console.warn(JSON.stringify({ tag: "runAgent:fallback_skipped_blocked", lead_id: ctx.lead.id, alt: altProvider }));
+    return first;
+  }
   const alt = await getClassifierAi(client, ctx.lead.clinic_id, { forceProvider: altProvider });
-  if (!alt || alt.provider === primary.provider) return first;
+  if (!alt || alt.provider === chosenPrimary.provider) return first;
 
   console.warn(JSON.stringify({
     tag: "runAgent:provider_fallback",
     lead_id: ctx.lead.id,
-    from: primary.provider,
+    from: chosenPrimary.provider,
     to: alt.provider,
     reason: first.error.slice(0, 200),
   }));
   const second = await runAgentOnce(client, ctx, opts, alt);
-  if ("error" in second) return { error: `${second.error} (after_fallback_from_${primary.provider})` };
+  if ("error" in second) {
+    if (QUOTA_PATTERN.test(second.error)) {
+      await markProviderBlocked(client, ctx.lead.clinic_id, alt.provider, second.error);
+    }
+    return { error: `${second.error} (after_fallback_from_${chosenPrimary.provider})` };
+  }
   return second;
 }
 
