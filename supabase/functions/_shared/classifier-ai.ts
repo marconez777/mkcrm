@@ -24,8 +24,10 @@ export interface ClassifierAi {
 export async function getClassifierAi(
   client: SupabaseClient,
   clinicId: string,
+  opts: { forceProvider?: "lovable" | "openai" } = {},
 ): Promise<ClassifierAi | null> {
-  const provider = (Deno.env.get("CLASSIFIER_PROVIDER") || "lovable").toLowerCase();
+  const provider =
+    opts.forceProvider ?? ((Deno.env.get("CLASSIFIER_PROVIDER") || "lovable").toLowerCase() as "lovable" | "openai");
   if (provider === "openai") {
     const ai = await getClinicOpenAI(client, clinicId);
     return ai ? { model: ai.model, provider: "openai" } : null;
