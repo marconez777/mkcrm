@@ -4664,6 +4664,30 @@ export type Database = {
           },
         ]
       }
+      pipeline_provider_health: {
+        Row: {
+          blocked_until: string
+          clinic_id: string
+          last_error: string | null
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          blocked_until: string
+          clinic_id: string
+          last_error?: string | null
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          blocked_until?: string
+          clinic_id?: string
+          last_error?: string | null
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pipeline_run_items: {
         Row: {
           auto_retry_count: number

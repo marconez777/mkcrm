@@ -74,8 +74,40 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Phase 7 — alerta de quota esgotada por clínica/provider.
+    const { data: blocked } = await sb
+      .from("pipeline_provider_health")
+      .select("clinic_id, provider, blocked_until, last_error")
+      .gt("blocked_until", new Date().toISOString());
+
+    let quotaAlerts = 0;
+    const dedupQuotaSince = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    for (const b of blocked ?? []) {
+      const sig = `quota:${b.clinic_id}:${b.provider}`;
+      const { count: dup } = await sb
+        .from("error_events")
+        .select("id", { head: true, count: "exact" })
+        .eq("function_name", "pipeline-queue-alert")
+        .gte("created_at", dedupQuotaSince)
+        .contains("metadata", { signature: sig });
+      if ((dup ?? 0) > 0) continue;
+      await sb.from("error_events").insert({
+        function_name: "pipeline-queue-alert",
+        severity: "warning",
+        error_message: `Quota esgotada: clinic=${b.clinic_id} provider=${b.provider}`,
+        metadata: {
+          signature: sig,
+          clinic_id: b.clinic_id,
+          provider: b.provider,
+          blocked_until: b.blocked_until,
+          last_error: (b.last_error ?? "").slice(0, 300),
+        },
+      });
+      quotaAlerts++;
+    }
+
     return new Response(
-      JSON.stringify({ pending_count: pending, error_rate: errorRate, classify_total_1h: total, classify_errors_1h: errors, alerted }),
+      JSON.stringify({ pending_count: pending, error_rate: errorRate, classify_total_1h: total, classify_errors_1h: errors, alerted, quota_alerts: quotaAlerts }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (err) {

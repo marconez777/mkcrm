@@ -37,9 +37,13 @@ Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 - **Telemetria** em `pipeline-classify/index.ts`: retorno agora inclui `agents.{provider,models,latency_ms,ran,summary_chars}`, persistido em `pipeline_run_items.result` pelo executor.
 
 **Fase 6 (commitada):**
-- **Auto-retry de transientes**: colunas `pipeline_run_items.auto_retry_count` + `auto_retry_pending`. Executor marca `auto_retry_pending=true` quando `error` casa `/classify_timeout|No object generated|schema_retry_failed|fetch failed|quota|429|5\d\d|ECONNRESET|timeout/i`.
-- **Cron `pipeline-auto-retry`** (1/min): lê itens pendentes com `auto_retry_count<2`, respeita backoff (30s → 2min), dedup por lead, cria `pipeline_runs` com `scope.source='auto_retry'` e dispara o executor.
-- **Limite**: após 2 tentativas automáticas falharem, o item fica como `failed_permanent` (precisa retry manual via UI). Quota OpenAI esgotada (`You exceeded your current quota`) é tratada como transitória mas não vai resolver sozinha — alerta operacional necessário.
+- **Auto-retry de transientes**: colunas `pipeline_run_items.auto_retry_count` + `auto_retry_pending`. Executor marca quando `error` casa `/classify_timeout|No object generated|schema_retry_failed|fetch failed|quota|429|5\d\d|ECONNRESET|timeout/i`.
+- **Cron `pipeline-auto-retry`** (1/min): lê itens pendentes com `auto_retry_count<2`, respeita backoff 30s→2min, dedup por lead, cria runs com `scope.source='auto_retry'`.
+
+**Fase 7 (commitada):**
+- **Quota guard** em `agent-core.runAgent`: detecta `/quota|insufficient_quota|billing|402|exceeded your current/` → upsert em `pipeline_provider_health (clinic_id, provider, blocked_until=+30min)`. Próximas chamadas pulam o provider bloqueado e usam direto o alternativo.
+- **Auto-retry consulta `pipeline_provider_health`**: quando ambos providers (lovable+openai) estão bloqueados, adia sem consumir attempt (`skipped_by_quota`).
+- **`pipeline-queue-alert` estendido**: emite `error_events` com `signature=quota:<clinic>:<provider>` (dedup 60min) quando um provider está bloqueado.
 
 
 
