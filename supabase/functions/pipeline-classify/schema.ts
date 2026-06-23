@@ -211,12 +211,9 @@ export const MaestroOutputSchema = z.object({
   is_b2b: z.boolean(),
   confidence: z.number().min(0).max(1),
   tags_suggested: z.array(z.string().max(40)).default([]),
-  custom_fields_patch: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
-    )
-    .default({}),
+  // P5-2: relaxado para reduzir "No object generated" no Gemini — validação
+  // por chave acontece em apply.ts contra o clinicFieldSchema da clínica.
+  custom_fields_patch: z.record(z.string(), z.any()).default({}),
   reasons: z.array(z.string()).optional().default([]),
 
 });
