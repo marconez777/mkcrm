@@ -21,6 +21,20 @@ related_docs:
   - docs/pipeline/runtime/plan-correcoes.md
 ---
 
+## 2026-06-23 — `classify_timeout_*` e `No object generated`
+
+Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`. Correções aplicadas:
+
+- **Timeout por subagente** em `agent-core.ts`: Resumidor 30s, paralelos (Agendador/Preenchedor/Movimentador) 25s, Maestro 40s — worst-case ~95s, abaixo do `CLASSIFY_TIMEOUT_MS=120s` do executor. Um único modelo travado não derruba mais o classify inteiro; o erro local fica `<agente> timeout after 25000ms`.
+- **`withSchemaRetry` endurecido**: a segunda tentativa agora é embrulhada em `try/catch` e relança como `<agente>_schema_retry_failed`, com `modelText` e `cause` logados — antes o erro propagava cru e o motivo do schema-mismatch ficava perdido.
+- **Índice parcial** `idx_pri_retry_pending` em `pipeline_run_items (lead_id, created_at DESC) WHERE retry_requested = true` para acelerar varredura do botão de retry em massa.
+
+Pendentes da auditoria (próxima fase):
+- Fallback de provider (Gemini → OpenAI BYOK) on schema/timeout.
+- Simplificar `MaestroOutputSchema`/`TypifierOutputSchema` (remover `description`/`min`/`max` que estouram o state-machine do Gemini).
+- Persistir `agents.latency_ms` em `pipeline_run_items.result` (hoje só aparece em `ai_usage`).
+
+
 # Bugs conhecidos e limitações
 
 ## -10. `stage_sequence_bindings` dormente (ABERTO — 2026-06-22)

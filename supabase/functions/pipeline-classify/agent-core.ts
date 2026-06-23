@@ -12,6 +12,14 @@ import { generateText, Output } from "npm:ai@^6";
 import { getClassifierAi, pickModel, type ClassifierAi } from "../_shared/classifier-ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { buildContextBlock, formatMessages, type ClinicFieldDef, type LeadContext } from "./context.ts";
+import { withTimeout } from "../_shared/utils.ts";
+
+// P0-1: timeout por subagente para impedir que um único modelo trave consuma
+// todo o orçamento de 120s do executor (`CLASSIFY_TIMEOUT_MS`).
+// Worst-case: 30 + 25 (paralelo) + 40 = 95s, abaixo do teto do executor.
+const TIMEOUT_SUMMARIZER_MS   = 30_000;
+const TIMEOUT_PARALLEL_MS     = 25_000; // Agendador / Preenchedor / Movimentador rodam em Promise.all
+const TIMEOUT_MAESTRO_MS      = 40_000;
 import {
   CANON_NAMES,
   INTENT_VALUES,
@@ -134,7 +142,17 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;
     console.warn(`[classify] ${label} retry after: ${msg.slice(0, 160)}`);
-    return await fn();
+    try {
+      return await fn();
+    } catch (retryErr) {
+      const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      const retryAny = retryErr as { text?: string; cause?: unknown };
+      const causeMsg = retryAny.cause instanceof Error ? retryAny.cause.message : JSON.stringify(retryAny.cause);
+      console.error(
+        `[classify] ${label} retry FAILED — modelText=<<<${String(retryAny.text ?? "").slice(0, 200)}>>> cause=<<<${String(causeMsg).slice(0, 500)}>>>`,
+      );
+      throw new Error(`${label}_schema_retry_failed: ${retryMsg.slice(0, 160)}`);
+    }
   }
 }
 
@@ -199,12 +217,16 @@ Produza o resumo agora.`;
 
   const tryModel = async (modelId: string) =>
     withSchemaRetry(`summarizer(${modelId})`, () =>
-      generateText({
-        model: ai.model(modelId),
-        system: buildSummarizerSystem(),
-        prompt,
-        output: Output.object({ schema: SummarizerOutputSchema }),
-      }),
+      withTimeout(
+        generateText({
+          model: ai.model(modelId),
+          system: buildSummarizerSystem(),
+          prompt,
+          output: Output.object({ schema: SummarizerOutputSchema }),
+        }),
+        TIMEOUT_SUMMARIZER_MS,
+        `summarizer(${modelId})`,
+      ),
     );
 
 
@@ -237,12 +259,16 @@ IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 
 async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
   const result = await withSchemaRetry("agendador", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
-      system: buildAgendadorSystem(),
-      prompt: `RESUMO factual do lead:\n${summary}`,
-      output: Output.object({ schema: AgendadorOutputSchema }),
-    }),
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
+        system: buildAgendadorSystem(),
+        prompt: `RESUMO factual do lead:\n${summary}`,
+        output: Output.object({ schema: AgendadorOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "agendador",
+    ),
   );
   return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
 }
@@ -330,16 +356,19 @@ IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 
 async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
-      system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
-
-      prompt: `${buildContextBlock(ctx)}
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
+        system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
+        prompt: `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
 ${summary}`,
-      output: Output.object({ schema: TypifierOutputSchema }),
-    }),
+        output: Output.object({ schema: TypifierOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "typifier",
+    ),
   );
   return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };
 }
@@ -388,16 +417,20 @@ async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: stri
   };
 
   const result = await withSchemaRetry("movimentador", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
-      system: buildMovimentadorSystem(),
-      prompt: `Sinais determinísticos:
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
+        system: buildMovimentadorSystem(),
+        prompt: `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
 
 RESUMO:
 ${summary}`,
-      output: Output.object({ schema: MovimentadorOutputSchema }),
-    }),
+        output: Output.object({ schema: MovimentadorOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "movimentador",
+    ),
   );
   return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
 }
@@ -437,10 +470,11 @@ async function runMaestro(
   signals: Record<string, unknown>,
 ): Promise<{ output: MaestroOutput; usage?: unknown }> {
   const result = await withSchemaRetry("maestro", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
-      system: buildMaestroSystem(),
-      prompt: `RESUMO Factual:
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
+        system: buildMaestroSystem(),
+        prompt: `RESUMO Factual:
 ${summary}
 
 SIGNALS determinísticos do lead:
@@ -452,8 +486,11 @@ Preenchedor: ${JSON.stringify(outPreenchedor, null, 2)}
 Movimentador: ${JSON.stringify(outMovimentador, null, 2)}
 
 Emita o veredicto final resolvendo inconsistências.`,
-      output: Output.object({ schema: MaestroOutputSchema }),
-    }),
+        output: Output.object({ schema: MaestroOutputSchema }),
+      }),
+      TIMEOUT_MAESTRO_MS,
+      "maestro",
+    ),
   );
   return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
 }
