@@ -356,16 +356,19 @@ IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 
 async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
   const result = await withSchemaRetry("typifier", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
-      system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
-
-      prompt: `${buildContextBlock(ctx)}
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
+        system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
+        prompt: `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
 ${summary}`,
-      output: Output.object({ schema: TypifierOutputSchema }),
-    }),
+        output: Output.object({ schema: TypifierOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "typifier",
+    ),
   );
   return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };
 }
