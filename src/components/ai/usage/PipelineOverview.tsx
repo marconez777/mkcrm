@@ -491,7 +491,7 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
                       Execução paralela
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      despachados juntos pelo `Promise.all` — latência ≈ a do mais lento
+                      despachados juntos pelo allSettled — latência ≈ a do mais lento
                     </span>
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">

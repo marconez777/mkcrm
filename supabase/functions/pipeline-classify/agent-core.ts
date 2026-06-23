@@ -45,7 +45,7 @@ type AiUsageShape = {
   completionTokens?: number;
 };
 
-const AGENT_CORE_REV = "phase15-allsettled-source-v1";
+const AGENT_CORE_REV = "phase15-allsettled-source-jsonfallback-v2";
 
 type ErrorCategory =
   | "schema_validation"

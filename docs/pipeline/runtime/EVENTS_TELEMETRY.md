@@ -143,17 +143,17 @@ A partir de 2026-06-20 (refactor V6 — 5 agentes), o payload inclui o bloco `ag
 
 ### Operations em `ai_usage` (1 linha por agente por execução)
 
-`agent-core.ts::recordStep` grava 5 linhas por execução bem-sucedida do classifier:
+`agent-core.ts::recordStep` grava até 5 linhas por execução do classifier:
 
 | `operation` | `model` | Observação |
 |---|---|---|
-| `classifier:summarizer` | `gpt-4o` (ou `gpt-5-mini (fallback)`) | sempre primeiro |
-| `classifier:agendador` | `gpt-5-mini` | paralelo |
-| `classifier:typifier` | `gpt-5-mini` | paralelo |
-| `classifier:movimentador` | `gpt-5-mini` | paralelo |
-| `classifier:maestro` | `gpt-5` | sempre por último (se 2 passou) |
+| `classifier:summarizer` | `google/gemini-2.5-flash` ou OpenAI fallback | sempre primeiro |
+| `classifier:agendador` | `google/gemini-2.5-flash-lite` ou OpenAI fallback | paralelo |
+| `classifier:typifier` | `google/gemini-2.5-flash` ou OpenAI fallback | paralelo |
+| `classifier:movimentador` | `google/gemini-2.5-flash-lite` ou OpenAI fallback | paralelo |
+| `classifier:maestro` | `google/gemini-2.5-flash` ou OpenAI fallback | sempre por último (se 2 passou) |
 
-Em erro, a linha do agente que falhou tem `status='error'` + `error` truncado a 500 chars. Falha em qualquer paralelo aborta os 3 + maestro com `agent_step2_parallel_failed`.
+Em erro, a linha do agente que falhou tem `status='error'`, `error` truncado a 500 chars, `source='classifier-runtime'`, `provider`, `agent_step`, `error_category` e `error_details`. Desde a Fase 15, os paralelos usam `Promise.allSettled`: falha de um subagente não marca os outros como erro. Erros de schema tentam fallback JSON textual antes de virar falha final.
 
 ## Estrutura `pipeline_runs` / `pipeline_run_items`
 
