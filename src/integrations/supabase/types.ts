@@ -7012,6 +7012,16 @@ export type Database = {
         }
         Relationships: []
       }
+      v_pipeline_auto_retry_daily: {
+        Row: {
+          day: string | null
+          exhausted: number | null
+          recovery_pct: number | null
+          retried_ok: number | null
+          retried_total: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _email_segment_filters_to_where: {

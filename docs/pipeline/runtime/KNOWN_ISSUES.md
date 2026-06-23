@@ -45,6 +45,16 @@ Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 - **Auto-retry consulta `pipeline_provider_health`**: quando ambos providers (lovable+openai) estão bloqueados, adia sem consumir attempt (`skipped_by_quota`).
 - **`pipeline-queue-alert` estendido**: emite `error_events` com `signature=quota:<clinic>:<provider>` (dedup 60min) quando um provider está bloqueado.
 
+**Fase 8 (commitada):**
+- **RPC `admin_pipeline_errors_paginated`** agora retorna `auto_retry_count`, `auto_retry_pending`, `provider_blocked[]`, `last_provider` por linha.
+- **`PipelineErrorsCard`** ganhou colunas "Tent." (`n/2` + ⛔/⏳) e "Provider" (com ⚠️ quando há bloqueio ativo).
+- **`ProviderHealthCard`** lista clínicas com providers bloqueados por quota com botão "Desbloquear".
+
+**Fase 9 (commitada):**
+- **View `v_pipeline_auto_retry_daily`** (security_invoker=true): KPI permanente de recovery (`retried_total`, `retried_ok`, `exhausted`, `recovery_pct`) por dia.
+- **`AutoRetryRecoveryCard`** no painel: gráfico 14d (recuperados vs esgotados) + KPI 7d.
+- **Script `scripts/pipeline-replay.ts`** + `dry-run-pr2/AUDIT_REPLAY_FASE9.md`: replay E2E contra leads-controle, gera tabela markdown com status/provider/fallback/latency.
+
 
 
 
