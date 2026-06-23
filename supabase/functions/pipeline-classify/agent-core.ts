@@ -217,12 +217,16 @@ Produza o resumo agora.`;
 
   const tryModel = async (modelId: string) =>
     withSchemaRetry(`summarizer(${modelId})`, () =>
-      generateText({
-        model: ai.model(modelId),
-        system: buildSummarizerSystem(),
-        prompt,
-        output: Output.object({ schema: SummarizerOutputSchema }),
-      }),
+      withTimeout(
+        generateText({
+          model: ai.model(modelId),
+          system: buildSummarizerSystem(),
+          prompt,
+          output: Output.object({ schema: SummarizerOutputSchema }),
+        }),
+        TIMEOUT_SUMMARIZER_MS,
+        `summarizer(${modelId})`,
+      ),
     );
 
 
