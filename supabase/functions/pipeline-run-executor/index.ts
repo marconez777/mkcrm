@@ -550,6 +550,79 @@ Deno.serve(async (req) => {
       return jsonResp({ ok: true, run_id: runId, lead_count: leadIds.length });
     }
 
+    if (action === "retry_lead" || action === "retry_all_errors") {
+      const auth = await getUserFromAuth(req);
+      if (!auth) return jsonResp({ error: "unauthorized" }, 401);
+      const { data: rolesRow } = await service.from("user_roles").select("role").eq("user_id", auth.userId);
+      const isSuper = (rolesRow ?? []).some((r) => r.role === "super_admin");
+      if (!isSuper) return jsonResp({ error: "forbidden" }, 403);
+
+      await markStaleRunsAsError(service);
+
+      const sinceHours = Math.max(1, Math.min(720, Number(body.since_hours ?? 168)));
+      const sinceIso = new Date(Date.now() - sinceHours * 3600_000).toISOString();
+
+      let q = service
+        .from("pipeline_run_items")
+        .select("lead_id, clinic_id")
+        .eq("status", "error")
+        .not("lead_id", "is", null)
+        .gte("created_at", sinceIso);
+
+      if (action === "retry_lead") {
+        if (!body.lead_id) return jsonResp({ error: "lead_id_required" }, 400);
+        q = q.eq("lead_id", body.lead_id);
+      } else if (body.clinic_id) {
+        q = q.eq("clinic_id", body.clinic_id);
+      }
+
+      const { data: items, error: qErr } = await q.limit(5000);
+      if (qErr) return jsonResp({ error: qErr.message }, 500);
+
+      // dedup por lead, agrupa por clinic
+      const seen = new Set<string>();
+      const byClinic = new Map<string, string[]>();
+      for (const it of items ?? []) {
+        const lid = it.lead_id as string;
+        const cid = it.clinic_id as string;
+        if (!lid || !cid || seen.has(lid)) continue;
+        seen.add(lid);
+        if (!byClinic.has(cid)) byClinic.set(cid, []);
+        byClinic.get(cid)!.push(lid);
+      }
+
+      if (seen.size === 0) return jsonResp({ error: "no_leads_to_retry" }, 400);
+
+      const runIds: string[] = [];
+      let totalLeads = 0;
+      for (const [cid, leadIds] of byClinic) {
+        const { data: run, error: insErr } = await service
+          .from("pipeline_runs")
+          .insert({
+            clinic_id: cid,
+            status: "queued",
+            requested_by: auth.userId,
+            scope: { lead_ids: leadIds, source: action },
+          })
+          .select("id")
+          .single();
+        if (insErr) {
+          console.error("retry insert failed", cid, insErr.message);
+          continue;
+        }
+        const runId = run!.id as string;
+        runIds.push(runId);
+        totalLeads += leadIds.length;
+        const rt = getEdgeRuntime();
+        const p = runWorker(service, runId);
+        if (rt?.waitUntil) rt.waitUntil(p); else p;
+      }
+
+      return jsonResp({ ok: true, run_ids: runIds, leads_enqueued: totalLeads });
+    }
+
+
+
     if (action === "reset_ai_classifications") {
       const auth = await getUserFromAuth(req);
       if (!auth) return jsonResp({ error: "unauthorized" }, 401);

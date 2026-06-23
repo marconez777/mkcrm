@@ -22,6 +22,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { PipelineErrorsCard } from "@/components/admin/PipelineErrorsCard";
+
 
 // G2 — Pipeline health admin page.
 // Lê 3 views read-only criadas em G1:
@@ -136,6 +138,8 @@ export default function AdminPipelineHealth() {
           Erro ao carregar views: {error}. Confirme que o usuário é super_admin.
         </Card>
       )}
+      <PipelineErrorsCard />
+
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-3">
