@@ -7147,6 +7147,16 @@ export type Database = {
         }[]
       }
       admin_overview_metrics: { Args: never; Returns: Json }
+      admin_pipeline_errors_paginated: {
+        Args: {
+          p_clinic_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_since_hours?: number
+          p_step?: string
+        }
+        Returns: Json
+      }
       admin_plan_distribution: {
         Args: never
         Returns: {
