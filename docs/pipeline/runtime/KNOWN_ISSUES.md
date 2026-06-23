@@ -23,16 +23,20 @@ related_docs:
 
 ## 2026-06-23 — `classify_timeout_*` e `No object generated`
 
-Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`. Correções aplicadas:
+Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 
-- **Timeout por subagente** em `agent-core.ts`: Resumidor 30s, paralelos (Agendador/Preenchedor/Movimentador) 25s, Maestro 40s — worst-case ~95s, abaixo do `CLASSIFY_TIMEOUT_MS=120s` do executor. Um único modelo travado não derruba mais o classify inteiro; o erro local fica `<agente> timeout after 25000ms`.
-- **`withSchemaRetry` endurecido**: a segunda tentativa agora é embrulhada em `try/catch` e relança como `<agente>_schema_retry_failed`, com `modelText` e `cause` logados — antes o erro propagava cru e o motivo do schema-mismatch ficava perdido.
-- **Índice parcial** `idx_pri_retry_pending` em `pipeline_run_items (lead_id, created_at DESC) WHERE retry_requested = true` para acelerar varredura do botão de retry em massa.
+**Fase 4 (commitada):**
+- Timeout por subagente em `agent-core.ts`: Resumidor 30s, paralelos 25s, Maestro 40s — worst-case ~95s, abaixo do `CLASSIFY_TIMEOUT_MS=120s` do executor.
+- `withSchemaRetry` endurecido: 2ª tentativa em try/catch, relança como `<agente>_schema_retry_failed` com `modelText` e `cause` logados.
+- Índice parcial `idx_pri_retry_pending` em `pipeline_run_items`.
 
-Pendentes da auditoria (próxima fase):
-- Fallback de provider (Gemini → OpenAI BYOK) on schema/timeout.
-- Simplificar `MaestroOutputSchema`/`TypifierOutputSchema` (remover `description`/`min`/`max` que estouram o state-machine do Gemini).
-- Persistir `agents.latency_ms` em `pipeline_run_items.result` (hoje só aparece em `ai_usage`).
+**Fase 5 (commitada):**
+- **Fallback de provider** em `runAgent`: se a execução cair em erro terminal (`schema_retry_failed`, `No object generated`, `timeout`, 5xx, `fetch failed`), refaz uma única vez no provider alternativo (Lovable↔OpenAI BYOK). `getClassifierAi(..., { forceProvider })`.
+- **`MaestroOutputSchema.custom_fields_patch`** relaxado de `union(...)` para `z.record(z.any())` — elimina "too many states" do Gemini; validação por chave permanece em `apply.ts`.
+- **Backoff 429 com jitter** ±20% para evitar thundering herd.
+- **Telemetria** em `pipeline-classify/index.ts`: retorno agora inclui `agents.{provider,models,latency_ms,ran,summary_chars}`, persistido em `pipeline_run_items.result` pelo executor.
+
+
 
 
 # Bugs conhecidos e limitações
