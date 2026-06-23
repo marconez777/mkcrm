@@ -417,16 +417,20 @@ async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: stri
   };
 
   const result = await withSchemaRetry("movimentador", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
-      system: buildMovimentadorSystem(),
-      prompt: `Sinais determinísticos:
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
+        system: buildMovimentadorSystem(),
+        prompt: `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
 
 RESUMO:
 ${summary}`,
-      output: Output.object({ schema: MovimentadorOutputSchema }),
-    }),
+        output: Output.object({ schema: MovimentadorOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "movimentador",
+    ),
   );
   return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
 }
