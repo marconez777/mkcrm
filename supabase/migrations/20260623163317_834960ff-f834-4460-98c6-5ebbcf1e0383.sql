@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_pri_retry_pending ON public.pipeline_run_items (lead_id, created_at DESC) WHERE retry_requested = true;
