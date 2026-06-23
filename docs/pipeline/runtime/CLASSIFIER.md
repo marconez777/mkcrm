@@ -3,8 +3,8 @@ title: "Classifier LLM (pipeline-classify) — runtime V6 (5 Agentes)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-22
-summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor gpt-4o → [Agendador gpt-5-nano ∥ Tipificador gpt-5-mini ∥ Movimentador gpt-5-nano] → Maestro gpt-5). Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
+updated: 2026-06-23
+summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro). Provider default = Lovable AI Gateway (Gemini 2.5 Flash / Flash-Lite); OpenAI BYOK (gpt-4o, gpt-5-*) é fallback de rollback via CLASSIFIER_PROVIDER=openai. Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
 
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
@@ -29,21 +29,30 @@ related_docs:
 
 # Classifier `pipeline-classify` — V6 (5 Agentes)
 
-> Reconstrução multi-step (junho/2026). Substitui o monolito V2 e a linha de 3 agentes (V5) por uma **Linha de Montagem de 5 Agentes** com fase paralela no meio:
+> Reconstrução multi-step (junho/2026). Substitui o monolito V2 e a linha de 3 agentes (V5) por uma **Linha de Montagem de 5 Agentes** com fase paralela no meio.
+>
+> **Provider default (junho/2026):** `lovable` → Lovable AI Gateway com Gemini 2.5. OpenAI BYOK permanece como fallback de rollback (`CLASSIFIER_PROVIDER=openai`). O mapeamento provider→modelo está em `agent-core.ts:142-150`:
+>
+> | Agente | Lovable (default) | OpenAI (legado/BYOK) |
+> |---|---|---|
+> | Resumidor | `google/gemini-2.5-flash` | `gpt-4o` |
+> | Resumidor (fallback) | `google/gemini-2.5-flash-lite` | `gpt-5-mini` |
+> | Agendador | `google/gemini-2.5-flash-lite` | `gpt-5-nano` |
+> | Tipificador | `google/gemini-2.5-flash` | `gpt-5-mini` |
+> | Movimentador | `google/gemini-2.5-flash-lite` | `gpt-5-nano` |
+> | Maestro | `google/gemini-2.5-flash` | `gpt-5` |
 >
 > ```text
->          Resumidor (gpt-4o, fallback gpt-5-mini)
->                       │
->                       ▼
->   ┌──────────────────────────────────────────────────────┐
->   │  Agendador  ∥  Tipificador  ∥  Movimentador          │
->   │  (gpt-5-mini)   (gpt-5-mini)   (gpt-5-mini)          │
->   │  Promise.all — 3 chamadas concorrentes               │
->   └──────────────────────────────────────────────────────┘
->                       │
->                       ▼
->                Maestro (gpt-5)
->           decide intent + stage + confiança
+>          Resumidor
+>              │
+>              ▼
+>   ┌──────────────────────────────────────────┐
+>   │ Agendador ∥ Tipificador ∥ Movimentador   │
+>   │ Promise.all — 3 chamadas concorrentes    │
+>   └──────────────────────────────────────────┘
+>              │
+>              ▼
+>          Maestro (veredicto final)
 > ```
 >
 > O Maestro recebe os 3 outputs paralelos + o resumo e emite o veredicto final.
@@ -56,7 +65,8 @@ related_docs:
 | | |
 |---|---|
 | Entry | `supabase/functions/pipeline-classify/index.ts` |
-| Modelos | `gpt-4o` (Resumidor) + `gpt-5-nano` (Agendador) + `gpt-5-mini` (Tipificador) + `gpt-5-nano` (Movimentador), os 3 paralelos + `gpt-5` (Maestro). **PR11.9**: Agendador/Movimentador rebaixados de mini→nano (schemas triviais; ~5× mais barato; latência igual ou melhor). |
+| Provider | `lovable` (default) → Lovable AI Gateway / Gemini; `openai` (rollback) → BYOK OpenAI. Controlado por env `CLASSIFIER_PROVIDER` em `_shared/classifier-ai.ts:28`. |
+| Modelos | Ver tabela provider→modelo no topo. **PR11.9**: Agendador/Movimentador são modelos "lite/nano" (schemas triviais, ~5× mais barato). |
 | Chamadas LLM por execução | até **5** (3 fases: serial → paralela → serial) |
 | Cron | `pipeline-classify-tick` — `* * * * *` |
 | Toggle global | `automation.classifier.enabled` |
