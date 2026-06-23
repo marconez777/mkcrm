@@ -12,6 +12,14 @@ import { generateText, Output } from "npm:ai@^6";
 import { getClassifierAi, pickModel, type ClassifierAi } from "../_shared/classifier-ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
 import { buildContextBlock, formatMessages, type ClinicFieldDef, type LeadContext } from "./context.ts";
+import { withTimeout } from "../_shared/utils.ts";
+
+// P0-1: timeout por subagente para impedir que um único modelo trave consuma
+// todo o orçamento de 120s do executor (`CLASSIFY_TIMEOUT_MS`).
+// Worst-case: 30 + 25 (paralelo) + 40 = 95s, abaixo do teto do executor.
+const TIMEOUT_SUMMARIZER_MS   = 30_000;
+const TIMEOUT_PARALLEL_MS     = 25_000; // Agendador / Preenchedor / Movimentador rodam em Promise.all
+const TIMEOUT_MAESTRO_MS      = 40_000;
 import {
   CANON_NAMES,
   INTENT_VALUES,
