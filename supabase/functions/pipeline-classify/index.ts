@@ -165,7 +165,29 @@ async function classifyOneV2(
     await clearQueueFlag(client, ctx.lead.id);
   }
 
-  return { version: 3, mode: agentOut.mode, classification: agentOut.classification, telemetry };
+  // P5-3: devolve `agents` (modelos + latência por subagente) para que o
+  // executor consiga persistir telemetria em `pipeline_run_items.result`.
+  return {
+    version: 3,
+    mode: agentOut.mode,
+    classification: agentOut.classification,
+    telemetry,
+    agents: agentOut.agents
+      ? {
+          provider: agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai",
+          models: {
+            summarizer: agentOut.agents.summarizer_model,
+            agendador: agentOut.agents.agendador_model,
+            typifier: agentOut.agents.typifier_model,
+            movimentador: agentOut.agents.movimentador_model,
+            maestro: agentOut.agents.maestro_model,
+          },
+          latency_ms: agentOut.agents.latency_ms,
+          ran: agentOut.agents.ran,
+          summary_chars: agentOut.agents.summary_chars,
+        }
+      : null,
+  };
 }
 
 
