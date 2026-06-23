@@ -119,9 +119,12 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
       if (attempt === RL_DELAYS_MS.length - 1) throw err;
       const retryAfterHdr = anyErr.response?.headers?.get?.("retry-after");
       const retryAfterMs = retryAfterHdr ? Number(retryAfterHdr) * 1000 : NaN;
-      const wait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
+      const baseWait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
         ? Math.min(retryAfterMs, 5000)
         : RL_DELAYS_MS[attempt];
+      // P5-4: jitter ±20% para evitar thundering herd quando o executor
+      // dispara vários leads em paralelo e todos tomam 429 ao mesmo tempo.
+      const wait = Math.round(baseWait * (0.8 + Math.random() * 0.4));
       console.warn(`[classify] ${label} 429 detected, sleeping ${wait}ms (attempt ${attempt + 1}/${RL_DELAYS_MS.length})`);
       await new Promise((r) => setTimeout(r, wait));
     }
@@ -518,13 +521,45 @@ export type RunAgentSuccess = {
   };
 };
 
+/** Padrões de erro que valem retentar com provider alternativo. */
+const FALLBACK_PATTERN = /schema_retry_failed|No object generated|did not match schema|timeout after \d+ms|fetch failed|5\d\d/i;
+
 export async function runAgent(
   client: SupabaseClient,
   ctx: LeadContext,
   opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
 ): Promise<RunAgentSuccess | { error: string }> {
-  const ai = await getClassifierAi(client, ctx.lead.clinic_id);
-  if (!ai) return { error: "no_ai_provider" };
+  const primary = await getClassifierAi(client, ctx.lead.clinic_id);
+  if (!primary) return { error: "no_ai_provider" };
+
+  const first = await runAgentOnce(client, ctx, opts, primary);
+  if (!("error" in first)) return first;
+
+  // P5-1: tenta UMA vez no provider alternativo se o erro for terminal
+  // (schema/timeout/5xx) e houver chave do outro provider disponível.
+  if (!FALLBACK_PATTERN.test(first.error)) return first;
+  const altProvider: "lovable" | "openai" = primary.provider === "lovable" ? "openai" : "lovable";
+  const alt = await getClassifierAi(client, ctx.lead.clinic_id, { forceProvider: altProvider });
+  if (!alt || alt.provider === primary.provider) return first;
+
+  console.warn(JSON.stringify({
+    tag: "runAgent:provider_fallback",
+    lead_id: ctx.lead.id,
+    from: primary.provider,
+    to: alt.provider,
+    reason: first.error.slice(0, 200),
+  }));
+  const second = await runAgentOnce(client, ctx, opts, alt);
+  if ("error" in second) return { error: `${second.error} (after_fallback_from_${primary.provider})` };
+  return second;
+}
+
+async function runAgentOnce(
+  client: SupabaseClient,
+  ctx: LeadContext,
+  _opts: { historyToolEnabled: boolean; onlyAgent?: AgentMode },
+  ai: ClassifierAi,
+): Promise<RunAgentSuccess | { error: string }> {
 
   // Resolve ids reais (provider-dependent) para usar nas chamadas e na telemetria.
   const M_SUMMARIZER   = pickModel(ai.provider, SUMMARIZER_SPEC);
