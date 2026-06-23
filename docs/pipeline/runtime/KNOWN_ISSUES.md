@@ -36,6 +36,14 @@ Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 - **Backoff 429 com jitter** ±20% para evitar thundering herd.
 - **Telemetria** em `pipeline-classify/index.ts`: retorno agora inclui `agents.{provider,models,latency_ms,ran,summary_chars}`, persistido em `pipeline_run_items.result` pelo executor.
 
+**Fase 6 (commitada):**
+- **Auto-retry de transientes**: colunas `pipeline_run_items.auto_retry_count` + `auto_retry_pending`. Executor marca `auto_retry_pending=true` quando `error` casa `/classify_timeout|No object generated|schema_retry_failed|fetch failed|quota|429|5\d\d|ECONNRESET|timeout/i`.
+- **Cron `pipeline-auto-retry`** (1/min): lê itens pendentes com `auto_retry_count<2`, respeita backoff (30s → 2min), dedup por lead, cria `pipeline_runs` com `scope.source='auto_retry'` e dispara o executor.
+- **Limite**: após 2 tentativas automáticas falharem, o item fica como `failed_permanent` (precisa retry manual via UI). Quota OpenAI esgotada (`You exceeded your current quota`) é tratada como transitória mas não vai resolver sozinha — alerta operacional necessário.
+
+
+
+
 
 
 
