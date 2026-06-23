@@ -29,21 +29,30 @@ related_docs:
 
 # Classifier `pipeline-classify` — V6 (5 Agentes)
 
-> Reconstrução multi-step (junho/2026). Substitui o monolito V2 e a linha de 3 agentes (V5) por uma **Linha de Montagem de 5 Agentes** com fase paralela no meio:
+> Reconstrução multi-step (junho/2026). Substitui o monolito V2 e a linha de 3 agentes (V5) por uma **Linha de Montagem de 5 Agentes** com fase paralela no meio.
+>
+> **Provider default (junho/2026):** `lovable` → Lovable AI Gateway com Gemini 2.5. OpenAI BYOK permanece como fallback de rollback (`CLASSIFIER_PROVIDER=openai`). O mapeamento provider→modelo está em `agent-core.ts:142-150`:
+>
+> | Agente | Lovable (default) | OpenAI (legado/BYOK) |
+> |---|---|---|
+> | Resumidor | `google/gemini-2.5-flash` | `gpt-4o` |
+> | Resumidor (fallback) | `google/gemini-2.5-flash-lite` | `gpt-5-mini` |
+> | Agendador | `google/gemini-2.5-flash-lite` | `gpt-5-nano` |
+> | Tipificador | `google/gemini-2.5-flash` | `gpt-5-mini` |
+> | Movimentador | `google/gemini-2.5-flash-lite` | `gpt-5-nano` |
+> | Maestro | `google/gemini-2.5-flash` | `gpt-5` |
 >
 > ```text
->          Resumidor (gpt-4o, fallback gpt-5-mini)
->                       │
->                       ▼
->   ┌──────────────────────────────────────────────────────┐
->   │  Agendador  ∥  Tipificador  ∥  Movimentador          │
->   │  (gpt-5-mini)   (gpt-5-mini)   (gpt-5-mini)          │
->   │  Promise.all — 3 chamadas concorrentes               │
->   └──────────────────────────────────────────────────────┘
->                       │
->                       ▼
->                Maestro (gpt-5)
->           decide intent + stage + confiança
+>          Resumidor
+>              │
+>              ▼
+>   ┌──────────────────────────────────────────┐
+>   │ Agendador ∥ Tipificador ∥ Movimentador   │
+>   │ Promise.all — 3 chamadas concorrentes    │
+>   └──────────────────────────────────────────┘
+>              │
+>              ▼
+>          Maestro (veredicto final)
 > ```
 >
 > O Maestro recebe os 3 outputs paralelos + o resumo e emite o veredicto final.
