@@ -26,6 +26,7 @@ related_docs:
   - docs/pipeline/runtime/STAGES_LIVE.md
   - docs/pipeline/runtime/CLASSIFIER.md
   - docs/pipeline/runtime/DETERMINISTIC_RULES.md
+  - docs/pipeline/runtime/FLOW_MATRIX.md
   - docs/pipeline/runtime/AUDITORS.md
   - docs/pipeline/runtime/SUMMARIZER.md
   - docs/pipeline/runtime/HUMAN_REACTOR.md
