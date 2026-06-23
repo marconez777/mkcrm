@@ -22,6 +22,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { PipelineErrorsCard } from "@/components/admin/PipelineErrorsCard";
+
 
 // G2 — Pipeline health admin page.
 // Lê 3 views read-only criadas em G1:
