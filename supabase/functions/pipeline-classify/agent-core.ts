@@ -259,12 +259,16 @@ IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 
 async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
   const result = await withSchemaRetry("agendador", () =>
-    generateText({
-      model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
-      system: buildAgendadorSystem(),
-      prompt: `RESUMO factual do lead:\n${summary}`,
-      output: Output.object({ schema: AgendadorOutputSchema }),
-    }),
+    withTimeout(
+      generateText({
+        model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
+        system: buildAgendadorSystem(),
+        prompt: `RESUMO factual do lead:\n${summary}`,
+        output: Output.object({ schema: AgendadorOutputSchema }),
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "agendador",
+    ),
   );
   return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
 }
