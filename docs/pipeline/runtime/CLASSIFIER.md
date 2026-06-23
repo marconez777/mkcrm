@@ -3,8 +3,8 @@ title: "Classifier LLM (pipeline-classify) — runtime V6 (5 Agentes)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-06-22
-summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor gpt-4o → [Agendador gpt-5-nano ∥ Tipificador gpt-5-mini ∥ Movimentador gpt-5-nano] → Maestro gpt-5). Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 implementado via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
+updated: 2026-06-23
+summary: "Edge function pipeline-classify V6: Linha de montagem de 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro). Provider default = Lovable AI Gateway (Gemini 2.5 Flash / Flash-Lite); OpenAI BYOK (gpt-4o, gpt-5-*) é fallback de rollback via CLASSIFIER_PROVIDER=openai. Parser de datas determinístico, General Move com fallback, lock em Paciente antigo, G10 via trigger PG + RPC apply_lead_automation_patch. Telemetria individual por agente em ai_usage + lead_events.payload.agents."
 
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
