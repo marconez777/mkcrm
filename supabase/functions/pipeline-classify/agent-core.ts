@@ -119,9 +119,12 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
       if (attempt === RL_DELAYS_MS.length - 1) throw err;
       const retryAfterHdr = anyErr.response?.headers?.get?.("retry-after");
       const retryAfterMs = retryAfterHdr ? Number(retryAfterHdr) * 1000 : NaN;
-      const wait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
+      const baseWait = Number.isFinite(retryAfterMs) && retryAfterMs > 0
         ? Math.min(retryAfterMs, 5000)
         : RL_DELAYS_MS[attempt];
+      // P5-4: jitter ±20% para evitar thundering herd quando o executor
+      // dispara vários leads em paralelo e todos tomam 429 ao mesmo tempo.
+      const wait = Math.round(baseWait * (0.8 + Math.random() * 0.4));
       console.warn(`[classify] ${label} 429 detected, sleeping ${wait}ms (attempt ${attempt + 1}/${RL_DELAYS_MS.length})`);
       await new Promise((r) => setTimeout(r, wait));
     }
