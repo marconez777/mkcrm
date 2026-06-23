@@ -63,6 +63,10 @@ export function isTransientAgentError(reason: string | null | undefined): boolea
     r.includes("timeout") || r.includes("timed out") ||
     r.includes("econnreset") || r.includes("network") ||
     r.includes("fetch failed") || r.includes("overloaded") ||
-    r.includes("temporarily unavailable")
+    r.includes("temporarily unavailable") ||
+    r.includes("no object generated") ||
+    r.includes("schema_retry_failed") ||
+    r.includes("did not match schema") ||
+    r.includes("output validation")
   );
 }

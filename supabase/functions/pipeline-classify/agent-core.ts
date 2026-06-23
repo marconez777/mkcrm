@@ -45,6 +45,40 @@ type AiUsageShape = {
   completionTokens?: number;
 };
 
+const AGENT_CORE_REV = "phase15-allsettled-source-v1";
+
+type ErrorCategory =
+  | "schema_validation"
+  | "quota_or_billing"
+  | "rate_limit"
+  | "timeout"
+  | "gateway_5xx"
+  | "network"
+  | "no_provider"
+  | "unknown";
+
+function inferProvider(model: string): "lovable" | "openai" | null {
+  if (/^google\//i.test(model) || /gemini/i.test(model)) return "lovable";
+  if (/^(gpt-|o\d|chatgpt)/i.test(model)) return "openai";
+  return null;
+}
+
+function agentStepFromOperation(operation: string): string | null {
+  return operation.startsWith("classifier:") ? operation.split(":")[1] ?? null : null;
+}
+
+function categorizeAgentError(error: string | null | undefined): ErrorCategory | null {
+  if (!error) return null;
+  if (/quota|insufficient_quota|billing|payment required|\b402\b|exceeded your current/i.test(error)) return "quota_or_billing";
+  if (/rate.?limit|too many requests|\b429\b/i.test(error)) return "rate_limit";
+  if (/timeout|timed out/i.test(error)) return "timeout";
+  if (/No object generated|schema_retry_failed|did not match schema|Output validation/i.test(error)) return "schema_validation";
+  if (/fetch failed|network|ECONN|ENOTFOUND|EAI_AGAIN/i.test(error)) return "network";
+  if (/\b5\d\d\b/.test(error)) return "gateway_5xx";
+  if (/no_ai_provider/i.test(error)) return "no_provider";
+  return "unknown";
+}
+
 function extractTokens(usage: unknown): {
   input_tokens: number | null;
   output_tokens: number | null;
@@ -66,8 +100,13 @@ async function recordStep(opts: {
   latencyMs: number;
   usage?: unknown;
   error?: string | null;
+  provider?: "lovable" | "openai" | null;
+  details?: Record<string, unknown>;
 }) {
   const tokens = extractTokens(opts.usage);
+  const errorCategory = categorizeAgentError(opts.error);
+  const provider = opts.provider ?? inferProvider(opts.model);
+  const agentStep = agentStepFromOperation(opts.operation);
   await logUsage({
     clinic_id: opts.ctx.lead.clinic_id,
     lead_id: opts.ctx.lead.id,
@@ -79,6 +118,18 @@ async function recordStep(opts: {
     total_tokens: tokens.total_tokens,
     latency_ms: Math.round(opts.latencyMs),
     error: opts.error ?? null,
+    source: "classifier-runtime",
+    provider,
+    agent_step: agentStep,
+    error_category: errorCategory,
+    error_details: {
+      rev: AGENT_CORE_REV,
+      agent_step: agentStep,
+      provider,
+      model: opts.model,
+      retryable: errorCategory != null && ["schema_validation", "rate_limit", "timeout", "gateway_5xx", "network", "quota_or_billing"].includes(errorCategory),
+      ...opts.details,
+    },
   });
 }
 
@@ -633,6 +684,7 @@ async function runAgentOnce(
 
   console.log(JSON.stringify({
     tag: "runAgent:provider",
+    rev: AGENT_CORE_REV,
     lead_id: ctx.lead.id,
     provider: ai.provider,
     summarizer: M_SUMMARIZER,
@@ -653,10 +705,10 @@ async function runAgentOnce(
     mentionedDates = r1.output.mentioned_dates ?? [];
     summarizerModel = r1.model;
     usage1 = r1.usage;
-    await safeRecordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1 });
+    await safeRecordStep({ ctx, model: summarizerModel.split(" ")[0], operation: "classifier:summarizer", status: "success", latencyMs: performance.now() - t1, usage: usage1, provider: ai.provider });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: M_SUMMARIZER, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_SUMMARIZER, operation: "classifier:summarizer", status: "error", latencyMs: performance.now() - t1, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "summarizer" } });
     return { error: `agent_step1_failed: ${msg.slice(0, 200)}` };
   }
   const lat1 = performance.now() - t1;
@@ -704,31 +756,31 @@ async function runAgentOnce(
 
   if (sAg.status === "fulfilled") {
     outAgendador = sAg.value.output;
-    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: sAg.value.usage });
+    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: sAg.value.usage, provider: ai.provider });
   } else {
     const msg = sAg.reason instanceof Error ? sAg.reason.message : String(sAg.reason);
     outAgendador = { is_scheduling_action: false, scheduling_intent: "nenhum", reasons: [`agendador_failed: ${msg.slice(0, 80)}`] };
-    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "parallel", fallback_used: true, fallback_output: "safe_default" } });
   }
 
   if (sPr.status === "fulfilled") {
     outPreenchedor = sPr.value.output;
     if (!sPr.value.skipped) {
-      await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: sPr.value.usage });
+      await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: sPr.value.usage, provider: ai.provider });
     }
   } else {
     const msg = sPr.reason instanceof Error ? sPr.reason.message : String(sPr.reason);
     outPreenchedor = { tags_suggested: [], custom_fields_patch: {}, reasons: [`typifier_failed: ${msg.slice(0, 80)}`] };
-    await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "parallel", fallback_used: true, fallback_output: "safe_default" } });
   }
 
   if (sMo.status === "fulfilled") {
     outMovimentador = sMo.value.output;
-    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: sMo.value.usage });
+    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: sMo.value.usage, provider: ai.provider });
   } else {
     const msg = sMo.reason instanceof Error ? sMo.reason.message : String(sMo.reason);
     outMovimentador = { stage_suggestion: ctx.stageName, intent: "outro", mentioned_intents: [], is_b2b: false, reasons: [`movimentador_failed: ${msg.slice(0, 80)}`] };
-    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "parallel", fallback_used: true, fallback_output: "safe_default" } });
   }
 
   if (sAg.status === "rejected" && sPr.status === "rejected" && sMo.status === "rejected") {
@@ -768,10 +820,10 @@ async function runAgentOnce(
     const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
-    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3 });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500) });
+    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "maestro", lead_requeued: true } });
     return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
   }
 
