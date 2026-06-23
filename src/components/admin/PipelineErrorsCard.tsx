@@ -45,6 +45,10 @@ type ErrorRow = {
   lead_name: string | null;
   lead_phone: string | null;
   clinic_name: string | null;
+  auto_retry_count?: number | null;
+  auto_retry_pending?: boolean | null;
+  provider_blocked?: string[] | null;
+  last_provider?: string | null;
 };
 
 const PAGE_SIZE = 25;
@@ -211,6 +215,8 @@ export function PipelineErrorsCard() {
               <TableHead>Lead</TableHead>
               <TableHead>Clínica</TableHead>
               <TableHead>Step</TableHead>
+              <TableHead>Tent.</TableHead>
+              <TableHead>Provider</TableHead>
               <TableHead>Erro</TableHead>
               <TableHead>Quando</TableHead>
               <TableHead className="text-right">Ação</TableHead>
@@ -219,47 +225,63 @@ export function PipelineErrorsCard() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                   Nenhum lead com erro no período.
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r) => (
-                <TableRow key={r.lead_id}>
-                  <TableCell className="text-xs">
-                    <Link to={`/inbox/${r.lead_id}`} className="hover:underline">
-                      {r.lead_name || r.lead_phone || r.lead_id.slice(0, 8)}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-xs">{r.clinic_name || r.clinic_id.slice(0, 8)}</TableCell>
-                  <TableCell className="text-xs">
-                    <Badge variant="outline" className="font-mono">{r.step || "—"}</Badge>
-                  </TableCell>
-                  <TableCell className="max-w-md text-xs">
-                    <span className="line-clamp-2 text-destructive" title={r.error ?? ""}>
-                      {r.error || "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{fmtDate(r.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={retryingLead === r.lead_id}
-                      onClick={() => void retryLead(r.lead_id)}
-                    >
-                      {retryingLead === r.lead_id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <>
-                          <RotateCw className="mr-1 h-3 w-3" />
-                          Retry
-                        </>
+              rows.map((r) => {
+                const attempts = r.auto_retry_count ?? 0;
+                const exhausted = attempts >= 2;
+                const blocked = (r.provider_blocked ?? []).length > 0;
+                return (
+                  <TableRow key={r.lead_id}>
+                    <TableCell className="text-xs">
+                      <Link to={`/inbox/${r.lead_id}`} className="hover:underline">
+                        {r.lead_name || r.lead_phone || r.lead_id.slice(0, 8)}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-xs">{r.clinic_name || r.clinic_id.slice(0, 8)}</TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant="outline" className="font-mono">{r.step || "—"}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant={exhausted ? "destructive" : "outline"} className="font-mono">
+                        {attempts}/2{exhausted ? " ⛔" : r.auto_retry_pending ? " ⏳" : ""}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <span className="font-mono">{r.last_provider ?? "—"}</span>
+                      {blocked && (
+                        <span title={`Bloqueado: ${(r.provider_blocked ?? []).join(", ")}`} className="ml-1">⚠️</span>
                       )}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell className="max-w-md text-xs">
+                      <span className="line-clamp-2 text-destructive" title={r.error ?? ""}>
+                        {r.error || "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{fmtDate(r.created_at)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={retryingLead === r.lead_id}
+                        onClick={() => void retryLead(r.lead_id)}
+                      >
+                        {retryingLead === r.lead_id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <RotateCw className="mr-1 h-3 w-3" />
+                            Retry
+                          </>
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

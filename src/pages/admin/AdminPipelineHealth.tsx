@@ -23,6 +23,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PipelineErrorsCard } from "@/components/admin/PipelineErrorsCard";
+import { ProviderHealthCard } from "@/components/admin/ProviderHealthCard";
 
 
 // G2 — Pipeline health admin page.
@@ -139,6 +140,8 @@ export default function AdminPipelineHealth() {
         </Card>
       )}
       <PipelineErrorsCard />
+      <ProviderHealthCard />
+
 
 
       {/* KPIs */}
