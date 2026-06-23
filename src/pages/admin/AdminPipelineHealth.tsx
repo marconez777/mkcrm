@@ -24,6 +24,7 @@ import {
 } from "recharts";
 import { PipelineErrorsCard } from "@/components/admin/PipelineErrorsCard";
 import { ProviderHealthCard } from "@/components/admin/ProviderHealthCard";
+import { AutoRetryRecoveryCard } from "@/components/admin/AutoRetryRecoveryCard";
 
 
 // G2 — Pipeline health admin page.
@@ -141,6 +142,8 @@ export default function AdminPipelineHealth() {
       )}
       <PipelineErrorsCard />
       <ProviderHealthCard />
+      <AutoRetryRecoveryCard />
+
 
 
 
