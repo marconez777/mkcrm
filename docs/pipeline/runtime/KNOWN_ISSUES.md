@@ -61,6 +61,21 @@ Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
 - **Item #7 (`consulta_agendada_em`)** verificado: já existe linha em `lead_custom_fields` (1 row) e apenas 1 clínica usa o campo. Cobertura suficiente. Status: ✅.
 - **Item #-10 (`stage_sequence_bindings`)** critério de revisão documentado em `USER_AUTOMATIONS.md §Critério de revisão`. Reavaliar 2026-07-22. Status: AGENDADO.
 
+**Fases 11-14 (commitadas 2026-06-23 — inconsistência custos IA × pipeline + leads travados):**
+
+Diagnóstico: `pipeline_runs` em 24h = 0 (executor parado), mas `ai_usage` registrou 226 chamadas/178 erros (79%) vindas do **caminho do tick** (`pipeline-classify-tick`). Tela "Custos da IA" lê `ai_usage` → mostra alta taxa de erro. Tela "Pipeline Health" lê `pipeline_run_items` → mostra IA saudável. Não é bug de UI — são duas fontes de verdade desacopladas.
+
+Causa raiz dos erros: `Promise.all` no passo paralelo (Agendador + Typifier + Movimentador). Quando UM agente falhava com `No object generated` no Gemini, o `Promise.all` rejeitava o lote inteiro e o catch marcava os **3** agentes como erro em `ai_usage`, multiplicando por 3 a contagem de falhas e abortando a execução do lead.
+
+- **Fase 13 (P0)** — `pipeline-classify/agent-core.ts`: troca de `Promise.all` por `Promise.allSettled` no passo paralelo. Cada agente é registrado individualmente; falha de 1 não derruba os outros. Defaults seguros aplicados quando um agente falha (Agendador → `nenhum`, Typifier → vazio, Movimentador → mantém stage atual). Maestro continua com o que tiver. Só aborta se os 3 falharem.
+- **Fase 14 (P0)** — destravados manualmente via UPDATE: Anna Carolina + André Lopez (`needs_ai_review=false` por dropping silencioso) → reenfileirados; Maju Kersevan (`fail_count=3`, backoff 30min) → zerado para retentar após Fase 13.
+- **Fase 12** — quota guard (`pipeline_provider_health`) verificado já implementado em `agent-core.ts:549-562` e respeitado em `pipeline-auto-retry`. Última quota error em `gpt-4o` foi 16:59 antes do block, depois 0 chamadas — guard funcionando. Sem mudança de código.
+- **Fase 11** — coluna `ai_usage.source text DEFAULT 'unknown'` + backfill (`classifier:*` → `'classifier-runtime'`) + índice `(source, created_at DESC)`. Permite separar telemetria por origem em telas futuras.
+
+**Pendência conhecida**: tick não enfileira leads quando `needs_ai_review=false` por dropping (eg. Anna/André). Investigar por que `evolution-webhook` / trigger inbound não setou o flag em 2026-06-22 22:07 (Anna) — fica como Fase 15.
+
+
+
 
 
 

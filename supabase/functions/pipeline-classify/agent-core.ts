@@ -684,43 +684,71 @@ async function runAgentOnce(
       return Number.isFinite(ms) && ctx.nowMs - ms < G10_MS;
     });
 
-  try {
-    const typifierTask = allKeysProtected
-      ? Promise.resolve({
-          output: { tags_suggested: [], custom_fields_patch: {}, reasons: ["skipped:all_keys_g10_protected"] } as TypifierOutput,
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          skipped: true as const,
-        })
-      : runTypifier(ai, ctx, summary).then((r) => ({ ...r, skipped: false as const }));
+  // Fase 13: Promise.allSettled — falha de 1 agente não derruba os outros 2.
+  // Cada agente é registrado individualmente em ai_usage com seu status real.
+  // Fallback de cada agente usa defaults seguros (Maestro corrige se houver sinal).
+  const typifierTask: Promise<{ output: TypifierOutput; usage?: unknown; skipped: boolean }> = allKeysProtected
+    ? Promise.resolve({
+        output: { tags_suggested: [], custom_fields_patch: {}, reasons: ["skipped:all_keys_g10_protected"] } as TypifierOutput,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        skipped: true,
+      })
+    : runTypifier(ai, ctx, summary).then((r) => ({ ...r, skipped: false }));
 
-    const [rAg, rPr, rMo] = await Promise.all([
-      runAgendador(ai, ctx, summary),
-      typifierTask,
-      runMovimentador(ai, ctx, summary)
-    ]);
-    outAgendador = rAg.output;
-    outPreenchedor = rPr.output;
-    outMovimentador = rMo.output;
-    usage2 = { ag: rAg.usage, pr: rPr.usage, mo: rMo.usage, typifier_skipped: rPr.skipped };
-    const stepLat = performance.now() - t2;
-    await Promise.all([
-      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: usage2.ag }),
-      rPr.skipped
-        ? Promise.resolve()
-        : safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: usage2.pr }),
-      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: usage2.mo })
-    ]);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const stepLat = performance.now() - t2;
-    await Promise.all([
-      safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) }),
-      safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) })
-    ]);
-    return { error: `agent_step2_parallel_failed: ${msg.slice(0, 200)}` };
+  const [sAg, sPr, sMo] = await Promise.allSettled([
+    runAgendador(ai, ctx, summary),
+    typifierTask,
+    runMovimentador(ai, ctx, summary),
+  ]);
+  const stepLat = performance.now() - t2;
+
+  if (sAg.status === "fulfilled") {
+    outAgendador = sAg.value.output;
+    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "success", latencyMs: stepLat, usage: sAg.value.usage });
+  } else {
+    const msg = sAg.reason instanceof Error ? sAg.reason.message : String(sAg.reason);
+    outAgendador = { is_scheduling_action: false, scheduling_intent: "nenhum", reasons: [`agendador_failed: ${msg.slice(0, 80)}`] };
+    await safeRecordStep({ ctx, model: M_AGENDADOR, operation: "classifier:agendador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
   }
+
+  if (sPr.status === "fulfilled") {
+    outPreenchedor = sPr.value.output;
+    if (!sPr.value.skipped) {
+      await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "success", latencyMs: stepLat, usage: sPr.value.usage });
+    }
+  } else {
+    const msg = sPr.reason instanceof Error ? sPr.reason.message : String(sPr.reason);
+    outPreenchedor = { tags_suggested: [], custom_fields_patch: {}, reasons: [`typifier_failed: ${msg.slice(0, 80)}`] };
+    await safeRecordStep({ ctx, model: M_TYPIFIER, operation: "classifier:typifier", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
+  }
+
+  if (sMo.status === "fulfilled") {
+    outMovimentador = sMo.value.output;
+    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "success", latencyMs: stepLat, usage: sMo.value.usage });
+  } else {
+    const msg = sMo.reason instanceof Error ? sMo.reason.message : String(sMo.reason);
+    outMovimentador = { stage_suggestion: ctx.stageName, intent: "outro", mentioned_intents: [], is_b2b: false, reasons: [`movimentador_failed: ${msg.slice(0, 80)}`] };
+    await safeRecordStep({ ctx, model: M_MOVIMENTADOR, operation: "classifier:movimentador", status: "error", latencyMs: stepLat, error: msg.slice(0, 500) });
+  }
+
+  if (sAg.status === "rejected" && sPr.status === "rejected" && sMo.status === "rejected") {
+    const reason = sMo.reason instanceof Error ? sMo.reason.message : String(sMo.reason);
+    return { error: `agent_step2_parallel_failed: ${reason.slice(0, 200)}` };
+  }
+
+  usage2 = {
+    ag: sAg.status === "fulfilled" ? sAg.value.usage : null,
+    pr: sPr.status === "fulfilled" ? sPr.value.usage : null,
+    mo: sMo.status === "fulfilled" ? sMo.value.usage : null,
+    typifier_skipped: sPr.status === "fulfilled" ? sPr.value.skipped : false,
+    parallel_failures: [
+      sAg.status === "rejected" ? "agendador" : null,
+      sPr.status === "rejected" ? "typifier" : null,
+      sMo.status === "rejected" ? "movimentador" : null,
+    ].filter(Boolean),
+  };
   lat2 = performance.now() - t2;
+
 
   // ----- Passo 3 — Maestro -----
   let maestroOut: MaestroOutput | null = null;

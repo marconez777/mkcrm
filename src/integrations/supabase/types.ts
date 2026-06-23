@@ -1122,6 +1122,7 @@ export type Database = {
           operation: string
           output_tokens: number | null
           replied: boolean
+          source: string
           status: string
           thread_id: string | null
           tools_called: number
@@ -1142,6 +1143,7 @@ export type Database = {
           operation?: string
           output_tokens?: number | null
           replied?: boolean
+          source?: string
           status?: string
           thread_id?: string | null
           tools_called?: number
@@ -1162,6 +1164,7 @@ export type Database = {
           operation?: string
           output_tokens?: number | null
           replied?: boolean
+          source?: string
           status?: string
           thread_id?: string | null
           tools_called?: number
