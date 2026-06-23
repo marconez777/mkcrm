@@ -22,6 +22,11 @@ export type UsageRecord = {
   tools_called?: number;
   replied?: boolean;
   error?: string | null;
+  source?: string | null;
+  provider?: string | null;
+  agent_step?: string | null;
+  error_category?: string | null;
+  error_details?: Record<string, unknown> | null;
 };
 
 export async function logUsage(rec: UsageRecord) {
@@ -46,6 +51,7 @@ export async function logUsage(rec: UsageRecord) {
       status: "success",
       tools_called: 0,
       replied: false,
+      source: rec.operation?.startsWith("classifier:") ? "classifier-runtime" : "unknown",
       ...rec,
       clinic_id,
       cost_usd,

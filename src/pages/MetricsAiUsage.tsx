@@ -31,6 +31,11 @@ type Row = {
   tools_called: number;
   replied: boolean;
   error: string | null;
+  source: string | null;
+  provider: string | null;
+  agent_step: string | null;
+  error_category: string | null;
+  error_details: Record<string, any> | null;
   created_at: string;
 };
 
@@ -57,6 +62,8 @@ export default function MetricsAiUsage() {
   const [filterModel, setFilterModel] = useState<string>("");
   const [filterAgent, setFilterAgent] = useState<string>("");
   const [filterOp, setFilterOp] = useState<string>("");
+  const [filterSource, setFilterSource] = useState<string>("");
+  const [filterErrorCategory, setFilterErrorCategory] = useState<string>("");
   const [onlyErrors, setOnlyErrors] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -101,17 +108,19 @@ export default function MetricsAiUsage() {
       if (filterModel && r.model !== filterModel) return false;
       if (filterAgent && r.agent_id !== filterAgent) return false;
       if (filterOp && r.operation !== filterOp) return false;
+      if (filterSource && (r.source ?? "unknown") !== filterSource) return false;
+      if (filterErrorCategory && (r.error_category ?? "uncategorized") !== filterErrorCategory) return false;
       if (onlyErrors && r.status === "success") return false;
       if (search) {
         const q = search.toLowerCase();
         const lead = r.lead_id ? leads[r.lead_id] : null;
         const agentName = r.agent_id ? agents[r.agent_id] ?? "" : "";
-        const hay = `${r.model} ${r.operation} ${r.status} ${r.error ?? ""} ${agentName} ${lead?.name ?? ""} ${lead?.phone ?? ""}`.toLowerCase();
+        const hay = `${r.model} ${r.operation} ${r.status} ${r.source ?? ""} ${r.provider ?? ""} ${r.agent_step ?? ""} ${r.error_category ?? ""} ${r.error ?? ""} ${agentName} ${lead?.name ?? ""} ${lead?.phone ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, filterModel, filterAgent, filterOp, onlyErrors, search, agents, leads]);
+  }, [rows, filterModel, filterAgent, filterOp, filterSource, filterErrorCategory, onlyErrors, search, agents, leads]);
 
   const stats = useMemo(() => {
     let totalCost = 0;
@@ -195,6 +204,23 @@ export default function MetricsAiUsage() {
     return Array.from(m.entries()).map(([op, v]) => ({ op, ...v })).sort((a, b) => b.cost - a.cost);
   }, [filtered]);
 
+  const byErrorCategory = useMemo(() => {
+    const m = new Map<string, { calls: number; leads: Set<string>; last: string | null; sample: string | null }>();
+    for (const r of filtered) {
+      if (r.status === "success") continue;
+      const key = r.error_category ?? "uncategorized";
+      const cur = m.get(key) ?? { calls: 0, leads: new Set<string>(), last: null, sample: null };
+      cur.calls++;
+      if (r.lead_id) cur.leads.add(r.lead_id);
+      if (!cur.last || r.created_at > cur.last) cur.last = r.created_at;
+      if (!cur.sample && r.error) cur.sample = r.error;
+      m.set(key, cur);
+    }
+    return Array.from(m.entries())
+      .map(([category, v]) => ({ category, calls: v.calls, leads: v.leads.size, last: v.last, sample: v.sample }))
+      .sort((a, b) => b.calls - a.calls);
+  }, [filtered]);
+
   // gráfico custo/dia × modelo
   const dailyByModel = useMemo(() => {
     const startDate = new Date(`${fromDate}T00:00:00`);
@@ -227,18 +253,27 @@ export default function MetricsAiUsage() {
   const uniqueModels = useMemo(() => Array.from(new Set(rows.map((r) => r.model))).sort(), [rows]);
   const uniqueAgents = useMemo(() => Array.from(new Set(rows.map((r) => r.agent_id).filter(Boolean))) as string[], [rows]);
   const uniqueOps = useMemo(() => Array.from(new Set(rows.map((r) => r.operation))).sort(), [rows]);
+  const uniqueSources = useMemo(() => Array.from(new Set(rows.map((r) => r.source ?? "unknown"))).sort(), [rows]);
+  const uniqueErrorCategories = useMemo(
+    () => Array.from(new Set(rows.filter((r) => r.status !== "success").map((r) => r.error_category ?? "uncategorized"))).sort(),
+    [rows],
+  );
 
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   const exportCsv = () => {
     const lines = [
-      ["data", "modelo", "operacao", "status", "agente", "lead", "input", "output", "total", "latencia_ms", "custo_usd", "erro"].join(","),
+      ["data", "origem", "provider", "etapa", "categoria_erro", "modelo", "operacao", "status", "agente", "lead", "input", "output", "total", "latencia_ms", "custo_usd", "erro"].join(","),
       ...filtered.map((r) => {
         const lead = r.lead_id ? leads[r.lead_id] : null;
         const cost = calcCost(r.model, r.input_tokens, r.output_tokens);
         return [
           r.created_at,
+            r.source ?? "",
+            r.provider ?? "",
+            r.agent_step ?? "",
+            r.error_category ?? "",
           r.model,
           r.operation,
           r.status,
@@ -329,6 +364,24 @@ export default function MetricsAiUsage() {
           <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Erros" value={String(stats.errors)} />
         </div>
 
+        {byErrorCategory.length > 0 && (
+          <Card className="p-4">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> Diagnóstico dos erros</h2>
+            <div className="grid gap-2 md:grid-cols-2">
+              {byErrorCategory.map((e) => (
+                <div key={e.category} className="rounded border bg-muted/20 p-3 text-xs">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Badge variant="destructive" className="text-[10px]">{friendlyErrorCategory(e.category)}</Badge>
+                    <span className="text-muted-foreground">{e.calls} chamadas · {e.leads} lead{e.leads === 1 ? "" : "s"}</span>
+                  </div>
+                  <p className="text-muted-foreground">{errorCategoryExplanation(e.category)}</p>
+                  {e.sample && <p className="mt-1 truncate font-mono text-[10px]">{e.sample}</p>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <Card className="p-4">
           <h2 className="mb-3 text-sm font-semibold">Custo por dia (top 6 modelos)</h2>
           <div className="flex h-44 items-stretch gap-1">
@@ -396,6 +449,14 @@ export default function MetricsAiUsage() {
                 <option value="">Todas operações</option>
                 {uniqueOps.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
+              <select className="h-8 rounded border bg-background px-2 text-xs" value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
+                <option value="">Todas origens</option>
+                {uniqueSources.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select className="h-8 rounded border bg-background px-2 text-xs" value={filterErrorCategory} onChange={(e) => setFilterErrorCategory(e.target.value)}>
+                <option value="">Todas categorias</option>
+                {uniqueErrorCategories.map((c) => <option key={c} value={c}>{friendlyErrorCategory(c)}</option>)}
+              </select>
               <label className="flex items-center gap-1 text-xs">
                 <input type="checkbox" checked={onlyErrors} onChange={(e) => setOnlyErrors(e.target.checked)} />
                 Só erros
@@ -410,6 +471,8 @@ export default function MetricsAiUsage() {
                   <th className="py-2 text-left font-medium">Quando</th>
                   <th className="py-2 text-left font-medium">Modelo</th>
                   <th className="py-2 text-left font-medium">Op.</th>
+                  <th className="py-2 text-left font-medium">Origem</th>
+                  <th className="py-2 text-left font-medium">Erro</th>
                   <th className="py-2 text-left font-medium">Agente</th>
                   <th className="py-2 text-left font-medium">Lead</th>
                   <th className="py-2 text-right font-medium">In</th>
@@ -428,6 +491,8 @@ export default function MetricsAiUsage() {
                       <td className="py-1.5">{new Date(r.created_at).toLocaleString()}</td>
                       <td className="py-1.5 font-mono text-[11px]">{r.model}</td>
                       <td className="py-1.5">{r.operation}</td>
+                      <td className="py-1.5">{r.source ?? "unknown"}</td>
+                      <td className="py-1.5">{r.error_category ? <Badge variant="outline" className="text-[10px]">{friendlyErrorCategory(r.error_category)}</Badge> : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{r.agent_id ? agents[r.agent_id] ?? "—" : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{lead?.name ?? lead?.phone ?? "—"}</td>
                       <td className="py-1.5 text-right tabular-nums">{r.input_tokens ?? "—"}</td>
@@ -441,7 +506,7 @@ export default function MetricsAiUsage() {
                   );
                 })}
                 {pageRows.length === 0 && (
-                  <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">Sem chamadas no período / filtro.</td></tr>
+                  <tr><td colSpan={12} className="py-6 text-center text-muted-foreground">Sem chamadas no período / filtro.</td></tr>
                 )}
               </tbody>
             </table>
@@ -473,6 +538,9 @@ export default function MetricsAiUsage() {
               <KV k="Quando" v={new Date(detail.created_at).toLocaleString()} />
               <KV k="Modelo" v={detail.model} />
               <KV k="Operação" v={detail.operation} />
+              <KV k="Origem" v={detail.source ?? "unknown"} />
+              <KV k="Provider" v={detail.provider ?? "—"} />
+              <KV k="Etapa" v={detail.agent_step ?? "—"} />
               <KV k="Status" v={detail.status} />
               <KV k="Agente" v={detail.agent_id ? `${agents[detail.agent_id] ?? "—"} (${detail.agent_id})` : "—"} />
               <KV k="Lead" v={detail.lead_id ? `${leads[detail.lead_id]?.name ?? leads[detail.lead_id]?.phone ?? "—"} (${detail.lead_id})` : "—"} />
@@ -483,6 +551,16 @@ export default function MetricsAiUsage() {
               <KV k="Tools chamadas" v={String(detail.tools_called)} />
               <KV k="Respondeu" v={detail.replied ? "sim" : "não"} />
               <KV k="Custo" v={fmtUSD(calcCost(detail.model, detail.input_tokens, detail.output_tokens))} />
+              {detail.error_category && <KV k="Categoria" v={friendlyErrorCategory(detail.error_category)} />}
+              {detail.error_category && (
+                <div className="rounded border bg-muted/20 p-2">
+                  <div className="mb-1 text-muted-foreground">Leitura do diagnóstico:</div>
+                  <p>{errorCategoryExplanation(detail.error_category)}</p>
+                  {detail.error_details && Object.keys(detail.error_details).length > 0 && (
+                    <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-[11px]">{JSON.stringify(detail.error_details, null, 2)}</pre>
+                  )}
+                </div>
+              )}
               {detail.error && (
                 <div className="mt-2">
                   <div className="mb-1 text-muted-foreground">Erro:</div>
@@ -513,6 +591,36 @@ function KV({ k, v }: { k: string; v: string }) {
       <span className="text-right font-mono break-all">{v}</span>
     </div>
   );
+}
+
+function friendlyErrorCategory(category: string) {
+  const map: Record<string, string> = {
+    schema_validation: "Schema/JSON inválido",
+    quota_or_billing: "Cota/crédito",
+    rate_limit: "Rate limit",
+    timeout: "Timeout",
+    gateway_5xx: "Falha do provider",
+    network: "Rede",
+    no_provider: "Sem provider",
+    uncategorized: "Sem categoria",
+    unknown: "Desconhecido",
+  };
+  return map[category] ?? category;
+}
+
+function errorCategoryExplanation(category: string) {
+  const map: Record<string, string> = {
+    schema_validation: "O modelo respondeu fora do formato esperado. O pipeline deve reprocessar com backoff ou usar fallback seguro; não significa necessariamente custo alto.",
+    quota_or_billing: "O provider recusou a chamada por limite de crédito/cota. O guard bloqueia novas tentativas temporariamente para evitar gasto e ruído.",
+    rate_limit: "Muitas chamadas em pouco tempo. A rotina aplica espera e tenta novamente depois.",
+    timeout: "A etapa demorou além do limite operacional e deve ser reprocessada.",
+    gateway_5xx: "Falha temporária no provider/modelo. Normalmente é recuperável com retry.",
+    network: "Falha de rede ou conexão entre a função e o provider.",
+    no_provider: "Nenhum provider de IA estava disponível para a clínica.",
+    uncategorized: "Erro legado sem detalhes estruturados; abra o registro para ver a mensagem bruta.",
+    unknown: "Erro não mapeado; precisa de inspeção manual da mensagem bruta.",
+  };
+  return map[category] ?? "Erro não mapeado; precisa de inspeção manual da mensagem bruta.";
 }
 
 function RankList({ rows }: { rows: { key: string; label: string; sub?: string; value: string; href?: string }[] }) {

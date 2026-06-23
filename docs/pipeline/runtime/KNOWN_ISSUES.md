@@ -74,6 +74,16 @@ Causa raiz dos erros: `Promise.all` no passo paralelo (Agendador + Typifier + Mo
 
 **Pendência conhecida**: tick não enfileira leads quando `needs_ai_review=false` por dropping (eg. Anna/André). Investigar por que `evolution-webhook` / trigger inbound não setou o flag em 2026-06-22 22:07 (Anna) — fica como Fase 15.
 
+**Fase 15-20 (commitadas 2026-06-23 — raiz da inconsistência em custos do agente):**
+
+- Causa raiz confirmada em produção: novos registros ainda mostravam `source='unknown'` e o padrão antigo de erro triplicado (`agendador`/`typifier` recebendo mensagem de erro do `movimentador`), indicando versão antiga/sem rastreabilidade efetiva no Cloud. A função `pipeline-classify` foi redeployada e passou a logar `rev='phase15-allsettled-source-v1'` nos eventos; depois recebeu `rev='phase15-allsettled-source-jsonfallback-v2'` com fallback JSON.
+- Migração `ai_usage`: adicionados `source`, `provider`, `agent_step`, `error_category`, `error_details`; backfill de `classifier:*` para `classifier-runtime`; índices por origem e categoria.
+- `_shared/metrics.ts` e `agent-core.ts`: novas linhas de `ai_usage` passam a gravar origem, provider, etapa, categoria e detalhes estruturados do erro. Isso elimina a ambiguidade visual da tela de custos.
+- `classifier-ai.ts`: erros de schema (`No object generated`, `schema_retry_failed`, `did not match schema`) agora são transientes para manter o lead em retry/backoff em vez de limpar a fila.
+- Reparo operacional: leads com erro recente, `needs_ai_review=false` e mensagem nova/sem classificação foram refileirados para `pipeline-classifier` (37 leads no snapshot).
+- UI `MetricsAiUsage` e `PipelineOverview`: adicionados diagnóstico por categoria, filtros por origem/categoria, e detalhes por etapa/provider para explicar o que falhou e impacto operacional.
+- `agent-core.ts`: Movimentador, Maestro, Agendador e Tipificador agora tentam fallback JSON textual compacto quando structured output falha por schema. A intenção é reduzir `No object generated` na origem, não apenas categorizar o erro.
+
 
 
 
