@@ -57,6 +57,12 @@ type ErrorCategory =
   | "no_provider"
   | "unknown";
 
+type SafeSchema<T> = {
+  safeParse: (value: unknown) =>
+    | { success: true; data: T }
+    | { success: false; error: { message: string } };
+};
+
 function inferProvider(model: string): "lovable" | "openai" | null {
   if (/^google\//i.test(model) || /gemini/i.test(model)) return "lovable";
   if (/^(gpt-|o\d|chatgpt)/i.test(model)) return "openai";
@@ -77,6 +83,51 @@ function categorizeAgentError(error: string | null | undefined): ErrorCategory |
   if (/\b5\d\d\b/.test(error)) return "gateway_5xx";
   if (/no_ai_provider/i.test(error)) return "no_provider";
   return "unknown";
+}
+
+function isSchemaError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /No object generated|schema_retry_failed|did not match schema|Output validation/i.test(msg);
+}
+
+function extractJsonObject(text: string): unknown {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+    throw new Error("json_object_not_found");
+  }
+}
+
+async function withJsonFallback<T>(opts: {
+  label: string;
+  schema: SafeSchema<T>;
+  structured: () => Promise<{ output?: unknown; usage?: unknown }>;
+  textFallback: () => Promise<{ text?: string; usage?: unknown }>;
+}): Promise<{ output: T; usage?: unknown; fallbackUsed: boolean }> {
+  try {
+    const result = await withSchemaRetry(opts.label, opts.structured);
+    return { output: result.output as T, usage: result.usage, fallbackUsed: false };
+  } catch (err) {
+    if (!isSchemaError(err)) throw err;
+    console.warn(`[classify] ${opts.label} structured output failed; trying compact JSON fallback`);
+    const result = await withSchemaRetry(`${opts.label}:json_fallback`, opts.textFallback);
+    const parsed = extractJsonObject(result.text ?? "");
+    const checked = opts.schema.safeParse(parsed);
+    if (!checked.success) {
+      throw new Error(`${opts.label}_json_fallback_failed: ${checked.error.message.slice(0, 180)}`);
+    }
+    return { output: checked.data, usage: result.usage, fallbackUsed: true };
+  }
 }
 
 function extractTokens(usage: unknown): {
@@ -311,20 +362,33 @@ Não tente deduzir data exata (o parser já fez isso). Foque na INTENÇÃO.
 IMPORTANTE: responda APENAS com um objeto JSON válido.`;
 }
 
-async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown }> {
-  const result = await withSchemaRetry("agendador", () =>
-    withTimeout(
+async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: AgendadorOutput; usage?: unknown; fallbackUsed?: boolean }> {
+  const modelId = pickModel(ai.provider, AGENDADOR_SPEC);
+  const prompt = `RESUMO factual do lead:\n${summary}`;
+  const result = await withJsonFallback<AgendadorOutput>({
+    label: "agendador",
+    schema: AgendadorOutputSchema,
+    structured: () => withTimeout(
       generateText({
-        model: ai.model(pickModel(ai.provider, AGENDADOR_SPEC)),
+        model: ai.model(modelId),
         system: buildAgendadorSystem(),
-        prompt: `RESUMO factual do lead:\n${summary}`,
+        prompt,
         output: Output.object({ schema: AgendadorOutputSchema }),
       }),
       TIMEOUT_PARALLEL_MS,
       "agendador",
     ),
-  );
-  return { output: result.output as AgendadorOutput, usage: (result as { usage?: unknown }).usage };
+    textFallback: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system: `${buildAgendadorSystem()}\nResponda somente JSON compacto, sem markdown. Campos: is_scheduling_action boolean, scheduling_intent string, reasons array de strings.`,
+        prompt,
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "agendador:json_fallback",
+    ),
+  });
+  return { output: result.output, usage: result.usage, fallbackUsed: result.fallbackUsed };
 }
 
 
@@ -408,23 +472,37 @@ Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
 }
 
-async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown }> {
-  const result = await withSchemaRetry("typifier", () =>
-    withTimeout(
-      generateText({
-        model: ai.model(pickModel(ai.provider, TYPIFIER_SPEC)),
-        system: buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags),
-        prompt: `${buildContextBlock(ctx)}
+async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown; fallbackUsed?: boolean }> {
+  const modelId = pickModel(ai.provider, TYPIFIER_SPEC);
+  const system = buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags);
+  const prompt = `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
-${summary}`,
+${summary}`;
+  const result = await withJsonFallback<TypifierOutput>({
+    label: "typifier",
+    schema: TypifierOutputSchema,
+    structured: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system,
+        prompt,
         output: Output.object({ schema: TypifierOutputSchema }),
       }),
       TIMEOUT_PARALLEL_MS,
       "typifier",
     ),
-  );
-  return { output: result.output as TypifierOutput, usage: (result as { usage?: unknown }).usage };
+    textFallback: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system: `${system}\nResponda somente JSON compacto, sem markdown. Campos: tags_suggested array de strings, custom_fields_patch objeto.`,
+        prompt,
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "typifier:json_fallback",
+    ),
+  });
+  return { output: result.output, usage: result.usage, fallbackUsed: result.fallbackUsed };
 }
 
 
@@ -457,7 +535,7 @@ IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
 }
 
 
-async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown }> {
+async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: MovimentadorOutput; usage?: unknown; fallbackUsed?: boolean }> {
   const lastMsg = ctx.messages[ctx.messages.length - 1];
   const lastMsgMs = lastMsg ? Date.parse(lastMsg.created_at) : null;
   const hoursSinceLastMessage = lastMsgMs ? Math.round(((ctx.nowMs - lastMsgMs) / 3_600_000) * 10) / 10 : null;
@@ -470,23 +548,38 @@ async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: stri
     last_message_from_attendant: lastMsg ? lastMsg.from_me === true : null,
   };
 
-  const result = await withSchemaRetry("movimentador", () =>
-    withTimeout(
-      generateText({
-        model: ai.model(pickModel(ai.provider, MOVIMENTADOR_SPEC)),
-        system: buildMovimentadorSystem(),
-        prompt: `Sinais determinísticos:
+  const modelId = pickModel(ai.provider, MOVIMENTADOR_SPEC);
+  const system = buildMovimentadorSystem();
+  const prompt = `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
 
 RESUMO:
-${summary}`,
+${summary}`;
+
+  const result = await withJsonFallback<MovimentadorOutput>({
+    label: "movimentador",
+    schema: MovimentadorOutputSchema,
+    structured: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system,
+        prompt,
         output: Output.object({ schema: MovimentadorOutputSchema }),
       }),
       TIMEOUT_PARALLEL_MS,
       "movimentador",
     ),
-  );
-  return { output: result.output as MovimentadorOutput, usage: (result as { usage?: unknown }).usage };
+    textFallback: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system: `${system}\nResponda somente JSON compacto, sem markdown. Campos: stage_suggestion string, intent string, mentioned_intents array, is_b2b boolean, reasons array.`,
+        prompt,
+      }),
+      TIMEOUT_PARALLEL_MS,
+      "movimentador:json_fallback",
+    ),
+  });
+  return { output: result.output, usage: result.usage, fallbackUsed: result.fallbackUsed };
 }
 
 
@@ -522,13 +615,10 @@ async function runMaestro(
   outPreenchedor: TypifierOutput,
   outMovimentador: MovimentadorOutput,
   signals: Record<string, unknown>,
-): Promise<{ output: MaestroOutput; usage?: unknown }> {
-  const result = await withSchemaRetry("maestro", () =>
-    withTimeout(
-      generateText({
-        model: ai.model(pickModel(ai.provider, MAESTRO_SPEC)),
-        system: buildMaestroSystem(),
-        prompt: `RESUMO Factual:
+): Promise<{ output: MaestroOutput; usage?: unknown; fallbackUsed?: boolean }> {
+  const modelId = pickModel(ai.provider, MAESTRO_SPEC);
+  const system = buildMaestroSystem();
+  const prompt = `RESUMO Factual:
 ${summary}
 
 SIGNALS determinísticos do lead:
@@ -539,14 +629,31 @@ Agendador: ${JSON.stringify(outAgendador, null, 2)}
 Preenchedor: ${JSON.stringify(outPreenchedor, null, 2)}
 Movimentador: ${JSON.stringify(outMovimentador, null, 2)}
 
-Emita o veredicto final resolvendo inconsistências.`,
+Emita o veredicto final resolvendo inconsistências.`;
+  const result = await withJsonFallback<MaestroOutput>({
+    label: "maestro",
+    schema: MaestroOutputSchema,
+    structured: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system,
+        prompt,
         output: Output.object({ schema: MaestroOutputSchema }),
       }),
       TIMEOUT_MAESTRO_MS,
       "maestro",
     ),
-  );
-  return { output: result.output as MaestroOutput, usage: (result as { usage?: unknown }).usage };
+    textFallback: () => withTimeout(
+      generateText({
+        model: ai.model(modelId),
+        system: `${system}\nResponda somente JSON compacto, sem markdown. Campos: stage_suggestion string, intent string, mentioned_intents array, is_b2b boolean, confidence number entre 0 e 1, tags_suggested array, custom_fields_patch objeto, reasons array.`,
+        prompt,
+      }),
+      TIMEOUT_MAESTRO_MS,
+      "maestro:json_fallback",
+    ),
+  });
+  return { output: result.output, usage: result.usage, fallbackUsed: result.fallbackUsed };
 }
 
 
