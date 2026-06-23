@@ -367,6 +367,10 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
         totals[status] = (totals[status] ?? 0) + 1;
 
         if (itemId) {
+          // Phase 6 — marcar erros transitórios para auto-retry.
+          const transientPattern =
+            /classify_timeout|No object generated|did not match schema|schema_retry_failed|fetch failed|quota|rate limit|429|5\d\d|ECONNRESET|timeout/i;
+          const isTransient = status === "error" && !!result.error && transientPattern.test(String(result.error));
           await service
             .from("pipeline_run_items")
             .update({
@@ -374,6 +378,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
               result: result.ok ? (result.result as Record<string, unknown>) ?? {} : null,
               error: result.error ?? null,
               finished_at: finishedAt,
+              auto_retry_pending: isTransient ? true : false,
             })
             .eq("id", itemId);
         }
