@@ -496,6 +496,15 @@ export async function runAgent(
   const M_MOVIMENTADOR = pickModel(ai.provider, MOVIMENTADOR_SPEC);
   const M_MAESTRO      = pickModel(ai.provider, MAESTRO_SPEC);
 
+  console.log(JSON.stringify({
+    tag: "runAgent:provider",
+    lead_id: ctx.lead.id,
+    provider: ai.provider,
+    summarizer: M_SUMMARIZER,
+    maestro: M_MAESTRO,
+  }));
+
+
   // ----- Passo 1 — Resumidor -----
   let summary: string;
   let summarizerModel = M_SUMMARIZER;
