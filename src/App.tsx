@@ -105,6 +105,7 @@ const App = () => (
           <CommandPalette />
           <Routes>
             <Route path="/site" element={<MarketingSite />} />
+            <Route path="/apn" element={<Apn />} />
             <Route path="/" element={<RootGate />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
