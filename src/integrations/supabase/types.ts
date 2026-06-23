@@ -4666,6 +4666,8 @@ export type Database = {
       }
       pipeline_run_items: {
         Row: {
+          auto_retry_count: number
+          auto_retry_pending: boolean
           clinic_id: string
           comment: string | null
           created_at: string
@@ -4684,6 +4686,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_retry_count?: number
+          auto_retry_pending?: boolean
           clinic_id: string
           comment?: string | null
           created_at?: string
@@ -4702,6 +4706,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_retry_count?: number
+          auto_retry_pending?: boolean
           clinic_id?: string
           comment?: string | null
           created_at?: string
