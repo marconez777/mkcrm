@@ -142,7 +142,17 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
     const isTransient = /timeout|fetch failed|network|ECONN|5\d\d/i.test(msg);
     if (!isSchema && !isTransient) throw err;
     console.warn(`[classify] ${label} retry after: ${msg.slice(0, 160)}`);
-    return await fn();
+    try {
+      return await fn();
+    } catch (retryErr) {
+      const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      const retryAny = retryErr as { text?: string; cause?: unknown };
+      const causeMsg = retryAny.cause instanceof Error ? retryAny.cause.message : JSON.stringify(retryAny.cause);
+      console.error(
+        `[classify] ${label} retry FAILED — modelText=<<<${String(retryAny.text ?? "").slice(0, 200)}>>> cause=<<<${String(causeMsg).slice(0, 500)}>>>`,
+      );
+      throw new Error(`${label}_schema_retry_failed: ${retryMsg.slice(0, 160)}`);
+    }
   }
 }
 
