@@ -349,3 +349,28 @@ Classifier escreve essa chave no JSONB de `leads.custom_fields`, mas a UI de cam
 CHECK aceita `'on_enter'|'on_exit'` (migration `20260618021516`). Código em `applyStageBindings` estava filtrando por `trigger='stage_enter'`. 
 
 **Status**: ✅ Corrigido. A função `applyStageBindings` em `supabase/functions/_shared/stage-bindings.ts` foi atualizada para filtrar por `trigger='on_enter'`, alinhando-se com a constraint do banco de dados. Os bindings criados agora funcionarão corretamente em produção.
+
+## Diagnóstico: "Lead não moveu para Consulta/Tratamento agendado após preencher data"
+
+Sintoma: a secretária preenche `consulta_agendada_em` (ou `procedimento_agendado_em`) no Kanban, salva, e o card não migra automaticamente.
+
+Sequência de checagem:
+
+1. **Toggle ligado?**
+   ```sql
+   SELECT key, value FROM app_settings
+   WHERE key IN ('automation.appointment_sync.enabled','automation.consulta_passou_finaliza.enabled');
+   ```
+   Esperado: `appointment_sync = true`, `consulta_passou_finaliza = false`.
+2. **`lead_events` registrou o gatilho?**
+   ```sql
+   SELECT type, payload, created_at FROM lead_events
+   WHERE lead_id = '<LEAD_ID>' AND type LIKE 'auto:field-changed%'
+   ORDER BY created_at DESC;
+   ```
+   Se não há linha: o frontend não chamou `pipeline-deterministic` (ver mutation `update_lead` / trigger do DB que chama `processLeadEvent` via `pg_net`).
+3. **Triggers HTTP da DB acumulando?**
+   ```sql
+   SELECT * FROM net.http_request_queue ORDER BY id DESC LIMIT 20;
+   ```
+4. **Alias do estágio mapeado?** Verifique em `stage_canonical_aliases` que existe linha para `canonical_name = 'Consulta agendada'` / `'Tratamento agendado'` no `pipeline_id` da clínica.
