@@ -21,6 +21,21 @@ import { getToggle } from "../_shared/app-settings.ts";
 
 const TELEMETRY_VERSION = 3;
 
+// === Transição Agendamento Humano (Junho/2026) ===
+// A IA NÃO pode mais preencher datas de agendamento nem mover cards para
+// estágios de agendamento/finalização. Esses campos/estágios são 100% manuais.
+const HUMAN_SCHEDULING_FIELDS = new Set<string>([
+  "consulta_agendada_em",
+  "procedimento_agendado_em",
+]);
+const HUMAN_SCHEDULING_STAGES = new Set<string>([
+  "Consulta agendada",
+  "Tratamento agendado",
+  "Consulta finalizada",
+  "1ª Sessão Finalizada",
+]);
+const HUMAN_TRANSITION_REJECT_REASON = "ai_scheduling_disabled_by_human_transition";
+
 // Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
