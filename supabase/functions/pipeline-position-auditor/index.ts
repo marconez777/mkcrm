@@ -135,10 +135,14 @@ ${CANON_NAMES.map((n) => `- ${n}`).join("\n")}
 
 Regras:
 - agrees_with_current=true se "${currentStageName}" continua sendo o stage adequado.
-- agrees_with_current=false só se o histórico evidencia transição clara (ex: consulta marcada, lead desistiu, virou paciente antigo).
+- agrees_with_current=false só se o histórico evidencia transição clara (ex: lead desistiu, virou paciente antigo).
 - confidence reflete sua certeza. Use ≤ 0.6 quando o histórico for ambíguo.
 - reasoning: 1 parágrafo curto em PT-BR justificando.
-- NUNCA sugira mover por mera intuição — exige evidência textual.`;
+- NUNCA sugira mover por mera intuição — exige evidência textual.
+
+🚨 TRANSIÇÃO AGENDAMENTO HUMANO (Junho/2026) — TRAVA ESTRITA:
+- Você NÃO pode sugerir stage_suggestion = "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada". Esses estágios são 100% manuais (secretária).
+- NÃO questione a agenda da clínica nem presuma "deveria estar agendada". Se for o caso, mantenha agrees_with_current=true.`;
 }
 
 interface AuditCandidate {
