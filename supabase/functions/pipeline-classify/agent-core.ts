@@ -522,6 +522,11 @@ Diretrizes de stage:
 - "Nutrição inativa": (a) silêncio longo, ou (b) Interesse claro MAS sem fechamento de agendamento (objeção, parou de responder após preço).
 - "Paciente antigo": já fez consulta/tratamento antes E o ciclo atual encerrou. **Regra adicional**: se o lead pede RENOVAÇÃO DE RECEITA, segunda via de prescrição, ou continuação de medicação prévia, e há qualquer sinal de consulta anterior (treated_before=true, has_paciente_antigo_tag=true, "minha última consulta", "Dr. X já me atendeu"), o stage é "Paciente antigo" — NÃO "Qualificação".
 
+🚨 TRANSIÇÃO AGENDAMENTO HUMANO (Junho/2026) — TRAVA ESTRITA:
+- Você está TERMINANTEMENTE PROIBIDO de sugerir stage_suggestion = "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada".
+- Mesmo que o lead diga "está marcada minha consulta dia X" ou "consulta confirmada", você DEVE manter o stage atual (geralmente "Qualificação"). A secretária é a ÚNICA fonte de verdade desses estágios.
+- Se identificar intenção/confirmação de agendamento, registre em reasons e mantenha o stage atual.
+
 Regras CRÍTICAS para is_b2b / "B2B / Stakeholders":
 - B2B é APENAS para parceiros institucionais: representantes comerciais de laboratórios/distribuidores, fornecedores, parcerias entre clínicas, jornalistas, recrutadores, propostas comerciais para a clínica.
 - NÃO é B2B: profissionais de saúde (psicólogo, médico, enfermeiro, etc.) que estão buscando tratamento PRÓPRIO ou para si mesmos → são pacientes normais.
