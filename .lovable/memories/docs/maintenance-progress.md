@@ -18,6 +18,16 @@ type: feature
 | 6. Relatório Dia 1 | Edge function `report-finalizados-mensal-or` (cron `0 6 1 * *`, job `report-finalizados-mensal-or-day1`) agrega Consulta Finalizada + 1ª Sessão Finalizada do mês anterior via `lead_stage_history`, upsert em `clinic_monthly_reports`, envia email com template `or-monthly-finalizados-report` para admin, renderiza card em `/tracking` via `src/components/tracking/MonthlyFinalizadosReportCard.tsx`. |
 | 7. Docs | Esta memória + `docs/estudo/clinica-or-fluxo-novo.md` atualizadas. Sem `scripts/docs-sync.mjs` neste projeto. |
 
+## Transição Agendamento 100% Humano (2026-06-24)
+
+Aplicado em código + migration `app_settings`:
+- `pipeline-classify/apply.ts`: constantes `HUMAN_SCHEDULING_FIELDS` / `HUMAN_SCHEDULING_STAGES`; datas de agendamento extraídas viram `fields_rejected` com `reason=ai_scheduling_disabled_by_human_transition`; general move recusa os 4 estágios proibidos.
+- `pipeline-classify/agent-core.ts`: bloco "🚨 TRANSIÇÃO AGENDAMENTO HUMANO" injetado nos prompts do Movimentador e do Maestro.
+- `pipeline-deterministic/index.ts`: `ruleFieldChanged` agora dispara `auto:field-changed-consulta` / `auto:field-changed-procedimento` quando a secretária preenche `consulta_agendada_em` / `procedimento_agendado_em` (toggle `automation.appointment_sync.enabled`). `ruleConsultaPassou` retorna cedo `{ skipped: "disabled_by_human_transition" }`.
+- `pipeline-position-auditor/index.ts`: prompt do A1 proibido de sugerir os 4 estágios e de questionar a agenda.
+- Migration: `automation.appointment_sync.enabled=true`, `automation.consulta_passou_finaliza.enabled=false`.
+- Docs: `docs/pipeline/runtime/DETERMINISTIC_RULES.md` + `KNOWN_ISSUES.md` ganharam seção.
+
 ---
 
 ## docs/pipeline/runtime/ — atualizado 2026-06-21
