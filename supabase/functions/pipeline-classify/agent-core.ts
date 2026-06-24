@@ -615,7 +615,7 @@ Regras de Autoridade:
 - Se algum dos agentes sugerir um desses estágios, IGNORE e mantenha o stage atual do lead. Registre o motivo em reasons (ex.: "human_scheduling_lock").
 - Datas (consulta_agendada_em, procedimento_agendado_em) NÃO devem aparecer em custom_fields_patch — são preenchidas exclusivamente pela secretária.
 
-Devolva todos os campos exigidos.\`;
+Devolva todos os campos exigidos.`;
 }
 
 async function runMaestro(
