@@ -174,3 +174,16 @@ Todo move bem-sucedido via `pipelineMove()`:
 - `auto:reminder-*` — idem.
 - `auto:payment-confirmed` — implementado em `_shared/pipeline-tasks.ts::runPaymentConfirmed`, mas acionado **só pelo webhook** `pipeline-payment-webhook`, não por trigger PG. Sem provedor real integrado hoje.
 - `auto:urgency-flag`, `auto:field-patch`, `auto:tags-merge`, `auto:agendamento-sugerido` — toggles existem em `app_settings` mas o classifier não tem código para gravar esses sources distintos; o caminho real é via `intent` (objeção/judicialização/etc.).
+
+## Transição Agendamento Humano (Junho/2026)
+
+A IA não pode mais mover cards para os estágios de agendamento/finalização. As regras determinísticas mudaram assim:
+
+- **`ruleFieldChanged` — novos gatilhos manuais (Fase 3 / código atual em `pipeline-deterministic/index.ts`):**
+  - `consulta_agendada_em` preenchido pela secretária → move para `Consulta agendada` (`auto:field-changed-consulta`).
+  - `procedimento_agendado_em` preenchido → move para `Tratamento agendado` (`auto:field-changed-procedimento`).
+  - Idempotência: `field-changed-(consulta|procedimento):{lead_id}:{ISO_data}`.
+  - Toggle: `automation.appointment_sync.enabled` (deve estar `true`).
+- **`ruleConsultaPassou` — DESLIGADA.** Retorna `{ skipped: "disabled_by_human_transition" }` antes de qualquer leitura. Com múltiplos procedimentos paralelos por paciente (ex.: psiquiatria + cetamina) o cron derrubava cards ativos. Finalização é manual (secretária move o card).
+- **Classifier (`apply.ts`)**: datas de agendamento detectadas pelo parser são logadas em `fields_rejected` com `reason: ai_scheduling_disabled_by_human_transition` em vez de aplicadas; sugestões de stage para `Consulta agendada`, `Tratamento agendado`, `Consulta finalizada` ou `1ª Sessão Finalizada` são rejeitadas no general move com o mesmo motivo.
+- **Auditor A1 (`pipeline-position-auditor`)**: prompt proíbe sugerir esses 4 estágios.

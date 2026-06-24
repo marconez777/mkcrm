@@ -485,6 +485,42 @@ async function ruleFieldChanged(
     }
   }
 
+  // === Transição Agendamento Humano (Junho/2026) ===
+  // Secretária preencheu data no Kanban → mover deterministicamente.
+  const apptSyncEnabled = await isEnabled(client, "automation.appointment_sync.enabled");
+  if (apptSyncEnabled) {
+    const moves: Array<{ field: string; canon: Canon; src: string; key: string }> = [
+      { field: "consulta_agendada_em",   canon: "Consulta agendada",   src: "auto:field-changed-consulta",     key: "field-changed-consulta" },
+      { field: "procedimento_agendado_em", canon: "Tratamento agendado", src: "auto:field-changed-procedimento", key: "field-changed-procedimento" },
+    ];
+    for (const m of moves) {
+      const before = oldCf?.[m.field];
+      const after  = newCf?.[m.field];
+      const wasEmpty = !before || before === "" || before === null;
+      const nowFilled = !!after && after !== "";
+      if (!(wasEmpty && nowFilled) && before === after) continue;
+      if (!nowFilled) continue;
+      const { data: lead } = await client
+        .from("leads")
+        .select("id, clinic_id, pipeline_id, stage_id")
+        .eq("id", leadId)
+        .single();
+      if (!lead?.pipeline_id) continue;
+      const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, m.canon);
+      if (!toStageId || lead.stage_id === toStageId) continue;
+      const res = await pipelineMove(client, {
+        leadId,
+        toStageId,
+        source: m.src,
+        reason: `${m.field} preenchido pela secretária → ${m.canon}`,
+        ruleKey: "automation.appointment_sync.enabled",
+        idempotencyKey: `${m.key}:${leadId}:${String(after).slice(0, 19)}`,
+      });
+      await logEvent(client, lead.clinic_id, leadId, m.src, { field: m.field, value: after, res });
+      out[m.key] = res;
+    }
+  }
+
   return out;
 }
 
@@ -723,6 +759,12 @@ async function ruleHumanReactorTick(client: SupabaseClient) {
 // continua sendo move manual da secretária.
 // ─────────────────────────────────────────────────────────────────────────────
 async function ruleConsultaPassou(client: SupabaseClient) {
+  // === Transição Agendamento Humano (Junho/2026) ===
+  // Desligada: com múltiplos procedimentos paralelos (consulta + cetamina), o
+  // cron automático finalizava cards ativos prematuramente. A secretária move
+  // manualmente para "Consulta finalizada" / "1ª Sessão Finalizada".
+  return { skipped: "disabled_by_human_transition" } as const;
+  // eslint-disable-next-line no-unreachable
   if (!(await isEnabled(client, "automation.consulta_passou_finaliza.enabled"))) {
     return { skipped: "toggle_off" };
   }

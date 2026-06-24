@@ -21,6 +21,21 @@ import { getToggle } from "../_shared/app-settings.ts";
 
 const TELEMETRY_VERSION = 3;
 
+// === Transição Agendamento Humano (Junho/2026) ===
+// A IA NÃO pode mais preencher datas de agendamento nem mover cards para
+// estágios de agendamento/finalização. Esses campos/estágios são 100% manuais.
+const HUMAN_SCHEDULING_FIELDS = new Set<string>([
+  "consulta_agendada_em",
+  "procedimento_agendado_em",
+]);
+const HUMAN_SCHEDULING_STAGES = new Set<string>([
+  "Consulta agendada",
+  "Tratamento agendado",
+  "Consulta finalizada",
+  "1ª Sessão Finalizada",
+]);
+const HUMAN_TRANSITION_REJECT_REASON = "ai_scheduling_disabled_by_human_transition";
+
 // Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
@@ -197,15 +212,25 @@ export async function applyClassification(
 
   // 4a) Datas resolvidas
   for (const d of dateParser) {
+    const key = fieldKeyFor(d.kind);
     if (d.rejected_reason) {
       fieldsRejected.push({
-        key: fieldKeyFor(d.kind),
+        key,
         raw_value: d.raw,
         reason: d.rejected_reason,
       });
       continue;
     }
-    tryApplyField(fieldKeyFor(d.kind), d.resolved, true); // true = isDateFromParser (bypass G10)
+    // Transição agendamento humano: IA detecta a data mas NÃO aplica.
+    if (HUMAN_SCHEDULING_FIELDS.has(key)) {
+      fieldsRejected.push({
+        key,
+        raw_value: d.resolved,
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      });
+      continue;
+    }
+    tryApplyField(key, d.resolved, true); // true = isDateFromParser (bypass G10)
   }
 
   // 4b) Demais chaves (ignora chaves de data — já tratadas via mentioned_dates)
@@ -404,7 +429,18 @@ export async function applyClassification(
     }
 
     // ----- 6c) General Move (Maestro) -----
-    if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
+    // Transição agendamento humano: bloqueia mover IA para estágios de agendamento/finalização.
+    if (
+      !stageOutcome.would_move &&
+      stageSuggestion !== ctx.stageName &&
+      HUMAN_SCHEDULING_STAGES.has(stageSuggestion)
+    ) {
+      stageOutcome = {
+        ...stageOutcome,
+        path: "general",
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      };
+    } else if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
       // General move allows the AI to move the lead to normal stages (e.g. Consulta agendada)
       const confOk = cls.confidence >= 0.8;
       
