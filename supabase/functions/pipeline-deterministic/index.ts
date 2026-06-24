@@ -759,6 +759,12 @@ async function ruleHumanReactorTick(client: SupabaseClient) {
 // continua sendo move manual da secretária.
 // ─────────────────────────────────────────────────────────────────────────────
 async function ruleConsultaPassou(client: SupabaseClient) {
+  // === Transição Agendamento Humano (Junho/2026) ===
+  // Desligada: com múltiplos procedimentos paralelos (consulta + cetamina), o
+  // cron automático finalizava cards ativos prematuramente. A secretária move
+  // manualmente para "Consulta finalizada" / "1ª Sessão Finalizada".
+  return { skipped: "disabled_by_human_transition" } as const;
+  // eslint-disable-next-line no-unreachable
   if (!(await isEnabled(client, "automation.consulta_passou_finaliza.enabled"))) {
     return { skipped: "toggle_off" };
   }
