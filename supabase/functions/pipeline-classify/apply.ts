@@ -212,15 +212,25 @@ export async function applyClassification(
 
   // 4a) Datas resolvidas
   for (const d of dateParser) {
+    const key = fieldKeyFor(d.kind);
     if (d.rejected_reason) {
       fieldsRejected.push({
-        key: fieldKeyFor(d.kind),
+        key,
         raw_value: d.raw,
         reason: d.rejected_reason,
       });
       continue;
     }
-    tryApplyField(fieldKeyFor(d.kind), d.resolved, true); // true = isDateFromParser (bypass G10)
+    // Transição agendamento humano: IA detecta a data mas NÃO aplica.
+    if (HUMAN_SCHEDULING_FIELDS.has(key)) {
+      fieldsRejected.push({
+        key,
+        raw_value: d.resolved,
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      });
+      continue;
+    }
+    tryApplyField(key, d.resolved, true); // true = isDateFromParser (bypass G10)
   }
 
   // 4b) Demais chaves (ignora chaves de data — já tratadas via mentioned_dates)
