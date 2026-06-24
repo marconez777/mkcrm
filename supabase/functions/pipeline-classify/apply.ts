@@ -429,7 +429,18 @@ export async function applyClassification(
     }
 
     // ----- 6c) General Move (Maestro) -----
-    if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
+    // Transição agendamento humano: bloqueia mover IA para estágios de agendamento/finalização.
+    if (
+      !stageOutcome.would_move &&
+      stageSuggestion !== ctx.stageName &&
+      HUMAN_SCHEDULING_STAGES.has(stageSuggestion)
+    ) {
+      stageOutcome = {
+        ...stageOutcome,
+        path: "general",
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      };
+    } else if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
       // General move allows the AI to move the lead to normal stages (e.g. Consulta agendada)
       const confOk = cls.confidence >= 0.8;
       
