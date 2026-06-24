@@ -610,7 +610,12 @@ Regras de Autoridade:
 - Para movimentação de funil, confie no Movimentador, mas evite movimentos bruscos ilógicos.
 - Se a inteligência deles falhou (ex: Preenchedor colocou status "pago" mas o resumo diz que a secretária não confirmou), CORRIJA IMEDIATAMENTE (Gate 10 de segurança).
 
-Devolva todos os campos exigidos.`;
+🚨 TRANSIÇÃO AGENDAMENTO HUMANO (Junho/2026) — TRAVA ESTRITA:
+- Você está TERMINANTEMENTE PROIBIDO de validar/emitir stage_suggestion = "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada".
+- Se algum dos agentes sugerir um desses estágios, IGNORE e mantenha o stage atual do lead. Registre o motivo em reasons (ex.: "human_scheduling_lock").
+- Datas (consulta_agendada_em, procedimento_agendado_em) NÃO devem aparecer em custom_fields_patch — são preenchidas exclusivamente pela secretária.
+
+Devolva todos os campos exigidos.\`;
 }
 
 async function runMaestro(
