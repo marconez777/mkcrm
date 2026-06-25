@@ -468,6 +468,10 @@ ${keysBlock}
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
+REGRA DA PRIMEIRA MENSAGEM: Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, NÃO preencha "interesse_consulta", "interesse_tratamento" nem qualquer campo relacionado a intenção/objetivo do paciente — a única mensagem dele é texto pré-fabricado de botão/anúncio. A ÚNICA chave que pode ser inferida nesse cenário é "origem" (se houver rastreio explícito como "vim do Google"). Demais campos devem ficar vazios até a 2ª mensagem real do lead.
+
+ORIGEM (sticky humano): NUNCA sobrescreva "origem" se já houver valor preenchido e edição humana registrada — o executor protegerá, mas evite redundância: se "origem" já tem valor no Contexto, omita do patch.
+
 Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
