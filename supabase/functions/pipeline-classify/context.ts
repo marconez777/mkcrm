@@ -61,8 +61,38 @@ export type LeadContext = {
   /** Whitelist de tags lida de app_settings.automation.v42.allowed_tags.
    *  Usada tanto no prompt do Tipificador quanto na validação em apply.ts. */
   allowedTags: string[];
+  /** True quando o lead só tem 1 mensagem inbound e ela parece template
+   *  pré-fabricado (botão de WhatsApp/ad/form). A IA deve IGNORAR essa
+   *  mensagem para fins de `interesse_*` e `scheduling_intent` — apenas
+   *  `origem` pode ser extraída dela. Computado em loadLeadContext. */
+  firstMessageIsTemplate: boolean;
   nowMs: number;
 };
+
+// Heurística determinística: detecta mensagens "pré-fabricadas" que vêm
+// de botões de WhatsApp, anúncios ou formulários. Mantenha enxuta — falsos
+// positivos só atrasam 1 ciclo de classificação (na 2ª msg real do lead
+// a flag já será false).
+const TEMPLATE_FIRST_MSG_PATTERNS: RegExp[] = [
+  /\bquero\s+(agendar|saber|marcar|conhecer|informa\w*)/i,
+  /\bgostaria\s+de\s+(agendar|saber|marcar|informa\w*)/i,
+  /\bpreciso\s+(agendar|de\s+informa\w*)/i,
+  /\bvim\s+(pelo|pela|do|da)\s+(google|instagram|facebook|site|an[úu]ncio)/i,
+  /\bvi\s+(o\s+an[úu]ncio|no\s+(google|instagram|facebook))/i,
+  /\bmensagem\s+autom[áa]tica\s+do\s+site/i,
+];
+
+export function detectFirstMessageTemplate(messages: Msg[]): boolean {
+  const inbound = messages.filter((m) => !m.from_me);
+  if (inbound.length !== 1) return false;
+  const text = String(inbound[0].content ?? "").trim();
+  if (!text) return false;
+  if (text.length < 8 || text.length > 240) {
+    // textos muito longos raramente são template; muito curtos são ambíguos
+    if (text.length > 240) return false;
+  }
+  return TEMPLATE_FIRST_MSG_PATTERNS.some((re) => re.test(text));
+}
 
 
 
