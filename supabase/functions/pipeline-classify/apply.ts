@@ -186,6 +186,18 @@ export async function applyClassification(
 
   function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
     const humanIso = lead.custom_fields_last_human_edit?.[k];
+
+    // Sticky human lock: campos como `origem` nunca podem ser sobrescritos
+    // pela IA depois de uma edição humana, independente da janela G10.
+    if (humanIso && STICKY_HUMAN_FIELDS.has(k)) {
+      fieldsRejected.push({
+        key: k,
+        raw_value: v,
+        reason: STICKY_HUMAN_REJECT_REASON,
+      });
+      return;
+    }
+
     if (humanIso) {
       const humanMs = Date.parse(humanIso);
       const insideWindow =
