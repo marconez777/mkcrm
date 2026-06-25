@@ -515,6 +515,92 @@ de clínica diferente da automação (defesa em profundidade).
 
 ---
 
+## 8b. Relação Datas ↔ Automações (matriz)
+
+Visão consolidada — cruza cada **fonte de data** com **quem a consome**, a
+**janela** aplicada e o **resultado**. Os crons que dirigem tudo isso estão
+descritos em §4 e os triggers UI em §8.
+
+### 8b.1 Matriz principal
+
+| Campo / coluna de data | Onde é escrito | Lido por | Trigger / regra | Janela / offset | Resultado |
+|---|---|---|---|---|---|
+| `leads.custom_fields.consulta_agendada_em` | Secretária (`CustomFieldsPanel`), webhook de formulário, **nunca IA** (G10) | `pipeline-deterministic` (`ruleFieldChanged`, `index.ts:493`) | Mudança de valor do campo | Imediato no próximo tick | Move card → `Consulta agendada` + dispara `stage_sequence_bindings` |
+| `leads.custom_fields.consulta_agendada_em` | idem | `automations-tick` (`before_appointment` com `field_key="consulta_agendada_em"`) | Hora atual ≥ `data − offset_minutes` e ≤ `data − 5 min` | `offset_minutes` (default 60) + `preferred_time` opcional | Envia template / `ai_followup` + grava `automation_runs(appointment_at=…)` |
+| `leads.custom_fields.procedimento_agendado_em` | Secretária / formulário | `pipeline-deterministic` (`index.ts:494`) | Mudança de valor | Próximo tick | Move card → `Tratamento agendado` |
+| `leads.custom_fields.procedimento_agendado_em` | idem | `automations-tick` (`before_appointment` com `field_key="procedimento_agendado_em"`) | Idem regra acima | `offset_minutes` configurável | Lembrete de procedimento |
+| `leads.custom_fields.consulta_realizada_em` | Secretária (pós-transição humana, jun/2026) | `pipeline-deterministic` (auto-completion **desligada** — só humano) | Mudança manual | Imediato | Move card → `Consulta finalizada` |
+| `appointments.scheduled_at` | `AppointmentDialog` / `useAppointments` (Porta A — Calendário) | `PipelineCalendar` (UI) e `pipeline-deterministic` via espelho no custom field | Criação/edição do appointment espelha em `custom_fields.*_agendado_em` | — | Mesmo efeito acima; lembrete só dispara pelo custom field espelhado |
+| `leads.last_inbound_at` | Worker do WhatsApp ao receber mensagem do paciente | `automations-tick` (`no_reply_after`, `index.ts:89-114`) e `pipeline-deterministic` (relógio de inatividade, `index.ts:580-660`) | `now − last_inbound_at ≥ hours` | `trigger_config.hours` (default 24) | Ação (`ai_followup` / `send_template` / `move_stage`) + eventualmente mover para `Lead parou de responder` |
+| `lead_stage_history.entered_at` | `pipelineMove` em qualquer movimento de estágio | `automations-tick` (`stage_idle`, `index.ts:115-129`) e `sequence-tick` | `now − entered_at ≥ hours` | `trigger_config.hours` (default 48); sequências usam `delay_minutes` por step | `stage_idle` → ação UI; `sequence-tick` → próximo passo do `message_sequences` |
+| `message_sequence_enrollments.next_run_at` | `sequence-tick` ao avançar step / `pipeline-deterministic` ao enrolar via `stage_sequence_bindings` | `sequence-tick` (cron 1m) | `next_run_at ≤ now` | Definido pelo `delay_minutes` do step atual | Envia mensagem + recalcula próximo `next_run_at` |
+| `scheduled_messages.send_at` | `ScheduleMessageDialog` (envio agendado manual) | `scheduled-messages-tick` (worker próprio) | `send_at ≤ now` | Exato | Envia via `evolution-send`, marca `sent_at` |
+| `leads.created_at` | INSERT de lead (webhook, manual, import) | **Não há trigger UI** dedicado hoje | — | — | Não dispara automação por si só (não existe `lead_created` na UI). Cobrir via `stage_sequence_bindings` no primeiro estágio. |
+
+> **Atenção**: a UI de Automações (`src/pages/Automations.tsx:240-352`) expõe
+> exatamente 3 trigger types — `no_reply_after`, `stage_idle`,
+> `before_appointment`. Qualquer outro disparo "por data" é responsabilidade
+> de `pipeline-deterministic`, `sequence-tick` ou `scheduled-messages-tick`.
+
+### 8b.2 Fluxo temporal
+
+```text
+Fonte de data                Cron / trigger              Decisão               Efeito
+─────────────────            ──────────────────          ────────────          ──────────────────────
+custom_fields.*_em  ──┐                                                       ┌── move_stage
+                      ├──► pipeline-deterministic ────► ruleFieldChanged ─────┤
+appointments        ──┘     (a cada nova mensagem)                            └── enrol sequence
+
+custom_fields.*_em  ────► automations-tick (1m) ──────► janela offset_min ───► send_template / ai_followup
+                                                            │                  └─► grava automation_runs
+last_inbound_at     ────► automations-tick (1m) ──────► no_reply_after ──────► ação configurada
+stage_history.entered_at ► automations-tick (1m) ─────► stage_idle ──────────► ação configurada
+                          sequence-tick (1m)    ─────► next_run_at ≤ now ───► próximo step
+
+scheduled_messages.send_at ► scheduled-messages-tick ─► send_at ≤ now ──────► envia WA imediato
+```
+
+### 8b.3 Crons × datas que consomem
+
+| Cron (1m) | Lê | Escreve |
+|---|---|---|
+| `automations-tick` | `leads.custom_fields.*_em`, `leads.last_inbound_at`, `lead_stage_history.entered_at`, `lead_custom_fields` (condição) | `automation_runs`, `messages` (via `evolution-send`) |
+| `sequence-tick` | `message_sequence_enrollments.next_run_at`, `message_sequence_steps.delay_minutes` | `message_sequence_runs`, atualiza `next_run_at` |
+| `scheduled-messages-tick` | `scheduled_messages.send_at` | `scheduled_messages.sent_at`, `messages` |
+| `pipeline-deterministic` (acionado por novas mensagens / fim de classify) | `custom_fields.*_em`, `last_inbound_at`, `lead_stage_history` | `lead_stage_history`, `leads.stage_id`, enrola em `message_sequence_enrollments` |
+| `pipeline-auto-retry` (1m) | `pipeline_run_items.auto_retry_pending` | re-enfileira | (não opera sobre datas de negócio, listado só para completude) |
+
+### 8b.4 Invariantes da relação (jun/2026)
+
+- **G10 / transição humana**: IA **não escreve** `consulta_agendada_em`,
+  `procedimento_agendado_em` nem `consulta_realizada_em`. Apenas humano e
+  Porta A (Calendário) podem preencher. Logo, todo lembrete
+  `before_appointment` reflete uma data **inserida por humano**.
+- **Porta A vs Porta B**: `before_appointment` lê **somente
+  `leads.custom_fields[field_key]`**. Calendário (`appointments`) só
+  dispara lembrete porque `useAppointments` espelha `scheduled_at` no
+  custom field correspondente. Criar `appointment` sem espelhar = sem
+  lembrete (ver §14).
+- **Cooldown duplo**: além de `cooldown_hours` configurável, há piso
+  `max(cooldown_hours, ceil(offset_h*1.5), 1)` específico de
+  `before_appointment` (`index.ts:384-386`) — protege contra reenvio.
+- **Reagendamento libera**: idempotência é por (`automation_id`, `lead_id`,
+  `appointment_at`) — trocar a data libera um novo disparo legítimo.
+- **Condição por custom field** (`teleconsulta = sim/nao`, etc.) é
+  re-avaliada a cada tick, lendo `lead_custom_fields` do lead naquele
+  momento — mudança no campo entre criação da automação e o tick é
+  respeitada.
+- **`stage_idle` e `no_reply_after`** convivem: ambos podem disparar no
+  mesmo lead. Use `stage_ids` no `trigger_config` para escopo.
+- **Sem trigger `lead_created`**: novos leads são acolhidos via
+  `stage_sequence_bindings` no estágio inicial (`Leads de entrada`), não
+  via automação UI. Documentar isso ao criar nova "automação de
+  boas-vindas".
+
+---
+
+
+
 ## 9. Pipeline IA — datas no fluxo do classificador
 
 Pipeline em 5 agentes serial (`pipeline-classify/agent-core.ts`):
