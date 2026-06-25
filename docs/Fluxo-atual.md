@@ -164,3 +164,131 @@ O objetivo desse fluxo é:
 - Permitir relatórios mensais mais precisos sobre pacientes novos efetivados.
 
 A IA deve funcionar como **apoio para leitura, classificação e preenchimento de dados**. A decisão operacional de agendamento, confirmação e movimentação final deve continuar sob responsabilidade da **equipe humana**.
+
+---
+
+# Automações de Lembrete (consultas, procedimentos e pesquisas)
+
+## 1. Objetivo das automações de lembrete
+
+- O sistema deverá enviar **lembretes automáticos** para consultas e procedimentos agendados, sempre respeitando as informações preenchidas no card do lead.
+- **Nenhum lembrete deve ser enviado** se os dados obrigatórios do agendamento não estiverem preenchidos corretamente.
+- A secretária será responsável por mover o card para a coluna correta e preencher os campos necessários. A automação só será disparada quando as condições estiverem completas.
+
+## 2. Lembrete após mover para Consulta agendada
+
+Quando a secretária mover o card para a coluna **Consulta agendada**, o sistema deverá verificar se o campo de **data e hora da consulta** está preenchido.
+
+- Se o campo estiver vazio, nenhuma automação de lembrete deve ser programada.
+- Se o campo estiver preenchido, o sistema deverá programar os lembretes com base no tipo de consulta.
+
+### 2.1 Consulta online
+
+Se o botão **Consulta online** estiver ativado no card do lead, programar o envio do template de lembrete para consulta online. Devem ser enviados dois lembretes:
+
+- **Um dia antes da consulta** — template de lembrete de consulta online. Pode conter horário, link da consulta, orientações para acesso e instruções importantes.
+- **Uma hora antes da consulta** — segundo lembrete de consulta online, reforçando horário e acesso.
+
+### 2.2 Consulta presencial
+
+Se o botão **Consulta online** não estiver ativado, o sistema deverá entender que a consulta é presencial. Devem ser enviados dois lembretes:
+
+- **Um dia antes da consulta** — template de lembrete de consulta presencial. Pode conter horário, endereço, orientações de chegada e informações necessárias.
+- **Uma hora antes da consulta** — segundo lembrete de consulta presencial, reforçando horário e presença no local.
+
+## 3. Lembrete após mover para Tratamento ou Procedimento agendado
+
+Quando a secretária mover o card para **Tratamento agendado** ou **Procedimento agendado**, o sistema deverá verificar se o campo de **data e hora do procedimento** está preenchido.
+
+- Se o campo estiver vazio, nenhuma automação de lembrete deve ser programada.
+- Se o campo estiver preenchido, o sistema deverá programar os lembretes do procedimento.
+
+Procedimentos e tratamentos **nunca serão considerados online**. Portanto, não haverá verificação do botão de consulta online nesse caso. Devem ser enviados dois lembretes:
+
+- **Um dia antes do procedimento** — template de lembrete de procedimento presencial. Pode conter horário, endereço, orientações de preparo e informações importantes.
+- **Uma hora antes do procedimento** — segundo lembrete de procedimento presencial, reforçando horário, local e orientações finais.
+
+## 4. Regras obrigatórias antes de enviar lembretes
+
+**Para consulta**, validar antes do envio:
+
+- O card está na coluna **Consulta agendada**.
+- O campo data e hora da consulta está preenchido.
+- O sistema identificou se a consulta é online ou presencial.
+- Existe um template configurado para o tipo de lembrete.
+- O lead ainda não foi movido para uma coluna posterior (ex.: Consulta finalizada).
+
+**Para procedimento ou tratamento**, validar antes do envio:
+
+- O card está em **Tratamento agendado** ou **Procedimento agendado**.
+- O campo data e hora do procedimento está preenchido.
+- Existe um template configurado para o lembrete de procedimento.
+- O lead ainda não foi movido para uma coluna posterior (ex.: Tratamento finalizado ou 1ª Sessão Finalizada).
+
+## 5. Cancelamento ou atualização de lembretes
+
+- Se a secretária **alterar a data ou horário** da consulta, os lembretes antigos devem ser cancelados e novos lembretes devem ser programados com base na nova data. A mesma regra vale para procedimentos/tratamentos.
+- Se o card for **removido** de Consulta agendada, Tratamento agendado ou Procedimento agendado, os lembretes pendentes relacionados a esse agendamento devem ser cancelados.
+- Isso evita que o paciente receba mensagens de lembrete com horário antigo ou de um atendimento que foi cancelado.
+
+## 6. Pesquisa após Consulta finalizada
+
+- Quando a secretária mover o card para **Consulta finalizada**, o sistema deverá disparar uma automação específica com o **link da pesquisa de consulta**.
+- Essa automação deve ser enviada apenas quando o card entrar nessa coluna.
+- Objetivo: coletar a percepção do paciente após a realização da consulta.
+- A mensagem deve ser configurável na área de automações da UI.
+
+## 7. Pesquisa após Tratamento finalizado
+
+- Quando a secretária mover o card para **Tratamento finalizado** ou **1ª Sessão Finalizada**, o sistema deverá disparar uma automação específica com o **link da pesquisa de tratamento/procedimento**.
+- Essa automação deve ser **diferente** da pesquisa enviada após a consulta.
+- Objetivo: coletar a percepção do paciente sobre o procedimento, tratamento ou primeira sessão realizada.
+- A mensagem também deve ser configurável na área de automações da UI.
+
+## 8. Automações necessárias na interface
+
+A área de automações da UI deverá permitir configurar os seguintes templates:
+
+**Lembretes de consulta:**
+
+- Lembrete de consulta online — 1 dia antes
+- Lembrete de consulta online — 1 hora antes
+- Lembrete de consulta presencial — 1 dia antes
+- Lembrete de consulta presencial — 1 hora antes
+
+**Lembretes de procedimento ou tratamento:**
+
+- Lembrete de procedimento presencial — 1 dia antes
+- Lembrete de procedimento presencial — 1 hora antes
+
+**Pesquisas:**
+
+- Pesquisa após consulta finalizada
+- Pesquisa após tratamento finalizado ou primeira sessão finalizada
+
+## 9. Resumo das regras de disparo
+
+**Consulta online**
+
+- Condição: card em Consulta agendada + data/hora da consulta preenchida + botão Consulta online ativado.
+- Ações: lembrete de consulta online 1 dia antes + lembrete de consulta online 1 hora antes.
+
+**Consulta presencial**
+
+- Condição: card em Consulta agendada + data/hora da consulta preenchida + botão Consulta online desativado.
+- Ações: lembrete de consulta presencial 1 dia antes + lembrete de consulta presencial 1 hora antes.
+
+**Procedimento ou tratamento presencial**
+
+- Condição: card em Tratamento agendado ou Procedimento agendado + data/hora do procedimento preenchida.
+- Ações: lembrete de procedimento 1 dia antes + lembrete de procedimento 1 hora antes.
+
+**Pesquisa de consulta**
+
+- Condição: card movido para Consulta finalizada.
+- Ação: enviar mensagem com link da pesquisa de consulta.
+
+**Pesquisa de tratamento**
+
+- Condição: card movido para Tratamento finalizado ou 1ª Sessão Finalizada.
+- Ação: enviar mensagem com link da pesquisa de tratamento ou procedimento.
