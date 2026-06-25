@@ -1,12 +1,16 @@
-## Ajuste no `CustomFieldsPanel.tsx`
+# Plano: criar `docs/Fluxo-atual.md`
 
-Largura da coluna de labels passa a se adaptar ao conteúdo (sem alinhamento à direita).
+Criar um único arquivo de documentação contendo o fluxo comercial/operacional do pipeline enviado, para servir como referência de análise posterior.
 
-### Mudança única no grid de cada linha
+## Arquivo
+- `docs/Fluxo-atual.md`
 
-- Trocar `grid-cols-[60%_40%]` por `grid-cols-[auto_1fr]` — coluna esquerda cresce conforme o maior label.
-- Trocar `truncate` por `line-clamp-2 max-w-[180px]` no `<span>` do label — textos longos quebram em até 2 linhas em vez de empurrar a coluna indefinidamente.
-- `gap-2` → `gap-x-3` para respiro horizontal.
-- Manter `title={f.label}` (tooltip completo) e alinhamento padrão à esquerda.
+## Conteúdo
+- Frontmatter padrão de docs (`title`, `topic: operations`, `kind: flow`, `audience: agent`, `updated`, `summary`, `code_refs` vazio/comentado, `related_docs` apontando para `docs/pipeline/runtime/FLOW_MATRIX.md` e `docs/skill-datas.md`).
+- Corpo: as 14 seções enviadas (Entrada do lead → Objetivo principal), preservadas integralmente, apenas formatadas em Markdown (H2 por seção, sub-bullets onde já existem listas).
 
-Sem mudanças em lógica/negócio nem em outros componentes.
+## Pós-criação
+- Rodar `node scripts/docs-sync.mjs` para indexar o novo doc em `docs/INDEX.json`.
+- Aguardar próximas instruções suas antes de qualquer mudança de código ou outras docs.
+
+Sem alterações de código, rotas, banco ou edge functions nesta etapa.
