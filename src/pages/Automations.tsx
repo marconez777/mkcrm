@@ -45,6 +45,7 @@ export default function Automations() {
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [dateFields, setDateFields] = useState<any[]>([]);
+  const [allFields, setAllFields] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
@@ -53,14 +54,16 @@ export default function Automations() {
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
-      supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
+      supabase.from("lead_custom_fields").select("field_key, label, field_type, options").order("position"),
     ]);
     setList(a as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
-    setDateFields(cf ?? []);
+    setAllFields(cf ?? []);
+    setDateFields((cf ?? []).filter((f: any) => f.field_type === "date" || f.field_type === "datetime"));
   };
+
   useEffect(() => { load(); }, []);
 
   const loadRuns = async (automationId: string) => {
@@ -350,10 +353,74 @@ export default function Automations() {
                           />
                         </div>
                       </div>
+                      {(() => {
+                        const cond = selected.trigger_config?.condition ?? {};
+                        const fld = allFields.find((f) => f.field_key === cond.field_key);
+                        const op = cond.op ?? "eq";
+                        const setCond = (patch: any) => {
+                          const next = { ...cond, ...patch };
+                          if (!next.field_key) updTrigger({ condition: undefined });
+                          else updTrigger({ condition: next });
+                        };
+                        return (
+                          <div className="rounded-md border border-dashed p-3 space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Condição (opcional) — campo personalizado
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Use para diferenciar, por exemplo, teleconsulta vs. presencial. Crie uma automação para cada caso.
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                value={cond.field_key ?? ""}
+                                onChange={(e) => setCond({ field_key: e.target.value || undefined, value: undefined })}>
+                                <option value="">— sem condição —</option>
+                                {allFields.map((f) => (
+                                  <option key={f.field_key} value={f.field_key}>{f.label}</option>
+                                ))}
+                              </select>
+                              <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                value={op}
+                                disabled={!cond.field_key}
+                                onChange={(e) => setCond({ op: e.target.value })}>
+                                <option value="eq">igual a</option>
+                                <option value="neq">diferente de</option>
+                                <option value="empty">está vazio</option>
+                                <option value="not_empty">não está vazio</option>
+                              </select>
+                              {cond.field_key && (op === "eq" || op === "neq") && (
+                                fld?.field_type === "boolean" ? (
+                                  <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })}>
+                                    <option value="">— valor —</option>
+                                    <option value="sim">Sim</option>
+                                    <option value="nao">Não</option>
+                                  </select>
+                                ) : fld?.field_type === "select" && Array.isArray(fld?.options) ? (
+                                  <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })}>
+                                    <option value="">— valor —</option>
+                                    {fld.options.map((o: string) => (
+                                      <option key={o} value={o}>{o}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input className="h-9" placeholder="valor"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })} />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
               )}
+
             </Card>
 
             <Card className="space-y-3 p-4">

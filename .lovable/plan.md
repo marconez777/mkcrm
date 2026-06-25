@@ -1,93 +1,57 @@
-## PR4 — Higiene de regras do pipeline ÓR
+## Objetivo
 
-Consolida 4 decisões da auditoria de "Qualificação". Falhas do classifier ficam para PR separado (acordado).
+Hoje o gatilho **"Lembrete antes de data marcada (consulta)"** dispara para qualquer lead com a data preenchida. Não há como diferenciar **teleconsulta** (online) de **consulta presencial** — ambos receberiam a mesma mensagem.
 
-### Escopo
+Solução: adicionar um **filtro por campo personalizado** dentro do `trigger_config` do `before_appointment`. Com isso a clínica OR cria **duas automações** com o mesmo gatilho de data, cada uma com sua condição:
 
-1. **Canonizar "paciente antigo"** (resolve 15 leads parados em Qualificação).
-2. **Auditar e desmarcar `is_internal_contact` indevido** (11 leads).
-3. **Remover feature `manual_lock_until`** (10 leads travados).
-4. **Remover campo `modalidade_preferida`** (não usado).
+- Automação A → `teleconsulta = sim` → mensagem de **teleconsulta** (com link)
+- Automação B → `teleconsulta = não` (ou vazio) → mensagem de **presencial** (endereço, "chegar 10 min antes" etc.)
 
----
+## Mudanças
 
-### 1. Campo canônico `eh_paciente_antigo` (booleano)
+### 1. UI — `src/pages/Automations.tsx`
+No bloco do `before_appointment`, adicionar uma seção **"Condição (opcional)"** com 3 campos:
 
-**Por que:** `tipo_contato` é string livre e não casa com regras determinísticas. Um booleano canônico evita ambiguidade e conflito entre classifier e humano.
+- **Campo personalizado** — `<select>` listando **todos** os custom fields (não só os de data). Já lemos `lead_custom_fields`; ampliar a query removendo o `.in(field_type, [...])` ou trazendo duas listas (uma só-data para "Campo da consulta" e a completa para a condição).
+- **Operador** — `igual a` / `diferente de` / `está vazio` / `não está vazio`.
+- **Valor** — input dinâmico conforme o `field_type` do campo escolhido:
+  - `boolean` → select `sim` / `não`
+  - `select` → select com as `options` cadastradas
+  - demais → text input
 
-- Adicionar definição em `lead_custom_fields` para a clínica ÓR: chave `eh_paciente_antigo`, tipo `boolean`, label "É paciente antigo?".
-- Regra de derivação (executada pelo classifier e por job único de backfill):
-  - `true` se qualquer um: `tipo_contato in ('paciente','paciente_antigo')` no `custom_fields_legacy`; tag legada `paciente_antigo`; `procedimento_pago_em` no passado; primeira mensagem > 60 dias atrás com histórico de atendimento.
-  - `false` caso contrário; humano pode sobrescrever (registra `source=human`).
-- `tipo_contato` continua existindo como descritivo, mas **não dispara movimentação**.
-- Atualizar `pipeline-deterministic`: nova regra → `if eh_paciente_antigo=true and stage in ('Leads de entrada','Qualificação') → move para Paciente antigo`. Roda antes das regras de inatividade.
-- Backfill: identificar os 15 leads em Qualificação com `tipo_contato=paciente*` no legacy, setar `eh_paciente_antigo=true`, mover para "Paciente antigo" registrando em `lead_stage_history` com `reason='backfill_pr4_canonical'`.
+Persistido em `trigger_config.condition = { field_key, op, value }`.
 
-### 2. `is_internal_contact` — auditoria e correção
+### 2. Backend — `supabase/functions/automations-tick/index.ts`
+Dentro do branch `a.trigger_type === "before_appointment"` (linha 130), depois do loop que monta `out[]`, aplicar o filtro `condition` antes do `out.push`:
 
-- Listar os 11 leads marcados, com nome/telefone/última mensagem.
-- Classificar cada um em: (a) membro real da equipe/teste → mantém `true`; (b) paciente real marcado por engano → vira `false`.
-- Critério de "real": telefone bate com `clinic_members` ou `attendants`, ou conversa contém apenas testes internos.
-- Aplicar `UPDATE leads SET is_internal_contact=false WHERE id IN (...)` apenas para os reais.
-- Registrar no relatório `dry-run-pr2/AUDIT_INTERNAL_CONTACT.md` antes do update (lista + decisão por lead).
-- Após desmarcar, `pipeline-deterministic` passa a movê-los normalmente.
-
-### 3. Remover `manual_lock_until`
-
-**Estratégia conservadora** (1 release de transição):
-
-- Limpar agora: `UPDATE leads SET manual_lock_until=NULL WHERE manual_lock_until > now()` (10 leads).
-- Remover leitura da coluna em todas as funções/edge functions que consultam (auditar com grep: `pipeline-deterministic`, `pipeline-classifier`, hooks de pipeline).
-- Remover UI que escreve nessa coluna (se existir em LeadDrawer/CustomFieldsPanel).
-- **Manter a coluna no banco** este PR — não dropar ainda. Vira morta. PR seguinte (após confirmar que nada quebrou) faz `DROP COLUMN`.
-- Substituto futuro (não neste PR): pausa por tag (`pausado_manual`) com TTL curto e motivo obrigatório.
-
-### 4. Remover `modalidade_preferida`
-
-- Remover a linha em `lead_custom_fields` para a clínica ÓR (`DELETE WHERE clinic_id=... AND key='modalidade_preferida'`).
-- Limpar valores em `leads.custom_fields` (`UPDATE ... SET custom_fields = custom_fields - 'modalidade_preferida'`).
-- Remover do prompt do classifier (se já existia) e da UI de CustomFieldsPanel se renderizar fixo.
-
----
-
-### Detalhes técnicos
-
-**Arquivos provavelmente tocados:**
-- `supabase/functions/pipeline-deterministic/index.ts` — nova regra `eh_paciente_antigo`, remover leitura de `manual_lock_until`.
-- `supabase/functions/pipeline-classifier/index.ts` — derivar `eh_paciente_antigo`, remover `modalidade_preferida` do schema/prompt.
-- `src/components/inbox/CustomFieldsPanel.tsx` e `src/hooks/useCustomFieldDefs.ts` — se houver referência fixa a `modalidade_preferida` ou `manual_lock_until`.
-- Migrations:
-  - Insert em `lead_custom_fields` (def `eh_paciente_antigo`).
-  - Delete em `lead_custom_fields` (def `modalidade_preferida`).
-- Data ops (via insert tool, sem migration):
-  - Update de `eh_paciente_antigo=true` nos 15 leads + move stage + lead_stage_history.
-  - Update `is_internal_contact=false` nos leads identificados como reais.
-  - Update `manual_lock_until=NULL` nos 10.
-  - Update `custom_fields - 'modalidade_preferida'` nos leads ÓR.
-
-**Ordem de execução:**
-
-```text
-1. Migration: add def eh_paciente_antigo, remove def modalidade_preferida
-2. Edit pipeline-deterministic (nova regra + remove manual_lock_until)
-3. Edit pipeline-classifier (deriva eh_paciente_antigo + remove modalidade_preferida)
-4. Remove UI/escrita de manual_lock_until
-5. Data ops:
-   a) backfill eh_paciente_antigo + move 15 leads
-   b) audit + update is_internal_contact
-   c) clear manual_lock_until
-   d) clear modalidade_preferida em leads.custom_fields
-6. Relatório final em dry-run-pr2/AUDIT_QUALIFICACAO_AFTER.md (verifica coluna vazia/correta)
+```ts
+const cond = cfg.condition;
+if (cond?.field_key && cond.op) {
+  const v = (l.custom_fields as any)?.[cond.field_key];
+  const present = v !== null && v !== undefined && v !== "";
+  const eq = String(v ?? "").toLowerCase() === String(cond.value ?? "").toLowerCase();
+  const pass =
+    cond.op === "eq" ? eq :
+    cond.op === "neq" ? !eq :
+    cond.op === "empty" ? !present :
+    cond.op === "not_empty" ? present : true;
+  if (!pass) continue;
+}
 ```
 
-**Coluna `leads.manual_lock_until`:** mantida nesta release; dropar em PR posterior.
+Para `boolean`, normalizar `"true"/"sim"/"1"` ↔ `sim` e `"false"/"nao"/"0"/""` ↔ `não` antes da comparação (helper pequeno).
 
-**Reversibilidade:** todos os UPDATEs registram `reason='pr4_*'` no histórico. Coluna manual_lock_until ainda existe se precisar reverter.
+### 3. Documentação
+Atualizar `docs/pipeline/runtime/USER_AUTOMATIONS.md` (e a seção do `before_appointment` em `docs/pipeline/AUTOMATION_PLAN.md`) descrevendo o novo campo `condition` e mostrando o caso de uso teleconsulta vs. presencial.
 
-### Fora do escopo (próximos PRs)
+## Fora de escopo
 
-- Falhas do classifier (timeout, schema, no_new_messages, heartbeat) — PR separado.
-- Substituto do `manual_lock_until` (pausa por tag) — após confirmação de que a remoção não impactou.
-- Tags vazias em 37 leads — PR de tags/segmentação.
-- DROP COLUMN `manual_lock_until` — PR de cleanup posterior.
-- Auditoria das próximas colunas do pipeline (Paciente antigo, Consulta agendada, etc).
+- Não mudamos o modelo de dados (`automations.trigger_config` já é `jsonb`, sem migração).
+- Não tocamos no template em si — a clínica configura duas automações com mensagens diferentes.
+- Sem condições compostas (AND/OR de múltiplos campos) — por enquanto só uma condição.
+
+## Como a clínica vai usar (passo a passo após o deploy)
+
+1. Duplicar a automação **"1 dia antes da consulta"**.
+2. Na original (presencial): seção Condição → `Teleconsulta?` · `igual a` · `não`. Editar a mensagem para o roteiro presencial.
+3. Na duplicada (online): Condição → `Teleconsulta?` · `igual a` · `sim`. Mensagem com link da teleconsulta (usar a variável do campo `Link de Consulta`).

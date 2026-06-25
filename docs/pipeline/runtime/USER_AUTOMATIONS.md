@@ -44,6 +44,9 @@ cron pg_cron `automations-tick-every-5-min` (*/5 min)
                     ├─ trigger=no_reply_after  → leads sem msg de paciente há N min
                     ├─ trigger=stage_idle      → leads na stage X há N min
                     └─ trigger=before_appointment → leads com appointment em N min
+                          └─ (opcional) condition.field_key/op/value filtra por custom field
+                             ex.: teleconsulta=sim ⇒ lembrete online; senão ⇒ presencial
+
               └─> para cada candidato: executeAction(rule, lead)
                     └─> INSERT INTO automation_runs (...)
 ```
