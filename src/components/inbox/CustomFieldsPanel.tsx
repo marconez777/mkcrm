@@ -49,6 +49,47 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
   );
 }
 
+function ResizableTextareaField({
+  fieldKey,
+  value,
+  setLocal,
+  onCommit,
+}: {
+  fieldKey: string;
+  value: any;
+  setLocal: (v: any) => void;
+  onCommit: () => void;
+}) {
+  const storageKey = `cf-textarea-h:${fieldKey}`;
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
+    if (saved && ref.current) ref.current.style.height = saved;
+  }, [storageKey]);
+
+  function persistHeight() {
+    if (ref.current) {
+      const h = ref.current.style.height;
+      if (h) window.localStorage.setItem(storageKey, h);
+    }
+  }
+
+  return (
+    <div className="rounded-md border bg-background px-2 py-1.5 transition-colors focus-within:border-primary/40">
+      <Textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => { persistHeight(); onCommit(); }}
+        onMouseUp={persistHeight}
+        className="min-h-[64px] max-h-[480px] resize-y border-0 bg-transparent p-0 text-sm leading-relaxed text-foreground placeholder:text-foreground/60 shadow-none focus-visible:ring-0"
+        placeholder="..."
+      />
+    </div>
+  );
+}
+
 const nakedInput =
   "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-foreground/70 focus:outline-none";
 
