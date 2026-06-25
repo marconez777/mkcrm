@@ -45,6 +45,7 @@ export default function Automations() {
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [dateFields, setDateFields] = useState<any[]>([]);
+  const [allFields, setAllFields] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
@@ -53,14 +54,16 @@ export default function Automations() {
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
-      supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
+      supabase.from("lead_custom_fields").select("field_key, label, field_type, options").order("position"),
     ]);
     setList(a as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
-    setDateFields(cf ?? []);
+    setAllFields(cf ?? []);
+    setDateFields((cf ?? []).filter((f: any) => f.field_type === "date" || f.field_type === "datetime"));
   };
+
   useEffect(() => { load(); }, []);
 
   const loadRuns = async (automationId: string) => {
