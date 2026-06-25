@@ -1,56 +1,23 @@
-# Plano — Mapear relação Datas ↔ Automações em `docs/skill-datas.md`
+## Ajustes no painel "Principal" (CustomFieldsPanel)
 
-Hoje o arquivo já tem seções separadas para datas (§2, §3, §5, §7) e para automações (§4 cron, §8 UI, §11 deterministic). Falta uma **visão consolidada** que cruze: "qual data dispara qual automação, em que momento, com qual janela, gravando em qual coluna".
+### 1. Mais espaço para os valores
+Em `src/components/inbox/CustomFieldsPanel.tsx`:
+- Trocar grid de `grid-cols-[110px_1fr]` para `grid-cols-[84px_1fr]`.
+- Adicionar `title={f.label}` na label (mostra nome completo no hover quando truncar).
 
-## O que adicionar
+### 2. Textarea redimensionável (campo "Mensagem")
+Substituir o `case "textarea"` por uma textarea com visual melhor e handle de resize vertical com o mouse:
 
-Inserir nova seção **§8b — Relação Datas ↔ Automações (matriz)** logo após §8.5, mantendo o restante do documento intacto. A seção terá 4 blocos:
+- Container com `border rounded-md bg-background px-2 py-1.5` (sai do estilo "nu" atual, fica claro que é editável).
+- `<Textarea>` com:
+  - `resize-y` (handle nativo do navegador para arrastar e expandir verticalmente)
+  - `min-h-[64px] max-h-[480px]` (limites razoáveis)
+  - Altura inicial salva em `localStorage` por `field_key` (`cf-textarea-h:<key>`), restaurada no mount, persistida via `ResizeObserver` no `onMouseUp`/blur — assim o tamanho escolhido pelo usuário persiste entre leads.
+  - Texto `text-sm leading-relaxed`, scroll interno quando ultrapassar o tamanho.
+  - `onBlur` salva (mantém comportamento atual).
+- Pequena dica visual: o canto inferior direito do textarea já mostra o grip nativo de resize do browser; nada de modal/dialog.
 
-### 1. Matriz principal (tabela)
+### Arquivos
+- `src/components/inbox/CustomFieldsPanel.tsx` — único arquivo alterado.
 
-Colunas: `Campo/Coluna de data` · `Onde é escrito` · `Quem lê` · `Automação disparada` · `Janela/Offset` · `Resultado`.
-
-Linhas a cobrir (extraídas do código atual):
-
-- `appointments.scheduled_at` (consulta) → `automations-tick` (trigger `before_appointment`, kind=`consulta`) → janela `minutes_before` do `trigger_config` → envia mensagem WA + grava `automation_runs`.
-- `appointments.scheduled_at` (procedimento) → idem, kind=`procedimento`.
-- `leads.custom_fields.consulta_agendada_em` → `pipeline-deterministic` (ruleFieldChanged) → move card para "Consulta agendada" + dispara binding de sequência via `stage_sequence_bindings`.
-- `leads.custom_fields.procedimento_agendado_em` → idem para "Procedimento agendado".
-- `leads.custom_fields.consulta_realizada_em` (preenchido manual pela secretária pós-transição humana) → `pipeline-deterministic` → move para "Consulta finalizada".
-- `leads.last_inbound_at` → `automations-tick` trigger `lead_inactive` (Xh sem resposta) → mensagem de retomada.
-- `leads.created_at` → trigger `lead_created` → boas-vindas.
-- `lead_stage_history.entered_at` → trigger `stage_entered` + `sequence-tick` (avanço de steps por `delay_minutes`).
-- `scheduled_messages.send_at` → worker próprio (não é automação UI, mas entra no mapa para clareza).
-- `message_sequence_enrollments.next_run_at` → `sequence-tick` cron.
-
-### 2. Diagrama ASCII do fluxo temporal
-
-```text
-Data registrada ──► Cron tick ──► Avalia janela ──► Ação (msg/move/tag)
-                                       │
-                                       └─► grava automation_runs / lead_events
-```
-
-Mostrando os dois caminhos (Calendário vs custom field) convergindo nos mesmos crons.
-
-### 3. Crons × Datas que consomem
-
-Mini-tabela: `automations-tick (1m)` → lê `appointments.scheduled_at`, `leads.last_inbound_at`, `leads.created_at`. `sequence-tick (1m)` → lê `message_sequence_enrollments.next_run_at`. `pipeline-deterministic` → lê `custom_fields.*_em` via trigger de mudança.
-
-### 4. Invariantes da relação
-
-- Pós-transição humana (jun/2026): IA **não escreve** `*_agendado_em` — só humano/calendário. Logo, triggers `before_appointment` só disparam para datas inseridas manualmente.
-- `before_appointment` exige `appointment` row (Porta A); preencher só o custom field (Porta B) **não dispara lembrete** — gap conhecido, já listado em §14.
-- Condição por custom field (ex. `Teleconsulta = Sim`) é avaliada no momento do tick, lendo `lead_custom_fields` daquele lead.
-
-## Atualizações de housekeeping
-
-- Atualizar `updated:` no frontmatter para `2026-06-25`.
-- Adicionar link da nova seção no índice cruzado (§16) se necessário.
-- Rodar `node scripts/docs-sync.mjs` ao final.
-
-## Fora de escopo
-
-- Não criar nova doc separada.
-- Não mudar código nem migrar nada.
-- Não consertar o gap "Porta B sem lembrete" — só documentar.
+Sem mudanças em backend/schema.
