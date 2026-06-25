@@ -274,6 +274,7 @@ export async function loadLeadContext(
       hasBeenTreatedBefore,
       clinicFieldSchema,
       allowedTags,
+      firstMessageIsTemplate: detectFirstMessageTemplate(messages),
       nowMs: Date.now(),
     },
   };
