@@ -1,57 +1,108 @@
-## Objetivo
 
-Hoje o gatilho **"Lembrete antes de data marcada (consulta)"** dispara para qualquer lead com a data preenchida. Não há como diferenciar **teleconsulta** (online) de **consulta presencial** — ambos receberiam a mesma mensagem.
+# Plano: `skill-datas.md` — Auditoria de Datas, Agendamentos, Lembretes e Custom Fields
 
-Solução: adicionar um **filtro por campo personalizado** dentro do `trigger_config` do `before_appointment`. Com isso a clínica OR cria **duas automações** com o mesmo gatilho de data, cada uma com sua condição:
+Vou produzir **um único arquivo** (`docs/skill-datas.md`) consolidando, em profundidade, todo o conhecimento do sistema sobre agendamentos, datas e custom fields. Esse arquivo servirá como material de apoio para as próximas adaptações.
 
-- Automação A → `teleconsulta = sim` → mensagem de **teleconsulta** (com link)
-- Automação B → `teleconsulta = não` (ou vazio) → mensagem de **presencial** (endereço, "chegar 10 min antes" etc.)
+## Escopo da auditoria
 
-## Mudanças
+Vou cobrir, ponta a ponta:
 
-### 1. UI — `src/pages/Automations.tsx`
-No bloco do `before_appointment`, adicionar uma seção **"Condição (opcional)"** com 3 campos:
+1. **Modelo de dados (Postgres / Lovable Cloud)**
+   - Tabelas: `appointments`, `appointment_service_types`, `leads`, `lead_custom_fields`, `lead_stage_history`, `pipeline_stages`, `automations`, `automation_runs`, `scheduled_messages`, `message_sequence_*`, `tasks`/`lead_tasks`.
+   - Colunas-chave em `leads`: `consulta_agendada_em`, `procedimento_agendado_em`, `last_*_at`, `custom_fields` (jsonb).
+   - Tipos de campo em `lead_custom_fields` (`date`, `boolean`, `select`, `text`, etc.) e como cada um é persistido em `leads.custom_fields`.
+   - RLS, GRANTs e triggers (`net.http_request_queue`, `processLeadEvent`).
+   - Migrations mais recentes relevantes (`20260622…`, `20260618…`, `20260624180427` da transição humana).
 
-- **Campo personalizado** — `<select>` listando **todos** os custom fields (não só os de data). Já lemos `lead_custom_fields`; ampliar a query removendo o `.in(field_type, [...])` ou trazendo duas listas (uma só-data para "Campo da consulta" e a completa para a condição).
-- **Operador** — `igual a` / `diferente de` / `está vazio` / `não está vazio`.
-- **Valor** — input dinâmico conforme o `field_type` do campo escolhido:
-  - `boolean` → select `sim` / `não`
-  - `select` → select com as `options` cadastradas
-  - demais → text input
+2. **Frontend**
+   - `src/pages/SettingsCustomFields.tsx` — criação/edição de campos.
+   - `src/pages/SettingsAppointmentTypes.tsx` + `useServiceTypes` + `service-types-mutations` — tipos de serviço/consulta.
+   - `src/components/kanban/calendar/PipelineCalendar.tsx` + `AppointmentDialog.tsx` + `useAppointments` + `appointments-mutations.ts` — agenda da clínica.
+   - `src/components/inbox/CustomFieldsPanel.tsx` + `ContextRail.tsx` — edição manual de campos no lead.
+   - `src/pages/Automations.tsx` — UI de automações `before_appointment` / `date_reminder` / condições por custom field (recente).
+   - `src/pages/Kanban.tsx`, `MoveLeadDialog.tsx`, `manual-stage-move.ts` — interação com estágios de agendamento.
+   - `src/lib/template-vars.ts` — variáveis `{{consulta_data}}`, `{{procedimento_data}}`, etc.
+   - `src/hooks/useCustomFieldDefs.ts`.
 
-Persistido em `trigger_config.condition = { field_key, op, value }`.
+3. **Backend / Edge Functions**
+   - `supabase/functions/automations-tick/index.ts` — gatilhos `before_appointment`, `date_reminder`, condição por `custom_fields`, `normBool`.
+   - `supabase/functions/sequence-tick/index.ts`.
+   - `supabase/functions/pipeline-classify/` (`apply.ts`, `agent-core.ts`, `date-parser.ts`, `schema.ts`, `context.ts`) — `HUMAN_SCHEDULING_FIELDS`, `HUMAN_SCHEDULING_STAGES`, bloqueios da IA, parser de datas PT-BR.
+   - `supabase/functions/pipeline-deterministic/index.ts` — `ruleFieldChanged` (auto-move ao preencher data), `ruleConsultaPassou` (desabilitada).
+   - `supabase/functions/pipeline-position-auditor/index.ts` — A1 alinhado à transição humana.
+   - `supabase/functions/_shared/pipeline-move.ts`, `pipeline-tasks.ts`, `pipeline-fase4.ts`, `template-vars.ts`.
+   - `supabase/functions/outreach-recovery-tick`, `pipeline-payment-webhook`, `forms-ingest`, `external-lead-capture` (como escrevem datas/custom fields).
 
-### 2. Backend — `supabase/functions/automations-tick/index.ts`
-Dentro do branch `a.trigger_type === "before_appointment"` (linha 130), depois do loop que monta `out[]`, aplicar o filtro `condition` antes do `out.push`:
+4. **Pipeline / Estágios**
+   - Estágios `Consulta agendada`, `Consulta finalizada`, `Procedimento agendado`, `Procedimento pago`, `Fechamento pendente consulta/procedimento`, `Retorno`.
+   - Regras determinísticas: campo preenchido → move estágio (`auto:field-changed-consulta`/`procedimento`).
+   - O que a IA NÃO pode mais fazer (transição 100% humana de jun/2026).
 
-```ts
-const cond = cfg.condition;
-if (cond?.field_key && cond.op) {
-  const v = (l.custom_fields as any)?.[cond.field_key];
-  const present = v !== null && v !== undefined && v !== "";
-  const eq = String(v ?? "").toLowerCase() === String(cond.value ?? "").toLowerCase();
-  const pass =
-    cond.op === "eq" ? eq :
-    cond.op === "neq" ? !eq :
-    cond.op === "empty" ? !present :
-    cond.op === "not_empty" ? present : true;
-  if (!pass) continue;
-}
+5. **Automações & Lembretes**
+   - Triggers existentes: `before_appointment`, `date_reminder`, `stage_entered`, `inactivity`, `field_changed`.
+   - Como `before_appointment` calcula `next_run` a partir de `consulta_agendada_em` / `procedimento_agendado_em`.
+   - Condição por custom field (`field_key` / `op` / `value`) — caso teleconsulta vs presencial.
+   - Templates, `template_vars`, expansão de variáveis de data, fuso horário/format.
+   - `automation_runs` (status `condition_not_matched`, `sent`, `skipped`).
+   - `scheduled_messages` e `message_sequences` (lembretes encadeados).
+
+6. **Custom Fields**
+   - Definição (`lead_custom_fields`): `key`, `label`, `field_type`, `options`, `required`, `order`.
+   - Onde são preenchidos: Inbox (`CustomFieldsPanel`), Kanban, IA (com restrições), forms (`forms-ingest`), webhooks externos.
+   - Onde são lidos: automações, sequences, templates (`{{cf.<key>}}`), auditor, classifier.
+   - Convenções de chave (`teleconsulta`, `cidade`, etc.), normalização booleana.
+
+7. **Documentação existente** (vou citar e referenciar inline, não duplicar)
+   - `docs/pipeline/CALENDAR.md`, `CALENDAR_PLAN.md`
+   - `docs/pipeline/AUTOMATION_PLAN.md`
+   - `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md`
+   - `docs/pipeline/runtime/USER_AUTOMATIONS.md`, `DETERMINISTIC_RULES.md`, `FIELDS_LIVE.md`, `STAGES_LIVE.md`, `FLOW_MATRIX.md`, `KNOWN_ISSUES.md`, `TRIGGERS_AUDIT.md`, `CLASSIFIER.md`, `AUDITORS.md`.
+   - `docs/estudo/03-consulta-agendada.md`, `05-consulta-finalizada.md`, `10-procedimento-agendado.md`, `13-antigo-consultaprocedimento-agendado.md`, `clinica-or-fluxo-novo.md`.
+   - `.lovable/memories/docs/maintenance-progress.md`.
+
+## Estrutura do `docs/skill-datas.md`
+
+```text
+1. Visão geral e princípios atuais (transição humana jun/2026)
+2. Glossário de campos de data e estágios
+3. Modelo de dados
+   3.1 leads (colunas de data + custom_fields jsonb)
+   3.2 appointments + appointment_service_types
+   3.3 lead_custom_fields (definições)
+   3.4 automations + automation_runs
+   3.5 scheduled_messages + message_sequences
+   3.6 lead_stage_history / pipeline_stages
+4. Fluxo de agendamento (consulta e procedimento)
+   4.1 Como o card chega em "agendada"
+   4.2 Regra determinística field_changed (auto-move)
+   4.3 O que a IA pode/não pode fazer (HUMAN_SCHEDULING_*)
+   4.4 Transição finalização / retorno
+5. Calendário (PipelineCalendar + AppointmentDialog)
+6. Custom Fields
+   6.1 Tipos suportados e UI
+   6.2 Persistência (lead_custom_fields vs leads.custom_fields)
+   6.3 Normalização (boolean, select, date)
+   6.4 Uso em templates / automações / IA
+7. Automações de lembrete
+   7.1 Triggers (lista completa + payload)
+   7.2 before_appointment (cálculo de next_run, fuso, janelas)
+   7.3 date_reminder (campos custom de data)
+   7.4 Condições por custom field (teleconsulta etc.)
+   7.5 Templates e variáveis de data
+   7.6 Logs (automation_runs) e diagnóstico
+8. Parser de datas PT-BR (date-parser.ts)
+9. Integrações de entrada que escrevem datas/custom fields
+10. Convenções, invariantes e armadilhas
+11. Pontos de extensão / hooks para próximas adaptações
+12. Índice cruzado: arquivo → responsabilidade (com file:line)
 ```
 
-Para `boolean`, normalizar `"true"/"sim"/"1"` ↔ `sim` e `"false"/"nao"/"0"/""` ↔ `não` antes da comparação (helper pequeno).
+Cada seção terá referências `arquivo:linha` para o agente futuro abrir direto. Vou listar **todas** as edge functions, hooks, componentes e migrations encontrados — sem omitir.
 
-### 3. Documentação
-Atualizar `docs/pipeline/runtime/USER_AUTOMATIONS.md` (e a seção do `before_appointment` em `docs/pipeline/AUTOMATION_PLAN.md`) descrevendo o novo campo `condition` e mostrando o caso de uso teleconsulta vs. presencial.
+## Entregável
 
-## Fora de escopo
+- Novo arquivo: `docs/skill-datas.md` (~estimado 800–1200 linhas markdown).
+- Sem alterações em código.
+- Sem alterações em outras docs (apenas referências).
 
-- Não mudamos o modelo de dados (`automations.trigger_config` já é `jsonb`, sem migração).
-- Não tocamos no template em si — a clínica configura duas automações com mensagens diferentes.
-- Sem condições compostas (AND/OR de múltiplos campos) — por enquanto só uma condição.
-
-## Como a clínica vai usar (passo a passo após o deploy)
-
-1. Duplicar a automação **"1 dia antes da consulta"**.
-2. Na original (presencial): seção Condição → `Teleconsulta?` · `igual a` · `não`. Editar a mensagem para o roteiro presencial.
-3. Na duplicada (online): Condição → `Teleconsulta?` · `igual a` · `sim`. Mensagem com link da teleconsulta (usar a variável do campo `Link de Consulta`).
+Após aprovação, executo a leitura profunda dos arquivos listados e gero o documento em uma passada.
