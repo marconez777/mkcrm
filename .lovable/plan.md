@@ -1,23 +1,12 @@
-## Ajustes no painel "Principal" (CustomFieldsPanel)
+## Ajuste no `CustomFieldsPanel.tsx`
 
-### 1. Mais espaço para os valores
-Em `src/components/inbox/CustomFieldsPanel.tsx`:
-- Trocar grid de `grid-cols-[110px_1fr]` para `grid-cols-[84px_1fr]`.
-- Adicionar `title={f.label}` na label (mostra nome completo no hover quando truncar).
+Largura da coluna de labels passa a se adaptar ao conteúdo (sem alinhamento à direita).
 
-### 2. Textarea redimensionável (campo "Mensagem")
-Substituir o `case "textarea"` por uma textarea com visual melhor e handle de resize vertical com o mouse:
+### Mudança única no grid de cada linha
 
-- Container com `border rounded-md bg-background px-2 py-1.5` (sai do estilo "nu" atual, fica claro que é editável).
-- `<Textarea>` com:
-  - `resize-y` (handle nativo do navegador para arrastar e expandir verticalmente)
-  - `min-h-[64px] max-h-[480px]` (limites razoáveis)
-  - Altura inicial salva em `localStorage` por `field_key` (`cf-textarea-h:<key>`), restaurada no mount, persistida via `ResizeObserver` no `onMouseUp`/blur — assim o tamanho escolhido pelo usuário persiste entre leads.
-  - Texto `text-sm leading-relaxed`, scroll interno quando ultrapassar o tamanho.
-  - `onBlur` salva (mantém comportamento atual).
-- Pequena dica visual: o canto inferior direito do textarea já mostra o grip nativo de resize do browser; nada de modal/dialog.
+- Trocar `grid-cols-[60%_40%]` por `grid-cols-[auto_1fr]` — coluna esquerda cresce conforme o maior label.
+- Trocar `truncate` por `line-clamp-2 max-w-[180px]` no `<span>` do label — textos longos quebram em até 2 linhas em vez de empurrar a coluna indefinidamente.
+- `gap-2` → `gap-x-3` para respiro horizontal.
+- Manter `title={f.label}` (tooltip completo) e alinhamento padrão à esquerda.
 
-### Arquivos
-- `src/components/inbox/CustomFieldsPanel.tsx` — único arquivo alterado.
-
-Sem mudanças em backend/schema.
+Sem mudanças em lógica/negócio nem em outros componentes.
