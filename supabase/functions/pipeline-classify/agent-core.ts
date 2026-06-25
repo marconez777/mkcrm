@@ -287,6 +287,7 @@ IMPORTANTÍSSIMO NO RESUMO:
 - **AUTORIDADE DA SECRETÁRIA**: A palavra da secretária vale mais que a do paciente. Se o paciente diz "já paguei", mas a secretária não confirmou nem enviou comprovante, você DEVE escrever: "Paciente alega ter pago, mas não há confirmação da clínica". SÓ AFIRME "pagamento recebido" ou "agendamento confirmado" se a *secretária* confirmar de forma clara.
 - Se o paciente mencionar a MODALIDADE de atendimento (ex: "presencial", "online", "teleconsulta"), você DEVE citar isso no resumo.
 - Se o paciente mencionar QUALQUER campo personalizado ou dado cadastral importante, inclua no resumo.
+- **REGRA DA PRIMEIRA MENSAGEM**: Se o Contexto trouxer `PRIMEIRA_MENSAGEM_TEMPLATE: true`, trate a única mensagem do lead como texto pré-fabricado de botão/anúncio. NÃO use essa mensagem para inferir interesse real do paciente. Use-a SOMENTE para extrair `origem` quando houver rastreio explícito (Google/Instagram/Facebook/Indicação). O resumo do PRESENTE deve registrar apenas "Lead chegou via [origem se disponível] — ainda sem interação real" até que a 2ª mensagem do lead apareça.
 
 Além do resumo, devolva "mentioned_dates" contendo as datas citadas pelo paciente ou pela secretária.
 NÃO converta datas — devolva a string crua exatamente como aparece ("amanhã às 15h", "quinta-feira", "dia 24/06") e "anchor_iso" = o
