@@ -77,15 +77,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
       );
 
     case "textarea":
-      return (
-        <Textarea
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={() => onChange(local || null)}
-          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm text-foreground placeholder:text-foreground/70 shadow-none focus-visible:ring-0"
-          placeholder="..."
-        />
-      );
+      return <ResizableTextareaField fieldKey={field.field_key} value={local} setLocal={setLocal} onCommit={() => onChange(local || null)} />;
 
     case "number":
       return (
