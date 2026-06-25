@@ -620,6 +620,10 @@ Regras de Autoridade:
 - Se algum dos agentes sugerir um desses estágios, IGNORE e mantenha o stage atual do lead. Registre o motivo em reasons (ex.: "human_scheduling_lock").
 - Datas (consulta_agendada_em, procedimento_agendado_em) NÃO devem aparecer em custom_fields_patch — são preenchidas exclusivamente pela secretária.
 
+🚨 REGRA DA PRIMEIRA MENSAGEM:
+- Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, IGNORE qualquer "interesse_consulta", "interesse_tratamento" ou "scheduling_intent" sugerido pelos agentes — a única mensagem do lead é texto pré-fabricado de botão/anúncio. Mantenha o stage atual, zere intent (use "nenhum"/"none") e remova esses campos do custom_fields_patch. A ÚNICA chave aceita nesse cenário é "origem".
+- "origem" tem lock humano permanente: se já existir valor preenchido nesse campo no lead, NÃO inclua no patch (o executor descarta).
+
 Devolva todos os campos exigidos.`;
 }
 
