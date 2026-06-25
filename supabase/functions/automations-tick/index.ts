@@ -223,19 +223,18 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
         const v = (l.custom_fields as any)?.[cond.field_key];
         const present = v !== null && v !== undefined && v !== "" &&
           !(Array.isArray(v) && v.length === 0);
-        const a = normBool(v);
-        const b = normBool(cond.value);
-        const eq = a === b;
+        const eq = normBool(v) === normBool(cond.value);
         const pass =
           cond.op === "eq" ? eq :
           cond.op === "neq" ? !eq :
           cond.op === "empty" ? !present :
           cond.op === "not_empty" ? present : true;
         if (!pass) {
-          await logRun(supabase, a.id ?? "", l.id, a.clinic_id, "skipped", "condition_not_matched", appt.toISOString());
+          await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "condition_not_matched", appt.toISOString());
           continue;
         }
       }
+
 
       out.push({ ...l, appointment_at: appt.toISOString() });
     }
