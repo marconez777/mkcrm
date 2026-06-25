@@ -36,6 +36,14 @@ const HUMAN_SCHEDULING_STAGES = new Set<string>([
 ]);
 const HUMAN_TRANSITION_REJECT_REASON = "ai_scheduling_disabled_by_human_transition";
 
+// Campos com LOCK HUMANO PERMANENTE (sem janela G10): uma vez editados
+// pela secretária, a IA nunca mais sobrescreve. Hoje cobre `origem` —
+// rastreio do funil deve respeitar a verdade humana indefinidamente.
+const STICKY_HUMAN_FIELDS = new Set<string>([
+  "origem",
+]);
+const STICKY_HUMAN_REJECT_REASON = "sticky_human_field_locked";
+
 // Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
@@ -178,6 +186,18 @@ export async function applyClassification(
 
   function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
     const humanIso = lead.custom_fields_last_human_edit?.[k];
+
+    // Sticky human lock: campos como `origem` nunca podem ser sobrescritos
+    // pela IA depois de uma edição humana, independente da janela G10.
+    if (humanIso && STICKY_HUMAN_FIELDS.has(k)) {
+      fieldsRejected.push({
+        key: k,
+        raw_value: v,
+        reason: STICKY_HUMAN_REJECT_REASON,
+      });
+      return;
+    }
+
     if (humanIso) {
       const humanMs = Date.parse(humanIso);
       const insideWindow =
