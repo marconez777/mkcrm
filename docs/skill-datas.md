@@ -829,3 +829,28 @@ ver `supabase/functions/_shared/pipeline-move.ts`.
 **Fim.** Qualquer adaptação envolvendo data, agendamento, lembrete ou
 custom field deve passar por: (1) seção 4 (cron), (2) seções 5–8 (fluxos),
 (3) seção 13 (invariantes) e (4) seção 15 (extensões já mapeadas).
+
+---
+
+## 9. Locks de campos (atualização Jun/2026)
+
+### 9.1 G10 (janela de 7 dias)
+- Implementado em `supabase/functions/pipeline-classify/apply.ts` → `tryApplyField` + `G10_WINDOW_MS = 7 dias`.
+- Qualquer campo editado pela secretária via UI fica protegido por 7 dias contra sobrescrita da IA. Override só ocorre para `consulta_agendada_em`/`procedimento_agendado_em` quando o classifier sinaliza nova data com confiança ≥ 0.85.
+
+### 9.2 Lock humano permanente (sticky)
+- Constante `STICKY_HUMAN_FIELDS` em `apply.ts`. Hoje: `{ "origem" }`.
+- Comportamento: se `custom_fields_last_human_edit['origem']` existir, qualquer patch da IA sobre `origem` é descartado com `reason = "sticky_human_field_locked"` — independente da janela de tempo.
+- Trigger `trg_track_custom_fields_human_edits` em `leads` carimba o timestamp automaticamente a cada UPDATE via UI.
+- Prompts (Typifier + Maestro) também instruem a IA a não tentar reescrever `origem` quando já preenchida.
+
+### 9.3 Primeira mensagem do lead (detecção determinística)
+- `detectFirstMessageTemplate(messages)` em `context.ts` retorna `true` quando o lead tem **apenas 1 mensagem inbound** e o texto bate com padrões pré-fabricados (`/quero (agendar|saber|marcar)/i`, `/vim pelo (google|instagram|facebook)/i`, etc.).
+- A flag é exposta no contexto dos agentes como `PRIMEIRA_MENSAGEM_TEMPLATE: true|false`.
+- Summarizer, Typifier e Maestro tratam essa flag como instrução: nada de `interesse_consulta`, `interesse_tratamento`, `scheduling_intent` enquanto for `true`. A única extração permitida é `origem`.
+
+## 10. Monthly Sweep (atualização)
+- Função `ruleMonthlySweep` em `pipeline-deterministic/index.ts`.
+- Toggle: `automation.monthly_sweep_paciente_antigo.enabled` (ativado em Jun/2026).
+- Origem: aliases `Consulta finalizada` **e** `1ª Sessão Finalizada`. Destino: `Paciente antigo` + `eh_paciente_antigo=true`.
+- Filtro de janela: `stage_changed_at < primeiro dia do mês corrente (UTC)` — leads que entraram em finalizado no dia 1 do mês corrente ficam para o sweep do próximo mês, alinhado ao requisito "dia 2 até o último dia do mês".
