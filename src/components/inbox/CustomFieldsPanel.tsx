@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,12 +39,53 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
       <div className="mb-1 text-[10px] uppercase tracking-wide text-foreground">Principal</div>
       <div className="divide-y divide-border">
         {fields.map((f) => (
-          <div key={f.id} className="grid min-h-[28px] grid-cols-[110px_1fr] items-center gap-2 py-1">
-            <span className="truncate text-xs text-foreground">{f.label}</span>
+          <div key={f.id} className="grid min-h-[28px] grid-cols-[84px_1fr] items-start gap-2 py-1">
+            <span className="truncate pt-0.5 text-xs text-foreground" title={f.label}>{f.label}</span>
             <FieldInput field={f} value={values[f.field_key]} onChange={(v) => set(f.field_key, v)} />
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ResizableTextareaField({
+  fieldKey,
+  value,
+  setLocal,
+  onCommit,
+}: {
+  fieldKey: string;
+  value: any;
+  setLocal: (v: any) => void;
+  onCommit: () => void;
+}) {
+  const storageKey = `cf-textarea-h:${fieldKey}`;
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
+    if (saved && ref.current) ref.current.style.height = saved;
+  }, [storageKey]);
+
+  function persistHeight() {
+    if (ref.current) {
+      const h = ref.current.style.height;
+      if (h) window.localStorage.setItem(storageKey, h);
+    }
+  }
+
+  return (
+    <div className="rounded-md border bg-background px-2 py-1.5 transition-colors focus-within:border-primary/40">
+      <Textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => { persistHeight(); onCommit(); }}
+        onMouseUp={persistHeight}
+        className="min-h-[64px] max-h-[480px] resize-y border-0 bg-transparent p-0 text-sm leading-relaxed text-foreground placeholder:text-foreground/60 shadow-none focus-visible:ring-0"
+        placeholder="..."
+      />
     </div>
   );
 }
@@ -77,15 +118,7 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
       );
 
     case "textarea":
-      return (
-        <Textarea
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={() => onChange(local || null)}
-          className="min-h-[48px] resize-none border-0 bg-transparent p-0 text-sm text-foreground placeholder:text-foreground/70 shadow-none focus-visible:ring-0"
-          placeholder="..."
-        />
-      );
+      return <ResizableTextareaField fieldKey={field.field_key} value={local} setLocal={setLocal} onCommit={() => onChange(local || null)} />;
 
     case "number":
       return (
