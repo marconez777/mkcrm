@@ -306,6 +306,7 @@ Contexto do lead:
 - Lead criado: ${ctx.lead.created_at ? `${fmtBR(ctx.lead.created_at)} (há ${ageHuman(ctx.lead.created_at, ctx.nowMs)})` : "?"}
 - Total de mensagens: ${ctx.totalMessages}${ctx.firstMessageAt ? ` (primeira em ${fmtBR(ctx.firstMessageAt)})` : ""}
 - Já passou por tratamento/alta antes? ${ctx.hasBeenTreatedBefore ? "SIM" : "não detectado"}
+- PRIMEIRA_MENSAGEM_TEMPLATE: ${ctx.firstMessageIsTemplate ? "true (ignore para interesse/intenção; OK apenas para origem)" : "false"}
 - Últimos stage moves:
 ${history}
 - Resumo de atendimento (ai_summary):
