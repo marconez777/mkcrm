@@ -39,8 +39,8 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
       <div className="mb-1 text-[10px] uppercase tracking-wide text-foreground">Principal</div>
       <div className="divide-y divide-border">
         {fields.map((f) => (
-          <div key={f.id} className="grid min-h-[28px] grid-cols-[60%_40%] items-start gap-2 py-1">
-            <span className="truncate pt-0.5 text-xs text-foreground" title={f.label}>{f.label}</span>
+          <div key={f.id} className="grid min-h-[28px] grid-cols-[auto_1fr] items-start gap-x-3 py-1">
+            <span className="line-clamp-2 max-w-[180px] pt-0.5 text-xs text-foreground" title={f.label}>{f.label}</span>
             <FieldInput field={f} value={values[f.field_key]} onChange={(v) => set(f.field_key, v)} />
           </div>
         ))}
