@@ -244,8 +244,13 @@ function BroadcastEditor({ id }: { id: string }) {
 
   const save = async (patch: Partial<Broadcast>) => {
     if (!bc) return;
+    const prev = bc;
     setBc({ ...bc, ...patch } as Broadcast);
-    await supabase.from("broadcasts").update(patch).eq("id", id);
+    const { error } = await supabase.from("broadcasts").update(patch).eq("id", id);
+    if (error) {
+      setBc(prev);
+      toast.error(`Não foi possível salvar: ${error.message}`);
+    }
   };
 
   const control = async (action: string, extra: Record<string, unknown> = {}) => {
