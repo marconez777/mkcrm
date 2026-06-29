@@ -554,6 +554,51 @@ export default function AdminClinics() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!openDelete} onOpenChange={(o) => !o && closeDelete()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-admin-negative">
+              <AlertTriangle className="h-4 w-4" />
+              Excluir clínica — {openDelete?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border border-admin-negative/30 bg-admin-negative/5 p-3 text-sm">
+              <p className="font-medium text-admin-negative">Esta ação é irreversível.</p>
+              <ul className="mt-2 list-disc pl-4 text-xs text-admin-text-muted space-y-1">
+                <li>A clínica e todos os dados relacionados serão apagados (leads, mensagens, automações, e-mails, instâncias WhatsApp, etc.).</li>
+                <li>Todos os usuários cadastrados nesta clínica serão excluídos (incluindo o login/email).</li>
+                <li>Usuários que também pertencem a outras clínicas serão apenas desvinculados desta.</li>
+              </ul>
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Para confirmar, digite o slug exato: <code className="px-1 py-0.5 rounded bg-admin-surface-2 text-admin-text">{openDelete?.slug}</code>
+              </Label>
+              <Input
+                value={deleteSlugInput}
+                onChange={(e) => setDeleteSlugInput(e.target.value)}
+                placeholder={openDelete?.slug}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeDelete} disabled={busy}>Cancelar</Button>
+            <Button
+              type="button"
+              onClick={deleteClinic}
+              disabled={busy || deleteSlugInput.trim() !== (openDelete?.slug ?? "")}
+              className="bg-admin-negative text-white hover:bg-admin-negative/90"
+            >
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              <Trash2 className="mr-2 h-3 w-3" />
+              Excluir permanentemente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
