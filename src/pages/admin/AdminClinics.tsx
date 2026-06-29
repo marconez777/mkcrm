@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye, LayoutGrid, List, Building2, CheckCircle2, PauseCircle, Sparkles } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye, LayoutGrid, List, Building2, CheckCircle2, PauseCircle, Sparkles, Trash2, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { FEATURES, isFeatureEnabled } from "@/lib/features";
 import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
@@ -51,6 +51,8 @@ export default function AdminClinics() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPlan, setBulkPlan] = useState<string>("");
   const [view, setView] = useState<"table" | "grid">("table");
+  const [openDelete, setOpenDelete] = useState<Clinic | null>(null);
+  const [deleteSlugInput, setDeleteSlugInput] = useState("");
 
   async function load() {
     try {
@@ -142,6 +144,32 @@ export default function AdminClinics() {
       toast.success("Recursos atualizados");
       setOpenFeatures(null); await load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  }
+  function closeDelete() { setOpenDelete(null); setDeleteSlugInput(""); }
+  async function deleteClinic() {
+    if (!openDelete) return;
+    if (deleteSlugInput.trim() !== openDelete.slug) {
+      toast.error(`Digite o slug exato: ${openDelete.slug}`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-clinic", {
+        body: { clinic_id: openDelete.id, confirm_slug: deleteSlugInput.trim() },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const d = data as any;
+      toast.success(
+        `Clínica excluída · ${d.users_deleted} usuário(s) apagado(s), ${d.users_detached} desvinculado(s)`,
+      );
+      closeDelete();
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
   function closeCreateUser() { setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional"); }
   async function createUser(e: React.FormEvent) {
@@ -388,6 +416,7 @@ export default function AdminClinics() {
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Criar usuário" onClick={() => setOpenCreateUser(c)}><UserPlus className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Convite" onClick={() => setOpenInvite(c)}><Mail className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" title="Excluir clínica e todos os usuários" onClick={() => setOpenDelete(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -429,6 +458,7 @@ export default function AdminClinics() {
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />Recursos</Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convite</Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs ml-auto" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" onClick={() => setOpenDelete(c)}><Trash2 className="mr-1 h-3 w-3" />Excluir</Button>
               </div>
             </AdminCard>
           ))}
@@ -521,6 +551,51 @@ export default function AdminClinics() {
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpenFeatures(null)}>Cancelar</Button>
             <Button type="button" onClick={saveFeatures} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!openDelete} onOpenChange={(o) => !o && closeDelete()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-admin-negative">
+              <AlertTriangle className="h-4 w-4" />
+              Excluir clínica — {openDelete?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border border-admin-negative/30 bg-admin-negative/5 p-3 text-sm">
+              <p className="font-medium text-admin-negative">Esta ação é irreversível.</p>
+              <ul className="mt-2 list-disc pl-4 text-xs text-admin-text-muted space-y-1">
+                <li>A clínica e todos os dados relacionados serão apagados (leads, mensagens, automações, e-mails, instâncias WhatsApp, etc.).</li>
+                <li>Todos os usuários cadastrados nesta clínica serão excluídos (incluindo o login/email).</li>
+                <li>Usuários que também pertencem a outras clínicas serão apenas desvinculados desta.</li>
+              </ul>
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Para confirmar, digite o slug exato: <code className="px-1 py-0.5 rounded bg-admin-surface-2 text-admin-text">{openDelete?.slug}</code>
+              </Label>
+              <Input
+                value={deleteSlugInput}
+                onChange={(e) => setDeleteSlugInput(e.target.value)}
+                placeholder={openDelete?.slug}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={closeDelete} disabled={busy}>Cancelar</Button>
+            <Button
+              type="button"
+              onClick={deleteClinic}
+              disabled={busy || deleteSlugInput.trim() !== (openDelete?.slug ?? "")}
+              className="bg-admin-negative text-white hover:bg-admin-negative/90"
+            >
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              <Trash2 className="mr-2 h-3 w-3" />
+              Excluir permanentemente
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
