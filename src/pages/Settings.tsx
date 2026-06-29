@@ -389,10 +389,16 @@ export default function SettingsPage() {
           {!isProfessional && (
             <TabsContent value="ai-pipeline" className="space-y-6">
               {membership?.clinic_id ? (
-                <OpenAIKeyCard
-                  clinicId={membership.clinic_id}
-                  canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
-                />
+                <>
+                  <OpenAIKeyCard
+                    clinicId={membership.clinic_id}
+                    canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
+                  />
+                  <AIPipelinesCard
+                    clinicId={membership.clinic_id}
+                    canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
+                  />
+                </>
               ) : (
                 <Card className="p-6 text-sm text-muted-foreground">
                   Você precisa pertencer a uma clínica para configurar a IA do pipeline.
