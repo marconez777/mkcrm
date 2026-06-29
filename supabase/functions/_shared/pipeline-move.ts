@@ -26,6 +26,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "./ai-pipeline-filter.ts";
 
 export type PipelineMoveSource =
   | `auto:${string}`
