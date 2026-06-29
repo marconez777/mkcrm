@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye, LayoutGrid, List, Building2, CheckCircle2, PauseCircle, Sparkles } from "lucide-react";
+import { Loader2, Plus, Mail, Copy, UserPlus, Sliders, Search, Download, Eye, LayoutGrid, List, Building2, CheckCircle2, PauseCircle, Sparkles, Trash2, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { FEATURES, isFeatureEnabled } from "@/lib/features";
 import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
