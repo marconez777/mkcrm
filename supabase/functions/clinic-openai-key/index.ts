@@ -1,34 +1,52 @@
-// clinic-openai-key — gerencia a chave OpenAI (BYOK) por clínica.
+// clinic-openai-key — gerencia chaves BYOK de IA (OpenAI e Gemini) por clínica.
 // Actions:
-//   - status: retorna {status, last4, last_checked_at, last_error}
-//   - set:    valida a chave com a OpenAI e, se ok, salva; retorna status
-//   - test:   testa a chave atualmente salva
-//   - clear:  remove a chave
+//   - status: retorna status combinado de ambos provedores + active_ai_provider
+//   - set:    valida a chave do provider escolhido e, se ok, salva e marca como ativo
+//   - test:   testa a chave do provider escolhido
+//   - clear:  remove a chave do provider escolhido
 //
-// Segurança:
-//   - tabela `clinic_secrets` só tem GRANTs pra service_role.
-//   - validamos o JWT e a associação (clinic_members) antes de qualquer acesso.
-//   - apenas papéis owner/admin podem set/clear (donos da chave de billing).
+// Body: { action, clinic_id, provider?: "openai"|"gemini" (default "openai"), api_key? }
 
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 
 type Action = "status" | "set" | "test" | "clear";
+type Provider = "openai" | "gemini";
 
 interface Body {
   action: Action;
   clinic_id: string;
+  provider?: Provider;
   api_key?: string;
 }
 
-const VALIDATE_MODEL = "gpt-4o-mini"; // modelo leve e barato pra ping de auth
+const GEMINI_VALIDATE_MODEL = "gemini-2.5-flash";
 
 async function callOpenAI(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    // /v1/models é o endpoint mais barato pra validar a chave (sem custo de tokens)
     const r = await fetch("https://api.openai.com/v1/models", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (r.status === 401) return { ok: false, error: "Chave inválida (401)" };
+    if (r.status === 429) return { ok: false, error: "Rate limit no provedor (429)" };
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      return { ok: false, error: `HTTP ${r.status}: ${txt.slice(0, 200)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function callGemini(apiKey: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VALIDATE_MODEL}?key=${encodeURIComponent(apiKey)}`,
+    );
+    if (r.status === 400 || r.status === 401 || r.status === 403) {
+      const txt = await r.text().catch(() => "");
+      return { ok: false, error: `Chave inválida (${r.status}): ${txt.slice(0, 160)}` };
+    }
     if (r.status === 429) return { ok: false, error: "Rate limit no provedor (429)" };
     if (!r.ok) {
       const txt = await r.text().catch(() => "");
@@ -63,7 +81,9 @@ async function loadStatus(clinicId: string) {
   const supabase = sb();
   const { data } = await supabase
     .from("clinic_secrets")
-    .select("openai_status, openai_key_last4, openai_last_checked_at, openai_last_error, updated_at")
+    .select(
+      "openai_status, openai_key_last4, openai_last_checked_at, openai_last_error, gemini_status, gemini_key_last4, gemini_last_checked_at, gemini_last_error, active_ai_provider, updated_at",
+    )
     .eq("clinic_id", clinicId)
     .maybeSingle();
   return data ?? {
@@ -71,6 +91,11 @@ async function loadStatus(clinicId: string) {
     openai_key_last4: null,
     openai_last_checked_at: null,
     openai_last_error: null,
+    gemini_status: "empty",
+    gemini_key_last4: null,
+    gemini_last_checked_at: null,
+    gemini_last_error: null,
+    active_ai_provider: "openai",
     updated_at: null,
   };
 }
@@ -84,7 +109,6 @@ async function upsertStatus(
     .from("clinic_secrets")
     .upsert({ clinic_id: clinicId, ...patch }, { onConflict: "clinic_id" });
 
-  // Sincroniza classifier_config.openai_status na clinica
   if (patch.openai_status) {
     try {
       await supabase
@@ -93,7 +117,6 @@ async function upsertStatus(
         .eq("id", clinicId);
     } catch { /* não falha o fluxo principal */ }
   }
-
 }
 
 Deno.serve(async (req) => {
@@ -113,6 +136,7 @@ Deno.serve(async (req) => {
   }
 
   const { action, clinic_id } = body;
+  const provider: Provider = body.provider === "gemini" ? "gemini" : "openai";
   if (!clinic_id || !action) return json({ error: "missing_params" }, 400);
 
   const needsAdmin = action === "set" || action === "clear";
@@ -125,16 +149,23 @@ Deno.serve(async (req) => {
 
   if (action === "clear") {
     const supabase = sb();
+    const patch: Record<string, unknown> = { clinic_id };
+    if (provider === "gemini") {
+      patch.gemini_api_key = null;
+      patch.gemini_key_last4 = null;
+      patch.gemini_status = "empty";
+      patch.gemini_last_checked_at = new Date().toISOString();
+      patch.gemini_last_error = null;
+    } else {
+      patch.openai_api_key = null;
+      patch.openai_key_last4 = null;
+      patch.openai_status = "empty";
+      patch.openai_last_checked_at = new Date().toISOString();
+      patch.openai_last_error = null;
+    }
     await supabase
       .from("clinic_secrets")
-      .upsert({
-        clinic_id,
-        openai_api_key: null,
-        openai_key_last4: null,
-        openai_status: "empty",
-        openai_last_checked_at: new Date().toISOString(),
-        openai_last_error: null,
-      }, { onConflict: "clinic_id" });
+      .upsert(patch, { onConflict: "clinic_id" });
     return json(await loadStatus(clinic_id));
   }
 
@@ -142,17 +173,24 @@ Deno.serve(async (req) => {
     const supabase = sb();
     const { data } = await supabase
       .from("clinic_secrets")
-      .select("openai_api_key")
+      .select("openai_api_key, gemini_api_key")
       .eq("clinic_id", clinic_id)
       .maybeSingle();
-    const key = data?.openai_api_key as string | null;
+    const key = (provider === "gemini" ? data?.gemini_api_key : data?.openai_api_key) as string | null;
     if (!key) return json({ ok: false, error: "no_key" }, 400);
-    const r = await callOpenAI(key);
-    await upsertStatus(clinic_id, {
-      openai_status: r.ok ? "configured" : "invalid",
-      openai_last_checked_at: new Date().toISOString(),
-      openai_last_error: r.ok ? null : r.error ?? "unknown",
-    });
+    const r = provider === "gemini" ? await callGemini(key) : await callOpenAI(key);
+    const patch: Record<string, unknown> = provider === "gemini"
+      ? {
+          gemini_status: r.ok ? "configured" : "invalid",
+          gemini_last_checked_at: new Date().toISOString(),
+          gemini_last_error: r.ok ? null : r.error ?? "unknown",
+        }
+      : {
+          openai_status: r.ok ? "configured" : "invalid",
+          openai_last_checked_at: new Date().toISOString(),
+          openai_last_error: r.ok ? null : r.error ?? "unknown",
+        };
+    await upsertStatus(clinic_id, patch);
     return json({ ...r, status: await loadStatus(clinic_id) });
   }
 
@@ -160,25 +198,39 @@ Deno.serve(async (req) => {
     const key = (body.api_key ?? "").trim();
     if (!key || key.length < 20) return json({ ok: false, error: "invalid_key_format" }, 400);
 
-    const r = await callOpenAI(key);
+    const r = provider === "gemini" ? await callGemini(key) : await callOpenAI(key);
     if (!r.ok) {
-      // não persiste a chave inválida
-      await upsertStatus(clinic_id, {
-        openai_status: "invalid",
-        openai_last_checked_at: new Date().toISOString(),
-        openai_last_error: r.error ?? "unknown",
-      });
+      const patch: Record<string, unknown> = provider === "gemini"
+        ? {
+            gemini_status: "invalid",
+            gemini_last_checked_at: new Date().toISOString(),
+            gemini_last_error: r.error ?? "unknown",
+          }
+        : {
+            openai_status: "invalid",
+            openai_last_checked_at: new Date().toISOString(),
+            openai_last_error: r.error ?? "unknown",
+          };
+      await upsertStatus(clinic_id, patch);
       return json({ ok: false, error: r.error, status: await loadStatus(clinic_id) }, 400);
     }
 
     const last4 = key.slice(-4);
-    await upsertStatus(clinic_id, {
-      openai_api_key: key,
-      openai_key_last4: last4,
-      openai_status: "configured",
-      openai_last_checked_at: new Date().toISOString(),
-      openai_last_error: null,
-    });
+    const patch: Record<string, unknown> = { active_ai_provider: provider };
+    if (provider === "gemini") {
+      patch.gemini_api_key = key;
+      patch.gemini_key_last4 = last4;
+      patch.gemini_status = "configured";
+      patch.gemini_last_checked_at = new Date().toISOString();
+      patch.gemini_last_error = null;
+    } else {
+      patch.openai_api_key = key;
+      patch.openai_key_last4 = last4;
+      patch.openai_status = "configured";
+      patch.openai_last_checked_at = new Date().toISOString();
+      patch.openai_last_error = null;
+    }
+    await upsertStatus(clinic_id, patch);
     return json({ ok: true, status: await loadStatus(clinic_id) });
   }
 
