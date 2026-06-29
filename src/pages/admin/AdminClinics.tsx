@@ -458,6 +458,7 @@ export default function AdminClinics() {
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => openFeaturesDialog(c)}><Sliders className="mr-1 h-3 w-3" />Recursos</Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setOpenInvite(c)}><Mail className="mr-1 h-3 w-3" />Convite</Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs ml-auto" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" onClick={() => setOpenDelete(c)}><Trash2 className="mr-1 h-3 w-3" />Excluir</Button>
               </div>
             </AdminCard>
           ))}
