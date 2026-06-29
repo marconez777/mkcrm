@@ -174,7 +174,7 @@ async function classifyOneV2(
     telemetry,
     agents: agentOut.agents
       ? {
-          provider: agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai",
+          provider: (agentOut.agents as any).provider ?? (agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai"),
           models: {
             summarizer: agentOut.agents.summarizer_model,
             agendador: agentOut.agents.agendador_model,

@@ -151,7 +151,7 @@ async function recordStep(opts: {
   latencyMs: number;
   usage?: unknown;
   error?: string | null;
-  provider?: "lovable" | "openai" | null;
+  provider?: "lovable" | "openai" | "google" | null;
   details?: Record<string, unknown>;
 }) {
   const tokens = extractTokens(opts.usage);
@@ -963,6 +963,7 @@ async function runAgentOnce(
     usage: { agent1: usage1, agent2_parallel: usage2, agent3: usage3 },
     mode: "full",
     agents: {
+      provider: ai.provider,
       summarizer_model: summarizerModel,
       agendador_model: M_AGENDADOR,
       typifier_model: M_TYPIFIER,
