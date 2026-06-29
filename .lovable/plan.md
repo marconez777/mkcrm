@@ -1,33 +1,63 @@
+# Rebranding UI: "Clínica" → "Empresa"
+
 ## Objetivo
-Adicionar um card "Filtro de Pipelines da IA" na aba **Settings → IA do Pipeline**, permitindo que a clínica escolha em quais pipelines as automações de IA devem atuar. A escolha é persistida em `clinics.settings.ai_target_pipeline_ids`.
+Remover o termo "clínica/clínicas" de toda a copy visível ao usuário, trocando por **"empresa/empresas"**. Mantém intacto: nomes de tabela (`clinics`), colunas (`clinic_id`), rotas (`/admin/clinics`), variáveis, tipos e nomes de componentes/arquivos (`AdminClinics.tsx`, `ClinicOnlyRoute`, etc.).
 
-## Arquivos
+## Exceções (não tocar)
+- Skill/knowledge de nicho `supabase/functions/_shared/builder-knowledge/niches/clinic.md` e demais arquivos sob `supabase/functions/_shared/builder-knowledge/` — são conteúdo de domínio usado por tenants que ainda atendem clínicas (ex.: "Clínica OR", "Sanapta").
+- Documentação interna em `docs/`, `dry-run-pr2/`, `.lovable/memories/` — histórico técnico, não é UI.
+- Tabela `clinics` e colunas `clinic_*` no banco — só código interno.
+- Edge functions e nomes técnicos (`admin-delete-clinic`, `clinic-invite`, `clinic-openai-key`, etc.).
+- Dados já cadastrados pelos tenants (nome da empresa que cada cliente digitou continua como está).
 
-### 1. Novo: `src/components/settings/AIPipelinesCard.tsx`
-Componente client-side com:
-- Carrega lista de pipelines (`pipelines` table, ordenado por `position`).
-- Carrega `clinics.settings.ai_target_pipeline_ids` (array de UUIDs).
-- Renderiza checkboxes (um por pipeline) marcando os selecionados.
-- Botão **Salvar** que faz merge no JSON `settings` preservando outras chaves.
-- Estados: `loading`, `saving`; usa `sonner` para feedback.
-- Tipagem corrigida (`useState<Pipeline[]>`, `Record<string, unknown>`) — o snippet enviado tem genéricos vazios que quebrariam o TS build.
-- Respeita `canManage` (botão e checkboxes desabilitados quando falso).
-- Texto de ajuda: "Se nenhum estiver selecionado, as automações atuarão em todos os pipelines por padrão."
+## Fase 1 — Onboarding e fluxos de entrada (prioridade alta)
+Arquivos com copy crítica no primeiro contato:
+- `src/pages/Onboarding.tsx` — "Configurar sua clínica", "Dados da clínica", "Nome da clínica", "profissionais da clínica", "Sua clínica está configurada", label do stepper "Clínica", placeholder `email@clinica.com` → `email@empresa.com`.
+- `src/pages/Auth.tsx` — textos de cadastro/login mencionando clínica.
+- `src/pages/Invite.tsx` — `"Bem-vindo(a) à ${invite.clinic_name ?? "clínica"}!"` → fallback "empresa".
+- `src/components/site/*` (Hero, Features, Pricing, About, Capabilities, Services, Integrations, SiteNav, SiteFooter) — varrer copy do site institucional.
 
-### 2. Editar `src/pages/Settings.tsx`
-- Import: `import AIPipelinesCard from "@/components/settings/AIPipelinesCard";`
-- Dentro de `<TabsContent value="ai-pipeline">` (linha ~389), inserir `<AIPipelinesCard ... />` logo após `<OpenAIKeyCard ... />`, com as mesmas props `clinicId` e `canManage` já calculadas no JSX existente.
+## Fase 2 — App shell e navegação
+- `src/components/AppShell.tsx` — labels de menu/usuário.
+- `src/layouts/AdminShell.tsx` — manter rota `/admin/clinics` mas trocar o **label** do item de menu (ex.: "Clínicas" → "Empresas").
+- `src/components/CommandPalette.tsx` e `src/components/admin/AdminCommandPalette.tsx` — entradas/atalhos.
 
-## Detalhes técnicos
-- Não requer migration: `clinics.settings` já é `jsonb`.
-- Não requer mudança de RLS: políticas existentes de `clinics` cobrem update por owner/admin.
-- Sem mudanças em edge functions nesta entrega.
+## Fase 3 — Settings, Team, Broadcasts e ferramentas operacionais
+- `src/pages/Settings.tsx`, `src/pages/Team.tsx`, `src/pages/Tasks.tsx`, `src/pages/Broadcasts.tsx`, `src/pages/SettingsForms.tsx`, `src/pages/SettingsAppointmentTypes.tsx`, `src/pages/QueueLogs.tsx`, `src/pages/PipelineRuns.tsx`, `src/pages/MetricsAiUsage.tsx`, `src/pages/Tracking.tsx`, `src/pages/TrackingDebug.tsx`, `src/pages/Unsubscribe.tsx`.
+- Componentes em `src/components/settings/`, `src/components/agents/`, `src/components/admin/`, `src/components/ai/usage/`, `src/components/email/` — só textos visíveis (títulos de Card, descrições, toasts, tooltips).
+- Mensagens em `src/lib/pipeline-skip-reasons.ts`, `src/lib/service-types-mutations.ts`, `src/lib/tracking-identify.ts` — apenas strings exibidas ao usuário (não mudar chaves/IDs).
 
-## Observação importante (consumo do filtro)
-Fiz um grep no repo: a chave `ai_target_pipeline_ids` **ainda não é lida por nenhum agente, edge function ou hook**. Ou seja, salvar a seleção hoje só persiste o valor — não restringe efetivamente as automações até que o consumo seja implementado.
+## Fase 4 — Painel Admin
+- `src/pages/admin/AdminClinics.tsx` (25 ocorrências), `AdminUsers.tsx`, `AdminDashboard.tsx`, `AdminPanels.tsx`, `AdminEduzz.tsx`, `AdminPipelineAutomations.tsx`.
+- Componentes admin (`UsersPanel`, `UsageLimitsPanel`, `FinancePanel`, `DashboardPanel`, `AuditPanel`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `ProviderHealthCard`, `ClinicDetailsDialog`).
+- Dialog de exclusão: continua pedindo "slug da empresa" no lugar de "slug da clínica".
 
-Posso seguir de duas formas:
-- **(A) Só a UI agora** (escopo exato do prompt enviado): cria o card e persiste o JSON. Consumo fica para um próximo plano.
-- **(B) UI + consumo mínimo**: também atualiza os pontos de entrada dos agentes (`pipeline-deterministic`, `pipeline-classify`, `pipeline-auto-retry`, gatilhos de automação) para pular leads cujo `pipeline_id` não esteja na allowlist — quando a allowlist estiver vazia, comportamento atual (atua em todos) é mantido.
+## Regras de substituição
+Aplicar somente em **strings literais** (JSX text nodes, valores de `placeholder`, `title`, `aria-label`, `toast.*`, descrições):
+| Original | Novo |
+|---|---|
+| clínica | empresa |
+| Clínica | Empresa |
+| clínicas | empresas |
+| Clínicas | Empresas |
+| da clínica / na clínica / à clínica | da empresa / na empresa / à empresa |
+| email@clinica.com | email@empresa.com |
 
-Por padrão proponho **(A)** para respeitar o escopo do prompt; me diga se prefere (B) e eu re-emito o plano expandido.
+Não trocar quando o termo faz parte de:
+- Identificadores de código (`clinic_id`, `clinicId`, `useClinicTeam`, `ClinicOnlyRoute`).
+- Conteúdo dentro de `supabase/functions/_shared/builder-knowledge/**` (skill de nicho clínico permanece).
+- Comentários técnicos referenciando a tabela `clinics`.
+- Dados dinâmicos vindos do banco (nome que o tenant cadastrou).
+
+## Validação
+1. `rg -in "clínica|clinica" src/` deve retornar apenas:
+   - Identificadores de código (clinicId, clinic_id, ClinicOnlyRoute, etc.).
+   - Strings em arquivos intencionalmente preservados (nenhum esperado).
+2. Smoke test visual: abrir `/`, `/auth`, `/onboarding`, `/admin/clinics` (label do menu deve dizer "Empresas"), `/settings` — confirmar que nenhum texto exibido contém "clínica".
+3. Verificar que rotas, login, convite e exclusão de tenant continuam funcionando (nenhuma mudança em lógica/IDs).
+
+## Não escopo
+- Nenhuma migração de banco.
+- Nenhuma renomeação de arquivo, componente, rota ou função.
+- Nenhuma alteração em edge functions ou no schema.
+- Skill `clinic.md` e knowledge de nicho permanecem (servem Clínica OR / Sanapta).
