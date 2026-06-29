@@ -5,6 +5,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { handleV1 } from "./index.v1.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "../_shared/ai-pipeline-filter.ts";
 import { loadLeadContext } from "./context.ts";
 import { runAgent } from "./agent-core.ts";
 import {
