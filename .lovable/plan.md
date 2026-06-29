@@ -1,63 +1,44 @@
-# Rebranding UI: "Clínica" → "Empresa"
+## Causa raiz
 
-## Objetivo
-Remover o termo "clínica/clínicas" de toda a copy visível ao usuário, trocando por **"empresa/empresas"**. Mantém intacto: nomes de tabela (`clinics`), colunas (`clinic_id`), rotas (`/admin/clinics`), variáveis, tipos e nomes de componentes/arquivos (`AdminClinics.tsx`, `ClinicOnlyRoute`, etc.).
+O pipeline da Clínica OR (`17c27f4d…`) **não tem o alias canônico `Novo` cadastrado** em `stage_canonical_aliases`. Existe o alias para `Qualificação`, mas o stage real "Leads de entrada" (`b1aa2fc9…`) nunca foi mapeado como `canonical_name='Novo'`.
 
-## Exceções (não tocar)
-- Skill/knowledge de nicho `supabase/functions/_shared/builder-knowledge/niches/clinic.md` e demais arquivos sob `supabase/functions/_shared/builder-knowledge/` — são conteúdo de domínio usado por tenants que ainda atendem clínicas (ex.: "Clínica OR", "Sanapta").
-- Documentação interna em `docs/`, `dry-run-pr2/`, `.lovable/memories/` — histórico técnico, não é UI.
-- Tabela `clinics` e colunas `clinic_*` no banco — só código interno.
-- Edge functions e nomes técnicos (`admin-delete-clinic`, `clinic-invite`, `clinic-openai-key`, etc.).
-- Dados já cadastrados pelos tenants (nome da empresa que cada cliente digitou continua como está).
+Consequência direta: toda vez que a secretária responde um lead em "Leads de entrada", o trigger `auto:secretary-replied` chama `pipeline-deterministic`, que executa `resolveStageId(pipeline, 'Novo')`, não acha o alias, e retorna `skipped: not_in_novo`. As respostas no `net._http_response` confirmam isso — centenas de chamadas com `{"ok":true,"result":{"skipped":"not_in_novo"}}` nas últimas horas.
 
-## Fase 1 — Onboarding e fluxos de entrada (prioridade alta)
-Arquivos com copy crítica no primeiro contato:
-- `src/pages/Onboarding.tsx` — "Configurar sua clínica", "Dados da clínica", "Nome da clínica", "profissionais da clínica", "Sua clínica está configurada", label do stepper "Clínica", placeholder `email@clinica.com` → `email@empresa.com`.
-- `src/pages/Auth.tsx` — textos de cadastro/login mencionando clínica.
-- `src/pages/Invite.tsx` — `"Bem-vindo(a) à ${invite.clinic_name ?? "clínica"}!"` → fallback "empresa".
-- `src/components/site/*` (Hero, Features, Pricing, About, Capabilities, Services, Integrations, SiteNav, SiteFooter) — varrer copy do site institucional.
+Por isso os cards continuam em "Leads de entrada" mesmo depois da secretária responder, mesmo com o toggle `automation.secretary_replied.enabled = true` e a função deployada.
 
-## Fase 2 — App shell e navegação
-- `src/components/AppShell.tsx` — labels de menu/usuário.
-- `src/layouts/AdminShell.tsx` — manter rota `/admin/clinics` mas trocar o **label** do item de menu (ex.: "Clínicas" → "Empresas").
-- `src/components/CommandPalette.tsx` e `src/components/admin/AdminCommandPalette.tsx` — entradas/atalhos.
+A doc `docs/pipeline/runtime/STAGES_LIVE.md` afirma que o alias existe ("o canônico `Novo` resolve para o stage real 'Leads de entrada' via alias"), mas o registro está ausente no banco — provavelmente nunca foi seedado para esse pipeline, ou foi apagado em alguma migração.
 
-## Fase 3 — Settings, Team, Broadcasts e ferramentas operacionais
-- `src/pages/Settings.tsx`, `src/pages/Team.tsx`, `src/pages/Tasks.tsx`, `src/pages/Broadcasts.tsx`, `src/pages/SettingsForms.tsx`, `src/pages/SettingsAppointmentTypes.tsx`, `src/pages/QueueLogs.tsx`, `src/pages/PipelineRuns.tsx`, `src/pages/MetricsAiUsage.tsx`, `src/pages/Tracking.tsx`, `src/pages/TrackingDebug.tsx`, `src/pages/Unsubscribe.tsx`.
-- Componentes em `src/components/settings/`, `src/components/agents/`, `src/components/admin/`, `src/components/ai/usage/`, `src/components/email/` — só textos visíveis (títulos de Card, descrições, toasts, tooltips).
-- Mensagens em `src/lib/pipeline-skip-reasons.ts`, `src/lib/service-types-mutations.ts`, `src/lib/tracking-identify.ts` — apenas strings exibidas ao usuário (não mudar chaves/IDs).
+## Fix
 
-## Fase 4 — Painel Admin
-- `src/pages/admin/AdminClinics.tsx` (25 ocorrências), `AdminUsers.tsx`, `AdminDashboard.tsx`, `AdminPanels.tsx`, `AdminEduzz.tsx`, `AdminPipelineAutomations.tsx`.
-- Componentes admin (`UsersPanel`, `UsageLimitsPanel`, `FinancePanel`, `DashboardPanel`, `AuditPanel`, `IntegrationsDomainsTable`, `IntegrationsQuotaTable`, `ProviderHealthCard`, `ClinicDetailsDialog`).
-- Dialog de exclusão: continua pedindo "slug da empresa" no lugar de "slug da clínica".
+### 1. Inserir o alias faltante (migration de dados)
 
-## Regras de substituição
-Aplicar somente em **strings literais** (JSX text nodes, valores de `placeholder`, `title`, `aria-label`, `toast.*`, descrições):
-| Original | Novo |
-|---|---|
-| clínica | empresa |
-| Clínica | Empresa |
-| clínicas | empresas |
-| Clínicas | Empresas |
-| da clínica / na clínica / à clínica | da empresa / na empresa / à empresa |
-| email@clinica.com | email@empresa.com |
+```sql
+INSERT INTO public.stage_canonical_aliases (clinic_id, pipeline_id, stage_id, canonical_name)
+VALUES (
+  'cf038458-457d-4c1a-9ac4-c88c3c8353a1',         -- Clínica OR
+  '17c27f4d-8256-4ea7-b5b9-ed706494f686',
+  'b1aa2fc9-d221-4d4f-b53a-7303ec4b75b0',         -- Leads de entrada
+  'Novo'
+)
+ON CONFLICT DO NOTHING;
+```
 
-Não trocar quando o termo faz parte de:
-- Identificadores de código (`clinic_id`, `clinicId`, `useClinicTeam`, `ClinicOnlyRoute`).
-- Conteúdo dentro de `supabase/functions/_shared/builder-knowledge/**` (skill de nicho clínico permanece).
-- Comentários técnicos referenciando a tabela `clinics`.
-- Dados dinâmicos vindos do banco (nome que o tenant cadastrou).
+Também vou varrer **todos** os pipelines ativos e, para cada um sem alias `Novo`, mapear o stage de menor `position` (ou o stage cujo nome casa com os aliases conhecidos: "Leads de entrada", "Novo", "Lead novo", "Entrada") como canônico `Novo`. Isso previne o mesmo bug em outras clínicas/pipelines criados depois.
 
-## Validação
-1. `rg -in "clínica|clinica" src/` deve retornar apenas:
-   - Identificadores de código (clinicId, clinic_id, ClinicOnlyRoute, etc.).
-   - Strings em arquivos intencionalmente preservados (nenhum esperado).
-2. Smoke test visual: abrir `/`, `/auth`, `/onboarding`, `/admin/clinics` (label do menu deve dizer "Empresas"), `/settings` — confirmar que nenhum texto exibido contém "clínica".
-3. Verificar que rotas, login, convite e exclusão de tenant continuam funcionando (nenhuma mudança em lógica/IDs).
+### 2. Backfill dos cards travados
 
-## Não escopo
-- Nenhuma migração de banco.
-- Nenhuma renomeação de arquivo, componente, rota ou função.
-- Nenhuma alteração em edge functions ou no schema.
-- Skill `clinic.md` e knowledge de nicho permanecem (servem Clínica OR / Sanapta).
+Após inserir o alias, rodar uma chamada manual ao `pipeline-deterministic` com `action: 'secretary-replied'` para cada mensagem `from_me=true` recente cujo lead ainda está em "Leads de entrada"/"Novo". Como atalho operacional, basta um `UPDATE leads SET stage_id = <qualificacao_id>` para os leads do pipeline 17c27f4d que estão em "Leads de entrada" e já têm pelo menos 1 mensagem `from_me=true` — preservando histórico via INSERT em `lead_stage_history` com `source='backfill:secretary-replied-alias-fix'`.
+
+### 3. Verificação
+
+- Conferir que `resolveStageId(pipeline 17c27f4d, 'Novo')` retorna `b1aa2fc9…`.
+- Forçar uma resposta de secretária em um lead novo no preview e checar se ele migra para "Qualificação" dentro de poucos segundos.
+- Conferir que aparecem novos eventos `auto:secretary-replied` em `lead_events` (zero nos últimos 7 dias hoje).
+
+### 4. Doc
+
+Atualizar `docs/pipeline/runtime/STAGES_LIVE.md` notando que o alias `Novo` precisa ser explicitamente seedado quando um pipeline novo é criado (e referenciar a migration deste fix em `code_refs`).
+
+## Fora de escopo
+
+- A Causa 1 paralela (pipeline da Sanapta `2c6e163b` que só tem 1 stage "Novo" e portanto não pode mover para "Qualificação") **não é tratada aqui** porque você confirmou que só quer o pipeline da Clínica OR.
