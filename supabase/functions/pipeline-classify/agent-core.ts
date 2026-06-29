@@ -265,12 +265,12 @@ async function withSchemaRetry<T>(label: string, fn: () => Promise<T>): Promise<
 // Modelos por provider. `pickModel(ai.provider, ...)` escolhe em runtime.
 // Lovable AI: Gemini via Lovable Gateway (créditos do workspace, teto rígido).
 // OpenAI BYOK: legado, mantido para rollback via CLASSIFIER_PROVIDER=openai.
-const SUMMARIZER_SPEC          = { openai: "gpt-4o",      lovable: "google/gemini-2.5-flash" };
-const SUMMARIZER_FALLBACK_SPEC = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash-lite" };
-const AGENDADOR_SPEC           = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
-const TYPIFIER_SPEC            = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash" };
-const MOVIMENTADOR_SPEC        = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite" };
-const MAESTRO_SPEC             = { openai: "gpt-5",       lovable: "google/gemini-2.5-flash" };
+const SUMMARIZER_SPEC          = { openai: "gpt-4o",      lovable: "google/gemini-2.5-flash",      google: "gemini-2.5-flash" };
+const SUMMARIZER_FALLBACK_SPEC = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash-lite", google: "gemini-2.5-flash-lite" };
+const AGENDADOR_SPEC           = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite", google: "gemini-2.5-flash-lite" };
+const TYPIFIER_SPEC            = { openai: "gpt-5-mini",  lovable: "google/gemini-2.5-flash",      google: "gemini-2.5-flash-lite" };
+const MOVIMENTADOR_SPEC        = { openai: "gpt-5-nano",  lovable: "google/gemini-2.5-flash-lite", google: "gemini-2.5-flash-lite" };
+const MAESTRO_SPEC             = { openai: "gpt-5",       lovable: "google/gemini-2.5-flash",      google: "gemini-2.5-flash" };
 
 export const AGENT_MODEL = "classifier"; // legado — não é mais um id único
 
