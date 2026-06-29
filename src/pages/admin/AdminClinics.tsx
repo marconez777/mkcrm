@@ -145,6 +145,32 @@ export default function AdminClinics() {
       setOpenFeatures(null); await load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
+  function closeDelete() { setOpenDelete(null); setDeleteSlugInput(""); }
+  async function deleteClinic() {
+    if (!openDelete) return;
+    if (deleteSlugInput.trim() !== openDelete.slug) {
+      toast.error(`Digite o slug exato: ${openDelete.slug}`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-clinic", {
+        body: { clinic_id: openDelete.id, confirm_slug: deleteSlugInput.trim() },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const d = data as any;
+      toast.success(
+        `Clínica excluída · ${d.users_deleted} usuário(s) apagado(s), ${d.users_detached} desvinculado(s)`,
+      );
+      closeDelete();
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   function closeCreateUser() { setOpenCreateUser(null); setNewUserEmail(""); setNewUserPassword(""); setNewUserName(""); setNewUserRole("professional"); }
   async function createUser(e: React.FormEvent) {
     e.preventDefault(); if (!openCreateUser) return; setBusy(true);
