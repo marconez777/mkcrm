@@ -1,67 +1,33 @@
 ## Objetivo
-Descobrir por que, mesmo com `clinic_secrets.active_ai_provider='gemini'` e chave salva, os agents do pipeline aparecem com `provider: "lovable"` na resposta.
+Adicionar um card "Filtro de Pipelines da IA" na aba **Settings → IA do Pipeline**, permitindo que a clínica escolha em quais pipelines as automações de IA devem atuar. A escolha é persistida em `clinics.settings.ai_target_pipeline_ids`.
 
-## Hipóteses (a confirmar com logs)
-1. `clinic_secrets` está sendo consultado com `clinic_id` diferente do esperado (ex.: clínica do lead vs. clínica autenticada) → retorna `null` em `active_ai_provider`.
-2. RLS em `clinic_secrets` bloqueia leitura quando o agent usa client com role diferente do service_role.
-3. Coluna `gemini_api_key` está vazia (a UI salvou apenas no openai column ou o status ficou inválido) → `getClinicGemini` retorna `null` e cai no fallback.
-4. `createGoogleGenerativeAI` lança no `model(id)` por algum motivo de versão e o try/catch do agent reporta apenas o `provider` do fallback.
-5. O campo `provider` reportado na resposta vem de um caminho diferente (ex.: response do gateway), não do `getClassifierAi` — pode estar sempre "lovable" por bug de logging.
+## Arquivos
 
-## Roadmap de diagnóstico
+### 1. Novo: `src/components/settings/AIPipelinesCard.tsx`
+Componente client-side com:
+- Carrega lista de pipelines (`pipelines` table, ordenado por `position`).
+- Carrega `clinics.settings.ai_target_pipeline_ids` (array de UUIDs).
+- Renderiza checkboxes (um por pipeline) marcando os selecionados.
+- Botão **Salvar** que faz merge no JSON `settings` preservando outras chaves.
+- Estados: `loading`, `saving`; usa `sonner` para feedback.
+- Tipagem corrigida (`useState<Pipeline[]>`, `Record<string, unknown>`) — o snippet enviado tem genéricos vazios que quebrariam o TS build.
+- Respeita `canManage` (botão e checkboxes desabilitados quando falso).
+- Texto de ajuda: "Se nenhum estiver selecionado, as automações atuarão em todos os pipelines por padrão."
 
-### Fase 1 — Instrumentação (logs estruturados)
-Adicionar logs JSON (`console.log(JSON.stringify({...}))`) sem vazar a chave:
+### 2. Editar `src/pages/Settings.tsx`
+- Import: `import AIPipelinesCard from "@/components/settings/AIPipelinesCard";`
+- Dentro de `<TabsContent value="ai-pipeline">` (linha ~389), inserir `<AIPipelinesCard ... />` logo após `<OpenAIKeyCard ... />`, com as mesmas props `clinicId` e `canManage` já calculadas no JSX existente.
 
-- `_shared/clinic-gemini.ts → getClinicGemini`:
-  - Log de entrada: `{ tag:"clinic-gemini", step:"query", clinic_id }`
-  - Log do resultado da query: `{ tag, step:"query-result", has_error, error_code, has_key, key_len, gemini_status }`
-  - Log de saída: `{ tag, step:"resolved", ok:true }` ou `{ ok:false, reason }`
+## Detalhes técnicos
+- Não requer migration: `clinics.settings` já é `jsonb`.
+- Não requer mudança de RLS: políticas existentes de `clinics` cobrem update por owner/admin.
+- Sem mudanças em edge functions nesta entrega.
 
-- `_shared/classifier-ai.ts → getClassifierAi`:
-  - Log da leitura: `{ tag:"classifier-ai", step:"active-provider", clinic_id, active_raw, active_normalized }`
-  - Log da decisão: `{ tag, step:"resolve", requested, resolved_provider, fallback_used:bool, reason? }`
-  - Se `active='google'` e `resolveProvider` retornar `null`, logar `{ reason:"gemini_key_missing" }` antes de cair no fallback.
+## Observação importante (consumo do filtro)
+Fiz um grep no repo: a chave `ai_target_pipeline_ids` **ainda não é lida por nenhum agente, edge function ou hook**. Ou seja, salvar a seleção hoje só persiste o valor — não restringe efetivamente as automações até que o consumo seja implementado.
 
-- Nos agents (`pipeline-classify`, `pipeline-position-auditor`, `pipeline-post-move-verifier`, `pipeline-summarize`):
-  - Logar `{ tag:"agent", name, clinic_id, provider_used, model_id }` antes de cada `generateText`.
+Posso seguir de duas formas:
+- **(A) Só a UI agora** (escopo exato do prompt enviado): cria o card e persiste o JSON. Consumo fica para um próximo plano.
+- **(B) UI + consumo mínimo**: também atualiza os pontos de entrada dos agentes (`pipeline-deterministic`, `pipeline-classify`, `pipeline-auto-retry`, gatilhos de automação) para pular leads cujo `pipeline_id` não esteja na allowlist — quando a allowlist estiver vazia, comportamento atual (atua em todos) é mantido.
 
-### Fase 2 — Reproduzir e coletar
-1. Deploy das funções com os novos logs.
-2. Disparar `pipeline-classify` manualmente para o mesmo lead do teste anterior (clínica Ór).
-3. Ler `edge_function_logs` filtrando por `tag:"clinic-gemini"` e `tag:"classifier-ai"` para identificar em qual passo o fluxo desvia.
-
-### Fase 3 — Validar dados em `clinic_secrets`
-Consulta de auditoria (somente leitura) para a clínica em teste:
-```sql
-select clinic_id, active_ai_provider,
-       (gemini_api_key is not null) as has_gemini,
-       length(coalesce(gemini_api_key,'')) as gemini_len,
-       gemini_status,
-       (openai_api_key is not null) as has_openai,
-       openai_status
-from clinic_secrets where clinic_id = '<id>';
-```
-Confirmar que `active_ai_provider='gemini'` e `gemini_api_key` está preenchida.
-
-### Fase 4 — Correção (depende do achado)
-Cenários previstos e fix:
-- **Se `active_ai_provider` vier null/openai**: a UI não está persistindo a troca de aba — corrigir `OpenAIKeyCard` / endpoint `set-active-provider`.
-- **Se RLS bloquear**: garantir que os agents usam `service_role` para ler `clinic_secrets` (todos os edge functions de pipeline já criam client com service role — confirmar nas chamadas).
-- **Se `clinic_id` divergir**: padronizar a resolução de `clinic_id` no agent (ex.: usar `leads.clinic_id` e não a clínica do usuário autenticado).
-- **Se `createGoogleGenerativeAI` falhar**: capturar a exceção em `getClinicGemini`, logar `reason` e (opcional) downgrade controlado.
-
-### Fase 5 — Validação final
-1. Redeploy das functions afetadas.
-2. Rodar novamente `pipeline-classify` no lead de teste.
-3. Confirmar nos logs `provider_used:"google"` e `model_id:"gemini-2.5-flash"` (ou equivalente).
-4. Verificar na resposta da function que `provider:"google"` aparece no payload.
-
-## Entregáveis
-- Logs estruturados nos 2 helpers + 4 agents.
-- Relatório curto no chat com o achado (qual hipótese se confirmou) e o fix aplicado.
-- Deploy de todas as functions tocadas.
-
-## Não-objetivos
-- Não mudar a lógica de fallback (continua caindo no Lovable Gateway se BYOK falhar) — apenas tornar visível o porquê.
-- Não mexer na UI de configuração de chaves nesta fase, exceto se a Fase 3 mostrar que o `active_ai_provider` não está sendo persistido.
+Por padrão proponho **(A)** para respeitar o escopo do prompt; me diga se prefere (B) e eu re-emito o plano expandido.
