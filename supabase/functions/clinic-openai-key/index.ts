@@ -19,7 +19,7 @@ interface Body {
   api_key?: string;
 }
 
-const GEMINI_VALIDATE_MODEL = "gemini-1.5-flash";
+
 
 async function callOpenAI(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -41,7 +41,7 @@ async function callOpenAI(apiKey: string): Promise<{ ok: boolean; error?: string
 async function callGemini(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VALIDATE_MODEL}?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
     );
     if (r.status === 400 || r.status === 401 || r.status === 403) {
       const txt = await r.text().catch(() => "");
