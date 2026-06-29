@@ -19,7 +19,7 @@ interface Body {
   api_key?: string;
 }
 
-const GEMINI_VALIDATE_MODEL = "gemini-2.5-flash";
+const GEMINI_VALIDATE_MODEL = "gemini-1.5-flash";
 
 async function callOpenAI(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
             openai_last_error: r.error ?? "unknown",
           };
       await upsertStatus(clinic_id, patch);
-      return json({ ok: false, error: r.error, status: await loadStatus(clinic_id) }, 400);
+      return json({ ok: false, error: r.error, status: await loadStatus(clinic_id) });
     }
 
     const last4 = key.slice(-4);
