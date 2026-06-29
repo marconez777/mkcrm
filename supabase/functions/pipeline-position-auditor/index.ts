@@ -29,7 +29,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL_SPEC = { openai: "gpt-5-mini", lovable: "google/gemini-2.5-flash" };
+const MODEL_SPEC = { openai: "gpt-5-mini", lovable: "google/gemini-2.5-flash", google: "gemini-2.5-flash" };
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
