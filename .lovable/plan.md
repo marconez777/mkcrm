@@ -1,49 +1,22 @@
-## Diagnóstico (validado no código + DB)
+## Objetivo
+Remover a opção "Todas" (mostrar todas as instâncias ao mesmo tempo) na tela de Conversas. O usuário sempre verá apenas 1 instância por vez.
 
-Confirmei tudo no banco e no `src/pages/Broadcasts.tsx`:
+## Mudanças
 
-- A constraint `broadcasts_throttle_seconds_check` realmente existe e exige `throttle_seconds >= 900` (15 min).
-- O `save()` (linha 245) faz **update otimista** no estado local e ignora o `error` do `supabase.from("broadcasts").update(...)`. Por isso o toggle "Modo teste" liga visualmente, o UPDATE é rejeitado em silêncio, e o `setInterval(load, 10000)` (linha 241) recarrega o valor antigo (900) 10s depois — desligando o botão sozinho.
+### 1. `src/components/inbox/ConversationList.tsx`
+- Remover o botão "Todas" (linhas ~183-193) da barra de abas de instâncias.
+- Manter apenas os botões por instância.
 
-O plano do Antigravity está **correto na causa raiz e na solução**. Só faço dois pequenos ajustes para deixar mais robusto.
+### 2. `src/pages/Inbox.tsx`
+- Garantir que `instanceId` nunca fique `null` quando existir ao menos 1 instância:
+  - No `useEffect` de validação, se o `instanceId` atual for `null` (qualquer motivo) e existirem instâncias, selecionar a `defaultInstance` ou a primeira da lista.
+  - Em `setInstanceId`, ignorar chamadas com `null` quando houver instâncias (defensivo).
+- Limpar `localStorage` legacy: se o valor salvo era ausente/null, cair na default automaticamente (já é o comportamento — só remover a condição extra que dependia de `localStorage` vazio).
 
-## Ajustes propostos sobre o plano original
-
-### 1. Migration: relaxar a constraint (igual ao plano, mínimo 5s)
-
-```sql
-ALTER TABLE public.broadcasts DROP CONSTRAINT broadcasts_throttle_seconds_check;
-ALTER TABLE public.broadcasts ADD CONSTRAINT broadcasts_throttle_seconds_check
-  CHECK (throttle_seconds >= 5);
-```
-
-Observação: a proteção real contra banimento já vive na UI (label "mínimo 15", toggle "Modo teste" explícito + warning amarelo na linha 422). A constraint do DB estava duplicando essa regra de forma rígida e quebrando o caso de teste legítimo.
-
-### 2. `src/pages/Broadcasts.tsx` — corrigir `save()` (melhor que o plano original)
-
-O plano original só adiciona `toast.error`. Vou um passo além: **reverter o estado otimista quando o DB rejeita**, senão o usuário vê o botão ligado, recebe o toast de erro, e 10s depois vê o botão desligar — confuso.
-
-```ts
-const save = async (patch: Partial<Broadcast>) => {
-  if (!bc) return;
-  const prev = bc;
-  setBc({ ...bc, ...patch } as Broadcast);
-  const { error } = await supabase.from("broadcasts").update(patch).eq("id", id);
-  if (error) {
-    setBc(prev);                       // rollback visual imediato
-    toast.error(`Não foi possível salvar: ${error.message}`);
-  }
-};
-```
-
-Nenhuma outra mudança de UI. O toggle "Modo teste" continua igual; só passa a funcionar.
+### 3. Sem mudanças em backend, hooks ou outras telas
+- `useLeadsPaginated(instanceId)` continua suportando `null` (caso de zero instâncias cadastradas), mas a UI não vai mais expor essa opção.
 
 ## Verificação
-
-1. Aplicar migration → `\d broadcasts` confirma novo CHECK ≥ 5.
-2. No preview, abrir um broadcast, ligar "Modo teste" → botão permanece ligado, valor persiste após reload, sem toast de erro.
-3. Tentar salvar `throttle_seconds = 0` direto → toast de erro aparece e botão volta sozinho (rollback funcionando).
-
-## Riscos
-
-- Baixíssimos. A constraint nunca foi a barreira real (a UI já força mínimo 15 min em produção e mínimo 5s em modo teste). Nada mais no código depende do piso de 900s.
+- Abrir `/inbox` com várias instâncias: deve abrir já filtrado por uma; abas mostram só as instâncias, sem "Todas".
+- Clicar entre instâncias troca normalmente; recarregar mantém a última escolhida.
+- Com 0 ou 1 instância: barra de abas continua oculta (condição `instances.length > 1`).

@@ -180,17 +180,6 @@ export default function ConversationList(props: {
         </div>
         {instances.length > 1 && setInstanceId && (
           <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
-            <button
-              onClick={() => setInstanceId(null)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
-                instanceId === null ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
-              )}
-              title="Todas as caixas"
-            >
-              <Smartphone className="h-3 w-3" />
-              Todas
-            </button>
             {instances.map((inst) => {
               const active = instanceId === inst.id;
               const state = inst.connection_state;

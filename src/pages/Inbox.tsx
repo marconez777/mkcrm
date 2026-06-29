@@ -29,19 +29,22 @@ export default function InboxPage() {
     return fromLs;
   });
 
-  // Once instances load, validate selection (drop stale ids, default to is_default)
+  // Once instances load, validate selection. We always keep exactly one instance selected
+  // (never "all"): drop stale ids and fall back to default/first available.
   useEffect(() => {
     if (instances.length === 0) return;
+    const fallback = defaultInstance?.id ?? instances[0]?.id ?? null;
     if (instanceId && !instances.some((i) => i.id === instanceId)) {
-      setInstanceIdState(null);
-    } else if (instanceId === null && searchParams.get("inst") == null && !localStorage.getItem(INSTANCE_LS_KEY) && defaultInstance) {
-      // First-time pick the default instance only when nothing was previously chosen
-      setInstanceIdState(defaultInstance.id);
+      setInstanceIdState(fallback);
+    } else if (instanceId === null && fallback) {
+      setInstanceIdState(fallback);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instances.length]);
 
   const setInstanceId = (v: string | null) => {
+    // Never allow clearing to "all" while instances exist — keep current selection.
+    if (v === null && instances.length > 0) return;
     setInstanceIdState(v);
     const next = new URLSearchParams(searchParams);
     if (v) next.set("inst", v); else next.delete("inst");
