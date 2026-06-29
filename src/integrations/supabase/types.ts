@@ -1979,8 +1979,14 @@ export type Database = {
       }
       clinic_secrets: {
         Row: {
+          active_ai_provider: string
           clinic_id: string
           created_at: string
+          gemini_api_key: string | null
+          gemini_key_last4: string | null
+          gemini_last_checked_at: string | null
+          gemini_last_error: string | null
+          gemini_status: string
           openai_api_key: string | null
           openai_key_last4: string | null
           openai_last_checked_at: string | null
@@ -1989,8 +1995,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_ai_provider?: string
           clinic_id: string
           created_at?: string
+          gemini_api_key?: string | null
+          gemini_key_last4?: string | null
+          gemini_last_checked_at?: string | null
+          gemini_last_error?: string | null
+          gemini_status?: string
           openai_api_key?: string | null
           openai_key_last4?: string | null
           openai_last_checked_at?: string | null
@@ -1999,8 +2011,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_ai_provider?: string
           clinic_id?: string
           created_at?: string
+          gemini_api_key?: string | null
+          gemini_key_last4?: string | null
+          gemini_last_checked_at?: string | null
+          gemini_last_error?: string | null
+          gemini_status?: string
           openai_api_key?: string | null
           openai_key_last4?: string | null
           openai_last_checked_at?: string | null
@@ -7416,17 +7434,15 @@ export type Database = {
           provider: string
         }[]
       }
-      get_clinic_openai_status: {
+      get_clinic_ai_secrets: {
         Args: { _clinic_id: string }
         Returns: {
-          clinic_id: string
-          openai_key_last4: string
-          openai_last_checked_at: string
-          openai_last_error: string
-          openai_status: string
-          updated_at: string
+          active_ai_provider: string
+          gemini_api_key: string
+          openai_api_key: string
         }[]
       }
+      get_clinic_openai_status: { Args: { _clinic_id: string }; Returns: Json }
       get_invite_by_token: {
         Args: { _token: string }
         Returns: {
