@@ -19,7 +19,7 @@ interface Body {
   api_key?: string;
 }
 
-const GEMINI_VALIDATE_MODEL = "gemini-1.5-flash";
+
 
 async function callOpenAI(apiKey: string): Promise<{ ok: boolean; error?: string }> {
   try {
