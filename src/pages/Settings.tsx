@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
+import AIPipelinesCard from "@/components/settings/AIPipelinesCard";
 import AILimitsCard from "@/components/settings/AILimitsCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
