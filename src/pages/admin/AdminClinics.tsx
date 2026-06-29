@@ -416,6 +416,7 @@ export default function AdminClinics() {
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Criar usuário" onClick={() => setOpenCreateUser(c)}><UserPlus className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Convite" onClick={() => setOpenInvite(c)}><Mail className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" title="Excluir clínica e todos os usuários" onClick={() => setOpenDelete(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
