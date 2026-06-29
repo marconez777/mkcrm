@@ -616,7 +616,7 @@ function errorCategoryExplanation(category: string) {
     timeout: "A etapa demorou além do limite operacional e deve ser reprocessada.",
     gateway_5xx: "Falha temporária no provider/modelo. Normalmente é recuperável com retry.",
     network: "Falha de rede ou conexão entre a função e o provider.",
-    no_provider: "Nenhum provider de IA estava disponível para a clínica.",
+    no_provider: "Nenhum provider de IA estava disponível para a empresa.",
     uncategorized: "Erro legado sem detalhes estruturados; abra o registro para ver a mensagem bruta.",
     unknown: "Erro não mapeado; precisa de inspeção manual da mensagem bruta.",
   };

@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 /**
  * Bloqueia rotas operacionais (Inbox, Kanban, Settings, Team…) para super admins
  * "puros" — contas dedicadas à administração da plataforma que NÃO estão
- * vinculadas a nenhuma clínica. Redireciona para /admin.
+ * vinculadas a nenhuma empresa. Redireciona para /admin.
  */
 export default function ClinicOnlyRoute({ children }: { children: React.ReactNode }) {
   const { loading, isSuperAdmin, membership } = useAuth();

@@ -107,7 +107,7 @@ export default function SettingsForms() {
           <div>
             <h1 className="text-2xl font-semibold">Integração do Site</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pixel de rastreamento + captura de formulários num único SDK. Cada integração gera um prompt pronto para colar no chat do Lovable do site da clínica.
+              Pixel de rastreamento + captura de formulários num único SDK. Cada integração gera um prompt pronto para colar no chat do Lovable do site da empresa.
             </p>
           </div>
           {canManage && (
@@ -280,7 +280,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
           <TabsContent value="install" className="space-y-4">
             <Card className="p-4 bg-primary/5 border-primary/20">
               <p className="text-sm">
-                <strong>Pixel + Formulários são instalados juntos.</strong> Cole o <strong>Prompt para IA</strong> abaixo no chat do Lovable do site da clínica — ele cuida da ordem dos scripts, do bridge para formulários customizados e do checklist de validação. Se o site não usa Lovable, os blocos WordPress / HTML / API direta continuam disponíveis nas outras abas.
+                <strong>Pixel + Formulários são instalados juntos.</strong> Cole o <strong>Prompt para IA</strong> abaixo no chat do Lovable do site da empresa — ele cuida da ordem dos scripts, do bridge para formulários customizados e do checklist de validação. Se o site não usa Lovable, os blocos WordPress / HTML / API direta continuam disponíveis nas outras abas.
               </p>
             </Card>
 
@@ -309,7 +309,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                   <div className="space-y-2 text-sm">
                     <p className="font-medium">Prompt completo pra colar no chat do Lovable do site</p>
                     <p className="text-muted-foreground text-xs">
-                      Copie o texto abaixo e cole no chat do projeto Lovable do site da clínica. Ele já vem com o token, o project_id e todas as instruções de instalação, peculiaridades dos formulários e checklist de validação.
+                      Copie o texto abaixo e cole no chat do projeto Lovable do site da empresa. Ele já vem com o token, o project_id e todas as instruções de instalação, peculiaridades dos formulários e checklist de validação.
                     </p>
                     <div className="relative">
                       <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono max-h-[480px] whitespace-pre-wrap">{aiPrompt}</pre>

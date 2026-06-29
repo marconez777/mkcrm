@@ -14,7 +14,7 @@ export default function AdminUsers() {
   }, []);
   return (
     <>
-      <AdminPageHeader title="Usuários" description="Todos os usuários de todas as clínicas — papéis, status, ações sensíveis." />
+      <AdminPageHeader title="Usuários" description="Todos os usuários de todas as empresas — papéis, status, ações sensíveis." />
       <UsersPanel clinics={clinics} />
     </>
   );

@@ -142,7 +142,7 @@ export function CopilotPanel({ agentId, clinicId, agentSnapshot, onApplied }: Pr
     const text = input.trim();
     if (!text || loading) return;
     if (!clinicId) {
-      toast.error("Clínica não identificada.");
+      toast.error("Empresa não identificada.");
       return;
     }
     const nextHistory: ChatMsg[] = [...history, { role: "user", content: text }];

@@ -120,7 +120,7 @@ export default function SettingsAppointmentTypes() {
   if (!clinicId && !isSuperAdmin) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-        Clínica não encontrada.
+        Empresa não encontrada.
       </div>
     );
   }

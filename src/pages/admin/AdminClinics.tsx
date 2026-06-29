@@ -96,7 +96,7 @@ export default function AdminClinics() {
       const finalSlug = slug || slugify(name);
       const { error } = await supabase.from("clinics").insert({ name, slug: finalSlug });
       if (error) throw error;
-      toast.success("Clínica criada");
+      toast.success("Empresa criada");
       setOpenCreate(false); setName(""); setSlug("");
       await load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
@@ -123,7 +123,7 @@ export default function AdminClinics() {
   async function toggleStatus(c: Clinic) {
     const next = c.status === "active" ? "suspended" : "active";
     const { error } = await supabase.from("clinics").update({ status: next }).eq("id", c.id);
-    if (error) toast.error(error.message); else { toast.success(`Clínica ${next}`); load(); }
+    if (error) toast.error(error.message); else { toast.success(`Empresa ${next}`); load(); }
   }
   function featuresEnabledCount(c: Clinic) {
     const f = c.settings?.features ?? {};
@@ -161,7 +161,7 @@ export default function AdminClinics() {
       if ((data as any)?.error) throw new Error((data as any).error);
       const d = data as any;
       toast.success(
-        `Clínica excluída · ${d.users_deleted} usuário(s) apagado(s), ${d.users_detached} desvinculado(s)`,
+        `Empresa excluída · ${d.users_deleted} usuário(s) apagado(s), ${d.users_detached} desvinculado(s)`,
       );
       closeDelete();
       await load();
@@ -188,20 +188,20 @@ export default function AdminClinics() {
   }
   async function bulkApplyPlan() {
     if (!bulkPlan || selected.size === 0) return;
-    if (!confirm(`Aplicar plano "${bulkPlan}" em ${selected.size} clínica(s)? Isso sobrescreve features e limites.`)) return;
+    if (!confirm(`Aplicar plano "${bulkPlan}" em ${selected.size} empresa(s)? Isso sobrescreve features e limites.`)) return;
     setBusy(true);
     try {
       const { error } = await supabase.functions.invoke("admin-apply-plan", {
         body: { plan_code: bulkPlan, clinic_ids: Array.from(selected), overwrite_features: true, overwrite_limits: true },
       });
       if (error) throw error;
-      toast.success(`Plano aplicado em ${selected.size} clínica(s)`);
+      toast.success(`Plano aplicado em ${selected.size} empresa(s)`);
       setSelected(new Set()); setBulkPlan(""); await load();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
   async function bulkSetStatus(next: "active" | "suspended") {
     if (selected.size === 0) return;
-    if (!confirm(`Mudar status para "${next}" em ${selected.size} clínica(s)?`)) return;
+    if (!confirm(`Mudar status para "${next}" em ${selected.size} empresa(s)?`)) return;
     setBusy(true);
     try {
       const { error } = await supabase.from("clinics").update({ status: next }).in("id", Array.from(selected));
@@ -231,17 +231,17 @@ export default function AdminClinics() {
   return (
     <>
       <AdminPageHeader
-        title="Clínicas"
-        description="Gerencie todas as clínicas da plataforma — planos, status, recursos e convites."
+        title="Empresas"
+        description="Gerencie todas as empresas da plataforma — planos, status, recursos e convites."
         actions={
           <Dialog open={openCreate} onOpenChange={setOpenCreate}>
             <DialogTrigger asChild>
               <Button className="bg-admin-primary hover:bg-admin-primary/90 text-admin-primary-foreground">
-                <Plus className="mr-1.5 h-4 w-4" />Nova clínica
+                <Plus className="mr-1.5 h-4 w-4" />Nova empresa
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Criar clínica</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Criar empresa</DialogTitle></DialogHeader>
               <form onSubmit={createClinic} className="space-y-3">
                 <div className="space-y-1.5">
                   <Label>Nome</Label>
@@ -325,18 +325,18 @@ export default function AdminClinics() {
             <TableHeader>
               <TableRow className="border-admin-border hover:bg-transparent">
                 <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} /></TableHead>
-                <TableHead>Clínica</TableHead>
+                <TableHead>Empresa</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Recursos</TableHead>
-                <TableHead title="Instâncias de WhatsApp da clínica. Verde = conectada (open), amarelo = conectando, cinza = desconectada.">WhatsApp</TableHead>
+                <TableHead title="Instâncias de WhatsApp da empresa. Verde = conectada (open), amarelo = conectando, cinza = desconectada.">WhatsApp</TableHead>
                 <TableHead>Criada</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-admin-text-muted py-10">Nenhuma clínica encontrada.</TableCell></TableRow>}
+              {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-admin-text-muted py-10">Nenhuma empresa encontrada.</TableCell></TableRow>}
               {filtered.map((c) => (
                 <TableRow key={c.id} className="border-admin-border group">
                   <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
@@ -416,7 +416,7 @@ export default function AdminClinics() {
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Criar usuário" onClick={() => setOpenCreateUser(c)}><UserPlus className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Convite" onClick={() => setOpenInvite(c)}><Mail className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleStatus(c)}>{c.status === "active" ? "Suspender" : "Reativar"}</Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" title="Excluir clínica e todos os usuários" onClick={() => setOpenDelete(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-admin-negative hover:text-admin-negative hover:bg-admin-negative/10" title="Excluir empresa e todos os usuários" onClick={() => setOpenDelete(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -426,7 +426,7 @@ export default function AdminClinics() {
         </AdminCard>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.length === 0 && <AdminCard className="col-span-full p-10 text-center text-admin-text-muted text-sm">Nenhuma clínica encontrada.</AdminCard>}
+          {filtered.length === 0 && <AdminCard className="col-span-full p-10 text-center text-admin-text-muted text-sm">Nenhuma empresa encontrada.</AdminCard>}
           {filtered.map((c) => (
             <AdminCard key={c.id} className="p-4 group hover:border-admin-border-strong transition">
               <div className="flex items-start gap-3">
@@ -480,7 +480,7 @@ export default function AdminClinics() {
               <div className="space-y-1.5">
                 <Label>Papel</Label>
                 <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
-                  <option value="owner">Owner (dono da clínica)</option>
+                  <option value="owner">Owner (dono da empresa)</option>
                   <option value="admin">Admin</option>
                   <option value="professional">Profissional</option>
                   <option value="viewer">Visualizador</option>
@@ -519,7 +519,7 @@ export default function AdminClinics() {
             <div className="space-y-1.5">
               <Label>Papel</Label>
               <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)}>
-                <option value="owner">Owner (dono da clínica)</option>
+                <option value="owner">Owner (dono da empresa)</option>
                 <option value="admin">Admin</option>
                 <option value="professional">Profissional</option>
                 <option value="viewer">Visualizador</option>
@@ -537,7 +537,7 @@ export default function AdminClinics() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Recursos — {openFeatures?.name}</DialogTitle></DialogHeader>
           <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
-            <p className="text-xs text-muted-foreground mb-2">Desligue os recursos que esta clínica não deve ver/usar.</p>
+            <p className="text-xs text-muted-foreground mb-2">Desligue os recursos que esta empresa não deve ver/usar.</p>
             {FEATURES.map((f) => (
               <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
@@ -560,16 +560,16 @@ export default function AdminClinics() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-admin-negative">
               <AlertTriangle className="h-4 w-4" />
-              Excluir clínica — {openDelete?.name}
+              Excluir empresa — {openDelete?.name}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border border-admin-negative/30 bg-admin-negative/5 p-3 text-sm">
               <p className="font-medium text-admin-negative">Esta ação é irreversível.</p>
               <ul className="mt-2 list-disc pl-4 text-xs text-admin-text-muted space-y-1">
-                <li>A clínica e todos os dados relacionados serão apagados (leads, mensagens, automações, e-mails, instâncias WhatsApp, etc.).</li>
-                <li>Todos os usuários cadastrados nesta clínica serão excluídos (incluindo o login/email).</li>
-                <li>Usuários que também pertencem a outras clínicas serão apenas desvinculados desta.</li>
+                <li>A empresa e todos os dados relacionados serão apagados (leads, mensagens, automações, e-mails, instâncias WhatsApp, etc.).</li>
+                <li>Todos os usuários cadastrados nesta empresa serão excluídos (incluindo o login/email).</li>
+                <li>Usuários que também pertencem a outras empresas serão apenas desvinculados desta.</li>
               </ul>
             </div>
             <div className="space-y-1.5">

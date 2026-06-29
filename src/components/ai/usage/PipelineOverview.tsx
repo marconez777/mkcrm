@@ -123,12 +123,12 @@ function friendlySkip(reason: string | null | undefined): { label: string; tone:
   if (!reason) return { label: "Classificada", tone: "info" };
   if (reason.startsWith("agent_error:")) return { label: "Erro no agente IA", tone: "error" };
   const map: Record<string, string> = {
-    clinic_not_allowlisted: "Clínica não habilitada",
+    clinic_not_allowlisted: "Empresa não habilitada",
     no_new_messages: "Sem mensagens novas",
     no_messages: "Lead sem mensagens",
     no_pipeline: "Sem pipeline configurado",
     lead_not_found: "Lead não encontrado",
-    no_clinic_openai_key: "Sem chave OpenAI da clínica",
+    no_clinic_openai_key: "Sem chave OpenAI da empresa",
     classifier_disabled: "Classificador desligado",
     classifier_throttled: "Limitada por throttle",
   };

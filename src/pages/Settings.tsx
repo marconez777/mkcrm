@@ -341,7 +341,7 @@ export default function SettingsPage() {
                 <div>
                   <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração do Site (Pixel + Formulários)</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da clínica.
+                    Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da empresa.
                   </p>
                 </div>
                 <Link to="/settings/integration"><Button variant="outline">Abrir</Button></Link>
@@ -401,7 +401,7 @@ export default function SettingsPage() {
                 </>
               ) : (
                 <Card className="p-6 text-sm text-muted-foreground">
-                  Você precisa pertencer a uma clínica para configurar a IA do pipeline.
+                  Você precisa pertencer a uma empresa para configurar a IA do pipeline.
                 </Card>
               )}
               {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}

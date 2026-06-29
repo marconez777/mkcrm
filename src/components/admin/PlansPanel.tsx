@@ -216,7 +216,7 @@ export default function PlansPanel() {
                 </div>
               </TabsContent>
               <TabsContent value="features" className="space-y-2 max-h-[60vh] overflow-auto">
-                <p className="text-xs text-muted-foreground">Recursos habilitados por padrão neste plano. Você pode aplicar a clínicas existentes na aba <strong>Clínicas</strong>.</p>
+                <p className="text-xs text-muted-foreground">Recursos habilitados por padrão neste plano. Você pode aplicar a empresas existentes na aba <strong>Empresas</strong>.</p>
                 {FEATURES.map((f) => (
                   <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
                     <div><div className="text-sm font-medium">{f.label}</div><div className="text-[11px] text-muted-foreground font-mono">{f.key}</div></div>

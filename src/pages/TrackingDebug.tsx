@@ -292,7 +292,7 @@ export default function TrackingDebug() {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Auditoria de Tracking</h1>
-          <p className="text-sm text-muted-foreground">Validação dos eventos recebidos pelo pixel da clínica.</p>
+          <p className="text-sm text-muted-foreground">Validação dos eventos recebidos pelo pixel da empresa.</p>
           <p className="mt-1 font-mono text-xs text-muted-foreground">clinic_id: {OR_CLINIC_ID} · project_id: {OR_PROJECT_ID}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export default function TrackingDebug() {
 
       <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
         <CardContent className="py-3 text-sm">
-          <strong>Modo de validação:</strong> Para testar, abra o site da Clínica ÓR em uma aba anônima,
+          <strong>Modo de validação:</strong> Para testar, abra o site da Empresa ÓR em uma aba anônima,
           acesse algumas páginas, clique no WhatsApp e interaja com formulários. Depois volte aqui e clique em <em>Atualizar</em>.
         </CardContent>
       </Card>

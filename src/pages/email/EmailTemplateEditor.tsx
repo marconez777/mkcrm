@@ -345,7 +345,7 @@ export default function EmailTemplateEditor() {
             className="h-7 mt-1"
             value={tpl.from_name}
             onChange={(e) => setTpl({ ...tpl, from_name: e.target.value })}
-            placeholder="Ex: Clínica Ór"
+            placeholder="Ex: Empresa Ór"
           />
         </div>
         <div>

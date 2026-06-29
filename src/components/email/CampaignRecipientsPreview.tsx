@@ -48,7 +48,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
             }
           }
         } else {
-          // Sem segmento = todos os leads da clínica com email (paginado)
+          // Sem segmento = todos os leads da empresa com email (paginado)
           const rows = await fetchAllPaged<any>(() =>
             supabase
               .from("leads")

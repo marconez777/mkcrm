@@ -153,7 +153,7 @@ export default function FinancePanel() {
   useEffect(() => { load(); }, []);
 
   async function createInvoice() {
-    if (!fClinic || !fAmount) return toast.error("Clínica e valor obrigatórios");
+    if (!fClinic || !fAmount) return toast.error("Empresa e valor obrigatórios");
     setBusy(true);
     try {
       const { error } = await supabase.functions.invoke("admin-invoice", {
@@ -348,7 +348,7 @@ export default function FinancePanel() {
           <Table>
             <TableHeader>
               <TableRow className="border-admin-border hover:bg-transparent">
-                <TableHead>Clínica</TableHead>
+                <TableHead>Empresa</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Atraso</TableHead>
@@ -436,7 +436,7 @@ export default function FinancePanel() {
           <DialogHeader><DialogTitle>Registrar pagamento / fatura</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Clínica</Label>
+              <Label className="text-xs">Empresa</Label>
               <Select value={fClinic} onValueChange={setFClinic}>
                 <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
                 <SelectContent>{clinics.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
