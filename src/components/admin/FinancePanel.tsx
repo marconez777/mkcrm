@@ -191,7 +191,7 @@ export default function FinancePanel() {
 
   function exportOverdue() {
     downloadCsv(`inadimplentes-${new Date().toISOString().slice(0, 10)}.csv`,
-      overdue.map((o) => ({ clinica: o.clinic_name, valor_brl: o.amount_brl, vencimento: o.due_date, dias_atraso: o.days_overdue, descricao: o.description ?? "" })));
+      overdue.map((o) => ({ empresa: o.clinic_name, valor_brl: o.amount_brl, vencimento: o.due_date, dias_atraso: o.days_overdue, descricao: o.description ?? "" })));
   }
 
   const revSpark = useMemo(() => series.map((s) => Number(s.revenue) || 0), [series]);

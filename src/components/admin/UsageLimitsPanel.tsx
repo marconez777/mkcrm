@@ -104,7 +104,7 @@ export default function UsageLimitsPanel() {
 
   function exportCsv() {
     const rows = filteredClinics.map((c) => {
-      const row: Record<string, any> = { clinica: c.name, plano: c.plan };
+      const row: Record<string, any> = { empresa: c.name, plano: c.plan };
       for (const l of LIMIT_DEFS) {
         const u = Number(usage[c.id]?.[USAGE_KEY_MAP[l.key]] ?? 0);
         const lim = effectiveLimit(c, l.key);
