@@ -187,7 +187,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
               <div className="space-y-1.5">
                 <Label>Domínio</Label>
                 <Input
-                  placeholder="mail.clinica.com.br"
+                  placeholder="mail.empresa.com.br"
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
                   required

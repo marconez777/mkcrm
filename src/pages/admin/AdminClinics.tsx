@@ -474,7 +474,7 @@ export default function AdminClinics() {
             <form onSubmit={generateInvite} className="space-y-3">
               <div className="space-y-1.5">
                 <Label>Email do convidado</Label>
-                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required placeholder="pessoa@clinica.com" />
+                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required placeholder="pessoa@empresa.com" />
                 <p className="text-xs text-muted-foreground">O convite só pode ser aceito por quem fizer login com este email.</p>
               </div>
               <div className="space-y-1.5">
@@ -514,7 +514,7 @@ export default function AdminClinics() {
           <DialogHeader><DialogTitle>Criar usuário — {openCreateUser?.name}</DialogTitle></DialogHeader>
           <form onSubmit={createUser} className="space-y-3">
             <div className="space-y-1.5"><Label>Nome (opcional)</Label><Input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Nome completo" /></div>
-            <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} required placeholder="pessoa@clinica.com" /></div>
+            <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} required placeholder="pessoa@empresa.com" /></div>
             <div className="space-y-1.5"><Label>Senha</Label><Input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" /></div>
             <div className="space-y-1.5">
               <Label>Papel</Label>

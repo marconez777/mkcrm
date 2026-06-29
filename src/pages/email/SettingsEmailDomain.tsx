@@ -97,7 +97,7 @@ export default function SettingsEmailDomain() {
           <h2 className="text-base font-semibold">Nenhum domínio configurado</h2>
           <p className="text-sm text-muted-foreground">
             A criação do domínio é feita pelo nosso suporte. Entre em contato informando o domínio
-            que deseja usar (ex.: <code>mail.suaclinica.com.br</code>) e nós abrimos para você.
+            que deseja usar (ex.: <code>mail.suaempresa.com.br</code>) e nós abrimos para você.
           </p>
         </Card>
       ) : (
@@ -132,7 +132,7 @@ export default function SettingsEmailDomain() {
               </div>
               <div className="space-y-1.5">
                 <Label>Reply-to</Label>
-                <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="contato@suaclinica.com.br" />
+                <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="contato@suaempresa.com.br" />
               </div>
             </div>
             <div className="flex justify-end">

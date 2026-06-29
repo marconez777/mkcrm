@@ -161,7 +161,7 @@ export default function Onboarding() {
               </div>
 
               <form onSubmit={generateInvite} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@clinica.com" />
+                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@empresa.com" />
                 <select className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
                   <option value="admin">Admin</option>
