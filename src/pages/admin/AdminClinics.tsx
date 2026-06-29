@@ -51,6 +51,8 @@ export default function AdminClinics() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPlan, setBulkPlan] = useState<string>("");
   const [view, setView] = useState<"table" | "grid">("table");
+  const [openDelete, setOpenDelete] = useState<Clinic | null>(null);
+  const [deleteSlugInput, setDeleteSlugInput] = useState("");
 
   async function load() {
     try {
