@@ -90,7 +90,7 @@ export default function Onboarding() {
             <Sparkles className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-semibold">Bem-vindo(a) ao MK CRM</h1>
-          <p className="text-sm text-muted-foreground">Vamos configurar sua clínica em 3 passos rápidos</p>
+          <p className="text-sm text-muted-foreground">Vamos configurar sua empresa em 3 passos rápidos</p>
         </div>
 
         <Stepper step={step} />
@@ -99,11 +99,11 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <h2 className="font-semibold">Dados da clínica</h2>
+                <h2 className="font-semibold">Dados da empresa</h2>
                 <p className="text-xs text-muted-foreground">Confirme o nome que aparecerá para sua equipe.</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Nome da clínica</Label>
+                <Label>Nome da empresa</Label>
                 <Input value={clinicName} onChange={(e) => setClinicName(e.target.value)} required />
               </div>
               <div className="flex justify-end">
@@ -156,12 +156,12 @@ export default function Onboarding() {
                 <Users className="mt-0.5 h-5 w-5 text-primary" />
                 <div>
                   <h2 className="font-semibold">Convidar equipe</h2>
-                  <p className="text-xs text-muted-foreground">Gere links de convite para profissionais da clínica. Envie por WhatsApp ou email.</p>
+                  <p className="text-xs text-muted-foreground">Gere links de convite para profissionais da empresa. Envie por WhatsApp ou email.</p>
                 </div>
               </div>
 
               <form onSubmit={generateInvite} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@clinica.com" />
+                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@empresa.com" />
                 <select className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
                   <option value="admin">Admin</option>
@@ -202,7 +202,7 @@ export default function Onboarding() {
               </div>
               <div>
                 <h2 className="font-semibold">Tudo pronto!</h2>
-                <p className="text-sm text-muted-foreground">Sua clínica está configurada. Você pode ajustar tudo em Configurações depois.</p>
+                <p className="text-sm text-muted-foreground">Sua empresa está configurada. Você pode ajustar tudo em Configurações depois.</p>
               </div>
               <Button onClick={finish} disabled={busy} className="w-full">
                 {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Ir para o CRM
@@ -223,7 +223,7 @@ export default function Onboarding() {
 
 function Stepper({ step }: { step: Step }) {
   const items = [
-    { n: 1, label: "Clínica" },
+    { n: 1, label: "Empresa" },
     { n: 2, label: "WhatsApp" },
     { n: 3, label: "Equipe" },
   ];

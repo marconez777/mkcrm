@@ -25,7 +25,7 @@ export function AdminPlans() {
 export function AdminUsage() {
   return (
     <>
-      <AdminPageHeader title="Uso & Limites" description="Uso real vs limite, por clínica." />
+      <AdminPageHeader title="Uso & Limites" description="Uso real vs limite, por empresa." />
       <UsageLimitsPanel />
     </>
   );

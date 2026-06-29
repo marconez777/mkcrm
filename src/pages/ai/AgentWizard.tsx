@@ -75,7 +75,7 @@ interface NicheOption {
 }
 
 const NICHES: NicheOption[] = [
-  { id: "clinic", label: "Clínica / Saúde", example: "Consultórios, dermato, odonto", emoji: "🩺" },
+  { id: "clinic", label: "Empresa / Saúde", example: "Consultórios, dermato, odonto", emoji: "🩺" },
   { id: "real_estate", label: "Imobiliária", example: "Locação e venda de imóveis", emoji: "🏠" },
   { id: "restaurant", label: "Restaurante / Food", example: "Reservas e delivery", emoji: "🍽️" },
   { id: "ecommerce", label: "E-commerce", example: "Loja online de produtos", emoji: "🛒" },
@@ -276,7 +276,7 @@ export default function AgentWizard() {
     document.title = "Construtor de Agentes — MK CRM";
   }, []);
 
-  // Verifica se Builder está configurado para a clínica antes de renderizar o wizard
+  // Verifica se Builder está configurado para a empresa antes de renderizar o wizard
   useEffect(() => {
     if (loading || !clinicId) return;
     let cancelled = false;
@@ -1401,7 +1401,7 @@ function Step3({
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {builderAvailable
-              ? "Reaproveita o provedor e a chave já validados na clínica."
+              ? "Reaproveita o provedor e a chave já validados na empresa."
               : "Configure o Construtor primeiro para liberar esta opção."}
           </p>
         </button>
@@ -1431,7 +1431,7 @@ function Step3({
               <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-3 w-3" /> Já validada
               </Badge>
-              <span className="text-muted-foreground">Construtor da clínica</span>
+              <span className="text-muted-foreground">Construtor da empresa</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -1912,7 +1912,7 @@ function Step5({
             <Input
               value={agentName}
               onChange={(e) => setAgentName(e.target.value.slice(0, 80))}
-              placeholder="Ex.: SDR — Clínica do Dr. Ivan"
+              placeholder="Ex.: SDR — Empresa do Dr. Ivan"
               maxLength={80}
             />
             <p className="text-[11px] text-muted-foreground">

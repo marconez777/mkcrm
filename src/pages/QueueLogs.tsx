@@ -177,7 +177,7 @@ export default function QueueLogs() {
                 Envios automáticos: {paused.data ? "PAUSADOS" : "ativos"}
               </div>
               <div className="text-xs text-muted-foreground">
-                Pausa sequências, automações e mensagens agendadas desta clínica. Novos envios não saem até retomar.
+                Pausa sequências, automações e mensagens agendadas desta empresa. Novos envios não saem até retomar.
               </div>
             </div>
           </div>

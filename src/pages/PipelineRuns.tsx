@@ -109,7 +109,7 @@ export default function PipelineRuns() {
   const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => {
     if (!clinicId) return;
     const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length || scope?.top_n || scope?.only_agent);
-    if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da clínica? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
+    if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da empresa? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
     setStarting(true);
     try {
       const payload: Record<string, unknown> = { action: "start", clinic_id: clinicId };
@@ -142,8 +142,8 @@ export default function PipelineRuns() {
         <Card className="p-6">
           <h1 className="text-lg font-semibold mb-2">Agente de pipeline não habilitado</h1>
           <p className="text-sm text-muted-foreground">
-            Esta clínica ainda não está autorizada a executar o agente de IA de pipeline. Estamos validando a feature
-            primeiro com a Clínica ÓR; será liberada para as demais em seguida.
+            Esta empresa ainda não está autorizada a executar o agente de IA de pipeline. Estamos validando a feature
+            primeiro com a Empresa ÓR; será liberada para as demais em seguida.
           </p>
         </Card>
       </div>
@@ -167,7 +167,7 @@ export default function PipelineRuns() {
             variant="outline"
             onClick={async () => {
               if (!clinicId) return;
-              if (!confirm("Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta clínica?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.")) return;
+              if (!confirm("Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta empresa?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.")) return;
               if (!confirm("Tem certeza? Esta ação não pode ser desfeita. Depois execute o pipeline para reclassificar.")) return;
               setResetting(true);
               try {

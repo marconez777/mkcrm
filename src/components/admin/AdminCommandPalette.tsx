@@ -21,7 +21,7 @@ type UserHit = { id: string; full_name: string | null; email: string | null };
 
 const NAV_ITEMS: { label: string; to: string; icon: any; group: string }[] = [
   { label: "Dashboard", to: "/admin", icon: LayoutDashboard, group: "Visão Geral" },
-  { label: "Clínicas", to: "/admin/clinics", icon: Building2, group: "Clientes" },
+  { label: "Empresas", to: "/admin/clinics", icon: Building2, group: "Clientes" },
   { label: "Usuários", to: "/admin/users", icon: Users, group: "Clientes" },
   { label: "Planos", to: "/admin/plans", icon: CreditCard, group: "Receita" },
   { label: "Uso & Limites", to: "/admin/usage", icon: Gauge, group: "Receita" },
@@ -85,7 +85,7 @@ export default function AdminCommandPalette({
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Buscar clínica, usuário, ir para…"
+        placeholder="Buscar empresa, usuário, ir para…"
         value={q}
         onValueChange={setQ}
       />
@@ -93,7 +93,7 @@ export default function AdminCommandPalette({
         <CommandEmpty>Nada encontrado.</CommandEmpty>
 
         {clinics.length > 0 && (
-          <CommandGroup heading="Clínicas">
+          <CommandGroup heading="Empresas">
             {clinics.map((c) => (
               <CommandItem
                 key={`clinic-${c.id}`}

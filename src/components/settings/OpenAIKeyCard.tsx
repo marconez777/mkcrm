@@ -113,7 +113,7 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
 
   async function onClear(provider: Provider) {
     const label = provider === "gemini" ? "Gemini" : "OpenAI";
-    if (!confirm(`Remover a chave ${label} desta clínica?`)) return;
+    if (!confirm(`Remover a chave ${label} desta empresa?`)) return;
     setBusy("clear");
     try {
       const r = await call("clear", provider);
@@ -312,7 +312,7 @@ function ProviderBody(props: {
       )}
 
       {!canManage && (
-        <p className="text-xs text-muted-foreground">Apenas owner ou admin da clínica podem configurar a chave.</p>
+        <p className="text-xs text-muted-foreground">Apenas owner ou admin da empresa podem configurar a chave.</p>
       )}
     </>
   );

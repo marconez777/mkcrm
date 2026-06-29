@@ -51,7 +51,7 @@ export function BuilderSetupCard({ builder, clinicId, selected, onSelect, onVeri
 
   const test = async () => {
     if (!clinicId) {
-      toast.error("Clínica não identificada.");
+      toast.error("Empresa não identificada.");
       return;
     }
     setTesting(true);

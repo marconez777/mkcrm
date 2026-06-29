@@ -68,7 +68,7 @@ function BroadcastList() {
     try {
       const { data: u } = await supabase.auth.getUser();
       const { data: m } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", u.user!.id).maybeSingle();
-      if (!m?.clinic_id) { toast.error("Sem clínica associada"); return; }
+      if (!m?.clinic_id) { toast.error("Sem empresa associada"); return; }
       const { data, error } = await supabase.from("broadcasts").insert({
         clinic_id: m.clinic_id, name: "Nova campanha", created_by: u.user!.id,
       }).select("id").single();
@@ -101,7 +101,7 @@ function BroadcastList() {
     try {
       const { data: u } = await supabase.auth.getUser();
       const { data: m } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", u.user!.id).maybeSingle();
-      if (!m?.clinic_id) { toast.error("Sem clínica associada"); return; }
+      if (!m?.clinic_id) { toast.error("Sem empresa associada"); return; }
       // fetch full original
       const { data: orig, error: oe } = await supabase.from("broadcasts").select("*").eq("id", b.id).single();
       if (oe || !orig) throw oe || new Error("Campanha não encontrada");

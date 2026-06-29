@@ -85,7 +85,7 @@ export default function Team() {
         <div>
           <h1 className="text-2xl font-semibold">Equipe</h1>
           <p className="text-sm text-muted-foreground">
-            Membros da clínica <strong>{membership.clinic?.name}</strong>
+            Membros da empresa <strong>{membership.clinic?.name}</strong>
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>

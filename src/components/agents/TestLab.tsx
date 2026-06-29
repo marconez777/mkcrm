@@ -41,7 +41,7 @@ type EvalResult = {
 
 const NICHE_OPTS = [
   { v: "other", l: "Outro" },
-  { v: "clinic", l: "Clínica" },
+  { v: "clinic", l: "Empresa" },
   { v: "dental", l: "Odonto" },
   { v: "real_estate", l: "Imobiliária" },
   { v: "restaurant", l: "Restaurante" },
@@ -117,7 +117,7 @@ export function TestLab({ agentId, clinicId, agentNiche, onPatchToPrompt }: Prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simLead]);
 
-  // Fase 11 — carregar personas reutilizáveis do agente / clínica
+  // Fase 11 — carregar personas reutilizáveis do agente / empresa
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -186,7 +186,7 @@ export function TestLab({ agentId, clinicId, agentNiche, onPatchToPrompt }: Prop
   };
 
   const invokeBuilder = async (action: string, payload: any) => {
-    if (!clinicId) { toast.error("Clínica não identificada."); return null; }
+    if (!clinicId) { toast.error("Empresa não identificada."); return null; }
     const { data, error } = await supabase.functions.invoke("ai-builder", {
       body: { action, clinic_id: clinicId, payload },
     });

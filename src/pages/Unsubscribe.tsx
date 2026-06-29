@@ -58,7 +58,7 @@ export default function Unsubscribe() {
 
         {state === "ready" && (
           <div className="space-y-4">
-            <p className="text-sm">Tem certeza que deseja parar de receber emails desta clínica?</p>
+            <p className="text-sm">Tem certeza que deseja parar de receber emails desta empresa?</p>
             <div className="flex gap-2">
               <Button onClick={confirm} disabled={busy} variant="destructive">{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Confirmar cancelamento</Button>
             </div>

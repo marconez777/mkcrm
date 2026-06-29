@@ -176,7 +176,7 @@ export default function BuilderManualPanel() {
             <Input
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="Ex.: Adicionada seção sobre nicho clínica"
+              placeholder="Ex.: Adicionada seção sobre nicho empresa"
               maxLength={120}
             />
           </div>
