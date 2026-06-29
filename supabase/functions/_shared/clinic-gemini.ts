@@ -4,7 +4,7 @@
 // nos agents de pipeline. Espelha clinic-openai.ts.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { createGoogleGenerativeAI } from "npm:@ai-sdk/google@^1";
+import { createGoogleGenerativeAI } from "npm:@ai-sdk/google@^3";
 
 export interface ClinicGemini {
   apiKey: string;

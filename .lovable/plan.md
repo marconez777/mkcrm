@@ -1,11 +1,28 @@
-# Correções em `supabase/functions/clinic-openai-key/index.ts`
+## Correção da versão do @ai-sdk/google
 
-1. Trocar o modelo de validação do Gemini:
-   - De: `const GEMINI_VALIDATE_MODEL = "gemini-2.5-flash";`
-   - Para: `const GEMINI_VALIDATE_MODEL = "gemini-1.5-flash";`
+**Problema:** `clinic-gemini.ts` importa `@ai-sdk/google@^1`, incompatível com AI SDK 5/6 (specification v2).
 
-2. No bloco `if (action === "set")`, remover o status 400 do retorno de falha de validação para que o front receba 200 e consiga ler `{ ok: false, error }` em vez do erro genérico "non-2xx":
-   - De: `return json({ ok: false, error: r.error, status: await loadStatus(clinic_id) }, 400);`
-   - Para: `return json({ ok: false, error: r.error, status: await loadStatus(clinic_id) });`
+**Mudança única:**
+- Em `supabase/functions/_shared/clinic-gemini.ts`, trocar:
+  ```
+  import { createGoogleGenerativeAI } from "npm:@ai-sdk/google@^1";
+  ```
+  por:
+  ```
+  import { createGoogleGenerativeAI } from "npm:@ai-sdk/google@^3";
+  ```
 
-Sem outras mudanças. Após aplicar, redeploy automático da function; testar salvando a chave Gemini novamente — se ainda falhar, o toast vai exibir a mensagem real do Google.
+**Deploy:** redeploy de todas as functions de pipeline que dependem de `_shared/clinic-gemini.ts` (e do `clinic-openai-key` por consistência):
+- pipeline-classify
+- pipeline-position-auditor
+- pipeline-post-move-verifier
+- pipeline-summarize
+- pipeline-auto-retry
+- pipeline-deterministic
+- pipeline-run-executor
+- pipeline-monthly-cycle-or
+- pipeline-queue-alert
+- pipeline-evals-run
+- clinic-openai-key
+
+**Validação:** após deploy, conferir logs de `pipeline-summarize` e `pipeline-classify` para confirmar que o erro "Unsupported model version v1" desapareceu.
