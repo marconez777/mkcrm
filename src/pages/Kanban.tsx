@@ -490,6 +490,7 @@ function VirtualizedColumnBody({
   onOpen: (l: Lead) => void; onMove: (l: Lead) => void;
   onMoveToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
 }) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const setRefs = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el;
@@ -515,7 +516,7 @@ function VirtualizedColumnBody({
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         {leads.length === 0 ? (
-          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
+          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">{t("kanban.empty")}</div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
             {items.map((v) => {
@@ -727,9 +728,9 @@ export default function KanbanPage() {
     if (cfPatch) patch.custom_fields = cfPatch;
     await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
-    toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
+    toast.success(`${t("kanban.movedTo", { stage: target?.name ?? t("kanban.column").toLowerCase() })}${internalSync === true ? t("kanban.markedAdmin") : internalSync === false ? t("kanban.unmarkedAdmin") : ""}`, {
       action: previousStageId ? {
-        label: "Desfazer",
+        label: t("kanban.undo"),
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
           const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
@@ -774,9 +775,9 @@ export default function KanbanPage() {
       return;
     }
     const target = allStages.find((s) => s.id === targetStageId);
-    toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
+    toast.success(`${t("kanban.movedTo", { stage: target?.name ?? t("kanban.column").toLowerCase() })}${internalSync === true ? t("kanban.markedAdmin") : internalSync === false ? t("kanban.unmarkedAdmin") : ""}`, {
       action: previousStageId ? {
-        label: "Desfazer",
+        label: t("kanban.undo"),
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
           const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
@@ -786,7 +787,7 @@ export default function KanbanPage() {
       } : undefined,
       duration: 6000,
     });
-  }, [leads, allStages, setLeads]);
+  }, [leads, allStages, setLeads, t]);
 
 
   const openLeadCb = useCallback((l: Lead) => setOpenLead(l), []);
@@ -808,13 +809,13 @@ export default function KanbanPage() {
     const stage = deletingStage;
     if (!stage) return;
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
-    if (error) toast.error(error.message); else toast.success("Coluna excluída");
+    if (error) toast.error(error.message); else toast.success(t("kanban.columnDeleted"));
     setDeletingStage(null);
   }
 
   async function addLead() {
-    if (!newLead.phone.trim()) { toast.error("Telefone obrigatório"); return; }
-    if (!stages.length) { toast.error("Crie uma coluna primeiro"); return; }
+    if (!newLead.phone.trim()) { toast.error(t("kanban.phoneRequired")); return; }
+    if (!stages.length) { toast.error(t("kanban.createColumnFirst")); return; }
     setCreating(true);
     const stage = stages[0];
     const phone = newLead.phone.replace(/\D/g, "");
@@ -829,7 +830,7 @@ export default function KanbanPage() {
     if (error) { toast.error(error.message); return; }
     setNewLead({ name: "", phone: "" });
     setNewLeadOpen(false);
-    toast.success("Lead criado");
+    toast.success(t("kanban.leadCreated"));
   }
 
   return (
@@ -1013,29 +1014,25 @@ export default function KanbanPage() {
               <>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    {blocked ? "Não é possível excluir" : "Excluir coluna"}
+                    {blocked ? t("kanban.cannotDelete") : t("kanban.deleteColumn")}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    {blocked ? (
-                      <>
-                        A coluna <span className="font-medium text-foreground">"{deletingStage?.name}"</span> contém{" "}
-                        <span className="font-medium text-foreground">{used}</span>{" "}
-                        {used === 1 ? "lead" : "leads"}. Mova-{used === 1 ? "o" : "os"} para outra coluna antes de excluir.
-                      </>
-                    ) : (
-                      <>
-                        Tem certeza que deseja excluir a coluna{" "}
-                        <span className="font-medium text-foreground">"{deletingStage?.name}"</span>? Esta ação não pode ser desfeita.
-                      </>
-                    )}
+                    {blocked
+                      ? t("kanban.columnContains", { name: deletingStage?.name, count: used })
+                      : t("kanban.confirmDeleteColumn", { name: deletingStage?.name })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>{t("kanban.cancel")}</AlertDialogCancel>
                   {!blocked && (
                     <AlertDialogAction
                       onClick={confirmDeleteStage}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {t("kanban.delete")}
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
                     >
                       Excluir
                     </AlertDialogAction>
