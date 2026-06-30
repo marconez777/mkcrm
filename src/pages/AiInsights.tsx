@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Lightbulb, Loader2, Search, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, es, enUS } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 interface Insight {
   id: string;
