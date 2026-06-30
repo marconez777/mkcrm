@@ -18,5 +18,36 @@
     "admin": "Super Admin",
     "logout": "Sair",
     "shortcuts": "Atalhos"
+  },
+  "common": {
+    "create": "Criar",
+    "edit": "Editar",
+    "delete": "Excluir",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "search": "Buscar",
+    "name": "Nome",
+    "loading": "Carregando…"
+  },
+  "kanban": {
+    "searchPlaceholder": "Buscar por nome ou telefone…",
+    "clearSearch": "Limpar busca",
+    "compactMode": "Modo compacto",
+    "expandAll": "Expandir todas",
+    "calendar": "Calendário",
+    "column": "Coluna",
+    "lead": "Lead",
+    "card": "Card",
+    "newColumn": "Nova coluna",
+    "columnName": "Nome da etapa",
+    "newLead": "Novo lead",
+    "newCard": "Novo card",
+    "identifier": "Identificador",
+    "phone": "Telefone (com DDI)",
+    "leadsCount": "{{count}} leads · {{stages}} etapas",
+    "noStages": "Nenhuma etapa. Crie sua primeira coluna.",
+    "noPipeline": "Crie seu primeiro funil para começar.",
+    "scrollLeft": "Rolar à esquerda",
+    "scrollRight": "Rolar à direita"
   }
 }

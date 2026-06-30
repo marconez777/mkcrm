@@ -1,4 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -550,6 +551,7 @@ function VirtualizedColumnBody({
 }
 
 export default function KanbanPage() {
+  const { t } = useTranslation();
   const { stages: allStages } = useStages();
   const { leads: allLeads, setLeads } = useLeads();
   const { pipelines, current, currentId, setCurrentId } = usePipelines();
@@ -853,7 +855,7 @@ export default function KanbanPage() {
                 id="kanban-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nome ou telefone…"
+                placeholder={t("kanban.searchPlaceholder")}
                 className="h-8 w-64 pl-7 pr-7 text-sm"
               />
               {query && (
@@ -861,33 +863,33 @@ export default function KanbanPage() {
                   type="button"
                   onClick={() => setQuery("")}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-accent"
-                  aria-label="Limpar busca"
+                  aria-label={t("kanban.clearSearch")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
             <PipelineDateFilter value={dateFilter} onChange={setDateFilter} />
-            <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
+            <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label={t("kanban.compactMode")} title={t("kanban.compactMode")}>
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>
             {ui.collapsed.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setUi((u) => ({ ...u, collapsed: [] }))}>
-                Expandir todas ({ui.collapsed.length})
+                {t("kanban.expandAll")} ({ui.collapsed.length})
               </Button>
             )}
             <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setCalendarOpen(true)} disabled={!currentId}>
               <CalendarIcon className="h-3.5 w-3.5" />
-              Calendário
+              {t("kanban.calendar")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
-              <Pencil className="mr-1 h-4 w-4" />Editar
+              <Pencil className="mr-1 h-4 w-4" />{t("common.edit")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />Coluna
+              <Plus className="mr-1 h-4 w-4" />{t("kanban.column")}
             </Button>
             <Button size="sm" onClick={() => setNewLeadOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />{current?.kind === "internal" ? "Card" : "Lead"}
+              <Plus className="mr-1 h-4 w-4" />{current?.kind === "internal" ? t("kanban.card") : t("kanban.lead")}
             </Button>
           </div>
         </header>
@@ -896,12 +898,12 @@ export default function KanbanPage() {
           <>
             <div className="relative flex-1 overflow-hidden">
               {overflow.left && (
-                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à esquerda">
+                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label={t("kanban.scrollLeft")}>
                   <ChevronLeft className="h-5 w-5" />
                 </button>
               )}
               {overflow.right && (
-                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à direita">
+                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label={t("kanban.scrollRight")}>
                   <ChevronRight className="h-5 w-5" />
                 </button>
               )}
@@ -928,7 +930,7 @@ export default function KanbanPage() {
                       />
                     ))}
                     {stages.length === 0 && (
-                      <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
+                      <div className="m-auto text-sm text-muted-foreground">{t("kanban.noStages")}</div>
                     )}
                   </div>
                   <DragOverlay>
@@ -940,7 +942,7 @@ export default function KanbanPage() {
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Crie seu primeiro funil para começar.
+            {t("kanban.noPipeline")}
           </div>
         )}
       </div>
@@ -956,20 +958,20 @@ export default function KanbanPage() {
 
       <Dialog open={newColOpen} onOpenChange={setNewColOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nova coluna</DialogTitle></DialogHeader>
-          <Input placeholder="Nome da etapa" value={newColName} onChange={(e) => setNewColName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && addColumn()} />
-          <DialogFooter><Button onClick={addColumn}>Criar</Button></DialogFooter>
+          <DialogHeader><DialogTitle>{t("kanban.newColumn")}</DialogTitle></DialogHeader>
+          <Input placeholder={t("kanban.columnName")} value={newColName} onChange={(e) => setNewColName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && addColumn()} />
+          <DialogFooter><Button onClick={addColumn}>{t("common.create")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={newLeadOpen} onOpenChange={setNewLeadOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Novo {current?.kind === "internal" ? "card" : "lead"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{current?.kind === "internal" ? t("kanban.newCard") : t("kanban.newLead")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5"><Label>Nome</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>{current?.kind === "internal" ? "Identificador" : "Telefone (com DDI)"}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{t("common.name")}</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{current?.kind === "internal" ? t("kanban.identifier") : t("kanban.phone")}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
           </div>
-          <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar</Button></DialogFooter>
+          <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("common.create")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

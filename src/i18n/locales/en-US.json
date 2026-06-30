@@ -18,5 +18,36 @@
     "admin": "Super Admin",
     "logout": "Log out",
     "shortcuts": "Shortcuts"
+  },
+  "common": {
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "search": "Search",
+    "name": "Name",
+    "loading": "Loading…"
+  },
+  "kanban": {
+    "searchPlaceholder": "Search by name or phone…",
+    "clearSearch": "Clear search",
+    "compactMode": "Compact mode",
+    "expandAll": "Expand all",
+    "calendar": "Calendar",
+    "column": "Column",
+    "lead": "Lead",
+    "card": "Card",
+    "newColumn": "New column",
+    "columnName": "Stage name",
+    "newLead": "New lead",
+    "newCard": "New card",
+    "identifier": "Identifier",
+    "phone": "Phone (with country code)",
+    "leadsCount": "{{count}} leads · {{stages}} stages",
+    "noStages": "No stages. Create your first column.",
+    "noPipeline": "Create your first pipeline to get started.",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right"
   }
 }

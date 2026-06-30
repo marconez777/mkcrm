@@ -18,5 +18,36 @@
     "admin": "Super Admin",
     "logout": "Cerrar sesión",
     "shortcuts": "Atajos"
+  },
+  "common": {
+    "create": "Crear",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "search": "Buscar",
+    "name": "Nombre",
+    "loading": "Cargando…"
+  },
+  "kanban": {
+    "searchPlaceholder": "Buscar por nombre o teléfono…",
+    "clearSearch": "Limpiar búsqueda",
+    "compactMode": "Modo compacto",
+    "expandAll": "Expandir todas",
+    "calendar": "Calendario",
+    "column": "Columna",
+    "lead": "Lead",
+    "card": "Tarjeta",
+    "newColumn": "Nueva columna",
+    "columnName": "Nombre de la etapa",
+    "newLead": "Nuevo lead",
+    "newCard": "Nueva tarjeta",
+    "identifier": "Identificador",
+    "phone": "Teléfono (con prefijo)",
+    "leadsCount": "{{count}} leads · {{stages}} etapas",
+    "noStages": "Ninguna etapa. Crea tu primera columna.",
+    "noPipeline": "Crea tu primer funnel para empezar.",
+    "scrollLeft": "Desplazar a la izquierda",
+    "scrollRight": "Desplazar a la derecha"
   }
 }
