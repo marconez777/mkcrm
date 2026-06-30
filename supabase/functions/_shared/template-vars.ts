@@ -42,12 +42,12 @@ function partsInTZ(d: Date, tz: string) {
   return map;
 }
 
-function formatCustom(value: any, fieldType: string, modifier: string | null): string {
+function formatCustom(value: any, fieldType: string, modifier: string | null, tz: string): string {
   if (value == null || value === "") return "";
   if (fieldType === "date" || fieldType === "datetime") {
     const d = parseDate(value);
     if (!d) return String(value);
-    const p = partsInTZ(d);
+    const p = partsInTZ(d, tz);
     const day = p.day, month = p.month, year = p.year, hour = p.hour, minute = p.minute;
     const weekday = (p.weekday || "").toLowerCase();
     const monthIdx = Number(month) - 1;
