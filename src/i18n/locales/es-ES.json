@@ -1,0 +1,22 @@
+{
+  "nav": {
+    "group": {
+      "work": "Trabajo",
+      "marketing": "Marketing",
+      "admin": "Administración"
+    },
+    "pipeline": "Pipeline",
+    "inbox": "Conversaciones",
+    "tasks": "Tareas",
+    "ai": "IA",
+    "email": "Email",
+    "tracking": "Tracking",
+    "trackingDebug": "Tracking Debug",
+    "team": "Equipo",
+    "pipelineRuns": "Agente Pipeline",
+    "settings": "Ajustes",
+    "admin": "Super Admin",
+    "logout": "Cerrar sesión",
+    "shortcuts": "Atajos"
+  }
+}
