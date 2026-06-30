@@ -756,5 +756,130 @@
       "loading": "Loading…",
       "empty": "Nothing here."
     }
+  },
+  "settingsForms": {
+    "title": "Website Integration",
+    "subtitle": "Tracking pixel + form capture in a single SDK. Each integration generates a ready-to-paste prompt for the company website's Lovable chat.",
+    "new": "New integration",
+    "empty": "No integrations created yet. Click \"New integration\" to get started.",
+    "anyDomain": "Any domain",
+    "submissions": "submissions",
+    "noSubmissions": "No submissions",
+    "newDialog": {
+      "title": "New forms integration",
+      "name": "Name",
+      "namePh": "Marketing site",
+      "domains": "Allowed domains (optional)",
+      "domainsPh": "example.com, www.example.com",
+      "domainsHint": "Comma-separated. Leave blank to accept any origin.",
+      "cancel": "Cancel",
+      "create": "Create",
+      "created": "Integration created"
+    },
+    "back": "Back",
+    "totalSubmissions": "total submissions",
+    "anyDomainLower": "any domain",
+    "pause": "Pause",
+    "resume": "Reactivate",
+    "rotateConfirm": {
+      "title": "Rotate token?",
+      "description": "The current token remains valid for 24h.",
+      "confirm": "Rotate"
+    },
+    "rotated": "Token rotated",
+    "deleteConfirm": {
+      "title": "Delete integration?",
+      "description": "Future submissions with this token will be rejected.",
+      "confirm": "Delete"
+    },
+    "deleted": "Deleted",
+    "tabs": {
+      "install": "Install",
+      "forms": "Forms",
+      "submissions": "Submissions",
+      "traffic": "Traffic",
+      "settings": "Settings"
+    },
+    "install": {
+      "banner": "Pixel + Forms are installed together. Paste the AI Prompt below into the company website's Lovable chat — it takes care of script ordering, the bridge for custom forms and the validation checklist. If the website doesn't use Lovable, the WordPress / HTML / direct API blocks remain available in the other tabs.",
+      "token": "Integration token",
+      "loading": "Loading…",
+      "tokenCopied": "Token copied",
+      "copied": "Copied",
+      "promptTitle": "🤖 AI Prompt (Lovable)",
+      "wp": "WordPress",
+      "html": "HTML",
+      "api": "Direct API",
+      "promptHeader": "Full prompt to paste into the website's Lovable chat",
+      "promptHint": "Copy the text below and paste it into the company website's Lovable project chat. It already includes the token, project_id, install instructions, form quirks and validation checklist.",
+      "copyAll": "Copy all",
+      "promptCopied": "Prompt copied — paste it into the website's Lovable chat",
+      "wp1": "1. Download the plugin",
+      "wpDownload": "Download chat-funnel-ai-forms.zip",
+      "wp2": "2. In WordPress",
+      "wpStep1": "Plugins → Add New → Upload Plugin → upload the .zip and activate.",
+      "wpStep2": "Settings → Chat Funnel AI Forms → paste the token above and save.",
+      "wpSupports": "Supports: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.",
+      "htmlIntro": "Paste this script before </body>:",
+      "htmlHint": "The script automatically captures any <form> on the page. Use data-mk-form=\"contact\" on the form to name it, or data-mk-ignore to skip it.",
+      "apiTitle": "Direct send via HTTP POST:",
+      "endpoint": "Endpoint"
+    },
+    "formsTab": {
+      "name": "Name",
+      "formKey": "Form key",
+      "sends": "Sends",
+      "last": "Last",
+      "actions": "Actions",
+      "empty": "No forms detected yet. Submit one for auto-discovery.",
+      "paused": "paused",
+      "edit": "Edit"
+    },
+    "subsTab": {
+      "when": "When",
+      "form": "Form",
+      "status": "Status",
+      "lead": "Lead",
+      "payload": "Payload",
+      "empty": "No submissions yet",
+      "new": "new",
+      "open": "open"
+    },
+    "settingsTab": {
+      "name": "Name",
+      "domains": "Allowed domains",
+      "tags": "Default tags for new leads",
+      "tagsPh": "site, form",
+      "save": "Save",
+      "saved": "Saved"
+    },
+    "defEditor": {
+      "title": "Edit form",
+      "name": "Friendly name",
+      "pipeline": "Destination pipeline / stage",
+      "pipelineDefault": "System default (Website Form → New)",
+      "pipelineHint": "Where the lead appears on the kanban when this form is submitted.",
+      "system": "(system)",
+      "list": "Email list",
+      "listDefault": "Only \"Website Leads\" (system default)",
+      "listHint": "The lead is always added to the \"Website Leads\" list. Here you choose an optional extra list.",
+      "fieldMap": "Field mapping (JSON)",
+      "fieldMapHint": "E.g.: {\"name\":\"your-name\",\"email\":\"your-email\",\"phone\":\"tel-123\"}. Leave empty for auto-detection.",
+      "active": "Active",
+      "close": "Close",
+      "save": "Save",
+      "saved": "Saved",
+      "invalidJson": "Invalid field_map (JSON)"
+    },
+    "traffic": {
+      "visitors": "Unique visitors",
+      "events": "Tracking events",
+      "waClicks": "WhatsApp clicks",
+      "last24h": "last 24h",
+      "last7d": "last 7 days",
+      "panelTitle": "Full tracking panel",
+      "panelDesc": "See each visitor's journey, detailed events, UTM attribution and funnels.",
+      "openPanel": "Open panel"
+    }
   }
 }
