@@ -993,5 +993,139 @@
       "unknown": "Erro não mapeado; precisa de inspeção manual da mensagem bruta.",
       "fallback": "Erro não mapeado; precisa de inspeção manual da mensagem bruta."
     }
+  },
+  "pipelineRuns": {
+    "title": "Execução do pipeline",
+    "subtitle": "Roda o agente de IA em todos os leads, coluna por coluna. Cada passo é registrado abaixo — você pode comentar o que ficou errado e reprocessar.",
+    "disabled": {
+      "title": "Agente de pipeline não habilitado",
+      "desc": "Esta empresa ainda não está autorizada a executar o agente de IA de pipeline. Estamos validando a feature primeiro com a Empresa ÓR; será liberada para as demais em seguida."
+    },
+    "actions": {
+      "clearAi": "Limpar classificações da IA",
+      "runScoped": "Executar com escopo",
+      "runFull": "Executar pipeline inteiro",
+      "running": "Execução em andamento…",
+      "cancel": "Cancelar",
+      "retryErrors": "Reprocessar erros",
+      "retryCommented": "Reprocessar comentados",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "execute": "Executar",
+      "clear": "Limpar"
+    },
+    "confirm": {
+      "runFull": "Iniciar execução do pipeline INTEIRO da empresa? Isso vai processar todos os leads em todas as colunas com o agente de IA.",
+      "clearAi1": "Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta empresa?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.",
+      "clearAi2": "Tem certeza? Esta ação não pode ser desfeita. Depois execute o pipeline para reclassificar."
+    },
+    "toast": {
+      "scopedStarted": "Execução focada iniciada",
+      "started": "Execução iniciada",
+      "cancelRequested": "Cancelamento solicitado",
+      "retryStarted": "Reprocesso iniciado ({{count}} leads)",
+      "cleared": "Classificações limpas em {{count}} leads",
+      "commentSaved": "Comentário salvo",
+      "rerunFull": "Reprocessando lead (pipeline completo)",
+      "rerunOnly": "Reprocessando só {{agent}}",
+      "errorPrefix": "Erro: {{message}}"
+    },
+    "list": {
+      "title": "Execuções recentes",
+      "empty": "Nenhuma execução ainda.",
+      "selectRun": "Selecione uma execução para ver o detalhe.",
+      "waiting": "Aguardando processamento…",
+      "reprocess": "↻ reprocesso",
+      "leadsSummary": "{{leads}} leads · ok {{ok}} · skip {{skip}} · err {{err}}"
+    },
+    "status": {
+      "queued": "Na fila",
+      "running": "Rodando",
+      "done": "Concluída",
+      "error": "Com erro",
+      "cancelled": "Cancelada",
+      "pending": "Pendente",
+      "ok": "OK",
+      "skipped": "Skip"
+    },
+    "step": {
+      "summarizer": "🔁 só Resumidor",
+      "parallel": "🔁 paralelos (Agendador+Tipificador+Movimentador)",
+      "typifier": "🔁 só Tipificador (legado V3)",
+      "maestro": "🔁 só Maestro"
+    },
+    "detail": {
+      "leadsCounter": "{{leads}} leads · OK {{ok}} · Skip {{skip}} · Erro {{err}}",
+      "stageHeader": "{{count}} · ok {{ok}} · skip {{skip}} · err {{err}}",
+      "rawJson": "JSON bruto"
+    },
+    "agents": {
+      "notRun": "não executado",
+      "resumidor": "Resumidor",
+      "noSummary": "sem resumo",
+      "parallelExec": "Execução paralela",
+      "agendador": "Agendador",
+      "agendadorBody": "avaliou intenção de agenda",
+      "tipificador": "Tipificador",
+      "noChange": "nenhuma alteração",
+      "noData": "sem dados",
+      "partialMode": "modo parcial",
+      "fieldsLabel": "campos: {{names}}",
+      "movimentador": "Movimentador",
+      "movimentadorBody": "avaliou stage do funil",
+      "suggestion": "sugestão:",
+      "moved": "moveu?",
+      "yes": "sim",
+      "no": "não",
+      "maestro": "Maestro",
+      "noDecision": "sem decisão",
+      "stage": "stage:",
+      "intent": "intent:",
+      "conf": "conf:",
+      "b2b": "b2b",
+      "reasons": "Por quê?"
+    },
+    "rerun": {
+      "label": "Rodar de novo:",
+      "full": "Completo",
+      "summarizer": "Só Resumidor",
+      "parallel": "Paralelos",
+      "maestro": "Só Maestro"
+    },
+    "comment": {
+      "placeholder": "O que deu errado / o que esperava que acontecesse?",
+      "markRetry": "Marcar para reprocessar"
+    },
+    "scope": {
+      "title": "Executar com escopo",
+      "desc": "Escolha o pipeline, a coluna e (opcional) leads específicos. Em cada varredura a IA também corrige tags e campos personalizados quando há evidência nas mensagens.",
+      "whichAgents": "Quais agentes rodar",
+      "options": {
+        "fullTitle": "Forçar Pipeline V6",
+        "fullDesc": "Os 5 agentes (Resumidor → Paralelos → Maestro)",
+        "summarizerTitle": "Só Resumidor",
+        "summarizerDesc": "Refaz ai_summary",
+        "parallelTitle": "Só Paralelos",
+        "parallelDesc": "Agendador + Tipificador + Movimentador",
+        "maestroTitle": "Só Maestro",
+        "maestroDesc": "Refaz decisão final (stage + intent)"
+      },
+      "maestroWarn": "⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.",
+      "reuseSummary": "Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.",
+      "parallelInfo": "⑂ Dispara Agendador, Tipificador e Movimentador no mesmo `Promise.all` — backend precisa aceitar `only_agent: \"parallel\"`.",
+      "pipeline": "Pipeline",
+      "pipelinePh": "Selecione",
+      "stage": "Coluna",
+      "stagePhAll": "Todas",
+      "allStages": "Todas as colunas",
+      "topN": "Quantidade do topo (opcional) — processa os N primeiros leads da coluna na mesma ordem do Kanban",
+      "topNPh": "ex: 10, 20, 50",
+      "topNHint": "Se preenchido, ignora a seleção manual de leads abaixo e roda apenas os N primeiros da coluna selecionada.",
+      "leadsLabel": "Leads (opcional) — deixe vazio para processar todos da coluna · {{count}} selecionado(s)",
+      "search": "Buscar por nome ou telefone…",
+      "loading": "Carregando…",
+      "noLeads": "Nenhum lead encontrado.",
+      "noName": "(sem nome)"
+    }
   }
 }

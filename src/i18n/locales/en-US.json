@@ -993,5 +993,139 @@
       "unknown": "Unmapped error; needs manual inspection of the raw message.",
       "fallback": "Unmapped error; needs manual inspection of the raw message."
     }
+  },
+  "pipelineRuns": {
+    "title": "Pipeline run",
+    "subtitle": "Runs the AI agent on every lead, column by column. Each step is logged below — you can comment on what went wrong and re-run.",
+    "disabled": {
+      "title": "Pipeline agent not enabled",
+      "desc": "This company is not yet authorized to run the pipeline AI agent. We are validating the feature first with Company ÓR; it will be released to others next."
+    },
+    "actions": {
+      "clearAi": "Clear AI classifications",
+      "runScoped": "Run with scope",
+      "runFull": "Run entire pipeline",
+      "running": "Run in progress…",
+      "cancel": "Cancel",
+      "retryErrors": "Retry errors",
+      "retryCommented": "Retry commented",
+      "save": "Save",
+      "saving": "Saving…",
+      "execute": "Run",
+      "clear": "Clear"
+    },
+    "confirm": {
+      "runFull": "Start running the ENTIRE company pipeline? This will process every lead in every column with the AI agent.",
+      "clearAi1": "Clear ALL AI-generated classifications (qualification, procedure, appointment dates, payment, summary) for every lead of this company?\n\nThis does NOT remove source tags (lead-site, lead-phq9), names, phones, stages, assignees or manual notes.",
+      "clearAi2": "Are you sure? This cannot be undone. Then run the pipeline to reclassify."
+    },
+    "toast": {
+      "scopedStarted": "Focused run started",
+      "started": "Run started",
+      "cancelRequested": "Cancellation requested",
+      "retryStarted": "Re-run started ({{count}} leads)",
+      "cleared": "Classifications cleared on {{count}} leads",
+      "commentSaved": "Comment saved",
+      "rerunFull": "Re-running lead (full pipeline)",
+      "rerunOnly": "Re-running only {{agent}}",
+      "errorPrefix": "Error: {{message}}"
+    },
+    "list": {
+      "title": "Recent runs",
+      "empty": "No runs yet.",
+      "selectRun": "Select a run to see the detail.",
+      "waiting": "Waiting for processing…",
+      "reprocess": "↻ reprocess",
+      "leadsSummary": "{{leads}} leads · ok {{ok}} · skip {{skip}} · err {{err}}"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "error": "Errored",
+      "cancelled": "Cancelled",
+      "pending": "Pending",
+      "ok": "OK",
+      "skipped": "Skip"
+    },
+    "step": {
+      "summarizer": "🔁 Summarizer only",
+      "parallel": "🔁 parallels (Scheduler+Typifier+Mover)",
+      "typifier": "🔁 Typifier only (legacy V3)",
+      "maestro": "🔁 Maestro only"
+    },
+    "detail": {
+      "leadsCounter": "{{leads}} leads · OK {{ok}} · Skip {{skip}} · Error {{err}}",
+      "stageHeader": "{{count}} · ok {{ok}} · skip {{skip}} · err {{err}}",
+      "rawJson": "Raw JSON"
+    },
+    "agents": {
+      "notRun": "not run",
+      "resumidor": "Summarizer",
+      "noSummary": "no summary",
+      "parallelExec": "Parallel execution",
+      "agendador": "Scheduler",
+      "agendadorBody": "evaluated scheduling intent",
+      "tipificador": "Typifier",
+      "noChange": "no change",
+      "noData": "no data",
+      "partialMode": "partial mode",
+      "fieldsLabel": "fields: {{names}}",
+      "movimentador": "Mover",
+      "movimentadorBody": "evaluated funnel stage",
+      "suggestion": "suggestion:",
+      "moved": "moved?",
+      "yes": "yes",
+      "no": "no",
+      "maestro": "Maestro",
+      "noDecision": "no decision",
+      "stage": "stage:",
+      "intent": "intent:",
+      "conf": "conf:",
+      "b2b": "b2b",
+      "reasons": "Why?"
+    },
+    "rerun": {
+      "label": "Run again:",
+      "full": "Full",
+      "summarizer": "Summarizer only",
+      "parallel": "Parallels",
+      "maestro": "Maestro only"
+    },
+    "comment": {
+      "placeholder": "What went wrong / what did you expect?",
+      "markRetry": "Mark for retry"
+    },
+    "scope": {
+      "title": "Run with scope",
+      "desc": "Choose the pipeline, column and (optional) specific leads. On every sweep the AI also fixes tags and custom fields when evidence is found in the messages.",
+      "whichAgents": "Which agents to run",
+      "options": {
+        "fullTitle": "Force Pipeline V6",
+        "fullDesc": "All 5 agents (Summarizer → Parallels → Maestro)",
+        "summarizerTitle": "Summarizer only",
+        "summarizerDesc": "Rebuilds ai_summary",
+        "parallelTitle": "Parallels only",
+        "parallelDesc": "Scheduler + Typifier + Mover",
+        "maestroTitle": "Maestro only",
+        "maestroDesc": "Rebuilds final decision (stage + intent)"
+      },
+      "maestroWarn": "⚠ Running only the Maestro reuses current tags/fields. If the lead is outdated, run the full pipeline.",
+      "reuseSummary": "Reuses the lead's current ai_summary. If it doesn't exist, the lead will fail with missing_ai_summary.",
+      "parallelInfo": "⑂ Fires Scheduler, Typifier and Mover in the same `Promise.all` — backend must accept `only_agent: \"parallel\"`.",
+      "pipeline": "Pipeline",
+      "pipelinePh": "Select",
+      "stage": "Column",
+      "stagePhAll": "All",
+      "allStages": "All columns",
+      "topN": "Top count (optional) — processes the first N leads of the column in Kanban order",
+      "topNPh": "e.g. 10, 20, 50",
+      "topNHint": "If filled, ignores the manual lead selection below and runs only the first N of the selected column.",
+      "leadsLabel": "Leads (optional) — leave empty to process all of the column · {{count}} selected",
+      "search": "Search by name or phone…",
+      "loading": "Loading…",
+      "noLeads": "No leads found.",
+      "noName": "(no name)"
+    }
   }
 }
