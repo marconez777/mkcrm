@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
         }
 
         // Send window: if outside, push 30 min and try again
-        if (!inSendWindow(step.send_window)) {
+        if (!inSendWindow(step.send_window, clinicTz)) {
           await supabase.from("message_sequence_enrollments")
             .update({ next_run_at: new Date(Date.now() + 30 * 60_000).toISOString() })
             .eq("id", e.id);
