@@ -27,7 +27,19 @@
     "selectConversation": "Selecciona una conversación a la izquierda",
     "newConversation": "Nueva conversación",
     "hideList": "Ocultar lista", "showList": "Mostrar lista",
-    "hideContext": "Ocultar contexto", "showContext": "Mostrar contexto"
+    "hideContext": "Ocultar contexto", "showContext": "Mostrar contexto",
+    "conversations": "Conversaciones",
+    "refresh": "Actualizar conversaciones",
+    "savedViews": "Vistas guardadas",
+    "noViews": "Ninguna vista guardada",
+    "saveCurrentFilters": "Guardar filtros actuales",
+    "sort": "Ordenar",
+    "sortRecent": "Más recientes",
+    "sortUnread": "No leídas primero",
+    "sortOldest": "Más antiguas",
+    "searchPlaceholder": "Buscar (nombre, teléfono, mensaje)",
+    "loading": "Cargando…",
+    "empty": "Ninguna conversación."
   },
   "settings": {
     "title": "Ajustes",
