@@ -918,6 +918,7 @@ export default function KanbanPage() {
                         onEdit={editStageCb}
                         onDelete={requestDeleteStage}
                         onMoveAll={setMovingColumnStage}
+                        aiBinding={aiBindings[s.id]}
                       />
                     ))}
                     {stages.length === 0 && (
