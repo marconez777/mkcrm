@@ -1298,5 +1298,30 @@
     "at": "on",
     "formEvents": "Form events ({{count}})",
     "allEvents": "All events in order ({{count}})"
+  },
+  "leadDrawer": {
+    "syncFail": "Failed: ",
+    "syncOk": "Synced: {{count}} messages",
+    "noWhats": "Lead has no linked WhatsApp",
+    "noWatcher": "No watcher agent configured for this connection",
+    "watcherFail": "Failed: ",
+    "watcherOk": "Watcher reviewed the conversation",
+    "confirmTitle": "Delete this lead?",
+    "confirmDesc": "All message history will be removed. This action is irreversible.",
+    "confirmBtn": "Delete permanently",
+    "deleted": "Lead deleted",
+    "deleteFail": "Failed to delete lead",
+    "deleteRetry": "Try again.",
+    "reviewTitle": "Review conversation with AI (watcher)",
+    "syncTitle": "Sync full history",
+    "deleteTitle": "Delete lead",
+    "tabChat": "Chat",
+    "tabDetails": "Details",
+    "tabJourney": "Timeline"
+  },
+  "notFound": {
+    "title": "404",
+    "msg": "Oops! Page not found",
+    "back": "Return to Home"
   }
 }
