@@ -60,6 +60,7 @@ const SNIPPET_URL = `${SUPABASE_URL}/functions/v1/forms-snippet`;
 const PLUGIN_URL = `${SUPABASE_URL}/functions/v1/forms-plugin-zip`;
 
 export default function SettingsForms() {
+  const { t, i18n } = useTranslation();
   const { isSuperAdmin, membership } = useAuth();
   const canManage = isSuperAdmin || ["owner", "admin"].includes(membership?.role || "");
   const [list, setList] = useState<Integration[]>([]);
@@ -70,7 +71,7 @@ export default function SettingsForms() {
   const [newDomains, setNewDomains] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Integração do Site — Chat Funnel AI"; load(); }, []);
+  useEffect(() => { document.title = `${t("settingsForms.title")} — Chat Funnel AI`; load(); }, [t]);
 
   async function load() {
     setLoading(true);
@@ -92,7 +93,7 @@ export default function SettingsForms() {
         body: { action: "create_integration", name: newName, allowed_domains, default_tags: [] },
       });
       if (error) throw error;
-      toast.success("Integração criada");
+      toast.success(t("settingsForms.newDialog.created"));
       setCreateOpen(false); setNewName(""); setNewDomains("");
       await load();
       setSelected((data as any).integration);
@@ -106,13 +107,13 @@ export default function SettingsForms() {
       <div className="mx-auto max-w-5xl p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Integração do Site</h1>
+            <h1 className="text-2xl font-semibold">{t("settingsForms.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pixel de rastreamento + captura de formulários num único SDK. Cada integração gera um prompt pronto para colar no chat do Lovable do site da empresa.
+              {t("settingsForms.subtitle")}
             </p>
           </div>
           {canManage && (
-            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Nova integração</Button>
+            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />{t("settingsForms.new")}</Button>
           )}
         </div>
 
@@ -120,7 +121,7 @@ export default function SettingsForms() {
           <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : list.length === 0 ? (
           <Card className="p-10 text-center text-sm text-muted-foreground">
-            Nenhuma integração criada ainda. Clique em "Nova integração" para começar.
+            {t("settingsForms.empty")}
           </Card>
         ) : (
           <div className="grid gap-3">
@@ -133,12 +134,12 @@ export default function SettingsForms() {
                       <Badge variant={i.status === "active" ? "default" : "secondary"}>{i.status}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate">
-                      {(i.allowed_domains || []).length ? i.allowed_domains.join(", ") : "Qualquer domínio"}
+                      {(i.allowed_domains || []).length ? i.allowed_domains.join(", ") : t("settingsForms.anyDomain")}
                     </div>
                   </div>
                   <div className="text-right text-xs text-muted-foreground shrink-0">
-                    <div>{i.total_submissions} envios</div>
-                    <div>{i.last_submission_at ? new Date(i.last_submission_at).toLocaleString("pt-BR") : "Sem envios"}</div>
+                    <div>{i.total_submissions} {t("settingsForms.submissions")}</div>
+                    <div>{i.last_submission_at ? new Date(i.last_submission_at).toLocaleString(i18n.language) : t("settingsForms.noSubmissions")}</div>
                   </div>
                 </div>
               </Card>
@@ -148,20 +149,20 @@ export default function SettingsForms() {
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Nova integração de formulários</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("settingsForms.newDialog.title")}</DialogTitle></DialogHeader>
             <form onSubmit={createIntegration} className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Site institucional" />
+                <Label>{t("settingsForms.newDialog.name")}</Label>
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder={t("settingsForms.newDialog.namePh")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Domínios permitidos (opcional)</Label>
-                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" />
-                <p className="text-xs text-muted-foreground">Separe por vírgula. Deixe em branco para aceitar qualquer origem.</p>
+                <Label>{t("settingsForms.newDialog.domains")}</Label>
+                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder={t("settingsForms.newDialog.domainsPh")} />
+                <p className="text-xs text-muted-foreground">{t("settingsForms.newDialog.domainsHint")}</p>
               </div>
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
+                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>{t("settingsForms.newDialog.cancel")}</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.newDialog.create")}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
