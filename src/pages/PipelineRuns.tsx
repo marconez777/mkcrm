@@ -860,22 +860,19 @@ function ScopeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Executar com escopo</DialogTitle>
-          <DialogDescription>
-            Escolha o pipeline, a coluna e (opcional) leads específicos. Em cada varredura a IA também corrige tags e campos personalizados quando há evidência nas mensagens.
-          </DialogDescription>
+          <DialogTitle>{t("scope.title")}</DialogTitle>
+          <DialogDescription>{t("scope.desc")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Seletor de agente */}
           <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-3">
-            <Label className="text-xs">Quais agentes rodar</Label>
+            <Label className="text-xs">{t("scope.whichAgents")}</Label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {([
-                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Forçar Pipeline V6", desc: "Os 5 agentes (Resumidor → Paralelos → Maestro)" },
-                { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: "Só Resumidor", desc: "Refaz ai_summary" },
-                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: "Só Paralelos", desc: "Agendador + Tipificador + Movimentador" },
-                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz decisão final (stage + intent)" },
+                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: t("scope.options.fullTitle"), desc: t("scope.options.fullDesc") },
+                { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: t("scope.options.summarizerTitle"), desc: t("scope.options.summarizerDesc") },
+                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: t("scope.options.parallelTitle"), desc: t("scope.options.parallelDesc") },
+                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: t("scope.options.maestroTitle"), desc: t("scope.options.maestroDesc") },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -891,39 +888,33 @@ function ScopeDialog({
               ))}
             </div>
             {onlyAgent === "maestro" && (
-              <p className="text-[11px] text-amber-400">
-                ⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.
-              </p>
+              <p className="text-[11px] text-amber-400">{t("scope.maestroWarn")}</p>
             )}
             {(onlyAgent === "parallel" || onlyAgent === "maestro") && (
-              <p className="text-[11px] text-muted-foreground">
-                Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t("scope.reuseSummary")}</p>
             )}
             {onlyAgent === "parallel" && (
-              <p className="text-[11px] text-violet-400">
-                ⑂ Dispara Agendador, Tipificador e Movimentador no mesmo `Promise.all` — backend precisa aceitar `only_agent: "parallel"`.
-              </p>
+              <p className="text-[11px] text-violet-400">{t("scope.parallelInfo")}</p>
             )}
           </div>
 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Pipeline</Label>
+              <Label className="text-xs">{t("scope.pipeline")}</Label>
               <Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId("__all__"); setSelectedLeads({}); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("scope.pipelinePh")} /></SelectTrigger>
                 <SelectContent>
                   {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Coluna</Label>
+              <Label className="text-xs">{t("scope.stage")}</Label>
               <Select value={stageId} onValueChange={(v) => { setStageId(v); setSelectedLeads({}); }}>
-                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("scope.stagePhAll")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Todas as colunas</SelectItem>
+                  <SelectItem value="__all__">{t("scope.allStages")}</SelectItem>
                   {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -931,14 +922,12 @@ function ScopeDialog({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">
-              Quantidade do topo (opcional) — processa os N primeiros leads da coluna na mesma ordem do Kanban
-            </Label>
+            <Label className="text-xs">{t("scope.topN")}</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 min={1}
-                placeholder="ex: 10, 20, 50"
+                placeholder={t("scope.topNPh")}
                 value={topN}
                 onChange={(e) => setTopN(e.target.value)}
                 className="w-40"
@@ -951,23 +940,19 @@ function ScopeDialog({
                 ))}
                 {topN && (
                   <Button size="sm" variant="ghost" type="button" onClick={() => setTopN("")} className="h-8 px-2 text-xs">
-                    Limpar
+                    {t("actions.clear")}
                   </Button>
                 )}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Se preenchido, ignora a seleção manual de leads abaixo e roda apenas os N primeiros da coluna selecionada.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("scope.topNHint")}</p>
           </div>
 
 
           <div className="space-y-1">
-            <Label className="text-xs">
-              Leads (opcional) — deixe vazio para processar todos da coluna · {selectedCount} selecionado(s)
-            </Label>
+            <Label className="text-xs">{t("scope.leadsLabel", { count: selectedCount })}</Label>
             <Input
-              placeholder="Buscar por nome ou telefone…"
+              placeholder={t("scope.search")}
               value={leadSearch}
               onChange={(e) => setLeadSearch(e.target.value)}
             />
@@ -981,13 +966,13 @@ function ScopeDialog({
                     </button>
                   </Badge>
                 ))}
-                <Button size="sm" variant="ghost" onClick={() => setSelectedLeads({})} className="h-6 px-2 text-xs">Limpar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedLeads({})} className="h-6 px-2 text-xs">{t("actions.clear")}</Button>
               </div>
             )}
             <ScrollArea className="h-48 rounded border border-border/60">
               <div className="divide-y divide-border/40">
-                {loadingLeads && <div className="p-3 text-xs text-muted-foreground">Carregando…</div>}
-                {!loadingLeads && leads.length === 0 && <div className="p-3 text-xs text-muted-foreground">Nenhum lead encontrado.</div>}
+                {loadingLeads && <div className="p-3 text-xs text-muted-foreground">{t("scope.loading")}</div>}
+                {!loadingLeads && leads.length === 0 && <div className="p-3 text-xs text-muted-foreground">{t("scope.noLeads")}</div>}
                 {leads.map((l) => {
                   const checked = !!selectedLeads[l.id];
                   return (
@@ -1000,7 +985,7 @@ function ScopeDialog({
                           return n;
                         })}
                       />
-                      <span className="flex-1 truncate">{l.name ?? "(sem nome)"}</span>
+                      <span className="flex-1 truncate">{l.name ?? t("scope.noName")}</span>
                       <span className="text-xs text-muted-foreground">{l.phone ?? ""}</span>
                     </label>
                   );
@@ -1011,10 +996,10 @@ function ScopeDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
           <Button onClick={submit} disabled={starting || !pipelineId} className="gap-2">
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Executar
+            {t("actions.execute")}
           </Button>
         </DialogFooter>
       </DialogContent>
