@@ -218,7 +218,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border/40">
+      <aside className="flex w-60 shrink-0 flex-col bg-black text-white border-r border-white/10">
         {/* Header */}
         <div className="flex items-center bg-black px-4 py-4">
           <img src={brandLockup} alt="Chat Funnel AI" className="h-12 w-auto object-contain" />
