@@ -69,6 +69,8 @@ function callExecutor<T = unknown>(body: Record<string, unknown>): Promise<{ ok?
 }
 
 export default function PipelineRuns() {
+  const { t } = useTranslation("pipelineRuns");
+  const dateLocale = useDateFnsLocale();
   const { enabled, loading, clinicId } = usePipelineAllowlist();
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
