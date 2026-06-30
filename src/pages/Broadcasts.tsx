@@ -602,6 +602,7 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
 }
 
 function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
+  const region = useRegion();
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
   const sourceType: "pipeline" | "list" = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
@@ -620,9 +621,12 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
 
   const onUpload = async (f: File) => {
     try {
-      const list = await parseContactsFile(f);
-      setExtraContacts([...extraContacts, ...list]);
-      toast.success(`${list.length} contatos importados`);
+      const { ok, errors } = await parseContactsFile(f, region.region);
+      setExtraContacts([...extraContacts, ...ok]);
+      if (ok.length) toast.success(`${ok.length} contatos importados`);
+      if (errors.length) toast.warning(`${errors.length} linhas ignoradas`, {
+        description: errors.slice(0, 3).map((e) => `linha ${e.row}: ${e.reason}`).join(" • "),
+      });
     } catch (e: any) { toast.error(e.message); }
   };
 
