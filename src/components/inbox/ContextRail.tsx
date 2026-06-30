@@ -343,7 +343,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                 setForm({ ...form, ...({ form_source: slug } as any) });
                 patch({ form_source: slug } as any);
               }}
-              placeholder="teste-depressao, landing-cetamina…"
+              placeholder={t("inbox.context.formSourcePlaceholder")}
               className="h-9"
             />
           </div>
