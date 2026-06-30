@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,31 +19,26 @@ import {
   type QueueRow,
 } from "@/hooks/useQueueData";
 
-const SOURCE_LABEL: Record<string, string> = {
-  sequence: "Sequência", automation: "Automação", scheduled: "Agendada", reply: "Resposta IA",
-};
-
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { variant: any; label: string }> = {
-    pending: { variant: "secondary", label: "Na fila" },
-    sent: { variant: "default", label: "Enviado" },
-    success: { variant: "default", label: "Sucesso" },
-    failed: { variant: "destructive", label: "Falhou" },
-    error: { variant: "destructive", label: "Erro" },
-    skipped: { variant: "outline", label: "Pulado" },
-    cancelled: { variant: "outline", label: "Cancelado" },
+  const { t } = useTranslation();
+  const variants: Record<string, any> = {
+    pending: "secondary", sent: "default", success: "default",
+    failed: "destructive", error: "destructive",
+    skipped: "outline", cancelled: "outline",
   };
-  const cfg = map[status] ?? { variant: "outline", label: status };
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+  const variant = variants[status] ?? "outline";
+  const label = t(`queueLogs.status.${status}`, { defaultValue: status });
+  return <Badge variant={variant}>{label}</Badge>;
 }
 
 function StatCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: string }) {
+  const { i18n } = useTranslation();
   return (
     <Card>
       <CardContent className="p-4 flex items-center gap-3">
         <div className={`rounded-md p-2 ${tone}`}>{icon}</div>
         <div>
-          <div className="text-2xl font-semibold leading-none">{value.toLocaleString("pt-BR")}</div>
+          <div className="text-2xl font-semibold leading-none">{value.toLocaleString(i18n.language)}</div>
           <div className="text-xs text-muted-foreground mt-1">{label}</div>
         </div>
       </CardContent>
@@ -50,26 +46,31 @@ function StatCard({ icon, label, value, tone }: { icon: React.ReactNode; label: 
   );
 }
 
-function fmtWhen(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function useFmtWhen() {
+  const { i18n } = useTranslation();
+  return (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString(i18n.language, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
 }
 
 function QueueTable({
   rows, isLoading, canCancel, onCancel,
 }: { rows: QueueRow[]; isLoading: boolean; canCancel: boolean; onCancel?: (r: QueueRow) => void }) {
-  if (isLoading) return <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>;
-  if (rows.length === 0) return <div className="py-12 text-center text-sm text-muted-foreground">Nada por aqui.</div>;
+  const { t } = useTranslation();
+  const fmtWhen = useFmtWhen();
+  if (isLoading) return <div className="py-12 text-center text-sm text-muted-foreground">{t("queueLogs.table.loading")}</div>;
+  if (rows.length === 0) return <div className="py-12 text-center text-sm text-muted-foreground">{t("queueLogs.table.empty")}</div>;
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[140px]">Quando</TableHead>
-            <TableHead className="w-[120px]">Origem</TableHead>
-            <TableHead>Lead</TableHead>
-            <TableHead className="hidden md:table-cell">Detalhe</TableHead>
-            <TableHead className="w-[120px]">Status</TableHead>
+            <TableHead className="w-[140px]">{t("queueLogs.table.when")}</TableHead>
+            <TableHead className="w-[120px]">{t("queueLogs.table.origin")}</TableHead>
+            <TableHead>{t("queueLogs.table.lead")}</TableHead>
+            <TableHead className="hidden md:table-cell">{t("queueLogs.table.detail")}</TableHead>
+            <TableHead className="w-[120px]">{t("queueLogs.table.status")}</TableHead>
             {canCancel && <TableHead className="w-[80px]" />}
           </TableRow>
         </TableHeader>
@@ -77,11 +78,11 @@ function QueueTable({
           {rows.map((r) => (
             <TableRow key={r.id}>
               <TableCell className="text-xs whitespace-nowrap">{fmtWhen(r.when)}</TableCell>
-              <TableCell><Badge variant="outline">{SOURCE_LABEL[r.source]}</Badge></TableCell>
+              <TableCell><Badge variant="outline">{t(`queueLogs.source.${r.source}`, { defaultValue: r.source })}</Badge></TableCell>
               <TableCell>
                 {r.leadId ? (
                   <Link to={`/inbox/${r.leadId}`} className="text-primary hover:underline text-sm">
-                    {r.leadName ?? "(sem nome)"}
+                    {r.leadName ?? t("queueLogs.table.noName")}
                   </Link>
                 ) : <span className="text-muted-foreground text-sm">—</span>}
               </TableCell>
@@ -118,6 +119,7 @@ function filterRows(rows: QueueRow[], { source, status, search }: { source: stri
 }
 
 export default function QueueLogs() {
+  const { t } = useTranslation();
   const { membership } = useAuth();
   const clinicId = membership?.clinic_id ?? null;
   const qc = useQueryClient();
@@ -142,20 +144,20 @@ export default function QueueLogs() {
     try {
       await setAutomationsPaused(clinicId, v);
       qc.invalidateQueries({ queryKey: ["clinic", clinicId, "automations_paused"] });
-      toast.success(v ? "Envios automáticos pausados" : "Envios automáticos retomados");
+      toast.success(v ? t("queueLogs.paused") : t("queueLogs.resumed"));
     } catch (e: any) {
-      toast.error(e.message ?? "Falha ao atualizar");
+      toast.error(e.message ?? t("queueLogs.updateFailed"));
     }
   }
 
   async function handleCancel(row: QueueRow) {
-    if (!confirm("Cancelar este envio?")) return;
+    if (!confirm(t("queueLogs.cancelConfirm"))) return;
     try {
       await cancelQueueRow(row);
-      toast.success("Envio cancelado");
+      toast.success(t("queueLogs.cancelled"));
       qc.invalidateQueries({ queryKey: ["queue"] });
     } catch (e: any) {
-      toast.error(e.message ?? "Falha ao cancelar");
+      toast.error(e.message ?? t("queueLogs.cancelFailed"));
     }
   }
 
@@ -167,17 +169,16 @@ export default function QueueLogs() {
 
   return (
     <div className="space-y-4">
-      {/* Kill switch banner */}
       <Card className={paused.data ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" : ""}>
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <AlertTriangle className={`h-5 w-5 ${paused.data ? "text-amber-600" : "text-muted-foreground"}`} />
             <div>
               <div className="font-medium text-sm">
-                Envios automáticos: {paused.data ? "PAUSADOS" : "ativos"}
+                {paused.data ? t("queueLogs.automatedSendingsPaused") : t("queueLogs.automatedSendingsActive")}
               </div>
               <div className="text-xs text-muted-foreground">
-                Pausa sequências, automações e mensagens agendadas desta empresa. Novos envios não saem até retomar.
+                {t("queueLogs.killSwitchDescription")}
               </div>
             </div>
           </div>
@@ -186,56 +187,56 @@ export default function QueueLogs() {
       </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={<Clock className="h-4 w-4" />} label="Na fila" value={s.queued} tone="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
-        <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Enviados (24h)" value={s.sent} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
-        <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Falhas (24h)" value={s.failed} tone="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" />
-        <StatCard icon={<Ban className="h-4 w-4" />} label="Cancelados (24h)" value={s.cancelled} tone="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" />
+        <StatCard icon={<Clock className="h-4 w-4" />} label={t("queueLogs.stat.queued")} value={s.queued} tone="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
+        <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label={t("queueLogs.stat.sent")} value={s.sent} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
+        <StatCard icon={<AlertTriangle className="h-4 w-4" />} label={t("queueLogs.stat.failed")} value={s.failed} tone="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" />
+        <StatCard icon={<Ban className="h-4 w-4" />} label={t("queueLogs.stat.cancelled")} value={s.cancelled} tone="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" />
       </div>
 
       <Card>
         <CardContent className="p-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Select value={source} onValueChange={setSource}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Origem" /></SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder={t("queueLogs.filter.source")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as origens</SelectItem>
-                <SelectItem value="sequence">Sequências</SelectItem>
-                <SelectItem value="automation">Automações</SelectItem>
-                <SelectItem value="scheduled">Agendadas</SelectItem>
-                <SelectItem value="reply">Respostas IA</SelectItem>
+                <SelectItem value="all">{t("queueLogs.filter.allSources")}</SelectItem>
+                <SelectItem value="sequence">{t("queueLogs.source.sequences")}</SelectItem>
+                <SelectItem value="automation">{t("queueLogs.source.automations")}</SelectItem>
+                <SelectItem value="scheduled">{t("queueLogs.source.scheduledPlural")}</SelectItem>
+                <SelectItem value="reply">{t("queueLogs.source.replies")}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder={t("queueLogs.filter.status")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="pending">Na fila</SelectItem>
-                <SelectItem value="sent">Enviado</SelectItem>
-                <SelectItem value="success">Sucesso</SelectItem>
-                <SelectItem value="failed">Falhou</SelectItem>
-                <SelectItem value="error">Erro</SelectItem>
-                <SelectItem value="skipped">Pulado</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
+                <SelectItem value="all">{t("queueLogs.filter.allStatus")}</SelectItem>
+                <SelectItem value="pending">{t("queueLogs.status.pending")}</SelectItem>
+                <SelectItem value="sent">{t("queueLogs.status.sent")}</SelectItem>
+                <SelectItem value="success">{t("queueLogs.status.success")}</SelectItem>
+                <SelectItem value="failed">{t("queueLogs.status.failed")}</SelectItem>
+                <SelectItem value="error">{t("queueLogs.status.error")}</SelectItem>
+                <SelectItem value="skipped">{t("queueLogs.status.skipped")}</SelectItem>
+                <SelectItem value="cancelled">{t("queueLogs.status.cancelled")}</SelectItem>
               </SelectContent>
             </Select>
             <Input
-              placeholder="Buscar lead ou conteúdo…"
+              placeholder={t("queueLogs.filter.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
             />
             <div className="ml-auto">
               <Button variant="outline" size="sm" onClick={refreshAll}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
+                <RefreshCw className="h-4 w-4 mr-2" /> {t("queueLogs.filter.refresh")}
               </Button>
             </div>
           </div>
 
           <Tabs defaultValue="upcoming">
             <TabsList>
-              <TabsTrigger value="upcoming">Fila ({upRows.length})</TabsTrigger>
-              <TabsTrigger value="history">Histórico ({histRows.length})</TabsTrigger>
-              <TabsTrigger value="failures">Falhas ({failRows.length})</TabsTrigger>
+              <TabsTrigger value="upcoming">{t("queueLogs.tab.upcoming")} ({upRows.length})</TabsTrigger>
+              <TabsTrigger value="history">{t("queueLogs.tab.history")} ({histRows.length})</TabsTrigger>
+              <TabsTrigger value="failures">{t("queueLogs.tab.failures")} ({failRows.length})</TabsTrigger>
             </TabsList>
             <TabsContent value="upcoming" className="mt-4">
               <QueueTable rows={upRows} isLoading={upcoming.isLoading} canCancel onCancel={handleCancel} />
