@@ -14,8 +14,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter, FileText, Tags, Target, Sparkles, GitBranch, Calendar, MoveRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, es, enUS } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { describeReason, toneClasses, type SkipReasonInfo } from "@/lib/pipeline-skip-reasons";
+
+function useDateFnsLocale() {
+  const { i18n } = useTranslation();
+  const code = i18n.language || "pt-BR";
+  if (code.startsWith("es")) return es;
+  if (code.startsWith("en")) return enUS;
+  return ptBR;
+}
 
 type OnlyAgent = "summarizer" | "parallel" | "maestro";
 
@@ -60,6 +69,8 @@ function callExecutor<T = unknown>(body: Record<string, unknown>): Promise<{ ok?
 }
 
 export default function PipelineRuns() {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
+  const dateLocale = useDateFnsLocale();
   const { enabled, loading, clinicId } = usePipelineAllowlist();
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -109,7 +120,7 @@ export default function PipelineRuns() {
   const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => {
     if (!clinicId) return;
     const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length || scope?.top_n || scope?.only_agent);
-    if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da empresa? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
+    if (!isScoped && !confirm(t("confirm.runFull"))) return;
     setStarting(true);
     try {
       const payload: Record<string, unknown> = { action: "start", clinic_id: clinicId };
@@ -120,10 +131,10 @@ export default function PipelineRuns() {
       if (scope?.only_agent) payload.only_agent = scope.only_agent;
       const res = await callExecutor<{ run_id?: string }>(payload);
       if (res.error) {
-        toast.error(`Erro: ${res.error}`);
+        toast.error(t("toast.errorPrefix", { message: res.error }));
         return;
       }
-      toast.success(isScoped ? "Execução focada iniciada" : "Execução iniciada");
+      toast.success(isScoped ? t("toast.scopedStarted") : t("toast.started"));
       if (res.run_id) setSelectedRunId(res.run_id);
       setScopeOpen(false);
     } catch (err) {
@@ -140,11 +151,8 @@ export default function PipelineRuns() {
     return (
       <div className="mx-auto max-w-2xl p-8">
         <Card className="p-6">
-          <h1 className="text-lg font-semibold mb-2">Agente de pipeline não habilitado</h1>
-          <p className="text-sm text-muted-foreground">
-            Esta empresa ainda não está autorizada a executar o agente de IA de pipeline. Estamos validando a feature
-            primeiro com a Empresa ÓR; será liberada para as demais em seguida.
-          </p>
+          <h1 className="text-lg font-semibold mb-2">{t("disabled.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("disabled.desc")}</p>
         </Card>
       </div>
     );
@@ -156,24 +164,21 @@ export default function PipelineRuns() {
     <div className="mx-auto max-w-6xl space-y-4 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Execução do pipeline</h1>
-          <p className="text-sm text-muted-foreground">
-            Roda o agente de IA em todos os leads, coluna por coluna. Cada passo é registrado abaixo — você pode comentar
-            o que ficou errado e reprocessar.
-          </p>
+          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={async () => {
               if (!clinicId) return;
-              if (!confirm("Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta empresa?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.")) return;
-              if (!confirm("Tem certeza? Esta ação não pode ser desfeita. Depois execute o pipeline para reclassificar.")) return;
+              if (!confirm(t("confirm.clearAi1"))) return;
+              if (!confirm(t("confirm.clearAi2"))) return;
               setResetting(true);
               try {
                 const res = await callExecutor<{ leads_reset?: number }>({ action: "reset_ai_classifications", clinic_id: clinicId });
-                if (res.error) { toast.error(`Erro: ${res.error}`); return; }
-                toast.success(`Classificações limpas em ${res.leads_reset ?? 0} leads`);
+                if (res.error) { toast.error(t("toast.errorPrefix", { message: res.error })); return; }
+                toast.success(t("toast.cleared", { count: res.leads_reset ?? 0 }));
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : String(err));
               } finally {
@@ -184,14 +189,14 @@ export default function PipelineRuns() {
             className="gap-2"
           >
             {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
-            Limpar classificações da IA
+            {t("actions.clearAi")}
           </Button>
           <Button variant="outline" onClick={() => setScopeOpen(true)} disabled={starting || !!activeRun} className="gap-2">
-            <Filter className="h-4 w-4" /> Executar com escopo
+            <Filter className="h-4 w-4" /> {t("actions.runScoped")}
           </Button>
           <Button onClick={() => handleStart()} disabled={starting || !!activeRun} className="gap-2">
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {activeRun ? "Execução em andamento…" : "Executar pipeline inteiro"}
+            {activeRun ? t("actions.running") : t("actions.runFull")}
           </Button>
         </div>
       </header>
@@ -206,11 +211,11 @@ export default function PipelineRuns() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
         <Card className="p-3">
-          <div className="mb-2 px-2 text-xs font-medium uppercase text-muted-foreground">Execuções recentes</div>
+          <div className="mb-2 px-2 text-xs font-medium uppercase text-muted-foreground">{t("list.title")}</div>
           <ScrollArea className="h-[70vh]">
             <div className="space-y-1">
               {runs.length === 0 && (
-                <p className="px-2 py-4 text-sm text-muted-foreground">Nenhuma execução ainda.</p>
+                <p className="px-2 py-4 text-sm text-muted-foreground">{t("list.empty")}</p>
               )}
               {runs.map((r) => (
                 <button
@@ -223,13 +228,13 @@ export default function PipelineRuns() {
                   <div className="flex items-center justify-between gap-2">
                     <StatusBadge status={r.status} />
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: ptBR })}
+                      {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: dateLocale })}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {r.totals?.leads ?? 0} leads · ok {r.totals?.ok ?? 0} · skip {r.totals?.skipped ?? 0} · err {r.totals?.error ?? 0}
+                    {t("list.leadsSummary", { leads: r.totals?.leads ?? 0, ok: r.totals?.ok ?? 0, skip: r.totals?.skipped ?? 0, err: r.totals?.error ?? 0 })}
                   </div>
-                  {r.parent_run_id && <div className="text-[10px] text-muted-foreground">↻ reprocesso</div>}
+                  {r.parent_run_id && <div className="text-[10px] text-muted-foreground">{t("list.reprocess")}</div>}
                 </button>
               ))}
             </div>
@@ -240,7 +245,7 @@ export default function PipelineRuns() {
           {selectedRunId ? (
             <RunDetail runId={selectedRunId} clinicId={clinicId} />
           ) : (
-            <p className="text-sm text-muted-foreground">Selecione uma execução para ver o detalhe.</p>
+            <p className="text-sm text-muted-foreground">{t("list.selectRun")}</p>
           )}
         </Card>
       </div>
@@ -249,23 +254,25 @@ export default function PipelineRuns() {
 }
 
 function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"]; label?: string }) {
-  const cfg: Record<string, { label: string; cls: string }> = {
-    queued: { label: "Na fila", cls: "bg-slate-500/15 text-slate-300" },
-    running: { label: "Rodando", cls: "bg-blue-500/15 text-blue-400" },
-    done: { label: "Concluída", cls: "bg-emerald-500/15 text-emerald-400" },
-    error: { label: "Com erro", cls: "bg-red-500/15 text-red-400" },
-    cancelled: { label: "Cancelada", cls: "bg-amber-500/15 text-amber-400" },
-    pending: { label: "Pendente", cls: "bg-slate-500/15 text-slate-300" },
-    ok: { label: "OK", cls: "bg-emerald-500/15 text-emerald-400" },
-    skipped: { label: "Skip", cls: "bg-slate-500/15 text-slate-400" },
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
+  const cls: Record<string, string> = {
+    queued: "bg-slate-500/15 text-slate-300",
+    running: "bg-blue-500/15 text-blue-400",
+    done: "bg-emerald-500/15 text-emerald-400",
+    error: "bg-red-500/15 text-red-400",
+    cancelled: "bg-amber-500/15 text-amber-400",
+    pending: "bg-slate-500/15 text-slate-300",
+    ok: "bg-emerald-500/15 text-emerald-400",
+    skipped: "bg-slate-500/15 text-slate-400",
   };
-  const c = cfg[status] ?? cfg.queued;
-  return <Badge variant="outline" className={`border-0 ${c.cls}`}>{label ?? c.label}</Badge>;
+  const c = cls[status] ?? cls.queued;
+  return <Badge variant="outline" className={`border-0 ${c}`}>{label ?? t(`status.${status}`)}</Badge>;
 }
 
 type LeadInfo = { name: string | null; phone: string | null };
 
 function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
   const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
@@ -336,7 +343,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
     setBusy(true);
     try {
       await callExecutor({ action: "cancel", run_id: runId });
-      toast.success("Cancelamento solicitado");
+      toast.success(t("toast.cancelRequested"));
     } finally {
       setBusy(false);
     }
@@ -349,7 +356,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
         toast.error(r.error);
         return;
       }
-      toast.success(`Reprocesso iniciado (${r.lead_count} leads)`);
+      toast.success(t("toast.retryStarted", { count: r.lead_count ?? 0 }));
     } finally {
       setBusy(false);
     }
@@ -361,22 +368,22 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
         <div className="flex items-center gap-3">
           <StatusBadge status={run.status} />
           <div className="text-sm text-muted-foreground">
-            {run.totals?.leads ?? 0} leads · OK {run.totals?.ok ?? 0} · Skip {run.totals?.skipped ?? 0} · Erro {run.totals?.error ?? 0}
+            {t("detail.leadsCounter", { leads: run.totals?.leads ?? 0, ok: run.totals?.ok ?? 0, skip: run.totals?.skipped ?? 0, err: run.totals?.error ?? 0 })}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {(run.status === "running" || run.status === "queued") && (
             <Button size="sm" variant="outline" onClick={cancel} disabled={busy} className="gap-1">
-              <X className="h-3.5 w-3.5" /> Cancelar
+              <X className="h-3.5 w-3.5" /> {t("actions.cancel")}
             </Button>
           )}
           {run.status === "done" || run.status === "error" || run.status === "cancelled" ? (
             <>
               <Button size="sm" variant="outline" onClick={() => retry("retry_errors")} disabled={busy} className="gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" /> Reprocessar erros
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("actions.retryErrors")}
               </Button>
               <Button size="sm" variant="outline" onClick={() => retry("retry_commented")} disabled={busy} className="gap-1">
-                <RotateCcw className="h-3.5 w-3.5" /> Reprocessar comentados
+                <RotateCcw className="h-3.5 w-3.5" /> {t("actions.retryCommented")}
               </Button>
             </>
           ) : null}
@@ -388,7 +395,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
           {Object.entries(byStage).map(([stage, list]) => (
             <StageGroup key={stage} stageName={stage} items={list} leadsMap={leadsMap} clinicId={clinicId} />
           ))}
-          {items.length === 0 && <p className="text-sm text-muted-foreground">Aguardando processamento…</p>}
+          {items.length === 0 && <p className="text-sm text-muted-foreground">{t("list.waiting")}</p>}
         </div>
       </ScrollArea>
     </div>
@@ -398,6 +405,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
 function StageGroup({
   stageName, items, leadsMap, clinicId,
 }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo>; clinicId: string | null }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -407,7 +415,7 @@ function StageGroup({
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/40">
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         <span className="flex-1 text-left">{stageName}</span>
-        <span className="text-xs text-muted-foreground">{items.length} · ok {ok} · skip {skip} · err {err}</span>
+        <span className="text-xs text-muted-foreground">{t("detail.stageHeader", { count: items.length, ok, skip, err })}</span>
       </button>
       {open && (
         <div className="divide-y divide-border/40">
@@ -464,6 +472,7 @@ function AgentCard({
   status: "ok" | "error" | "skipped";
   body: React.ReactNode;
 }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const tone =
     status === "error" ? "border-red-500/40 bg-red-500/5"
     : !ran ? "border-border/40 bg-muted/20 opacity-60"
@@ -481,7 +490,7 @@ function AgentCard({
             {typeof latencyMs === "number" && latencyMs > 0 && <span> · {latencyMs} ms</span>}
           </>
         ) : (
-          <span className="italic">não executado</span>
+          <span className="italic">{t("agents.notRun")}</span>
         )}
       </div>
       <div className="mt-1 leading-snug">{body}</div>
@@ -501,6 +510,7 @@ function ReasonChip({ info }: { info: SkipReasonInfo }) {
 }
 
 function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; clinicId: string | null }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
@@ -518,10 +528,10 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
   const cls = result?.classification ?? null;
   const applied = result?.telemetry?.applied ?? null;
   const stepLabel =
-    item.step === "classify:summarizer" ? "🔁 só Resumidor"
-    : item.step === "classify:parallel" ? "🔁 paralelos (Agendador+Tipificador+Movimentador)"
-    : item.step === "classify:typifier" ? "🔁 só Tipificador (legado V3)"
-    : item.step === "classify:maestro" ? "🔁 só Maestro"
+    item.step === "classify:summarizer" ? t("step.summarizer")
+    : item.step === "classify:parallel" ? t("step.parallel")
+    : item.step === "classify:typifier" ? t("step.typifier")
+    : item.step === "classify:maestro" ? t("step.maestro")
     : null;
 
   const icon =
@@ -534,7 +544,7 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
     setSaving(true);
     try {
       await callExecutor({ action: "comment", item_id: item.id, comment, retry_requested: retry });
-      toast.success("Comentário salvo");
+      toast.success(t("toast.commentSaved"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -553,8 +563,8 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
       };
       if (agent !== "full") payload.only_agent = agent;
       const res = await callExecutor<{ run_id?: string }>(payload);
-      if (res.error) toast.error(`Erro: ${res.error}`);
-      else toast.success(agent === "full" ? "Reprocessando lead (pipeline completo)" : `Reprocessando só ${agent}`);
+      if (res.error) toast.error(t("toast.errorPrefix", { message: res.error }));
+      else toast.success(agent === "full" ? t("toast.rerunFull") : t("toast.rerunOnly", { agent }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -578,7 +588,6 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
       </button>
       {open && (
         <div className="mt-2 space-y-3 rounded bg-muted/30 p-2">
-          {/* Skip / erro detalhado */}
           {skipInfo && (
             <div className={`rounded border px-2 py-1.5 ${toneClasses(skipInfo.tone)}`}>
               <div className="text-[11px] font-medium">{skipInfo.label}</div>
@@ -589,12 +598,11 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
             </div>
           )}
 
-          {/* Cards dos 5 agentes (Resumidor → Paralelos → Maestro) */}
           {(agents || cls) && (
             <div className="space-y-2">
               <AgentCard
                 icon={<FileText className="h-3.5 w-3.5 text-blue-300" />}
-                name="Resumidor"
+                name={t("agents.resumidor")}
                 model={agents?.summarizer_model}
                 latencyMs={agents?.latency_ms?.summarizer}
                 ran={agents?.ran?.summarizer !== false}
@@ -603,34 +611,33 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                   agents?.summary ? (
                     <p className="line-clamp-4 text-muted-foreground">{agents.summary}</p>
                   ) : (
-                    <span className="italic text-muted-foreground">sem resumo</span>
+                    <span className="italic text-muted-foreground">{t("agents.noSummary")}</span>
                   )
                 }
               />
 
-              {/* Bloco paralelo */}
               <div className="rounded-md border border-dashed border-primary/30 bg-gradient-to-br from-muted/30 to-transparent p-2">
                 <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
                   <GitBranch className="h-2.5 w-2.5" />
-                  Execução paralela
+                  {t("agents.parallelExec")}
                 </div>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                   <AgentCard
                     icon={<Calendar className="h-3.5 w-3.5 text-violet-300" />}
-                    name="Agendador"
+                    name={t("agents.agendador")}
                     model={agents?.agendador_model}
                     latencyMs={agents?.latency_ms?.agendador}
                     ran={agents?.ran?.agendador !== false}
                     status="ok"
                     body={
                       <span className="italic text-muted-foreground">
-                        {agents?.ran?.agendador === false ? "não executado" : "avaliou intenção de agenda"}
+                        {agents?.ran?.agendador === false ? t("agents.notRun") : t("agents.agendadorBody")}
                       </span>
                     }
                   />
                   <AgentCard
                     icon={<Tags className="h-3.5 w-3.5 text-amber-300" />}
-                    name="Tipificador"
+                    name={t("agents.tipificador")}
                     model={agents?.typifier_model}
                     latencyMs={agents?.latency_ms?.typifier}
                     ran={agents?.ran?.typifier !== false}
@@ -645,22 +652,22 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                             <div><span className="text-red-400">−</span> {applied.tags.removed_computed.join(", ")}</div>
                           )}
                           {(!applied.tags.added?.length && !applied.tags.removed_computed?.length) && (
-                            <span className="italic text-muted-foreground">nenhuma alteração</span>
+                            <span className="italic text-muted-foreground">{t("agents.noChange")}</span>
                           )}
                           {applied.custom_fields && "set" in applied.custom_fields && Object.keys(applied.custom_fields.set ?? {}).length > 0 && (
                             <div className="text-muted-foreground">
-                              campos: {Object.keys(applied.custom_fields.set ?? {}).join(", ")}
+                              {t("agents.fieldsLabel", { names: Object.keys(applied.custom_fields.set ?? {}).join(", ") })}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="italic text-muted-foreground">{applied?.tags?.skipped ? "modo parcial" : "sem dados"}</span>
+                        <span className="italic text-muted-foreground">{applied?.tags?.skipped ? t("agents.partialMode") : t("agents.noData")}</span>
                       )
                     }
                   />
                   <AgentCard
                     icon={<MoveRight className="h-3.5 w-3.5 text-pink-300" />}
-                    name="Movimentador"
+                    name={t("agents.movimentador")}
                     model={agents?.movimentador_model}
                     latencyMs={agents?.latency_ms?.movimentador}
                     ran={agents?.ran?.movimentador !== false}
@@ -668,11 +675,11 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                     body={
                       applied?.stage_suggestion_only ? (
                         <div className="space-y-0.5">
-                          <div><span className="text-muted-foreground">sugestão:</span> {applied.stage_suggestion_only.suggested ?? "—"}</div>
-                          <div><span className="text-muted-foreground">moveu?</span> {applied.stage_suggestion_only.would_move ? "sim" : "não"}</div>
+                          <div><span className="text-muted-foreground">{t("agents.suggestion")}</span> {applied.stage_suggestion_only.suggested ?? "—"}</div>
+                          <div><span className="text-muted-foreground">{t("agents.moved")}</span> {applied.stage_suggestion_only.would_move ? t("agents.yes") : t("agents.no")}</div>
                         </div>
                       ) : (
-                        <span className="italic text-muted-foreground">avaliou stage do funil</span>
+                        <span className="italic text-muted-foreground">{t("agents.movimentadorBody")}</span>
                       )
                     }
                   />
@@ -681,7 +688,7 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
 
               <AgentCard
                 icon={<Target className="h-3.5 w-3.5 text-emerald-300" />}
-                name="Maestro"
+                name={t("agents.maestro")}
                 model={agents?.maestro_model}
                 latencyMs={agents?.latency_ms?.maestro}
                 ran={agents?.ran?.maestro !== false}
@@ -689,72 +696,68 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                 body={
                   cls ? (
                     <div className="space-y-0.5">
-                      <div><span className="text-muted-foreground">stage:</span> {cls.stage_suggestion ?? "—"}</div>
-                      <div><span className="text-muted-foreground">intent:</span> {cls.intent ?? "—"}</div>
-                      <div><span className="text-muted-foreground">conf:</span> {cls.confidence?.toFixed(2) ?? "—"}{cls.is_b2b ? " · b2b" : ""}</div>
+                      <div><span className="text-muted-foreground">{t("agents.stage")}</span> {cls.stage_suggestion ?? "—"}</div>
+                      <div><span className="text-muted-foreground">{t("agents.intent")}</span> {cls.intent ?? "—"}</div>
+                      <div><span className="text-muted-foreground">{t("agents.conf")}</span> {cls.confidence?.toFixed(2) ?? "—"}{cls.is_b2b ? ` · ${t("agents.b2b")}` : ""}</div>
                     </div>
                   ) : (
-                    <span className="italic text-muted-foreground">sem decisão</span>
+                    <span className="italic text-muted-foreground">{t("agents.noDecision")}</span>
                   )
                 }
               />
             </div>
           )}
 
-          {/* Motivos do Maestro */}
           {cls?.reasons && cls.reasons.length > 0 && (
             <div className="rounded border border-border/40 bg-background/40 p-2 text-[11px]">
-              <div className="mb-1 font-medium">Por quê?</div>
+              <div className="mb-1 font-medium">{t("agents.reasons")}</div>
               <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
                 {cls.reasons.map((r, i) => <li key={i}>{r}</li>)}
               </ul>
             </div>
           )}
 
-          {/* Rerun manual */}
           {item.lead_id && clinicId && (
             <div className="flex flex-wrap items-center gap-1.5 rounded border border-dashed border-border/50 p-1.5">
-              <span className="text-[10px] text-muted-foreground">Rodar de novo:</span>
+              <span className="text-[10px] text-muted-foreground">{t("rerun.label")}</span>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("full")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                Completo
+                {t("rerun.full")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("summarizer")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "summarizer" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                Só Resumidor
+                {t("rerun.summarizer")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("parallel")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "parallel" ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitBranch className="h-3 w-3" />}
-                Paralelos
+                {t("rerun.parallel")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("maestro")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "maestro" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
-                Só Maestro
+                {t("rerun.maestro")}
               </Button>
             </div>
           )}
 
-          {/* Comentário */}
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="O que deu errado / o que esperava que acontecesse?"
+            placeholder={t("comment.placeholder")}
             className="text-xs"
             rows={2}
           />
           <div className="flex items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-xs">
               <Checkbox checked={retry} onCheckedChange={(v) => setRetry(!!v)} />
-              Marcar para reprocessar
+              {t("comment.markRetry")}
             </label>
             <Button size="sm" onClick={save} disabled={saving}>
-              {saving ? "Salvando…" : "Salvar"}
+              {saving ? t("actions.saving") : t("actions.save")}
             </Button>
           </div>
 
-          {/* JSON bruto colapsado */}
           <details className="text-[10px] text-muted-foreground">
-            <summary className="cursor-pointer select-none">JSON bruto</summary>
+            <summary className="cursor-pointer select-none">{t("detail.rawJson")}</summary>
             {item.error && <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-red-400">{item.error}</pre>}
             {item.result && (
               <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
@@ -781,6 +784,7 @@ function ScopeDialog({
   starting: boolean;
   onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => void;
 }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
@@ -818,7 +822,7 @@ function ScopeDialog({
   useEffect(() => {
     if (!open || !clinicId) return;
     let active = true;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setLoadingLeads(true);
       let q = supabase
         .from("leads")
@@ -836,7 +840,7 @@ function ScopeDialog({
       setLeads((data ?? []) as LeadOpt[]);
       setLoadingLeads(false);
     }, 250);
-    return () => { active = false; clearTimeout(t); };
+    return () => { active = false; clearTimeout(timer); };
   }, [open, clinicId, pipelineId, stageId, leadSearch]);
 
   const selectedCount = Object.keys(selectedLeads).length;
@@ -856,22 +860,19 @@ function ScopeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Executar com escopo</DialogTitle>
-          <DialogDescription>
-            Escolha o pipeline, a coluna e (opcional) leads específicos. Em cada varredura a IA também corrige tags e campos personalizados quando há evidência nas mensagens.
-          </DialogDescription>
+          <DialogTitle>{t("scope.title")}</DialogTitle>
+          <DialogDescription>{t("scope.desc")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Seletor de agente */}
           <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-3">
-            <Label className="text-xs">Quais agentes rodar</Label>
+            <Label className="text-xs">{t("scope.whichAgents")}</Label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {([
-                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: "Forçar Pipeline V6", desc: "Os 5 agentes (Resumidor → Paralelos → Maestro)" },
-                { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: "Só Resumidor", desc: "Refaz ai_summary" },
-                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: "Só Paralelos", desc: "Agendador + Tipificador + Movimentador" },
-                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: "Só Maestro", desc: "Refaz decisão final (stage + intent)" },
+                { id: "full", icon: <Sparkles className="h-3.5 w-3.5" />, title: t("scope.options.fullTitle"), desc: t("scope.options.fullDesc") },
+                { id: "summarizer", icon: <FileText className="h-3.5 w-3.5" />, title: t("scope.options.summarizerTitle"), desc: t("scope.options.summarizerDesc") },
+                { id: "parallel", icon: <GitBranch className="h-3.5 w-3.5" />, title: t("scope.options.parallelTitle"), desc: t("scope.options.parallelDesc") },
+                { id: "maestro", icon: <Target className="h-3.5 w-3.5" />, title: t("scope.options.maestroTitle"), desc: t("scope.options.maestroDesc") },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -887,39 +888,33 @@ function ScopeDialog({
               ))}
             </div>
             {onlyAgent === "maestro" && (
-              <p className="text-[11px] text-amber-400">
-                ⚠ Rodar só o Maestro reaproveita as tags/campos atuais. Se o lead estiver desatualizado, rode o pipeline completo.
-              </p>
+              <p className="text-[11px] text-amber-400">{t("scope.maestroWarn")}</p>
             )}
             {(onlyAgent === "parallel" || onlyAgent === "maestro") && (
-              <p className="text-[11px] text-muted-foreground">
-                Reutiliza o ai_summary atual do lead. Se ele não existir, o lead vai falhar com missing_ai_summary.
-              </p>
+              <p className="text-[11px] text-muted-foreground">{t("scope.reuseSummary")}</p>
             )}
             {onlyAgent === "parallel" && (
-              <p className="text-[11px] text-violet-400">
-                ⑂ Dispara Agendador, Tipificador e Movimentador no mesmo `Promise.all` — backend precisa aceitar `only_agent: "parallel"`.
-              </p>
+              <p className="text-[11px] text-violet-400">{t("scope.parallelInfo")}</p>
             )}
           </div>
 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Pipeline</Label>
+              <Label className="text-xs">{t("scope.pipeline")}</Label>
               <Select value={pipelineId} onValueChange={(v) => { setPipelineId(v); setStageId("__all__"); setSelectedLeads({}); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("scope.pipelinePh")} /></SelectTrigger>
                 <SelectContent>
                   {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Coluna</Label>
+              <Label className="text-xs">{t("scope.stage")}</Label>
               <Select value={stageId} onValueChange={(v) => { setStageId(v); setSelectedLeads({}); }}>
-                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("scope.stagePhAll")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Todas as colunas</SelectItem>
+                  <SelectItem value="__all__">{t("scope.allStages")}</SelectItem>
                   {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -927,14 +922,12 @@ function ScopeDialog({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">
-              Quantidade do topo (opcional) — processa os N primeiros leads da coluna na mesma ordem do Kanban
-            </Label>
+            <Label className="text-xs">{t("scope.topN")}</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 min={1}
-                placeholder="ex: 10, 20, 50"
+                placeholder={t("scope.topNPh")}
                 value={topN}
                 onChange={(e) => setTopN(e.target.value)}
                 className="w-40"
@@ -947,23 +940,19 @@ function ScopeDialog({
                 ))}
                 {topN && (
                   <Button size="sm" variant="ghost" type="button" onClick={() => setTopN("")} className="h-8 px-2 text-xs">
-                    Limpar
+                    {t("actions.clear")}
                   </Button>
                 )}
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Se preenchido, ignora a seleção manual de leads abaixo e roda apenas os N primeiros da coluna selecionada.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{t("scope.topNHint")}</p>
           </div>
 
 
           <div className="space-y-1">
-            <Label className="text-xs">
-              Leads (opcional) — deixe vazio para processar todos da coluna · {selectedCount} selecionado(s)
-            </Label>
+            <Label className="text-xs">{t("scope.leadsLabel", { count: selectedCount })}</Label>
             <Input
-              placeholder="Buscar por nome ou telefone…"
+              placeholder={t("scope.search")}
               value={leadSearch}
               onChange={(e) => setLeadSearch(e.target.value)}
             />
@@ -977,13 +966,13 @@ function ScopeDialog({
                     </button>
                   </Badge>
                 ))}
-                <Button size="sm" variant="ghost" onClick={() => setSelectedLeads({})} className="h-6 px-2 text-xs">Limpar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedLeads({})} className="h-6 px-2 text-xs">{t("actions.clear")}</Button>
               </div>
             )}
             <ScrollArea className="h-48 rounded border border-border/60">
               <div className="divide-y divide-border/40">
-                {loadingLeads && <div className="p-3 text-xs text-muted-foreground">Carregando…</div>}
-                {!loadingLeads && leads.length === 0 && <div className="p-3 text-xs text-muted-foreground">Nenhum lead encontrado.</div>}
+                {loadingLeads && <div className="p-3 text-xs text-muted-foreground">{t("scope.loading")}</div>}
+                {!loadingLeads && leads.length === 0 && <div className="p-3 text-xs text-muted-foreground">{t("scope.noLeads")}</div>}
                 {leads.map((l) => {
                   const checked = !!selectedLeads[l.id];
                   return (
@@ -996,7 +985,7 @@ function ScopeDialog({
                           return n;
                         })}
                       />
-                      <span className="flex-1 truncate">{l.name ?? "(sem nome)"}</span>
+                      <span className="flex-1 truncate">{l.name ?? t("scope.noName")}</span>
                       <span className="text-xs text-muted-foreground">{l.phone ?? ""}</span>
                     </label>
                   );
@@ -1007,10 +996,10 @@ function ScopeDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
           <Button onClick={submit} disabled={starting || !pipelineId} className="gap-2">
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Executar
+            {t("actions.execute")}
           </Button>
         </DialogFooter>
       </DialogContent>
