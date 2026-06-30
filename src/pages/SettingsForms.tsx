@@ -486,6 +486,7 @@ type StageOpt = { id: string; name: string; pipeline_id: string; pipeline_name: 
 type SegmentOpt = { id: string; name: string; is_system: boolean };
 
 function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClose: () => void; canManage: boolean }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(def.name);
   const [map, setMap] = useState(JSON.stringify(def.field_map || {}, null, 2));
   const [active, setActive] = useState(def.active);
@@ -520,7 +521,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
     setBusy(true);
     try {
       let parsed: Record<string, string> = {};
-      try { parsed = JSON.parse(map); } catch { throw new Error("field_map inválido (JSON)"); }
+      try { parsed = JSON.parse(map); } catch { throw new Error(t("settingsForms.defEditor.invalidJson")); }
       const { error } = await supabase.functions.invoke("forms-admin", {
         body: {
           action: "update_definition",
@@ -533,7 +534,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
         },
       });
       if (error) throw error;
-      toast.success("Salvo");
+      toast.success(t("settingsForms.defEditor.saved"));
       onClose();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
@@ -541,61 +542,59 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Editar formulário</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("settingsForms.defEditor.title")}</DialogTitle></DialogHeader>
         <div className="space-y-3 max-h-[70vh] overflow-auto">
-          <div className="space-y-1.5"><Label>Nome amigável</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+          <div className="space-y-1.5"><Label>{t("settingsForms.defEditor.name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
 
           <div className="space-y-1.5">
-            <Label>Pipeline / etapa de destino</Label>
+            <Label>{t("settingsForms.defEditor.pipeline")}</Label>
             <select
               className="w-full rounded border bg-background p-2 text-sm"
               value={stageId}
               onChange={(e) => setStageId(e.target.value)}
               disabled={!canManage}
             >
-              <option value="">Padrão do sistema (Formulário Site → Novo)</option>
+              <option value="">{t("settingsForms.defEditor.pipelineDefault")}</option>
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.pipeline_name}{s.is_system ? " (sistema)" : ""} → {s.name}
+                  {s.pipeline_name}{s.is_system ? ` ${t("settingsForms.defEditor.system")}` : ""} → {s.name}
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">Onde o lead aparecerá no kanban quando este formulário for enviado.</p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.pipelineHint")}</p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Lista de e-mail</Label>
+            <Label>{t("settingsForms.defEditor.list")}</Label>
             <select
               className="w-full rounded border bg-background p-2 text-sm"
               value={segmentId}
               onChange={(e) => setSegmentId(e.target.value)}
               disabled={!canManage}
             >
-              <option value="">Apenas "Leads Site" (padrão do sistema)</option>
+              <option value="">{t("settingsForms.defEditor.listDefault")}</option>
               {segments.filter((s) => !s.is_system).map((s) => (
                 <option key={s.id} value={s.id}>+ {s.name}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">O lead é sempre adicionado à lista "Leads Site". Aqui você escolhe uma lista extra opcional.</p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.listHint")}</p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Mapeamento de campos (JSON)</Label>
+            <Label>{t("settingsForms.defEditor.fieldMap")}</Label>
             <textarea
               className="w-full h-32 rounded border bg-background p-2 font-mono text-xs"
               value={map}
               onChange={(e) => setMap(e.target.value)}
               disabled={!canManage}
             />
-            <p className="text-xs text-muted-foreground">
-              Ex.: <code>{`{"name":"your-name","email":"your-email","phone":"tel-123"}`}</code>. Deixe vazio para auto-detecção.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.fieldMapHint")}</p>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={!canManage} /> Ativo</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={!canManage} /> {t("settingsForms.defEditor.active")}</label>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Fechar</Button>
-          {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+          <Button variant="ghost" onClick={onClose}>{t("settingsForms.defEditor.close")}</Button>
+          {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.defEditor.save")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
