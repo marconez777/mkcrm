@@ -402,20 +402,20 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           <div className="flex flex-col gap-0.5 self-end">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Agendar mensagem" disabled={attachments.length > 0}>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title={t("inbox.composer.schedule")} disabled={attachments.length > 0}>
                   <Clock className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Agendar envio</TooltipContent>
+              <TooltipContent>{t("inbox.composer.scheduleTooltip")}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={startRecording} title="Gravar áudio">
+                <Button type="button" variant="ghost" size="icon" onClick={startRecording} title={t("inbox.composer.record")}>
                   <Mic className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Gravar áudio</TooltipContent>
+              <TooltipContent>{t("inbox.composer.record")}</TooltipContent>
             </Tooltip>
           </div>
 
