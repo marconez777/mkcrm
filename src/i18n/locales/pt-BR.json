@@ -39,7 +39,27 @@
     "sortOldest": "Mais antigas",
     "searchPlaceholder": "Buscar (nome, telefone, mensagem)",
     "loading": "Carregando…",
-    "empty": "Nenhuma conversa."
+    "empty": "Nenhuma conversa.",
+    "composer": {
+      "quickReplies": "Respostas rápidas",
+      "remove": "Remover",
+      "filesInfo": "{{count}}/{{max}} arquivos · legenda vai no primeiro",
+      "clearAll": "Limpar todos",
+      "recording": "Gravando…",
+      "maxDuration": "(máx 5min)",
+      "cancel": "Cancelar",
+      "stop": "Parar",
+      "emoji": "Emoji",
+      "attach": "Anexar arquivos",
+      "attachTooltip": "Anexar arquivos (até {{max}} · 16MB cada)",
+      "quickRepliesTooltip": "Digite \"/\" para respostas rápidas",
+      "captionPlaceholder": "Adicione uma legenda (opcional)…",
+      "messagePlaceholder": "Mensagem... (Enter envia, Shift+Enter quebra linha)",
+      "schedule": "Agendar mensagem",
+      "scheduleTooltip": "Agendar envio",
+      "record": "Gravar áudio",
+      "send": "Enviar"
+    }
   },
   "settings": {
     "title": "Configurações",
