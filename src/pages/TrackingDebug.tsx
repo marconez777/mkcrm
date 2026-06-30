@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,9 +64,9 @@ type SessionRow = {
 };
 
 const PERIODS = {
-  "1h": { label: "Última 1 hora", ms: 60 * 60 * 1000 },
-  "24h": { label: "Últimas 24 horas", ms: 24 * 60 * 60 * 1000 },
-  "7d": { label: "Últimos 7 dias", ms: 7 * 24 * 60 * 60 * 1000 },
+  "1h": { labelKey: "period1h", ms: 60 * 60 * 1000 },
+  "24h": { labelKey: "period24h", ms: 24 * 60 * 60 * 1000 },
+  "7d": { labelKey: "period7d", ms: 7 * 24 * 60 * 60 * 1000 },
 } as const;
 type PeriodKey = keyof typeof PERIODS;
 const OR_CLINIC_ID = "cf038458-457d-4c1a-9ac4-c88c3c8353a1";
@@ -82,6 +83,7 @@ function truncate(s: string | null | undefined, n = 60) {
 }
 
 export default function TrackingDebug() {
+  const { t } = useTranslation("trackingDebug");
   const [period, setPeriod] = useState<PeriodKey>("24h");
   const [eventNameFilter, setEventNameFilter] = useState("");
   const [visitorFilter, setVisitorFilter] = useState("");
@@ -222,11 +224,11 @@ export default function TrackingDebug() {
       });
 
       if (error) throw error;
-      toast.success("Evento de teste enviado.");
+      toast.success(t("testSent"));
       await load();
       console.log("[tracking-debug] test_event_result", data);
     } catch (err: any) {
-      toast.error(err?.message || "Falha ao enviar evento de teste.");
+      toast.error(err?.message || t("testFailed"));
       console.error("[tracking-debug] test_event_error", err);
     } finally {
       setSendingTest(false);
@@ -241,7 +243,7 @@ export default function TrackingDebug() {
         .from("leads").select("id, name")
         .eq("clinic_id", OR_CLINIC_ID)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (!leadRow?.id) { toast.error("Nenhum lead disponível para vincular. Crie um lead primeiro."); return; }
+      if (!leadRow?.id) { toast.error(t("noLeadAvailable")); return; }
 
       const visitor = `debug_v_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
       const session = `debug_s_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -278,10 +280,10 @@ export default function TrackingDebug() {
         properties: { test_mode: true },
       });
 
-      toast.success(`Jornada de teste criada e vinculada ao lead ${leadRow.name || leadRow.id.slice(0, 8)}.`);
+      toast.success(t("journeyCreated", { lead: leadRow.name || leadRow.id.slice(0, 8) }));
       await load();
     } catch (err: any) {
-      toast.error(err?.message || "Falha ao criar jornada de teste.");
+      toast.error(err?.message || t("journeyFailed"));
       console.error(err);
     } finally {
       setCreatingJourney(false);
@@ -291,37 +293,36 @@ export default function TrackingDebug() {
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Auditoria de Tracking</h1>
-          <p className="text-sm text-muted-foreground">Validação dos eventos recebidos pelo pixel da empresa.</p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">clinic_id: {OR_CLINIC_ID} · project_id: {OR_PROJECT_ID}</p>
+          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{t("ids", { clinic: OR_CLINIC_ID, project: OR_PROJECT_ID })}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={sendTestEvent} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
-            {sendingTest ? "Enviando…" : "Enviar evento de teste"}
+            {sendingTest ? t("sending") : t("sendTest")}
           </Button>
           <Button onClick={createTestJourney} disabled={loading || sendingTest || creatingJourney} size="sm" variant="outline">
-            {creatingJourney ? "Criando…" : "Criar jornada de teste"}
+            {creatingJourney ? t("creating") : t("createJourney")}
           </Button>
           <Button onClick={load} disabled={loading || sendingTest || creatingJourney} size="sm">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
+            {t("refresh")}
           </Button>
         </div>
       </div>
 
       <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
         <CardContent className="py-3 text-sm">
-          <strong>Modo de validação:</strong> Para testar, abra o site da Empresa ÓR em uma aba anônima,
-          acesse algumas páginas, clique no WhatsApp e interaja com formulários. Depois volte aqui e clique em <em>Atualizar</em>.
+          <strong>{t("validationStrong")}</strong> {t("validationText")} <em>{t("refreshEm")}</em>.
         </CardContent>
       </Card>
 
       {/* Resumo rápido */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         {[
-          { label: "Visitantes 24h", value: summary.visitors24h },
-          { label: "Sessões 24h", value: summary.sessions24h },
-          { label: "Eventos 24h", value: summary.events24h },
+          { label: t("kpiVisitors24h"), value: summary.visitors24h },
+          { label: t("kpiSessions24h"), value: summary.sessions24h },
+          { label: t("kpiEvents24h"), value: summary.events24h },
           { label: "page_view 24h", value: summary.page_view },
           { label: "whatsapp_click 24h", value: summary.whatsapp_click },
           { label: "form_start 24h", value: summary.form_start },
@@ -336,35 +337,35 @@ export default function TrackingDebug() {
 
       {/* Filtros */}
       <Card className="mb-4">
-        <CardHeader><CardTitle className="text-sm">Filtros</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t("filters")}</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Período</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("period")}</label>
             <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(PERIODS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                {Object.entries(PERIODS).map(([k, v]) => <SelectItem key={k} value={k}>{t(v.labelKey)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">event_name</label>
-            <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder="ex: page_view" />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("eventName")}</label>
+            <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder={t("eventNamePh")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">visitor_id</label>
-            <Input value={visitorFilter} onChange={(e) => setVisitorFilter(e.target.value)} placeholder="parcial..." />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("visitorId")}</label>
+            <Input value={visitorFilter} onChange={(e) => setVisitorFilter(e.target.value)} placeholder={t("partial")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">page_url</label>
-            <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder="parcial..." />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("pageUrl")}</label>
+            <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder={t("partial")} />
           </div>
         </CardContent>
       </Card>
 
       {/* Eventos */}
       <Card className="mb-6">
-        <CardHeader><CardTitle className="text-sm">Últimos eventos recebidos ({events.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t("lastEvents", { count: events.length })}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -381,7 +382,7 @@ export default function TrackingDebug() {
             </TableHeader>
             <TableBody>
               {events.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum evento encontrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">{t("noEvents")}</TableCell></TableRow>
               )}
               {events.map((e) => (
                 <TableRow key={e.id}>
@@ -395,7 +396,7 @@ export default function TrackingDebug() {
                     <pre className="overflow-x-auto whitespace-pre-wrap break-all text-[10px] text-muted-foreground">{JSON.stringify(e.properties ?? {}, null, 0)}</pre>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => openJourney(e.visitor_id)} title="Ver jornada">
+                    <Button size="sm" variant="ghost" onClick={() => openJourney(e.visitor_id)} title={t("viewJourney")}>
                       <Eye className="h-3 w-3" />
                     </Button>
                   </TableCell>
@@ -408,13 +409,13 @@ export default function TrackingDebug() {
 
       {/* Visitantes */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Últimos visitantes ({visitors.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t("lastVisitors", { count: visitors.length })}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>visitor_id</TableHead>
-                <TableHead>lead vinculado</TableHead>
+                <TableHead>{t("linkedLead")}</TableHead>
                 <TableHead>first_seen_at</TableHead>
                 <TableHead>last_seen_at</TableHead>
                 <TableHead>first_landing_page</TableHead>
@@ -424,7 +425,7 @@ export default function TrackingDebug() {
             </TableHeader>
             <TableBody>
               {visitors.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">{t("noVisitors")}</TableCell></TableRow>
               )}
               {visitors.map((v) => {
                 const link = linkedByVisitor[v.visitor_id];
@@ -443,12 +444,12 @@ export default function TrackingDebug() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       {link && (
-                        <Button asChild size="sm" variant="ghost" title="Abrir lead">
+                        <Button asChild size="sm" variant="ghost" title={t("openLead")}>
                           <RouterLink to={`/kanban?lead=${link.lead_id}`}><ExternalLink className="h-3 w-3" /></RouterLink>
                         </Button>
                       )}
                       <Button size="sm" variant="outline" onClick={() => openJourney(v.visitor_id)}>
-                        <Eye className="h-3 w-3" /> Ver jornada
+                        <Eye className="h-3 w-3" /> {t("viewJourney")}
                       </Button>
                     </div>
                   </TableCell>
@@ -463,14 +464,14 @@ export default function TrackingDebug() {
       <Dialog open={!!journeyVisitor} onOpenChange={(o) => { if (!o) { setJourneyVisitor(null); setJourneyData(null); } }}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">Jornada · {journeyVisitor}</DialogTitle>
+            <DialogTitle className="font-mono text-sm">{t("journeyTitle", { visitor: journeyVisitor })}</DialogTitle>
           </DialogHeader>
-          {journeyLoading && <div className="py-8 text-center text-sm text-muted-foreground">Carregando…</div>}
+          {journeyLoading && <div className="py-8 text-center text-sm text-muted-foreground">{t("loading")}</div>}
           {journeyData && (
             <div className="space-y-5 text-sm">
               {/* Dados básicos */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Dados do visitante</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("visitorData")}</h3>
                 {journeyData.visitor ? (
                   <div className="grid grid-cols-2 gap-2 rounded-md border p-3 text-xs">
                     <div><span className="text-muted-foreground">first_seen:</span> {fmtTime(journeyData.visitor.first_seen_at)}</div>
@@ -481,19 +482,19 @@ export default function TrackingDebug() {
                     <div><span className="text-muted-foreground">medium:</span> {journeyData.visitor.first_medium ?? "—"}</div>
                     <div><span className="text-muted-foreground">campaign:</span> {journeyData.visitor.first_campaign ?? "—"}</div>
                   </div>
-                ) : <div className="text-muted-foreground text-xs">Visitante não encontrado em tracking_visitors.</div>}
+                ) : <div className="text-muted-foreground text-xs">{t("visitorNotFound")}</div>}
               </section>
 
               {/* Sessões */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Sessões ({journeyData.sessions.length})</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("sessionsSection", { count: journeyData.sessions.length })}</h3>
                 <div className="space-y-2">
                   {journeyData.sessions.map((s) => (
                     <div key={s.session_id} className="rounded-md border p-2 text-xs">
                       <div className="flex flex-wrap gap-x-4">
                         <span className="font-mono">{truncate(s.session_id, 20)}</span>
-                        <span>início: {fmtTime(s.started_at)}</span>
-                        <span>landing: {truncate(s.landing_page, 40)}</span>
+                        <span>{t("start")}: {fmtTime(s.started_at)}</span>
+                        <span>{t("landing")}: {truncate(s.landing_page, 40)}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 text-muted-foreground">
                         {s.source && <span>src={s.source}</span>}
@@ -510,13 +511,13 @@ export default function TrackingDebug() {
                       </div>
                     </div>
                   ))}
-                  {journeyData.sessions.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma sessão.</div>}
+                  {journeyData.sessions.length === 0 && <div className="text-xs text-muted-foreground">{t("noSessions")}</div>}
                 </div>
               </section>
 
               {/* Páginas */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Páginas acessadas ({pagesVisited.length})</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("pagesAccessed", { count: pagesVisited.length })}</h3>
                 <ul className="space-y-1 text-xs">
                   {pagesVisited.map((p) => (
                     <li key={p.id}>
@@ -529,11 +530,11 @@ export default function TrackingDebug() {
 
               {/* WhatsApp */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Cliques em WhatsApp ({whatsappClicks.length})</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("whatsappClicks", { count: whatsappClicks.length })}</h3>
                 <ul className="space-y-1 text-xs">
                   {whatsappClicks.map((p) => (
                     <li key={p.id}>
-                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — em {truncate(p.page_path, 40)}
+                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — {t("at")} {truncate(p.page_path, 40)}
                       {p.properties?.location ? ` · ${p.properties.location}` : ""}
                     </li>
                   ))}
@@ -543,11 +544,11 @@ export default function TrackingDebug() {
 
               {/* Formulários */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Eventos de formulário ({formEvents.length})</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("formEvents", { count: formEvents.length })}</h3>
                 <ul className="space-y-1 text-xs">
                   {formEvents.map((p) => (
                     <li key={p.id}>
-                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — <span className="font-mono">{p.event_name}</span> em {truncate(p.page_path, 40)}
+                      <span className="text-muted-foreground">{fmtTime(p.event_time)}</span> — <span className="font-mono">{p.event_name}</span> {t("at")} {truncate(p.page_path, 40)}
                     </li>
                   ))}
                   {formEvents.length === 0 && <li className="text-muted-foreground">—</li>}
@@ -556,7 +557,7 @@ export default function TrackingDebug() {
 
               {/* Timeline completo */}
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Todos os eventos em ordem ({journeyData.events.length})</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("allEvents", { count: journeyData.events.length })}</h3>
                 <div className="space-y-2">
                   {journeyData.events.map((e) => (
                     <div key={e.id} className="rounded-md border p-2 text-xs">
