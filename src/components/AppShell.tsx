@@ -224,7 +224,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <img src={brandLockup} alt="Chat Funnel AI" className="h-12 w-auto object-contain" />
         </div>
 
-        <div className="mx-3 mb-2 h-px bg-sidebar-border/40" />
+        <div className="mx-3 mb-2 h-px bg-white/10" />
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2 pb-2">
