@@ -9,7 +9,7 @@
   "common": {
     "create": "Crear", "edit": "Editar", "delete": "Eliminar", "cancel": "Cancelar",
     "save": "Guardar", "search": "Buscar", "name": "Nombre", "loading": "Cargando…",
-    "back": "Volver", "open": "Abrir", "manage": "Gestionar"
+    "back": "Volver", "open": "Abrir", "manage": "Gestionar", "add": "Añadir"
   },
   "kanban": {
     "searchPlaceholder": "Buscar por nombre o teléfono…",
@@ -37,6 +37,37 @@
       "forms": "Integración del sitio", "email": "Email Marketing",
       "imports": "Importaciones", "aiPipeline": "IA del Pipeline",
       "appointmentTypes": "Tipos de cita"
+    }
+  },
+  "tasks": {
+    "title": "Tareas",
+    "addCard": "Añadir una tarjeta",
+    "addColumn": "Añadir columna",
+    "cardTitlePlaceholder": "Título de la tarjeta",
+    "columnNamePlaceholder": "Nombre de la columna",
+    "rename": "Renombrar",
+    "deleteColumn": "Eliminar columna",
+    "confirmDeleteColumn": "¿Eliminar columna y sus tarjetas?"
+  },
+  "agents": {
+    "sidebarTitle": "Agentes",
+    "wizard": "Asistente",
+    "newAgent": "Nuevo agente",
+    "empty": "Ningún agente. Crea el primero.",
+    "selectOrCreate": "Selecciona o crea un agente."
+  },
+  "templates": {
+    "sidebarTitle": "Plantillas",
+    "newTemplate": "Nueva plantilla",
+    "empty": "Ninguna plantilla.",
+    "selectOrCreate": "Selecciona o crea una plantilla.",
+    "editTitle": "Editar plantilla",
+    "noShortcut": "sin atajo",
+    "fields": {
+      "name": "Nombre",
+      "shortcut": "Atajo (opcional, ej: hola)",
+      "description": "Descripción",
+      "content": "Contenido"
     }
   }
 }
