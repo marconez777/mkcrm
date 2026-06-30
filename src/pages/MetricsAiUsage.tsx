@@ -336,7 +336,7 @@ export default function MetricsAiUsage() {
                 max={toDate}
                 onChange={(e) => setFromDate(e.target.value)}
               />
-              <span className="text-muted-foreground">até</span>
+              <span className="text-muted-foreground">{t("metricsAiUsage.dateUntil")}</span>
               <Input
                 type="date"
                 className="h-8 w-[140px]"
