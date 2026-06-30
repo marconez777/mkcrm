@@ -1033,11 +1033,6 @@ export default function KanbanPage() {
                     </AlertDialogAction>
                   )}
                 </AlertDialogFooter>
-                    >
-                      Excluir
-                    </AlertDialogAction>
-                  )}
-                </AlertDialogFooter>
               </>
             );
           })()}
