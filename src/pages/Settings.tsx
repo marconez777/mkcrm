@@ -473,6 +473,7 @@ export default function SettingsPage() {
 }
 
 function QuickRepliesCard() {
+  const { t } = useTranslation();
   const { items } = useQuickReplies();
   const [shortcut, setShortcut] = useState("");
   const [content, setContent] = useState("");
@@ -480,13 +481,13 @@ function QuickRepliesCard() {
 
   async function add() {
     const sc = shortcut.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!sc || !content.trim()) { toast.error("Atalho e conteúdo são obrigatórios"); return; }
+    if (!sc || !content.trim()) { toast.error(t("settings.quick.required")); return; }
     setSaving(true);
     const { error } = await supabase.from("quick_replies").insert({ shortcut: sc, content: content.trim() });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     setShortcut(""); setContent("");
-    toast.success("Resposta rápida criada");
+    toast.success(t("settings.quick.created"));
   }
 
   async function remove(id: string) {
@@ -496,20 +497,22 @@ function QuickRepliesCard() {
   return (
     <Card className="space-y-4 p-6">
       <div>
-        <h2 className="flex items-center gap-2 text-base font-semibold"><Zap className="h-4 w-4" />Respostas rápidas</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Use no chat digitando <code className="rounded bg-muted px-1">/atalho</code>. Variáveis: <code className="rounded bg-muted px-1">{`{{nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{telefone}}`}</code>, <code className="rounded bg-muted px-1">{`{{campo.<chave>}}`}</code> (ex.: <code className="rounded bg-muted px-1">{`{{campo.data_horario:data}}`}</code>).</p>
+        <h2 className="flex items-center gap-2 text-base font-semibold"><Zap className="h-4 w-4" />{t("settings.quick.title")}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          <code className="rounded bg-muted px-1">/{t("settings.quick.shortcut")}</code> · <code className="rounded bg-muted px-1">{`{{nome}}`}</code> <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code> <code className="rounded bg-muted px-1">{`{{telefone}}`}</code> <code className="rounded bg-muted px-1">{`{{campo.<chave>}}`}</code>
+        </p>
       </div>
 
       <div className="grid grid-cols-[1fr_2fr_auto] gap-2">
-        <Input placeholder="atalho" value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
-        <Textarea rows={1} placeholder="Olá {{primeiro_nome}}, tudo bem?" value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[40px]" />
+        <Input placeholder={t("settings.quick.shortcut")} value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
+        <Textarea rows={1} placeholder={t("settings.quick.messagePlaceholder")} value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[40px]" />
         <Button onClick={add} disabled={saving} size="icon">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </Button>
       </div>
 
       <div className="space-y-1">
-        {items.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma resposta rápida ainda.</div>}
+        {items.length === 0 && <div className="text-xs text-muted-foreground">{t("settings.quick.empty")}</div>}
         {items.map((q) => (
           <div key={q.id} className="flex items-start gap-2 rounded-md border p-2">
             <span className="mt-0.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">/{q.shortcut}</span>
