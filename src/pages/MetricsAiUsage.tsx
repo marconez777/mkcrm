@@ -374,15 +374,15 @@ export default function MetricsAiUsage() {
 
         {byErrorCategory.length > 0 && (
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> Diagnóstico dos erros</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> {t("metricsAiUsage.diagnosticTitle")}</h2>
             <div className="grid gap-2 md:grid-cols-2">
               {byErrorCategory.map((e) => (
                 <div key={e.category} className="rounded border bg-muted/20 p-3 text-xs">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <Badge variant="destructive" className="text-[10px]">{friendlyErrorCategory(e.category)}</Badge>
-                    <span className="text-muted-foreground">{e.calls} chamadas · {e.leads} lead{e.leads === 1 ? "" : "s"}</span>
+                    <Badge variant="destructive" className="text-[10px]">{t(`metricsAiUsage.errCat.${e.category}`, { defaultValue: e.category })}</Badge>
+                    <span className="text-muted-foreground">{e.calls} {t("metricsAiUsage.callsWord")} · {e.leads} {t("metricsAiUsage.leadWord", { count: e.leads })}</span>
                   </div>
-                  <p className="text-muted-foreground">{errorCategoryExplanation(e.category)}</p>
+                  <p className="text-muted-foreground">{t(`metricsAiUsage.errExp.${e.category}`, { defaultValue: t("metricsAiUsage.errExp.fallback") })}</p>
                   {e.sample && <p className="mt-1 truncate font-mono text-[10px]">{e.sample}</p>}
                 </div>
               ))}
