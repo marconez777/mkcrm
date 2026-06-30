@@ -3,9 +3,10 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 import { getPausedClinicIds } from "../_shared/automations-paused.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
-function renderVars(text: string, lead: any, defs: any[]): string {
-  return renderTemplate(text, lead ?? {}, defs ?? []);
+function renderVars(text: string, lead: any, defs: any[], tz: string): string {
+  return renderTemplate(text, lead ?? {}, defs ?? [], tz);
 }
 
 function inSendWindow(window: any): boolean {
