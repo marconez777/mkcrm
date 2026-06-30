@@ -1298,5 +1298,30 @@
     "at": "en",
     "formEvents": "Eventos de formulario ({{count}})",
     "allEvents": "Todos los eventos en orden ({{count}})"
+  },
+  "leadDrawer": {
+    "syncFail": "Error: ",
+    "syncOk": "Sincronizado: {{count}} mensajes",
+    "noWhats": "Lead sin WhatsApp vinculado",
+    "noWatcher": "Ningún agente vigía configurado para esta conexión",
+    "watcherFail": "Error: ",
+    "watcherOk": "El vigía revisó la conversación",
+    "confirmTitle": "¿Eliminar este lead?",
+    "confirmDesc": "Todo el historial de mensajes será eliminado. Esta acción es irreversible.",
+    "confirmBtn": "Eliminar definitivamente",
+    "deleted": "Lead eliminado",
+    "deleteFail": "Error al eliminar lead",
+    "deleteRetry": "Inténtalo de nuevo.",
+    "reviewTitle": "Revisar conversación con IA (vigía)",
+    "syncTitle": "Sincronizar historial completo",
+    "deleteTitle": "Eliminar lead",
+    "tabChat": "Chat",
+    "tabDetails": "Detalles",
+    "tabJourney": "Cronología"
+  },
+  "notFound": {
+    "title": "404",
+    "msg": "¡Ups! Página no encontrada",
+    "back": "Volver al inicio"
   }
 }
