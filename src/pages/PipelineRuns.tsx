@@ -272,6 +272,7 @@ function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"];
 type LeadInfo = { name: string | null; phone: string | null };
 
 function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null }) {
+  const { t } = useTranslation("pipelineRuns");
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
   const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
