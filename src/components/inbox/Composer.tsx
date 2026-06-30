@@ -358,7 +358,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           <div className="flex flex-col gap-0.5 self-end">
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" title="Emoji"><Smile className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" title={t("inbox.composer.emoji")}><Smile className="h-4 w-4" /></Button>
               </PopoverTrigger>
               <PopoverContent side="top" align="start" className="w-64 p-2">
                 <div className="grid grid-cols-8 gap-1">
