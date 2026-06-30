@@ -317,7 +317,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground"><Mail className="mr-1 inline h-3 w-3" />E-mail</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground"><Mail className="mr-1 inline h-3 w-3" />{t("inbox.context.email")}</Label>
             <Input
               value={form.email ?? ""}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
