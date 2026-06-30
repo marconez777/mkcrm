@@ -56,7 +56,8 @@ Deno.serve(async (req) => {
 
     const { data: clinic } = await admin.from("clinics").select("name").eq("id", clinic_id).single();
 
-    const inviteUrl = `https://crm.mkart.com.br/invite/${invite!.token}`;
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
+    const inviteUrl = `${siteUrl.replace(/\/$/, "")}/invite/${invite!.token}`;
 
     return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
