@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { listViews, addView, removeView, type SavedView } from "@/lib/saved-views";
 import { usePrompt, useConfirm } from "@/hooks/useDialogs";
 import { deleteLead } from "@/lib/delete-lead";
+import { useTranslation } from "react-i18next";
 
 
 function timeAgo(iso: string | null) {
@@ -72,6 +73,7 @@ export default function ConversationList(props: {
   refreshing?: boolean;
   onCollapse?: () => void;
 }) {
+  const { t } = useTranslation();
   const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing, instances = [], instanceId = null, setInstanceId } = props;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -128,25 +130,25 @@ export default function ConversationList(props: {
     <>
       <header className="space-y-2 border-b px-3 py-3">
         <div className="flex items-center gap-2">
-          <h1 className="text-base font-semibold">Conversas</h1>
+          <h1 className="text-base font-semibold">{t("inbox.conversations")}</h1>
           <span className="text-xs text-muted-foreground">{leads.length}</span>
           {onRefresh && (
-            <Button size="icon" variant="ghost" onClick={onRefresh} disabled={refreshing} title="Atualizar conversas" className="h-7 w-7">
+            <Button size="icon" variant="ghost" onClick={onRefresh} disabled={refreshing} title={t("inbox.refresh")} className="h-7 w-7">
               <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
             </Button>
           )}
           <div className="flex-1" />
-          <Button size="icon" variant="ghost" onClick={props.onNew} title="Nova conversa">
+          <Button size="icon" variant="ghost" onClick={props.onNew} title={t("inbox.newConversation")}>
             <Plus className="h-4 w-4" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" title="Views salvas"><Bookmark className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" title={t("inbox.savedViews")}><Bookmark className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs">Views salvas</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">{t("inbox.savedViews")}</DropdownMenuLabel>
               {views.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhuma view ainda</div>
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">{t("inbox.noViews")}</div>
               )}
               {views.map((v) => (
                 <DropdownMenuItem key={v.id} onSelect={(e) => e.preventDefault()} className="flex items-center justify-between gap-2">
@@ -158,18 +160,18 @@ export default function ConversationList(props: {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={saveCurrentView}>
-                <BookmarkPlus className="mr-2 h-4 w-4" /> Salvar filtros atuais
+                <BookmarkPlus className="mr-2 h-4 w-4" /> {t("inbox.saveCurrentFilters")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" title="Ordenar"><ArrowDownUp className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" title={t("inbox.sort")}><ArrowDownUp className="h-4 w-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => props.setSort("recent")}>Mais recentes</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => props.setSort("unread")}>Não lidas primeiro</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => props.setSort("oldest")}>Mais antigas</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => props.setSort("recent")}>{t("inbox.sortRecent")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => props.setSort("unread")}>{t("inbox.sortUnread")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => props.setSort("oldest")}>{t("inbox.sortOldest")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {props.onCollapse && (
@@ -203,7 +205,7 @@ export default function ConversationList(props: {
         )}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input id="inbox-search" placeholder="Buscar (nome, telefone, mensagem)" value={props.q} onChange={(e) => props.setQ(e.target.value)} className="h-9 pl-8" />
+          <Input id="inbox-search" placeholder={t("inbox.searchPlaceholder")} value={props.q} onChange={(e) => props.setQ(e.target.value)} className="h-9 pl-8" />
         </div>
 
         <div className="-mx-3 flex gap-1 overflow-x-auto px-3 pb-1 scrollbar-thin">
@@ -309,10 +311,10 @@ export default function ConversationList(props: {
 
       <div ref={scrollRef} className="scrollbar-thin flex-1 overflow-y-auto">
         {!loaded && (
-          <div className="p-8 text-center text-xs text-muted-foreground">Carregando…</div>
+          <div className="p-8 text-center text-xs text-muted-foreground">{t("inbox.loading")}</div>
         )}
         {loaded && leads.length === 0 && (
-          <div className="p-8 text-center text-xs text-muted-foreground">Nenhuma conversa.</div>
+          <div className="p-8 text-center text-xs text-muted-foreground">{t("inbox.empty")}</div>
         )}
         {leads.map((l) => {
           const initials = (l.name || l.phone).slice(0, 2).toUpperCase();
