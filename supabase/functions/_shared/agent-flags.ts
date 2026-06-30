@@ -21,6 +21,9 @@ export const SILENT_TOOLS = new Set<string>([
 ]);
 
 export function isSilentByTools(tools: string[] | null | undefined): boolean {
-  if (!tools || tools.length === 0) return false;
-  return tools.every((t) => SILENT_TOOLS.has(t));
+  // Ferramentas não definem mais se o agente é silencioso.
+  // Um agente comercial pode usar apenas ferramentas internas (KB, memória,
+  // notas, mover etapa etc.) e ainda assim precisa enviar a resposta ao lead.
+  // O modo silencioso deve vir somente do campo explícito `ai_agents.silent`.
+  return false;
 }
