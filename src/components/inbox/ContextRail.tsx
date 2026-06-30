@@ -351,7 +351,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.tags")}</Label>
             <div className="flex flex-wrap gap-1">
               {(form.tags ?? []).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]">
