@@ -343,7 +343,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
     setBusy(true);
     try {
       await callExecutor({ action: "cancel", run_id: runId });
-      toast.success("Cancelamento solicitado");
+      toast.success(t("toast.cancelRequested"));
     } finally {
       setBusy(false);
     }
@@ -356,7 +356,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
         toast.error(r.error);
         return;
       }
-      toast.success(`Reprocesso iniciado (${r.lead_count} leads)`);
+      toast.success(t("toast.retryStarted", { count: r.lead_count ?? 0 }));
     } finally {
       setBusy(false);
     }
