@@ -18,18 +18,42 @@ type Props = {
 };
 
 export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
+  // Fonte da verdade = lead.custom_fields (sempre fresco via props/realtime).
+  // `values` local serve apenas para inputs com edição em progresso (text/number/textarea),
+  // que mantêm seu próprio `local` state interno via `FieldInput`.
+  // Para evitar o bug em que um save reenviava o JSONB inteiro com state stale
+  // (ressuscitando valores que o usuário tinha acabado de limpar), todo `set`
+  // mescla contra `lead.custom_fields` mais recente.
   const [values, setValues] = useState<Record<string, any>>(lead.custom_fields ?? {});
 
-  useEffect(() => { setValues(lead.custom_fields ?? {}); }, [lead.id]);
+  // Re-sincroniza local toda vez que o lead muda (id OU custom_fields novo),
+  // garantindo que limpezas/atualizações vindas de outras fontes (realtime,
+  // recompute de appointments, etc.) reflitam imediatamente.
+  useEffect(() => {
+    setValues(lead.custom_fields ?? {});
+  }, [lead.id, lead.custom_fields]);
 
   async function save(next: Record<string, any>) {
     setValues(next);
     onChange(next);
-    await supabase.from("leads").update({ custom_fields: next }).eq("id", lead.id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ custom_fields: next })
+      .eq("id", lead.id);
+    if (error) console.error("[CustomFieldsPanel] save failed", error.message);
   }
 
   function set(key: string, v: any) {
-    save({ ...values, [key]: v });
+    // SEMPRE mescla contra o estado mais fresco do lead (não contra `values`
+    // local, que pode estar stale entre o write otimista e o realtime).
+    const base = { ...(lead.custom_fields ?? {}), ...values };
+    const next = { ...base };
+    if (v === null || v === undefined || v === "") {
+      delete next[key];
+    } else {
+      next[key] = v;
+    }
+    save(next);
   }
 
   if (fields.length === 0) return null;
@@ -158,6 +182,20 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "datetime": {
       const parsed = value ? new Date(value) : undefined;
       const d = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
+      // localTime mantém digitação fluida no <input type="time">. Commit no
+      // onBlur evita uma cascata de saves a cada keystroke (que estava
+      // gerando race conditions com o realtime e ressuscitando valores).
+      const [localTime, setLocalTime] = useState<string>(d ? format(d, "HH:mm") : "");
+      useEffect(() => { setLocalTime(d ? format(d, "HH:mm") : ""); }, [value]);
+      const commitTime = (raw: string) => {
+        if (!d) return;
+        const [h, m] = raw.split(":").map(Number);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return;
+        const nd = new Date(d);
+        nd.setHours(h, m, 0, 0);
+        const iso = nd.toISOString();
+        if (iso !== value) onChange(iso);
+      };
       return (
         <Popover>
           <PopoverTrigger asChild>
@@ -188,11 +226,14 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                 {field.field_type === "datetime" && (
                   <input
                     type="time"
-                    value={format(d, "HH:mm")}
-                    onChange={(e) => {
-                      const [h, m] = e.target.value.split(":").map(Number);
-                      const nd = new Date(d); nd.setHours(h || 0, m || 0, 0, 0);
-                      onChange(nd.toISOString());
+                    value={localTime}
+                    onChange={(e) => setLocalTime(e.target.value)}
+                    onBlur={(e) => commitTime(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        commitTime((e.target as HTMLInputElement).value);
+                        (e.target as HTMLInputElement).blur();
+                      }
                     }}
                     className="flex-1 rounded border bg-background px-2 py-1 text-xs"
                   />
