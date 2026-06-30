@@ -493,5 +493,27 @@
     "tableRole": "Papel",
     "tableSince": "Desde",
     "empty": "Nenhum membro"
+  },
+  "metrics": {
+    "title": "Métricas IA",
+    "h24": "24h",
+    "d7": "7 dias",
+    "d30": "30 dias",
+    "calls": "Chamadas",
+    "replied": "Respondeu",
+    "tokens": "Tokens",
+    "avgLatency": "Latência média",
+    "tools": "Tools usadas",
+    "errors": "Erros",
+    "byAgent": "Por agente",
+    "noData": "Sem dados no período.",
+    "colAgent": "Agente",
+    "colCalls": "Chamadas",
+    "colTokens": "Tokens",
+    "colReplied": "Resp",
+    "colLatency": "Lat (ms)",
+    "lastCalls": "Últimas chamadas",
+    "noCalls": "Sem chamadas registradas.",
+    "noAgent": "(sem agente)"
   }
 }
