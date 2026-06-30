@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -24,11 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ServiceTypeDialog from "@/components/settings/ServiceTypeDialog";
 
-const GROUPS: { kind: ServiceKind; label: string }[] = [
-  { kind: "consulta", label: "Consultas" },
-  { kind: "procedimento", label: "Procedimentos" },
-  { kind: "retorno", label: "Retornos" },
-];
+const GROUP_KINDS: ServiceKind[] = ["consulta", "procedimento", "retorno"];
 
 export default function SettingsAppointmentTypes() {
   const { membership, isSuperAdmin } = useAuth();
