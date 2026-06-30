@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import mkLogo from "@/assets/mk-logo.png";
+import brandLockup from "@/assets/chat-funnel-ai-500.png";
 
 const NAV_LINKS = [
   { href: "#sobre", label: "Sobre" },
@@ -14,9 +14,8 @@ export default function SiteNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-site-bg/80 backdrop-blur supports-[backdrop-filter]:bg-site-bg/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/site" className="flex items-center gap-2 text-site-text">
-          <img src={mkLogo} alt="Chat Funnel AI" className="h-8 w-8 rounded-lg object-cover" />
-          <span className="site-font-display text-base font-semibold tracking-tight">Chat Funnel AI</span>
+        <Link to="/site" className="flex items-center text-site-text">
+          <img src={brandLockup} alt="Chat Funnel AI" className="h-8 w-auto object-contain" />
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">
