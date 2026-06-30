@@ -22,7 +22,8 @@ function isoWeekday(d: Date): number {
 }
 
 function withinWindow(w: SendWindow): { ok: boolean; nextOpenIso: string } {
-  const tz = w.tz || "America/Sao_Paulo";
+function withinWindow(w: SendWindow, fallbackTz: string): { ok: boolean; nextOpenIso: string } {
+  const tz = w.tz || fallbackTz;
   const local = nowInTz(tz);
   const wd = isoWeekday(local);
   const [sh, sm] = (w.start || "08:00").split(":").map(Number);
