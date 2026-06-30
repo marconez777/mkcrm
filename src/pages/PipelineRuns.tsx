@@ -405,6 +405,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
 function StageGroup({
   stageName, items, leadsMap, clinicId,
 }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo>; clinicId: string | null }) {
+  const { t } = useTranslation("pipelineRuns");
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -414,7 +415,7 @@ function StageGroup({
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/40">
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         <span className="flex-1 text-left">{stageName}</span>
-        <span className="text-xs text-muted-foreground">{items.length} · ok {ok} · skip {skip} · err {err}</span>
+        <span className="text-xs text-muted-foreground">{t("detail.stageHeader", { count: items.length, ok, skip, err })}</span>
       </button>
       {open && (
         <div className="divide-y divide-border/40">
