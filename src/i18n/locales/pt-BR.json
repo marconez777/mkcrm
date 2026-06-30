@@ -666,5 +666,36 @@
     "wd4": "Qui",
     "wd5": "Sex",
     "wd6": "Sáb"
+  },
+  "agentMemories": {
+    "title": "Memórias dos Agentes",
+    "subtitle": "Tudo que os agentes aprenderam e salvaram sobre os leads (fatos, preferências, contexto).",
+    "refresh": "Atualizar",
+    "filters": "Filtros",
+    "searchPlaceholder": "Buscar no conteúdo...",
+    "agent": "Agente",
+    "allAgents": "Todos os agentes",
+    "type": "Tipo",
+    "allTypes": "Todos os tipos",
+    "countOf": "{{shown}} de {{total}} memórias",
+    "emptyNone": "Nenhuma memória salva ainda. Os agentes vão registrar fatos importantes conforme conversam com os leads.",
+    "emptyFiltered": "Nenhuma memória corresponde aos filtros.",
+    "delete": "Apagar",
+    "deleteTitle": "Apagar esta memória?",
+    "deleteDesc": "O agente vai esquecer permanentemente esta informação. Não pode ser desfeito.",
+    "cancel": "Cancelar",
+    "deleted": "Memória apagada"
+  },
+  "unsubscribe": {
+    "title": "Cancelar inscrição",
+    "validating": "Validando link…",
+    "sureQ": "Tem certeza que deseja parar de receber emails desta empresa?",
+    "confirm": "Confirmar cancelamento",
+    "doneTitle": "Inscrição cancelada",
+    "doneDesc": "Você não receberá mais emails. Mudou de ideia?",
+    "reactivate": "Reativar inscrição",
+    "reactivated": "Inscrição reativada",
+    "errorTitle": "Erro",
+    "invalidLink": "Link inválido."
   }
 }
