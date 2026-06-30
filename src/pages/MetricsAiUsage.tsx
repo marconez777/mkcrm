@@ -301,7 +301,7 @@ export default function MetricsAiUsage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>;
   if (!allowed) return <Navigate to="/" replace />;
 
   return (
