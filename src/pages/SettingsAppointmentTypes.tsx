@@ -28,6 +28,7 @@ import ServiceTypeDialog from "@/components/settings/ServiceTypeDialog";
 const GROUP_KINDS: ServiceKind[] = ["consulta", "procedimento", "retorno"];
 
 export default function SettingsAppointmentTypes() {
+  const { t } = useTranslation();
   const { membership, isSuperAdmin } = useAuth();
   const confirm = useConfirm();
   const clinicId = membership?.clinic_id ?? null;
