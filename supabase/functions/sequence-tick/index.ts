@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
     let processed = 0, sent = 0, failed = 0, skipped = 0;
     for (const e of due ?? []) {
       processed++;
+      const clinicTz = await getClinicTimezone(supabase, e.clinic_id);
       try {
         // Load sequence + steps + lead
         const [{ data: seq }, { data: steps }, { data: lead }] = await Promise.all([
