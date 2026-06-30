@@ -441,18 +441,18 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                 let color = "bg-muted-foreground";
                 if (e.type === "stage_changed") {
                   const to = stages.find((s) => s.id === e.payload?.to);
-                  label = `Etapa → ${to?.name ?? "—"}`;
+                  label = t("inbox.context.stageChanged", { name: to?.name ?? "—" });
                   Icon = GitBranch;
                   color = "bg-primary";
                 } else if (e.type === "attendant_changed") {
                   const to = attendants.find((a) => a.id === e.payload?.to);
-                  label = `Atendente → ${to?.name ?? "—"}`;
+                  label = t("inbox.context.attendantChanged", { name: to?.name ?? "—" });
                   Icon = UserCheck;
                   color = "bg-emerald-500";
                 } else if (e.type === "custom_fields_changed") {
                   const keys = e.payload?.changes ? Object.keys(e.payload.changes) : [];
                   const names = keys.map((k) => customDefs.find((d) => d.field_key === k)?.label || k);
-                  label = `Campo${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
+                  label = t("inbox.context.fieldsChanged", { count: names.length, names: names.join(", ") });
                   color = "bg-amber-500";
                 }
                 const actor = e.actor_user_id ? userMap[e.actor_user_id] : null;
