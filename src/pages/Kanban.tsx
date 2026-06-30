@@ -440,6 +440,15 @@ function Column({
             </span>
           )}
           <span className="text-sm font-medium text-muted-foreground">{leads.length}</span>
+          {aiBinding?.autoReply && (
+            <span
+              className="ml-1 inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-300"
+              title={`Auto-resposta ativa: ${aiBinding.agentName}`}
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              {aiBinding.agentName}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {totalValue > 0 && (
