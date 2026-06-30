@@ -404,7 +404,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <History className="h-3 w-3" />
-            {showHistory ? "Ocultar histórico IA" : "Ver histórico IA"}
+            {showHistory ? t("inbox.context.hideAiHistory") : t("inbox.context.showAiHistory")}
           </button>
           {showHistory && (
             <div className="space-y-1.5 rounded border bg-background p-2 max-h-64 overflow-y-auto">
