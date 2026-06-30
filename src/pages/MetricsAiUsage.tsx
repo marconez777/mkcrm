@@ -365,11 +365,11 @@ export default function MetricsAiUsage() {
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Custo total" value={fmtUSD(stats.totalCost)} />
-          <StatCard icon={<Activity className="h-4 w-4" />} label="Chamadas" value={stats.calls.toLocaleString()} />
-          <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Tokens (in/out)" value={`${(stats.totalIn / 1000).toFixed(1)}k / ${(stats.totalOut / 1000).toFixed(1)}k`} />
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Custo médio" value={fmtUSD(stats.avgCost)} />
-          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Erros" value={String(stats.errors)} />
+          <StatCard icon={<Coins className="h-4 w-4" />} label={t("metricsAiUsage.stat.totalCost")} value={fmtUSD(stats.totalCost)} />
+          <StatCard icon={<Activity className="h-4 w-4" />} label={t("metricsAiUsage.stat.calls")} value={stats.calls.toLocaleString(lang)} />
+          <StatCard icon={<MessageSquare className="h-4 w-4" />} label={t("metricsAiUsage.stat.tokens")} value={`${(stats.totalIn / 1000).toFixed(1)}k / ${(stats.totalOut / 1000).toFixed(1)}k`} />
+          <StatCard icon={<Coins className="h-4 w-4" />} label={t("metricsAiUsage.stat.avgCost")} value={fmtUSD(stats.avgCost)} />
+          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label={t("metricsAiUsage.stat.errors")} value={String(stats.errors)} />
         </div>
 
         {byErrorCategory.length > 0 && (
