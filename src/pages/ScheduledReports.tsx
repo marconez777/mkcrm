@@ -31,6 +31,14 @@ type Report = {
 };
 
 export default function ScheduledReports() {
+  const { t } = useTranslation();
+  const WEEKDAYS = [0,1,2,3,4,5,6].map(v => ({ v, label: t(`scheduledReports.wd${v}` as any) }));
+  const METRIC_LIST = [
+    { key: "unique_visitors", label: t("scheduledReports.m_unique_visitors") },
+    { key: "whatsapp_clicks", label: t("scheduledReports.m_whatsapp_clicks") },
+    { key: "form_leads", label: t("scheduledReports.m_form_leads") },
+    { key: "whatsapp_leads", label: t("scheduledReports.m_whatsapp_leads") },
+  ];
   const [list, setList] = useState<Report[]>([]);
   const [selected, setSelected] = useState<Report | null>(null);
   const [instances, setInstances] = useState<any[]>([]);
@@ -39,6 +47,7 @@ export default function ScheduledReports() {
   const [sending, setSending] = useState(false);
   const [runs, setRuns] = useState<any[]>([]);
   const confirm = useConfirm();
+
 
   const load = async () => {
     const [r, { data: ins }] = await Promise.all([
