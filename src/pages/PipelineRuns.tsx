@@ -151,11 +151,8 @@ export default function PipelineRuns() {
     return (
       <div className="mx-auto max-w-2xl p-8">
         <Card className="p-6">
-          <h1 className="text-lg font-semibold mb-2">Agente de pipeline não habilitado</h1>
-          <p className="text-sm text-muted-foreground">
-            Esta empresa ainda não está autorizada a executar o agente de IA de pipeline. Estamos validando a feature
-            primeiro com a Empresa ÓR; será liberada para as demais em seguida.
-          </p>
+          <h1 className="text-lg font-semibold mb-2">{t("disabled.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("disabled.desc")}</p>
         </Card>
       </div>
     );
@@ -167,24 +164,21 @@ export default function PipelineRuns() {
     <div className="mx-auto max-w-6xl space-y-4 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Execução do pipeline</h1>
-          <p className="text-sm text-muted-foreground">
-            Roda o agente de IA em todos os leads, coluna por coluna. Cada passo é registrado abaixo — você pode comentar
-            o que ficou errado e reprocessar.
-          </p>
+          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={async () => {
               if (!clinicId) return;
-              if (!confirm("Limpar TODAS as classificações geradas pela IA (qualificação, procedimento, datas de consulta, pagamento, resumo) em todos os leads desta empresa?\n\nIsso NÃO apaga tags de origem (lead-site, lead-phq9), nomes, telefones, estágios, atendentes ou anotações manuais.")) return;
-              if (!confirm("Tem certeza? Esta ação não pode ser desfeita. Depois execute o pipeline para reclassificar.")) return;
+              if (!confirm(t("confirm.clearAi1"))) return;
+              if (!confirm(t("confirm.clearAi2"))) return;
               setResetting(true);
               try {
                 const res = await callExecutor<{ leads_reset?: number }>({ action: "reset_ai_classifications", clinic_id: clinicId });
-                if (res.error) { toast.error(`Erro: ${res.error}`); return; }
-                toast.success(`Classificações limpas em ${res.leads_reset ?? 0} leads`);
+                if (res.error) { toast.error(t("toast.errorPrefix", { message: res.error })); return; }
+                toast.success(t("toast.cleared", { count: res.leads_reset ?? 0 }));
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : String(err));
               } finally {
@@ -195,14 +189,14 @@ export default function PipelineRuns() {
             className="gap-2"
           >
             {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
-            Limpar classificações da IA
+            {t("actions.clearAi")}
           </Button>
           <Button variant="outline" onClick={() => setScopeOpen(true)} disabled={starting || !!activeRun} className="gap-2">
-            <Filter className="h-4 w-4" /> Executar com escopo
+            <Filter className="h-4 w-4" /> {t("actions.runScoped")}
           </Button>
           <Button onClick={() => handleStart()} disabled={starting || !!activeRun} className="gap-2">
             {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {activeRun ? "Execução em andamento…" : "Executar pipeline inteiro"}
+            {activeRun ? t("actions.running") : t("actions.runFull")}
           </Button>
         </div>
       </header>
@@ -217,11 +211,11 @@ export default function PipelineRuns() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
         <Card className="p-3">
-          <div className="mb-2 px-2 text-xs font-medium uppercase text-muted-foreground">Execuções recentes</div>
+          <div className="mb-2 px-2 text-xs font-medium uppercase text-muted-foreground">{t("list.title")}</div>
           <ScrollArea className="h-[70vh]">
             <div className="space-y-1">
               {runs.length === 0 && (
-                <p className="px-2 py-4 text-sm text-muted-foreground">Nenhuma execução ainda.</p>
+                <p className="px-2 py-4 text-sm text-muted-foreground">{t("list.empty")}</p>
               )}
               {runs.map((r) => (
                 <button
@@ -234,13 +228,13 @@ export default function PipelineRuns() {
                   <div className="flex items-center justify-between gap-2">
                     <StatusBadge status={r.status} />
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: ptBR })}
+                      {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: dateLocale })}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {r.totals?.leads ?? 0} leads · ok {r.totals?.ok ?? 0} · skip {r.totals?.skipped ?? 0} · err {r.totals?.error ?? 0}
+                    {t("list.leadsSummary", { leads: r.totals?.leads ?? 0, ok: r.totals?.ok ?? 0, skip: r.totals?.skipped ?? 0, err: r.totals?.error ?? 0 })}
                   </div>
-                  {r.parent_run_id && <div className="text-[10px] text-muted-foreground">↻ reprocesso</div>}
+                  {r.parent_run_id && <div className="text-[10px] text-muted-foreground">{t("list.reprocess")}</div>}
                 </button>
               ))}
             </div>
@@ -251,7 +245,7 @@ export default function PipelineRuns() {
           {selectedRunId ? (
             <RunDetail runId={selectedRunId} clinicId={clinicId} />
           ) : (
-            <p className="text-sm text-muted-foreground">Selecione uma execução para ver o detalhe.</p>
+            <p className="text-sm text-muted-foreground">{t("list.selectRun")}</p>
           )}
         </Card>
       </div>
