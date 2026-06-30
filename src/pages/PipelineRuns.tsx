@@ -368,22 +368,22 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
         <div className="flex items-center gap-3">
           <StatusBadge status={run.status} />
           <div className="text-sm text-muted-foreground">
-            {run.totals?.leads ?? 0} leads · OK {run.totals?.ok ?? 0} · Skip {run.totals?.skipped ?? 0} · Erro {run.totals?.error ?? 0}
+            {t("detail.leadsCounter", { leads: run.totals?.leads ?? 0, ok: run.totals?.ok ?? 0, skip: run.totals?.skipped ?? 0, err: run.totals?.error ?? 0 })}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {(run.status === "running" || run.status === "queued") && (
             <Button size="sm" variant="outline" onClick={cancel} disabled={busy} className="gap-1">
-              <X className="h-3.5 w-3.5" /> Cancelar
+              <X className="h-3.5 w-3.5" /> {t("actions.cancel")}
             </Button>
           )}
           {run.status === "done" || run.status === "error" || run.status === "cancelled" ? (
             <>
               <Button size="sm" variant="outline" onClick={() => retry("retry_errors")} disabled={busy} className="gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" /> Reprocessar erros
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("actions.retryErrors")}
               </Button>
               <Button size="sm" variant="outline" onClick={() => retry("retry_commented")} disabled={busy} className="gap-1">
-                <RotateCcw className="h-3.5 w-3.5" /> Reprocessar comentados
+                <RotateCcw className="h-3.5 w-3.5" /> {t("actions.retryCommented")}
               </Button>
             </>
           ) : null}
@@ -395,7 +395,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
           {Object.entries(byStage).map(([stage, list]) => (
             <StageGroup key={stage} stageName={stage} items={list} leadsMap={leadsMap} clinicId={clinicId} />
           ))}
-          {items.length === 0 && <p className="text-sm text-muted-foreground">Aguardando processamento…</p>}
+          {items.length === 0 && <p className="text-sm text-muted-foreground">{t("list.waiting")}</p>}
         </div>
       </ScrollArea>
     </div>
