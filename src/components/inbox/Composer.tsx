@@ -273,7 +273,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     <div className="relative border-t bg-card p-2">
       {showQuick && (
         <div className="absolute bottom-full left-2 right-2 mb-2 max-h-64 overflow-y-auto rounded-lg border bg-popover shadow-lg">
-          <div className="border-b px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Respostas rápidas</div>
+          <div className="border-b px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.composer.quickReplies")}</div>
           {filteredQuick.map((q, i) => (
             <button
               key={q.id}
