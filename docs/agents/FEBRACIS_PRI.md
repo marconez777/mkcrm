@@ -38,16 +38,16 @@ related_docs:
 | Provider | `google` (BYOK Gemini) |
 | Model | `google/gemini-2.5-flash` |
 | Temperature | `0.7` |
-| `debounce_seconds` | `8` (agrupa mensagens em janela de 8s antes de responder) |
+| `debounce_seconds` | `8` — **valor a validar no smoke test.** Pesquisa interna sobre chat de venda WhatsApp sugere 1,5–2s; 8s pode soar travado e esfriar lead. Manter como hipótese, não como decisão pacífica. |
 | `max_iterations` | `6` |
 | `max_tool_calls` | `12` |
 | `use_memory` | `true` |
-| `use_hybrid_search` | `true` |
+| `use_hybrid_search` | `true` — **flag inerte** (não há KB anexada). Resíduo de template; ao replicar para outro tenant, setar `false` para evitar confusão. |
 | `use_hyde` | `false` |
-| `rag_top_k` | `5` (irrelevante — sem KB anexada) |
+| `rag_top_k` | `5` — inerte (sem KB anexada) |
 | `stages_enabled` | **`false`** (não está bindado a stage ainda — ver §6) |
 | `tools` | `[]` (nenhuma tool externa) |
-| System prompt | 7.735 caracteres (~4,2k tokens) — playbook inteiro embutido |
+| System prompt | 7.735 caracteres (~4,2k tokens) — playbook condensado, ver §4 |
 
 ### Chave de API (BYOK)
 
