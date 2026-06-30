@@ -445,10 +445,10 @@ function Column({
           <span className="text-sm font-medium text-muted-foreground">{leads.length}</span>
           {aiBinding?.autoReply && (
             <span
-              className="ml-1 text-[10px] text-muted-foreground"
+              className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
               title={`Auto-resposta ativa: ${aiBinding.agentName}`}
             >
-              (IA)
+              🤖 IA
             </span>
           )}
         </div>
