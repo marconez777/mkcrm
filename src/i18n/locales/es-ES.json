@@ -881,5 +881,117 @@
       "panelDesc": "Ve el recorrido de cada visitante, eventos detallados, atribución UTM y embudos.",
       "openPanel": "Abrir panel"
     }
+  },
+  "metricsAiUsage": {
+    "title": "Costes de IA",
+    "desc": "Historial detallado de llamadas a la API de IA. Visible solo para administradores.",
+    "tabs": {
+      "overview": "Pipeline (clasificador)",
+      "agents": "Atención (agentes)",
+      "advanced": "Avanzado"
+    },
+    "dateUntil": "hasta",
+    "unknownAlertPrefix": "llamadas usan modelos sin precio configurado — el coste de esas filas aparece como $0. Actualiza",
+    "stat": {
+      "totalCost": "Coste total",
+      "calls": "Llamadas",
+      "tokens": "Tokens (in/out)",
+      "avgCost": "Coste medio",
+      "errors": "Errores"
+    },
+    "diagnosticTitle": "Diagnóstico de los errores",
+    "callsWord": "llamadas",
+    "leadWord_one": "lead",
+    "leadWord_other": "leads",
+    "dailyCostTitle": "Coste por día (top 6 modelos)",
+    "sections": {
+      "byModel": "Por modelo",
+      "byAgent": "Por agente",
+      "topLeads": "Top 20 leads",
+      "byOp": "Por operación"
+    },
+    "tokensWord": "tokens",
+    "noAgent": "(sin agente)",
+    "noData": "Sin datos.",
+    "details": {
+      "title": "Detalle de llamadas",
+      "ofWord": "de",
+      "searchPh": "Buscar…",
+      "allModels": "Todos los modelos",
+      "allAgents": "Todos los agentes",
+      "allOps": "Todas las operaciones",
+      "allSources": "Todos los orígenes",
+      "allCategories": "Todas las categorías",
+      "onlyErrors": "Solo errores",
+      "empty": "Sin llamadas en el periodo / filtro."
+    },
+    "table": {
+      "when": "Cuándo",
+      "model": "Modelo",
+      "op": "Op.",
+      "source": "Origen",
+      "error": "Error",
+      "agent": "Agente",
+      "lead": "Lead",
+      "in": "In",
+      "out": "Out",
+      "lat": "Lat.",
+      "cost": "Coste",
+      "status": "Estado"
+    },
+    "pagination": {
+      "pageOf": "Página {{page}} de {{total}}",
+      "prev": "Anterior",
+      "next": "Siguiente"
+    },
+    "sheet": {
+      "title": "Detalles de la llamada",
+      "id": "ID",
+      "when": "Cuándo",
+      "model": "Modelo",
+      "operation": "Operación",
+      "source": "Origen",
+      "provider": "Proveedor",
+      "step": "Etapa",
+      "status": "Estado",
+      "agent": "Agente",
+      "lead": "Lead",
+      "thread": "Thread",
+      "automation": "Automatización",
+      "tokens": "Tokens",
+      "tokensValue": "in {{in}} / out {{out}} / total {{total}}",
+      "latency": "Latencia",
+      "tools": "Tools invocadas",
+      "replied": "Respondió",
+      "yes": "sí",
+      "no": "no",
+      "cost": "Coste",
+      "category": "Categoría",
+      "diagnosticRead": "Lectura del diagnóstico:",
+      "error": "Error:"
+    },
+    "errCat": {
+      "schema_validation": "Schema/JSON inválido",
+      "quota_or_billing": "Cuota/crédito",
+      "rate_limit": "Rate limit",
+      "timeout": "Timeout",
+      "gateway_5xx": "Fallo del proveedor",
+      "network": "Red",
+      "no_provider": "Sin proveedor",
+      "uncategorized": "Sin categoría",
+      "unknown": "Desconocido"
+    },
+    "errExp": {
+      "schema_validation": "El modelo respondió fuera del formato esperado. El pipeline debe reprocesar con backoff o usar fallback seguro; no implica necesariamente coste alto.",
+      "quota_or_billing": "El proveedor rechazó la llamada por límite de crédito/cuota. El guard bloquea nuevos intentos temporalmente para evitar gasto y ruido.",
+      "rate_limit": "Demasiadas llamadas en poco tiempo. La rutina aplica espera y reintenta después.",
+      "timeout": "La etapa tardó más del límite operativo y debe reprocesarse.",
+      "gateway_5xx": "Fallo temporal en el proveedor/modelo. Normalmente se recupera con retry.",
+      "network": "Fallo de red o conexión entre la función y el proveedor.",
+      "no_provider": "Ningún proveedor de IA estaba disponible para la empresa.",
+      "uncategorized": "Error legado sin detalles estructurados; abre el registro para ver el mensaje bruto.",
+      "unknown": "Error no mapeado; requiere inspección manual del mensaje bruto.",
+      "fallback": "Error no mapeado; requiere inspección manual del mensaje bruto."
+    }
   }
 }
