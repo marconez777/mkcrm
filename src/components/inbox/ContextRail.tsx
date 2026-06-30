@@ -408,7 +408,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </button>
           {showHistory && (
             <div className="space-y-1.5 rounded border bg-background p-2 max-h-64 overflow-y-auto">
-              {aiHistory.length === 0 && <p className="text-[11px] text-muted-foreground">Sem histórico ainda.</p>}
+              {aiHistory.length === 0 && <p className="text-[11px] text-muted-foreground">{t("inbox.context.noHistory")}</p>}
               {aiHistory.map((m, i) => (
                 <div key={i} className="text-[11px]">
                   <span className="font-semibold">
