@@ -364,7 +364,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
-              placeholder="Adicionar tag e Enter"
+              placeholder={t("inbox.context.addTag")}
               className="h-8 text-xs"
             />
           </div>
