@@ -32,9 +32,9 @@ function parseDate(v: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function partsInTZ(d: Date) {
+function partsInTZ(d: Date, tz: string) {
   const fmt = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false, weekday: "long",
   });
   const map: Record<string, string> = {};
