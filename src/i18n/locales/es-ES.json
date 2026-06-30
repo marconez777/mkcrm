@@ -39,7 +39,27 @@
     "sortOldest": "Más antiguas",
     "searchPlaceholder": "Buscar (nombre, teléfono, mensaje)",
     "loading": "Cargando…",
-    "empty": "Ninguna conversación."
+    "empty": "Ninguna conversación.",
+    "composer": {
+      "quickReplies": "Respuestas rápidas",
+      "remove": "Quitar",
+      "filesInfo": "{{count}}/{{max}} archivos · el pie va en el primero",
+      "clearAll": "Quitar todos",
+      "recording": "Grabando…",
+      "maxDuration": "(máx 5min)",
+      "cancel": "Cancelar",
+      "stop": "Detener",
+      "emoji": "Emoji",
+      "attach": "Adjuntar archivos",
+      "attachTooltip": "Adjuntar archivos (hasta {{max}} · 16MB cada uno)",
+      "quickRepliesTooltip": "Escribe \"/\" para respuestas rápidas",
+      "captionPlaceholder": "Añade un pie de foto (opcional)…",
+      "messagePlaceholder": "Mensaje... (Enter envía, Shift+Enter salto de línea)",
+      "schedule": "Programar mensaje",
+      "scheduleTooltip": "Programar envío",
+      "record": "Grabar audio",
+      "send": "Enviar"
+    }
   },
   "settings": {
     "title": "Ajustes",
