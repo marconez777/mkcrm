@@ -49,7 +49,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "summary" } });
     setSummarizing(false);
     if (error || (data as any)?.error) {
-      toast.error("Falha IA: " + (error?.message || (data as any)?.error));
+      toast.error(t("inbox.context.aiFail") + ": " + (error?.message || (data as any)?.error));
       return;
     }
     setSummary((data as any)?.summary ?? "");
