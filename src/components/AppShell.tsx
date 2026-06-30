@@ -277,7 +277,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </NavLink>
           <button
             onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
-            className="rounded-lg border border-sidebar-border/40 bg-sidebar-accent/25 p-2 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            className="rounded-lg border border-white/10 bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
             title="Atalhos de teclado (?)"
             aria-label="Atalhos de teclado"
           >
