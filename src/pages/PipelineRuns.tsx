@@ -14,8 +14,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Play, X, RotateCcw, AlertTriangle, CheckCircle2, MinusCircle, ChevronDown, ChevronRight, Eraser, Filter, FileText, Tags, Target, Sparkles, GitBranch, Calendar, MoveRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, es, enUS } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { describeReason, toneClasses, type SkipReasonInfo } from "@/lib/pipeline-skip-reasons";
+
+function useDateFnsLocale() {
+  const { i18n } = useTranslation();
+  const code = i18n.language || "pt-BR";
+  if (code.startsWith("es")) return es;
+  if (code.startsWith("en")) return enUS;
+  return ptBR;
+}
 
 type OnlyAgent = "summarizer" | "parallel" | "maestro";
 
