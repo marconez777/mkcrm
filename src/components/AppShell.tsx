@@ -324,7 +324,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       {user.email}
                     </div>
                   </div>
-                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-white/50" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="end" className="w-56">
