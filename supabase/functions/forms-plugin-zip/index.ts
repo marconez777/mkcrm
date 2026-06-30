@@ -1,4 +1,4 @@
-// Generates and serves the MK CRM WordPress plugin as a .zip on-the-fly.
+// Generates and serves the Chat Funnel AI WordPress plugin as a .zip on-the-fly.
 import JSZip from "npm:jszip@3.10.1";
 
 const corsHeaders = {
@@ -12,17 +12,17 @@ const INGEST_URL = `${SUPABASE_URL}/functions/v1/forms-ingest`;
 
 const PLUGIN_PHP = `<?php
 /**
- * Plugin Name: MK CRM Forms
- * Description: Envia submissoes de formularios (CF7, Elementor, WPForms, Gravity, Fluent) para o MK CRM.
+ * Plugin Name: Chat Funnel AI Forms
+ * Description: Envia submissoes de formularios (CF7, Elementor, WPForms, Gravity, Fluent) para o Chat Funnel AI.
  * Version: 1.0.0
- * Author: MK CRM
+ * Author: Chat Funnel AI
  */
 if (!defined('ABSPATH')) exit;
 
-define('MK_CRM_INGEST_URL', ${JSON.stringify(INGEST_URL)});
+define('CFAI_INGEST_URL', ${JSON.stringify(INGEST_URL)});
 
-class MK_CRM_Forms {
-    const OPT = 'mk_crm_forms_options';
+class CFAI_Forms {
+    const OPT = 'cfai_forms_options';
 
     public static function init() {
         add_action('admin_menu', [__CLASS__, 'menu']);
@@ -41,7 +41,7 @@ class MK_CRM_Forms {
     }
 
     public static function menu() {
-        add_options_page('MK CRM Forms', 'MK CRM Forms', 'manage_options', 'mk-crm-forms', [__CLASS__, 'page']);
+        add_options_page('Chat Funnel AI Forms', 'Chat Funnel AI Forms', 'manage_options', 'chat-funnel-ai-forms', [__CLASS__, 'page']);
     }
 
     public static function settings() {
@@ -52,7 +52,7 @@ class MK_CRM_Forms {
         $opt = get_option(self::OPT, ['token' => '']);
         ?>
         <div class="wrap">
-          <h1>MK CRM Forms</h1>
+          <h1>Chat Funnel AI Forms</h1>
           <form method="post" action="options.php">
             <?php settings_fields(self::OPT); ?>
             <table class="form-table">
@@ -60,19 +60,19 @@ class MK_CRM_Forms {
                 <th><label for="token">Form Token</label></th>
                 <td>
                   <input name="<?php echo self::OPT; ?>[token]" id="token" type="text" class="regular-text" value="<?php echo esc_attr($opt['token'] ?? ''); ?>" placeholder="mkf_..." />
-                  <p class="description">Cole aqui o token gerado em Configuracoes &rarr; Formularios no MK CRM.</p>
+                  <p class="description">Cole aqui o token gerado em Configuracoes &rarr; Formularios no Chat Funnel AI.</p>
                 </td>
               </tr>
               <tr>
                 <th>Endpoint</th>
-                <td><code><?php echo esc_html(MK_CRM_INGEST_URL); ?></code></td>
+                <td><code><?php echo esc_html(CFAI_INGEST_URL); ?></code></td>
               </tr>
             </table>
             <?php submit_button(); ?>
           </form>
           <h2>Como funciona</h2>
           <ol>
-            <li>Crie uma integracao em <strong>Configuracoes &rarr; Formularios</strong> no MK CRM.</li>
+            <li>Crie uma integracao em <strong>Configuracoes &rarr; Formularios</strong> no Chat Funnel AI.</li>
             <li>Copie o token e cole acima.</li>
             <li>O plugin envia automaticamente envios de Contact Form 7, Elementor, WPForms, Gravity Forms e Fluent Forms.</li>
           </ol>
@@ -95,7 +95,7 @@ class MK_CRM_Forms {
             'fields'      => (object) $fields,
         ];
         if (!empty($_COOKIE['_mk_vid'])) $body['visitor_id'] = sanitize_text_field($_COOKIE['_mk_vid']);
-        wp_remote_post(MK_CRM_INGEST_URL, [
+        wp_remote_post(CFAI_INGEST_URL, [
             'timeout'  => 8,
             'blocking' => false,
             'headers'  => ['Content-Type' => 'application/json', 'x-form-token' => $token],
@@ -144,14 +144,14 @@ class MK_CRM_Forms {
     }
 }
 
-MK_CRM_Forms::init();
+CFAI_Forms::init();
 `;
 
-const README = `# MK CRM Forms — Plugin WordPress
+const README = `# Chat Funnel AI Forms — Plugin WordPress
 
 1. Instale o plugin em **Plugins → Adicionar novo → Enviar plugin** (faca upload do .zip).
 2. Ative o plugin.
-3. Va em **Configuracoes → MK CRM Forms** e cole o token gerado no CRM.
+3. Va em **Configuracoes → Chat Funnel AI Forms** e cole o token gerado no CRM.
 4. Os formularios das principais ferramentas (CF7, Elementor, WPForms, Gravity, Fluent) sao enviados automaticamente.
 
 Endpoint: ${INGEST_URL}
@@ -160,14 +160,14 @@ Endpoint: ${INGEST_URL}
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const zip = new JSZip();
-  zip.folder("mk-crm-forms")!.file("mk-crm-forms.php", PLUGIN_PHP);
-  zip.folder("mk-crm-forms")!.file("readme.txt", README);
+  zip.folder("chat-funnel-ai-forms")!.file("chat-funnel-ai-forms.php", PLUGIN_PHP);
+  zip.folder("chat-funnel-ai-forms")!.file("readme.txt", README);
   const buf = await zip.generateAsync({ type: "uint8array" });
   return new Response(buf, {
     headers: {
       ...corsHeaders,
       "Content-Type": "application/zip",
-      "Content-Disposition": 'attachment; filename="mk-crm-forms.zip"',
+      "Content-Disposition": 'attachment; filename="chat-funnel-ai-forms.zip"',
       "Cache-Control": "public, max-age=300",
     },
   });
