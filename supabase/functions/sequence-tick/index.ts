@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
           skipped++; continue;
         }
 
-        const rendered = renderVars(text, lead, fieldDefs ?? []);
+        const rendered = renderVars(text, lead, fieldDefs ?? [], clinicTz);
 
         // Override lead's instance for this sequence if configured
         if (seq.whatsapp_instance_id && lead.phone) {
