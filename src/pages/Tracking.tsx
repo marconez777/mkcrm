@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ import { fetchAllByIn } from "@/lib/fetch-all";
 import { MonthlyFinalizadosReportCard } from "@/components/tracking/MonthlyFinalizadosReportCard";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
+  const { t } = useTranslation("tracking");
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
   const start = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
@@ -28,7 +30,7 @@ function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: {
   return (
     <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-muted-foreground">
       <div className="flex items-center gap-2">
-        <span>Itens por página:</span>
+        <span>{t("itemsPerPage")}</span>
         <Select value={String(pageSize)} onValueChange={(v) => { onPageSizeChange(Number(v)); onPageChange(1); }}>
           <SelectTrigger className="h-7 w-20"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -37,11 +39,11 @@ function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: {
         </Select>
       </div>
       <div className="flex items-center gap-2">
-        <span>{start}–{end} de {total}</span>
+        <span>{t("rangeOf", { start, end, total })}</span>
         <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage <= 1} onClick={() => onPageChange(safePage - 1)}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span>Página {safePage}/{totalPages}</span>
+        <span>{t("pageOf", { page: safePage, total: totalPages })}</span>
         <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={safePage >= totalPages} onClick={() => onPageChange(safePage + 1)}>
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -176,22 +178,14 @@ function referrerName(u?: string | null) {
   } catch { return u; }
 }
 
-const CONVERSION_LABELS: Record<string, string> = {
-  whatsapp_tracking_code: "WhatsApp (código)",
-  whatsapp_redirect: "WhatsApp (redirect)",
-  whatsapp_click: "WhatsApp (clique)",
-  whatsapp_intent_recent_unique: "WhatsApp (intent)",
-  whatsapp_event_recent_unique: "WhatsApp (clique)",
-  ctwa_clid: "Anúncio WhatsApp (ctwa)",
-  phone_hash_existing: "Telefone conhecido",
-  partial_form_capture: "Formulário (parcial)",
-  form_submit_attempt: "Formulário (envio)",
-  form_submit: "Formulário (envio)",
-  manual: "Manual",
-};
-function labelConversion(src?: string | null) {
+const CONVERSION_KEYS = new Set([
+  "whatsapp_tracking_code","whatsapp_redirect","whatsapp_click",
+  "whatsapp_intent_recent_unique","whatsapp_event_recent_unique","ctwa_clid",
+  "phone_hash_existing","partial_form_capture","form_submit_attempt","form_submit","manual",
+]);
+function labelConversion(src: string | null | undefined, t: (k: string) => string) {
   if (!src) return "—";
-  return CONVERSION_LABELS[src] ?? src;
+  return CONVERSION_KEYS.has(src) ? t(`convLabel.${src}`) : src;
 }
 function isWhatsappSource(src?: string | null) {
   if (!src) return false;
@@ -241,6 +235,7 @@ function StagePicker({
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
+  const { t } = useTranslation("tracking");
   const entries = Object.entries(stages).sort((a, b) => a[1].name.localeCompare(b[1].name));
   const selSet = new Set(selected);
   const toggle = (id: string) => {
@@ -250,10 +245,10 @@ function StagePicker({
     onChange(Array.from(next));
   };
   const summary = selected.length === 0
-    ? "Nenhum selecionado"
+    ? t("noneSelected")
     : selected.length <= 2
       ? selected.map((id) => stages[id]?.name ?? id).join(", ")
-      : `${selected.length} estágios selecionados`;
+      : t("stagesSelected", { count: selected.length });
   return (
     <div>
       <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
@@ -273,13 +268,13 @@ function StagePicker({
                 className="text-[11px] text-muted-foreground hover:text-foreground"
                 onClick={() => onChange([])}
               >
-                Limpar
+                {t("clear")}
               </button>
             )}
           </div>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {entries.length === 0 && (
-              <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum estágio.</p>
+              <p className="px-2 py-3 text-xs text-muted-foreground">{t("noStages")}</p>
             )}
             {entries.map(([id, s]) => (
               <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
@@ -334,6 +329,7 @@ function suggestStageConfig(stages: Record<string, { name: string; color: string
 
 
 export default function Tracking() {
+  const { t, i18n } = useTranslation("tracking");
   const [periodMode, setPeriodMode] = useState<PeriodMode>({ kind: "last", days: 7 });
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
@@ -611,11 +607,9 @@ export default function Tracking() {
     const link = links[visitorId];
     const leadId = link?.lead_id as string | undefined;
     const ok = await confirm({
-      title: "Remover registro?",
-      description: leadId
-        ? "Isso vai apagar o visitante (eventos, sessões, vínculos) E o lead associado. Ação irreversível."
-        : "Isso vai apagar o visitante e todos os eventos/sessões. Ação irreversível.",
-      confirmLabel: "Remover",
+      title: t("removeRecord"),
+      description: leadId ? t("removeWithLead") : t("removeOnly"),
+      confirmLabel: t("remove"),
       destructive: true,
     });
     if (!ok) return;
@@ -630,13 +624,13 @@ export default function Tracking() {
         const { error: lErr } = await supabase.from("leads").delete().eq("id", leadId);
         if (lErr) throw lErr;
       }
-      toast.success("Registro removido");
+      toast.success(t("removed"));
       // remoção local imediata + reload em background
       setVisitors((prev) => prev.filter((v) => v.visitor_id !== visitorId));
       setLinks((prev) => { const n = { ...prev }; delete n[visitorId]; return n; });
       load();
     } catch (e: any) {
-      toast.error("Erro ao remover: " + (e?.message ?? "desconhecido"));
+      toast.error(t("removeError", { msg: e?.message ?? t("unknown") }));
     }
   };
 
@@ -730,7 +724,7 @@ export default function Tracking() {
     return Object.values(links).map((l) => {
       const v = visitors.find((x) => x.visitor_id === l.visitor_id);
       // Prefer the authoritative link source (set by tracking-identify / webhook).
-      const sourceLabel = labelConversion(l.link_source);
+      const sourceLabel = labelConversion(l.link_source, (k) => t(k));
       // For the conversion page, find the closest matching event near link.created_at.
       const linkedAt = l.linked_at ? new Date(l.linked_at).getTime() : (l.created_at ? new Date(l.created_at).getTime() : 0);
       const candidates = events.filter((e) => e.visitor_id === l.visitor_id && CONV_EVENTS.has(e.event_name));
@@ -742,7 +736,7 @@ export default function Tracking() {
       return {
         link: l,
         visitor: v,
-        conversionEvent: sourceLabel !== "—" ? sourceLabel : labelConversion(conversion?.event_name),
+        conversionEvent: sourceLabel !== "—" ? sourceLabel : labelConversion(conversion?.event_name, (k) => t(k)),
         conversionPage: conversion ? pathOf(conversion.page_url) : "—",
         isWhatsapp: isWhatsappSource(l.link_source) || conversion?.event_name?.startsWith("whatsapp_"),
         stage: l.leads?.stage_id ? stages[l.leads.stage_id]?.name ?? "—" : "—",
@@ -783,25 +777,25 @@ export default function Tracking() {
     <div className="h-full overflow-auto p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Tracking</h1>
-          <p className="text-sm text-muted-foreground">Visão geral consolidada de visitantes, sessões, eventos e conversão em leads.</p>
+          <h1 className="text-2xl font-semibold">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           {debugAvailable && (
             <>
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> Debug
+                <Checkbox checked={debugMode} onCheckedChange={(v) => setDebugMode(!!v)} /> {t("debug")}
               </label>
               {debugMode && (
                 <Button asChild size="sm" variant="outline">
-                  <RouterLink to="/tracking-debug">Auditoria / Debug</RouterLink>
+                  <RouterLink to="/tracking-debug">{t("auditDebug")}</RouterLink>
                 </Button>
               )}
             </>
           )}
           <Button onClick={load} disabled={loading} size="sm">
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Atualizar dados
+            {t("refresh")}
           </Button>
         </div>
       </div>
@@ -809,9 +803,9 @@ export default function Tracking() {
       {/* Filtros globais */}
       <Card className="mb-4">
         <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-sm">Filtros globais</CardTitle>
+          <CardTitle className="text-sm">{t("filtersTitle")}</CardTitle>
           <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setFiltersOpen((o) => !o)}>
-            {filtersOpen ? "Ocultar" : "Expandir"}
+            {filtersOpen ? t("hide") : t("expand")}
             <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
           </Button>
         </CardHeader>
@@ -820,36 +814,36 @@ export default function Tracking() {
           {/* Período agora fica fixo acima das KPIs */}
 
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">event_name</label>
-            <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder="ex: page_view" />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("eventNameLabel")}</label>
+            <Input value={eventNameFilter} onChange={(e) => setEventNameFilter(e.target.value)} placeholder={t("eventNamePlaceholder")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">visitor_id</label>
-            <Input value={visitorFilter} onChange={(e) => setVisitorFilter(e.target.value)} placeholder="parcial..." />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("visitorIdLabel")}</label>
+            <Input value={visitorFilter} onChange={(e) => setVisitorFilter(e.target.value)} placeholder={t("partial")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">lead_id</label>
-            <Input value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)} placeholder="parcial..." />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("leadIdLabel")}</label>
+            <Input value={leadFilter} onChange={(e) => setLeadFilter(e.target.value)} placeholder={t("partial")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">page_url</label>
-            <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder="parcial..." />
+            <label className="mb-1 block text-xs text-muted-foreground">{t("pageUrlLabel")}</label>
+            <Input value={pageUrlFilter} onChange={(e) => setPageUrlFilter(e.target.value)} placeholder={t("partial")} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Etapa do Funil</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("funnelStage")}</label>
             <Select value={stageFilter} onValueChange={setStageFilter}>
-              <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("all")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">Todas</SelectItem>
+                <SelectItem value="__all__">{t("all")}</SelectItem>
                 {Object.entries(stages).map(([id, s]) => <SelectItem key={id} value={id}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="col-span-full flex flex-wrap gap-4 pt-2">
-            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyAnon} onCheckedChange={(v) => setOnlyAnon(!!v)} /> Apenas anônimos</label>
-            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyLeads} onCheckedChange={(v) => setOnlyLeads(!!v)} /> Apenas viraram lead</label>
-            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyWhatsapp} onCheckedChange={(v) => setOnlyWhatsapp(!!v)} /> Com clique no WhatsApp</label>
-            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyForm} onCheckedChange={(v) => setOnlyForm(!!v)} /> Com formulário</label>
+            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyAnon} onCheckedChange={(v) => setOnlyAnon(!!v)} /> {t("onlyAnon")}</label>
+            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyLeads} onCheckedChange={(v) => setOnlyLeads(!!v)} /> {t("onlyLeads")}</label>
+            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyWhatsapp} onCheckedChange={(v) => setOnlyWhatsapp(!!v)} /> {t("onlyWhatsapp")}</label>
+            <label className="flex items-center gap-2 text-xs"><Checkbox checked={onlyForm} onCheckedChange={(v) => setOnlyForm(!!v)} /> {t("onlyForm")}</label>
           </div>
         </CardContent>
         )}
@@ -860,10 +854,8 @@ export default function Tracking() {
       <Card className="mb-4">
         <CardHeader className="pb-2 flex flex-row items-start justify-between gap-3 space-y-0">
           <div>
-            <CardTitle className="text-sm">Configuração de fechamento</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Selecione o pipeline oficial de vendas e os estágios que contam como cada categoria. A escolha fica salva no navegador.
-            </p>
+            <CardTitle className="text-sm">{t("configTitle")}</CardTitle>
+            <p className="text-xs text-muted-foreground">{t("configSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             {configOpen && (
@@ -873,16 +865,14 @@ export default function Tracking() {
                 onClick={() => {
                   const s = suggestStageConfig(salesStages);
                   saveStageConfig(s);
-                  toast.success(
-                    `Sugestão aplicada: ${s.consulta.length} consulta · ${s.tratamento.length} tratamento · ${s.nutricao.length} nutrição`,
-                  );
+                  toast.success(t("suggestionApplied", { consulta: s.consulta.length, tratamento: s.tratamento.length, nutricao: s.nutricao.length }));
                 }}
               >
-                Sugerir automaticamente
+                {t("suggestAuto")}
               </Button>
             )}
             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfigOpen((o) => !o)}>
-              {configOpen ? "Ocultar" : "Expandir"}
+              {configOpen ? t("hide") : t("expand")}
               <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${configOpen ? "rotate-180" : ""}`} />
             </Button>
           </div>
@@ -892,13 +882,13 @@ export default function Tracking() {
         <CardContent className="space-y-3">
 
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Pipeline oficial de vendas</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("salesPipelineLabel")}</label>
             <Select value={salesPipelineId} onValueChange={onSelectSalesPipeline}>
-              <SelectTrigger className="md:w-[360px]"><SelectValue placeholder="Selecione um pipeline" /></SelectTrigger>
+              <SelectTrigger className="md:w-[360px]"><SelectValue placeholder={t("selectPipeline")} /></SelectTrigger>
               <SelectContent>
                 {pipelines.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name}{p.is_default ? " (padrão)" : ""}
+                    {p.name}{p.is_default ? t("defaultTag") : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -906,19 +896,19 @@ export default function Tracking() {
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <StagePicker
-              label="Consulta fechada"
+              label={t("consultaClosed")}
               stages={salesStages}
               selected={stageConfig.consulta}
               onChange={(ids) => saveStageConfig({ ...stageConfig, consulta: ids })}
             />
             <StagePicker
-              label="Tratamento fechado"
+              label={t("tratamentoClosed")}
               stages={salesStages}
               selected={stageConfig.tratamento}
               onChange={(ids) => saveStageConfig({ ...stageConfig, tratamento: ids })}
             />
             <StagePicker
-              label="Não converteu / nutrição"
+              label={t("nutricaoLabel")}
               stages={salesStages}
               selected={stageConfig.nutricao}
               onChange={(ids) => saveStageConfig({ ...stageConfig, nutricao: ids })}
@@ -936,7 +926,7 @@ export default function Tracking() {
         for (let i = 0; i < 24; i++) {
           const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
           const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          const label = d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+          const label = d.toLocaleDateString(i18n.language, { month: "short", year: "numeric" });
           months.push({ value: ym, label: label.charAt(0).toUpperCase() + label.slice(1) });
         }
         const isActive = (k: PeriodMode["kind"], days?: number) =>
@@ -948,19 +938,19 @@ export default function Tracking() {
         );
         return (
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Período:</span>
-            {chip("Hoje", isActive("today"), () => setPeriodMode({ kind: "today" }))}
-            {chip("7 dias", isActive("last", 7), () => setPeriodMode({ kind: "last", days: 7 }))}
-            {chip("30 dias", isActive("last", 30), () => setPeriodMode({ kind: "last", days: 30 }))}
-            {chip("Máximo", isActive("max"), () => setPeriodMode({ kind: "max" }))}
+            <span className="text-xs text-muted-foreground">{t("period")}</span>
+            {chip(t("today"), isActive("today"), () => setPeriodMode({ kind: "today" }))}
+            {chip(t("days7"), isActive("last", 7), () => setPeriodMode({ kind: "last", days: 7 }))}
+            {chip(t("days30"), isActive("last", 30), () => setPeriodMode({ kind: "last", days: 30 }))}
+            {chip(t("max"), isActive("max"), () => setPeriodMode({ kind: "max" }))}
             <div className="ml-2 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Mês:</span>
+              <span className="text-xs text-muted-foreground">{t("month")}</span>
               <Select
                 value={periodMode.kind === "month" ? periodMode.ym : ""}
                 onValueChange={(v) => setPeriodMode({ kind: "month", ym: v })}
               >
                 <SelectTrigger className="h-8 w-[180px]" disabled={loading}>
-                  <SelectValue placeholder="Selecionar mês" />
+                  <SelectValue placeholder={t("selectMonth")} />
                 </SelectTrigger>
                 <SelectContent>
                   {months.map((m) => (
@@ -976,34 +966,34 @@ export default function Tracking() {
       {/* KPIs focados */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
 
-        <KpiCard label="Visitas únicas" value={kpis.visitors} loading={loading} />
-        <KpiCard label="Leads via formulário" value={kpis.formLeads} hint={`${kpis.formNoWa} sem WhatsApp`} loading={loading} />
-        <KpiCard label="Leads via WhatsApp" value={kpis.waLeads} loading={loading} />
+        <KpiCard label={t("kpiVisitors")} value={kpis.visitors} loading={loading} />
+        <KpiCard label={t("kpiFormLeads")} value={kpis.formLeads} hint={t("kpiFormNoWa", { count: kpis.formNoWa })} loading={loading} />
+        <KpiCard label={t("kpiWaLeads")} value={kpis.waLeads} loading={loading} />
 
-        <KpiCard label="Total de leads" value={kpis.totalLeads} loading={loading} />
+        <KpiCard label={t("kpiTotalLeads")} value={kpis.totalLeads} loading={loading} />
         <KpiCard
-          label="Fechou consulta"
+          label={t("kpiConsulta")}
           value={kpis.consulta.total}
-          hint={`${kpis.consulta.wa} WhatsApp · ${kpis.consulta.form} Form`}
+          hint={t("kpiHint", { wa: kpis.consulta.wa, form: kpis.consulta.form })}
           loading={loading}
         />
         <KpiCard
-          label="Fechou tratamento"
+          label={t("kpiTratamento")}
           value={kpis.tratamento.total}
-          hint={`${kpis.tratamento.wa} WhatsApp · ${kpis.tratamento.form} Form`}
+          hint={t("kpiHint", { wa: kpis.tratamento.wa, form: kpis.tratamento.form })}
           loading={loading}
         />
         <KpiCard
-          label="Converteu (total)"
+          label={t("kpiConverteu")}
           value={kpis.converteu.total}
-          hint={`${kpis.converteu.wa} WhatsApp · ${kpis.converteu.form} Form`}
+          hint={t("kpiHint", { wa: kpis.converteu.wa, form: kpis.converteu.form })}
           highlight
           loading={loading}
         />
         <KpiCard
-          label="Não converteu (nutrição)"
+          label={t("kpiNutricao")}
           value={kpis.nutricao.total}
-          hint={`${kpis.nutricao.wa} WhatsApp · ${kpis.nutricao.form} Form`}
+          hint={t("kpiHint", { wa: kpis.nutricao.wa, form: kpis.nutricao.form })}
           loading={loading}
         />
       </div>
@@ -1014,10 +1004,10 @@ export default function Tracking() {
       <Tabs defaultValue="visitors">
 
         <TabsList>
-          <TabsTrigger value="visitors">Visitantes</TabsTrigger>
-          <TabsTrigger value="pages">Páginas</TabsTrigger>
-          <TabsTrigger value="events">Eventos</TabsTrigger>
-          <TabsTrigger value="leads">Leads com origem</TabsTrigger>
+          <TabsTrigger value="visitors">{t("tabVisitors")}</TabsTrigger>
+          <TabsTrigger value="pages">{t("tabPages")}</TabsTrigger>
+          <TabsTrigger value="events">{t("tabEvents")}</TabsTrigger>
+          <TabsTrigger value="leads">{t("tabLeads")}</TabsTrigger>
         </TabsList>
 
 
@@ -1025,25 +1015,25 @@ export default function Tracking() {
         {/* Visitantes */}
         <TabsContent value="visitors">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Visitantes ({filteredVisitors.length})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t("visitorsTitle", { count: filteredVisitors.length })}</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12 text-right">#</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Página</TableHead>
-                    <TableHead>Referrer</TableHead>
-                    <TableHead className="text-center" title="Clique no botão OU redirect rastreado para WhatsApp">WA</TableHead>
-                    <TableHead className="text-center" title="form_start ou captura parcial de formulário">Form</TableHead>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Etapa do Funil</TableHead>
+                    <TableHead>{t("thDate")}</TableHead>
+                    <TableHead>{t("thPage")}</TableHead>
+                    <TableHead>{t("thReferrer")}</TableHead>
+                    <TableHead className="text-center" title={t("thWaTitle")}>{t("thWa")}</TableHead>
+                    <TableHead className="text-center" title={t("thFormTitle")}>{t("thForm")}</TableHead>
+                    <TableHead>{t("thLead")}</TableHead>
+                    <TableHead>{t("funnelStage")}</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredVisitors.length === 0 && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">Nenhum visitante encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">{t("noVisitors")}</TableCell></TableRow>
                   )}
                   {filteredVisitors.slice((visitorsPage - 1) * pageSize, visitorsPage * pageSize).map((v, idx) => {
                     const f = vFlags[v.visitor_id];
@@ -1064,15 +1054,15 @@ export default function Tracking() {
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
-                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fs ? <Badge className="bg-sky-400 hover:bg-sky-400 text-white border-transparent">sim</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">{t("yes")}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{f?.fs ? <Badge className="bg-sky-400 hover:bg-sky-400 text-white border-transparent">{t("yes")}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
                           {link ? (
                             <div className="flex items-center gap-1 flex-wrap">
                               {isWhatsappSource(link.link_source) ? (
                                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
                               ) : (
-                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent">sim</Badge>
+                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent">{t("yes")}</Badge>
                               )}
                             </div>
                           ) : <span className="text-muted-foreground">—</span>}
@@ -1085,7 +1075,7 @@ export default function Tracking() {
                             <Button size="sm" variant="ghost" onClick={() => openJourney(v.visitor_id)}>
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => deleteVisitor(v.visitor_id)} title="Remover registro (e lead, se houver)">
+                            <Button size="sm" variant="ghost" onClick={() => deleteVisitor(v.visitor_id)} title={t("removeRecordTitle")}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
@@ -1103,20 +1093,20 @@ export default function Tracking() {
         {/* Páginas */}
         <TabsContent value="pages">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Páginas ({pageReport.length})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t("pagesTitle", { count: pageReport.length })}</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Página</TableHead>
-                    <TableHead className="text-right">Visitas</TableHead>
-                    <TableHead className="text-right">Leads</TableHead>
-                    <TableHead className="text-right">Conversão</TableHead>
+                    <TableHead>{t("thPage")}</TableHead>
+                    <TableHead className="text-right">{t("thVisits")}</TableHead>
+                    <TableHead className="text-right">{t("thLeads")}</TableHead>
+                    <TableHead className="text-right">{t("thConversion")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pageReport.length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Sem page_views no período.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">{t("noPageViews")}</TableCell></TableRow>
                   )}
                   {pageReport.slice((pagesPage - 1) * pageSize, pagesPage * pageSize).map((r) => (
                     <TableRow key={r.path}>
@@ -1141,7 +1131,7 @@ export default function Tracking() {
 
         <TabsContent value="events">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Eventos ({events.length})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t("eventsTitle", { count: events.length })}</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1158,7 +1148,7 @@ export default function Tracking() {
                 </TableHeader>
                 <TableBody>
                   {events.length === 0 && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhum evento encontrado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">{t("noEvents")}</TableCell></TableRow>
                   )}
                   {events.slice((eventsPage - 1) * pageSize, eventsPage * pageSize).map((e) => (
                     <TableRow key={e.id}>
@@ -1178,7 +1168,7 @@ export default function Tracking() {
               </Table>
               <Pagination page={eventsPage} pageSize={pageSize} total={events.length} onPageChange={setEventsPage} onPageSizeChange={setPageSize} />
               {allEventNames.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">Eventos encontrados no período: {allEventNames.join(", ")}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("eventsInPeriod", { names: allEventNames.join(", ") })}</p>
               )}
             </CardContent>
           </Card>
@@ -1187,26 +1177,26 @@ export default function Tracking() {
         {/* Leads com origem */}
         <TabsContent value="leads">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Leads com origem ({leadsWithOrigin.length})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{t("leadsTitle", { count: leadsWithOrigin.length })}</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Lead</TableHead>
+                    <TableHead>{t("thLead")}</TableHead>
                     <TableHead>visitor_id</TableHead>
-                    <TableHead>Criado</TableHead>
-                    <TableHead>1ª visita</TableHead>
-                    <TableHead>1ª página</TableHead>
-                    <TableHead>Página conversão</TableHead>
-                    <TableHead>Referrer</TableHead>
-                    <TableHead>Evento conv.</TableHead>
-                    <TableHead>Etapa do Funil</TableHead>
+                    <TableHead>{t("thCreated")}</TableHead>
+                    <TableHead>{t("thFirstVisit")}</TableHead>
+                    <TableHead>{t("thFirstPage")}</TableHead>
+                    <TableHead>{t("thConvPage")}</TableHead>
+                    <TableHead>{t("thReferrer")}</TableHead>
+                    <TableHead>{t("thConvEvent")}</TableHead>
+                    <TableHead>{t("funnelStage")}</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {leadsWithOrigin.length === 0 && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Nenhum lead vinculado.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">{t("noLinkedLeads")}</TableCell></TableRow>
                   )}
                   {leadsWithOrigin.slice((leadsPage - 1) * pageSize, leadsPage * pageSize).map(({ link, visitor, conversionEvent, conversionPage, stage, isWhatsapp }) => (
                     <TableRow key={link.lead_id + link.visitor_id}>
@@ -1254,19 +1244,19 @@ export default function Tracking() {
       {/* Jornada modal */}
       <Dialog open={!!journeyVisitor} onOpenChange={(o) => { if (!o) { setJourneyVisitor(null); setJourneyData(null); } }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-auto">
-          <DialogHeader><DialogTitle className="font-mono text-sm">Jornada — {journeyVisitor}</DialogTitle></DialogHeader>
-          {journeyLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          <DialogHeader><DialogTitle className="font-mono text-sm">{t("journeyTitle", { visitor: journeyVisitor })}</DialogTitle></DialogHeader>
+          {journeyLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
           {journeyData && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
-                <div><div className="text-muted-foreground">1ª visita</div><div>{fmtTime(journeyData.visitor?.first_seen_at)}</div></div>
-                <div><div className="text-muted-foreground">Última visita</div><div>{fmtTime(journeyData.visitor?.last_seen_at)}</div></div>
-                <div><div className="text-muted-foreground">Sessões</div><div>{journeyData.sessions.length}</div></div>
-                <div><div className="text-muted-foreground">Eventos</div><div>{journeyData.events.length}</div></div>
+                <div><div className="text-muted-foreground">{t("firstVisit")}</div><div>{fmtTime(journeyData.visitor?.first_seen_at)}</div></div>
+                <div><div className="text-muted-foreground">{t("lastVisit")}</div><div>{fmtTime(journeyData.visitor?.last_seen_at)}</div></div>
+                <div><div className="text-muted-foreground">{t("sessions")}</div><div>{journeyData.sessions.length}</div></div>
+                <div><div className="text-muted-foreground">{t("eventsLabel")}</div><div>{journeyData.events.length}</div></div>
               </div>
               {journeyVisitor && links[journeyVisitor] && (
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Lead vinculado</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{t("linkedLead")}</CardTitle></CardHeader>
                   <CardContent className="pt-0 text-sm">
                     <RouterLink to={`/?lead=${links[journeyVisitor].lead_id}`} className="text-primary hover:underline inline-flex items-center gap-1">
                       {links[journeyVisitor].leads?.name || links[journeyVisitor].lead_id} <ExternalLink className="h-3 w-3" />
@@ -1275,7 +1265,7 @@ export default function Tracking() {
                 </Card>
               )}
               <div>
-                <h4 className="mb-2 text-sm font-semibold">Linha do tempo</h4>
+                <h4 className="mb-2 text-sm font-semibold">{t("timeline")}</h4>
                 <div className="space-y-1">
                   {journeyData.events.map((e) => (
                     <div key={e.id} className="flex items-start gap-3 rounded border p-2 text-xs">
@@ -1284,13 +1274,13 @@ export default function Tracking() {
                       <span className="flex-1 truncate">{e.page_url}</span>
                     </div>
                   ))}
-                  {journeyData.events.length === 0 && <p className="text-xs text-muted-foreground">Sem eventos.</p>}
+                  {journeyData.events.length === 0 && <p className="text-xs text-muted-foreground">{t("noEventsShort")}</p>}
                 </div>
               </div>
               <div>
-                <h4 className="mb-2 text-sm font-semibold">Sessões</h4>
+                <h4 className="mb-2 text-sm font-semibold">{t("sessions")}</h4>
                 <Table>
-                  <TableHeader><TableRow><TableHead>Início</TableHead><TableHead>Landing</TableHead><TableHead>Referrer</TableHead><TableHead>Source</TableHead><TableHead>Device</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Início</TableHead><TableHead>Landing</TableHead><TableHead>{t("thReferrer")}</TableHead><TableHead>Source</TableHead><TableHead>Device</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {journeyData.sessions.map((s) => (
                       <TableRow key={s.session_id}>
