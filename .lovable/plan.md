@@ -1,47 +1,52 @@
-## Diagnóstico
+## Objetivo
 
-Pelo print, você está no menu de três pontos da coluna. Hoje a configuração de IA ficou escondida dentro de **Editar etapa → aba IA**. Ou seja: tecnicamente existe no código, mas a experiência ficou confusa e não dá para ligar o agente direto desse menu.
+Em **Métricas → IA (Custos)** hoje o painel `PipelineOverview` mostra só os 5 agentes do classifier (`classifier:summarizer/agendador/typifier/movimentador/maestro`). O agente de atendimento (Febracis e similares, via `ai-chat`/`ai-auto-reply`) já grava em `ai_usage`, mas fica "escondido" na tabela bruta e fora do hero de custo/lead. Vamos consolidar os dois mundos na mesma tela.
 
-Também vou validar se o salvamento está conseguindo gravar no backend e se a função que responde mensagens está lendo esse vínculo corretamente.
+## Fases
 
-## Plano
+### Fase 1 — Garantir telemetria completa do atendimento
+**Arquivos:** `supabase/functions/ai-chat/index.ts`, `supabase/functions/ai-auto-reply/index.ts`, `supabase/functions/_shared/metrics.ts`
 
-1. **Adicionar ação direta no menu da coluna**
-   - Incluir uma opção visível: **Configurar IA**.
-   - Ao clicar, abrir o modal direto na aba **IA**, sem precisar passar por “Editar etapa”.
+- Conferir que toda chamada do `ai-chat` registra `operation = "agent:reply"` (hoje grava como `chat` genérico) e propaga `agent_id`, `lead_id`, `provider`, `model`, `cost_usd`, `latency_ms`, `status`.
+- Em `ai-auto-reply`, registrar 1 linha de telemetria por execução (mesmo quando `skipped`), com `source = "auto-reply"` e `agent_step = "dispatch"` — hoje só o `ai-chat` interno loga.
+- Padronizar `source`: `"agent-runtime"` para respostas reais; `"agent-tool"` para chamadas de tool (KB, mover stage). Isso permite separar custo de "responder" vs "ferramentas internas".
+- Materializar `cost_usd` no insert via `calcCostUsd` (já existe em `_shared/ai-pricing.ts`).
 
-2. **Melhorar o modal de edição da etapa**
-   - Permitir abrir o modal já na aba **IA**.
-   - Manter a aba **Geral** para nome/cor da coluna.
-   - Mostrar estados claros:
-     - carregando agentes;
-     - nenhum agente ativo encontrado;
-     - erro ao carregar/salvar;
-     - agente selecionado mas auto-resposta desligada.
+### Fase 2 — Novo painel "Atendimento" em Custos → IA
+**Arquivos novos:** `src/components/ai/usage/AgentRuntimeOverview.tsx`
+**Arquivos editados:** `src/pages/MetricsAiUsage.tsx` (adicionar aba/abas), `src/components/ai/usage/PipelineOverview.tsx` (refactor leve)
 
-3. **Salvar vínculo com segurança**
-   - Ao selecionar agente + ligar auto-resposta, gravar em `stage_ai_defaults`.
-   - Ao selecionar “Nenhum”, remover/desligar o vínculo da etapa.
-   - Atualizar o chip visual no cabeçalho da coluna logo após salvar.
+- Adicionar uma 2ª aba `Tabs` na página: **Pipeline (classifier)** | **Atendimento (agentes)**.
+- `AgentRuntimeOverview` consulta `ai_usage` filtrando `operation IN ('agent:reply','agent:tool')` nas últimas 24h/7d/30d e exibe:
+  - Hero: custo total, custo por resposta, respostas enviadas, tokens, erros.
+  - Quebra por agente (`agent_id` → nome de `ai_agents`): chamadas, custo, latência p50/p95, taxa de erro.
+  - Quebra por modelo/provider (gemini vs openai/lovable).
+  - Top 10 leads mais caros nas 24h (lead → custo acumulado → link `/inbox`).
+  - Linha do tempo simples (recharts) de custo por hora.
 
-4. **Verificar o fluxo real de atendimento**
-   - Conferir se `ai-auto-reply` usa exatamente esse vínculo da etapa.
-   - Confirmar que o agente só atende quando:
-     - a coluna tem agente configurado;
-     - auto-resposta está ligada;
-     - o lead está nessa coluna;
-     - a mensagem veio do cliente, não do bot/humano.
+### Fase 3 — Consolidar visão total
+**Arquivos:** `src/pages/MetricsAiUsage.tsx`, possível view SQL nova.
 
-5. **Validação final**
-   - Testar no Kanban:
-     - abrir menu da coluna;
-     - clicar **Configurar IA**;
-     - selecionar **Atendimento Febracis**;
-     - ligar auto-resposta;
-     - salvar;
-     - confirmar chip no header da coluna;
-     - confirmar que o backend tem o vínculo salvo.
+- Acima das abas, um "Hero geral": **Custo IA total = Pipeline + Atendimento + Embeddings** (mesmo recorte de data dos filtros do topo).
+- Opcional: criar view `v_ai_cost_by_surface_daily` agregando por (`day`, `surface`) onde `surface` é derivado de `source/operation` (`pipeline`, `agent-runtime`, `ingest`, `support`). Útil para o card de KPI no Admin → Pipeline Health também.
 
-## Resultado esperado
+### Fase 4 — Limites e alertas
+**Arquivos:** `src/components/agents/CostsPanel.tsx`, `src/components/admin/AiSpendLimitCard.tsx`
 
-Você vai conseguir ligar o agente direto pela coluna, sem precisar procurar uma aba escondida, e o CRM só vai ativar atendimento automático nas etapas que você escolher manualmente.
+- `CostsPanel` do agente já soma de `ai_usage` por `agent_id` — confirmar que a Fase 1 não quebra o filtro.
+- `AiSpendLimitCard`: hoje conta tudo. Adicionar quebra textual "X% pipeline / Y% atendimento" para o usuário entender onde gastou.
+
+### Fase 5 — Docs
+- Atualizar `docs/pipeline/runtime/EVENTS_TELEMETRY.md` listando `operation` novos.
+- Anotar em `docs/agents/FEBRACIS_PRI.md` que o custo aparece em Métricas → IA → Atendimento.
+
+## Detalhes técnicos
+
+- `ai_usage` já tem todas as colunas necessárias (`agent_id`, `cost_usd`, `provider`, `operation`, `source`). Nada de migration obrigatória — só padronização de valores.
+- Filtro RLS já restringe por `clinic_id`, ok para clínicas.
+- Nenhuma mudança visual no `PipelineOverview` atual além de virar conteúdo de aba.
+
+## Fora de escopo
+- Reescrita das views `v_ai_cost_daily` / `v_classify_health_daily`.
+- BYOK billing por usuário individual.
+- Forecast de custo mensal (pode virar Fase 6 depois).
