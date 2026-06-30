@@ -822,7 +822,7 @@ function ScopeDialog({
   useEffect(() => {
     if (!open || !clinicId) return;
     let active = true;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setLoadingLeads(true);
       let q = supabase
         .from("leads")
@@ -840,7 +840,7 @@ function ScopeDialog({
       setLeads((data ?? []) as LeadOpt[]);
       setLoadingLeads(false);
     }, 250);
-    return () => { active = false; clearTimeout(t); };
+    return () => { active = false; clearTimeout(timer); };
   }, [open, clinicId, pipelineId, stageId, leadSearch]);
 
   const selectedCount = Object.keys(selectedLeads).length;
