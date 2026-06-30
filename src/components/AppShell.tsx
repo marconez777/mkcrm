@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import mkLogo from "@/assets/mk-logo.png";
+import brandIcon from "@/assets/chat-funnel-ai-ico.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
 import SupportChatFab from "@/components/support/SupportChatFab";
@@ -222,7 +222,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
           <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border/40 bg-sidebar-accent/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
-            <img src={mkLogo} alt="Chat Funnel AI" className="h-8 w-8 object-contain" />
+            <img src={brandIcon} alt="Chat Funnel AI" className="h-8 w-8 object-contain" />
           </div>
           <div className="min-w-0">
             <div className="text-[13px] font-semibold leading-none tracking-tight text-sidebar-foreground">Chat Funnel AI</div>

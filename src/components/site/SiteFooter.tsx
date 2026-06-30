@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Phone } from "lucide-react";
-import mkLogo from "@/assets/mk-logo.png";
+import brandLockup from "@/assets/chat-funnel-ai-500.png";
 
 const COLS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -38,9 +38,8 @@ export default function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
-            <Link to="/site" className="flex items-center gap-2 text-site-text">
-              <img src={mkLogo} alt="Chat Funnel AI" className="h-8 w-8 rounded-lg object-cover" />
-              <span className="site-font-display text-base font-semibold">Chat Funnel AI</span>
+            <Link to="/site" className="flex items-center text-site-text">
+              <img src={brandLockup} alt="Chat Funnel AI" className="h-8 w-auto object-contain" />
             </Link>
             {/* TODO: copy final */}
             <p className="site-font-body mt-4 max-w-sm text-[15px] leading-relaxed text-site-muted">
