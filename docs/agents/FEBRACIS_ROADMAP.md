@@ -1,89 +1,155 @@
+---
+title: "Roadmap — Refinamento do Agente Atendimento Febracis"
+topic: ai
+kind: roadmap
+audience: agent
+updated: 2026-06-30
+summary: "Roadmap de refinamento do agente Febracis: encurtar mensagens, remover emoticons, adicionar técnicas de copy, follow-up, personalização e guardrails."
+code_refs:
+  - supabase/functions/ai-auto-reply/
+  - supabase/functions/_shared/agent-response-validator.ts
+related_docs:
+  - docs/agents/FEBRACIS_ATENDIMENTO.md
+  - docs/agents/FEBRACIS_PRI.md
+  - docs/agents/TRAINING_FRAMEWORK.md
+---
+
 # Roadmap — Agente "Atendimento Febracis"
 
 Agente: `907eb5e2-cb19-4d54-a9d3-97821374cd84`
 Tenant: `ab2f4484-886c-48f2-bfc6-0651d062c575` (febracis-pri)
-Provider: Google Gemini (BYOK) · model `gemini-2.5-flash`
+Provider: Google Gemini BYOK · `gemini-2.5-flash`
+
+> Histórico de Fases 1–3 (config base, guardrails, loop A/B) — ver versão anterior deste arquivo no git. Daqui pra frente o foco mudou para **qualidade conversacional**, baseado no smoke test 30/06 com o Marco MK.
 
 ---
 
 ## Fase 1 — Configuração base ✅
 
-Tudo aplicado via migration. Estado atual:
-
-- [x] Prompt do sistema integral (11.254 chars, todas as 15 seções do playbook).
-- [x] Debounce ajustado de 8s → **4s**.
-- [x] 4 personas de teste criadas (Carla VIP · Roberto objeção · Marina cético · João escalar humano).
-- [x] 4 conversation stages internos criados (Abertura · Qualificação · Oferta · Fechamento) com `allowed_tools` por etapa.
-- [x] 6 documentos da KB populados com o playbook real (Abertura · Qualificação · Conversão · Objeções · Humano · Tom).
-- [ ] **Re-save manual dos 6 docs** na UI para disparar o reembedding (a função `ai-reingest-document` exige sessão de usuário).
-- [ ] Toggle `stages_enabled=true` no agente — só ligar depois de validar no Test Lab.
-
----
-
-## Como ligar o agente em produção
-
-Há binding por estágio do funil (tabela `stage_ai_defaults`). Ele controla se o `ai-auto-reply` chama o agente quando um lead manda mensagem.
-
-Pela UI:
-
-1. Kanban → coluna desejada → menu `⋯` → **Editar etapa**.
-2. Aba **IA** → selecionar **Atendimento Febracis** no select.
-3. Ligar o switch **Responder automaticamente**.
-4. Salvar.
-
-Repetir para cada estágio onde o agente deve atuar. O header da coluna passa a mostrar o chip `✨ Atendimento Febracis` quando o binding está ativo.
-
-> Sem esse binding o `ai-auto-reply` retorna `{ skipped: true, reason: "not-enabled" }` e o agente nunca responde — foi o que travou o teste do Marco MK em 30/06.
-
----
+- [x] Prompt do sistema integral (15 seções do playbook).
+- [x] Debounce 4s.
+- [x] 4 personas de teste · 4 stages internos · 6 KB docs.
+- [ ] Re-save manual dos 6 KB docs para disparar reembedding.
+- [ ] `stages_enabled=true` quando subir para produção plena.
 
 ## Fase 2 — Guardrails determinísticos (não iniciado)
 
-Objetivo: bloquear hallucinação de preço, link de pagamento e benefício fora do prompt.
-
-**Arquivos novos**
-
-- `supabase/functions/_shared/agent-response-validator.ts`
-  - Whitelist de URLs Stripe: `9B69AT4ha6iQ0dg78H7Vm1`, `cNi8wP4haaz69NQ3Wv7Vm18`.
-  - Whitelist de preços: `US$ 497`, `US$ 197`, `US$ 697`, `US$ 297`.
-  - Regex de bloqueio: valores em `R$` / "reais", menção de Pix / boleto, parcelamento específico ("12x"), URL Stripe fora da whitelist.
-
-**Edits**
-
-- `supabase/functions/ai-auto-reply/index.ts` — chamar o validator antes do `sendWhatsApp`. Em violação: bloqueia envio, registra `agent_traces.reason = guardrail_violation`, reenfileira com instrução corretiva no system context.
-- `supabase/functions/pipeline-classify/index.ts` — validar que o `stage_id` sugerido pertence ao pipeline do lead.
-
-**Critério de aceite**
-
-- Rodar as 4 personas + 1 persona maliciosa pedindo "link de Pix / pagar em real" no Test Lab.
-- Violação detectada e bloqueada em 100% dos casos; resposta reformulada chega ao WhatsApp em até 8s.
-
----
+Validador antes do `sendWhatsApp` em `ai-auto-reply`:
+- Whitelist URLs Stripe (`9B69AT4ha6iQ0dg78H7Vm1`, `cNi8wP4haaz69NQ3Wv7Vm18`).
+- Whitelist preços (US$ 197 / 497 / 297 / 697).
+- Bloquear: R$, "reais", Pix, boleto, "12x", URL Stripe fora da whitelist.
+Detalhe completo na versão anterior do roadmap.
 
 ## Fase 3 — Loop de melhoria contínua (não iniciado)
 
-Objetivo: ciclo semanal de scoring + A/B sem trabalho manual. Sem código novo — usa `agent_evals`, `agent_personas`, `agent_prompt_versions` e `ai_chat_traces` já existentes.
-
-**Operação**
-
-1. **Eval semanal automatizado** — pg_cron (ou edge scheduled) toda segunda 8h, roda as 4 personas contra o agente em produção e grava em `agent_evals`. Eixos:
-   - cobertura do playbook (% das 15 seções tocadas);
-   - latência média turn-a-turn;
-   - % de mensagens com link Stripe;
-   - % de violações de guardrail (vem da Fase 2).
-2. **Painel** em `/admin/agents/:id/evals` — chart de score semanal + drill-down em transcripts ruins.
-3. **A/B de prompt** — `agent_prompt_versions` já existe. Rodar versão B em 10% dos leads novos por 7 dias. KPI primário: clique no link Stripe (via `ai_chat_traces` + UTM/tracking).
-4. **Trigger de re-treino** — alerta no admin quando score cair >15% semana a semana.
-
-**Critério de aceite**
-
-- 4 semanas consecutivas de evals automáticos sem intervenção manual.
-- 1 ciclo A/B completo documentado (B promovido a default ou descartado).
+Eval semanal automatizado + painel + A/B de prompt. Detalhe na versão anterior.
 
 ---
 
-## Pendências menores
+# Fase 4 — Refinamento conversacional 🎯 (foco atual)
 
-- UI para `lead_ai_settings` (override por-lead). Hoje só dá pra setar via SQL.
-- Job de reembedding automático nos 6 KB docs (hoje exige re-save manual).
-- Documentar custo Gemini BYOK por turn (popular `ai_usage` se estiver vazio).
+Smoke test 30/06 mostrou: o agente vende, mas vende **longo, com emoticon e sem copy afiada**. Esta fase resolve isso só editando o `system_prompt` — zero código.
+
+## 4.1 Diretrizes a injetar no prompt
+
+Bloco novo no topo do prompt, acima de qualquer regra de produto:
+
+```text
+ESTILO DE MENSAGEM (regra absoluta, sobrescreve qualquer instrução conflitante):
+
+1. Frases curtas. Máximo 14 palavras por frase. Se passar, quebra em duas.
+2. Máximo 2 frases por balão. Máximo 3 balões por turn.
+3. Zero emoticons. Zero emojis. Nem 🙌 nem 😊 nem 🚀. Nunca.
+4. Use o nome do lead quando souber. Primeiro nome, uma vez por turn no máximo.
+5. Português coloquial de venda. Sem corporativês. Sem "perfeitamente", "absolutamente", "fico feliz".
+6. Não comece com "Olá!" / "Oi!" depois do primeiro turn. Vá direto.
+7. Antes de mandar link, mande UMA frase de micro-CTA: o que ele vai fazer ao clicar.
+   Ex.: "Te mando o link. Clica, escolhe forma de pagamento, em 1 min tá garantido."
+8. Pergunta de fechamento muda a cada turn. Nunca repita a mesma forma duas vezes seguidas.
+
+TÉCNICAS DE COPY (use, não cite):
+
+- Escassez quantificada e temporal juntas: "50 cadeiras no VIP. Hoje sobram X. Evento em N dias."
+- Ancoragem: mencione o valor maior antes do menor quando oferecer Bronze. "VIP 497, Bronze 197."
+- Contraste valor/preço: vincule sempre o preço a UMA entrega concreta. Nunca preço solto.
+- Loops abertos: termine com pergunta que o lead precise responder para fechar o loop.
+- Prova social leve quando couber: "Quem foi na última edição saiu com plano pra 90 dias."
+- Redução de risco sob demanda: garantia 7d só quando o lead hesita, nunca de cara.
+- Princípio do "sim fácil": primeiro fechamento é micro-compromisso ("Posso te mandar o link?"), não compra.
+
+PROIBIÇÕES:
+
+- Não invente preço, data, endereço, benefício, bônus.
+- Não ofereça parcelamento, Pix, boleto, desconto, cupom.
+- Não diga "vou verificar e te retorno". Você responde agora com o que tem.
+- Não use exclamação em mais de 1 balão por turn.
+```
+
+## 4.2 Pergunta de fechamento — banco de variações
+
+Adicionar no prompt explicitamente o pool. O modelo escolhe diferente a cada turn:
+
+```text
+- "Posso te mandar o link?"
+- "Quer garantir agora?"
+- "Te chamo no PIX… brincadeira, é Stripe. Bora?"  (humor leve, opcional)
+- "Faz sentido pra você?"
+- "Te ajuda se eu travar a vaga e você paga em seguida?"
+- "Qual setor faz mais sentido pra você, VIP ou Bronze?"
+- "Quer que eu te passe o link do VIP ou do Bronze?"
+- "Te vejo em Orlando?"
+```
+
+## 4.3 Follow-up cadenciado
+
+Quando o lead disser "vou pensar", "depois te falo", "me dá um tempo", "preciso ver com X":
+
+```text
+1. Responda no momento: aceita + garantia + 1 pergunta que reabre o loop.
+2. Marque mentalmente lead "em hesitação". Não mande mais nada no mesmo turn.
+3. Próximo follow-up só quando o lead responder de novo OU após gatilho externo.
+```
+
+> O **disparo automático** de follow-up (24h, 72h) é tarefa de automação no pipeline, não do agente. Item separado em "Pendências do CRM" abaixo.
+
+## 4.4 Personalização básica
+
+```text
+- Sempre que `lead.name` existir, use o primeiro nome 1x por turn (no primeiro balão).
+- Sempre que `lead.custom_fields.cidade` existir, faça referência leve ("Orlando é fácil de Miami / SP via conexão / etc.").
+- Nunca invente cidade, profissão, idade, situação financeira.
+```
+
+## 4.5 Critério de aceite da Fase 4
+
+Re-rodar o smoke test do Marco MK e validar **objetivamente**:
+- ✅ Nenhum balão com emoji.
+- ✅ Nenhum balão com mais de 2 frases.
+- ✅ Máximo 3 balões por turn.
+- ✅ Pelo menos 1 técnica de copy por turn (escassez, ancoragem, contraste, loop, prova, risco, sim fácil).
+- ✅ Pergunta de fechamento diferente em 5 turns consecutivos.
+- ✅ Nome do lead aparece quando disponível.
+- ✅ Micro-CTA antes de todo link.
+
+Como medir: rodar as 4 personas no Test Lab + checklist manual. Score mínimo 7/7 em cada persona.
+
+---
+
+## Fase 5 — Automação de follow-up (depende do CRM)
+
+Não é trabalho de prompt — é trigger no pipeline.
+
+- Stage "Oferta enviada — sem resposta": após 24h sem msg do lead, dispara automação que chama o agente com instrução `MODO_FOLLOWUP=1`.
+- Stage "Hesitação declarada" (lead disse "vou pensar"): após 48h, dispara follow-up diferente — foca em escassez (cadeiras restantes, dias para evento).
+- Stage "Link enviado — não clicou" (depende de tracking Stripe via webhook): 6h depois, follow-up com prova social.
+
+Implementação via `docs/pipeline/AUTOMATION_PLAN.md`. Cada follow-up tem prompt-bloco próprio que o agente carrega quando `MODO_FOLLOWUP` está setado.
+
+---
+
+## Pendências menores (não bloqueiam Fase 4)
+
+- UI para `lead_ai_settings` (override por-lead). Hoje só via SQL.
+- Job de reembedding automático dos 6 KB docs.
+- Tracking de clique no link Stripe (UTM + webhook Stripe) — alimenta KPI primário.
+- Painel por agente em `/ai/agents/:id` com score, custo, latência (hoje só `/admin/pipeline-health`).
