@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
@@ -219,6 +220,7 @@ function EvalsPanel({ agentId }: { agentId: string }) {
 }
 
 export default function Agents() {
+  const { t: tr } = useTranslation();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
   const confirm = useConfirm();
@@ -576,7 +578,7 @@ export default function Agents() {
         )}
         <div className="flex items-center justify-between px-4 py-2.5">
           <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Agentes <span className="ml-1 text-foreground/60">· {regularAgents.length}</span>
+            {tr("agents.sidebarTitle")} <span className="ml-1 text-foreground/60">· {regularAgents.length}</span>
           </h2>
           {canManage && (
             <Button
@@ -584,9 +586,9 @@ export default function Agents() {
               variant="secondary"
               className="h-7 px-2.5 text-xs"
               onClick={() => navigate("/ai/agents/new")}
-              title="Criar com assistente"
+              title={tr("agents.wizard")}
             >
-              <Sparkles className="mr-1 h-3 w-3" /> Assistente
+              <Sparkles className="mr-1 h-3 w-3" /> {tr("agents.wizard")}
             </Button>
           )}
         </div>
@@ -648,11 +650,11 @@ export default function Agents() {
               <span className="flex h-7 w-7 shrink-0 items-center justify-center">
                 <Plus className="h-3.5 w-3.5" />
               </span>
-              <span>Novo agente</span>
+              <span>{tr("agents.newAgent")}</span>
             </button>
           )}
           {regularAgents.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum agente. Crie o primeiro.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{tr("agents.empty")}</p>
           )}
         </div>
       </aside>
@@ -660,7 +662,7 @@ export default function Agents() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie um agente.
+            {tr("agents.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
