@@ -784,6 +784,7 @@ function ScopeDialog({
   starting: boolean;
   onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => void;
 }) {
+  const { t } = useTranslation("pipelineRuns");
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
