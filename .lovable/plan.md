@@ -158,21 +158,28 @@ phone           | name          | custom1 | custom2
 - Doc de processo de tradução contínua.
 - Suporte: horário/idioma do `support-agent`.
 
-## Decisões abertas
+## Decisões fechadas (2026-06-30)
 
-1. **Domínio**: subdomínios (`es.` / `app.`) ou TLDs (`chatfunnelai.es` / `.com`)?
-2. **Residência de dados UE**: cliente ES vai exigir? Decide single-tenant US vs. projeto Supabase EU.
-3. **Stripe** OK para ES/US ou outro PSP (Paddle)?
-4. **WhatsApp ES/US**: direto Cloud API (depende F-META) ou Evolution no começo?
-5. **Personas ES/US**: você tem playbook nativo (equivalente Febracis) ou eu proponho?
-6. **TCPA US**: tornar `opt_in_date` obrigatório no template de disparo US (bloqueia envio sem ele) ou só recomendado?
+1. **Domínio**: rotas por path → `chatfunnelai.com/es` e `chatfunnelai.com/en` (sem subdomínio, sem TLD novo). `pt-BR` continua na raiz `/`.
+2. **Residência de dados UE**: não tratar agora. Continuamos com projeto Supabase único (US). Reavaliar quando entrar cliente ES que exigir.
+3. **PSP ES/US**: **Stripe** (cards + SEPA/ACH). Eduzz fica BR-only.
+4. **WhatsApp ES/US**: **Evolution API no começo** (mesmo provider do BR). Cloud API oficial fica para F-INTL-5/F-META, sem bloquear o rollout.
+5. **Personas ES/US**: não criar agora. Roadmap segue sem playbook nativo — agentes ES/US usarão prompt PT traduzido até decisão futura.
+6. **TCPA US**: ficar no roadmap (F-INTL-7). Não impor `opt_in_date` obrigatório agora — coluna fica recomendada no template até implementarmos o bloqueio.
 
-## Documentos a criar nesta sprint de planejamento
+### Impacto das decisões no roadmap
 
-- `docs/i18n/ROADMAP.md` (este plano versionado)
-- `docs/i18n/REGION_CONFIG.md` (schema do `RegionConfig`)
-- `docs/i18n/IMPORT_TEMPLATES.md` (especificação dos XLSX por região — disparo + Kommo)
+- **F-INTL-1** (i18n): roteamento por prefixo `/es` e `/en` em `App.tsx` (React Router) + `<html lang>` dinâmico via efeito. Sem mexer em DNS.
+- **F-INTL-4** (pagamentos): só Stripe. Remover menção a Paddle.
+- **F-INTL-5** (WhatsApp): rebaixar prioridade — Evolution serve ES/US no MVP; Cloud API vira melhoria, não bloqueio.
+- **F-INTL-6** (agentes IA): manter parametrização de `language`, mas sem entregar playbooks ES/US — só PT traduzido.
+- **F-INTL-7** (compliance): `opt_in_date` documentado como recomendado; bloqueio TCPA fica como tarefa explícita listada, sem deadline.
+- **F-INTL-8** (SEO): `hreflang` aponta para paths `/es`, `/en`, `/` em vez de subdomínios.
+
+## Documentos da sprint de planejamento
+
+- `docs/i18n/ROADMAP.md` (versionado)
+- `docs/i18n/REGION_CONFIG.md`
+- `docs/i18n/IMPORT_TEMPLATES.md`
 - `docs/i18n/TRANSLATION_PROCESS.md`
-- `docs/i18n/COMPLIANCE.md` (GDPR/CCPA/TCPA/LGPD)
-
-Não vou tocar em código nesta fase — só criar os 5 documentos acima após você aprovar o plano e responder as decisões abertas (ou autorizar defaults: subdomínios, Supabase US único, Stripe, Cloud API quando F-META concluir, personas a definir, `opt_in_date` obrigatório em US).
+- `docs/i18n/COMPLIANCE.md`
