@@ -9,9 +9,9 @@ function renderVars(text: string, lead: any, defs: any[], tz: string): string {
   return renderTemplate(text, lead ?? {}, defs ?? [], tz);
 }
 
-function inSendWindow(window: any): boolean {
+function inSendWindow(window: any, fallbackTz: string): boolean {
   if (!window || typeof window !== "object") return true;
-  const tz = window.timezone || "America/Sao_Paulo";
+  const tz = window.timezone || fallbackTz;
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, weekday: "short", hour: "numeric", hour12: false, minute: "numeric",
   });
