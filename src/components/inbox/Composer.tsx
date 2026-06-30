@@ -311,7 +311,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
                   type="button"
                   onClick={() => removeAttachment(idx)}
                   className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 opacity-0 shadow-sm transition group-hover:opacity-100"
-                  title="Remover"
+                  title={t("inbox.composer.remove")}
                 >
                   <X className="h-3 w-3" />
                 </button>
