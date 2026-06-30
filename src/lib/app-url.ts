@@ -3,7 +3,8 @@
  * Usada em fluxos onde o destino DEVE ser independente de onde o usuário
  * abriu o formulário (ex.: links em emails de reset de senha).
  *
- * Tanto crm.mkart.com.br quanto mkcrm.lovable.app estão no allowlist
- * do Supabase Auth, mas só este aqui é o domínio oficial.
+ * Domínio oficial: chatfunnelai.com.
+ * Domínios legados (mkcrm.lovable.app, crm.mkart.com.br) podem permanecer
+ * no allowlist do Auth durante o cutover, mas não devem ser usados aqui.
  */
-export const APP_BASE_URL = "https://crm.mkart.com.br";
+export const APP_BASE_URL = "https://chatfunnelai.com";
