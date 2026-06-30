@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 
-const BASE = "MK CRM";
+const BASE = "Chat Funnel AI";
 
 export function useUnreadTitle() {
   const totalRef = useRef(0);
