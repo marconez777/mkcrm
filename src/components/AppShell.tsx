@@ -320,7 +320,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <div className="truncate text-[13px] font-semibold text-white">
                       {displayName}
                     </div>
-                    <div className="truncate text-[11px] text-sidebar-foreground/55">
+                    <div className="truncate text-[11px] text-white/55">
                       {user.email}
                     </div>
                   </div>
