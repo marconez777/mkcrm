@@ -561,6 +561,32 @@ export default function KanbanPage() {
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
   const [query, setQuery] = useState("");
+  const [aiBindings, setAiBindings] = useState<Record<string, { agentName: string; autoReply: boolean }>>({});
+  const [aiRefreshTick, setAiRefreshTick] = useState(0);
+
+  useEffect(() => {
+    if (!currentId) { setAiBindings({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: stageRows } = await supabase
+        .from("pipeline_stages").select("id").eq("pipeline_id", currentId);
+      const ids = (stageRows ?? []).map((s: { id: string }) => s.id);
+      if (ids.length === 0) { if (!cancelled) setAiBindings({}); return; }
+      const { data } = await supabase
+        .from("stage_ai_defaults")
+        .select("stage_id, auto_reply, ai_agents:agent_id(name)")
+        .in("stage_id", ids);
+      if (cancelled) return;
+      const map: Record<string, { agentName: string; autoReply: boolean }> = {};
+      for (const row of (data ?? []) as Array<{ stage_id: string; auto_reply: boolean; ai_agents: { name: string } | null }>) {
+        if (row.ai_agents?.name) {
+          map[row.stage_id] = { agentName: row.ai_agents.name, autoReply: row.auto_reply };
+        }
+      }
+      setAiBindings(map);
+    })();
+    return () => { cancelled = true; };
+  }, [currentId, aiRefreshTick]);
 
   const stages = useMemo(() => allStages.filter((s) => s.pipeline_id === currentId), [allStages, currentId]);
   const allPipelineLeads = useMemo(() => allLeads.filter((l) => l.pipeline_id === currentId), [allLeads, currentId]);
