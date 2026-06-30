@@ -380,11 +380,11 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title="Respostas rápidas">
+                <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title={t("inbox.composer.quickReplies")}>
                   <Zap className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Digite "/" para respostas rápidas</TooltipContent>
+              <TooltipContent>{t("inbox.composer.quickRepliesTooltip")}</TooltipContent>
             </Tooltip>
           </div>
 
