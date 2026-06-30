@@ -212,6 +212,7 @@ function BroadcastEditor({ id }: { id: string }) {
   const [recipients, setRecipients] = useState<Array<any>>([]);
   const [events, setEvents] = useState<Array<any>>([]);
   const [extraContacts, setExtraContacts] = useState<Array<{ phone: string; name?: string; custom?: any }>>([]);
+  const region = useRegion();
 
   const load = async () => {
     const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: r }, { data: e }] = await Promise.all([
