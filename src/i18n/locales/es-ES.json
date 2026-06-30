@@ -493,5 +493,27 @@
     "tableRole": "Rol",
     "tableSince": "Desde",
     "empty": "Ningún miembro"
+  },
+  "metrics": {
+    "title": "Métricas IA",
+    "h24": "24h",
+    "d7": "7 días",
+    "d30": "30 días",
+    "calls": "Llamadas",
+    "replied": "Respondió",
+    "tokens": "Tokens",
+    "avgLatency": "Latencia media",
+    "tools": "Tools usadas",
+    "errors": "Errores",
+    "byAgent": "Por agente",
+    "noData": "Sin datos en el período.",
+    "colAgent": "Agente",
+    "colCalls": "Llamadas",
+    "colTokens": "Tokens",
+    "colReplied": "Resp",
+    "colLatency": "Lat (ms)",
+    "lastCalls": "Últimas llamadas",
+    "noCalls": "Sin llamadas registradas.",
+    "noAgent": "(sin agente)"
   }
 }

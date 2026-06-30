@@ -493,5 +493,27 @@
     "tableRole": "Role",
     "tableSince": "Since",
     "empty": "No members"
+  },
+  "metrics": {
+    "title": "AI Metrics",
+    "h24": "24h",
+    "d7": "7 days",
+    "d30": "30 days",
+    "calls": "Calls",
+    "replied": "Replied",
+    "tokens": "Tokens",
+    "avgLatency": "Avg latency",
+    "tools": "Tools used",
+    "errors": "Errors",
+    "byAgent": "By agent",
+    "noData": "No data for the period.",
+    "colAgent": "Agent",
+    "colCalls": "Calls",
+    "colTokens": "Tokens",
+    "colReplied": "Reply",
+    "colLatency": "Lat (ms)",
+    "lastCalls": "Recent calls",
+    "noCalls": "No calls recorded.",
+    "noAgent": "(no agent)"
   }
 }
