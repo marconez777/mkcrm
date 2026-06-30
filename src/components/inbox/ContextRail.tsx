@@ -145,10 +145,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de conversa será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
     try {
       await deleteLead(lead.id);
-      toast.success("Conversa excluída");
+      toast.success(t("inbox.context.conversationDeleted"));
       nav("/inbox");
     } catch (error) {
-      toast.error("Falha ao excluir conversa", { description: error instanceof Error ? error.message : "Tente novamente." });
+      toast.error(t("inbox.context.deleteFailed"), { description: error instanceof Error ? error.message : t("inbox.context.tryAgain") });
     }
   }
 
