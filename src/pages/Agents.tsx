@@ -564,7 +564,7 @@ export default function Agents() {
 
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
-      <aside className="w-72 shrink-0 border-r bg-muted/20">
+      <aside className="w-72 shrink-0 border-r bg-muted/10">
         {canManage && (
           <BuilderSetupCard
             builder={builder ? { ...builder, api_key_set: !!builder.api_key_set } : null}
@@ -574,39 +574,83 @@ export default function Agents() {
             onVerified={() => load()}
           />
         )}
-        <div className="flex items-center justify-between p-4 pt-2">
-          <h2 className="text-sm font-semibold">Agentes</h2>
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Agentes <span className="ml-1 text-foreground/60">· {regularAgents.length}</span>
+          </h2>
           {canManage && (
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => navigate("/ai/agents/new")}
-                title="Criar com assistente"
-              >
-                <Sparkles className="mr-1 h-3.5 w-3.5" /> Assistente
-              </Button>
-              <Button size="sm" variant="ghost" onClick={create} title="Criar em branco">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => navigate("/ai/agents/new")}
+              title="Criar com assistente"
+            >
+              <Sparkles className="mr-1 h-3 w-3" /> Assistente
+            </Button>
           )}
         </div>
-        <div className="px-2">
-          {regularAgents.map((a) => (
+        <div className="px-2 pb-3">
+          {regularAgents.map((a) => {
+            const isActive = selected?.id === a.id;
+            const initials = a.name
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((s) => s[0]?.toUpperCase() ?? "")
+              .join("") || "A";
+            // hash name → hsl hue for stable avatar color
+            let hash = 0;
+            for (let i = 0; i < a.name.length; i++) hash = (hash * 31 + a.name.charCodeAt(i)) | 0;
+            const hue = Math.abs(hash) % 360;
+            const avatarStyle = {
+              backgroundColor: `hsl(${hue} 55% 28%)`,
+              color: `hsl(${hue} 70% 88%)`,
+            };
+            return (
+              <button
+                key={a.id}
+                onClick={() => setSelected(a)}
+                className={`relative mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                  isActive ? "bg-muted" : "hover:bg-muted/40"
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />
+                )}
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                  style={avatarStyle}
+                >
+                  {initials}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
+                  <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"
+                      }`}
+                    />
+                    {a.model || a.provider}
+                    {a.is_system && <span className="ml-1 text-muted-foreground/60">· padrão</span>}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          {canManage && (
             <button
-              key={a.id}
-              onClick={() => setSelected(a)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
-                selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"
-              }`}
+              onClick={create}
+              className="mt-1 flex w-full items-center gap-2.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+              title="Criar em branco"
             >
-              <Bot className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{a.name}</span>
-              {a.is_system && <Badge variant="secondary" className="text-[10px]" title="Agente padrão do sistema">padrão</Badge>}
-              {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+                <Plus className="h-3.5 w-3.5" />
+              </span>
+              <span>Novo agente</span>
             </button>
-          ))}
+          )}
           {regularAgents.length === 0 && (
             <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum agente. Crie o primeiro.</p>
           )}
