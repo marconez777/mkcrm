@@ -697,5 +697,64 @@
     "reactivated": "Subscription reactivated",
     "errorTitle": "Error",
     "invalidLink": "Invalid link."
+  },
+  "queueLogs": {
+    "automatedSendingsActive": "Automated sending: active",
+    "automatedSendingsPaused": "Automated sending: PAUSED",
+    "killSwitchDescription": "Pauses sequences, automations and scheduled messages for this company. No new sends until resumed.",
+    "paused": "Automated sending paused",
+    "resumed": "Automated sending resumed",
+    "updateFailed": "Failed to update",
+    "cancelConfirm": "Cancel this send?",
+    "cancelled": "Send cancelled",
+    "cancelFailed": "Failed to cancel",
+    "stat": {
+      "queued": "Queued",
+      "sent": "Sent (24h)",
+      "failed": "Failed (24h)",
+      "cancelled": "Cancelled (24h)"
+    },
+    "filter": {
+      "source": "Source",
+      "allSources": "All sources",
+      "status": "Status",
+      "allStatus": "All statuses",
+      "search": "Search lead or content…",
+      "refresh": "Refresh"
+    },
+    "source": {
+      "sequence": "Sequence",
+      "automation": "Automation",
+      "scheduled": "Scheduled",
+      "reply": "AI Reply",
+      "sequences": "Sequences",
+      "automations": "Automations",
+      "scheduledPlural": "Scheduled",
+      "replies": "AI Replies"
+    },
+    "status": {
+      "pending": "Queued",
+      "sent": "Sent",
+      "success": "Success",
+      "failed": "Failed",
+      "error": "Error",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled"
+    },
+    "tab": {
+      "upcoming": "Queue",
+      "history": "History",
+      "failures": "Failures"
+    },
+    "table": {
+      "when": "When",
+      "origin": "Source",
+      "lead": "Lead",
+      "detail": "Detail",
+      "status": "Status",
+      "noName": "(no name)",
+      "loading": "Loading…",
+      "empty": "Nothing here."
+    }
   }
 }

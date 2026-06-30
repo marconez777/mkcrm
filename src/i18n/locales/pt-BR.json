@@ -697,5 +697,64 @@
     "reactivated": "Inscrição reativada",
     "errorTitle": "Erro",
     "invalidLink": "Link inválido."
+  },
+  "queueLogs": {
+    "automatedSendingsActive": "Envios automáticos: ativos",
+    "automatedSendingsPaused": "Envios automáticos: PAUSADOS",
+    "killSwitchDescription": "Pausa sequências, automações e mensagens agendadas desta empresa. Novos envios não saem até retomar.",
+    "paused": "Envios automáticos pausados",
+    "resumed": "Envios automáticos retomados",
+    "updateFailed": "Falha ao atualizar",
+    "cancelConfirm": "Cancelar este envio?",
+    "cancelled": "Envio cancelado",
+    "cancelFailed": "Falha ao cancelar",
+    "stat": {
+      "queued": "Na fila",
+      "sent": "Enviados (24h)",
+      "failed": "Falhas (24h)",
+      "cancelled": "Cancelados (24h)"
+    },
+    "filter": {
+      "source": "Origem",
+      "allSources": "Todas as origens",
+      "status": "Status",
+      "allStatus": "Todos os status",
+      "search": "Buscar lead ou conteúdo…",
+      "refresh": "Atualizar"
+    },
+    "source": {
+      "sequence": "Sequência",
+      "automation": "Automação",
+      "scheduled": "Agendada",
+      "reply": "Resposta IA",
+      "sequences": "Sequências",
+      "automations": "Automações",
+      "scheduledPlural": "Agendadas",
+      "replies": "Respostas IA"
+    },
+    "status": {
+      "pending": "Na fila",
+      "sent": "Enviado",
+      "success": "Sucesso",
+      "failed": "Falhou",
+      "error": "Erro",
+      "skipped": "Pulado",
+      "cancelled": "Cancelado"
+    },
+    "tab": {
+      "upcoming": "Fila",
+      "history": "Histórico",
+      "failures": "Falhas"
+    },
+    "table": {
+      "when": "Quando",
+      "origin": "Origem",
+      "lead": "Lead",
+      "detail": "Detalhe",
+      "status": "Status",
+      "noName": "(sem nome)",
+      "loading": "Carregando…",
+      "empty": "Nada por aqui."
+    }
   }
 }
