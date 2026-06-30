@@ -371,7 +371,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
           <div className="space-y-1">
             <Label className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-              Notas {savingNotes && <span className="lowercase">salvando…</span>}
+              {t("inbox.context.notes")} {savingNotes && <span className="lowercase">{t("inbox.context.saving")}</span>}
             </Label>
             <Textarea
               rows={4}
