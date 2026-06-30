@@ -42,6 +42,13 @@ Uma base de código, multi-tenant por região (`br` | `es` | `us`) em `clinics.r
 | F-INTL-8 | SEO, marketing e domínios | 1 sprint | pending |
 | F-INTL-9 | QA, beta e rollout | 1 sprint | pending |
 
-## Decisões abertas
+## Decisões fechadas (2026-06-30)
 
-Ver `.lovable/plan.md` seção "Decisões abertas".
+1. Domínio: rotas por path — `chatfunnelai.com/es` e `/en`; PT-BR na raiz `/`.
+2. Residência de dados UE: não tratar agora (Supabase US único).
+3. PSP ES/US: Stripe. Eduzz fica BR-only.
+4. WhatsApp ES/US: Evolution API no MVP; Cloud API depois (F-INTL-5).
+5. Personas ES/US: sem playbook nativo agora — prompt PT traduzido.
+6. TCPA US: `opt_in_date` recomendado, bloqueio fica no roadmap (F-INTL-7).
+
+Detalhes e impacto por fase em `.lovable/plan.md`.
