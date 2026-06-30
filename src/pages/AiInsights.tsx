@@ -45,6 +45,8 @@ function asArray(v: unknown): string[] {
 }
 
 export default function AiInsights() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language.startsWith("es") ? es : i18n.language.startsWith("en") ? enUS : ptBR;
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
