@@ -671,9 +671,9 @@ Cole **exatamente nesta ordem** (o pixel TEM que vir antes do snippet de formul�
 
 
 \`\`\`html
-<!-- MK CRM — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
+<!-- Chat Funnel AI — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
 ${pixelCode}
-<!-- MK CRM — Forms Snippet -->
+<!-- Chat Funnel AI — Forms Snippet -->
 ${snippetCode}
 \`\`\`
 
