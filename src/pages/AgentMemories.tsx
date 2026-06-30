@@ -29,6 +29,8 @@ interface Agent { id: string; name: string }
 interface Lead { id: string; name: string | null; phone: string }
 
 export default function AgentMemories() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language.startsWith("es") ? es : i18n.language.startsWith("en") ? enUS : ptBR;
   const [loading, setLoading] = useState(true);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [agents, setAgents] = useState<Record<string, Agent>>({});
