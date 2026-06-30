@@ -273,7 +273,7 @@ export default function AgentWizard() {
 
   // Hidrata draft
   useEffect(() => {
-    document.title = "Construtor de Agentes — MK CRM";
+    document.title = "Construtor de Agentes — Chat Funnel AI";
   }, []);
 
   // Verifica se Builder está configurado para a empresa antes de renderizar o wizard

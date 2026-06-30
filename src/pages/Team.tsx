@@ -31,7 +31,7 @@ export default function Team() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"admin" | "professional" | "viewer">("professional");
 
-  useEffect(() => { document.title = "Equipe — MK CRM"; }, []);
+  useEffect(() => { document.title = "Equipe — Chat Funnel AI"; }, []);
 
   async function load() {
     if (!membership?.clinic_id) return;

@@ -16,7 +16,7 @@ export default function ResetPassword() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    document.title = "Redefinir senha — MK CRM";
+    document.title = "Redefinir senha — Chat Funnel AI";
     // Supabase parses the recovery token from the URL hash on load and emits
     // PASSWORD_RECOVERY; we also accept any active session because some browsers
     // auto-process the hash before this listener attaches.

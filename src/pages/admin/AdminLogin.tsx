@@ -26,7 +26,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Portal Admin — MK CRM"; }, []);
+  useEffect(() => { document.title = "Portal Admin — Chat Funnel AI"; }, []);
 
   if (bootLoading) return null;
   // Já logado e é super admin puro → entra direto.
