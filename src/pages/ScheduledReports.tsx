@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { CalendarClock, Plus, Trash2, Send, Loader2, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Report = {
   id: string;
@@ -28,18 +29,6 @@ type Report = {
   last_status: string | null;
   last_error: string | null;
 };
-
-const WEEKDAYS = [
-  { v: 0, label: "Dom" }, { v: 1, label: "Seg" }, { v: 2, label: "Ter" },
-  { v: 3, label: "Qua" }, { v: 4, label: "Qui" }, { v: 5, label: "Sex" }, { v: 6, label: "Sáb" },
-];
-
-const METRIC_LIST = [
-  { key: "unique_visitors", label: "Visitantes únicos" },
-  { key: "whatsapp_clicks", label: "Cliques no WhatsApp" },
-  { key: "form_leads", label: "Leads (formulário)" },
-  { key: "whatsapp_leads", label: "Leads (WhatsApp)" },
-];
 
 export default function ScheduledReports() {
   const [list, setList] = useState<Report[]>([]);
