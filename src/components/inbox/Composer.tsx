@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import ScheduleMessageDialog from "./ScheduleMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { getDraft, setDraft } from "@/lib/drafts";
 
