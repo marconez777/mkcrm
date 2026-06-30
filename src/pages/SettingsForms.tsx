@@ -624,7 +624,7 @@ Este site precisa enviar **visitas, eventos de tracking e submissões de formul�
 
 ## 0. INVENTÁRIO OBRIGATÓRIO — faça ANTES de mexer em qualquer arquivo
 
-Se este site **já tem alguma integração com o MK CRM** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
+Se este site **já tem alguma integração com o Chat Funnel AI** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
 
 ### 0.1 Liste todos os \`<script>\` no \`<head>\` que mencionem:
 - \`tracking-pixel\`
