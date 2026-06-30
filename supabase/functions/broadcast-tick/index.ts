@@ -21,7 +21,6 @@ function isoWeekday(d: Date): number {
   const w = d.getDay(); return w === 0 ? 7 : w;
 }
 
-function withinWindow(w: SendWindow): { ok: boolean; nextOpenIso: string } {
 function withinWindow(w: SendWindow, fallbackTz: string): { ok: boolean; nextOpenIso: string } {
   const tz = w.tz || fallbackTz;
   const local = nowInTz(tz);
