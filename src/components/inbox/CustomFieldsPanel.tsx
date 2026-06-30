@@ -9,7 +9,19 @@ import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, ChevronDown, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useRegion } from "@/hooks/useRegion";
 import type { CustomFieldDef, Lead } from "@/types/crm";
+
+// Símbolo da moeda local (R$ / € / $) — extraído via Intl.NumberFormat.
+function currencySymbol(currency: string, locale: string): string {
+  try {
+    const parts = new Intl.NumberFormat(locale, { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0);
+    return parts.find((p) => p.type === "currency")?.value ?? currency;
+  } catch {
+    return currency;
+  }
+}
+
 
 type Props = {
   lead: Lead;
@@ -118,6 +130,8 @@ const nakedInput =
   "w-full border-0 bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-foreground/70 focus:outline-none";
 
 function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: any; onChange: (v: any) => void }) {
+  const region = useRegion();
+
   const [local, setLocal] = useState<any>(value ?? "");
   useEffect(() => setLocal(value ?? ""), [value]);
 
@@ -159,7 +173,8 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "currency":
       return (
         <div className="flex items-center gap-1">
-          <span className="text-sm text-foreground">R$</span>
+          <span className="text-sm text-foreground">{currencySymbol(region.currency, region.locale)}</span>
+
           <input
             type="number"
             value={local}
