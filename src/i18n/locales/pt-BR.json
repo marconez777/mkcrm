@@ -466,5 +466,32 @@
     "doneDesc": "Sua empresa está configurada. Você pode ajustar tudo em Configurações depois.",
     "goToCrm": "Ir para o CRM",
     "skipOnboarding": "Pular onboarding"
+  },
+  "team": {
+    "pageTitle": "Equipe — Chat Funnel AI",
+    "title": "Equipe",
+    "membersOf": "Membros da empresa",
+    "newUser": "Novo usuário",
+    "registerUser": "Cadastrar usuário",
+    "name": "Nome",
+    "namePh": "Nome completo",
+    "email": "Email",
+    "emailPh": "pessoa@email.com",
+    "password": "Senha",
+    "passwordPh": "Mínimo 8 caracteres",
+    "passwordHint": "Repasse a senha de forma segura. O usuário pode alterá-la depois.",
+    "role": "Papel",
+    "roleAdmin": "Admin",
+    "roleProfessional": "Profissional",
+    "roleViewer": "Visualizador",
+    "cancel": "Cancelar",
+    "create": "Criar",
+    "created": "Usuário criado",
+    "errorCreate": "Erro ao criar usuário",
+    "tableName": "Nome",
+    "tableEmail": "Email",
+    "tableRole": "Papel",
+    "tableSince": "Desde",
+    "empty": "Nenhum membro"
   }
 }
