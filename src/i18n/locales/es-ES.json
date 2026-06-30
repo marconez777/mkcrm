@@ -466,5 +466,32 @@
     "doneDesc": "Tu empresa está configurada. Puedes ajustar todo en Configuración después.",
     "goToCrm": "Ir al CRM",
     "skipOnboarding": "Omitir onboarding"
+  },
+  "team": {
+    "pageTitle": "Equipo — Chat Funnel AI",
+    "title": "Equipo",
+    "membersOf": "Miembros de la empresa",
+    "newUser": "Nuevo usuario",
+    "registerUser": "Registrar usuario",
+    "name": "Nombre",
+    "namePh": "Nombre completo",
+    "email": "Correo",
+    "emailPh": "persona@correo.com",
+    "password": "Contraseña",
+    "passwordPh": "Mínimo 8 caracteres",
+    "passwordHint": "Comparte la contraseña de forma segura. El usuario podrá cambiarla luego.",
+    "role": "Rol",
+    "roleAdmin": "Admin",
+    "roleProfessional": "Profesional",
+    "roleViewer": "Visualizador",
+    "cancel": "Cancelar",
+    "create": "Crear",
+    "created": "Usuario creado",
+    "errorCreate": "Error al crear el usuario",
+    "tableName": "Nombre",
+    "tableEmail": "Correo",
+    "tableRole": "Rol",
+    "tableSince": "Desde",
+    "empty": "Ningún miembro"
   }
 }
