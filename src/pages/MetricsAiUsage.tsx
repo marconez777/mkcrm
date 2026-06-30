@@ -601,35 +601,7 @@ function KV({ k, v }: { k: string; v: string }) {
   );
 }
 
-function friendlyErrorCategory(category: string) {
-  const map: Record<string, string> = {
-    schema_validation: "Schema/JSON inválido",
-    quota_or_billing: "Cota/crédito",
-    rate_limit: "Rate limit",
-    timeout: "Timeout",
-    gateway_5xx: "Falha do provider",
-    network: "Rede",
-    no_provider: "Sem provider",
-    uncategorized: "Sem categoria",
-    unknown: "Desconhecido",
-  };
-  return map[category] ?? category;
-}
 
-function errorCategoryExplanation(category: string) {
-  const map: Record<string, string> = {
-    schema_validation: "O modelo respondeu fora do formato esperado. O pipeline deve reprocessar com backoff ou usar fallback seguro; não significa necessariamente custo alto.",
-    quota_or_billing: "O provider recusou a chamada por limite de crédito/cota. O guard bloqueia novas tentativas temporariamente para evitar gasto e ruído.",
-    rate_limit: "Muitas chamadas em pouco tempo. A rotina aplica espera e tenta novamente depois.",
-    timeout: "A etapa demorou além do limite operacional e deve ser reprocessada.",
-    gateway_5xx: "Falha temporária no provider/modelo. Normalmente é recuperável com retry.",
-    network: "Falha de rede ou conexão entre a função e o provider.",
-    no_provider: "Nenhum provider de IA estava disponível para a empresa.",
-    uncategorized: "Erro legado sem detalhes estruturados; abra o registro para ver a mensagem bruta.",
-    unknown: "Erro não mapeado; precisa de inspeção manual da mensagem bruta.",
-  };
-  return map[category] ?? "Erro não mapeado; precisa de inspeção manual da mensagem bruta.";
-}
 
 function RankList({ rows }: { rows: { key: string; label: string; sub?: string; value: string; href?: string }[] }) {
   const { t } = useTranslation();
