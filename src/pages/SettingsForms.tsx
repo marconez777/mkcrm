@@ -173,6 +173,7 @@ export default function SettingsForms() {
 }
 
 function DetailView({ integration, onBack, canManage }: { integration: Integration; onBack: () => void; canManage: boolean }) {
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const [data, setData] = useState<Integration>(integration);
   const [defs, setDefs] = useState<Definition[]>([]);
@@ -199,18 +200,18 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     }
   }
 
-  function copy(s: string, label = "Copiado") {
-    navigator.clipboard.writeText(s).then(() => toast.success(label));
+  function copy(s: string, label?: string) {
+    navigator.clipboard.writeText(s).then(() => toast.success(label ?? t("settingsForms.install.copied")));
   }
 
   async function rotate() {
-    if (!(await confirm({ title: "Rotacionar token?", description: "O token atual continua válido por 24h.", confirmLabel: "Rotacionar" }))) return;
+    if (!(await confirm({ title: t("settingsForms.rotateConfirm.title"), description: t("settingsForms.rotateConfirm.description"), confirmLabel: t("settingsForms.rotateConfirm.confirm") }))) return;
     setBusy(true);
     try {
       const { data: res, error } = await supabase.functions.invoke("forms-admin", { body: { action: "rotate_token", id: integration.id } });
       if (error) throw error;
       setData((res as any).integration);
-      toast.success("Token rotacionado");
+      toast.success(t("settingsForms.rotated"));
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
@@ -226,15 +227,15 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function removeIntegration() {
-    if (!(await confirm({ title: "Excluir integração?", description: "Envios futuros com este token serão rejeitados.", confirmLabel: "Excluir", destructive: true }))) return;
+    if (!(await confirm({ title: t("settingsForms.deleteConfirm.title"), description: t("settingsForms.deleteConfirm.description"), confirmLabel: t("settingsForms.deleteConfirm.confirm"), destructive: true }))) return;
     const { error } = await supabase.functions.invoke("forms-admin", { body: { action: "delete_integration", id: integration.id } });
-    if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
+    if (error) toast.error(error.message); else { toast.success(t("settingsForms.deleted")); onBack(); }
   }
 
   const tokenValue = data.token ?? "";
   const tokenMasked = showToken
     ? tokenValue
-    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : "Carregando…";
+    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : t("settingsForms.install.loading");
   const snippetCode = `<script async src="${SNIPPET_URL}?token=${tokenValue}"></script>`;
   const pixelCode = `<script async src="${SUPABASE_URL}/functions/v1/tracking-pixel?project_id=${data.clinic_id}"></script>`;
   const primaryDomain = (data.allowed_domains || [])[0] || "seu-site.com";
