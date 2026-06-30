@@ -255,7 +255,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         >
           <NavLink
             to={overall === "down" ? "/settings?qr=1" : "/settings"}
-            className="group flex flex-1 items-center gap-2 rounded-lg border border-sidebar-border/40 bg-sidebar-accent/25 px-2.5 py-2 text-[11px] text-sidebar-foreground/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-sidebar-accent/45"
+            className="group flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 py-2 text-[11px] text-white/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-white/15"
             title={overall === "down" ? "Clique para escanear o QR Code" : (health?.webhook_last_error ?? label)}
           >
             <span className="relative flex h-2 w-2 shrink-0">
