@@ -510,6 +510,7 @@ function ReasonChip({ info }: { info: SkipReasonInfo }) {
 }
 
 function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; clinicId: string | null }) {
+  const { t } = useTranslation("pipelineRuns");
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
@@ -527,10 +528,10 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
   const cls = result?.classification ?? null;
   const applied = result?.telemetry?.applied ?? null;
   const stepLabel =
-    item.step === "classify:summarizer" ? "🔁 só Resumidor"
-    : item.step === "classify:parallel" ? "🔁 paralelos (Agendador+Tipificador+Movimentador)"
-    : item.step === "classify:typifier" ? "🔁 só Tipificador (legado V3)"
-    : item.step === "classify:maestro" ? "🔁 só Maestro"
+    item.step === "classify:summarizer" ? t("step.summarizer")
+    : item.step === "classify:parallel" ? t("step.parallel")
+    : item.step === "classify:typifier" ? t("step.typifier")
+    : item.step === "classify:maestro" ? t("step.maestro")
     : null;
 
   const icon =
@@ -543,7 +544,7 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
     setSaving(true);
     try {
       await callExecutor({ action: "comment", item_id: item.id, comment, retry_requested: retry });
-      toast.success("Comentário salvo");
+      toast.success(t("toast.commentSaved"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -562,8 +563,8 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
       };
       if (agent !== "full") payload.only_agent = agent;
       const res = await callExecutor<{ run_id?: string }>(payload);
-      if (res.error) toast.error(`Erro: ${res.error}`);
-      else toast.success(agent === "full" ? "Reprocessando lead (pipeline completo)" : `Reprocessando só ${agent}`);
+      if (res.error) toast.error(t("toast.errorPrefix", { message: res.error }));
+      else toast.success(agent === "full" ? t("toast.rerunFull") : t("toast.rerunOnly", { agent }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -587,7 +588,6 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
       </button>
       {open && (
         <div className="mt-2 space-y-3 rounded bg-muted/30 p-2">
-          {/* Skip / erro detalhado */}
           {skipInfo && (
             <div className={`rounded border px-2 py-1.5 ${toneClasses(skipInfo.tone)}`}>
               <div className="text-[11px] font-medium">{skipInfo.label}</div>
@@ -598,12 +598,11 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
             </div>
           )}
 
-          {/* Cards dos 5 agentes (Resumidor → Paralelos → Maestro) */}
           {(agents || cls) && (
             <div className="space-y-2">
               <AgentCard
                 icon={<FileText className="h-3.5 w-3.5 text-blue-300" />}
-                name="Resumidor"
+                name={t("agents.resumidor")}
                 model={agents?.summarizer_model}
                 latencyMs={agents?.latency_ms?.summarizer}
                 ran={agents?.ran?.summarizer !== false}
@@ -612,34 +611,33 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                   agents?.summary ? (
                     <p className="line-clamp-4 text-muted-foreground">{agents.summary}</p>
                   ) : (
-                    <span className="italic text-muted-foreground">sem resumo</span>
+                    <span className="italic text-muted-foreground">{t("agents.noSummary")}</span>
                   )
                 }
               />
 
-              {/* Bloco paralelo */}
               <div className="rounded-md border border-dashed border-primary/30 bg-gradient-to-br from-muted/30 to-transparent p-2">
                 <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
                   <GitBranch className="h-2.5 w-2.5" />
-                  Execução paralela
+                  {t("agents.parallelExec")}
                 </div>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                   <AgentCard
                     icon={<Calendar className="h-3.5 w-3.5 text-violet-300" />}
-                    name="Agendador"
+                    name={t("agents.agendador")}
                     model={agents?.agendador_model}
                     latencyMs={agents?.latency_ms?.agendador}
                     ran={agents?.ran?.agendador !== false}
                     status="ok"
                     body={
                       <span className="italic text-muted-foreground">
-                        {agents?.ran?.agendador === false ? "não executado" : "avaliou intenção de agenda"}
+                        {agents?.ran?.agendador === false ? t("agents.notRun") : t("agents.agendadorBody")}
                       </span>
                     }
                   />
                   <AgentCard
                     icon={<Tags className="h-3.5 w-3.5 text-amber-300" />}
-                    name="Tipificador"
+                    name={t("agents.tipificador")}
                     model={agents?.typifier_model}
                     latencyMs={agents?.latency_ms?.typifier}
                     ran={agents?.ran?.typifier !== false}
@@ -654,22 +652,22 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                             <div><span className="text-red-400">−</span> {applied.tags.removed_computed.join(", ")}</div>
                           )}
                           {(!applied.tags.added?.length && !applied.tags.removed_computed?.length) && (
-                            <span className="italic text-muted-foreground">nenhuma alteração</span>
+                            <span className="italic text-muted-foreground">{t("agents.noChange")}</span>
                           )}
                           {applied.custom_fields && "set" in applied.custom_fields && Object.keys(applied.custom_fields.set ?? {}).length > 0 && (
                             <div className="text-muted-foreground">
-                              campos: {Object.keys(applied.custom_fields.set ?? {}).join(", ")}
+                              {t("agents.fieldsLabel", { names: Object.keys(applied.custom_fields.set ?? {}).join(", ") })}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="italic text-muted-foreground">{applied?.tags?.skipped ? "modo parcial" : "sem dados"}</span>
+                        <span className="italic text-muted-foreground">{applied?.tags?.skipped ? t("agents.partialMode") : t("agents.noData")}</span>
                       )
                     }
                   />
                   <AgentCard
                     icon={<MoveRight className="h-3.5 w-3.5 text-pink-300" />}
-                    name="Movimentador"
+                    name={t("agents.movimentador")}
                     model={agents?.movimentador_model}
                     latencyMs={agents?.latency_ms?.movimentador}
                     ran={agents?.ran?.movimentador !== false}
@@ -677,11 +675,11 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                     body={
                       applied?.stage_suggestion_only ? (
                         <div className="space-y-0.5">
-                          <div><span className="text-muted-foreground">sugestão:</span> {applied.stage_suggestion_only.suggested ?? "—"}</div>
-                          <div><span className="text-muted-foreground">moveu?</span> {applied.stage_suggestion_only.would_move ? "sim" : "não"}</div>
+                          <div><span className="text-muted-foreground">{t("agents.suggestion")}</span> {applied.stage_suggestion_only.suggested ?? "—"}</div>
+                          <div><span className="text-muted-foreground">{t("agents.moved")}</span> {applied.stage_suggestion_only.would_move ? t("agents.yes") : t("agents.no")}</div>
                         </div>
                       ) : (
-                        <span className="italic text-muted-foreground">avaliou stage do funil</span>
+                        <span className="italic text-muted-foreground">{t("agents.movimentadorBody")}</span>
                       )
                     }
                   />
@@ -690,7 +688,7 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
 
               <AgentCard
                 icon={<Target className="h-3.5 w-3.5 text-emerald-300" />}
-                name="Maestro"
+                name={t("agents.maestro")}
                 model={agents?.maestro_model}
                 latencyMs={agents?.latency_ms?.maestro}
                 ran={agents?.ran?.maestro !== false}
@@ -698,72 +696,68 @@ function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; cli
                 body={
                   cls ? (
                     <div className="space-y-0.5">
-                      <div><span className="text-muted-foreground">stage:</span> {cls.stage_suggestion ?? "—"}</div>
-                      <div><span className="text-muted-foreground">intent:</span> {cls.intent ?? "—"}</div>
-                      <div><span className="text-muted-foreground">conf:</span> {cls.confidence?.toFixed(2) ?? "—"}{cls.is_b2b ? " · b2b" : ""}</div>
+                      <div><span className="text-muted-foreground">{t("agents.stage")}</span> {cls.stage_suggestion ?? "—"}</div>
+                      <div><span className="text-muted-foreground">{t("agents.intent")}</span> {cls.intent ?? "—"}</div>
+                      <div><span className="text-muted-foreground">{t("agents.conf")}</span> {cls.confidence?.toFixed(2) ?? "—"}{cls.is_b2b ? ` · ${t("agents.b2b")}` : ""}</div>
                     </div>
                   ) : (
-                    <span className="italic text-muted-foreground">sem decisão</span>
+                    <span className="italic text-muted-foreground">{t("agents.noDecision")}</span>
                   )
                 }
               />
             </div>
           )}
 
-          {/* Motivos do Maestro */}
           {cls?.reasons && cls.reasons.length > 0 && (
             <div className="rounded border border-border/40 bg-background/40 p-2 text-[11px]">
-              <div className="mb-1 font-medium">Por quê?</div>
+              <div className="mb-1 font-medium">{t("agents.reasons")}</div>
               <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
                 {cls.reasons.map((r, i) => <li key={i}>{r}</li>)}
               </ul>
             </div>
           )}
 
-          {/* Rerun manual */}
           {item.lead_id && clinicId && (
             <div className="flex flex-wrap items-center gap-1.5 rounded border border-dashed border-border/50 p-1.5">
-              <span className="text-[10px] text-muted-foreground">Rodar de novo:</span>
+              <span className="text-[10px] text-muted-foreground">{t("rerun.label")}</span>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("full")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                Completo
+                {t("rerun.full")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("summarizer")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "summarizer" ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                Só Resumidor
+                {t("rerun.summarizer")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("parallel")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "parallel" ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitBranch className="h-3 w-3" />}
-                Paralelos
+                {t("rerun.parallel")}
               </Button>
               <Button size="sm" variant="outline" disabled={!!rerunning} onClick={() => rerun("maestro")} className="h-6 gap-1 px-2 text-[10px]">
                 {rerunning === "maestro" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
-                Só Maestro
+                {t("rerun.maestro")}
               </Button>
             </div>
           )}
 
-          {/* Comentário */}
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="O que deu errado / o que esperava que acontecesse?"
+            placeholder={t("comment.placeholder")}
             className="text-xs"
             rows={2}
           />
           <div className="flex items-center justify-between gap-2">
             <label className="flex items-center gap-2 text-xs">
               <Checkbox checked={retry} onCheckedChange={(v) => setRetry(!!v)} />
-              Marcar para reprocessar
+              {t("comment.markRetry")}
             </label>
             <Button size="sm" onClick={save} disabled={saving}>
-              {saving ? "Salvando…" : "Salvar"}
+              {saving ? t("actions.saving") : t("actions.save")}
             </Button>
           </div>
 
-          {/* JSON bruto colapsado */}
           <details className="text-[10px] text-muted-foreground">
-            <summary className="cursor-pointer select-none">JSON bruto</summary>
+            <summary className="cursor-pointer select-none">{t("detail.rawJson")}</summary>
             {item.error && <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-red-400">{item.error}</pre>}
             {item.result && (
               <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">
