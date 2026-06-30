@@ -1,52 +1,37 @@
 ## Objetivo
+Remover o logo MK (`mk-logo.png`) e o texto "Chat Funnel AI" escrito ao lado em código, substituindo pelas imagens novas enviadas. Atualizar favicon.
 
-Em **Métricas → IA (Custos)** hoje o painel `PipelineOverview` mostra só os 5 agentes do classifier (`classifier:summarizer/agendador/typifier/movimentador/maestro`). O agente de atendimento (Febracis e similares, via `ai-chat`/`ai-auto-reply`) já grava em `ai_usage`, mas fica "escondido" na tabela bruta e fora do hero de custo/lead. Vamos consolidar os dois mundos na mesma tela.
+## Escolha entre os dois logos enviados
+- **`chat-funnel-ai-ico.png`** (só ícone do infinito + cubos) → uso em **lugares quadrados/pequenos**: sidebar do AppShell, footer do site, favicon.
+- **`chat-funnel-ai-500.png`** (lockup horizontal com texto, 500px, nítido) → uso na **navbar do site** (substituindo o ícone + texto separado, já que esse arquivo tem o texto embutido).
+- **`chat-funnel-ai.png`** (versão gigante 1920px) → descartar; o 500 já tem o mesmo lockup em tamanho mais adequado e nítido para web.
 
-## Fases
+## Arquivos novos
+Copiar uploads para `src/assets/`:
+- `src/assets/chat-funnel-ai-ico.png`
+- `src/assets/chat-funnel-ai-500.png`
 
-### Fase 1 — Garantir telemetria completa do atendimento
-**Arquivos:** `supabase/functions/ai-chat/index.ts`, `supabase/functions/ai-auto-reply/index.ts`, `supabase/functions/_shared/metrics.ts`
+Copiar ícone para `public/favicon.png` (substitui o atual).
 
-- Conferir que toda chamada do `ai-chat` registra `operation = "agent:reply"` (hoje grava como `chat` genérico) e propaga `agent_id`, `lead_id`, `provider`, `model`, `cost_usd`, `latency_ms`, `status`.
-- Em `ai-auto-reply`, registrar 1 linha de telemetria por execução (mesmo quando `skipped`), com `source = "auto-reply"` e `agent_step = "dispatch"` — hoje só o `ai-chat` interno loga.
-- Padronizar `source`: `"agent-runtime"` para respostas reais; `"agent-tool"` para chamadas de tool (KB, mover stage). Isso permite separar custo de "responder" vs "ferramentas internas".
-- Materializar `cost_usd` no insert via `calcCostUsd` (já existe em `_shared/ai-pricing.ts`).
+## Edições de código
 
-### Fase 2 — Novo painel "Atendimento" em Custos → IA
-**Arquivos novos:** `src/components/ai/usage/AgentRuntimeOverview.tsx`
-**Arquivos editados:** `src/pages/MetricsAiUsage.tsx` (adicionar aba/abas), `src/components/ai/usage/PipelineOverview.tsx` (refactor leve)
+### `src/components/AppShell.tsx` (sidebar)
+- Trocar import `mk-logo.png` → `chat-funnel-ai-ico.png`.
+- Manter `h-8 w-8 object-contain`.
 
-- Adicionar uma 2ª aba `Tabs` na página: **Pipeline (classifier)** | **Atendimento (agentes)**.
-- `AgentRuntimeOverview` consulta `ai_usage` filtrando `operation IN ('agent:reply','agent:tool')` nas últimas 24h/7d/30d e exibe:
-  - Hero: custo total, custo por resposta, respostas enviadas, tokens, erros.
-  - Quebra por agente (`agent_id` → nome de `ai_agents`): chamadas, custo, latência p50/p95, taxa de erro.
-  - Quebra por modelo/provider (gemini vs openai/lovable).
-  - Top 10 leads mais caros nas 24h (lead → custo acumulado → link `/inbox`).
-  - Linha do tempo simples (recharts) de custo por hora.
+### `src/components/site/SiteNav.tsx`
+- Trocar import para `chat-funnel-ai-500.png`.
+- Remover o `<span>Chat Funnel AI</span>` (lockup já tem o texto).
+- Ajustar img para `h-8 w-auto object-contain` (sem `rounded-lg` / `object-cover`, que distorceriam o lockup).
 
-### Fase 3 — Consolidar visão total
-**Arquivos:** `src/pages/MetricsAiUsage.tsx`, possível view SQL nova.
+### `src/components/site/SiteFooter.tsx`
+- Trocar import para `chat-funnel-ai-500.png` ao lado do texto-marca, ou usar o ícone — vou usar o **lockup 500** também e remover o nome em texto, ficando coerente com a navbar. `h-8 w-auto object-contain`.
 
-- Acima das abas, um "Hero geral": **Custo IA total = Pipeline + Atendimento + Embeddings** (mesmo recorte de data dos filtros do topo).
-- Opcional: criar view `v_ai_cost_by_surface_daily` agregando por (`day`, `surface`) onde `surface` é derivado de `source/operation` (`pipeline`, `agent-runtime`, `ingest`, `support`). Útil para o card de KPI no Admin → Pipeline Health também.
+### `index.html`
+- Favicon já aponta para `/favicon.png`; só substituir o arquivo binário.
 
-### Fase 4 — Limites e alertas
-**Arquivos:** `src/components/agents/CostsPanel.tsx`, `src/components/admin/AiSpendLimitCard.tsx`
+### Asset antigo
+- Apagar `src/assets/mk-logo.png` (nenhuma outra referência depois das edições).
 
-- `CostsPanel` do agente já soma de `ai_usage` por `agent_id` — confirmar que a Fase 1 não quebra o filtro.
-- `AiSpendLimitCard`: hoje conta tudo. Adicionar quebra textual "X% pipeline / Y% atendimento" para o usuário entender onde gastou.
-
-### Fase 5 — Docs
-- Atualizar `docs/pipeline/runtime/EVENTS_TELEMETRY.md` listando `operation` novos.
-- Anotar em `docs/agents/FEBRACIS_PRI.md` que o custo aparece em Métricas → IA → Atendimento.
-
-## Detalhes técnicos
-
-- `ai_usage` já tem todas as colunas necessárias (`agent_id`, `cost_usd`, `provider`, `operation`, `source`). Nada de migration obrigatória — só padronização de valores.
-- Filtro RLS já restringe por `clinic_id`, ok para clínicas.
-- Nenhuma mudança visual no `PipelineOverview` atual além de virar conteúdo de aba.
-
-## Fora de escopo
-- Reescrita das views `v_ai_cost_daily` / `v_classify_health_daily`.
-- BYOK billing por usuário individual.
-- Forecast de custo mensal (pode virar Fase 6 depois).
+## Fora do escopo
+- Não mexer em `<title>MK CRM</title>` nem em outras strings de marca espalhadas (Onboarding, AdminBranding default, proposalContent etc.) — você pediu só "apagar logo MK + texto ao lado e colocar o novo logo". Se quiser renomear "MK CRM"/"MK Admin" também, me avisa que faço numa segunda passada.
