@@ -522,10 +522,10 @@ export default function MetricsAiUsage() {
 
           {totalPages > 1 && (
             <div className="mt-3 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Página {page + 1} de {totalPages}</span>
+              <span className="text-muted-foreground">{t("metricsAiUsage.pagination.pageOf", { page: page + 1, total: totalPages })}</span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>{t("metricsAiUsage.pagination.prev")}</Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>{t("metricsAiUsage.pagination.next")}</Button>
               </div>
             </div>
           )}
