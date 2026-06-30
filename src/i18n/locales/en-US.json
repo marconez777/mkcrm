@@ -39,7 +39,27 @@
     "sortOldest": "Oldest first",
     "searchPlaceholder": "Search (name, phone, message)",
     "loading": "Loading…",
-    "empty": "No conversations."
+    "empty": "No conversations.",
+    "composer": {
+      "quickReplies": "Quick replies",
+      "remove": "Remove",
+      "filesInfo": "{{count}}/{{max}} files · caption goes on the first",
+      "clearAll": "Clear all",
+      "recording": "Recording…",
+      "maxDuration": "(max 5min)",
+      "cancel": "Cancel",
+      "stop": "Stop",
+      "emoji": "Emoji",
+      "attach": "Attach files",
+      "attachTooltip": "Attach files (up to {{max}} · 16MB each)",
+      "quickRepliesTooltip": "Type \"/\" for quick replies",
+      "captionPlaceholder": "Add a caption (optional)…",
+      "messagePlaceholder": "Message... (Enter sends, Shift+Enter new line)",
+      "schedule": "Schedule message",
+      "scheduleTooltip": "Schedule send",
+      "record": "Record audio",
+      "send": "Send"
+    }
   },
   "settings": {
     "title": "Settings",
