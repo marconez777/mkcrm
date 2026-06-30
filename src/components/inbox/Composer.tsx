@@ -320,8 +320,8 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           })}
           {attachments.length > 1 && (
             <div className="flex w-full items-center justify-between px-1 pt-1 text-[10px] text-muted-foreground">
-              <span>{attachments.length}/{MAX_FILES} arquivos · legenda vai no primeiro</span>
-              <button onClick={() => setAttachments([])} className="hover:text-foreground">Limpar todos</button>
+              <span>{t("inbox.composer.filesInfo", { count: attachments.length, max: MAX_FILES })}</span>
+              <button onClick={() => setAttachments([])} className="hover:text-foreground">{t("inbox.composer.clearAll")}</button>
             </div>
           )}
         </div>
