@@ -24,7 +24,7 @@ type Template = {
 const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}", "{{empresa}}"];
 
 export default function Templates() {
-  const { t } = useTranslation();
+  const { t: tr } = useTranslation();
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
   const customDefs = useCustomFieldDefsFull();
@@ -80,9 +80,9 @@ export default function Templates() {
       <aside className="w-72 shrink-0 border-r bg-muted/10">
         <div className="flex items-center justify-between px-4 py-2.5">
           <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {t("templates.sidebarTitle")} <span className="ml-1 text-foreground/60">· {items.length}</span>
+            {tr("templates.sidebarTitle")} <span className="ml-1 text-foreground/60">· {items.length}</span>
           </h2>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("templates.newTemplate")}>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={tr("templates.newTemplate")}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -110,7 +110,7 @@ export default function Templates() {
                   <p className="truncate text-sm font-medium text-foreground">{t.name}</p>
                   <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-                    {t.shortcut ? `//${t.shortcut}` : this.t?.("templates.noShortcut") ?? "sem atalho"}
+                    {t.shortcut ? `//${t.shortcut}` : tr("templates.noShortcut")}
                   </p>
                 </div>
               </button>
@@ -123,10 +123,10 @@ export default function Templates() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center">
               <Plus className="h-3.5 w-3.5" />
             </span>
-            <span>{t("templates.newTemplate")}</span>
+            <span>{tr("templates.newTemplate")}</span>
           </button>
           {items.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">{t("templates.empty")}</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{tr("templates.empty")}</p>
           )}
         </div>
       </aside>
@@ -134,30 +134,30 @@ export default function Templates() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie um template.
+            {tr("templates.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-4">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold">Editar template</h1>
+              <h1 className="text-lg font-semibold">{tr("templates.editTitle")}</h1>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />Salvar</Button>
+                <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />{tr("common.save")}</Button>
               </div>
             </div>
 
             <Card className="space-y-4 p-4">
               <div>
-                <Label>Nome</Label>
+                <Label>{tr("templates.fields.name")}</Label>
                 <Input
                   value={selected.name}
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Atalho (opcional, ex: ola)</Label>
+                <Label>{tr("templates.fields.shortcut")}</Label>
                 <Input
                   value={selected.shortcut ?? ""}
                   onChange={(e) => setSelected({ ...selected, shortcut: e.target.value })}
@@ -165,14 +165,14 @@ export default function Templates() {
                 />
               </div>
               <div>
-                <Label>Descrição</Label>
+                <Label>{tr("templates.fields.description")}</Label>
                 <Input
                   value={selected.description ?? ""}
                   onChange={(e) => setSelected({ ...selected, description: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Conteúdo</Label>
+                <Label>{tr("templates.fields.content")}</Label>
                 <Textarea
                   rows={8}
                   value={selected.content}
