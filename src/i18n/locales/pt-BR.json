@@ -9,7 +9,7 @@
   "common": {
     "create": "Criar", "edit": "Editar", "delete": "Excluir", "cancel": "Cancelar",
     "save": "Salvar", "search": "Buscar", "name": "Nome", "loading": "Carregando…",
-    "back": "Voltar", "open": "Abrir", "manage": "Gerenciar"
+    "back": "Voltar", "open": "Abrir", "manage": "Gerenciar", "add": "Adicionar"
   },
   "kanban": {
     "searchPlaceholder": "Buscar por nome ou telefone…",
@@ -37,6 +37,37 @@
       "forms": "Integração do Site", "email": "Email Marketing",
       "imports": "Importações", "aiPipeline": "IA do Pipeline",
       "appointmentTypes": "Tipos de agendamento"
+    }
+  },
+  "tasks": {
+    "title": "Tarefas",
+    "addCard": "Adicionar um cartão",
+    "addColumn": "Adicionar coluna",
+    "cardTitlePlaceholder": "Título do cartão",
+    "columnNamePlaceholder": "Nome da coluna",
+    "rename": "Renomear",
+    "deleteColumn": "Excluir coluna",
+    "confirmDeleteColumn": "Excluir coluna e seus cartões?"
+  },
+  "agents": {
+    "sidebarTitle": "Agentes",
+    "wizard": "Assistente",
+    "newAgent": "Novo agente",
+    "empty": "Nenhum agente. Crie o primeiro.",
+    "selectOrCreate": "Selecione ou crie um agente."
+  },
+  "templates": {
+    "sidebarTitle": "Templates",
+    "newTemplate": "Novo template",
+    "empty": "Nenhum template.",
+    "selectOrCreate": "Selecione ou crie um template.",
+    "editTitle": "Editar template",
+    "noShortcut": "sem atalho",
+    "fields": {
+      "name": "Nome",
+      "shortcut": "Atalho (opcional, ex: ola)",
+      "description": "Descrição",
+      "content": "Conteúdo"
     }
   }
 }

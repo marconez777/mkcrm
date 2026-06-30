@@ -9,7 +9,7 @@
   "common": {
     "create": "Create", "edit": "Edit", "delete": "Delete", "cancel": "Cancel",
     "save": "Save", "search": "Search", "name": "Name", "loading": "Loading…",
-    "back": "Back", "open": "Open", "manage": "Manage"
+    "back": "Back", "open": "Open", "manage": "Manage", "add": "Add"
   },
   "kanban": {
     "searchPlaceholder": "Search by name or phone…",
@@ -37,6 +37,37 @@
       "forms": "Site Integration", "email": "Email Marketing",
       "imports": "Imports", "aiPipeline": "Pipeline AI",
       "appointmentTypes": "Appointment types"
+    }
+  },
+  "tasks": {
+    "title": "Tasks",
+    "addCard": "Add a card",
+    "addColumn": "Add column",
+    "cardTitlePlaceholder": "Card title",
+    "columnNamePlaceholder": "Column name",
+    "rename": "Rename",
+    "deleteColumn": "Delete column",
+    "confirmDeleteColumn": "Delete column and its cards?"
+  },
+  "agents": {
+    "sidebarTitle": "Agents",
+    "wizard": "Wizard",
+    "newAgent": "New agent",
+    "empty": "No agents. Create the first one.",
+    "selectOrCreate": "Select or create an agent."
+  },
+  "templates": {
+    "sidebarTitle": "Templates",
+    "newTemplate": "New template",
+    "empty": "No templates.",
+    "selectOrCreate": "Select or create a template.",
+    "editTitle": "Edit template",
+    "noShortcut": "no shortcut",
+    "fields": {
+      "name": "Name",
+      "shortcut": "Shortcut (optional, e.g. hi)",
+      "description": "Description",
+      "content": "Content"
     }
   }
 }
