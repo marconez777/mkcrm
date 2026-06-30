@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 const PALETTE = [
@@ -19,40 +19,51 @@ const PALETTE = [
 const NONE = "__none__";
 
 interface AgentOpt { id: string; name: string }
+type StageDialogTab = "geral" | "ia";
 
 interface Props {
   stage: Stage | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved?: () => void;
+  initialTab?: StageDialogTab;
 }
 
-export default function EditStageDialog({ stage, open, onOpenChange, onSaved }: Props) {
+export default function EditStageDialog({ stage, open, onOpenChange, onSaved, initialTab = "geral" }: Props) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#6366f1");
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<StageDialogTab>(initialTab);
 
   const [agents, setAgents] = useState<AgentOpt[]>([]);
   const [agentId, setAgentId] = useState<string>(NONE);
   const [autoReply, setAutoReply] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [aiLoadError, setAiLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!stage || !open) return;
     setName(stage.name);
     setColor(stage.color || "#6366f1");
+    setTab(initialTab);
     setLoadingAi(true);
+    setAiLoadError(null);
     (async () => {
       const [agentsRes, defaultRes] = await Promise.all([
         supabase.from("ai_agents").select("id, name").eq("enabled", true).order("name"),
         supabase.from("stage_ai_defaults").select("agent_id, auto_reply").eq("stage_id", stage.id).maybeSingle(),
       ]);
+      if (agentsRes.error || defaultRes.error) {
+        const message = agentsRes.error?.message ?? defaultRes.error?.message ?? "Não foi possível carregar IA desta etapa.";
+        setAiLoadError(message);
+        toast.error(message);
+      }
       setAgents((agentsRes.data ?? []) as AgentOpt[]);
       setAgentId(defaultRes.data?.agent_id ?? NONE);
       setAutoReply(!!defaultRes.data?.auto_reply);
       setLoadingAi(false);
     })();
-  }, [stage, open]);
+  }, [stage, open, initialTab]);
 
   async function save() {
     if (!stage || !name.trim()) return;
@@ -87,7 +98,7 @@ export default function EditStageDialog({ stage, open, onOpenChange, onSaved }: 
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Editar etapa</DialogTitle></DialogHeader>
 
-        <Tabs defaultValue="geral">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as StageDialogTab)}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="ia"><Sparkles className="mr-1.5 h-3.5 w-3.5" />IA</TabsTrigger>
@@ -122,6 +133,20 @@ export default function EditStageDialog({ stage, open, onOpenChange, onSaved }: 
           </TabsContent>
 
           <TabsContent value="ia" className="space-y-4 pt-4">
+            {loadingAi && (
+              <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando agentes ativos…
+              </div>
+            )}
+
+            {aiLoadError && !loadingAi && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{aiLoadError}</span>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label>Agente de auto-resposta</Label>
               <Select value={agentId} onValueChange={(v) => { setAgentId(v); if (v === NONE) setAutoReply(false); }} disabled={loadingAi}>
@@ -154,6 +179,12 @@ export default function EditStageDialog({ stage, open, onOpenChange, onSaved }: 
                 </p>
               </div>
             </div>
+
+            {agentId !== NONE && !autoReply && (
+              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Agente selecionado, mas a auto-resposta ainda está desligada para esta etapa.
+              </p>
+            )}
           </TabsContent>
         </Tabs>
 

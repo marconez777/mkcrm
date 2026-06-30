@@ -354,12 +354,12 @@ function Chip({ children, tone = "neutral", icon }: {
 
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll, aiBinding,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, aiBinding,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
-  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
+  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
   aiBinding?: { agentName: string; autoReply: boolean };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
@@ -387,6 +387,9 @@ function Column({
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
           <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onConfigureAi(stage), 0); }}>
+          <Sparkles className="mr-2 h-3.5 w-3.5" />Configurar IA
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
           <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
@@ -561,6 +564,7 @@ export default function KanbanPage() {
   
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
+  const [editingStageTab, setEditingStageTab] = useState<"geral" | "ia">("geral");
   const [movingColumnStage, setMovingColumnStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
@@ -782,7 +786,8 @@ export default function KanbanPage() {
 
   const openLeadCb = useCallback((l: Lead) => setOpenLead(l), []);
   const openMoveCb = useCallback((l: Lead) => setMovingLead(l), []);
-  const editStageCb = useCallback((s: Stage) => setEditingStage(s), []);
+  const editStageCb = useCallback((s: Stage) => { setEditingStageTab("geral"); setEditingStage(s); }, []);
+  const configureAiCb = useCallback((s: Stage) => { setEditingStageTab("ia"); setEditingStage(s); }, []);
   const requestDeleteStage = useCallback((s: Stage) => setDeletingStage(s), []);
 
   async function addColumn() {
@@ -916,6 +921,7 @@ export default function KanbanPage() {
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
                         onEdit={editStageCb}
+                        onConfigureAi={configureAiCb}
                         onDelete={requestDeleteStage}
                         onMoveAll={setMovingColumnStage}
                         aiBinding={aiBindings[s.id]}
@@ -967,7 +973,7 @@ export default function KanbanPage() {
         </DialogContent>
       </Dialog>
 
-      <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} onSaved={() => setAiRefreshTick((t) => t + 1)} />
+      <EditStageDialog stage={editingStage} open={!!editingStage} initialTab={editingStageTab} onOpenChange={(v) => !v && setEditingStage(null)} onSaved={() => setAiRefreshTick((t) => t + 1)} />
 
       <MoveColumnLeadsDialog
         open={!!movingColumnStage}
