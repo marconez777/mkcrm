@@ -95,42 +95,42 @@ export default function AgentMemories() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Brain className="h-6 w-6 text-primary" /> Memórias dos Agentes
+            <Brain className="h-6 w-6 text-primary" /> {t("agentMemories.title")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tudo que os agentes aprenderam e salvaram sobre os leads (fatos, preferências, contexto).
+            {t("agentMemories.subtitle")}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Atualizar
+          {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}{t("agentMemories.refresh")}
         </Button>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Filtros</CardTitle>
+          <CardTitle className="text-sm">{t("agentMemories.filters")}</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-8"
-              placeholder="Buscar no conteúdo..."
+              placeholder={t("agentMemories.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <Select value={agentFilter} onValueChange={setAgentFilter}>
-            <SelectTrigger><SelectValue placeholder="Agente" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t("agentMemories.agent")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os agentes</SelectItem>
+              <SelectItem value="all">{t("agentMemories.allAgents")}</SelectItem>
               {agentList.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={kindFilter} onValueChange={setKindFilter}>
-            <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t("agentMemories.type")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="all">{t("agentMemories.allTypes")}</SelectItem>
               {kinds.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -138,16 +138,14 @@ export default function AgentMemories() {
       </Card>
 
       <div className="text-sm text-muted-foreground">
-        {filtered.length} de {memories.length} memórias
+        {t("agentMemories.countOf", { shown: filtered.length, total: memories.length })}
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
-          {memories.length === 0
-            ? "Nenhuma memória salva ainda. Os agentes vão registrar fatos importantes conforme conversam com os leads."
-            : "Nenhuma memória corresponde aos filtros."}
+          {memories.length === 0 ? t("agentMemories.emptyNone") : t("agentMemories.emptyFiltered")}
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -168,7 +166,7 @@ export default function AgentMemories() {
                       </Link>
                     )}
                     <span className="text-muted-foreground ml-auto">
-                      {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: ptBR })}
+                      {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: dateLocale })}
                     </span>
                   </div>
                   <p className="text-sm whitespace-pre-wrap">{m.content}</p>
@@ -176,19 +174,19 @@ export default function AgentMemories() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-7 text-destructive hover:text-destructive">
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />Apagar
+                          <Trash2 className="h-3.5 w-3.5 mr-1" />{t("agentMemories.delete")}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Apagar esta memória?</AlertDialogTitle>
+                          <AlertDialogTitle>{t("agentMemories.deleteTitle")}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            O agente vai esquecer permanentemente esta informação. Não pode ser desfeito.
+                            {t("agentMemories.deleteDesc")}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => remove(m.id)}>Apagar</AlertDialogAction>
+                          <AlertDialogCancel>{t("agentMemories.cancel")}</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => remove(m.id)}>{t("agentMemories.delete")}</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
