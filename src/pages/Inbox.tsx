@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useStages } from "@/hooks/useCrm";
 import { useLeadsPaginated } from "@/hooks/useLeadsPaginated";
@@ -20,6 +21,7 @@ export type SortKey = "recent" | "unread" | "oldest";
 const INSTANCE_LS_KEY = "inbox:instanceId";
 
 export default function InboxPage() {
+  const { t } = useTranslation();
   const { instances, defaultInstance } = useWhatsappInstances();
   const [searchParams, setSearchParams] = useSearchParams();
   const [instanceId, setInstanceIdState] = useState<string | null>(() => {
@@ -213,13 +215,13 @@ export default function InboxPage() {
             <div className="flex items-center justify-between border-b bg-card px-3 py-2">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => nav("/inbox")} className="lg:hidden">
-                  <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+                  <ArrowLeft className="mr-1 h-4 w-4" /> {t("common.back")}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowList((v) => !v)}
-                  title={showList ? "Ocultar lista" : "Mostrar lista"}
+                  title={showList ? t("inbox.hideList") : t("inbox.showList")}
                   className="hidden lg:inline-flex"
                 >
                   {showList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -230,7 +232,7 @@ export default function InboxPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowContext((v) => !v)}
-                title={showContext ? "Ocultar contexto" : "Mostrar contexto"}
+                title={showContext ? t("inbox.hideContext") : t("inbox.showContext")}
                 className="hidden lg:inline-flex"
               >
                 {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
@@ -244,10 +246,10 @@ export default function InboxPage() {
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <Plus className="h-6 w-6 opacity-40" />
               </div>
-              Selecione uma conversa à esquerda
+              {t("inbox.selectConversation")}
               <div className="mt-3">
                 <Button size="sm" variant="outline" onClick={() => setNewOpen(true)}>
-                  <Plus className="mr-1 h-4 w-4" /> Nova conversa
+                  <Plus className="mr-1 h-4 w-4" /> {t("inbox.newConversation")}
                 </Button>
               </div>
             </div>

@@ -1,53 +1,42 @@
 {
   "nav": {
-    "group": {
-      "work": "Work",
-      "marketing": "Marketing",
-      "admin": "Admin"
-    },
-    "pipeline": "Pipeline",
-    "inbox": "Inbox",
-    "tasks": "Tasks",
-    "ai": "AI",
-    "email": "Email",
-    "tracking": "Tracking",
-    "trackingDebug": "Tracking Debug",
-    "team": "Team",
-    "pipelineRuns": "Pipeline Agent",
-    "settings": "Settings",
-    "admin": "Super Admin",
-    "logout": "Log out",
-    "shortcuts": "Shortcuts"
+    "group": { "work": "Work", "marketing": "Marketing", "admin": "Admin" },
+    "pipeline": "Pipeline", "inbox": "Inbox", "tasks": "Tasks", "ai": "AI",
+    "email": "Email", "tracking": "Tracking", "trackingDebug": "Tracking Debug",
+    "team": "Team", "pipelineRuns": "Pipeline Agent", "settings": "Settings",
+    "admin": "Super Admin", "logout": "Log out", "shortcuts": "Shortcuts"
   },
   "common": {
-    "create": "Create",
-    "edit": "Edit",
-    "delete": "Delete",
-    "cancel": "Cancel",
-    "save": "Save",
-    "search": "Search",
-    "name": "Name",
-    "loading": "Loading…"
+    "create": "Create", "edit": "Edit", "delete": "Delete", "cancel": "Cancel",
+    "save": "Save", "search": "Search", "name": "Name", "loading": "Loading…",
+    "back": "Back", "open": "Open", "manage": "Manage"
   },
   "kanban": {
     "searchPlaceholder": "Search by name or phone…",
-    "clearSearch": "Clear search",
-    "compactMode": "Compact mode",
-    "expandAll": "Expand all",
-    "calendar": "Calendar",
-    "column": "Column",
-    "lead": "Lead",
-    "card": "Card",
-    "newColumn": "New column",
-    "columnName": "Stage name",
-    "newLead": "New lead",
-    "newCard": "New card",
-    "identifier": "Identifier",
-    "phone": "Phone (with country code)",
-    "leadsCount": "{{count}} leads · {{stages}} stages",
+    "clearSearch": "Clear search", "compactMode": "Compact mode",
+    "expandAll": "Expand all", "calendar": "Calendar",
+    "column": "Column", "lead": "Lead", "card": "Card",
+    "newColumn": "New column", "columnName": "Stage name",
+    "newLead": "New lead", "newCard": "New card",
+    "identifier": "Identifier", "phone": "Phone (with country code)",
     "noStages": "No stages. Create your first column.",
     "noPipeline": "Create your first pipeline to get started.",
-    "scrollLeft": "Scroll left",
-    "scrollRight": "Scroll right"
+    "scrollLeft": "Scroll left", "scrollRight": "Scroll right"
+  },
+  "inbox": {
+    "selectConversation": "Select a conversation on the left",
+    "newConversation": "New conversation",
+    "hideList": "Hide list", "showList": "Show list",
+    "hideContext": "Hide context", "showContext": "Show context"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your WhatsApp connections and preferences.",
+    "tabs": {
+      "whatsapp": "WhatsApp", "fields": "Fields", "quickReplies": "Quick replies",
+      "forms": "Site Integration", "email": "Email Marketing",
+      "imports": "Imports", "aiPipeline": "Pipeline AI",
+      "appointmentTypes": "Appointment types"
+    }
   }
 }

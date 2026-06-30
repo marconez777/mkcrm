@@ -1,53 +1,42 @@
 {
   "nav": {
-    "group": {
-      "work": "Trabajo",
-      "marketing": "Marketing",
-      "admin": "Administración"
-    },
-    "pipeline": "Pipeline",
-    "inbox": "Conversaciones",
-    "tasks": "Tareas",
-    "ai": "IA",
-    "email": "Email",
-    "tracking": "Tracking",
-    "trackingDebug": "Tracking Debug",
-    "team": "Equipo",
-    "pipelineRuns": "Agente Pipeline",
-    "settings": "Ajustes",
-    "admin": "Super Admin",
-    "logout": "Cerrar sesión",
-    "shortcuts": "Atajos"
+    "group": { "work": "Trabajo", "marketing": "Marketing", "admin": "Administración" },
+    "pipeline": "Pipeline", "inbox": "Conversaciones", "tasks": "Tareas", "ai": "IA",
+    "email": "Email", "tracking": "Tracking", "trackingDebug": "Tracking Debug",
+    "team": "Equipo", "pipelineRuns": "Agente Pipeline", "settings": "Ajustes",
+    "admin": "Super Admin", "logout": "Cerrar sesión", "shortcuts": "Atajos"
   },
   "common": {
-    "create": "Crear",
-    "edit": "Editar",
-    "delete": "Eliminar",
-    "cancel": "Cancelar",
-    "save": "Guardar",
-    "search": "Buscar",
-    "name": "Nombre",
-    "loading": "Cargando…"
+    "create": "Crear", "edit": "Editar", "delete": "Eliminar", "cancel": "Cancelar",
+    "save": "Guardar", "search": "Buscar", "name": "Nombre", "loading": "Cargando…",
+    "back": "Volver", "open": "Abrir", "manage": "Gestionar"
   },
   "kanban": {
     "searchPlaceholder": "Buscar por nombre o teléfono…",
-    "clearSearch": "Limpiar búsqueda",
-    "compactMode": "Modo compacto",
-    "expandAll": "Expandir todas",
-    "calendar": "Calendario",
-    "column": "Columna",
-    "lead": "Lead",
-    "card": "Tarjeta",
-    "newColumn": "Nueva columna",
-    "columnName": "Nombre de la etapa",
-    "newLead": "Nuevo lead",
-    "newCard": "Nueva tarjeta",
-    "identifier": "Identificador",
-    "phone": "Teléfono (con prefijo)",
-    "leadsCount": "{{count}} leads · {{stages}} etapas",
+    "clearSearch": "Limpiar búsqueda", "compactMode": "Modo compacto",
+    "expandAll": "Expandir todas", "calendar": "Calendario",
+    "column": "Columna", "lead": "Lead", "card": "Tarjeta",
+    "newColumn": "Nueva columna", "columnName": "Nombre de la etapa",
+    "newLead": "Nuevo lead", "newCard": "Nueva tarjeta",
+    "identifier": "Identificador", "phone": "Teléfono (con prefijo)",
     "noStages": "Ninguna etapa. Crea tu primera columna.",
     "noPipeline": "Crea tu primer funnel para empezar.",
-    "scrollLeft": "Desplazar a la izquierda",
-    "scrollRight": "Desplazar a la derecha"
+    "scrollLeft": "Desplazar a la izquierda", "scrollRight": "Desplazar a la derecha"
+  },
+  "inbox": {
+    "selectConversation": "Selecciona una conversación a la izquierda",
+    "newConversation": "Nueva conversación",
+    "hideList": "Ocultar lista", "showList": "Mostrar lista",
+    "hideContext": "Ocultar contexto", "showContext": "Mostrar contexto"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "subtitle": "Gestiona tus conexiones de WhatsApp y preferencias.",
+    "tabs": {
+      "whatsapp": "WhatsApp", "fields": "Campos", "quickReplies": "Respuestas rápidas",
+      "forms": "Integración del sitio", "email": "Email Marketing",
+      "imports": "Importaciones", "aiPipeline": "IA del Pipeline",
+      "appointmentTypes": "Tipos de cita"
+    }
   }
 }

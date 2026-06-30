@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ type Instance = {
 
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { membership, isSuperAdmin, hasFeature } = useAuth();
   const confirm = useConfirm();
   const canManage = isSuperAdmin || !!membership;
@@ -166,8 +168,8 @@ export default function SettingsPage() {
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-8">
         <div>
-          <h1 className="text-2xl font-semibold">Configurações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Gerencie suas conexões de WhatsApp e preferências.</p>
+          <h1 className="text-2xl font-semibold">{t("settings.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
@@ -177,14 +179,14 @@ export default function SettingsPage() {
 
               return (
                 <>
-                  <TabsTrigger value="connection" className={triggerCls}>WhatsApp</TabsTrigger>
-                  {showFields && <TabsTrigger value="fields" className={triggerCls}>Campos</TabsTrigger>}
-                  <TabsTrigger value="quick-replies" className={triggerCls}>Respostas rápidas</TabsTrigger>
-                  <TabsTrigger value="forms" className={triggerCls}>Integração do Site</TabsTrigger>
-                  {showEmail && <TabsTrigger value="email" className={triggerCls}>Email Marketing</TabsTrigger>}
-                  {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>Importações</TabsTrigger>}
-                  {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>IA do Pipeline</TabsTrigger>}
-                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>Tipos de agendamento</TabsTrigger>}
+                  <TabsTrigger value="connection" className={triggerCls}>{t("settings.tabs.whatsapp")}</TabsTrigger>
+                  {showFields && <TabsTrigger value="fields" className={triggerCls}>{t("settings.tabs.fields")}</TabsTrigger>}
+                  <TabsTrigger value="quick-replies" className={triggerCls}>{t("settings.tabs.quickReplies")}</TabsTrigger>
+                  <TabsTrigger value="forms" className={triggerCls}>{t("settings.tabs.forms")}</TabsTrigger>
+                  {showEmail && <TabsTrigger value="email" className={triggerCls}>{t("settings.tabs.email")}</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>{t("settings.tabs.imports")}</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>{t("settings.tabs.aiPipeline")}</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>{t("settings.tabs.appointmentTypes")}</TabsTrigger>}
                 </>
               );
             })()}
