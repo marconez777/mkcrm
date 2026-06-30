@@ -69,5 +69,32 @@
       "description": "Descrição",
       "content": "Conteúdo"
     }
+  },
+  "automations": {
+    "sidebarTitle": "Automações",
+    "newAutomation": "Nova automação",
+    "runNow": "Executar agora",
+    "empty": "Nenhuma automação. Crie a primeira.",
+    "selectOrCreate": "Selecione ou crie uma automação. Elas rodam a cada 5 minutos."
+  },
+  "sequences": {
+    "sidebarTitle": "Sequências",
+    "newSequence": "Nova sequência",
+    "runNow": "Executar agora",
+    "empty": "Nenhuma sequência. Crie a primeira.",
+    "selectOrCreate": "Crie uma sequência tipo \"automação de e-mails\" — passos enviados em intervalos, parando quando o lead responde.",
+    "active": "Ativa",
+    "paused": "Pausada"
+  },
+  "broadcasts": {
+    "title": "Disparo em massa",
+    "subtitle": "Campanhas de envio em massa via WhatsApp com rotação de grupos.",
+    "newCampaign": "Nova campanha",
+    "empty": "Nenhuma campanha. Crie a primeira.",
+    "loading": "Carregando…",
+    "cols": {
+      "name": "Nome", "status": "Status", "audience": "Audiência",
+      "sent": "Enviados", "replied": "Respostas", "createdAt": "Criado em", "actions": "Ações"
+    }
   }
 }

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Zap, Plus, Trash2, Play, Loader2 } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Automation = {
   id: string;
@@ -37,6 +38,7 @@ const ACTIONS = [
 ];
 
 export default function Automations() {
+  const { t } = useTranslation();
   const [list, setList] = useState<Automation[]>([]);
   const [selected, setSelected] = useState<Automation | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
@@ -167,13 +169,13 @@ export default function Automations() {
       <aside className="w-72 shrink-0 border-r bg-muted/10">
         <div className="flex items-center justify-between px-4 py-2.5">
           <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Automações <span className="ml-1 text-foreground/60">· {list.length}</span>
+            {t("automations.sidebarTitle")} <span className="ml-1 text-foreground/60">· {list.length}</span>
           </h2>
           <div className="flex gap-0.5">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title="Executar agora">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title={t("automations.runNow")}>
               {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title="Nova automação">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("automations.newAutomation")}>
               <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -219,10 +221,10 @@ export default function Automations() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center">
               <Plus className="h-3.5 w-3.5" />
             </span>
-            <span>Nova automação</span>
+            <span>{t("automations.newAutomation")}</span>
           </button>
           {list.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhuma automação. Crie a primeira.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{t("automations.empty")}</p>
           )}
         </div>
       </aside>
@@ -230,7 +232,7 @@ export default function Automations() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie uma automação. Elas rodam a cada 5 minutos.
+            {t("automations.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">

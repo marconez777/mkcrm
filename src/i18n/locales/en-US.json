@@ -69,5 +69,32 @@
       "description": "Description",
       "content": "Content"
     }
+  },
+  "automations": {
+    "sidebarTitle": "Automations",
+    "newAutomation": "New automation",
+    "runNow": "Run now",
+    "empty": "No automations. Create the first one.",
+    "selectOrCreate": "Select or create an automation. They run every 5 minutes."
+  },
+  "sequences": {
+    "sidebarTitle": "Sequences",
+    "newSequence": "New sequence",
+    "runNow": "Run now",
+    "empty": "No sequences. Create the first one.",
+    "selectOrCreate": "Create an email-automation-style sequence — steps sent at intervals, stopping when the lead replies.",
+    "active": "Active",
+    "paused": "Paused"
+  },
+  "broadcasts": {
+    "title": "Mass broadcast",
+    "subtitle": "WhatsApp mass-send campaigns with group rotation.",
+    "newCampaign": "New campaign",
+    "empty": "No campaigns. Create the first one.",
+    "loading": "Loading…",
+    "cols": {
+      "name": "Name", "status": "Status", "audience": "Audience",
+      "sent": "Sent", "replied": "Replied", "createdAt": "Created at", "actions": "Actions"
+    }
   }
 }

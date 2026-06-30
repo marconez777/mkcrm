@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Mail, Plus, Trash2, Play, Loader2, Copy, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Sequence = {
   id: string;
@@ -52,6 +53,7 @@ const minutesToHuman = (m: number) => {
 };
 
 export default function Sequences() {
+  const { t } = useTranslation();
   const [list, setList] = useState<Sequence[]>([]);
   const [selected, setSelected] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
@@ -218,13 +220,13 @@ export default function Sequences() {
       <aside className="w-72 shrink-0 border-r bg-muted/10">
         <div className="flex items-center justify-between px-4 py-2.5">
           <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Sequências <span className="ml-1 text-foreground/60">· {list.length}</span>
+            {t("sequences.sidebarTitle")} <span className="ml-1 text-foreground/60">· {list.length}</span>
           </h2>
           <div className="flex gap-0.5">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title="Executar agora">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title={t("sequences.runNow")}>
               {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title="Nova sequência">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("sequences.newSequence")}>
               <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -253,7 +255,7 @@ export default function Sequences() {
                     <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
                     <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                       <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-                      {a.enabled ? "Ativa" : "Pausada"}
+                      {a.enabled ? t("sequences.active") : t("sequences.paused")}
                     </p>
                   </div>
                 </button>
@@ -273,10 +275,10 @@ export default function Sequences() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center">
               <Plus className="h-3.5 w-3.5" />
             </span>
-            <span>Nova sequência</span>
+            <span>{t("sequences.newSequence")}</span>
           </button>
           {list.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhuma sequência. Crie a primeira.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{t("sequences.empty")}</p>
           )}
         </div>
       </aside>
@@ -284,7 +286,7 @@ export default function Sequences() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Crie uma sequência tipo "automação de e-mails" — passos enviados em intervalos, parando quando o lead responde.
+            {t("sequences.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-4xl space-y-6">

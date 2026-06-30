@@ -18,6 +18,7 @@ import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, C
 import { downloadBroadcastTemplate, parseContactsFile } from "@/lib/broadcast-template";
 import { formatPhoneDisplay } from "@/lib/phone";
 import { useRegion } from "@/hooks/useRegion";
+import { useTranslation } from "react-i18next";
 
 type Broadcast = {
   id: string; name: string; status: string;
@@ -51,6 +52,7 @@ export default function Broadcasts() {
 
 function BroadcastList() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [items, setItems] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -142,30 +144,30 @@ function BroadcastList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Disparo em massa</h2>
-          <p className="text-sm text-muted-foreground">Campanhas de envio em massa via WhatsApp com rotação de grupos.</p>
+          <h2 className="text-lg font-semibold">{t("broadcasts.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("broadcasts.subtitle")}</p>
         </div>
-        <Button onClick={create} disabled={creating}><Plus className="size-4 mr-1" /> Nova campanha</Button>
+        <Button onClick={create} disabled={creating}><Plus className="size-4 mr-1" /> {t("broadcasts.newCampaign")}</Button>
       </div>
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Audiência</TableHead>
-                <TableHead>Enviados</TableHead>
-                <TableHead>Respostas</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("broadcasts.cols.name")}</TableHead>
+                <TableHead>{t("broadcasts.cols.status")}</TableHead>
+                <TableHead>{t("broadcasts.cols.audience")}</TableHead>
+                <TableHead>{t("broadcasts.cols.sent")}</TableHead>
+                <TableHead>{t("broadcasts.cols.replied")}</TableHead>
+                <TableHead>{t("broadcasts.cols.createdAt")}</TableHead>
+                <TableHead className="text-right">{t("broadcasts.cols.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{t("broadcasts.loading")}</TableCell></TableRow>
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhuma campanha. Crie a primeira.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{t("broadcasts.empty")}</TableCell></TableRow>
               ) : items.map((b) => (
                 <TableRow key={b.id} className="cursor-pointer" onClick={() => navigate(`/ai/broadcasts/${b.id}`)}>
                   <TableCell className="font-medium">{b.name}</TableCell>
