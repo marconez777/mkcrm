@@ -83,6 +83,15 @@ export async function getRegionConfig(
   return cfg;
 }
 
+/** Atalho — devolve só o timezone IANA da clínica (fallback `America/Sao_Paulo`). */
+export async function getClinicTimezone(
+  client: SupabaseClient,
+  clinicId: string,
+): Promise<string> {
+  const cfg = await getRegionConfig(client, clinicId);
+  return cfg.timezone || "America/Sao_Paulo";
+}
+
 export function clearRegionCache(clinicId?: string): void {
   if (clinicId) CACHE.delete(clinicId);
   else CACHE.clear();
