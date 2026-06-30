@@ -93,7 +93,7 @@ function SidebarItem({
           <item.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              isActive ? "text-[hsl(var(--accent))]" : "text-sidebar-foreground/55"
+              isActive ? "text-[hsl(var(--accent))]" : "text-white/55"
             )}
           />
           <span className="flex-1 truncate">{item.label}</span>
