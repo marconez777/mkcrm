@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard,
   CalendarClock, Shield, Users, Mail, Radar, UserRound, ChevronsUpDown,
@@ -9,6 +10,7 @@ import { usePipelineAllowlist } from "@/hooks/usePipelineAllowlist";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
+import { useI18nSync } from "@/i18n/useI18nSync";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -19,6 +21,22 @@ import brandLockup from "@/assets/chat-funnel-ai-500.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
 import SupportChatFab from "@/components/support/SupportChatFab";
+
+// Mapeia rotas → chave de tradução (`nav.<key>`). NavItem.label fica como fallback.
+const NAV_I18N_KEY: Record<string, string> = {
+  "/": "nav.pipeline",
+  "/inbox": "nav.inbox",
+  "/tasks": "nav.tasks",
+  "/ai": "nav.ai",
+  "/email": "nav.email",
+  "/tracking": "nav.tracking",
+  "/tracking-debug": "nav.trackingDebug",
+  "/team": "nav.team",
+  "/pipeline-runs": "nav.pipelineRuns",
+  "/settings": "nav.settings",
+  "/admin": "nav.admin",
+};
+
 
 type GroupKey = "work" | "marketing" | "admin";
 
