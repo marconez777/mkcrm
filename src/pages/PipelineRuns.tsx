@@ -472,6 +472,7 @@ function AgentCard({
   status: "ok" | "error" | "skipped";
   body: React.ReactNode;
 }) {
+  const { t } = useTranslation("pipelineRuns");
   const tone =
     status === "error" ? "border-red-500/40 bg-red-500/5"
     : !ran ? "border-border/40 bg-muted/20 opacity-60"
@@ -489,7 +490,7 @@ function AgentCard({
             {typeof latencyMs === "number" && latencyMs > 0 && <span> · {latencyMs} ms</span>}
           </>
         ) : (
-          <span className="italic">não executado</span>
+          <span className="italic">{t("agents.notRun")}</span>
         )}
       </div>
       <div className="mt-1 leading-snug">{body}</div>
