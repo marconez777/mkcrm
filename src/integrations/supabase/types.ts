@@ -2118,37 +2118,52 @@ export type Database = {
         Row: {
           classifier_config: Json
           created_at: string
+          currency: string
           id: string
+          locale: string
           name: string
+          phone_country: string
           plan: string
           plan_id: string | null
+          region: string
           settings: Json
           slug: string
           status: string
+          timezone: string
           updated_at: string
         }
         Insert: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Update: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name?: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug?: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Relationships: [
