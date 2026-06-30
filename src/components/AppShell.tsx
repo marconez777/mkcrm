@@ -311,7 +311,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     </Avatar>
                     <span
                       className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-[3px] ring-sidebar",
+                        "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-[3px] ring-black",
                         presenceColor,
                       )}
                     />
