@@ -69,7 +69,7 @@ export default function SettingsForms() {
   const [newDomains, setNewDomains] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Integração do Site — MK CRM"; load(); }, []);
+  useEffect(() => { document.title = "Integração do Site — Chat Funnel AI"; load(); }, []);
 
   async function load() {
     setLoading(true);
@@ -331,7 +331,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                     <p className="font-medium pt-2">2. No WordPress</p>
                     <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                       <li>Plugins → Adicionar novo → Enviar plugin → faça upload do .zip e ative.</li>
-                      <li>Configurações → MK CRM Forms → cole o token acima e salve.</li>
+                      <li>Configurações → Chat Funnel AI Forms → cole o token acima e salve.</li>
                     </ul>
                     <p className="text-muted-foreground pt-2">
                       Suporta: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.
@@ -616,15 +616,15 @@ function buildAiPrompt(args: {
   supabaseUrl: string;
 }) {
   const { pixelCode, snippetCode, clinicId, token, domain, supabaseUrl } = args;
-  return `# Integração com MK CRM — leia tudo e adapte o site
+  return `# Integração com Chat Funnel AI — leia tudo e adapte o site
 
-Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o MK CRM. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
+Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o Chat Funnel AI. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
 
 ---
 
 ## 0. INVENTÁRIO OBRIGATÓRIO — faça ANTES de mexer em qualquer arquivo
 
-Se este site **já tem alguma integração com o MK CRM** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
+Se este site **já tem alguma integração com o Chat Funnel AI** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
 
 ### 0.1 Liste todos os \`<script>\` no \`<head>\` que mencionem:
 - \`tracking-pixel\`
@@ -671,9 +671,9 @@ Cole **exatamente nesta ordem** (o pixel TEM que vir antes do snippet de formul�
 
 
 \`\`\`html
-<!-- MK CRM — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
+<!-- Chat Funnel AI — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
 ${pixelCode}
-<!-- MK CRM — Forms Snippet -->
+<!-- Chat Funnel AI — Forms Snippet -->
 ${snippetCode}
 \`\`\`
 
@@ -765,7 +765,7 @@ Não precisa fazer nada — só ter o pixel instalado.
 | Submit chega mas sem email/phone | Nome do input não está nos aliases | Adicionar \`data-mk-field="email"\` (ou phone/name) |
 | Tracking não conta visitas | Pixel instalado depois do snippet, ou cache de pré-renderização | Verificar ordem e forçar re-render |
 | WhatsApp abre tela "unknown_project" | Project ID errado no script | Confirmar que o pixel tem exatamente: \`?project_id=${clinicId}\` |
-| CORS error no console | Domínio não está na allowlist do CRM | Pedir ao admin do CRM pra adicionar \`${domain}\` em domínios permitidos |
+| CORS error no console | Domínio não está na allowlist do Chat Funnel AI | Pedir ao admin do Chat Funnel AI pra adicionar \`${domain}\` em domínios permitidos |
 
 ---
 
@@ -795,7 +795,7 @@ Esses valores **já estão dentro dos scripts** do passo 1. Você não precisa r
 5. Preencha e envie um formulário. Em Network, filtre por \`forms-ingest\` — deve aparecer 1 POST com response \`{"ok":true,"status":"ok","lead_id":"..."}\`
 6. Clique no botão de WhatsApp — deve abrir o WhatsApp normalmente (passando pelo redirecionador do CRM, com um código de rastreio na mensagem)
 
-Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do CRM com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
+Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do Chat Funnel AI com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
 `;
 }
 

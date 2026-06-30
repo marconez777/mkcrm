@@ -97,7 +97,7 @@ export default function AdminShell() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => { document.title = "Super Admin — MK CRM"; }, []);
+  useEffect(() => { document.title = "Super Admin — Chat Funnel AI"; }, []);
 
   // Keyboard: cmd+k focus search
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function AdminShell() {
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-admin-sidebar-text-active">MK Admin</span>
+              <span className="text-sm font-semibold text-admin-sidebar-text-active">Chat Funnel AI Admin</span>
               <span className="text-[11px] text-admin-sidebar-muted">Painel da plataforma</span>
             </div>
           )}

@@ -21,7 +21,7 @@ export default function InvitePage() {
   const [password, setPassword] = useState("");
   const acceptingRef = useRef(false);
 
-  useEffect(() => { document.title = "Convite — MK CRM"; }, []);
+  useEffect(() => { document.title = "Convite — Chat Funnel AI"; }, []);
 
   useEffect(() => {
     (async () => {
