@@ -339,7 +339,8 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
         .single(),
       supabase.from("lead_custom_fields").select("field_key, field_type"),
     ]);
-    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any);
+    const clinicTz = await getClinicTimezone(supabase, a.clinic_id);
+    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz);
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
