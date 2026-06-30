@@ -151,11 +151,11 @@ export default function SettingsForms() {
             <form onSubmit={createIntegration} className="space-y-3">
               <div className="space-y-1.5">
                 <Label>Nome</Label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Site MKart" />
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Site institucional" />
               </div>
               <div className="space-y-1.5">
                 <Label>Domínios permitidos (opcional)</Label>
-                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" />
+                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" />
                 <p className="text-xs text-muted-foreground">Separe por vírgula. Deixe em branco para aceitar qualquer origem.</p>
               </div>
               <DialogFooter>
@@ -480,7 +480,7 @@ function IntegrationSettings({ integration, onSaved, canManage }: { integration:
   return (
     <Card className="p-4 space-y-3">
       <div className="space-y-1.5"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
-      <div className="space-y-1.5"><Label>Domínios permitidos</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>Domínios permitidos</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" disabled={!canManage} /></div>
       <div className="space-y-1.5"><Label>Tags padrão para novos leads</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="site, formulario" disabled={!canManage} /></div>
       {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
     </Card>

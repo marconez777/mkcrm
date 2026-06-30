@@ -70,7 +70,7 @@ export default function SiteFooter() {
         <div className="mt-14 grid gap-6 border-t border-white/5 pt-8 md:grid-cols-3">
           <div className="flex items-center gap-3 text-site-muted">
             <Mail className="h-4 w-4 text-site-primary" />
-            <span className="site-font-body text-[15px]">contato@mkart.com.br</span>
+            <span className="site-font-body text-[15px]">contato@chatfunnelai.com</span>
           </div>
           <div className="flex items-center gap-3 text-site-muted">
             <Phone className="h-4 w-4 text-site-primary" />
