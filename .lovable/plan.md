@@ -1,37 +1,59 @@
-## Objetivo
-Remover o logo MK (`mk-logo.png`) e o texto "Chat Funnel AI" escrito ao lado em código, substituindo pelas imagens novas enviadas. Atualizar favicon.
+# Plano — Sidebar Agentes (Minimalista SaaS) + Logo Header Home
 
-## Escolha entre os dois logos enviados
-- **`chat-funnel-ai-ico.png`** (só ícone do infinito + cubos) → uso em **lugares quadrados/pequenos**: sidebar do AppShell, footer do site, favicon.
-- **`chat-funnel-ai-500.png`** (lockup horizontal com texto, 500px, nítido) → uso na **navbar do site** (substituindo o ícone + texto separado, já que esse arquivo tem o texto embutido).
-- **`chat-funnel-ai.png`** (versão gigante 1920px) → descartar; o 500 já tem o mesmo lockup em tamanho mais adequado e nítido para web.
+Sequência: primeiro concluo o redesign da sidebar de `/agents`, depois aumento o logo do header da home.
 
-## Arquivos novos
-Copiar uploads para `src/assets/`:
-- `src/assets/chat-funnel-ai-ico.png`
-- `src/assets/chat-funnel-ai-500.png`
+---
 
-Copiar ícone para `public/favicon.png` (substitui o atual).
+## Parte 1 — Redesign da Sidebar Agentes (Minimalista SaaS)
 
-## Edições de código
+Arquivos afetados:
+- `src/pages/Agents.tsx` (sidebar interna)
+- `src/components/agents/BuilderSetupCard.tsx` (status do builder)
 
-### `src/components/AppShell.tsx` (sidebar)
-- Trocar import `mk-logo.png` → `chat-funnel-ai-ico.png`.
-- Manter `h-8 w-8 object-contain`.
+### Fase 1 — BuilderSetupCard como status row compacto
+Transformar o card atual em uma linha de status discreta no topo da sidebar:
+- Dot pulsante (verde = conectado, âmbar = configurando, vermelho = erro)
+- Label uppercase 11px `text-muted-foreground tracking-wider`
+- Botão "Testar conexão" em variant `ghost` size `sm`
+- Remover bordas pesadas; usar apenas `border-b border-border/50`
 
-### `src/components/site/SiteNav.tsx`
-- Trocar import para `chat-funnel-ai-500.png`.
-- Remover o `<span>Chat Funnel AI</span>` (lockup já tem o texto).
-- Ajustar img para `h-8 w-auto object-contain` (sem `rounded-lg` / `object-cover`, que distorceriam o lockup).
+### Fase 2 — Header "Agentes" refinado
+- Label uppercase 11px `tracking-wider text-muted-foreground`
+- Contador de agentes ao lado (ex: "Agentes · 4")
+- Botão "Assistente" em variant `secondary` size `sm` com ícone Sparkles
+- Spacing vertical reduzido (py-2 em vez de py-4)
 
-### `src/components/site/SiteFooter.tsx`
-- Trocar import para `chat-funnel-ai-500.png` ao lado do texto-marca, ou usar o ícone — vou usar o **lockup 500** também e remover o nome em texto, ficando coerente com a navbar. `h-8 w-auto object-contain`.
+### Fase 3 — Lista de agentes redesenhada
+Cada item da lista:
+- Avatar circular 28px com iniciais e cor derivada do nome (hash → hsl)
+- Nome em `text-sm font-medium`
+- Subline: status dot 6px + label do modelo (ex: "● gemini-2.5-flash") em `text-xs text-muted-foreground`
+- Hover: `bg-muted/40` com transição suave
+- Ativo: `bg-muted` + barra lateral 2px na cor primary (left border)
+- Padding compacto (px-2 py-1.5), gap-2
 
-### `index.html`
-- Favicon já aponta para `/favicon.png`; só substituir o arquivo binário.
+### Fase 4 — "Novo agente" como item dashed
+- Item da lista com `border border-dashed border-border/60`
+- Ícone Plus 14px + label "Novo agente"
+- Hover: borda sólida na cor primary + texto primary
+- Mesma altura dos itens normais para alinhamento visual
 
-### Asset antigo
-- Apagar `src/assets/mk-logo.png` (nenhuma outra referência depois das edições).
+### Tokens semânticos
+Tudo via `bg-muted`, `border-border`, `text-muted-foreground`, `text-primary` — zero cores hardcoded. Cores de avatar derivadas via função utilitária `getAvatarColor(name)` usando HSL.
 
-## Fora do escopo
-- Não mexer em `<title>MK CRM</title>` nem em outras strings de marca espalhadas (Onboarding, AdminBranding default, proposalContent etc.) — você pediu só "apagar logo MK + texto ao lado e colocar o novo logo". Se quiser renomear "MK CRM"/"MK Admin" também, me avisa que faço numa segunda passada.
+---
+
+## Parte 2 — Aumentar logo do header da home
+
+Arquivo: `src/components/site/SiteNav.tsx`
+
+Aumentar a altura do lockup da marca de `h-10` (40px) para `h-14` (56px), mantendo proporção. Ajustar padding vertical do header se necessário para evitar corte.
+
+---
+
+## Ordem de execução
+1. Parte 1 completa (Fases 1→4) — sidebar `/agents`
+2. Parte 2 — logo do header home
+3. Build check após cada parte
+
+Sem mudanças de lógica/backend — apenas apresentação.
