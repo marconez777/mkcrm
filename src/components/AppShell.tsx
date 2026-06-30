@@ -299,7 +299,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="mx-3 mb-3 flex items-center gap-2.5 rounded-xl border border-sidebar-border/30 bg-sidebar-accent/20 px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/50 focus:outline-none focus:ring-2 focus:ring-sidebar-ring/40"
+                  className="mx-3 mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-left transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/20"
                   title={user.email ?? "Conta"}
                 >
                   <div className="relative shrink-0">
