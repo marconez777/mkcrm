@@ -103,7 +103,7 @@ function SidebarItem({
                 "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none tabular-nums",
                 isActive
                   ? "bg-[hsl(var(--accent)/0.22)] text-[hsl(var(--accent))]"
-                  : "bg-sidebar-accent/70 text-sidebar-foreground/75"
+                  : "bg-white/15 text-white/75"
               )}
             >
               {badge > 99 ? "99+" : badge}
