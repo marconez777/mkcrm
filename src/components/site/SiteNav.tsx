@@ -15,7 +15,7 @@ export default function SiteNav() {
     <header className="sticky top-0 z-40 border-b border-white/5 bg-site-bg/80 backdrop-blur supports-[backdrop-filter]:bg-site-bg/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/site" className="flex items-center text-site-text">
-          <img src={brandLockup} alt="Chat Funnel AI" className="h-8 w-auto object-contain" />
+          <img src={brandLockup} alt="Chat Funnel AI" className="h-10 w-auto object-contain" />
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">
