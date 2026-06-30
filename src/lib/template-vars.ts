@@ -14,7 +14,7 @@ export type LeadLike = {
   custom_fields?: Record<string, any> | null;
 };
 
-const TZ = "America/Sao_Paulo";
+const DEFAULT_TZ = "America/Sao_Paulo";
 const MONTHS_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
 function parseDate(v: any): Date | null {
