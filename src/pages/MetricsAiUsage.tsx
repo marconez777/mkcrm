@@ -391,7 +391,7 @@ export default function MetricsAiUsage() {
         )}
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Custo por dia (top 6 modelos)</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.dailyCostTitle")}</h2>
           <div className="flex h-44 items-stretch gap-1">
             {dailyByModel.buckets.map((b: any) => {
               const total = dailyByModel.models.reduce((s, m) => s + (b[m] || 0), 0);
