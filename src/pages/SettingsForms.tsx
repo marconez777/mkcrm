@@ -795,7 +795,7 @@ Esses valores **já estão dentro dos scripts** do passo 1. Você não precisa r
 5. Preencha e envie um formulário. Em Network, filtre por \`forms-ingest\` — deve aparecer 1 POST com response \`{"ok":true,"status":"ok","lead_id":"..."}\`
 6. Clique no botão de WhatsApp — deve abrir o WhatsApp normalmente (passando pelo redirecionador do CRM, com um código de rastreio na mensagem)
 
-Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do CRM com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
+Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do Chat Funnel AI com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
 `;
 }
 
