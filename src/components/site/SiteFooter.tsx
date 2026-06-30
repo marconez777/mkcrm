@@ -39,7 +39,7 @@ export default function SiteFooter() {
         <div className="grid gap-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <Link to="/site" className="flex items-center text-site-text">
-              <img src={brandLockup} alt="Chat Funnel AI" className="h-8 w-auto object-contain" />
+              <img src={brandLockup} alt="Chat Funnel AI" className="h-12 w-auto object-contain" />
             </Link>
             {/* TODO: copy final */}
             <p className="site-font-body mt-4 max-w-sm text-[15px] leading-relaxed text-site-muted">
