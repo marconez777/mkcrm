@@ -120,7 +120,7 @@ export default function PipelineRuns() {
   const handleStart = async (scope?: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => {
     if (!clinicId) return;
     const isScoped = !!(scope?.stage_ids?.length || scope?.lead_ids?.length || scope?.top_n || scope?.only_agent);
-    if (!isScoped && !confirm("Iniciar execução do pipeline INTEIRO da empresa? Isso vai processar todos os leads em todas as colunas com o agente de IA.")) return;
+    if (!isScoped && !confirm(t("confirm.runFull"))) return;
     setStarting(true);
     try {
       const payload: Record<string, unknown> = { action: "start", clinic_id: clinicId };
@@ -131,10 +131,10 @@ export default function PipelineRuns() {
       if (scope?.only_agent) payload.only_agent = scope.only_agent;
       const res = await callExecutor<{ run_id?: string }>(payload);
       if (res.error) {
-        toast.error(`Erro: ${res.error}`);
+        toast.error(t("toast.errorPrefix", { message: res.error }));
         return;
       }
-      toast.success(isScoped ? "Execução focada iniciada" : "Execução iniciada");
+      toast.success(isScoped ? t("toast.scopedStarted") : t("toast.started"));
       if (res.run_id) setSelectedRunId(res.run_id);
       setScopeOpen(false);
     } catch (err) {
