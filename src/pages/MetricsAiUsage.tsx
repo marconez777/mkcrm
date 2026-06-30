@@ -476,18 +476,18 @@ export default function MetricsAiUsage() {
             <table className="w-full text-xs">
               <thead className="border-b text-muted-foreground">
                 <tr>
-                  <th className="py-2 text-left font-medium">Quando</th>
-                  <th className="py-2 text-left font-medium">Modelo</th>
-                  <th className="py-2 text-left font-medium">Op.</th>
-                  <th className="py-2 text-left font-medium">Origem</th>
-                  <th className="py-2 text-left font-medium">Erro</th>
-                  <th className="py-2 text-left font-medium">Agente</th>
-                  <th className="py-2 text-left font-medium">Lead</th>
-                  <th className="py-2 text-right font-medium">In</th>
-                  <th className="py-2 text-right font-medium">Out</th>
-                  <th className="py-2 text-right font-medium">Lat.</th>
-                  <th className="py-2 text-right font-medium">Custo</th>
-                  <th className="py-2 text-left font-medium">Status</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.when")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.model")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.op")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.source")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.error")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.agent")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.lead")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.in")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.out")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.lat")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.cost")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -496,11 +496,11 @@ export default function MetricsAiUsage() {
                   const lead = r.lead_id ? leads[r.lead_id] : null;
                   return (
                     <tr key={r.id} className="cursor-pointer border-b hover:bg-accent/40" onClick={() => setDetail(r)}>
-                      <td className="py-1.5">{new Date(r.created_at).toLocaleString()}</td>
+                      <td className="py-1.5">{new Date(r.created_at).toLocaleString(lang)}</td>
                       <td className="py-1.5 font-mono text-[11px]">{r.model}</td>
                       <td className="py-1.5">{r.operation}</td>
                       <td className="py-1.5">{r.source ?? "unknown"}</td>
-                      <td className="py-1.5">{r.error_category ? <Badge variant="outline" className="text-[10px]">{friendlyErrorCategory(r.error_category)}</Badge> : "—"}</td>
+                      <td className="py-1.5">{r.error_category ? <Badge variant="outline" className="text-[10px]">{t(`metricsAiUsage.errCat.${r.error_category}`, { defaultValue: r.error_category })}</Badge> : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{r.agent_id ? agents[r.agent_id] ?? "—" : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{lead?.name ?? lead?.phone ?? "—"}</td>
                       <td className="py-1.5 text-right tabular-nums">{r.input_tokens ?? "—"}</td>
@@ -514,7 +514,7 @@ export default function MetricsAiUsage() {
                   );
                 })}
                 {pageRows.length === 0 && (
-                  <tr><td colSpan={12} className="py-6 text-center text-muted-foreground">Sem chamadas no período / filtro.</td></tr>
+                  <tr><td colSpan={12} className="py-6 text-center text-muted-foreground">{t("metricsAiUsage.details.empty")}</td></tr>
                 )}
               </tbody>
             </table>
