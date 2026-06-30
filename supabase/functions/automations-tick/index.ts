@@ -132,7 +132,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cfg = a.trigger_config ?? {};
     const fieldKey: string = cfg.field_key;
     const offsetMin = Number(cfg.offset_minutes ?? 60);
-    const tz: string = cfg.tz || "America/Sao_Paulo";
+    const tz: string = cfg.tz || (await getClinicTimezone(supabase, a.clinic_id));
     const preferred: string | undefined = cfg.preferred_time; // "HH:MM"
     const businessOnly: boolean = !!cfg.business_hours_only;
     const businessStart = Number(cfg.business_hours_start ?? 10);
