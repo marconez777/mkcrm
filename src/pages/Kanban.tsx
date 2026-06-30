@@ -53,6 +53,8 @@ import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 import PipelineDateFilter, { EMPTY_DATE_FILTER, presetToValue, type DateFilterValue } from "@/components/kanban/PipelineDateFilter";
+import { useRegion } from "@/hooks/useRegion";
+import { formatMoney as fmtMoney } from "@/lib/format";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -63,10 +65,6 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(sec / 86400)}d`;
 }
 
-function formatMoney(v: number | null) {
-  if (v == null) return null;
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-}
 
 const EMPTY_LEADS: Lead[] = [];
 
@@ -363,7 +361,9 @@ function Column({
   aiBinding?: { agentName: string; autoReply: boolean };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
+  const region = useRegion();
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
+
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(stage.name);
   
@@ -454,8 +454,9 @@ function Column({
         </div>
         <div className="flex items-center gap-1">
           {totalValue > 0 && (
-            <span className="text-xs font-medium text-muted-foreground">{formatMoney(totalValue)}</span>
+            <span className="text-xs font-medium text-muted-foreground">{fmtMoney(totalValue, region.currency, region.locale)}</span>
           )}
+
           <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
             <Minimize2 className="h-4 w-4" />
           </button>
