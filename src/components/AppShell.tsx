@@ -303,7 +303,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   title={user.email ?? "Conta"}
                 >
                   <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9 ring-2 ring-sidebar-border/30">
+                    <Avatar className="h-9 w-9 ring-2 ring-white/20">
                       {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt={displayName} />}
                       <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs font-semibold">
                         {initials}
