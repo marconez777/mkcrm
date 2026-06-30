@@ -13,6 +13,7 @@ import { calcCost, fmtUSD, isModelKnown } from "@/lib/ai-pricing";
 import { AiSpendLimitCard } from "@/components/admin/AiSpendLimitCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PipelineOverview } from "@/components/ai/usage/PipelineOverview";
+import { AgentRuntimeOverview } from "@/components/ai/usage/AgentRuntimeOverview";
 
 
 type Row = {
@@ -306,11 +307,15 @@ export default function MetricsAiUsage() {
         {membership?.clinic_id && <AiSpendLimitCard clinicId={membership.clinic_id} />}
         <Tabs defaultValue="overview">
           <TabsList>
-            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="overview">Pipeline (classifier)</TabsTrigger>
+            <TabsTrigger value="agents">Atendimento (agentes)</TabsTrigger>
             <TabsTrigger value="advanced">Avançado</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-4">
             <PipelineOverview clinicId={membership?.clinic_id ?? null} />
+          </TabsContent>
+          <TabsContent value="agents" className="mt-4">
+            <AgentRuntimeOverview clinicId={membership?.clinic_id ?? null} />
           </TabsContent>
           <TabsContent value="advanced" className="mt-4 space-y-5">
 
