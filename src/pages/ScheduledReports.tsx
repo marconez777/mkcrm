@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { CalendarClock, Plus, Trash2, Send, Loader2, RefreshCw } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Report = {
   id: string;
@@ -29,19 +30,15 @@ type Report = {
   last_error: string | null;
 };
 
-const WEEKDAYS = [
-  { v: 0, label: "Dom" }, { v: 1, label: "Seg" }, { v: 2, label: "Ter" },
-  { v: 3, label: "Qua" }, { v: 4, label: "Qui" }, { v: 5, label: "Sex" }, { v: 6, label: "Sáb" },
-];
-
-const METRIC_LIST = [
-  { key: "unique_visitors", label: "Visitantes únicos" },
-  { key: "whatsapp_clicks", label: "Cliques no WhatsApp" },
-  { key: "form_leads", label: "Leads (formulário)" },
-  { key: "whatsapp_leads", label: "Leads (WhatsApp)" },
-];
-
 export default function ScheduledReports() {
+  const { t } = useTranslation();
+  const WEEKDAYS = [0,1,2,3,4,5,6].map(v => ({ v, label: t(`scheduledReports.wd${v}` as any) }));
+  const METRIC_LIST = [
+    { key: "unique_visitors", label: t("scheduledReports.m_unique_visitors") },
+    { key: "whatsapp_clicks", label: t("scheduledReports.m_whatsapp_clicks") },
+    { key: "form_leads", label: t("scheduledReports.m_form_leads") },
+    { key: "whatsapp_leads", label: t("scheduledReports.m_whatsapp_leads") },
+  ];
   const [list, setList] = useState<Report[]>([]);
   const [selected, setSelected] = useState<Report | null>(null);
   const [instances, setInstances] = useState<any[]>([]);
@@ -50,6 +47,7 @@ export default function ScheduledReports() {
   const [sending, setSending] = useState(false);
   const [runs, setRuns] = useState<any[]>([]);
   const confirm = useConfirm();
+
 
   const load = async () => {
     const [r, { data: ins }] = await Promise.all([
@@ -78,11 +76,11 @@ export default function ScheduledReports() {
   const create = async () => {
     const defaultInstance = instances.find((i) => i.is_default) ?? instances[0];
     if (!defaultInstance) {
-      toast.error("Cadastre uma instância de WhatsApp primeiro");
+      toast.error(t("scheduledReports.needInstance"));
       return;
     }
     const { data, error } = await supabase.from("scheduled_reports").insert({
-      name: "Relatório diário",
+      name: t("scheduledReports.defaultName"),
       instance_id: defaultInstance.id,
       group_jid: "",
       send_time: "20:00",
@@ -95,10 +93,10 @@ export default function ScheduledReports() {
   const save = async () => {
     if (!selected) return;
     if (!selected.group_jid || !selected.group_jid.endsWith("@g.us")) {
-      return toast.error("Selecione um grupo (JID precisa terminar com @g.us)");
+      return toast.error(t("scheduledReports.needGroup"));
     }
     if (!/^\d{2}:\d{2}$/.test(selected.send_time)) {
-      return toast.error("Horário deve estar no formato HH:MM");
+      return toast.error(t("scheduledReports.badTime"));
     }
     const { error } = await supabase.from("scheduled_reports").update({
       name: selected.name,
@@ -112,12 +110,12 @@ export default function ScheduledReports() {
       metrics: selected.metrics,
     }).eq("id", selected.id);
     if (error) return toast.error(error.message);
-    toast.success("Salvo");
+    toast.success(t("scheduledReports.saved"));
     await load();
   };
 
   const remove = async (id: string) => {
-    const ok = await confirm({ title: "Excluir relatório?", description: "Esta ação não pode ser desfeita." });
+    const ok = await confirm({ title: t("scheduledReports.deleteTitle"), description: t("scheduledReports.deleteDesc") });
     if (!ok) return;
     await supabase.from("scheduled_reports").delete().eq("id", id);
     setSelected(null);
@@ -134,7 +132,7 @@ export default function ScheduledReports() {
     if (error) return toast.error(error.message);
     const list = (data as any)?.groups ?? [];
     setGroups(list);
-    if (!list.length) toast.info("Nenhum grupo encontrado nesta instância");
+    if (!list.length) toast.info(t("scheduledReports.noGroups"));
   };
 
   const sendNow = async () => {
@@ -146,8 +144,8 @@ export default function ScheduledReports() {
     setSending(false);
     if (error) return toast.error(error.message);
     const r = (data as any)?.result;
-    if (r?.ok) toast.success("Relatório enviado");
-    else toast.error(r?.error || "Falha ao enviar");
+    if (r?.ok) toast.success(t("scheduledReports.sent"));
+    else toast.error(r?.error || t("scheduledReports.sendFailed"));
     await load();
   };
 
@@ -164,7 +162,7 @@ export default function ScheduledReports() {
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
       <aside className="w-72 shrink-0 border-r bg-muted/20">
         <div className="flex items-center justify-between p-4">
-          <h2 className="text-sm font-semibold">Relatórios</h2>
+          <h2 className="text-sm font-semibold">{t("scheduledReports.listTitle")}</h2>
           <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
         </div>
         <div className="px-2">
@@ -188,7 +186,7 @@ export default function ScheduledReports() {
           ))}
           {list.length === 0 && (
             <p className="px-3 py-4 text-xs text-muted-foreground">
-              Nenhum relatório. Crie o primeiro — envia automaticamente todo dia no horário escolhido.
+              {t("scheduledReports.empty")}
             </p>
           )}
         </div>
@@ -197,7 +195,7 @@ export default function ScheduledReports() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie um relatório agendado.
+            {t("scheduledReports.emptySelect")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
@@ -210,44 +208,44 @@ export default function ScheduledReports() {
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={sendNow} disabled={sending}>
                   {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  Enviar agora
+                  {t("scheduledReports.sendNow")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <Button size="sm" onClick={save}>Salvar</Button>
+                <Button size="sm" onClick={save}>{t("scheduledReports.save")}</Button>
               </div>
             </div>
 
             <Card className="space-y-4 p-4">
               <div className="flex items-center justify-between">
-                <Label>Ativo</Label>
+                <Label>{t("scheduledReports.active")}</Label>
                 <Switch checked={selected.enabled}
                   onCheckedChange={(v) => setSelected({ ...selected, enabled: v })} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Instância WhatsApp</Label>
+                  <Label className="text-xs">{t("scheduledReports.instance")}</Label>
                   <Select value={selected.instance_id}
                     onValueChange={(v) => { setSelected({ ...selected, instance_id: v }); setGroups([]); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {instances.map((i) => (
-                        <SelectItem key={i.id} value={i.id}>{i.name}{i.is_default ? " (padrão)" : ""}</SelectItem>
+                        <SelectItem key={i.id} value={i.id}>{i.name}{i.is_default ? ` ${t("scheduledReports.default")}` : ""}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Horário (HH:MM)</Label>
+                  <Label className="text-xs">{t("scheduledReports.time")}</Label>
                   <Input value={selected.send_time}
                     onChange={(e) => setSelected({ ...selected, send_time: e.target.value })} />
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs">Grupo de destino</Label>
+                <Label className="text-xs">{t("scheduledReports.targetGroup")}</Label>
                 <div className="flex gap-2">
                   <Input
                     placeholder="ex: 12036xxxxxxxx@g.us"
@@ -256,7 +254,7 @@ export default function ScheduledReports() {
                   />
                   <Button type="button" variant="outline" onClick={fetchGroups} disabled={loadingGroups}>
                     {loadingGroups ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    <span className="ml-2">Buscar grupos</span>
+                    <span className="ml-2">{t("scheduledReports.fetchGroups")}</span>
                   </Button>
                 </div>
                 {groups.length > 0 && (
@@ -267,7 +265,7 @@ export default function ScheduledReports() {
                       setSelected({ ...selected, group_jid: v, group_name: g?.subject ?? null });
                     }}
                   >
-                    <SelectTrigger className="mt-2"><SelectValue placeholder="Selecione um grupo" /></SelectTrigger>
+                    <SelectTrigger className="mt-2"><SelectValue placeholder={t("scheduledReports.selectGroup")} /></SelectTrigger>
                     <SelectContent>
                       {groups.map((g) => (
                         <SelectItem key={g.id} value={g.id}>{g.subject}</SelectItem>
@@ -276,12 +274,12 @@ export default function ScheduledReports() {
                   </Select>
                 )}
                 {selected.group_name && (
-                  <p className="mt-1 text-xs text-muted-foreground">Grupo: {selected.group_name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("scheduledReports.groupLabel", { name: selected.group_name })}</p>
                 )}
               </div>
 
               <div>
-                <Label className="text-xs">Dias da semana</Label>
+                <Label className="text-xs">{t("scheduledReports.weekdays")}</Label>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {WEEKDAYS.map((w) => (
                     <button
@@ -299,14 +297,14 @@ export default function ScheduledReports() {
               </div>
 
               <div>
-                <Label className="text-xs">Fuso horário</Label>
+                <Label className="text-xs">{t("scheduledReports.timezone")}</Label>
                 <Input value={selected.tz}
                   onChange={(e) => setSelected({ ...selected, tz: e.target.value })} />
-                <p className="mt-1 text-xs text-muted-foreground">Default: America/Sao_Paulo</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("scheduledReports.timezoneHelp")}</p>
               </div>
 
               <div>
-                <Label className="text-xs">Métricas incluídas</Label>
+                <Label className="text-xs">{t("scheduledReports.metrics")}</Label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {METRIC_LIST.map((m) => (
                     <label key={m.key} className="flex items-center gap-2 text-sm">
@@ -327,9 +325,9 @@ export default function ScheduledReports() {
             </Card>
 
             <Card className="p-4">
-              <h3 className="mb-3 text-sm font-semibold">Últimas execuções</h3>
+              <h3 className="mb-3 text-sm font-semibold">{t("scheduledReports.lastRuns")}</h3>
               {runs.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sem execuções ainda.</p>
+                <p className="text-xs text-muted-foreground">{t("scheduledReports.noRuns")}</p>
               ) : (
                 <div className="space-y-2">
                   {runs.map((r) => (
@@ -337,7 +335,7 @@ export default function ScheduledReports() {
                       <div className="flex items-center justify-between">
                         <Badge variant={r.status === "success" ? "default" : "destructive"}>{r.status}</Badge>
                         <span className="text-muted-foreground">
-                          {new Date(r.created_at).toLocaleString("pt-BR")}
+                          {new Date(r.created_at).toLocaleString()}
                         </span>
                       </div>
                       {r.message_preview && (
@@ -355,3 +353,4 @@ export default function ScheduledReports() {
     </div>
   );
 }
+
