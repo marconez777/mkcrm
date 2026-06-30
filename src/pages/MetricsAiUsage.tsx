@@ -324,8 +324,8 @@ export default function MetricsAiUsage() {
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold">Custos de IA</h1>
-            <p className="text-xs text-muted-foreground">Histórico detalhado de chamadas para a API de IA. Visível somente para administradores.</p>
+            <h1 className="text-lg font-semibold">{t("metricsAiUsage.title")}</h1>
+            <p className="text-xs text-muted-foreground">{t("metricsAiUsage.desc")}</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-xs">
