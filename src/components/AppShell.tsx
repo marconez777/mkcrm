@@ -83,7 +83,11 @@ function SidebarItem({
   item: NavItem;
   badge?: number;
 }) {
+  const { t } = useTranslation();
   const accentVar = ACCENT_VAR[item.accent];
+  const i18nKey = NAV_I18N_KEY[item.to];
+  const label = i18nKey ? t(i18nKey, item.label) : item.label;
+
   return (
     <NavLink
       to={item.to}
@@ -114,7 +118,7 @@ function SidebarItem({
               isActive ? "text-[hsl(var(--accent))]" : "text-white/55"
             )}
           />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{label}</span>
           {badge != null && badge > 0 && (
             <span
               className={cn(
