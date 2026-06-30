@@ -15,7 +15,7 @@ import { useConfirm } from "@/hooks/useDialogs";
 const TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Texto" },
   { value: "number", label: "Número" },
-  { value: "currency", label: "Moeda (R$)" },
+  { value: "currency", label: "Moeda" },
   { value: "date", label: "Data" },
   { value: "datetime", label: "Data e hora" },
   { value: "boolean", label: "Sim/Não" },
