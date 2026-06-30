@@ -632,7 +632,8 @@ function errorCategoryExplanation(category: string) {
 }
 
 function RankList({ rows }: { rows: { key: string; label: string; sub?: string; value: string; href?: string }[] }) {
-  if (rows.length === 0) return <p className="text-sm text-muted-foreground">Sem dados.</p>;
+  const { t } = useTranslation();
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">{t("metricsAiUsage.noData")}</p>;
   const max = Math.max(...rows.map((r) => parseFloat(r.value.replace(/[^0-9.]/g, "")) || 0));
   return (
     <div className="space-y-2">
