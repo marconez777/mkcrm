@@ -182,6 +182,20 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
     case "datetime": {
       const parsed = value ? new Date(value) : undefined;
       const d = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
+      // localTime mantém digitação fluida no <input type="time">. Commit no
+      // onBlur evita uma cascata de saves a cada keystroke (que estava
+      // gerando race conditions com o realtime e ressuscitando valores).
+      const [localTime, setLocalTime] = useState<string>(d ? format(d, "HH:mm") : "");
+      useEffect(() => { setLocalTime(d ? format(d, "HH:mm") : ""); }, [value]);
+      const commitTime = (raw: string) => {
+        if (!d) return;
+        const [h, m] = raw.split(":").map(Number);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return;
+        const nd = new Date(d);
+        nd.setHours(h, m, 0, 0);
+        const iso = nd.toISOString();
+        if (iso !== value) onChange(iso);
+      };
       return (
         <Popover>
           <PopoverTrigger asChild>
@@ -212,11 +226,14 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
                 {field.field_type === "datetime" && (
                   <input
                     type="time"
-                    value={format(d, "HH:mm")}
-                    onChange={(e) => {
-                      const [h, m] = e.target.value.split(":").map(Number);
-                      const nd = new Date(d); nd.setHours(h || 0, m || 0, 0, 0);
-                      onChange(nd.toISOString());
+                    value={localTime}
+                    onChange={(e) => setLocalTime(e.target.value)}
+                    onBlur={(e) => commitTime(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        commitTime((e.target as HTMLInputElement).value);
+                        (e.target as HTMLInputElement).blur();
+                      }
                     }}
                     className="flex-1 rounded border bg-background px-2 py-1 text-xs"
                   />
