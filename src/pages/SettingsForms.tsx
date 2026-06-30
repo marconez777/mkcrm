@@ -794,6 +794,7 @@ Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do Chat Fu
 }
 
 function TrafficSummary({ clinicId }: { clinicId: string }) {
+  const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<{
     visitors24: number; visitors7d: number;
     events24: number; events7d: number;
@@ -835,13 +836,13 @@ function TrafficSummary({ clinicId }: { clinicId: string }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <div className="mt-2 flex items-baseline gap-3">
         <div>
-          <div className="text-2xl font-semibold">{v24.toLocaleString("pt-BR")}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimas 24h</div>
+          <div className="text-2xl font-semibold">{v24.toLocaleString(i18n.language)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("settingsForms.traffic.last24h")}</div>
         </div>
         <div className="text-muted-foreground">/</div>
         <div>
-          <div className="text-lg font-medium">{v7d.toLocaleString("pt-BR")}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimos 7 dias</div>
+          <div className="text-lg font-medium">{v7d.toLocaleString(i18n.language)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("settingsForms.traffic.last7d")}</div>
         </div>
       </div>
     </Card>
@@ -850,16 +851,16 @@ function TrafficSummary({ clinicId }: { clinicId: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Metric label="Visitantes únicos" v24={stats.visitors24} v7d={stats.visitors7d} />
-        <Metric label="Eventos de tracking" v24={stats.events24} v7d={stats.events7d} />
-        <Metric label="Cliques em WhatsApp" v24={stats.waIntents24} v7d={stats.waIntents7d} />
+        <Metric label={t("settingsForms.traffic.visitors")} v24={stats.visitors24} v7d={stats.visitors7d} />
+        <Metric label={t("settingsForms.traffic.events")} v24={stats.events24} v7d={stats.events7d} />
+        <Metric label={t("settingsForms.traffic.waClicks")} v24={stats.waIntents24} v7d={stats.waIntents7d} />
       </div>
       <Card className="p-4 flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium">Painel completo de rastreamento</p>
-          <p className="text-xs text-muted-foreground">Veja jornada de cada visitante, eventos detalhados, atribuição UTM e funis.</p>
+          <p className="text-sm font-medium">{t("settingsForms.traffic.panelTitle")}</p>
+          <p className="text-xs text-muted-foreground">{t("settingsForms.traffic.panelDesc")}</p>
         </div>
-        <a href="/tracking"><Button variant="outline"><ExternalLink className="h-4 w-4 mr-2" />Abrir painel</Button></a>
+        <a href="/tracking"><Button variant="outline"><ExternalLink className="h-4 w-4 mr-2" />{t("settingsForms.traffic.openPanel")}</Button></a>
       </Card>
     </div>
   );
