@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, Copy } from "lucide-react";
 import { downloadBroadcastTemplate, parseContactsFile } from "@/lib/broadcast-template";
 import { formatPhoneDisplay } from "@/lib/phone";
+import { useRegion } from "@/hooks/useRegion";
 
 type Broadcast = {
   id: string; name: string; status: string;
