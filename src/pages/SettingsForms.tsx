@@ -765,7 +765,7 @@ Não precisa fazer nada — só ter o pixel instalado.
 | Submit chega mas sem email/phone | Nome do input não está nos aliases | Adicionar \`data-mk-field="email"\` (ou phone/name) |
 | Tracking não conta visitas | Pixel instalado depois do snippet, ou cache de pré-renderização | Verificar ordem e forçar re-render |
 | WhatsApp abre tela "unknown_project" | Project ID errado no script | Confirmar que o pixel tem exatamente: \`?project_id=${clinicId}\` |
-| CORS error no console | Domínio não está na allowlist do CRM | Pedir ao admin do CRM pra adicionar \`${domain}\` em domínios permitidos |
+| CORS error no console | Domínio não está na allowlist do Chat Funnel AI | Pedir ao admin do Chat Funnel AI pra adicionar \`${domain}\` em domínios permitidos |
 
 ---
 
