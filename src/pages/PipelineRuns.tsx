@@ -254,18 +254,19 @@ export default function PipelineRuns() {
 }
 
 function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"]; label?: string }) {
-  const cfg: Record<string, { label: string; cls: string }> = {
-    queued: { label: "Na fila", cls: "bg-slate-500/15 text-slate-300" },
-    running: { label: "Rodando", cls: "bg-blue-500/15 text-blue-400" },
-    done: { label: "Concluída", cls: "bg-emerald-500/15 text-emerald-400" },
-    error: { label: "Com erro", cls: "bg-red-500/15 text-red-400" },
-    cancelled: { label: "Cancelada", cls: "bg-amber-500/15 text-amber-400" },
-    pending: { label: "Pendente", cls: "bg-slate-500/15 text-slate-300" },
-    ok: { label: "OK", cls: "bg-emerald-500/15 text-emerald-400" },
-    skipped: { label: "Skip", cls: "bg-slate-500/15 text-slate-400" },
+  const { t } = useTranslation("pipelineRuns");
+  const cls: Record<string, string> = {
+    queued: "bg-slate-500/15 text-slate-300",
+    running: "bg-blue-500/15 text-blue-400",
+    done: "bg-emerald-500/15 text-emerald-400",
+    error: "bg-red-500/15 text-red-400",
+    cancelled: "bg-amber-500/15 text-amber-400",
+    pending: "bg-slate-500/15 text-slate-300",
+    ok: "bg-emerald-500/15 text-emerald-400",
+    skipped: "bg-slate-500/15 text-slate-400",
   };
-  const c = cfg[status] ?? cfg.queued;
-  return <Badge variant="outline" className={`border-0 ${c.cls}`}>{label ?? c.label}</Badge>;
+  const c = cls[status] ?? cls.queued;
+  return <Badge variant="outline" className={`border-0 ${c}`}>{label ?? t(`status.${status}`)}</Badge>;
 }
 
 type LeadInfo = { name: string | null; phone: string | null };
