@@ -69,7 +69,7 @@ function callExecutor<T = unknown>(body: Record<string, unknown>): Promise<{ ok?
 }
 
 export default function PipelineRuns() {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const dateLocale = useDateFnsLocale();
   const { enabled, loading, clinicId } = usePipelineAllowlist();
   const [runs, setRuns] = useState<Run[]>([]);
@@ -254,7 +254,7 @@ export default function PipelineRuns() {
 }
 
 function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"]; label?: string }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const cls: Record<string, string> = {
     queued: "bg-slate-500/15 text-slate-300",
     running: "bg-blue-500/15 text-blue-400",
@@ -272,7 +272,7 @@ function StatusBadge({ status, label }: { status: RunStatus | RunItem["status"];
 type LeadInfo = { name: string | null; phone: string | null };
 
 function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [run, setRun] = useState<Run | null>(null);
   const [items, setItems] = useState<RunItem[]>([]);
   const [leadsMap, setLeadsMap] = useState<Record<string, LeadInfo>>({});
@@ -405,7 +405,7 @@ function RunDetail({ runId, clinicId }: { runId: string; clinicId: string | null
 function StageGroup({
   stageName, items, leadsMap, clinicId,
 }: { stageName: string; items: RunItem[]; leadsMap: Record<string, LeadInfo>; clinicId: string | null }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [open, setOpen] = useState(true);
   const ok = items.filter((i) => i.status === "ok").length;
   const err = items.filter((i) => i.status === "error").length;
@@ -472,7 +472,7 @@ function AgentCard({
   status: "ok" | "error" | "skipped";
   body: React.ReactNode;
 }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const tone =
     status === "error" ? "border-red-500/40 bg-red-500/5"
     : !ran ? "border-border/40 bg-muted/20 opacity-60"
@@ -510,7 +510,7 @@ function ReasonChip({ info }: { info: SkipReasonInfo }) {
 }
 
 function ItemRow({ item, lead, clinicId }: { item: RunItem; lead?: LeadInfo; clinicId: string | null }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState(item.comment ?? "");
   const [retry, setRetry] = useState(item.retry_requested);
@@ -784,7 +784,7 @@ function ScopeDialog({
   starting: boolean;
   onConfirm: (scope: { pipeline_id?: string; stage_ids?: string[]; lead_ids?: string[]; top_n?: number; only_agent?: OnlyAgent }) => void;
 }) {
-  const { t } = useTranslation("pipelineRuns");
+  const { t } = useTranslation(undefined, { keyPrefix: "pipelineRuns" });
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
