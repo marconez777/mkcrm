@@ -427,10 +427,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         {events.length > 0 && (
           <div>
             <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> Linha do tempo</span>
+              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> {t("inbox.context.timeline")}</span>
               {events.length > 5 && (
                 <button onClick={() => setEventsExpanded((v) => !v)} className="flex items-center gap-0.5 normal-case hover:text-foreground">
-                  {eventsExpanded ? <>Menos <ChevronUp className="h-3 w-3" /></> : <>Tudo ({events.length}) <ChevronDown className="h-3 w-3" /></>}
+                  {eventsExpanded ? <>{t("inbox.context.less")} <ChevronUp className="h-3 w-3" /></> : <>{t("inbox.context.all")} ({events.length}) <ChevronDown className="h-3 w-3" /></>}
                 </button>
               )}
             </div>
