@@ -17,6 +17,7 @@ import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
 import { usePipelines } from "@/hooks/usePipelines";
 
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
