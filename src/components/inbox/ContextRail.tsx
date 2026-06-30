@@ -327,7 +327,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Origem do formulário</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.formSource")}</Label>
             <Input
               value={(form as any).form_source ?? ""}
               onChange={(e) => setForm({ ...form, ...({ form_source: e.target.value } as any) })}
