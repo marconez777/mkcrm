@@ -74,8 +74,9 @@ export default function AgentMemories() {
     const { error } = await supabase.from("agent_memory").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     setMemories((prev) => prev.filter((m) => m.id !== id));
-    toast.success("Memória apagada");
+    toast.success(t("agentMemories.deleted"));
   }
+
 
   const filtered = useMemo(() => {
     return memories.filter((m) => {
