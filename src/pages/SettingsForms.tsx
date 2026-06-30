@@ -616,9 +616,9 @@ function buildAiPrompt(args: {
   supabaseUrl: string;
 }) {
   const { pixelCode, snippetCode, clinicId, token, domain, supabaseUrl } = args;
-  return `# Integração com MK CRM — leia tudo e adapte o site
+  return `# Integração com Chat Funnel AI — leia tudo e adapte o site
 
-Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o MK CRM. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
+Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o Chat Funnel AI. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
 
 ---
 
