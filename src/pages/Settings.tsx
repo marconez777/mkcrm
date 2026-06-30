@@ -196,12 +196,12 @@ export default function SettingsPage() {
             <Card className="space-y-4 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold">Minhas conexões</h2>
-                  <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
+                  <h2 className="text-base font-semibold">{t("settings.wa.myConnections")}</h2>
+                  <p className="text-xs text-muted-foreground">{t("settings.wa.myConnectionsHint")}</p>
                 </div>
                 {canManage && (
                   <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                    <Plus className="mr-2 h-4 w-4" /> {t("settings.wa.new")}
                   </Button>
                 )}
               </div>
@@ -209,7 +209,7 @@ export default function SettingsPage() {
               {instances.length === 0 && (
                 <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
                   <Smartphone className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                  Nenhuma conexão ainda.{canManage && " Clique em \"Novo WhatsApp\" para começar."}
+                  {t("settings.wa.empty")}{canManage && t("settings.wa.emptyCta")}
                 </div>
               )}
 
@@ -247,42 +247,42 @@ export default function SettingsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{inst.name}</span>
-                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
-                            {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão expirada — reescaneie o QR</span>}
-                            {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão travada — tentando reiniciar</span>}
-                            {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">sem eventos há {minutesSinceInbound}min — verificando</span>}
+                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />{t("settings.wa.default")}</span>}
+                            {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionExpired")}</span>}
+                            {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionStuck")}</span>}
+                            {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">{t("settings.wa.noEvents", { minutes: minutesSinceInbound })}</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                            {inst.connection_state ?? t("settings.wa.unknown")} · {inst.evolution_instance}
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
-                            Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
-                            {inst.last_reconnect_at && <> · Última reconexão: {formatRelative(inst.last_reconnect_at)}</>}
-                            {inst.last_auto_restart_at && <> · Auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
-                            {inst.last_auto_logout_at && <> · Auto-logout: {formatRelative(inst.last_auto_logout_at)}</>}
+                            {t("settings.wa.lastInbound")}: {formatRelative(inst.last_inbound_webhook_at)}
+                            {inst.last_reconnect_at && <> · {t("settings.wa.lastReconnect")}: {formatRelative(inst.last_reconnect_at)}</>}
+                            {inst.last_auto_restart_at && <> · {t("settings.wa.autoRestart")}: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_auto_logout_at && <> · {t("settings.wa.autoLogout")}: {formatRelative(inst.last_auto_logout_at)}</>}
                             {inst.last_backfill_at && (
-                              <> · Última recuperação: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} msgs)</>
+                              <> · {t("settings.wa.lastBackfill")}: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} {t("settings.wa.msgs")})</>
                             )}
                           </div>
                           {expired && (
                             <div className="mt-2 text-xs text-red-700">
-                              A sessão WhatsApp Web caiu do lado do celular. Clique em <strong>{open ? "Gerenciar" : "Escanear QR"}</strong> e refaça o pareamento (Aparelhos conectados → Conectar aparelho).
+                              <span dangerouslySetInnerHTML={{ __html: t("settings.wa.expiredHelp", { action: open ? t("settings.wa.manage") : t("settings.wa.scanQr") }) }} />
                             </div>
                           )}
                         </div>
                         {expired && canManage && (
                           <Button variant="destructive" size="sm" onClick={() => setQrFor(inst)}>
-                            <QrCode className="mr-2 h-3 w-3" /> Reescanear QR
+                            <QrCode className="mr-2 h-3 w-3" /> {t("settings.wa.rescan")}
                           </Button>
                         )}
                         {!expired && stuck && canManage && (
                           <Button variant="default" size="sm" onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
-                            <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> Recuperar
+                            <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> {t("settings.wa.recover")}
                           </Button>
                         )}
                         <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
                           <QrCode className="mr-2 h-3 w-3" />
-                          {open ? "Gerenciar" : "Escanear QR"}
+                          {open ? t("settings.wa.manage") : t("settings.wa.scanQr")}
                         </Button>
                         {canManage && (
                           <DropdownMenu>
@@ -291,21 +291,21 @@ export default function SettingsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.checkStatus")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar conexão
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.recoverConnection")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => recoverMissedMessages(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar mensagens perdidas
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.recoverMissed")}
                               </DropdownMenuItem>
                               {!inst.is_default && (
                                 <DropdownMenuItem onClick={() => setDefault(inst.id)}>
-                                  <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                                  <Star className="mr-2 h-3 w-3" /> {t("settings.wa.setDefault")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
-                                <Trash2 className="mr-2 h-3 w-3" /> Excluir
+                                <Trash2 className="mr-2 h-3 w-3" /> {t("settings.wa.delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -323,10 +323,10 @@ export default function SettingsPage() {
               <Card className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold">Campos personalizados do lead</div>
-                    <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                    <div className="font-semibold">{t("settings.fields.title")}</div>
+                    <div className="text-sm text-muted-foreground">{t("settings.fields.desc")}</div>
                   </div>
-                  <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
+                  <Link to="/settings/fields"><Button variant="outline">{t("settings.fields.manage")}</Button></Link>
                 </div>
               </Card>
             </TabsContent>
@@ -340,12 +340,12 @@ export default function SettingsPage() {
             <Card className="p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração do Site (Pixel + Formulários)</h2>
+                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />{t("settings.forms.title")}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da empresa.
+                    {t("settings.forms.desc")}
                   </p>
                 </div>
-                <Link to="/settings/integration"><Button variant="outline">Abrir</Button></Link>
+                <Link to="/settings/integration"><Button variant="outline">{t("settings.forms.open")}</Button></Link>
               </div>
             </Card>
           </TabsContent>
@@ -355,12 +355,12 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />Domínio de envio</h2>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />{t("settings.email.title")}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Configure o domínio de envio, registros DNS (SPF/DKIM/DMARC) e preferências padrão (remetente e reply-to).
+                      {t("settings.email.desc")}
                     </p>
                   </div>
-                  <Link to="/settings/email"><Button variant="outline">Abrir</Button></Link>
+                  <Link to="/settings/email"><Button variant="outline">{t("settings.email.open")}</Button></Link>
                 </div>
               </Card>
 
@@ -374,13 +374,13 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />Importar pipeline</h2>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />{t("settings.imports.title")}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.
+                      {t("settings.imports.desc")}
                     </p>
                   </div>
                   <Button onClick={() => setImportOpen(true)}>
-                    <Upload className="mr-2 h-4 w-4" /> Importar pipeline
+                    <Upload className="mr-2 h-4 w-4" /> {t("settings.imports.cta")}
                   </Button>
                 </div>
               </Card>
@@ -402,7 +402,7 @@ export default function SettingsPage() {
                 </>
               ) : (
                 <Card className="p-6 text-sm text-muted-foreground">
-                  Você precisa pertencer a uma empresa para configurar a IA do pipeline.
+                  {t("settings.ai.noCompany")}
                 </Card>
               )}
               {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}
@@ -413,13 +413,13 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="font-semibold">Tipos de agendamento</div>
+                    <div className="font-semibold">{t("settings.apt.title")}</div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Gerencie o catálogo de consultas, procedimentos e retornos exibido no calendário.
+                      {t("settings.apt.desc")}
                     </p>
                   </div>
                   <Button asChild>
-                    <Link to="/settings/appointment-types">Gerenciar tipos</Link>
+                    <Link to="/settings/appointment-types">{t("settings.apt.manage")}</Link>
                   </Button>
                 </div>
               </Card>
@@ -446,24 +446,24 @@ export default function SettingsPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo WhatsApp</DialogTitle>
+            <DialogTitle>{t("settings.wa.newDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Nome da conexão</Label>
+            <Label>{t("settings.wa.connectionName")}</Label>
             <Input
               autoFocus
-              placeholder="Ex: Recepção, Dr. João..."
+              placeholder={t("settings.wa.connectionPlaceholder")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") createInstance(); }}
             />
-            <p className="text-xs text-muted-foreground">Vamos criar uma instância dedicada e abrir o QR Code para você escanear.</p>
+            <p className="text-xs text-muted-foreground">{t("settings.wa.newDialogHint")}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>{t("settings.wa.cancel")}</Button>
             <Button onClick={createInstance} disabled={creating}>
               {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar e escanear
+              {t("settings.wa.createScan")}
             </Button>
           </DialogFooter>
         </DialogContent>
