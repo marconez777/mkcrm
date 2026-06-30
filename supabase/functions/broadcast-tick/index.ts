@@ -1,5 +1,6 @@
 // Cron tick: processa broadcasts running, respeitando janela horária e throttle.
 import { corsHeaders, json, sb, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
 type SendWindow = { start: string; end: string; tz: string; weekdays: number[] };
 
