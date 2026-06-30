@@ -465,7 +465,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                       <span className="truncate text-foreground/90">{label}</span>
                       <span className="shrink-0 text-[10px] text-muted-foreground" title={new Date(e.created_at).toLocaleString("pt-BR")}>{timeAgo(e.created_at)}</span>
                     </div>
-                    {actor && <div className="text-[10px] text-muted-foreground">por {actor}</div>}
+                    {actor && <div className="text-[10px] text-muted-foreground">{t("inbox.context.by")} {actor}</div>}
                   </li>
                 );
               })}
