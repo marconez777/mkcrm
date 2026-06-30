@@ -18,18 +18,42 @@ type Props = {
 };
 
 export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
+  // Fonte da verdade = lead.custom_fields (sempre fresco via props/realtime).
+  // `values` local serve apenas para inputs com edição em progresso (text/number/textarea),
+  // que mantêm seu próprio `local` state interno via `FieldInput`.
+  // Para evitar o bug em que um save reenviava o JSONB inteiro com state stale
+  // (ressuscitando valores que o usuário tinha acabado de limpar), todo `set`
+  // mescla contra `lead.custom_fields` mais recente.
   const [values, setValues] = useState<Record<string, any>>(lead.custom_fields ?? {});
 
-  useEffect(() => { setValues(lead.custom_fields ?? {}); }, [lead.id]);
+  // Re-sincroniza local toda vez que o lead muda (id OU custom_fields novo),
+  // garantindo que limpezas/atualizações vindas de outras fontes (realtime,
+  // recompute de appointments, etc.) reflitam imediatamente.
+  useEffect(() => {
+    setValues(lead.custom_fields ?? {});
+  }, [lead.id, lead.custom_fields]);
 
   async function save(next: Record<string, any>) {
     setValues(next);
     onChange(next);
-    await supabase.from("leads").update({ custom_fields: next }).eq("id", lead.id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ custom_fields: next })
+      .eq("id", lead.id);
+    if (error) console.error("[CustomFieldsPanel] save failed", error.message);
   }
 
   function set(key: string, v: any) {
-    save({ ...values, [key]: v });
+    // SEMPRE mescla contra o estado mais fresco do lead (não contra `values`
+    // local, que pode estar stale entre o write otimista e o realtime).
+    const base = { ...(lead.custom_fields ?? {}), ...values };
+    const next = { ...base };
+    if (v === null || v === undefined || v === "") {
+      delete next[key];
+    } else {
+      next[key] = v;
+    }
+    save(next);
   }
 
   if (fields.length === 0) return null;
