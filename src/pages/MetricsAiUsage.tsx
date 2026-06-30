@@ -441,33 +441,33 @@ export default function MetricsAiUsage() {
 
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold">Detalhe de chamadas</h2>
-            <span className="text-xs text-muted-foreground">{filtered.length} de {rows.length}</span>
+            <h2 className="text-sm font-semibold">{t("metricsAiUsage.details.title")}</h2>
+            <span className="text-xs text-muted-foreground">{filtered.length} {t("metricsAiUsage.details.ofWord")} {rows.length}</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Input className="h-8 w-44" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input className="h-8 w-44" placeholder={t("metricsAiUsage.details.searchPh")} value={search} onChange={(e) => setSearch(e.target.value)} />
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterModel} onChange={(e) => setFilterModel(e.target.value)}>
-                <option value="">Todos modelos</option>
+                <option value="">{t("metricsAiUsage.details.allModels")}</option>
                 {uniqueModels.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)}>
-                <option value="">Todos agentes</option>
+                <option value="">{t("metricsAiUsage.details.allAgents")}</option>
                 {uniqueAgents.map((id) => <option key={id} value={id}>{agents[id] ?? id.slice(0, 8)}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterOp} onChange={(e) => setFilterOp(e.target.value)}>
-                <option value="">Todas operações</option>
+                <option value="">{t("metricsAiUsage.details.allOps")}</option>
                 {uniqueOps.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
-                <option value="">Todas origens</option>
+                <option value="">{t("metricsAiUsage.details.allSources")}</option>
                 {uniqueSources.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterErrorCategory} onChange={(e) => setFilterErrorCategory(e.target.value)}>
-                <option value="">Todas categorias</option>
-                {uniqueErrorCategories.map((c) => <option key={c} value={c}>{friendlyErrorCategory(c)}</option>)}
+                <option value="">{t("metricsAiUsage.details.allCategories")}</option>
+                {uniqueErrorCategories.map((c) => <option key={c} value={c}>{t(`metricsAiUsage.errCat.${c}`, { defaultValue: c })}</option>)}
               </select>
               <label className="flex items-center gap-1 text-xs">
                 <input type="checkbox" checked={onlyErrors} onChange={(e) => setOnlyErrors(e.target.checked)} />
-                Só erros
+                {t("metricsAiUsage.details.onlyErrors")}
               </label>
             </div>
           </div>
