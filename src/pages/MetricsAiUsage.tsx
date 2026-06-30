@@ -178,7 +178,7 @@ export default function MetricsAiUsage() {
       m.set(k, cur);
     }
     return Array.from(m.entries())
-      .map(([id, v]) => ({ id, name: id === "__none" ? "(sem agente)" : agents[id] ?? id.slice(0, 8), ...v }))
+      .map(([id, v]) => ({ id, name: id === "__none" ? t("metricsAiUsage.noAgent") : agents[id] ?? id.slice(0, 8), ...v }))
       .sort((a, b) => b.cost - a.cost);
   }, [filtered, agents]);
 
