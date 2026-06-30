@@ -212,6 +212,7 @@ function BroadcastEditor({ id }: { id: string }) {
   const [recipients, setRecipients] = useState<Array<any>>([]);
   const [events, setEvents] = useState<Array<any>>([]);
   const [extraContacts, setExtraContacts] = useState<Array<{ phone: string; name?: string; custom?: any }>>([]);
+  const region = useRegion();
 
   const load = async () => {
     const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: r }, { data: e }] = await Promise.all([
@@ -436,13 +437,17 @@ function BroadcastEditor({ id }: { id: string }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Início da janela</Label>
-                <Input type="time" value={bc.send_window.start} onChange={(e) => save({ send_window: { ...bc.send_window, start: e.target.value } } as any)} />
+                <Input type="time" value={bc.send_window.start} onChange={(e) => save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, start: e.target.value } } as any)} />
               </div>
               <div>
                 <Label>Fim da janela</Label>
-                <Input type="time" value={bc.send_window.end} onChange={(e) => save({ send_window: { ...bc.send_window, end: e.target.value } } as any)} />
+                <Input type="time" value={bc.send_window.end} onChange={(e) => save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, end: e.target.value } } as any)} />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Fuso horário: <span className="font-mono">{bc.send_window.tz || region.timezone}</span>
+              {!bc.send_window.tz && " (padrão da empresa)"}
+            </p>
             <div>
               <Label>Dias da semana</Label>
               <div className="flex gap-2 mt-1">
@@ -454,7 +459,7 @@ function BroadcastEditor({ id }: { id: string }) {
                       onClick={() => {
                         const cur = new Set(bc.send_window.weekdays ?? []);
                         on ? cur.delete(d.v) : cur.add(d.v);
-                        save({ send_window: { ...bc.send_window, weekdays: Array.from(cur).sort() } } as any);
+                        save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, weekdays: Array.from(cur).sort() } } as any);
                       }}>{d.label}</button>
                   );
                 })}

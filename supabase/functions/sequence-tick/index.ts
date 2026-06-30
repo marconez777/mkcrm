@@ -3,14 +3,15 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 import { getPausedClinicIds } from "../_shared/automations-paused.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
-function renderVars(text: string, lead: any, defs: any[]): string {
-  return renderTemplate(text, lead ?? {}, defs ?? []);
+function renderVars(text: string, lead: any, defs: any[], tz: string): string {
+  return renderTemplate(text, lead ?? {}, defs ?? [], tz);
 }
 
-function inSendWindow(window: any): boolean {
+function inSendWindow(window: any, fallbackTz: string): boolean {
   if (!window || typeof window !== "object") return true;
-  const tz = window.timezone || "America/Sao_Paulo";
+  const tz = window.timezone || fallbackTz;
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, weekday: "short", hour: "numeric", hour12: false, minute: "numeric",
   });
@@ -47,6 +48,7 @@ Deno.serve(async (req) => {
     let processed = 0, sent = 0, failed = 0, skipped = 0;
     for (const e of due ?? []) {
       processed++;
+      const clinicTz = await getClinicTimezone(supabase, e.clinic_id);
       try {
         // Load sequence + steps + lead
         const [{ data: seq }, { data: steps }, { data: lead }] = await Promise.all([
@@ -82,7 +84,7 @@ Deno.serve(async (req) => {
         }
 
         // Send window: if outside, push 30 min and try again
-        if (!inSendWindow(step.send_window)) {
+        if (!inSendWindow(step.send_window, clinicTz)) {
           await supabase.from("message_sequence_enrollments")
             .update({ next_run_at: new Date(Date.now() + 30 * 60_000).toISOString() })
             .eq("id", e.id);
@@ -107,7 +109,7 @@ Deno.serve(async (req) => {
           skipped++; continue;
         }
 
-        const rendered = renderVars(text, lead, fieldDefs ?? []);
+        const rendered = renderVars(text, lead, fieldDefs ?? [], clinicTz);
 
         // Override lead's instance for this sequence if configured
         if (seq.whatsapp_instance_id && lead.phone) {

@@ -3,6 +3,7 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
 type Automation = {
   id: string;
@@ -131,7 +132,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cfg = a.trigger_config ?? {};
     const fieldKey: string = cfg.field_key;
     const offsetMin = Number(cfg.offset_minutes ?? 60);
-    const tz: string = cfg.tz || "America/Sao_Paulo";
+    const tz: string = cfg.tz || (await getClinicTimezone(supabase, a.clinic_id));
     const preferred: string | undefined = cfg.preferred_time; // "HH:MM"
     const businessOnly: boolean = !!cfg.business_hours_only;
     const businessStart = Number(cfg.business_hours_start ?? 10);
@@ -338,7 +339,8 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
         .single(),
       supabase.from("lead_custom_fields").select("field_key, field_type"),
     ]);
-    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any);
+    const clinicTz = await getClinicTimezone(supabase, a.clinic_id);
+    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz);
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",

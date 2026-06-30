@@ -1,5 +1,6 @@
 // Cron tick: processa broadcasts running, respeitando janela horária e throttle.
 import { corsHeaders, json, sb, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
 type SendWindow = { start: string; end: string; tz: string; weekdays: number[] };
 
@@ -20,8 +21,8 @@ function isoWeekday(d: Date): number {
   const w = d.getDay(); return w === 0 ? 7 : w;
 }
 
-function withinWindow(w: SendWindow): { ok: boolean; nextOpenIso: string } {
-  const tz = w.tz || "America/Sao_Paulo";
+function withinWindow(w: SendWindow, fallbackTz: string): { ok: boolean; nextOpenIso: string } {
+  const tz = w.tz || fallbackTz;
   const local = nowInTz(tz);
   const wd = isoWeekday(local);
   const [sh, sm] = (w.start || "08:00").split(":").map(Number);
@@ -85,7 +86,8 @@ Deno.serve(async (req) => {
 
     for (const bc of broadcasts ?? []) {
       const win = bc.send_window as SendWindow;
-      const winState = withinWindow(win);
+      const fallbackTz = await getClinicTimezone(supabase, bc.clinic_id);
+      const winState = withinWindow(win, fallbackTz);
       if (!winState.ok) {
         // empurra todos os pendentes para próxima abertura
         await supabase
