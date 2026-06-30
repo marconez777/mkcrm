@@ -756,5 +756,130 @@
       "loading": "Cargando…",
       "empty": "Nada por aquí."
     }
+  },
+  "settingsForms": {
+    "title": "Integración del Sitio",
+    "subtitle": "Píxel de rastreo + captura de formularios en un único SDK. Cada integración genera un prompt listo para pegar en el chat de Lovable del sitio de la empresa.",
+    "new": "Nueva integración",
+    "empty": "Aún no hay integraciones creadas. Haz clic en \"Nueva integración\" para empezar.",
+    "anyDomain": "Cualquier dominio",
+    "submissions": "envíos",
+    "noSubmissions": "Sin envíos",
+    "newDialog": {
+      "title": "Nueva integración de formularios",
+      "name": "Nombre",
+      "namePh": "Sitio institucional",
+      "domains": "Dominios permitidos (opcional)",
+      "domainsPh": "ejemplo.com, www.ejemplo.com",
+      "domainsHint": "Separa por coma. Deja en blanco para aceptar cualquier origen.",
+      "cancel": "Cancelar",
+      "create": "Crear",
+      "created": "Integración creada"
+    },
+    "back": "Volver",
+    "totalSubmissions": "envíos totales",
+    "anyDomainLower": "cualquier dominio",
+    "pause": "Pausar",
+    "resume": "Reactivar",
+    "rotateConfirm": {
+      "title": "¿Rotar token?",
+      "description": "El token actual sigue válido por 24h.",
+      "confirm": "Rotar"
+    },
+    "rotated": "Token rotado",
+    "deleteConfirm": {
+      "title": "¿Eliminar integración?",
+      "description": "Los envíos futuros con este token serán rechazados.",
+      "confirm": "Eliminar"
+    },
+    "deleted": "Eliminada",
+    "tabs": {
+      "install": "Instalación",
+      "forms": "Formularios",
+      "submissions": "Envíos",
+      "traffic": "Tráfico",
+      "settings": "Configuración"
+    },
+    "install": {
+      "banner": "Píxel + Formularios se instalan juntos. Pega el Prompt para IA abajo en el chat de Lovable del sitio de la empresa — se encarga del orden de los scripts, del bridge para formularios personalizados y del checklist de validación. Si el sitio no usa Lovable, los bloques WordPress / HTML / API directa siguen disponibles en las otras pestañas.",
+      "token": "Token de la integración",
+      "loading": "Cargando…",
+      "tokenCopied": "Token copiado",
+      "copied": "Copiado",
+      "promptTitle": "🤖 Prompt para IA (Lovable)",
+      "wp": "WordPress",
+      "html": "HTML",
+      "api": "API directa",
+      "promptHeader": "Prompt completo para pegar en el chat de Lovable del sitio",
+      "promptHint": "Copia el texto de abajo y pégalo en el chat del proyecto Lovable del sitio de la empresa. Ya viene con el token, el project_id y todas las instrucciones de instalación, peculiaridades de los formularios y checklist de validación.",
+      "copyAll": "Copiar todo",
+      "promptCopied": "Prompt copiado — pégalo en el chat de Lovable del sitio",
+      "wp1": "1. Descarga el plugin",
+      "wpDownload": "Descargar chat-funnel-ai-forms.zip",
+      "wp2": "2. En WordPress",
+      "wpStep1": "Plugins → Añadir nuevo → Subir plugin → carga el .zip y actívalo.",
+      "wpStep2": "Ajustes → Chat Funnel AI Forms → pega el token de arriba y guarda.",
+      "wpSupports": "Soporta: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.",
+      "htmlIntro": "Pega este script antes de </body>:",
+      "htmlHint": "El script captura automáticamente cualquier <form> de la página. Usa data-mk-form=\"contacto\" en el form para nombrarlo, o data-mk-ignore para ignorar.",
+      "apiTitle": "Envío directo vía HTTP POST:",
+      "endpoint": "Endpoint"
+    },
+    "formsTab": {
+      "name": "Nombre",
+      "formKey": "Form key",
+      "sends": "Envíos",
+      "last": "Último",
+      "actions": "Acciones",
+      "empty": "Aún no se detectaron formularios. Envía uno para autodescubrimiento.",
+      "paused": "pausado",
+      "edit": "Editar"
+    },
+    "subsTab": {
+      "when": "Cuándo",
+      "form": "Formulario",
+      "status": "Estado",
+      "lead": "Lead",
+      "payload": "Payload",
+      "empty": "Aún no hay envíos",
+      "new": "nuevo",
+      "open": "abrir"
+    },
+    "settingsTab": {
+      "name": "Nombre",
+      "domains": "Dominios permitidos",
+      "tags": "Etiquetas por defecto para nuevos leads",
+      "tagsPh": "sitio, formulario",
+      "save": "Guardar",
+      "saved": "Guardado"
+    },
+    "defEditor": {
+      "title": "Editar formulario",
+      "name": "Nombre amigable",
+      "pipeline": "Pipeline / etapa de destino",
+      "pipelineDefault": "Predeterminado del sistema (Formulario Sitio → Nuevo)",
+      "pipelineHint": "Dónde aparecerá el lead en el kanban cuando se envíe este formulario.",
+      "system": "(sistema)",
+      "list": "Lista de e-mail",
+      "listDefault": "Solo \"Leads Sitio\" (predeterminado del sistema)",
+      "listHint": "El lead siempre se añade a la lista \"Leads Sitio\". Aquí eliges una lista extra opcional.",
+      "fieldMap": "Mapeo de campos (JSON)",
+      "fieldMapHint": "Ej.: {\"name\":\"your-name\",\"email\":\"your-email\",\"phone\":\"tel-123\"}. Deja vacío para autodetección.",
+      "active": "Activo",
+      "close": "Cerrar",
+      "save": "Guardar",
+      "saved": "Guardado",
+      "invalidJson": "field_map inválido (JSON)"
+    },
+    "traffic": {
+      "visitors": "Visitantes únicos",
+      "events": "Eventos de rastreo",
+      "waClicks": "Clics en WhatsApp",
+      "last24h": "últimas 24h",
+      "last7d": "últimos 7 días",
+      "panelTitle": "Panel completo de rastreo",
+      "panelDesc": "Ve el recorrido de cada visitante, eventos detallados, atribución UTM y embudos.",
+      "openPanel": "Abrir panel"
+    }
   }
 }
