@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
 
     for (const bc of broadcasts ?? []) {
       const win = bc.send_window as SendWindow;
-      const winState = withinWindow(win);
+      const fallbackTz = await getClinicTimezone(supabase, bc.clinic_id);
+      const winState = withinWindow(win, fallbackTz);
       if (!winState.ok) {
         // empurra todos os pendentes para próxima abertura
         await supabase
