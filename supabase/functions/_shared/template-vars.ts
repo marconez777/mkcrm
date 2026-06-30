@@ -70,6 +70,7 @@ export function renderTemplate(
   text: string,
   lead: LeadLike,
   customFieldDefs: CustomFieldDef[] = [],
+  tz: string = DEFAULT_TZ,
 ): string {
   if (!text) return text;
   const name = lead?.name || lead?.phone || "";
@@ -86,6 +87,6 @@ export function renderTemplate(
     .replace(/\{\{\s*campo\.([a-zA-Z0-9_]+)(?::([a-zA-Z_]+))?\s*\}\}/g, (_m, key: string, mod?: string) => {
       const val = (cf as any)[key];
       const ftype = defByKey.get(key) || "text";
-      return formatCustom(val, ftype, mod ?? null);
+      return formatCustom(val, ftype, mod ?? null, tz);
     });
 }
