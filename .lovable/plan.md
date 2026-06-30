@@ -1,16 +1,11 @@
-## F-INTL-3 (parcial) — Moeda local nos surfaces de lead
+## F-INTL-1 (fundação) — react-i18next ligado ao RegionConfig
 
-Pequeno passo: surfaces que mostram valor de negócio agora respeitam `RegionConfig`.
+Bootstrap mínimo do i18n. Próximas passagens traduzem o restante das telas incrementalmente.
 
-- `src/pages/Kanban.tsx`: total da coluna usa `formatMoney(total, region.currency, region.locale)` em vez de `Intl` fixo BRL.
-- `src/components/inbox/CustomFieldsPanel.tsx`: campo `currency` mostra o símbolo local (R$ / € / $) via `Intl.NumberFormat … currencyDisplay:"narrowSymbol"`, derivado do `useRegion()`.
-- `src/pages/SettingsCustomFields.tsx`: rótulo do tipo `currency` agora é só "Moeda" (sem "R$").
+- `bun add react-i18next i18next`.
+- `src/i18n/index.ts` inicializa o `i18n` com `pt-BR` (fallback) e carrega `pt-BR.json`, `es-ES.json`, `en-US.json` (apenas chaves de navegação por ora).
+- `src/i18n/useI18nSync.ts` mantém `i18n.language` colado em `useRegion().locale` (BR/ES/US).
+- `src/components/AppShell.tsx`: importa `useI18nSync()`, mapeia `to → nav.<key>` e traduz o label da sidebar.
+- `src/main.tsx`: importa `./i18n` no bootstrap.
 
-### Fora de escopo desta passagem
-- Datas hardcoded `toLocaleDateString("pt-BR")` no Kanban (linhas 90/96/197/299) — defer F-INTL-1.
-- Admin/email surfaces (`AdminEduzz`, `EmailDashboard`, `UsageLimitsPanel`, etc.) continuam exibindo BRL — base BR/admin no MVP.
-
-### Próximos passos sugeridos
-- F-INTL-1: i18n frontend (`react-i18next`) para tirar strings PT hardcoded da UI.
-- F-INTL-3 (full): sweep de datas/moeda nas páginas admin.
-- F-INTL-4: integração Stripe ES/US.
+Validação: `tsgo` verde. Sidebar agora segue automaticamente a região da empresa logada.
