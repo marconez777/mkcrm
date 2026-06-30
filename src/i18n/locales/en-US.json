@@ -881,5 +881,117 @@
       "panelDesc": "See each visitor's journey, detailed events, UTM attribution and funnels.",
       "openPanel": "Open panel"
     }
+  },
+  "metricsAiUsage": {
+    "title": "AI Costs",
+    "desc": "Detailed history of AI API calls. Visible only to administrators.",
+    "tabs": {
+      "overview": "Pipeline (classifier)",
+      "agents": "Support (agents)",
+      "advanced": "Advanced"
+    },
+    "dateUntil": "to",
+    "unknownAlertPrefix": "calls use models without configured pricing — cost for those rows shows as $0. Update",
+    "stat": {
+      "totalCost": "Total cost",
+      "calls": "Calls",
+      "tokens": "Tokens (in/out)",
+      "avgCost": "Average cost",
+      "errors": "Errors"
+    },
+    "diagnosticTitle": "Error diagnostics",
+    "callsWord": "calls",
+    "leadWord_one": "lead",
+    "leadWord_other": "leads",
+    "dailyCostTitle": "Cost per day (top 6 models)",
+    "sections": {
+      "byModel": "By model",
+      "byAgent": "By agent",
+      "topLeads": "Top 20 leads",
+      "byOp": "By operation"
+    },
+    "tokensWord": "tokens",
+    "noAgent": "(no agent)",
+    "noData": "No data.",
+    "details": {
+      "title": "Call details",
+      "ofWord": "of",
+      "searchPh": "Search…",
+      "allModels": "All models",
+      "allAgents": "All agents",
+      "allOps": "All operations",
+      "allSources": "All sources",
+      "allCategories": "All categories",
+      "onlyErrors": "Errors only",
+      "empty": "No calls in the period / filter."
+    },
+    "table": {
+      "when": "When",
+      "model": "Model",
+      "op": "Op.",
+      "source": "Source",
+      "error": "Error",
+      "agent": "Agent",
+      "lead": "Lead",
+      "in": "In",
+      "out": "Out",
+      "lat": "Lat.",
+      "cost": "Cost",
+      "status": "Status"
+    },
+    "pagination": {
+      "pageOf": "Page {{page}} of {{total}}",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "sheet": {
+      "title": "Call details",
+      "id": "ID",
+      "when": "When",
+      "model": "Model",
+      "operation": "Operation",
+      "source": "Source",
+      "provider": "Provider",
+      "step": "Step",
+      "status": "Status",
+      "agent": "Agent",
+      "lead": "Lead",
+      "thread": "Thread",
+      "automation": "Automation",
+      "tokens": "Tokens",
+      "tokensValue": "in {{in}} / out {{out}} / total {{total}}",
+      "latency": "Latency",
+      "tools": "Tools called",
+      "replied": "Replied",
+      "yes": "yes",
+      "no": "no",
+      "cost": "Cost",
+      "category": "Category",
+      "diagnosticRead": "Diagnostic reading:",
+      "error": "Error:"
+    },
+    "errCat": {
+      "schema_validation": "Invalid schema/JSON",
+      "quota_or_billing": "Quota/credit",
+      "rate_limit": "Rate limit",
+      "timeout": "Timeout",
+      "gateway_5xx": "Provider failure",
+      "network": "Network",
+      "no_provider": "No provider",
+      "uncategorized": "Uncategorized",
+      "unknown": "Unknown"
+    },
+    "errExp": {
+      "schema_validation": "The model replied outside the expected format. The pipeline should retry with backoff or use a safe fallback; it does not necessarily imply high cost.",
+      "quota_or_billing": "The provider rejected the call due to credit/quota limits. The guard blocks further attempts temporarily to avoid spend and noise.",
+      "rate_limit": "Too many calls in a short period. The routine waits and retries later.",
+      "timeout": "The step exceeded the operational limit and should be reprocessed.",
+      "gateway_5xx": "Temporary failure at the provider/model. Usually recoverable with retry.",
+      "network": "Network or connection failure between the function and the provider.",
+      "no_provider": "No AI provider was available for the company.",
+      "uncategorized": "Legacy error without structured details; open the record to view the raw message.",
+      "unknown": "Unmapped error; needs manual inspection of the raw message.",
+      "fallback": "Unmapped error; needs manual inspection of the raw message."
+    }
   }
 }
