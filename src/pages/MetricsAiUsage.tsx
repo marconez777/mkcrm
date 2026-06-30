@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllByIn, fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
