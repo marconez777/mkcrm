@@ -173,13 +173,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-3 py-2">
-        <div className="text-xs font-semibold text-muted-foreground">Perfil</div>
+        <div className="text-xs font-semibold text-muted-foreground">{t("inbox.context.profile")}</div>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" onClick={togglePin} title={lead.pinned_at ? "Desafixar" : "Fixar no topo"} className="h-7 w-7">
+          <Button variant="ghost" size="icon" onClick={togglePin} title={lead.pinned_at ? t("inbox.context.unpin") : t("inbox.context.pin")} className="h-7 w-7">
             {lead.pinned_at ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4" />}
           </Button>
           {onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} title="Fechar perfil" className="h-7 w-7">
+            <Button variant="ghost" size="icon" onClick={onClose} title={t("inbox.context.closeProfile")} className="h-7 w-7">
               <X className="h-4 w-4" />
             </Button>
           )}
