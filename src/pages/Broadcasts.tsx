@@ -702,7 +702,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
           <CardHeader><CardTitle className="text-base">Lista importada (Excel/CSV)</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={downloadBroadcastTemplate}><Download className="size-4 mr-1" /> Baixar template</Button>
+              <Button variant="outline" onClick={() => downloadBroadcastTemplate(region.region)}><Download className="size-4 mr-1" /> Baixar template</Button>
               <label className="inline-flex">
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ""; }} />
                 <span className="inline-flex items-center gap-1 border rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-muted"><Upload className="size-4" /> Importar arquivo</span>
