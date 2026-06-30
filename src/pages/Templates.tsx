@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ type Template = {
 const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}", "{{empresa}}"];
 
 export default function Templates() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
   const customDefs = useCustomFieldDefsFull();
@@ -78,9 +80,9 @@ export default function Templates() {
       <aside className="w-72 shrink-0 border-r bg-muted/10">
         <div className="flex items-center justify-between px-4 py-2.5">
           <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Templates <span className="ml-1 text-foreground/60">· {items.length}</span>
+            {t("templates.sidebarTitle")} <span className="ml-1 text-foreground/60">· {items.length}</span>
           </h2>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title="Novo template">
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("templates.newTemplate")}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -108,7 +110,7 @@ export default function Templates() {
                   <p className="truncate text-sm font-medium text-foreground">{t.name}</p>
                   <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-                    {t.shortcut ? `//${t.shortcut}` : "sem atalho"}
+                    {t.shortcut ? `//${t.shortcut}` : this.t?.("templates.noShortcut") ?? "sem atalho"}
                   </p>
                 </div>
               </button>
@@ -121,10 +123,10 @@ export default function Templates() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center">
               <Plus className="h-3.5 w-3.5" />
             </span>
-            <span>Novo template</span>
+            <span>{t("templates.newTemplate")}</span>
           </button>
           {items.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum template.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{t("templates.empty")}</p>
           )}
         </div>
       </aside>
