@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Loader2 } from "lucide-react";
 type Invite = { clinic_id: string; email: string; role: string; clinic_name: string | null; expired: boolean };
 
 export default function InvitePage() {
+  const { t } = useTranslation();
   const { token } = useParams();
   const nav = useNavigate();
   const { session, refreshMembership } = useAuth();
@@ -21,7 +23,7 @@ export default function InvitePage() {
   const [password, setPassword] = useState("");
   const acceptingRef = useRef(false);
 
-  useEffect(() => { document.title = "Convite — Chat Funnel AI"; }, []);
+  useEffect(() => { document.title = t("invitePage.pageTitle"); }, [t]);
 
   useEffect(() => {
     (async () => {
@@ -58,7 +60,7 @@ export default function InvitePage() {
           if (!activeSession) {
             const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: invite.email, password });
             if (signInErr) {
-              toast.success("Conta criada. Verifique seu email para confirmar.");
+              toast.success(t("invitePage.createdCheckEmail"));
               return;
             }
             activeSession = signInData.session;
@@ -69,18 +71,17 @@ export default function InvitePage() {
           activeSession = signInData.session;
         }
       }
-      // Accept invite (idempotente do lado do servidor)
       const { error: rpcErr } = await supabase.rpc("accept_clinic_invite", { _token: token });
       if (rpcErr) {
         const code = rpcErr.message || "";
-        if (code.includes("invalid_invite")) throw new Error("Convite inválido.");
-        if (code.includes("expired_invite")) throw new Error("Convite expirado. Peça um novo ao administrador.");
-        if (code.includes("invite_email_mismatch")) throw new Error("Este convite é para outro e‑mail.");
-        if (code.includes("not_authenticated")) throw new Error("Faça login para aceitar o convite.");
+        if (code.includes("invalid_invite")) throw new Error(t("invitePage.errInvalid"));
+        if (code.includes("expired_invite")) throw new Error(t("invitePage.errExpired"));
+        if (code.includes("invite_email_mismatch")) throw new Error(t("invitePage.errMismatch"));
+        if (code.includes("not_authenticated")) throw new Error(t("invitePage.errAuth"));
         throw rpcErr;
       }
       await refreshMembership();
-      toast.success(`Bem-vindo(a) à ${invite.clinic_name ?? "empresa"}!`);
+      toast.success(`${t("invitePage.welcome")} ${invite.clinic_name ?? t("invitePage.company")}!`);
       const isManager = invite.role === "owner" || invite.role === "admin";
       const { data: c } = await supabase.from("clinics").select("settings").eq("id", invite.clinic_id).maybeSingle();
       const onboarded = !!(c?.settings as any)?.onboarded;
@@ -98,8 +99,8 @@ export default function InvitePage() {
   if (!invite) return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-sm text-center">
-        <h1 className="text-lg font-semibold mb-2">Convite inválido</h1>
-        <p className="text-sm text-muted-foreground">Este convite não existe ou foi revogado.</p>
+        <h1 className="text-lg font-semibold mb-2">{t("invitePage.invalid")}</h1>
+        <p className="text-sm text-muted-foreground">{t("invitePage.invalidDesc")}</p>
       </div>
     </div>
   );
@@ -107,8 +108,8 @@ export default function InvitePage() {
   if (invite.expired) return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-sm text-center">
-        <h1 className="text-lg font-semibold mb-2">Convite expirado</h1>
-        <p className="text-sm text-muted-foreground">Peça um novo convite ao administrador.</p>
+        <h1 className="text-lg font-semibold mb-2">{t("invitePage.expired")}</h1>
+        <p className="text-sm text-muted-foreground">{t("invitePage.expiredDesc")}</p>
       </div>
     </div>
   );
@@ -118,39 +119,39 @@ export default function InvitePage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
-        <h1 className="text-lg font-semibold mb-1">Aceitar convite</h1>
+        <h1 className="text-lg font-semibold mb-1">{t("invitePage.accept")}</h1>
         <p className="text-xs text-muted-foreground mb-4">
-          Convidado para <strong>{invite.clinic_name}</strong> como <strong>{invite.role}</strong> ({invite.email})
+          {t("invitePage.invitedTo")} <strong>{invite.clinic_name}</strong> {t("invitePage.as")} <strong>{invite.role}</strong> ({invite.email})
         </p>
 
         {sessionEmailMismatch ? (
           <div className="space-y-3">
-            <p className="text-sm">Você está logado como <strong>{session?.user.email}</strong>, mas o convite é para <strong>{invite.email}</strong>.</p>
-            <Button variant="outline" className="w-full" onClick={async () => { await supabase.auth.signOut(); }}>Sair e tentar de novo</Button>
+            <p className="text-sm">{t("invitePage.loggedAs")} <strong>{session?.user.email}</strong>, {t("invitePage.butInviteIsFor")} <strong>{invite.email}</strong>.</p>
+            <Button variant="outline" className="w-full" onClick={async () => { await supabase.auth.signOut(); }}>{t("invitePage.signOut")}</Button>
           </div>
         ) : session ? (
           <form onSubmit={handleSubmit} className="space-y-3">
             <Button type="submit" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Aceitar convite
+              {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("invitePage.accept")}
             </Button>
           </form>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="flex gap-2 text-xs">
-              <button type="button" onClick={() => setMode("signup")} className={`flex-1 py-1.5 rounded ${mode === "signup" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>Criar conta</button>
-              <button type="button" onClick={() => setMode("login")} className={`flex-1 py-1.5 rounded ${mode === "login" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>Já tenho conta</button>
+              <button type="button" onClick={() => setMode("signup")} className={`flex-1 py-1.5 rounded ${mode === "signup" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{t("invitePage.createAccount")}</button>
+              <button type="button" onClick={() => setMode("login")} className={`flex-1 py-1.5 rounded ${mode === "login" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{t("invitePage.haveAccount")}</button>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Email</Label>
+              <Label className="text-xs">{t("invitePage.email")}</Label>
               <Input value={invite.email} disabled />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">{mode === "signup" ? "Definir senha" : "Senha"}</Label>
+              <Label className="text-xs">{mode === "signup" ? t("invitePage.setPassword") : t("invitePage.password")}</Label>
               <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-              {mode === "signup" ? "Criar conta e aceitar" : "Entrar e aceitar"}
+              {mode === "signup" ? t("invitePage.createAndAccept") : t("invitePage.signInAndAccept")}
             </Button>
           </form>
         )}
