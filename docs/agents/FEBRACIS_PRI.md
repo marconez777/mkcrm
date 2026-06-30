@@ -83,28 +83,32 @@ Comparação entre as 15 seções do playbook entregue e o system prompt salvo n
 
 | # | Seção do playbook | No prompt? |
 |---|---|---|
-| Diretriz central | Objetivo é vender, mensagens médias, sem ser seco | ✅ |
-| 1 | Princípio de venda proativa (modelo "Vamos lá…") | ✅ |
-| 2 | Não esperar cliente pedir detalhes | ✅ |
-| 3 | Rodar copy dentro da conversa | ✅ |
-| 4 | Perguntas não podem travar a venda (ERRADO/CERTO) | ✅ |
-| 5 | Diagnóstico leve e comercial | ✅ |
-| 6 | Não depender da resposta para continuar | ✅ |
-| 7 | Apresentar a promessa cedo (fórmula) | ✅ |
-| 8 | Apresentação automática da oferta (curta/média) | ✅ |
-| 9 | Conectar produto ao resultado | ✅ |
-| 10 | Condução direta para a compra | ✅ |
-| 11 | Perguntas de fechamento (prefira/evite) | ✅ |
-| 12 | Proporção 70/20/10 | ✅ |
-| 13 | Matriz de resposta (preço, como funciona, etc.) | ✅ |
-| 14 | Comando final (checklist de 7 perguntas) | ✅ |
-| 15 | Oferta ativa Setor VIP/Bronze + links Stripe + roteamento | ✅ |
+| Diretriz central | Objetivo é vender, mensagens médias, sem ser seco | ✅ literal |
+| 1 | Princípio de venda proativa (modelo "Vamos lá…") | ✅ literal (modelo presente) |
+| 2 | Não esperar cliente pedir detalhes | ✅ literal |
+| 3 | Rodar copy dentro da conversa | ✅ princípio presente |
+| 4 | Perguntas não podem travar a venda (ERRADO/CERTO) | ⚠️ princípio presente; pares ERRADO/CERTO **condensados** (não estão todos os exemplos do playbook) |
+| 5 | Diagnóstico leve e comercial | ✅ literal |
+| 6 | Não depender da resposta para continuar | ✅ literal |
+| 7 | Apresentar a promessa cedo (fórmula) | ✅ fórmula presente |
+| 8 | Apresentação automática da oferta (curta/média) | ✅ literal |
+| 9 | Conectar produto ao resultado | ✅ princípio presente |
+| 10 | Condução direta para a compra | ✅ literal |
+| 11 | Perguntas de fechamento (prefira/evite) | ⚠️ lista **condensada**; nem todas as variantes do playbook entraram |
+| 12 | Proporção 70/20/10 | ✅ literal (linha 127 do prompt) |
+| 13 | Matriz de resposta (preço, como funciona, objeção, etc.) | ⚠️ presente como bullets (linha 138); **mais enxuta** que o playbook original |
+| 14 | Comando final (checklist de 7 perguntas) | ✅ literal (linha 144) |
+| 15 | Oferta ativa Setor VIP/Bronze + links Stripe + roteamento | ✅ literal (linhas 152–172, regras de roteamento explícitas) |
 
-**Links Stripe ativos no prompt:**
+**Verificação executada (2026-06-30):** grep no `system_prompt` salvo no banco confirma presença literal das regras críticas — roteamento "objeção de preço → Bronze" (linha 170), "alto interesse sem objeção → VIP + escassez" (linha 171), e os dois links Stripe. A linha 15 (a mais sensível) está coberta de fato, não por inferência.
+
+**Links Stripe presentes no prompt (confirmados via `ILIKE`):**
 - VIP: `https://buy.stripe.com/9B69AT4ha6iQ0dg78H7Vm1`
 - Bronze: `https://buy.stripe.com/cNi8wP4haaz69NQ3Wv7Vm18`
 
-**Conclusão:** cobertura 100% do material entregue, sem omissões. Os dois anexos enviados pelo cliente (`treinamento.txt` e `treinamento-2.txt`) são idênticos.
+**Conclusão honesta:** princípios das 15 seções estão **todos presentes** no prompt. Os pares ERRADO/CERTO da §4, a lista completa de perguntas de fechamento da §11 e a matriz expandida da §13 foram **condensados** — o modelo tem a regra, mas não todos os exemplos literais do playbook. Para o agente isso geralmente basta (Gemini 2.5 generaliza bem a partir do princípio), mas é o ponto a observar no smoke test.
+
+**Anexos do cliente:** `treinamento.txt` e `treinamento-2.txt` confirmados idênticos via `md5sum` (`34991396…`, 18.320 bytes cada).
 
 ## 5. Integração com o CRM
 
