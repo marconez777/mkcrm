@@ -34,6 +34,7 @@ function fmtTime(s: number) {
 }
 
 export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(() => getDraft(lead.id));
   const [sending, setSending] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
