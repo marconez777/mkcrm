@@ -476,13 +476,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="flex flex-col gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={toggleUnread}>
             <Mail className="mr-2 h-4 w-4" />
-            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? "Marcar como lida" : "Marcar como não lida"}
+            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? t("inbox.context.markAsRead") : t("inbox.context.markAsUnread")}
           </Button>
           <Button variant="outline" size="sm" onClick={toggleArchive}>
-            {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />Desarquivar</> : <><Archive className="mr-2 h-4 w-4" />Arquivar</>}
+            {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />{t("inbox.context.unarchive")}</> : <><Archive className="mr-2 h-4 w-4" />{t("inbox.context.archive")}</>}
           </Button>
           <Button variant="ghost" size="sm" onClick={remove} className="text-destructive hover:text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" />Excluir lead
+            <Trash2 className="mr-2 h-4 w-4" />{t("inbox.context.deleteLead")}
           </Button>
         </div>
       </div>
