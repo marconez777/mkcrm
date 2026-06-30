@@ -230,10 +230,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="space-y-3">
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Funil</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.pipeline")}</Label>
             <Select value={currentPipelineId ?? undefined} onValueChange={changePipeline}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Selecionar funil">
+                <SelectValue placeholder={t("inbox.context.selectPipeline")}>
                   {(() => {
                     const p = pipelines.find((x) => x.id === currentPipelineId);
                     return p ? (
@@ -241,7 +241,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                         <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
                         {p.name}
                       </span>
-                    ) : "Selecionar funil";
+                    ) : t("inbox.context.selectPipeline");
                   })()}
                 </SelectValue>
               </SelectTrigger>
