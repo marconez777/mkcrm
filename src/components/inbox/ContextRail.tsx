@@ -259,7 +259,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapa</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.stage")}</Label>
             <Select value={form.stage_id ?? undefined} onValueChange={(v) => patch({ stage_id: v })}>
               <SelectTrigger className="h-9">
                 <SelectValue>
@@ -268,7 +268,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                       <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
                       {stage.name}
                     </span>
-                  ) : "Selecionar"}
+                  ) : t("inbox.context.select")}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
