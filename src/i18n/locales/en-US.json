@@ -142,6 +142,96 @@
       "forms": "Site Integration", "email": "Email Marketing",
       "imports": "Imports", "aiPipeline": "Pipeline AI",
       "appointmentTypes": "Appointment types"
+    },
+    "wa": {
+      "myConnections": "My connections",
+      "myConnectionsHint": "Each WhatsApp number creates its own connection.",
+      "new": "New WhatsApp",
+      "empty": "No connections yet.",
+      "emptyCta": " Click \"New WhatsApp\" to get started.",
+      "default": "default",
+      "sessionExpired": "session expired — rescan the QR",
+      "sessionStuck": "session stuck — trying to restart",
+      "noEvents": "no events for {{minutes}}min — checking",
+      "unknown": "unknown",
+      "lastInbound": "Last message received",
+      "lastReconnect": "Last reconnection",
+      "autoRestart": "Auto-restart",
+      "autoLogout": "Auto-logout",
+      "lastBackfill": "Last recovery",
+      "msgs": "msgs",
+      "expiredHelp": "The WhatsApp Web session dropped on the phone side. Click <strong>{{action}}</strong> and pair again (Linked devices → Link a device).",
+      "rescan": "Rescan QR",
+      "recover": "Recover",
+      "manage": "Manage",
+      "scanQr": "Scan QR",
+      "checkStatus": "Check status",
+      "recoverConnection": "Recover connection",
+      "recoverMissed": "Recover missed messages",
+      "setDefault": "Set as default",
+      "delete": "Delete",
+      "newDialogTitle": "New WhatsApp",
+      "connectionName": "Connection name",
+      "connectionPlaceholder": "e.g. Reception, Dr. John...",
+      "newDialogHint": "We'll create a dedicated instance and open a QR Code for you to scan.",
+      "cancel": "Cancel",
+      "createScan": "Create and scan",
+      "nameRequired": "Give the connection a name",
+      "error": "Error",
+      "created": "Connection created — scan the QR Code",
+      "deletedTitle": "Delete this connection?",
+      "deletedDesc": "The instance will be removed from Evolution.",
+      "removed": "Connection removed",
+      "defaultUpdated": "Default connection updated",
+      "checkDone": "Check complete",
+      "recoverFail": "Failed to recover",
+      "restarted": "Connection restarted — wait a few seconds and try sending a message",
+      "lookingMissed": "Looking for missed messages — this may take a few minutes...",
+      "missedFail": "Failed",
+      "missedRecovered": "{{count}} messages recovered",
+      "missedNone": "No new messages found",
+      "never": "never",
+      "now": "now",
+      "minAgo": "{{n}}min ago",
+      "hAgo": "{{n}}h ago",
+      "dAgo": "{{n}}d ago"
+    },
+    "fields": {
+      "title": "Lead custom fields",
+      "desc": "Define the fields shown on each lead's panel (Interest, Procedures, Source, etc.)",
+      "manage": "Manage"
+    },
+    "forms": {
+      "title": "Site Integration (Pixel + Forms)",
+      "desc": "A single SDK that installs the tracking pixel and form capture together. Includes a ready-made prompt to paste into the company site's Lovable chat.",
+      "open": "Open"
+    },
+    "email": {
+      "title": "Sending domain",
+      "desc": "Configure the sending domain, DNS records (SPF/DKIM/DMARC) and default preferences (sender and reply-to).",
+      "open": "Open"
+    },
+    "imports": {
+      "title": "Import pipeline",
+      "desc": "Bring your funnels and leads from another CRM. Current support: Kommo (.xlsx). Coming soon: RD Station, Pipedrive, HubSpot.",
+      "cta": "Import pipeline"
+    },
+    "ai": {
+      "noCompany": "You must belong to a company to configure pipeline AI."
+    },
+    "apt": {
+      "title": "Appointment types",
+      "desc": "Manage the catalog of consultations, procedures and follow-ups shown on the calendar.",
+      "manage": "Manage types"
+    },
+    "quick": {
+      "title": "Quick replies",
+      "help": "Use in chat by typing <1>/shortcut</1>. Variables: <2>{{n}}</2>, <3>{{fn}}</3>, <4>{{tel}}</4>, <5>{{field}}</5>.",
+      "shortcut": "shortcut",
+      "messagePlaceholder": "Hi {{name}}, how are you?",
+      "empty": "No quick replies yet.",
+      "required": "Shortcut and content are required",
+      "created": "Quick reply created"
     }
   },
   "tasks": {
