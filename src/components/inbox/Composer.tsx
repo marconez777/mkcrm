@@ -394,7 +394,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
             onPaste={onPaste}
-            placeholder={attachments.length ? "Adicione uma legenda (opcional)…" : "Mensagem... (Enter envia, Shift+Enter quebra linha)"}
+            placeholder={attachments.length ? t("inbox.composer.captionPlaceholder") : t("inbox.composer.messagePlaceholder")}
             rows={1}
             className="max-h-40 min-h-[120px] flex-1 resize-none self-stretch"
           />
