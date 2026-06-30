@@ -21,7 +21,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Entrar — MK CRM"; }, []);
+  useEffect(() => { document.title = "Entrar — Chat Funnel AI"; }, []);
 
   if (bootLoading) return null;
   if (session) return <Navigate to={from} replace />;
