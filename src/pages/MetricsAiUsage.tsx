@@ -422,20 +422,20 @@ export default function MetricsAiUsage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Por modelo</h2>
-            <RankList rows={byModel.map((m) => ({ key: m.model, label: m.model, sub: `${m.calls} chamadas · ${(m.in / 1000).toFixed(1)}k in / ${(m.out / 1000).toFixed(1)}k out`, value: fmtUSD(m.cost) }))} />
+            <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.sections.byModel")}</h2>
+            <RankList rows={byModel.map((m) => ({ key: m.model, label: m.model, sub: `${m.calls} ${t("metricsAiUsage.callsWord")} · ${(m.in / 1000).toFixed(1)}k in / ${(m.out / 1000).toFixed(1)}k out`, value: fmtUSD(m.cost) }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Bot className="h-3.5 w-3.5" /> Por agente</h2>
-            <RankList rows={byAgent.map((a) => ({ key: a.id, label: a.name, sub: `${a.calls} chamadas · ${(a.tokens / 1000).toFixed(1)}k tokens`, value: fmtUSD(a.cost) }))} />
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Bot className="h-3.5 w-3.5" /> {t("metricsAiUsage.sections.byAgent")}</h2>
+            <RankList rows={byAgent.map((a) => ({ key: a.id, label: a.name, sub: `${a.calls} ${t("metricsAiUsage.callsWord")} · ${(a.tokens / 1000).toFixed(1)}k ${t("metricsAiUsage.tokensWord")}`, value: fmtUSD(a.cost) }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-3.5 w-3.5" /> Top 20 leads</h2>
-            <RankList rows={byLead.map((l) => ({ key: l.id, label: l.lead?.name ?? l.lead?.phone ?? l.id.slice(0, 8), sub: `${l.calls} chamadas · ${l.lead?.phone ?? ""}`, value: fmtUSD(l.cost), href: `/inbox/${l.id}` }))} />
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-3.5 w-3.5" /> {t("metricsAiUsage.sections.topLeads")}</h2>
+            <RankList rows={byLead.map((l) => ({ key: l.id, label: l.lead?.name ?? l.lead?.phone ?? l.id.slice(0, 8), sub: `${l.calls} ${t("metricsAiUsage.callsWord")} · ${l.lead?.phone ?? ""}`, value: fmtUSD(l.cost), href: `/inbox/${l.id}` }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Por operação</h2>
-            <RankList rows={byOp.map((o) => ({ key: o.op, label: o.op, sub: `${o.calls} chamadas`, value: fmtUSD(o.cost) }))} />
+            <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.sections.byOp")}</h2>
+            <RankList rows={byOp.map((o) => ({ key: o.op, label: o.op, sub: `${o.calls} ${t("metricsAiUsage.callsWord")}`, value: fmtUSD(o.cost) }))} />
           </Card>
         </div>
 
