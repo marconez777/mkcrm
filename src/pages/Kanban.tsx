@@ -112,6 +112,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
   { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
@@ -131,7 +132,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
           <DropdownMenuTrigger asChild>
             <button
               className="rounded p-1 text-muted-foreground hover:bg-accent"
-              title="Mais ações"
+              title={t("kanban.moreActions")}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
@@ -142,7 +143,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
             {onMoveToStage && otherStages.length > 0 && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <Columns3 className="mr-2 h-3.5 w-3.5" />Mover para coluna
+                  <Columns3 className="mr-2 h-3.5 w-3.5" />{t("kanban.moveToColumn")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
@@ -160,7 +161,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
               </DropdownMenuSub>
             )}
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
-              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
+              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveToOtherPipeline")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -192,8 +193,8 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
       <div className={`flex items-center justify-between text-[11px] text-muted-foreground ${compact ? "mt-1" : "mt-2"}`}>
         <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {timeAgo(lead.last_message_at)}</span>
         {lead.created_at && (
-          <span title="Data de entrada do lead">
-            {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+          <span title={t("kanban.leadEntryDate")}>
+            {new Date(lead.created_at).toLocaleDateString()}
           </span>
         )}
       </div>
@@ -256,6 +257,7 @@ function isFutureDateStr(raw: string | undefined | null): Date | null {
 }
 
 function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
+  const { t, i18n } = useTranslation();
   const cf = (lead.custom_fields ?? {}) as Record<string, any>;
   const qualif: string | undefined = cf.qualificacao;
   const proc: string | undefined = cf.procedimento_interesse;
@@ -295,30 +297,30 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
     !pending && reasons.length === 0
   ) return null;
 
-  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const fmt = (d: Date) => d.toLocaleDateString(i18n.language, { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1">
       {qualif === "desqualificado" && (
-        <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>Desqualif.</Chip>
+        <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>{t("kanban.tag.disqualified")}</Chip>
       )}
-      {qualif === "interessado" && <Chip tone="success">Interessado</Chip>}
-      {qualif === "em_negociacao" && <Chip tone="warning">Negociação</Chip>}
+      {qualif === "interessado" && <Chip tone="success">{t("kanban.tag.interested")}</Chip>}
+      {qualif === "em_negociacao" && <Chip tone="warning">{t("kanban.tag.negotiation")}</Chip>}
       {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
-      {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>Pago</Chip>}
-      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>Comprovante</Chip>}
+      {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.paid")}</Chip>}
+      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.proof")}</Chip>}
       {procedimentoDate && (
         <Chip tone="success" icon={<CalendarClock className="h-3 w-3" />}>
-          Procedimento {fmt(procedimentoDate)}
+          {t("kanban.tag.procedure", { date: fmt(procedimentoDate) })}
         </Chip>
       )}
       {!procedimentoDate && consultaDate && (
         <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
-          Consulta {fmt(consultaDate)}
+          {t("kanban.tag.appointment", { date: fmt(consultaDate) })}
         </Chip>
       )}
-      {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
-      {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
+      {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>{t("kanban.tag.scheduling")}</Chip>}
+      {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>{t("kanban.tag.aiQueued")}</Chip>}
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
@@ -361,6 +363,7 @@ function Column({
   onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
   aiBinding?: { agentName: string; autoReply: boolean };
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const region = useRegion();
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
@@ -381,22 +384,22 @@ function Column({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title="Mais ações" onClick={(e) => e.stopPropagation()}>
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title={t("kanban.moreActions")} onClick={(e) => e.stopPropagation()}>
           <MoreVertical className="h-3.5 w-3.5" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
-          <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+          <Pencil className="mr-2 h-3.5 w-3.5" />{t("kanban.editStage")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onConfigureAi(stage), 0); }}>
-          <Sparkles className="mr-2 h-3.5 w-3.5" />Configurar IA
+          <Sparkles className="mr-2 h-3.5 w-3.5" />{t("kanban.configureAi")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
-          <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
+          <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveAllLeads")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
-          <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
+          <Trash2 className="mr-2 h-3.5 w-3.5" />{t("kanban.deleteStage")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -405,7 +408,7 @@ function Column({
   if (collapsed) {
     return (
       <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
-        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title="Expandir">
+        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title={t("kanban.expand")}>
           <Maximize2 className="h-4 w-4" />
         </button>
         {menu}
@@ -438,7 +441,7 @@ function Column({
             <span
               className="truncate text-base font-bold"
               onDoubleClick={() => setRenaming(true)}
-              title="Duplo-clique para renomear"
+              title={t("kanban.doubleClickRename")}
             >
               {stage.name}
             </span>
@@ -447,7 +450,7 @@ function Column({
           {aiBinding?.autoReply && (
             <span
               className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-              title={`Auto-resposta ativa: ${aiBinding.agentName}`}
+              title={t("kanban.aiAutoReplyActive", { agent: aiBinding.agentName })}
             >
               🤖 IA
             </span>
@@ -458,7 +461,7 @@ function Column({
             <span className="text-xs font-medium text-muted-foreground">{fmtMoney(totalValue, region.currency, region.locale)}</span>
           )}
 
-          <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
+          <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title={t("kanban.collapse")}>
             <Minimize2 className="h-4 w-4" />
           </button>
           {menu}
