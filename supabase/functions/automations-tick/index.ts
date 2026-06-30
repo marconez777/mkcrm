@@ -3,6 +3,7 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
 type Automation = {
   id: string;
