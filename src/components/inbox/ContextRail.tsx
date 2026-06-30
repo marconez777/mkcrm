@@ -285,14 +285,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Atendente</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.attendant")}</Label>
             <Select
               value={form.attendant_id ?? "__none"}
               onValueChange={(v) => patch({ attendant_id: v === "__none" ? null : v })}
             >
-              <SelectTrigger className="h-9"><SelectValue placeholder="Não atribuído" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder={t("inbox.context.unassigned")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none">Não atribuído</SelectItem>
+                <SelectItem value="__none">{t("inbox.context.unassigned")}</SelectItem>
                 {attendants.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     <span className="flex items-center gap-2">
