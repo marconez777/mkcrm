@@ -331,7 +331,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
                     <p className="font-medium pt-2">2. No WordPress</p>
                     <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                       <li>Plugins → Adicionar novo → Enviar plugin → faça upload do .zip e ative.</li>
-                      <li>Configurações → MK CRM Forms → cole o token acima e salve.</li>
+                      <li>Configurações → Chat Funnel AI Forms → cole o token acima e salve.</li>
                     </ul>
                     <p className="text-muted-foreground pt-2">
                       Suporta: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.
