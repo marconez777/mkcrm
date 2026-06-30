@@ -538,32 +538,32 @@ export default function MetricsAiUsage() {
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <SheetContent className="w-[480px] sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Detalhes da chamada</SheetTitle>
+            <SheetTitle>{t("metricsAiUsage.sheet.title")}</SheetTitle>
           </SheetHeader>
           {detail && (
             <div className="mt-4 space-y-2 text-xs">
-              <KV k="ID" v={detail.id} />
-              <KV k="Quando" v={new Date(detail.created_at).toLocaleString()} />
-              <KV k="Modelo" v={detail.model} />
-              <KV k="Operação" v={detail.operation} />
-              <KV k="Origem" v={detail.source ?? "unknown"} />
-              <KV k="Provider" v={detail.provider ?? "—"} />
-              <KV k="Etapa" v={detail.agent_step ?? "—"} />
-              <KV k="Status" v={detail.status} />
-              <KV k="Agente" v={detail.agent_id ? `${agents[detail.agent_id] ?? "—"} (${detail.agent_id})` : "—"} />
-              <KV k="Lead" v={detail.lead_id ? `${leads[detail.lead_id]?.name ?? leads[detail.lead_id]?.phone ?? "—"} (${detail.lead_id})` : "—"} />
-              <KV k="Thread" v={detail.thread_id ?? "—"} />
-              <KV k="Automação" v={detail.automation_id ?? "—"} />
-              <KV k="Tokens" v={`in ${detail.input_tokens ?? "—"} / out ${detail.output_tokens ?? "—"} / total ${detail.total_tokens ?? "—"}`} />
-              <KV k="Latência" v={detail.latency_ms ? `${detail.latency_ms} ms` : "—"} />
-              <KV k="Tools chamadas" v={String(detail.tools_called)} />
-              <KV k="Respondeu" v={detail.replied ? "sim" : "não"} />
-              <KV k="Custo" v={fmtUSD(calcCost(detail.model, detail.input_tokens, detail.output_tokens))} />
-              {detail.error_category && <KV k="Categoria" v={friendlyErrorCategory(detail.error_category)} />}
+              <KV k={t("metricsAiUsage.sheet.id")} v={detail.id} />
+              <KV k={t("metricsAiUsage.sheet.when")} v={new Date(detail.created_at).toLocaleString(lang)} />
+              <KV k={t("metricsAiUsage.sheet.model")} v={detail.model} />
+              <KV k={t("metricsAiUsage.sheet.operation")} v={detail.operation} />
+              <KV k={t("metricsAiUsage.sheet.source")} v={detail.source ?? "unknown"} />
+              <KV k={t("metricsAiUsage.sheet.provider")} v={detail.provider ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.step")} v={detail.agent_step ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.status")} v={detail.status} />
+              <KV k={t("metricsAiUsage.sheet.agent")} v={detail.agent_id ? `${agents[detail.agent_id] ?? "—"} (${detail.agent_id})` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.lead")} v={detail.lead_id ? `${leads[detail.lead_id]?.name ?? leads[detail.lead_id]?.phone ?? "—"} (${detail.lead_id})` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.thread")} v={detail.thread_id ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.automation")} v={detail.automation_id ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.tokens")} v={t("metricsAiUsage.sheet.tokensValue", { in: detail.input_tokens ?? "—", out: detail.output_tokens ?? "—", total: detail.total_tokens ?? "—" })} />
+              <KV k={t("metricsAiUsage.sheet.latency")} v={detail.latency_ms ? `${detail.latency_ms} ms` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.tools")} v={String(detail.tools_called)} />
+              <KV k={t("metricsAiUsage.sheet.replied")} v={detail.replied ? t("metricsAiUsage.sheet.yes") : t("metricsAiUsage.sheet.no")} />
+              <KV k={t("metricsAiUsage.sheet.cost")} v={fmtUSD(calcCost(detail.model, detail.input_tokens, detail.output_tokens))} />
+              {detail.error_category && <KV k={t("metricsAiUsage.sheet.category")} v={t(`metricsAiUsage.errCat.${detail.error_category}`, { defaultValue: detail.error_category })} />}
               {detail.error_category && (
                 <div className="rounded border bg-muted/20 p-2">
-                  <div className="mb-1 text-muted-foreground">Leitura do diagnóstico:</div>
-                  <p>{errorCategoryExplanation(detail.error_category)}</p>
+                  <div className="mb-1 text-muted-foreground">{t("metricsAiUsage.sheet.diagnosticRead")}</div>
+                  <p>{t(`metricsAiUsage.errExp.${detail.error_category}`, { defaultValue: t("metricsAiUsage.errExp.fallback") })}</p>
                   {detail.error_details && Object.keys(detail.error_details).length > 0 && (
                     <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-[11px]">{JSON.stringify(detail.error_details, null, 2)}</pre>
                   )}
@@ -571,7 +571,7 @@ export default function MetricsAiUsage() {
               )}
               {detail.error && (
                 <div className="mt-2">
-                  <div className="mb-1 text-muted-foreground">Erro:</div>
+                  <div className="mb-1 text-muted-foreground">{t("metricsAiUsage.sheet.error")}</div>
                   <pre className="overflow-x-auto rounded bg-muted p-2 text-[11px]">{detail.error}</pre>
                 </div>
               )}
