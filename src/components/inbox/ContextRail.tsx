@@ -194,11 +194,11 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             value={form.name ?? ""}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             onBlur={() => patch({ name: form.name ?? null })}
-            placeholder="Nome do lead"
+            placeholder={t("inbox.context.namePlaceholder")}
             className="mt-2 border-0 text-center text-sm font-semibold focus-visible:ring-0"
           />
           <button
-            onClick={() => { navigator.clipboard.writeText(lead.phone); toast.success("Telefone copiado"); }}
+            onClick={() => { navigator.clipboard.writeText(lead.phone); toast.success(t("inbox.context.phoneCopied")); }}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <Phone className="h-3 w-3" /> {lead.phone} <Copy className="h-3 w-3" />
