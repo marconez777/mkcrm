@@ -142,6 +142,96 @@
       "forms": "Integración del sitio", "email": "Email Marketing",
       "imports": "Importaciones", "aiPipeline": "IA del Pipeline",
       "appointmentTypes": "Tipos de cita"
+    },
+    "wa": {
+      "myConnections": "Mis conexiones",
+      "myConnectionsHint": "Cada número de WhatsApp genera su propia conexión.",
+      "new": "Nuevo WhatsApp",
+      "empty": "Aún no hay conexiones.",
+      "emptyCta": " Haz clic en \"Nuevo WhatsApp\" para empezar.",
+      "default": "predeterminada",
+      "sessionExpired": "sesión expirada — vuelve a escanear el QR",
+      "sessionStuck": "sesión bloqueada — intentando reiniciar",
+      "noEvents": "sin eventos hace {{minutes}}min — verificando",
+      "unknown": "desconocido",
+      "lastInbound": "Último mensaje recibido",
+      "lastReconnect": "Última reconexión",
+      "autoRestart": "Auto-restart",
+      "autoLogout": "Auto-logout",
+      "lastBackfill": "Última recuperación",
+      "msgs": "msjs",
+      "expiredHelp": "La sesión de WhatsApp Web cayó del lado del teléfono. Haz clic en <strong>{{action}}</strong> y vuelve a vincular (Dispositivos vinculados → Vincular dispositivo).",
+      "rescan": "Volver a escanear QR",
+      "recover": "Recuperar",
+      "manage": "Gestionar",
+      "scanQr": "Escanear QR",
+      "checkStatus": "Verificar estado",
+      "recoverConnection": "Recuperar conexión",
+      "recoverMissed": "Recuperar mensajes perdidos",
+      "setDefault": "Definir como predeterminada",
+      "delete": "Eliminar",
+      "newDialogTitle": "Nuevo WhatsApp",
+      "connectionName": "Nombre de la conexión",
+      "connectionPlaceholder": "Ej: Recepción, Dr. Juan...",
+      "newDialogHint": "Crearemos una instancia dedicada y abriremos el QR para que lo escanees.",
+      "cancel": "Cancelar",
+      "createScan": "Crear y escanear",
+      "nameRequired": "Asigna un nombre a la conexión",
+      "error": "Error",
+      "created": "Conexión creada — escanea el QR",
+      "deletedTitle": "¿Eliminar esta conexión?",
+      "deletedDesc": "La instancia será removida de Evolution.",
+      "removed": "Conexión eliminada",
+      "defaultUpdated": "Conexión predeterminada actualizada",
+      "checkDone": "Verificación completa",
+      "recoverFail": "Error al recuperar",
+      "restarted": "Conexión reiniciada — espera unos segundos y prueba enviando un mensaje",
+      "lookingMissed": "Buscando mensajes perdidos — esto puede tardar unos minutos...",
+      "missedFail": "Error",
+      "missedRecovered": "{{count}} mensajes recuperados",
+      "missedNone": "No se encontraron mensajes nuevos",
+      "never": "nunca",
+      "now": "ahora",
+      "minAgo": "hace {{n}}min",
+      "hAgo": "hace {{n}}h",
+      "dAgo": "hace {{n}}d"
+    },
+    "fields": {
+      "title": "Campos personalizados del lead",
+      "desc": "Define los campos mostrados en el panel de cada lead (Interés, Procedimientos, Origen, etc.)",
+      "manage": "Gestionar"
+    },
+    "forms": {
+      "title": "Integración del sitio (Pixel + Formularios)",
+      "desc": "Un único SDK que instala el pixel de rastreo y la captura de formularios. Incluye un prompt listo para pegar en el chat de Lovable del sitio de la empresa.",
+      "open": "Abrir"
+    },
+    "email": {
+      "title": "Dominio de envío",
+      "desc": "Configura el dominio de envío, registros DNS (SPF/DKIM/DMARC) y preferencias predeterminadas (remitente y reply-to).",
+      "open": "Abrir"
+    },
+    "imports": {
+      "title": "Importar pipeline",
+      "desc": "Trae tus funnels y leads desde otro CRM. Soporte actual: Kommo (.xlsx). Pronto: RD Station, Pipedrive, HubSpot.",
+      "cta": "Importar pipeline"
+    },
+    "ai": {
+      "noCompany": "Debes pertenecer a una empresa para configurar la IA del pipeline."
+    },
+    "apt": {
+      "title": "Tipos de cita",
+      "desc": "Gestiona el catálogo de consultas, procedimientos y seguimientos mostrado en el calendario.",
+      "manage": "Gestionar tipos"
+    },
+    "quick": {
+      "title": "Respuestas rápidas",
+      "help": "Usa en el chat escribiendo <1>/atajo</1>. Variables: <2>{{n}}</2>, <3>{{fn}}</3>, <4>{{tel}}</4>, <5>{{field}}</5>.",
+      "shortcut": "atajo",
+      "messagePlaceholder": "Hola {{nombre}}, ¿cómo estás?",
+      "empty": "Aún no hay respuestas rápidas.",
+      "required": "Atajo y contenido son obligatorios",
+      "created": "Respuesta rápida creada"
     }
   },
   "tasks": {

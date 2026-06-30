@@ -142,6 +142,96 @@
       "forms": "Integração do Site", "email": "Email Marketing",
       "imports": "Importações", "aiPipeline": "IA do Pipeline",
       "appointmentTypes": "Tipos de agendamento"
+    },
+    "wa": {
+      "myConnections": "Minhas conexões",
+      "myConnectionsHint": "Cada número de WhatsApp gera uma conexão própria.",
+      "new": "Novo WhatsApp",
+      "empty": "Nenhuma conexão ainda.",
+      "emptyCta": " Clique em \"Novo WhatsApp\" para começar.",
+      "default": "padrão",
+      "sessionExpired": "sessão expirada — reescaneie o QR",
+      "sessionStuck": "sessão travada — tentando reiniciar",
+      "noEvents": "sem eventos há {{minutes}}min — verificando",
+      "unknown": "desconhecido",
+      "lastInbound": "Última mensagem recebida",
+      "lastReconnect": "Última reconexão",
+      "autoRestart": "Auto-restart",
+      "autoLogout": "Auto-logout",
+      "lastBackfill": "Última recuperação",
+      "msgs": "msgs",
+      "expiredHelp": "A sessão WhatsApp Web caiu do lado do celular. Clique em <strong>{{action}}</strong> e refaça o pareamento (Aparelhos conectados → Conectar aparelho).",
+      "rescan": "Reescanear QR",
+      "recover": "Recuperar",
+      "manage": "Gerenciar",
+      "scanQr": "Escanear QR",
+      "checkStatus": "Verificar status",
+      "recoverConnection": "Recuperar conexão",
+      "recoverMissed": "Recuperar mensagens perdidas",
+      "setDefault": "Definir como padrão",
+      "delete": "Excluir",
+      "newDialogTitle": "Novo WhatsApp",
+      "connectionName": "Nome da conexão",
+      "connectionPlaceholder": "Ex: Recepção, Dr. João...",
+      "newDialogHint": "Vamos criar uma instância dedicada e abrir o QR Code para você escanear.",
+      "cancel": "Cancelar",
+      "createScan": "Criar e escanear",
+      "nameRequired": "Dê um nome para a conexão",
+      "error": "Erro",
+      "created": "Conexão criada — escaneie o QR Code",
+      "deletedTitle": "Excluir esta conexão?",
+      "deletedDesc": "A instância será removida da Evolution.",
+      "removed": "Conexão removida",
+      "defaultUpdated": "Conexão padrão atualizada",
+      "checkDone": "Verificação concluída",
+      "recoverFail": "Falha ao recuperar",
+      "restarted": "Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem",
+      "lookingMissed": "Procurando mensagens perdidas — isso pode levar alguns minutos...",
+      "missedFail": "Falha",
+      "missedRecovered": "{{count}} mensagens recuperadas",
+      "missedNone": "Nenhuma mensagem nova encontrada",
+      "never": "nunca",
+      "now": "agora",
+      "minAgo": "há {{n}}min",
+      "hAgo": "há {{n}}h",
+      "dAgo": "há {{n}}d"
+    },
+    "fields": {
+      "title": "Campos personalizados do lead",
+      "desc": "Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)",
+      "manage": "Gerenciar"
+    },
+    "forms": {
+      "title": "Integração do Site (Pixel + Formulários)",
+      "desc": "Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da empresa.",
+      "open": "Abrir"
+    },
+    "email": {
+      "title": "Domínio de envio",
+      "desc": "Configure o domínio de envio, registros DNS (SPF/DKIM/DMARC) e preferências padrão (remetente e reply-to).",
+      "open": "Abrir"
+    },
+    "imports": {
+      "title": "Importar pipeline",
+      "desc": "Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.",
+      "cta": "Importar pipeline"
+    },
+    "ai": {
+      "noCompany": "Você precisa pertencer a uma empresa para configurar a IA do pipeline."
+    },
+    "apt": {
+      "title": "Tipos de agendamento",
+      "desc": "Gerencie o catálogo de consultas, procedimentos e retornos exibido no calendário.",
+      "manage": "Gerenciar tipos"
+    },
+    "quick": {
+      "title": "Respostas rápidas",
+      "help": "Use no chat digitando <1>/atalho</1>. Variáveis: <2>{{n}}</2>, <3>{{fn}}</3>, <4>{{tel}}</4>, <5>{{field}}</5>.",
+      "shortcut": "atalho",
+      "messagePlaceholder": "Olá {{nome}}, tudo bem?",
+      "empty": "Nenhuma resposta rápida ainda.",
+      "required": "Atalho e conteúdo são obrigatórios",
+      "created": "Resposta rápida criada"
     }
   },
   "tasks": {
