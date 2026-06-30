@@ -1,83 +1,70 @@
+# Roadmap — Migração de domínio para `chatfunnelai.com`
 
-# Bug das datas no painel "Detalhes" — diagnóstico + correção
+Objetivo: substituir todas as referências hardcoded ao domínio antigo (`crm.mkart.com.br` e fallback `mkcrm.lovable.app`) pelo novo domínio oficial `https://chatfunnelai.com`, e validar que fluxos críticos (convites, reset de senha, emails transacionais, webhooks) apontem para o lugar certo.
 
-> Roadmap da Meta API fica preservado em `.lovable/plan.md` e em `docs/integrations/meta/ROADMAP.md` quando voltarmos a ele. Este plano trata só do bug atual.
+## Fase 1 — Urgente (links quebrados hoje)
 
-## Diagnóstico (causa raiz mais provável)
+1. **Link de convite do Super Admin** — `supabase/functions/clinic-invite/index.ts:59`
+   - Hoje: `https://crm.mkart.com.br/invite/${token}`
+   - Trocar para `https://chatfunnelai.com/invite/${token}` (idealmente via env `PUBLIC_SITE_URL` com fallback no novo domínio).
+   - Redeploy da edge function.
 
-Os campos `consulta_agendada_em` e `procedimento_agendado_em` **não são** apenas campos manuais — eles também são **derivados automaticamente da tabela `appointments`** pela função `recompute_lead_appointment_summary(lead_id)`, instalada na migration `20260617210036_*`:
+2. **Reset de senha** — `src/lib/app-url.ts`
+   - `APP_BASE_URL` está `https://crm.mkart.com.br` e é usado em `Auth.tsx` para `redirectTo` do `resetPasswordForEmail`.
+   - Trocar para `https://chatfunnelai.com` e atualizar o comentário do allowlist.
+   - Garantir que `chatfunnelai.com` esteja no allowlist de Redirect URLs do Auth (Lovable Cloud).
 
-```sql
-UPDATE public.leads
-   SET custom_fields = custom_fields
-       || jsonb_build_object('consulta_agendada_em',
-            COALESCE(to_jsonb(v_next_consulta::text), 'null'::jsonb))
-       || jsonb_build_object('procedimento_agendado_em', ...)
-```
+## Fase 2 — Emails transacionais e relatórios
 
-Essa função roda via trigger `tg_appointments_recompute` em **qualquer INSERT/UPDATE/DELETE em `appointments`** do lead, e pega `MIN(scheduled_at)` de appointments com `status='agendado' AND scheduled_at > now()`.
+Edge functions com fallback antigo `https://mkcrm.lovable.app`:
+- `supabase/functions/send-email/index.ts`
+- `supabase/functions/send-email-batch/index.ts`
+- `supabase/functions/ai-spend-notify/index.ts` (inclui também `from: "alerts@mkcrm.lovable.app"`)
+- `supabase/functions/report-finalizados-mensal-or/index.ts`
 
-Consequência: quando a secretária edita a data direto no painel `CustomFieldsPanel`:
+Ações:
+- Trocar fallback de `mkcrm.lovable.app` → `chatfunnelai.com`.
+- Definir secret `PUBLIC_SITE_URL=https://chatfunnelai.com` para sobrescrever em runtime sem depender do fallback.
+- Avaliar trocar remetente `alerts@mkcrm.lovable.app` por um endereço no novo domínio (depende de DNS/Resend configurado para `chatfunnelai.com`).
 
-1. O front grava `leads.custom_fields.consulta_agendada_em = novo valor`.
-2. A trigger `track_custom_fields_human_edits` marca G10 (proteção contra a IA).
-3. **Mas** qualquer evento posterior em `appointments` (sync com Evolution, tick determinístico `auto:appointment-sync`, edição de qualquer outro appointment do mesmo lead, etc.) dispara o recompute e **sobrescreve o campo** com o valor antigo da tabela `appointments`.
-4. No "Limpar", a recomputação reinsere a data porque o appointment ainda existe.
+## Fase 3 — Site institucional e UI
 
-Isso explica todos os três sintomas relatados:
-- "altero a hora e não salva" → o write vai, mas é sobrescrito segundos depois.
-- "do nada aparece a hora que eu pus depois de um tempo" → entre dois recomputes ou enquanto o appointment está fora da janela `scheduled_at > now()`.
-- "clico em limpar e não salva" → recompute reinjeta a partir do appointment.
+- `src/components/site/SiteFooter.tsx:73` — email de contato `contato@mkart.com.br`. Decidir se passa a usar `contato@chatfunnelai.com` ou mantém Mkart.
+- `src/pages/SettingsForms.tsx` (linhas 158 e 483) — placeholders `mkart.com.br` em "Domínios permitidos". Atualizar para placeholders neutros (`exemplo.com`) ou para `chatfunnelai.com`.
+- Verificar `index.html` / metatags OG / canonical / favicon para refletir o novo domínio.
 
-A camada de IA (classifier) **não é culpada**: `HUMAN_SCHEDULING_FIELDS` em `pipeline-classify/apply.ts:27` já bloqueia o LLM de escrever essas chaves desde junho/2026.
+## Fase 4 — Webhooks e integrações externas
 
-## Plano em 3 fases
+- `supabase/functions/eduzz-webhook/index.ts:299` — gera `redirectTo` a partir de `SUPABASE_URL` (vira `*.lovable.app/auth`). Trocar para `https://chatfunnelai.com/auth` (idealmente via `PUBLIC_SITE_URL`).
+- Revisar painel da Eduzz / Evolution / Meta para apontar callbacks novos para `chatfunnelai.com`.
+- Convidar tokens já gerados antes da troca continuarão com URL antiga; opcional: criar redirect de `crm.mkart.com.br/invite/*` → `chatfunnelai.com/invite/*` (DNS/edge) enquanto domínio antigo continuar no ar.
 
-### Fase 1 — Validar o diagnóstico (15 min)
+## Fase 5 — Backend / config
 
-1. Conferir no lead da `Thereza` (telefone 5521982261331):
-   - `SELECT custom_fields, custom_fields_last_human_edit FROM leads WHERE phone = '...';`
-   - `SELECT id, kind, scheduled_at, status FROM appointments WHERE lead_id = '...';`
-   - Comparar com o histórico em `lead_events` (`type IN ('custom_field_changed','appointment_sync')`).
-2. Reproduzir via psql: editar `custom_fields.consulta_agendada_em` manualmente, depois um `UPDATE` no appointment (status='agendado') e ver se a data volta.
+- Atualizar Supabase Auth: Site URL e Redirect URLs (adicionar `https://chatfunnelai.com`, manter antigos por X dias para não quebrar links pendentes).
+- Atualizar `app_settings` / qualquer registro em DB que armazene base URL (verificar tabela `app_settings`, `clinic_secrets`, `email_domains`).
+- Conferir cron jobs / `pg_cron` que chamam funções via URL absoluta.
 
-Se confirmado, segue para Fase 2. Se não, ampliar investigação para `pipeline-deterministic/index.ts:493` (regra `auto:field-changed-consulta`) e para a sincronização Evolution.
+## Fase 6 — QA e cutover
 
-### Fase 2 — Correção (fonte da verdade clara)
+- Smoke test: convite novo → email recebido aponta `chatfunnelai.com` → aceitação funciona.
+- Smoke test: reset de senha → email aponta novo domínio → fluxo completo.
+- Smoke test: campanha email + alerta de spend → links no corpo apontam novo domínio.
+- Smoke test: webhook Eduzz → redirect pós-login funciona.
+- Verificar SEO (canonical, sitemap, robots) e Open Graph.
 
-Definir contrato: **`custom_fields.consulta_agendada_em` é apenas espelho do `appointments`**, e a UI passa a editar o `appointment` quando ele existe.
+## Detalhes técnicos
 
-Mudanças:
+Sugestão de implementação (Fase 1 + 2): centralizar em uma constante única.
 
-1. **`CustomFieldsPanel.tsx`** — para os dois campos de data de agendamento (`consulta_agendada_em`, `procedimento_agendado_em`):
-   - Buscar o próximo `appointment` (`status='agendado' AND scheduled_at > now()`) via hook leve.
-   - Se existir: o popover edita `appointments.scheduled_at` (via `updateAppointmentSchedule` já existente em `src/lib/appointments-mutations.ts`) e "Limpar" cancela o appointment (`status='cancelado'`).
-   - Se não existir: cria appointment ao escolher data e edita `custom_fields` apenas como fallback para tenants sem módulo de agenda.
-   - Indicar visualmente que o valor vem da agenda (ícone + tooltip "vinculado à agenda — abra a agenda para mais opções").
+- Frontend: `src/lib/app-url.ts` → `APP_BASE_URL = "https://chatfunnelai.com"`.
+- Edge functions: padronizar leitura `const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";` em todas as funções listadas e adicionar secret `PUBLIC_SITE_URL` no projeto.
 
-2. **`recompute_lead_appointment_summary`** — endurecer:
-   - Quando NÃO houver appointment futuro `agendado`, **não sobrescrever** silenciosamente; só limpar se o último estado também veio da agenda. Marcador: novo campo `custom_fields_source.<key>='appointment'|'manual'` ou usar `custom_fields_last_human_edit[key]` com a regra "se editado por humano há <X horas, não toca". Recomendo a janela G10 já existente (7 dias) como guard padrão.
+Itens **fora** deste roadmap (manter como estão, são identificadores internos, não URLs públicas):
+- `contato@mkart.com.br` em migrations antigas (apenas seed histórico de super admin).
+- `data-mk-*` atributos.
+- Domínio interno do Supabase (`*.supabase.co`).
 
-3. **Front anti-race no `CustomFieldsPanel.save()`**:
-   - Debounce de 400 ms no save da data (evita saves múltiplos do `<input type="time">`).
-   - Após `await update`, re-fetchar a linha do lead e reconciliar `values` (evita realtime trazer snapshot stale).
+## Pergunta aberta
 
-### Fase 3 — Telemetria e guard
-
-1. Logar em `lead_events` toda escrita de `consulta_agendada_em` / `procedimento_agendado_em` com `source: 'manual'|'recompute'|'classifier'` para auditar futuras divergências.
-2. Adicionar teste em `supabase/functions/_shared/__tests__/` simulando: edição manual → update em appointment → garantir que o valor manual sobrevive dentro da janela G10.
-3. Atualizar `docs/skill-datas.md` com a nova regra "appointment é a fonte da verdade quando existe; edição manual cria/edita o appointment".
-
-## Detalhes técnicos relevantes
-
-- Arquivos tocados: `src/components/inbox/CustomFieldsPanel.tsx`, `src/lib/appointments-mutations.ts` (já existe), nova migration para reforçar `recompute_lead_appointment_summary`, possíveis ajustes em `supabase/functions/pipeline-deterministic/index.ts` (regra `auto:appointment-sync`).
-- Sem mudança de schema: usa `custom_fields_last_human_edit` que já existe.
-- Sem impacto na IA (classifier já não escreve essas chaves).
-- Compatível com tenants que não usam o módulo `appointments` (fallback puro em `custom_fields`).
-
-## Como vou validar
-
-1. psql: edição manual + UPDATE em appointment não sobrescreve.
-2. UI: editar hora → fechar popover → aguardar 30 s com tela aberta → valor persiste.
-3. UI: clicar "Limpar" com appointment existente → appointment é cancelado, data some, não reaparece.
-4. Replay no lead da Thereza para confirmar fix em produção.
+- O domínio antigo `crm.mkart.com.br` deve continuar respondendo (redirect 301 para o novo) ou pode ser desligado? Isso decide se precisamos manter compat nas Fases 1–2.
