@@ -448,6 +448,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 }
 
 function IntegrationSettings({ integration, onSaved, canManage }: { integration: Integration; onSaved: (i: Integration) => void; canManage: boolean }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(integration.name);
   const [domains, setDomains] = useState((integration.allowed_domains || []).join(", "));
   const [tags, setTags] = useState((integration.default_tags || []).join(", "));
@@ -466,17 +467,17 @@ function IntegrationSettings({ integration, onSaved, canManage }: { integration:
         },
       });
       if (error) throw error;
-      toast.success("Salvo");
+      toast.success(t("settingsForms.settingsTab.saved"));
       onSaved((data as any).integration);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
   return (
     <Card className="p-4 space-y-3">
-      <div className="space-y-1.5"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
-      <div className="space-y-1.5"><Label>Domínios permitidos</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" disabled={!canManage} /></div>
-      <div className="space-y-1.5"><Label>Tags padrão para novos leads</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="site, formulario" disabled={!canManage} /></div>
-      {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.domains")}</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.tags")}</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("settingsForms.settingsTab.tagsPh")} disabled={!canManage} /></div>
+      {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.settingsTab.save")}</Button>}
     </Card>
   );
 }
