@@ -354,12 +354,13 @@ function Chip({ children, tone = "neutral", icon }: {
 
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll, aiBinding,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
   onEdit: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
+  aiBinding?: { agentName: string; autoReply: boolean };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
