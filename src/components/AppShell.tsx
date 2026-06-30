@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import brandIcon from "@/assets/chat-funnel-ai-ico.png";
+import brandLockup from "@/assets/chat-funnel-ai-500.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
 import SupportChatFab from "@/components/support/SupportChatFab";
@@ -220,14 +220,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border/40">
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
-          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border/40 bg-sidebar-accent/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
-            <img src={brandIcon} alt="Chat Funnel AI" className="h-8 w-8 object-contain" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold leading-none tracking-tight text-sidebar-foreground">Chat Funnel AI</div>
-            <div className="mt-1 text-[11px] text-sidebar-foreground/55">WhatsApp Pipeline</div>
-          </div>
+        <div className="flex items-center bg-black px-4 py-4">
+          <img src={brandLockup} alt="Chat Funnel AI" className="h-8 w-auto object-contain" />
         </div>
 
         <div className="mx-3 mb-2 h-px bg-sidebar-border/40" />
