@@ -170,12 +170,14 @@ function useUnreadTotal() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  useI18nSync();
   const { overall, health } = useHealth();
   const { user, isSuperAdmin, membership, hasFeature } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
   const unread = useUnreadTotal();
   const { enabled: pipelineAllowed } = usePipelineAllowlist();
+
 
   useEffect(() => {
     if (!user) { setProfile(null); return; }
