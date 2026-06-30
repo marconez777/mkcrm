@@ -208,16 +208,16 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="rounded-md border bg-primary/5 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-primary" /> Resumo IA
+              <Sparkles className="h-3 w-3 text-primary" /> {t("inbox.context.aiSummary")}
             </Label>
             <Button variant="ghost" size="sm" onClick={generateSummary} disabled={summarizing} className="h-6 px-2 text-[11px]">
-              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? "Atualizar" : "Gerar")}
+              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? t("inbox.context.update") : t("inbox.context.generate"))}
             </Button>
           </div>
           {summary ? (
             <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{summary}</p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">Gere um resumo automático da conversa.</p>
+            <p className="text-[11px] text-muted-foreground">{t("inbox.context.summaryHint")}</p>
           )}
         </div>
 
