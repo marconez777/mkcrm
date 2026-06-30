@@ -51,6 +51,8 @@ function toDateInput(d: Date) {
 }
 
 export default function MetricsAiUsage() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const { isSuperAdmin, membership, loading } = useAuth();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const allowed = isSuperAdmin || isClinicAdmin;
