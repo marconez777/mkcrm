@@ -142,18 +142,19 @@ Para restringir: usar `AIPipelinesCard` em **Configurações → IA** e selecion
 
 ## 6. Pendências (gating)
 
-1. **Binding agente ↔ stage.** `stages_enabled=false` e `agent_stages` não tem nenhuma linha para esse agente. Enquanto isso o agente existe mas o `pipeline-classify` não vai rotear leads pra ele. Próximo passo: associar ao stage de entrada do pipeline "Formulário Site" e ligar `stages_enabled=true`.
-2. **Smoke test.** Validar 3 cenários reais após o binding:
-   - "quanto custa?" → deve responder valor + entregáveis + link (não só preço).
-   - "tenho interesse" → deve aplicar matriz §13 (acolhimento + oferta + link + pergunta de fechamento).
-   - Objeção de preço → deve oferecer Bronze (§15 roteamento).
-3. **Validar links Stripe** estão ativos e levam ao checkout correto.
+1. **Binding agente ↔ stage** (P0). `stages_enabled=false` e `agent_stages` retorna 0 linhas (verificado 2026-06-30). Sem isso, o `pipeline-classify` não roteia leads para esse agente. Próximo passo: associar ao stage de entrada do pipeline "Formulário Site" e ligar `stages_enabled=true`.
+2. **Smoke test de comportamento** (confirmação, não cobertura). Após o binding, validar:
+   - "quanto custa?" → valor + entregáveis + link (não só preço).
+   - "tenho interesse" → acolhimento + oferta + link + pergunta de fechamento.
+   - Objeção de preço → o prompt instrui ofertar Bronze (§15, linha 170 do prompt). Confirmar que o modelo executa.
+   - **Cadência:** medir se `debounce_seconds=8` deixa a conversa lenta demais; comparar com janela 1,5–2s.
+3. **Validar links Stripe** estão ativos e levam ao checkout correto (responsabilidade do cliente, não do CRM).
 4. **Migrar para RAG** apenas se o material crescer >50k tokens ou virar multi-evento.
 
 ## 7. Como replicar para outro tenant
 
-1. Garantir que o tenant alvo tem chave BYOK Gemini em `clinic_secrets` (`active_ai_provider='gemini'`). Pode copiar de outro tenant via SQL se cliente autorizar.
-2. Inserir linha em `ai_agents` com `provider='google'`, `model='google/gemini-2.5-flash'`, `role='sales'`, `system_prompt` = playbook completo, `temperature=0.7`, `debounce_seconds=8`, `use_memory=true`.
+1. **Chave BYOK Gemini.** Preferência: cada tenant emite sua própria chave em `clinic_secrets` (`active_ai_provider='gemini'`). **Cópia entre tenants é exceção** — só com autorização explícita por escrito do cliente e registrada em audit log, porque é vetor clássico de vazamento.
+2. Inserir linha em `ai_agents` com `provider='google'`, `model='google/gemini-2.5-flash'`, `role='sales'`, `system_prompt` = playbook completo, `temperature=0.7`, `debounce_seconds` (revalidar — não copiar 8s cegamente), `use_memory=true`, `use_hybrid_search=false` (sem KB).
 3. Criar binding em `agent_stages` para o stage de entrada do pipeline desejado e setar `stages_enabled=true` no agente.
 4. (Opcional) Restringir pipelines em `clinics.settings.ai_target_pipeline_ids` via `AIPipelinesCard`.
 5. Rodar smoke test conforme §6.2.
