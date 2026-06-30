@@ -75,8 +75,8 @@ function SidebarItem({
         cn(
           "relative mb-0.5 flex items-center gap-3 rounded-md pl-4 pr-3 py-2 text-[13px] transition-all duration-150",
           isActive
-            ? "bg-[hsl(var(--accent)/0.12)] font-medium text-sidebar-foreground shadow-[inset_0_1px_0_0_hsl(var(--accent)/0.15)]"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            ? "bg-[hsl(var(--accent)/0.12)] font-medium text-white shadow-[inset_0_1px_0_0_hsl(var(--accent)/0.15)]"
+            : "text-white/70 hover:bg-white/10 hover:text-white"
         )
       }
     >
