@@ -28,6 +28,7 @@ function timeAgo(iso: string) {
 }
 
 export default function ContextRail({ lead, stages, attendants, onClose }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void }) {
+  const { t } = useTranslation();
   const nav = useNavigate();
   const confirm = useConfirm();
   const [form, setForm] = useState<Partial<Lead>>(lead);
