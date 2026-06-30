@@ -967,7 +967,7 @@ export default function KanbanPage() {
         </DialogContent>
       </Dialog>
 
-      <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
+      <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} onSaved={() => setAiRefreshTick((t) => t + 1)} />
 
       <MoveColumnLeadsDialog
         open={!!movingColumnStage}
