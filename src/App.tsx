@@ -174,6 +174,7 @@ const App = () => (
                       <Route path="/metrics/engagement" element={<AiHub />} />
                       <Route path="/metrics" element={<AiHub />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/billing" element={<Billing />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/forms" element={<SettingsForms />} />
                       <Route path="/settings/integration" element={<SettingsForms />} />
