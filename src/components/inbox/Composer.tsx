@@ -342,14 +342,14 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
           </span>
-          <span className="text-sm font-medium">Gravando… {fmtTime(recordSec)}</span>
-          <span className="text-[10px] text-muted-foreground">(máx 5min)</span>
+          <span className="text-sm font-medium">{t("inbox.composer.recording")} {fmtTime(recordSec)}</span>
+          <span className="text-[10px] text-muted-foreground">{t("inbox.composer.maxDuration")}</span>
           <div className="ml-auto flex gap-1">
             <Button type="button" variant="ghost" size="sm" onClick={() => stopRecording(true)}>
-              <Trash2 className="mr-1 h-4 w-4" /> Cancelar
+              <Trash2 className="mr-1 h-4 w-4" /> {t("inbox.composer.cancel")}
             </Button>
             <Button type="button" size="sm" onClick={() => stopRecording(false)}>
-              <Square className="mr-1 h-4 w-4" /> Parar
+              <Square className="mr-1 h-4 w-4" /> {t("inbox.composer.stop")}
             </Button>
           </div>
         </div>
