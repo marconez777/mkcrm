@@ -81,15 +81,15 @@ export default function SettingsPage() {
 
 
   async function createInstance() {
-    if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
+    if (!newName.trim()) { toast.error(t("settings.wa.nameRequired")); return; }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke("evolution-provision", { body: { name: newName.trim() } });
     setCreating(false);
     if (error || (data as any)?.error) {
-      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      toast.error(t("settings.wa.error") + ": " + (error?.message ?? (data as any)?.error));
       return;
     }
-    toast.success("Conexão criada — escaneie o QR Code");
+    toast.success(t("settings.wa.created"));
     setNewOpen(false);
     setNewName("");
     await load();
@@ -101,25 +101,24 @@ export default function SettingsPage() {
   }
 
   async function deleteInstance(id: string) {
-    if (!(await confirm({ title: "Excluir esta conexão?", description: "A instância será removida da Evolution.", confirmLabel: "Excluir", destructive: true }))) return;
+    if (!(await confirm({ title: t("settings.wa.deletedTitle"), description: t("settings.wa.deletedDesc"), confirmLabel: t("settings.wa.delete"), destructive: true }))) return;
     const { error, data } = await supabase.functions.invoke("evolution-delete-instance", { body: { instance_id: id } });
-    if (error || (data as any)?.error) { toast.error("Erro: " + (error?.message ?? (data as any)?.error)); return; }
-    toast.success("Conexão removida");
+    if (error || (data as any)?.error) { toast.error(t("settings.wa.error") + ": " + (error?.message ?? (data as any)?.error)); return; }
+    toast.success(t("settings.wa.removed"));
     load();
   }
 
   async function setDefault(id: string) {
-    // Clear current default in clinic, then set this one
     await supabase.from("whatsapp_instances").update({ is_default: false }).eq("is_default", true);
     const { error } = await supabase.from("whatsapp_instances").update({ is_default: true }).eq("id", id);
-    if (error) toast.error(error.message); else { toast.success("Conexão padrão atualizada"); load(); }
+    if (error) toast.error(error.message); else { toast.success(t("settings.wa.defaultUpdated")); load(); }
   }
 
   async function checkHealth(id: string) {
     setHealingId(id);
     const { error } = await supabase.functions.invoke("evolution-health", { body: { instance_id: id } });
     setHealingId(null);
-    if (error) toast.error(error.message); else { toast.success("Verificação concluída"); load(); }
+    if (error) toast.error(error.message); else { toast.success(t("settings.wa.checkDone")); load(); }
   }
 
   async function recoverInstance(id: string) {
@@ -127,39 +126,39 @@ export default function SettingsPage() {
     const { data, error } = await supabase.functions.invoke("evolution-restart", { body: { instance_id: id } });
     setHealingId(null);
     if (error || (data as any)?.ok === false) {
-      toast.error("Falha ao recuperar: " + (error?.message ?? (data as any)?.error ?? "erro"));
+      toast.error(t("settings.wa.recoverFail") + ": " + (error?.message ?? (data as any)?.error ?? "error"));
     } else {
-      toast.success("Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem");
+      toast.success(t("settings.wa.restarted"));
       load();
     }
   }
 
   async function recoverMissedMessages(id: string) {
     setHealingId(id);
-    toast.info("Procurando mensagens perdidas — isso pode levar alguns minutos...");
+    toast.info(t("settings.wa.lookingMissed"));
     const { data, error } = await supabase.functions.invoke("evolution-backfill-all", {
       body: { instance_id: id, force: true, limit: 500 },
     });
     setHealingId(null);
     if (error || (data as any)?.error) {
-      toast.error("Falha: " + (error?.message ?? (data as any)?.error));
+      toast.error(t("settings.wa.missedFail") + ": " + (error?.message ?? (data as any)?.error));
       return;
     }
     const imported = (data as any)?.totalImported ?? 0;
-    toast.success(imported > 0 ? `${imported} mensagens recuperadas` : "Nenhuma mensagem nova encontrada");
+    toast.success(imported > 0 ? t("settings.wa.missedRecovered", { count: imported }) : t("settings.wa.missedNone"));
     load();
   }
 
   function formatRelative(iso: string | null): string {
-    if (!iso) return "nunca";
+    if (!iso) return t("settings.wa.never");
     const diff = Date.now() - new Date(iso).getTime();
     const min = Math.floor(diff / 60000);
-    if (min < 1) return "agora";
-    if (min < 60) return `há ${min}min`;
+    if (min < 1) return t("settings.wa.now");
+    if (min < 60) return t("settings.wa.minAgo", { n: min });
     const h = Math.floor(min / 60);
-    if (h < 24) return `há ${h}h`;
+    if (h < 24) return t("settings.wa.hAgo", { n: h });
     const d = Math.floor(h / 24);
-    return `há ${d}d`;
+    return t("settings.wa.dAgo", { n: d });
   }
 
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
