@@ -371,11 +371,11 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => fileRef.current?.click()} title="Anexar arquivos">
+                <Button type="button" variant="ghost" size="icon" onClick={() => fileRef.current?.click()} title={t("inbox.composer.attach")}>
                   <Paperclip className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Anexar arquivos (até {MAX_FILES} · 16MB cada)</TooltipContent>
+              <TooltipContent>{t("inbox.composer.attachTooltip", { max: MAX_FILES })}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
