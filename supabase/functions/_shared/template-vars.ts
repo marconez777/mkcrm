@@ -14,7 +14,7 @@ export type LeadLike = {
   custom_fields?: Record<string, any> | null;
 };
 
-const TZ = "America/Sao_Paulo";
+const DEFAULT_TZ = "America/Sao_Paulo";
 const WEEKDAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 const MONTHS_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
