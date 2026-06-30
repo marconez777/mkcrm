@@ -317,7 +317,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                    <div className="truncate text-[13px] font-semibold text-white">
                       {displayName}
                     </div>
                     <div className="truncate text-[11px] text-sidebar-foreground/55">
