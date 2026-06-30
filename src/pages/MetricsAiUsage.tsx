@@ -359,7 +359,7 @@ export default function MetricsAiUsage() {
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
             <div>
-              <strong>{stats.unknown}</strong> chamadas usam modelos sem preço cadastrado — o custo dessas linhas aparece como $0. Atualize <code>src/lib/ai-pricing.ts</code>.
+              <strong>{stats.unknown}</strong> {t("metricsAiUsage.unknownAlertPrefix")} <code>src/lib/ai-pricing.ts</code>.
             </div>
           </div>
         )}
