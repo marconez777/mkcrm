@@ -666,5 +666,36 @@
     "wd4": "Jue",
     "wd5": "Vie",
     "wd6": "Sáb"
+  },
+  "agentMemories": {
+    "title": "Memorias de los agentes",
+    "subtitle": "Todo lo que los agentes han aprendido y guardado sobre los leads (hechos, preferencias, contexto).",
+    "refresh": "Actualizar",
+    "filters": "Filtros",
+    "searchPlaceholder": "Buscar en el contenido...",
+    "agent": "Agente",
+    "allAgents": "Todos los agentes",
+    "type": "Tipo",
+    "allTypes": "Todos los tipos",
+    "countOf": "{{shown}} de {{total}} memorias",
+    "emptyNone": "Sin memorias guardadas aún. Los agentes registrarán datos importantes a medida que conversen con los leads.",
+    "emptyFiltered": "Ninguna memoria coincide con los filtros.",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar esta memoria?",
+    "deleteDesc": "El agente olvidará esta información de forma permanente. No se puede deshacer.",
+    "cancel": "Cancelar",
+    "deleted": "Memoria eliminada"
+  },
+  "unsubscribe": {
+    "title": "Cancelar suscripción",
+    "validating": "Validando enlace…",
+    "sureQ": "¿Seguro que quieres dejar de recibir correos de esta empresa?",
+    "confirm": "Confirmar cancelación",
+    "doneTitle": "Suscripción cancelada",
+    "doneDesc": "No recibirás más correos. ¿Cambiaste de opinión?",
+    "reactivate": "Reactivar suscripción",
+    "reactivated": "Suscripción reactivada",
+    "errorTitle": "Error",
+    "invalidLink": "Enlace no válido."
   }
 }

@@ -666,5 +666,36 @@
     "wd4": "Thu",
     "wd5": "Fri",
     "wd6": "Sat"
+  },
+  "agentMemories": {
+    "title": "Agent Memories",
+    "subtitle": "Everything agents have learned and saved about leads (facts, preferences, context).",
+    "refresh": "Refresh",
+    "filters": "Filters",
+    "searchPlaceholder": "Search content...",
+    "agent": "Agent",
+    "allAgents": "All agents",
+    "type": "Type",
+    "allTypes": "All types",
+    "countOf": "{{shown}} of {{total}} memories",
+    "emptyNone": "No memories saved yet. Agents will record important facts as they talk to leads.",
+    "emptyFiltered": "No memories match the filters.",
+    "delete": "Delete",
+    "deleteTitle": "Delete this memory?",
+    "deleteDesc": "The agent will permanently forget this information. Cannot be undone.",
+    "cancel": "Cancel",
+    "deleted": "Memory deleted"
+  },
+  "unsubscribe": {
+    "title": "Unsubscribe",
+    "validating": "Validating link…",
+    "sureQ": "Are you sure you want to stop receiving emails from this company?",
+    "confirm": "Confirm unsubscribe",
+    "doneTitle": "Unsubscribed",
+    "doneDesc": "You will no longer receive emails. Changed your mind?",
+    "reactivate": "Resubscribe",
+    "reactivated": "Subscription reactivated",
+    "errorTitle": "Error",
+    "invalidLink": "Invalid link."
   }
 }
