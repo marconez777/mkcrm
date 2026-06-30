@@ -310,9 +310,9 @@ export default function MetricsAiUsage() {
         {membership?.clinic_id && <AiSpendLimitCard clinicId={membership.clinic_id} />}
         <Tabs defaultValue="overview">
           <TabsList>
-            <TabsTrigger value="overview">Pipeline (classifier)</TabsTrigger>
-            <TabsTrigger value="agents">Atendimento (agentes)</TabsTrigger>
-            <TabsTrigger value="advanced">Avançado</TabsTrigger>
+            <TabsTrigger value="overview">{t("metricsAiUsage.tabs.overview")}</TabsTrigger>
+            <TabsTrigger value="agents">{t("metricsAiUsage.tabs.agents")}</TabsTrigger>
+            <TabsTrigger value="advanced">{t("metricsAiUsage.tabs.advanced")}</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-4">
             <PipelineOverview clinicId={membership?.clinic_id ?? null} />
