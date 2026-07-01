@@ -1,18 +1,9 @@
 // Sends a text message via Evolution API with retries and idempotency.
 import { corsHeaders, json, sb, loadInstance, evoFetch, requireUser } from "../_shared/evolution.ts";
+import { buildSendPayloads, type PreviewMode } from "../_shared/link-preview.ts";
 
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [0, 2000, 5000];
-
-async function attemptSend(instance: any, phone: string, text: string, quotedId?: string | null) {
-  const body: any = { number: phone, text };
-  if (quotedId) body.quoted = { key: { id: quotedId } };
-  return await evoFetch(
-    instance,
-    `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
