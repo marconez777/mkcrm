@@ -558,15 +558,32 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; groups: any[]; reload: () => void }) {
   const addGroup = async () => {
-    const pos = (groups[groups.length - 1]?.position ?? 0) + 1;
-    await supabase.from("broadcast_message_groups").insert({
+    // Lê o max(position) do banco (evita position stale quando o state React ainda não recarregou)
+    const { data: existing } = await supabase
+      .from("broadcast_message_groups")
+      .select("position")
+      .eq("broadcast_id", broadcastId)
+      .order("position", { ascending: false })
+      .limit(1);
+    const pos = ((existing?.[0]?.position ?? 0)) + 1;
+    const { error } = await supabase.from("broadcast_message_groups").insert({
       broadcast_id: broadcastId, position: pos, name: `Grupo ${String.fromCharCode(64 + pos)}`,
     });
+    if (error) { toast.error(`Erro ao adicionar grupo: ${error.message}`); return; }
     reload();
   };
-  const addPart = async (groupId: string, currentParts: any[]) => {
-    const pos = (currentParts[currentParts.length - 1]?.position ?? 0) + 1;
-    await supabase.from("broadcast_message_parts").insert({ group_id: groupId, position: pos, content: "" });
+  const addPart = async (groupId: string, _currentParts: any[]) => {
+    // Sempre buscar do banco — evita UNIQUE(group_id, position) silenciosamente
+    // rejeitar cliques rápidos quando o state React ainda tem snapshot antigo.
+    const { data: existing } = await supabase
+      .from("broadcast_message_parts")
+      .select("position")
+      .eq("group_id", groupId)
+      .order("position", { ascending: false })
+      .limit(1);
+    const pos = ((existing?.[0]?.position ?? 0)) + 1;
+    const { error } = await supabase.from("broadcast_message_parts").insert({ group_id: groupId, position: pos, content: "" });
+    if (error) { toast.error(`Erro ao adicionar parte: ${error.message}`); return; }
     reload();
   };
   const updatePart = async (partId: string, content: string) => {
