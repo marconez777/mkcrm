@@ -65,11 +65,18 @@ Dívidas registradas: `stage_sequence_bindings` dormente; `pipeline-deterministi
 
 ## Fase 4 — Agentes IA & IA Hub
 
-Páginas: `Agents.tsx`, `AgentMemories.tsx`, `AiInsights.tsx`, `pages/ai/**` (4 arquivos).
-Componentes: `components/agents/**` (16 arquivos), `components/ai/**`.
-Edges: `ai-auto-reply`, `ai-chat`, `ai-embed`, `ai-assist`, `ai-analyst-run`, `ai-builder`, `ai-eval-run`, `ai-ingest-{document,pdf,url,urls}`, `ai-reingest-document`, `ai-spend-notify`, `agent-{create,followups-tick,learn-from-thread,run-bulk}`, `transcribe-audio`.
+Auditados em `docs/maps/AI_AGENTS.md` (2026-07-01):
 
-Docs: `docs/agents/*` (3 arquivos, só Febracis). Status: ⚠️ **stale/incomplete** — cobrir builder, RAG, custos, auto-reply, followups.
+- Edges (18): `ai-chat`, `ai-auto-reply`, `ai-builder`, `ai-assist`, `ai-analyst-run`, `ai-embed`, `ai-eval-run`, `ai-ingest-{document,pdf,url,urls}`, `ai-reingest-document`, `ai-spend-notify`, `agent-{create,followups-tick,learn-from-thread,run-bulk}`, `transcribe-audio` — ✅
+- Shared: `ai.ts`, `rag.ts`, `mcp.ts`, `spend-guard.ts`, `builder-system-prompt.ts`, `builder-knowledge/`, `agent-flags.ts`, `ai-pricing.ts`, `classifier-ai.ts`, `clinic-openai.ts`, `lovable-ai.ts` — ✅
+- Páginas: `pages/ai/{AiHub,AiDashboard,AgentWizard,Messages}.tsx`, `Agents.tsx`, `AgentMemories.tsx`, `AiInsights.tsx`, `MetricsAiUsage.tsx` — ✅
+- Componentes: `components/agents/**` (15), `components/ai/usage/**` (2) — ✅
+- Lib front: `src/lib/agent-tools.ts`, `src/lib/ai-pricing.ts` — ✅
+- Docs prévias mantidas: `docs/agents/{FEBRACIS_ATENDIMENTO,FEBRACIS_PRI,FEBRACIS_ROADMAP,TRAINING_FRAMEWORK}.md`
+
+Dívidas registradas: `ai-chat` (912 LOC) e `ai-builder` (1561 LOC) candidatos a split; falta doc própria de MCP, RAG, TestLab, `transcribe-audio`, spend-limits; `agent-followups-tick` ignora TZ da clínica; sem circuit-breaker por agente; `pending_replies` sem cleanup.
+
+
 
 ## Fase 5 — WhatsApp / Evolution / Broadcasts
 
