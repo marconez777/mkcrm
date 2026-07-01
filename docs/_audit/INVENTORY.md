@@ -53,11 +53,15 @@ Dívidas registradas: `LeadAttributionCard` só citado (detalhar em Fase 8 Track
 
 ## Fase 3 — Pipeline runtime
 
-Edge functions (12): `pipeline-classify`, `pipeline-deterministic`, `pipeline-position-auditor`, `pipeline-post-move-verifier`, `pipeline-summarize`, `pipeline-payment-webhook`, `pipeline-run-executor`, `pipeline-auto-retry`, `pipeline-monthly-cycle-or`, `pipeline-evals-run`, `pipeline-queue-alert`.
+Auditados em `docs/maps/PIPELINE_RUNTIME.md` (2026-07-01, hub navegacional):
 
-Shared: `_shared/pipeline-*.ts`, `stage-bindings.ts`, `agent-flags.ts`, `metrics.ts`, `pipeline-move.ts`, `pipeline-summarize-core.ts`, `pipeline-tasks.ts`, `pipeline-fase4.ts`, `pipeline-allowlist.ts`.
+- Edges (11): `pipeline-classify` (+`index.v1.ts`), `pipeline-deterministic`, `pipeline-run-executor`, `pipeline-auto-retry`, `pipeline-summarize`, `pipeline-position-auditor` (A1), `pipeline-post-move-verifier` (A2), `pipeline-monthly-cycle-or`, `pipeline-payment-webhook`, `pipeline-queue-alert`, `pipeline-evals-run` — ✅
+- Shared: `pipeline-move.ts`, `pipeline-tasks.ts`, `pipeline-summarize-core.ts`, `pipeline-fase4.ts`, `pipeline-allowlist.ts`, `ai-pipeline-filter.ts`, `stage-bindings.ts`, `agent-flags.ts`, `metrics.ts` — ✅
+- Docs detalhadas revalidadas: 20 arquivos em `docs/pipeline/runtime/` — ✅ (cruzados linha-a-linha com código real; sem drift crítico).
 
-Docs: `docs/pipeline/runtime/*` (16 arquivos) — status **⚠️ stale** (última atualização 2026-06-20, classifier V6 documentado mas mudanças recentes de provider Gemini/OpenAI + auto-retry + quota guard não estão sincronizadas).
+Dívidas registradas: `stage_sequence_bindings` dormente; `pipeline-deterministic` (1017 LOC) candidato a split; `pipeline-monthly-cycle-or` hardcoded para Clínica ÓR; V1 do classifier mantido só como rollback.
+
+
 
 ## Fase 4 — Agentes IA & IA Hub
 
