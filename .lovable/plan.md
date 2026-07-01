@@ -1,67 +1,122 @@
 
-# Auditoria: ÓR × MCD × MK Espanha
+# Roadmap — Atualização Total da Documentação (F-DOC-FULL)
 
-## Fase 1 — Documentação (nova doc `docs/clinics/COMPARATIVO.md`)
+Objetivo: percorrer **cada arquivo do repositório**, comparar com a documentação existente em `docs/` e reescrever/criar docs para refletir 1:1 o estado real do código. Cada fase termina com `node scripts/docs-sync.mjs` e revisão de `docs/DRIFT.md`.
 
-Levantamento inicial já feito no banco:
+Base de trabalho: `docs/INDEX.json` (146 docs hoje), `docs/DRIFT.md`, skill `docs-maintainer`.
 
-| Item | ÓR | MCD | MK Espanha |
-|------|----|-----|------------|
-| clinic_id | cf03…3a1 | 3c48…61a | 467e…c82 |
-| Região / TZ | br / America/Sao_Paulo | br / SP | br / SP (⚠ deveria ser `es` / Europe/Madrid) |
-| Instâncias WA | 3 (todas `open`, webhook_ok) | 1 (`close`, criada 01/07 02:18) | 1 (`close` desde 27/06) |
-| Broadcasts rodados | 3 (`done`) | 0 | 1 (`done`, 9 grupos × 1 parte) |
-| Pipelines completos, cron mensal, agentes IA | Sim (ver `docs/estudo/*`) | Só o padrão | Só o padrão |
+---
 
-A doc vai consolidar, por clínica: instâncias, pipelines, agentes IA, secrets (Evolution/OpenAI/Gemini), automações, e checklist do que ÓR tem e as outras 2 não.
+## Fase 0 — Baseline & instrumentação (0.5 dia)
 
-## Fase 2 — Bug MK Espanha: broadcast envia só 1 mensagem por grupo
+- Rodar `node scripts/docs-sync.mjs` e salvar snapshot inicial do DRIFT.
+- Gerar inventário completo:
+  - `src/pages/**`, `src/components/**`, `src/hooks/**`, `src/lib/**`
+  - `supabase/functions/**` (edge functions + `_shared`)
+  - migrations, tabelas (via `supabase--read_query`)
+  - crons ativos (`cron.job`)
+- Criar `docs/_audit/INVENTORY.md` cruzando: arquivo → doc atual → status (ok / stale / missing).
+- Criar `docs/_audit/PROGRESS.md` (checklist vivo por fase).
 
-Achado no banco: a broadcast `ea28e01c…` (MK Espanha) tem **9 grupos × 1 parte cada** — nenhum grupo tem 3 partes salvas. Ou seja, o disparo do backend está correto (o `broadcast-tick` já faz loop em `parts` do grupo com drip de 1s — `supabase/functions/broadcast-tick/index.ts` linhas 138–231), o bug está no **frontend salvando só a primeira parte**.
+## Fase 1 — Núcleo Frontend: rotas, shell, auth (1 dia)
 
-Suspeitas no `src/pages/Broadcasts.tsx`:
+Arquivos: `src/App.tsx`, `main.tsx`, `AppShell`, `AdminShell`, `ProtectedRoute`, `RootGate`, `FeatureRoute`, `ClinicOnlyRoute`, `useAuth`, `hooks/useRegion`, `i18n/*`, `lib/app-url.ts`, `lib/supabase-env.ts`.
 
-1. `addPart` (linha 567): calcula `pos = (currentParts[last]?.position ?? 0) + 1`. Se `currentParts` foi lido stale (state não recarregado antes do próximo clique), o novo INSERT colide no UNIQUE `(group_id, position)` e é silenciosamente ignorado.
-2. `updatePart` (linha 572) roda em `onBlur` do Textarea; se o usuário clica "Iniciar" sem tirar foco, a última parte fica com `content=""` e o tick pula (o executor manda vazio? conferir).
-3. Ao duplicar broadcast (linha 130–133) o insert de partes usa o mesmo array — se position vem duplicada entre grupos ok, mas se o array de origem já vier truncado, propaga.
+Docs: atualizar/criar `docs/frontend/ROUTING.md`, `docs/frontend/SHELL.md`, `docs/frontend/AUTH.md`, `docs/frontend/I18N.md`, `docs/frontend/REGION.md`.
 
-Correção planejada:
-- Após `addPart`, chamar `reload()` **antes** de permitir novo clique e usar retorno do insert para position confirmada.
-- Trocar `onBlur` por autosave debounced + `flushOnAction` no botão "Iniciar/Congelar".
-- Guardar no broadcast-tick: se `content` vazio, pular parte com log em `broadcast_events` (hoje ele manda string vazia).
-- Migration: backfill zero (só afeta broadcasts futuras).
+## Fase 2 — Inbox + Kanban + Leads (1.5 dias)
 
-## Fase 3 — Bug MCD: erro ao adicionar instância
+Arquivos: `src/pages/Inbox.tsx`, `Kanban.tsx`, `LeadDrawer.tsx`, `components/inbox/**`, `components/kanban/**`, `components/lead/**`, `hooks/useCrm.ts`, `useLeadsPaginated.ts`, `useLeadSearch.ts`, `lib/manual-stage-move.ts`, `delete-lead.ts`, `internal-notes.ts`, `lead-tasks.ts`.
 
-Screenshot mostra `mcd-167c665a` "sessão expirada", mas no banco o registro atual é `mcd-00ea1be8` criado 01/07 02:18 (o antigo foi apagado e recriado). Ou seja o "pau" acontece no fluxo `evolution-provision` → `evolution-qr`. Sem logs armazenados. Preciso:
+Docs: `docs/maps/INBOX.md`, `docs/maps/KANBAN.md`, `docs/maps/LEADS.md` (+ subdocs jornada/timeline/tasks).
 
-1. Adicionar log persistente em `error_events` dentro de `evolution-provision` / `evolution-qr` / `WhatsAppQrDialog` capturando `status`, `evolution_response`.
-2. Reproduzir com Playwright logado como usuário MCD (auth injetada) clicando "Novo WhatsApp" na tela `/settings` → capturar network + screenshot.
-3. Corrigir a causa raiz encontrada (provavelmente: instância órfã na Evolution com mesmo `evolution_instance` antigo, ou `webhook_token` colidindo).
+## Fase 3 — Pipeline runtime (edge + shared) (2 dias)
 
-## Fase 4 — Paridade de features ÓR → MCD / MK Espanha
+Arquivos: `supabase/functions/pipeline-*` (classify, deterministic, position-auditor, post-move-verifier, summarize, payment-webhook, run-executor, auto-retry, monthly-cycle-or, evals-run, tick), `_shared/pipeline-*.ts`, `_shared/stage-bindings.ts`, `_shared/agent-flags.ts`, `_shared/metrics.ts`.
 
-Delta identificado que a ÓR tem e as outras podem estar sem:
-- `stage_canonical_aliases` populada (foi origem do bug "Leads de entrada" já corrigido para ÓR).
-- Agentes IA configurados (`ai_agents` + `agent_stages`).
-- Cron mensal (`pipeline-monthly-cycle-or` é hardcoded para ÓR).
-- MK Espanha está com `region='br'` — se for cliente Espanha deveria ser `es` (afeta moeda, TZ, templates i18n).
+Docs: reescrever tudo em `docs/pipeline/runtime/*` linha-a-linha (CLASSIFIER, DETERMINISTIC_RULES, AUDITORS, SUMMARIZER, GATES, FLOW_MATRIX, TRIGGERS_AUDIT, KNOWN_ISSUES). Comparar com `docs/pipeline/` (planejamento) e marcar divergências.
 
-Doc vai listar isso como "gap list" acionável, sem alterar dados sem aprovação.
+## Fase 4 — Agentes IA & IA Hub (1 dia)
 
-## Detalhes técnicos
+Arquivos: `src/pages/Agents.tsx`, `ai/*`, `components/agents/**`, `pages/ai/**`, edge `ai-*` (auto-reply, chat, embed, ingest-*, assist, analyst-run, builder), `_shared/builder-knowledge/*`.
 
-Arquivos:
-- Novo: `docs/clinics/COMPARATIVO.md`
-- Edit: `src/pages/Broadcasts.tsx` (autosave partes, reload síncrono)
-- Edit: `supabase/functions/broadcast-tick/index.ts` (skip parte vazia + log)
-- Edit: `supabase/functions/evolution-provision/index.ts` + `evolution-qr/index.ts` (log `error_events`)
-- Migration: nenhuma na Fase 2/3. Fase 4 só se você aprovar mudar `region` da MK Espanha para `es`.
+Docs: `docs/agents/*` (Atendimento, Roadmap, Training), `docs/ai/BUILDER.md`, `docs/ai/AUTO_REPLY.md`, `docs/ai/RAG.md`, `docs/ai/COSTS.md`.
 
-## Ordem de entrega
+## Fase 5 — WhatsApp / Evolution / Broadcasts (1 dia)
 
-1. Doc comparativa (Fase 1 + 4 gap list) — leitura sua.
-2. Fix broadcast partes (Fase 2).
-3. Instrumentar + reproduzir + corrigir MCD (Fase 3).
+Arquivos: `evolution-*`, `whatsapp-*`, `broadcast-*`, `pages/Broadcasts.tsx`, `WhatsAppQrDialog`, `hooks/useWhatsappInstances`, `lib/broadcast-template.ts`.
 
-Confirma que posso seguir nessa ordem? Se quiser priorizar o bug do MCD primeiro, eu troco 3 ↔ 1.
+Docs: `docs/maps/WHATSAPP.md`, `docs/maps/BROADCASTS.md`, `docs/pipeline/runtime/WEBHOOK_EVOLUTION.md`.
+
+## Fase 6 — Automações, Sequências, Templates, Tarefas (1 dia)
+
+Arquivos: `automations-tick`, `sequence-*`, `pages/Automations.tsx`, `Sequences.tsx`, `Templates.tsx`, `Tasks.tsx`, `components/tasks/**`, `agent-followups-tick`.
+
+Docs: `docs/maps/AUTOMATIONS.md`, `SEQUENCES.md`, `TEMPLATES.md`, `TASKS.md`.
+
+## Fase 7 — Email Marketing (1 dia)
+
+Arquivos: `pages/email/**`, `components/email/**`, edges `send-email`, `email-*`, `resend-webhook`, `lib/email/**`.
+
+Docs: `docs/features/EMAIL_*`, mapas por página.
+
+## Fase 8 — Tracking, Formulários, Métricas (0.5 dia)
+
+Arquivos: `tracking-*` edges, `pages/Tracking*`, `MetricsAiUsage`, `MetricsOps`, `MetricsEngagement`, `form_*` tabelas.
+
+Docs: `docs/maps/TRACKING.md`, `METRICS.md`, `FORMS.md`.
+
+## Fase 9 — Billing / Pagamentos / Planos (0.5 dia)
+
+Arquivos: `create-checkout`, `create-portal-session`, `payments-webhook`, `eduzz-webhook`, `pages/Billing.tsx`, `Checkout*`, `lib/plans.ts`, `stripe.ts`, `hooks/useSubscription.ts`.
+
+Docs: `docs/features/BILLING.md`, `PLANS.md`, `STRIPE.md`, `EDUZZ.md`.
+
+## Fase 10 — Admin / Suporte / Observabilidade (0.5 dia)
+
+Arquivos: `pages/admin/**`, `components/admin/**`, `SupportPanel`, `support-*` edges, `builder_manual_versions`.
+
+Docs: `docs/admin/*`, `docs/support/*` (respeitando templates).
+
+## Fase 11 — Site marketing + Proposal `/apn` (0.5 dia)
+
+Arquivos: `pages/site/**`, `components/site/**`, `components/proposal/**`, `pages/Apn.tsx`.
+
+Docs: `docs/marketing/SITE.md`, `docs/marketing/PROPOSAL.md`.
+
+## Fase 12 — Banco: schema, RLS, funções, crons, secrets (1 dia)
+
+Via `supabase--read_query`: dump completo de tabelas, colunas, policies, triggers, funções, crons, storage buckets.
+
+Docs: reescrever `docs/database/SCHEMA.md`, `RLS_POLICIES.md`, `FUNCTIONS.md`, `CRONS.md`, `STORAGE.md`, `SECRETS.md`.
+
+## Fase 13 — i18n & Multi-região (0.5 dia)
+
+Comparar `docs/i18n/*` com `lib/region.ts`, `_shared/region.ts`, locales, clinics.region.
+
+## Fase 14 — Consolidação final (0.5 dia)
+
+- Rodar `docs-sync --check` — zerar quebras em `code_refs`.
+- Reescrever `docs/README.md` como índice mestre.
+- Atualizar `mem://index.md` e `mem://docs/maintenance-progress`.
+- Gerar `docs/_audit/FINAL_REPORT.md` com: cobertura arquivo→doc, débitos remanescentes, invariantes catalogadas.
+
+---
+
+## Regras de execução (todas as fases)
+
+1. Ler arquivo real antes de escrever doc — nunca inferir.
+2. Frontmatter obrigatório (`title/topic/kind/audience/updated/summary/code_refs/related_docs`).
+3. Cada doc de feature lista: rotas, componentes, hooks, edges, tabelas, policies, invariantes, bugs conhecidos.
+4. `updated` = data da edição.
+5. Rodar `docs-sync.mjs` ao fim de cada fase e commitar `INDEX.json` regenerado.
+6. Registrar progresso em `docs/_audit/PROGRESS.md` (arquivo por arquivo).
+
+## Entregáveis totais estimados
+
+- ~40–60 docs novas/reescritas.
+- 3 relatórios de auditoria (`INVENTORY`, `PROGRESS`, `FINAL_REPORT`).
+- DRIFT.md zerado.
+- Tempo total: ~11 dias de trabalho focado.
+
+Confirma que sigo por essa ordem (Fase 0 → 14)? Se quiser priorizar alguma área (ex: pipeline primeiro, ou banco primeiro), me diz e reordeno.
