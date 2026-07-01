@@ -33,7 +33,7 @@ function fmtTime(s: number) {
   return `${m}:${ss}`;
 }
 
-export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string, opts?: { previewMode?: "auto" | "text_only" | "link_preview" | "video_card" }) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
   const { t } = useTranslation();
   const [text, setText] = useState(() => getDraft(lead.id));
   const [sending, setSending] = useState(false);
@@ -42,6 +42,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [videoCard, setVideoCard] = useState<boolean>(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
@@ -186,7 +187,9 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         }
         if (files.length > 1) toast.success(`${files.length} arquivos enviados`);
       } else {
-        await onSend(v);
+        const link = detectComposerVideoLink(v);
+        const previewMode = link ? (videoCard ? "video_card" : "text_only") : "auto";
+        await onSend(v, { previewMode });
       }
     } catch (e: any) {
       toast.error("Falha: " + (e?.message ?? String(e)));
@@ -327,6 +330,32 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         </div>
       )}
 
+      {(() => {
+        const link = attachments.length === 0 ? detectComposerVideoLink(text) : null;
+        if (!link) return null;
+        return (
+          <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-xs">
+            {link.thumb ? (
+              <img src={link.thumb} alt="" className="h-8 w-14 rounded object-cover" />
+            ) : (
+              <div className="h-8 w-14 rounded bg-muted" />
+            )}
+            <div className="flex-1">
+              <div className="font-medium">{link.label} detectado</div>
+              <div className="text-[10px] text-muted-foreground">
+                {videoCard ? "Enviando como card de vídeo (thumb + link)" : "Enviando como link cru"}
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" checked={videoCard} onChange={(e) => setVideoCard(e.target.checked)} className="h-3.5 w-3.5" />
+              <span>Card de vídeo</span>
+            </label>
+          </div>
+        );
+      })()}
+
+
+
       <input
         ref={fileRef}
         type="file"
@@ -436,4 +465,17 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
       />
     </div>
   );
+}
+
+function detectComposerVideoLink(text: string): { kind: "youtube" | "shorts" | "instagram"; thumb: string | null; label: string } | null {
+  if (!text) return null;
+  const yt = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|embed\/|v\/)([\w-]{6,})|youtu\.be\/([\w-]{6,}))/i);
+  if (yt) {
+    const id = yt[1] ?? yt[2];
+    const isShorts = /\/shorts\//i.test(yt[0]);
+    return { kind: isShorts ? "shorts" : "youtube", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, label: isShorts ? "YouTube Shorts" : "YouTube" };
+  }
+  const ig = text.match(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/([\w-]{5,})/i);
+  if (ig) return { kind: "instagram", thumb: null, label: "Instagram Reel" };
+  return null;
 }

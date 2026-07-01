@@ -97,15 +97,30 @@ Ver detalhes em [`docs/clinics/COMPARATIVO.md`](../clinics/COMPARATIVO.md).
 6. `broadcast_events.type='failed'` sempre carrega `evolution_response` no payload para debugging.
 7. Falha de envio empurra `next_send_at + 24h` — não retenta automaticamente (necessita ação manual).
 8. Throttle entre contatos aplica jitter ±10% para evitar padrão detectável.
+9. `preview_mode` de cada parte controla como links são renderizados no WhatsApp — cascata `video_card → link_preview → text_only` implementada em `_shared/link-preview.ts`. Se `resolveThumbnail` falhar, cai automaticamente para `link_preview`.
 
-## 6. Débitos técnicos
+## 6. Preview de link (YouTube / Instagram Reels)
+
+Cada `broadcast_message_parts.preview_mode` aceita 4 valores:
+
+| Modo | Comportamento |
+|---|---|
+| `auto` (default) | Detecta YT Shorts/IG Reels → `video_card`; outros links → `link_preview`; sem link → `text_only`. |
+| `video_card` | `POST /message/sendMedia` com `mediatype:image`, thumbnail resolvida (`i.ytimg.com/vi/<id>/hqdefault.jpg` para YT; oEmbed do Graph ou `og:image` para IG) e o link+texto no `caption`. Aparece como card grande e clicável — funciona bem para Reels/Shorts, onde o `linkPreview:true` costuma falhar. |
+| `link_preview` | `POST /message/sendText` com `options.linkPreview:true`. Depende do OG do site (Instagram frequentemente bloqueia). |
+| `text_only` | Envio cru (comportamento antigo). |
+
+Helper compartilhado: `supabase/functions/_shared/link-preview.ts` — usado por `broadcast-tick` e `evolution-send`.
+
+## 7. Débitos técnicos
 
 - Sem retry automático de recipients `failed` — usuário precisa reprocessar manualmente.
-- Não há suporte a mídia em partes (apenas texto).
+- Não há suporte a mídia arbitrária em partes (thumb via `video_card` funciona; mídia genérica não).
 - Analytics básico — falta funil de replied/opted-out.
 - `broadcast-tick` não emite métrica agregada de duração do ciclo.
 - Sem UI para editar `send_window` de broadcast já `running`.
 
-## 7. Secrets
+## 8. Secrets
 
-Nenhum extra além dos do Evolution — reutiliza `whatsapp_instances.evolution_api_key`.
+- Nenhum extra obrigatório — reutiliza `whatsapp_instances.evolution_api_key`.
+- `INSTAGRAM_OEMBED_TOKEN` (opcional): App Token do Graph API. Se ausente, `video_card` de Instagram cai para scraping de `og:image` (funciona em posts públicos com HTML acessível).

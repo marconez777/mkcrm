@@ -1600,6 +1600,7 @@ export type Database = {
           group_id: string
           id: string
           position: number
+          preview_mode: string
         }
         Insert: {
           content: string
@@ -1607,6 +1608,7 @@ export type Database = {
           group_id: string
           id?: string
           position: number
+          preview_mode?: string
         }
         Update: {
           content?: string
@@ -1614,6 +1616,7 @@ export type Database = {
           group_id?: string
           id?: string
           position?: number
+          preview_mode?: string
         }
         Relationships: [
           {

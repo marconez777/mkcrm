@@ -1,5 +1,6 @@
 // Cron tick: processa broadcasts running, respeitando janela horária e throttle.
 import { corsHeaders, json, sb, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { buildSendPayloads, type PreviewMode } from "../_shared/link-preview.ts";
 import { getClinicTimezone } from "../_shared/region.ts";
 
 type SendWindow = { start: string; end: string; tz: string; weekdays: number[] };
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
       // Carrega grupos/partes uma vez por broadcast
       const { data: groups } = await supabase
         .from("broadcast_message_groups")
-        .select("id, position, broadcast_message_parts(id, position, content)")
+        .select("id, position, broadcast_message_parts(id, position, content, preview_mode)")
         .eq("broadcast_id", bc.id)
         .order("position", { ascending: true });
       if (!groups || groups.length === 0) {
@@ -187,27 +188,42 @@ Deno.serve(async (req) => {
           }
           const part = parts[i];
           const content = (part.content as string).replace(/\{\{\s*nome\s*\}\}/gi, r.name ?? "");
+          const previewMode: PreviewMode = (part.preview_mode as PreviewMode) ?? "auto";
 
           let ok = false;
           let errText: string | null = null;
           let evoResp: any = null;
           let evoStatus = 0;
           try {
-            const resp = await evoFetch(
-              instance,
-              `/message/sendText/${encodeURIComponent(instance.evolution_instance)}`,
-              { method: "POST", body: JSON.stringify({ number: r.phone, text: content }) },
-            );
-            evoStatus = resp.status;
-            evoResp = await resp.json().catch(() => ({}));
-            if (resp.ok) {
+            const payloads = await buildSendPayloads({
+              instanceName: instance.evolution_instance,
+              phone: r.phone,
+              text: content,
+              mode: previewMode,
+            });
+            for (let p = 0; p < payloads.length; p++) {
+              if (p > 0) await new Promise((res) => setTimeout(res, 1000));
+              const pl = payloads[p];
+              const resp = await evoFetch(instance, pl.endpoint, {
+                method: "POST",
+                body: JSON.stringify(pl.body),
+              });
+              evoStatus = resp.status;
+              evoResp = await resp.json().catch(() => ({}));
+              if (!resp.ok) {
+                errText = `HTTP ${resp.status}: ${JSON.stringify(evoResp).slice(0, 300)}`;
+                ok = false;
+                break;
+              }
               const messageId = evoResp?.key?.id ?? evoResp?.messageId ?? evoResp?.message?.id ?? null;
-              if (messageId) { ok = true; }
-              else { errText = `Evolution 200 sem messageId (numero pode nao existir no WhatsApp): ${JSON.stringify(evoResp).slice(0, 300)}`; }
-            } else {
-              errText = `HTTP ${resp.status}: ${JSON.stringify(evoResp).slice(0, 300)}`;
+              if (!messageId) {
+                errText = `Evolution 200 sem messageId (numero pode nao existir no WhatsApp): ${JSON.stringify(evoResp).slice(0, 300)}`;
+                ok = false;
+                break;
+              }
+              ok = true;
             }
-          } catch (e) { errText = String(e); }
+          } catch (e) { errText = String(e); ok = false; }
 
           if (!ok) {
             lastOk = false;
