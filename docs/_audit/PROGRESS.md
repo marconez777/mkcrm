@@ -43,3 +43,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 
 - A infra `docs-sync.mjs` / `docs/INDEX.json` mencionada na skill `docs-maintainer` **não existe** neste projeto — auditoria é feita manualmente via este arquivo.
 - Total: **467 arquivos de código** vs **62 docs** hoje. Meta: cobertura ≥ 90% de arquivos com ao menos uma doc referenciando.
+
+## Fase 9 — Billing / Payments / Plans ✅
+- `docs/maps/BILLING.md`: Stripe checkout, portal, webhooks, catálogo `plans`,
+  clinic_subscriptions, Eduzz, pipeline-payment-webhook, dívidas técnicas.
