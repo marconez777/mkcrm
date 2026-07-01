@@ -41,9 +41,15 @@ Legenda de status:
 
 ## Fase 2 — Inbox / Kanban / Leads
 
-Arquivos a auditar: `src/pages/Inbox.tsx`, `Kanban.tsx`, `LeadDrawer.tsx`, `components/inbox/**` (14 arquivos), `components/kanban/**`, `components/lead/**`, hooks `useCrm/useLeadsPaginated/useLeadSearch`, `lib/manual-stage-move.ts`, `delete-lead.ts`, `internal-notes.ts`, `lead-tasks.ts`.
+Auditados em `docs/maps/INBOX_KANBAN_LEADS.md` (2026-07-01):
 
-Docs existentes: nenhum mapa consolidado. `docs/pipeline/runtime/*` cobre parte de Kanban indiretamente. Status geral: ❌ **missing** — criar `docs/maps/INBOX.md`, `KANBAN.md`, `LEADS.md`.
+- Páginas: `src/pages/{Inbox,Kanban,LeadDrawer}.tsx` — ✅
+- Componentes: `src/components/inbox/**` (12), `src/components/kanban/**` (14 + `calendar/`), `src/components/lead/**` (2 + `timeline/`), `src/components/leads/LeadAttributionCard.tsx` — ✅
+- Hooks: `useCrm`, `useLeadsPaginated`, `useLeadSearch`, `useCustomFieldDefs`, `useAttendants`, `usePipelines`, `useWhatsappInstances`, `useQuickReplies`, `useHorizontalScroll`, `useWaAvatar` — ✅
+- Libs: `manual-stage-move`, `internal-notes`, `lead-tasks`, `delete-lead`, `drafts`, `scheduled-messages`, `pipeline-skip-reasons`, `saved-views` — ✅
+- Tipos: `src/types/crm.ts` — ✅ (subset relevante mapeado)
+
+Dívidas registradas: `LeadAttributionCard` só citado (detalhar em Fase 8 Tracking); `Kanban.tsx`/`ChatPane.tsx`/`ContextRail.tsx` são candidatos a split; `useCrm.useLeads()` sem paginação (escala mal).
 
 ## Fase 3 — Pipeline runtime
 
