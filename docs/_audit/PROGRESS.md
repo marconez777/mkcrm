@@ -29,7 +29,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 | 11 | Site marketing + Proposal `/apn` | ⏳ pending | `docs/marketing/{SITE,PROPOSAL}.md` | — |
 | 12 | Banco (schema/RLS/funções/crons/secrets) | ⏳ pending | `docs/database/*` | — |
 | 13 | i18n & Multi-região | ✅ done | `docs/maps/I18N_MULTIREGION.md` | 2026-07-01 |
-| 14 | Consolidação final | ⏳ pending | `docs/README.md`, `_audit/FINAL_REPORT.md` | — |
+| 14 | Consolidação final | ✅ done | `docs/README.md`, `_audit/FINAL_REPORT.md` | 2026-07-01 |
 
 ## Regras de execução
 
