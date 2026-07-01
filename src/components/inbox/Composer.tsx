@@ -330,6 +330,32 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         </div>
       )}
 
+      {(() => {
+        const link = attachments.length === 0 ? detectComposerVideoLink(text) : null;
+        if (!link) return null;
+        return (
+          <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-xs">
+            {link.thumb ? (
+              <img src={link.thumb} alt="" className="h-8 w-14 rounded object-cover" />
+            ) : (
+              <div className="h-8 w-14 rounded bg-muted" />
+            )}
+            <div className="flex-1">
+              <div className="font-medium">{link.label} detectado</div>
+              <div className="text-[10px] text-muted-foreground">
+                {videoCard ? "Enviando como card de vídeo (thumb + link)" : "Enviando como link cru"}
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" checked={videoCard} onChange={(e) => setVideoCard(e.target.checked)} className="h-3.5 w-3.5" />
+              <span>Card de vídeo</span>
+            </label>
+          </div>
+        );
+      })()}
+
+
+
       <input
         ref={fileRef}
         type="file"
