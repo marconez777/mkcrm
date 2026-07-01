@@ -440,3 +440,16 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     </div>
   );
 }
+
+function detectComposerVideoLink(text: string): { kind: "youtube" | "shorts" | "instagram"; thumb: string | null; label: string } | null {
+  if (!text) return null;
+  const yt = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|embed\/|v\/)([\w-]{6,})|youtu\.be\/([\w-]{6,}))/i);
+  if (yt) {
+    const id = yt[1] ?? yt[2];
+    const isShorts = /\/shorts\//i.test(yt[0]);
+    return { kind: isShorts ? "shorts" : "youtube", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, label: isShorts ? "YouTube Shorts" : "YouTube" };
+  }
+  const ig = text.match(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/([\w-]{5,})/i);
+  if (ig) return { kind: "instagram", thumb: null, label: "Instagram Reel" };
+  return null;
+}
