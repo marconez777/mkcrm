@@ -207,7 +207,7 @@ function BroadcastList() {
 function BroadcastEditor({ id }: { id: string }) {
   const navigate = useNavigate();
   const [bc, setBc] = useState<Broadcast | null>(null);
-  const [groups, setGroups] = useState<Array<{ id: string; position: number; name: string; parts: Array<{ id: string; position: number; content: string }> }>>([]);
+  const [groups, setGroups] = useState<Array<{ id: string; position: number; name: string; parts: Array<{ id: string; position: number; content: string; preview_mode: string }> }>>([]);
   const [instances, setInstances] = useState<Array<{ id: string; name: string }>>([]);
   const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [stages, setStages] = useState<Array<{ id: string; name: string; pipeline_id: string }>>([]);
@@ -219,7 +219,7 @@ function BroadcastEditor({ id }: { id: string }) {
   const load = async () => {
     const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: r }, { data: e }] = await Promise.all([
       supabase.from("broadcasts").select("*").eq("id", id).maybeSingle(),
-      supabase.from("broadcast_message_groups").select("id, position, name, broadcast_message_parts(id, position, content)").eq("broadcast_id", id).order("position"),
+      supabase.from("broadcast_message_groups").select("id, position, name, broadcast_message_parts(id, position, content, preview_mode)").eq("broadcast_id", id).order("position"),
       supabase.from("whatsapp_instances").select("id, name"),
       supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("pipeline_stages").select("id, name, pipeline_id").order("position"),
@@ -589,6 +589,10 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
   const updatePart = async (partId: string, content: string) => {
     await supabase.from("broadcast_message_parts").update({ content }).eq("id", partId);
   };
+  const updatePreviewMode = async (partId: string, preview_mode: string) => {
+    await supabase.from("broadcast_message_parts").update({ preview_mode }).eq("id", partId);
+    reload();
+  };
   const deletePart = async (partId: string) => { await supabase.from("broadcast_message_parts").delete().eq("id", partId); reload(); };
   const deleteGroup = async (gid: string) => {
     if (groups.length <= 1) { toast.error("Mantenha ao menos 1 grupo"); return; }
@@ -601,6 +605,9 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
       <div className="text-sm text-muted-foreground bg-muted/40 rounded p-3">
         <strong>Rotação:</strong> contato 1 → Grupo A · contato 2 → Grupo B · contato 3 → Grupo C · contato 4 → Grupo A… Cada contato recebe todas as partes do seu grupo em sequência (~3s entre partes).
         Use <code className="bg-background px-1 rounded">{"{{nome}}"}</code> para personalizar.
+        <div className="mt-2 text-xs">
+          <strong>Preview de link:</strong> <em>Auto</em> detecta YouTube/Instagram e escolhe o melhor modo; <em>Card de vídeo</em> envia thumbnail grande + link (ideal para Reels/Shorts); <em>Preview simples</em> tenta preview nativo do WhatsApp; <em>Sem preview</em> manda link cru.
+        </div>
       </div>
       {groups.map((g) => (
         <Card key={g.id}>
@@ -609,13 +616,35 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
             <Button variant="ghost" size="icon" onClick={() => deleteGroup(g.id)}><Trash2 className="size-4" /></Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {g.parts.map((p: any, idx: number) => (
-              <div key={p.id} className="flex gap-2 items-start">
-                <div className="text-xs text-muted-foreground pt-2 w-12">parte {idx + 1}</div>
-                <Textarea className="flex-1" defaultValue={p.content} rows={3} onBlur={(e) => updatePart(p.id, e.target.value)} />
-                <Button variant="ghost" size="icon" onClick={() => deletePart(p.id)}><Trash2 className="size-4" /></Button>
-              </div>
-            ))}
+            {g.parts.map((p: any, idx: number) => {
+              const linkPreview = detectClientVideoLink(p.content);
+              return (
+                <div key={p.id} className="flex gap-2 items-start">
+                  <div className="text-xs text-muted-foreground pt-2 w-12">parte {idx + 1}</div>
+                  <div className="flex-1 space-y-1.5">
+                    <Textarea defaultValue={p.content} rows={3} onBlur={(e) => updatePart(p.id, e.target.value)} />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Select value={p.preview_mode ?? "auto"} onValueChange={(v) => updatePreviewMode(p.id, v)}>
+                        <SelectTrigger className="h-7 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto (recomendado)</SelectItem>
+                          <SelectItem value="video_card">Card de vídeo (thumb+link)</SelectItem>
+                          <SelectItem value="link_preview">Preview simples do WhatsApp</SelectItem>
+                          <SelectItem value="text_only">Sem preview (link cru)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {linkPreview && (
+                        <div className="flex items-center gap-1.5 rounded border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {linkPreview.thumb && <img src={linkPreview.thumb} alt="" className="h-6 w-10 rounded object-cover" />}
+                          <span>{linkPreview.label}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => deletePart(p.id)}><Trash2 className="size-4" /></Button>
+                </div>
+              );
+            })}
             <Button variant="outline" size="sm" onClick={() => addPart(g.id, g.parts)}><Plus className="size-3 mr-1" /> Adicionar parte</Button>
           </CardContent>
         </Card>
@@ -623,6 +652,20 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
       <Button onClick={addGroup}><Plus className="size-4 mr-1" /> Adicionar grupo</Button>
     </div>
   );
+}
+
+// Detecção client-side de link de vídeo para preview visual imediato.
+function detectClientVideoLink(text: string): { label: string; thumb: string | null } | null {
+  if (!text) return null;
+  const yt = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|embed\/|v\/)([\w-]{6,})|youtu\.be\/([\w-]{6,}))/i);
+  if (yt) {
+    const id = yt[1] ?? yt[2];
+    const isShorts = /\/shorts\//i.test(yt[0]);
+    return { label: isShorts ? "YouTube Shorts" : "YouTube", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+  }
+  const ig = text.match(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/([\w-]{5,})/i);
+  if (ig) return { label: "Instagram (thumb será buscada no envio)", thumb: null };
+  return null;
 }
 
 function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
