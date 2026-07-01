@@ -47,3 +47,6 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 ## Fase 9 — Billing / Payments / Plans ✅
 - `docs/maps/BILLING.md`: Stripe checkout, portal, webhooks, catálogo `plans`,
   clinic_subscriptions, Eduzz, pipeline-payment-webhook, dívidas técnicas.
+
+## Fase 10 — Admin Console ✅
+- `docs/maps/ADMIN_CONSOLE.md`: shell, guardas, rotas, painéis, edges admin-*, segurança e dívidas.
