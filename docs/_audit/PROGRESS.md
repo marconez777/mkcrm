@@ -20,7 +20,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 | 2 | Inbox + Kanban + Leads | ✅ done | `docs/maps/INBOX_KANBAN_LEADS.md` | 2026-07-01 |
 | 3 | Pipeline runtime | ✅ done | `docs/maps/PIPELINE_RUNTIME.md` (hub) + revalidação dos 20 arquivos em `docs/pipeline/runtime/` | 2026-07-01 |
 | 4 | Agentes IA & IA Hub | ✅ done | `docs/maps/AI_AGENTS.md` | 2026-07-01 |
-| 5 | WhatsApp / Evolution / Broadcasts | ⏳ pending | `docs/maps/{WHATSAPP,BROADCASTS,EVOLUTION_EDGES}.md` | — |
+| 5 | WhatsApp / Evolution / Broadcasts | ✅ done | `docs/maps/{WHATSAPP,BROADCASTS,EVOLUTION_EDGES}.md` | 2026-07-01 |
 | 6 | Automações / Sequências / Templates / Tarefas | ⏳ pending | `docs/maps/{AUTOMATIONS,SEQUENCES,TEMPLATES,TASKS}.md` | — |
 | 7 | Email Marketing | ⏳ pending | `docs/features/EMAIL_*` | — |
 | 8 | Tracking / Formulários / Métricas | ⏳ pending | `docs/maps/{TRACKING,METRICS,FORMS}.md` | — |
