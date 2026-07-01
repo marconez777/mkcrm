@@ -16,7 +16,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 | Fase | Tema | Status | Entregáveis | Data |
 |---|---|---|---|---|
 | 0 | Baseline & inventário | ✅ done | `_audit/INVENTORY.md`, `_audit/PROGRESS.md` | 2026-07-01 |
-| 1 | Núcleo frontend (rotas/shell/auth/i18n) | ⏳ pending | `docs/frontend/{ROUTING,SHELL,AUTH,I18N,REGION}.md` | — |
+| 1 | Núcleo frontend (rotas/shell/auth/i18n) | ✅ done | `docs/maps/FRONTEND_CORE.md` | 2026-07-01 |
 | 2 | Inbox + Kanban + Leads | ⏳ pending | `docs/maps/{INBOX,KANBAN,LEADS}.md` | — |
 | 3 | Pipeline runtime | ⏳ pending | reescrever `docs/pipeline/runtime/*` | — |
 | 4 | Agentes IA & IA Hub | ⏳ pending | `docs/ai/{BUILDER,AUTO_REPLY,RAG,COSTS}.md` + agents | — |
