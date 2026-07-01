@@ -12,10 +12,11 @@ Deno.serve(async (req) => {
   const supabase = sb();
 
   try {
-    const { lead_id, text, client_message_id, quoted_external_id, bot_agent_id } = await req.json();
+    const { lead_id, text, client_message_id, quoted_external_id, bot_agent_id, preview_mode } = await req.json();
     if (!lead_id || !text?.trim()) {
       return json({ error: "lead_id and text required" }, 400);
     }
+    const mode: PreviewMode = (["auto","text_only","link_preview","video_card"].includes(preview_mode) ? preview_mode : "auto") as PreviewMode;
 
     const { data: lead } = await supabase
       .from("leads")
@@ -82,25 +83,56 @@ Deno.serve(async (req) => {
     let result: any = null;
     let success = false;
 
+    // Constrói payload(s) uma vez (thumb cache é reaproveitado dentro do processo)
+    const payloads = await buildSendPayloads({
+      instanceName: instance.evolution_instance,
+      phone: lead.phone,
+      text,
+      mode,
+      quotedId: quoted_external_id ?? null,
+    });
+    // Se video_card resolveu para media, ajusta o message_type/mídia da row para timeline coerente
+    if (payloads[0]?.endpoint.includes("/sendMedia/")) {
+      await supabase
+        .from("messages")
+        .update({
+          message_type: "image",
+          media_url: (payloads[0].body as any).media ?? null,
+          media_mime: "image/jpeg",
+        })
+        .eq("id", msgRow.id);
+    }
+
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       if (BACKOFF_MS[attempt]) await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
       try {
-        const resp = await attemptSend(instance, lead.phone, text, quoted_external_id);
-        const data = await resp.json().catch(() => ({}));
-        if (resp.ok) {
-          result = data;
-          success = true;
-          break;
+        let allOk = true;
+        let lastData: any = null;
+        for (let p = 0; p < payloads.length; p++) {
+          if (p > 0) await new Promise((r) => setTimeout(r, 1000));
+          const pl = payloads[p];
+          const resp = await evoFetch(instance, pl.endpoint, {
+            method: "POST",
+            body: JSON.stringify(pl.body),
+          });
+          lastData = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            allOk = false;
+            lastErr = `HTTP ${resp.status}: ${JSON.stringify(lastData).slice(0, 300)}`;
+            const transient = /Connection Closed/i.test(lastErr);
+            if (
+              !transient &&
+              resp.status >= 400 && resp.status < 500 &&
+              resp.status !== 408 && resp.status !== 429
+            ) {
+              attempt = MAX_ATTEMPTS; // não retry em erro definitivo
+            }
+            break;
+          }
         }
-        lastErr = `HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 300)}`;
-        // "Connection Closed" do Evolution vem como 400 mas é transitório (socket
-        // WhatsApp caiu no momento do envio) — tratar como retryable.
-        const transient = /Connection Closed/i.test(lastErr);
-        if (
-          !transient &&
-          resp.status >= 400 && resp.status < 500 &&
-          resp.status !== 408 && resp.status !== 429
-        ) {
+        if (allOk) {
+          result = lastData;
+          success = true;
           break;
         }
       } catch (e) {
