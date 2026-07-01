@@ -23,7 +23,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 | 5 | WhatsApp / Evolution / Broadcasts | ✅ done | `docs/maps/{WHATSAPP,BROADCASTS,EVOLUTION_EDGES}.md` | 2026-07-01 |
 | 6 | Automações / Sequências / Templates / Tarefas | ✅ done | `docs/maps/{AUTOMATIONS,SEQUENCES,TEMPLATES,TASKS}.md` | 2026-07-01 |
 | 7 | Email Marketing | ✅ done | `docs/maps/EMAIL_MARKETING.md` | 2026-07-01 |
-| 8 | Tracking / Formulários / Métricas | ⏳ pending | `docs/maps/{TRACKING,METRICS,FORMS}.md` | — |
+| 8 | Tracking / Formulários / Métricas | ✅ done | `docs/maps/{TRACKING,FORMS,METRICS}.md` | 2026-07-01 |
 | 9 | Billing / Pagamentos / Planos | ⏳ pending | `docs/features/{BILLING,PLANS,STRIPE,EDUZZ}.md` | — |
 | 10 | Admin / Suporte / Observabilidade | ⏳ pending | `docs/admin/*`, `docs/support/*` | — |
 | 11 | Site marketing + Proposal `/apn` | ⏳ pending | `docs/marketing/{SITE,PROPOSAL}.md` | — |
