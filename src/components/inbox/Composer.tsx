@@ -187,7 +187,9 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         }
         if (files.length > 1) toast.success(`${files.length} arquivos enviados`);
       } else {
-        await onSend(v);
+        const link = detectComposerVideoLink(v);
+        const previewMode = link ? (videoCard ? "video_card" : "text_only") : "auto";
+        await onSend(v, { previewMode });
       }
     } catch (e: any) {
       toast.error("Falha: " + (e?.message ?? String(e)));
