@@ -22,19 +22,22 @@ Legenda de status:
 
 | Arquivo | Doc atual | Status |
 |---|---|---|
-| `src/App.tsx` | — | ❌ |
-| `src/main.tsx` | — | ❌ |
-| `src/components/AppShell.tsx` | — | ❌ |
-| `src/layouts/AdminShell.tsx` | — | ❌ |
-| `src/components/ProtectedRoute.tsx` | — | ❌ |
-| `src/components/RootGate.tsx` | — | ❌ |
-| `src/components/FeatureRoute.tsx` | `src/lib/features.ts` (parcial) | ⚠️ |
-| `src/components/ClinicOnlyRoute.tsx` | — | ❌ |
-| `src/hooks/useAuth.tsx` | — | ❌ |
-| `src/hooks/useRegion.ts` | `docs/i18n/REGION_CONFIG.md` | ⚠️ |
-| `src/i18n/**` | `docs/i18n/TRANSLATION_PROCESS.md` | ⚠️ |
-| `src/lib/app-url.ts` | — | ❌ |
-| `src/lib/supabase-env.ts` | — | ❌ |
+| `src/App.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/main.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/components/AppShell.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/layouts/AdminShell.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/components/ProtectedRoute.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/components/RootGate.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/components/FeatureRoute.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/components/ClinicOnlyRoute.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/hooks/useAuth.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/hooks/useRegion.ts` | `docs/maps/FRONTEND_CORE.md` + `docs/i18n/REGION_CONFIG.md` | ✅ |
+| `src/i18n/**` | `docs/maps/FRONTEND_CORE.md` + `docs/i18n/*` | ✅ |
+| `src/lib/features.ts` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/lib/region.ts` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/lib/app-url.ts` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/lib/supabase-env.ts` | `docs/maps/FRONTEND_CORE.md` | ✅ |
+| `src/pages/Auth.tsx` | `docs/maps/FRONTEND_CORE.md` | ✅ |
 
 ## Fase 2 — Inbox / Kanban / Leads
 
