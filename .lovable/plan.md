@@ -1,122 +1,93 @@
+# Preview de vídeo (YT Shorts / Instagram Reels) — Disparo em massa + Inbox
 
-# Roadmap — Atualização Total da Documentação (F-DOC-FULL)
+## O que a pesquisa mostrou
 
-Objetivo: percorrer **cada arquivo do repositório**, comparar com a documentação existente em `docs/` e reescrever/criar docs para refletir 1:1 o estado real do código. Cada fase termina com `node scripts/docs-sync.mjs` e revisão de `docs/DRIFT.md`.
+Vasculhei os repos do **Evolution API** e **Baileys** e discussões relacionadas:
 
-Base de trabalho: `docs/INDEX.json` (146 docs hoje), `docs/DRIFT.md`, skill `docs-maintainer`.
+- Evolution v2 expõe apenas `options.linkPreview: boolean` no `/message/sendText`. Tem **bug crônico e reaberto** (issues #1859, #2101, #2262): mesmo com `true`, preview simplesmente não aparece em muitos casos — depende da versão do Evolution, do estado do Baileys e do OG do site.
+- Baileys internamente aceita um **objeto rico** `{title, description, canonical-url, matched-text, jpegThumbnail}` (arquivo `Utils/link-preview.ts`), mas a API REST do Evolution **não expõe** esses campos — então não dá pra "empurrar" um preview custom via sendText.
+- **YouTube**: OG é público → `linkPreview:true` funciona _às vezes_. Thumbnail direto via `https://img.youtube.com/vi/<id>/hqdefault.jpg` (ou `maxresdefault.jpg`) é 100% confiável sem auth. Cobre Shorts também (`youtube.com/shorts/<id>`, `youtu.be/<id>`).
+- **Instagram**: bloqueia scraping do OG para bots (retorna login wall). oEmbed oficial exige App Token do Graph. Devs no ecossistema Baileys (repos tipo `neoxr/wb`, `Zapstream-bot`, threads no fórum Evolution) convergem para **um mesmo workaround**: buscar a thumbnail (via oEmbed com token OU baixar o próprio vídeo/thumb de um serviço público) e **enviar como imagem com caption contendo o link** — visualmente vira um card grande com play, muito melhor que o preview minúsculo do WhatsApp.
 
----
+**Conclusão sobre acertividade**: `linkPreview:true` sozinho é frágil. O modo "card de vídeo" (`sendMedia` image + caption com link) é o único caminho consistente para Reels e Shorts. Vamos usar os dois em cascata:
 
-## Fase 0 — Baseline & instrumentação (0.5 dia)
+```
+video_card (sendMedia img + caption) ─┐
+   fallback ↓ (thumb não encontrada)  │
+link_preview (sendText + linkPreview) │  ← default automático inteligente
+   fallback ↓ (Evolution não gerou)   │
+text_only  (envio cru, comportamento antigo)
+```
 
-- Rodar `node scripts/docs-sync.mjs` e salvar snapshot inicial do DRIFT.
-- Gerar inventário completo:
-  - `src/pages/**`, `src/components/**`, `src/hooks/**`, `src/lib/**`
-  - `supabase/functions/**` (edge functions + `_shared`)
-  - migrations, tabelas (via `supabase--read_query`)
-  - crons ativos (`cron.job`)
-- Criar `docs/_audit/INVENTORY.md` cruzando: arquivo → doc atual → status (ok / stale / missing).
-- Criar `docs/_audit/PROGRESS.md` (checklist vivo por fase).
+## Escopo (agora cobrindo Inbox também)
 
-## Fase 1 — Núcleo Frontend: rotas, shell, auth (1 dia)
+### 1. Helper compartilhado — `supabase/functions/_shared/link-preview.ts` (novo)
+- `detectVideoLink(text)` → `{ kind, url, videoId? }` reconhecendo:
+  - `youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/shorts/…`
+  - `instagram.com/(reel|reels|p|tv)/…`
+  - domínios genéricos com `og:image` (opcional, para "auto")
+- `resolveThumbnail(link, { instagramToken? })`:
+  - YouTube/Shorts: monta URL `img.youtube.com/vi/<id>/maxresdefault.jpg` (HEAD; se 404 → `hqdefault.jpg`).
+  - Instagram:
+    1. Se `INSTAGRAM_OEMBED_TOKEN` disponível → `graph.facebook.com/v18.0/instagram_oembed?url=…&access_token=…`.
+    2. Senão → fetch do HTML da URL com `User-Agent` de browser (Chrome desktop) e regex de `<meta property="og:image">` (muitas vezes falha, mas é grátis).
+    3. Falhou → `null`.
+  - Cache 24h em memória (`Map<url, {thumb, exp}>`).
+- `resolveTitle(link)`: idem (oEmbed do YouTube: `https://www.youtube.com/oembed?url=…&format=json` — não requer auth; oEmbed do Insta via token).
+- `buildSendPayloads({ instance, phone, text, mode, quotedId })` → array de `{ endpoint, body, waFor:number }` (para permitir o "card + follow-up de texto" quando o texto tem mais do que só o link).
 
-Arquivos: `src/App.tsx`, `main.tsx`, `AppShell`, `AdminShell`, `ProtectedRoute`, `RootGate`, `FeatureRoute`, `ClinicOnlyRoute`, `useAuth`, `hooks/useRegion`, `i18n/*`, `lib/app-url.ts`, `lib/supabase-env.ts`.
+### 2. Backend — envios
 
-Docs: atualizar/criar `docs/frontend/ROUTING.md`, `docs/frontend/SHELL.md`, `docs/frontend/AUTH.md`, `docs/frontend/I18N.md`, `docs/frontend/REGION.md`.
+**`supabase/functions/broadcast-tick/index.ts`**
+- Onde hoje faz `sendText`, chamar `buildSendPayloads(...)` respeitando `part.preview_mode`.
+- Manter drip de 1s entre payloads dentro da mesma parte (quando modo `video_card` gerar 2: imagem+link e depois texto adicional, se houver).
 
-## Fase 2 — Inbox + Kanban + Leads (1.5 dias)
+**`supabase/functions/evolution-send/index.ts` (Inbox)**
+- Aceitar novos parâmetros opcionais no body: `preview_mode?: 'auto'|'text_only'|'link_preview'|'video_card'` (default `auto`).
+- Mesma refatoração via `buildSendPayloads`.
+- Idempotência (`client_message_id`) permanece; se gerar 2 payloads, o segundo usa `client_message_id + ':2'`.
+- `messages.message_type` = `image` quando `video_card` for usado, com o link salvo em `content` para preservar timeline.
 
-Arquivos: `src/pages/Inbox.tsx`, `Kanban.tsx`, `LeadDrawer.tsx`, `components/inbox/**`, `components/kanban/**`, `components/lead/**`, `hooks/useCrm.ts`, `useLeadsPaginated.ts`, `useLeadSearch.ts`, `lib/manual-stage-move.ts`, `delete-lead.ts`, `internal-notes.ts`, `lead-tasks.ts`.
+### 3. Schema
 
-Docs: `docs/maps/INBOX.md`, `docs/maps/KANBAN.md`, `docs/maps/LEADS.md` (+ subdocs jornada/timeline/tasks).
+Migração:
+```sql
+ALTER TABLE broadcast_message_parts
+  ADD COLUMN preview_mode text NOT NULL DEFAULT 'auto'
+  CHECK (preview_mode IN ('auto','text_only','link_preview','video_card'));
+```
+Sem coluna extra em `messages` (o modo é comportamento de envio, não persistente).
 
-## Fase 3 — Pipeline runtime (edge + shared) (2 dias)
+### 4. Frontend
 
-Arquivos: `supabase/functions/pipeline-*` (classify, deterministic, position-auditor, post-move-verifier, summarize, payment-webhook, run-executor, auto-retry, monthly-cycle-or, evals-run, tick), `_shared/pipeline-*.ts`, `_shared/stage-bindings.ts`, `_shared/agent-flags.ts`, `_shared/metrics.ts`.
+**`src/pages/Broadcasts.tsx` — aba Mensagens**
+- Em cada parte: `<Select>` "Preview do link" com 4 opções + tooltip explicando cada uma.
+- Mini preview visual quando o texto contém link YT/Insta (usando `img.youtube.com/...` no client — instantâneo, sem edge).
+- Aviso amarelo quando escolher `video_card` e a thumbnail não puder ser resolvida no client (Insta): "Preview será tentado no envio; se falhar cai para link simples."
 
-Docs: reescrever tudo em `docs/pipeline/runtime/*` linha-a-linha (CLASSIFIER, DETERMINISTIC_RULES, AUDITORS, SUMMARIZER, GATES, FLOW_MATRIX, TRIGGERS_AUDIT, KNOWN_ISSUES). Comparar com `docs/pipeline/` (planejamento) e marcar divergências.
+**`src/components/inbox/Composer.tsx`**
+- Quando detectar URL de YT/Insta ao digitar, mostrar chip embaixo do input: **[✓ Enviar como card de vídeo]** (toggle rápido). Default ON para Shorts/Reels, OFF para links genéricos.
+- Se OFF → payload manda `preview_mode:'text_only'` (comportamento atual). Se ON → `video_card`.
 
-## Fase 4 — Agentes IA & IA Hub (1 dia)
+### 5. Secrets (opcional, mas melhora Insta)
 
-Arquivos: `src/pages/Agents.tsx`, `ai/*`, `components/agents/**`, `pages/ai/**`, edge `ai-*` (auto-reply, chat, embed, ingest-*, assist, analyst-run, builder), `_shared/builder-knowledge/*`.
+Se o usuário aceitar, adicionar `INSTAGRAM_OEMBED_TOKEN` (App Token do Facebook Graph) via `add_secret`. Sem ele, funciona só para posts públicos cujo OG vaza no HTML.
 
-Docs: `docs/agents/*` (Atendimento, Roadmap, Training), `docs/ai/BUILDER.md`, `docs/ai/AUTO_REPLY.md`, `docs/ai/RAG.md`, `docs/ai/COSTS.md`.
+### 6. Docs
 
-## Fase 5 — WhatsApp / Evolution / Broadcasts (1 dia)
+- `docs/maps/BROADCASTS.md`: §2 (novo campo `preview_mode`), §5 (invariante: fallback cascata é obrigatório), §7 (novo secret opcional).
+- `docs/maps/EVOLUTION_EDGES.md`: nota sobre `_shared/link-preview.ts` e comportamento do `evolution-send` refatorado.
 
-Arquivos: `evolution-*`, `whatsapp-*`, `broadcast-*`, `pages/Broadcasts.tsx`, `WhatsAppQrDialog`, `hooks/useWhatsappInstances`, `lib/broadcast-template.ts`.
+## Fases de execução
 
-Docs: `docs/maps/WHATSAPP.md`, `docs/maps/BROADCASTS.md`, `docs/pipeline/runtime/WEBHOOK_EVOLUTION.md`.
+1. `_shared/link-preview.ts` + migração `preview_mode`.
+2. Refatorar `broadcast-tick` e `evolution-send` para usar o helper (com fallback cascata).
+3. UI: select em Broadcasts + toggle no Composer.
+4. (Opcional) Secret `INSTAGRAM_OEMBED_TOKEN`.
+5. Docs.
 
-## Fase 6 — Automações, Sequências, Templates, Tarefas (1 dia)
+## Resumo — vale a pena?
 
-Arquivos: `automations-tick`, `sequence-*`, `pages/Automations.tsx`, `Sequences.tsx`, `Templates.tsx`, `Tasks.tsx`, `components/tasks/**`, `agent-followups-tick`.
+Sim. `linkPreview:true` sozinho é loteria (bug histórico). O modo `video_card` via `sendMedia` é o que os devs no ecossistema Baileys/Evolution estão de fato usando e resolve Reels/Shorts com preview grande e clicável. Vou implementar os dois em cascata para maximizar acertividade sem penalizar quem só quer texto puro.
 
-Docs: `docs/maps/AUTOMATIONS.md`, `SEQUENCES.md`, `TEMPLATES.md`, `TASKS.md`.
-
-## Fase 7 — Email Marketing (1 dia)
-
-Arquivos: `pages/email/**`, `components/email/**`, edges `send-email`, `email-*`, `resend-webhook`, `lib/email/**`.
-
-Docs: `docs/features/EMAIL_*`, mapas por página.
-
-## Fase 8 — Tracking, Formulários, Métricas (0.5 dia)
-
-Arquivos: `tracking-*` edges, `pages/Tracking*`, `MetricsAiUsage`, `MetricsOps`, `MetricsEngagement`, `form_*` tabelas.
-
-Docs: `docs/maps/TRACKING.md`, `METRICS.md`, `FORMS.md`.
-
-## Fase 9 — Billing / Pagamentos / Planos (0.5 dia)
-
-Arquivos: `create-checkout`, `create-portal-session`, `payments-webhook`, `eduzz-webhook`, `pages/Billing.tsx`, `Checkout*`, `lib/plans.ts`, `stripe.ts`, `hooks/useSubscription.ts`.
-
-Docs: `docs/features/BILLING.md`, `PLANS.md`, `STRIPE.md`, `EDUZZ.md`.
-
-## Fase 10 — Admin / Suporte / Observabilidade (0.5 dia)
-
-Arquivos: `pages/admin/**`, `components/admin/**`, `SupportPanel`, `support-*` edges, `builder_manual_versions`.
-
-Docs: `docs/admin/*`, `docs/support/*` (respeitando templates).
-
-## Fase 11 — Site marketing + Proposal `/apn` (0.5 dia)
-
-Arquivos: `pages/site/**`, `components/site/**`, `components/proposal/**`, `pages/Apn.tsx`.
-
-Docs: `docs/marketing/SITE.md`, `docs/marketing/PROPOSAL.md`.
-
-## Fase 12 — Banco: schema, RLS, funções, crons, secrets (1 dia)
-
-Via `supabase--read_query`: dump completo de tabelas, colunas, policies, triggers, funções, crons, storage buckets.
-
-Docs: reescrever `docs/database/SCHEMA.md`, `RLS_POLICIES.md`, `FUNCTIONS.md`, `CRONS.md`, `STORAGE.md`, `SECRETS.md`.
-
-## Fase 13 — i18n & Multi-região (0.5 dia)
-
-Comparar `docs/i18n/*` com `lib/region.ts`, `_shared/region.ts`, locales, clinics.region.
-
-## Fase 14 — Consolidação final (0.5 dia)
-
-- Rodar `docs-sync --check` — zerar quebras em `code_refs`.
-- Reescrever `docs/README.md` como índice mestre.
-- Atualizar `mem://index.md` e `mem://docs/maintenance-progress`.
-- Gerar `docs/_audit/FINAL_REPORT.md` com: cobertura arquivo→doc, débitos remanescentes, invariantes catalogadas.
-
----
-
-## Regras de execução (todas as fases)
-
-1. Ler arquivo real antes de escrever doc — nunca inferir.
-2. Frontmatter obrigatório (`title/topic/kind/audience/updated/summary/code_refs/related_docs`).
-3. Cada doc de feature lista: rotas, componentes, hooks, edges, tabelas, policies, invariantes, bugs conhecidos.
-4. `updated` = data da edição.
-5. Rodar `docs-sync.mjs` ao fim de cada fase e commitar `INDEX.json` regenerado.
-6. Registrar progresso em `docs/_audit/PROGRESS.md` (arquivo por arquivo).
-
-## Entregáveis totais estimados
-
-- ~40–60 docs novas/reescritas.
-- 3 relatórios de auditoria (`INVENTORY`, `PROGRESS`, `FINAL_REPORT`).
-- DRIFT.md zerado.
-- Tempo total: ~11 dias de trabalho focado.
-
-Confirma que sigo por essa ordem (Fase 0 → 14)? Se quiser priorizar alguma área (ex: pipeline primeiro, ou banco primeiro), me diz e reordeno.
+Confirma que sigo assim?
