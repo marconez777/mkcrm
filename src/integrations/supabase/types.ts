@@ -5384,54 +5384,6 @@ export type Database = {
           },
         ]
       }
-      settings: {
-        Row: {
-          connection_state: string | null
-          created_at: string
-          evolution_api_key: string | null
-          evolution_instance: string | null
-          evolution_url: string | null
-          id: number
-          last_health_check: string | null
-          last_poll_at: string | null
-          updated_at: string
-          webhook_last_error: string | null
-          webhook_last_set_at: string | null
-          webhook_ok: boolean | null
-          webhook_token: string
-        }
-        Insert: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Update: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Relationships: []
-      }
       stage_ai_defaults: {
         Row: {
           agent_id: string | null
