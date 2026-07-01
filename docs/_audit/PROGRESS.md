@@ -18,7 +18,7 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 | 0 | Baseline & inventário | ✅ done | `_audit/INVENTORY.md`, `_audit/PROGRESS.md` | 2026-07-01 |
 | 1 | Núcleo frontend (rotas/shell/auth/i18n) | ✅ done | `docs/maps/FRONTEND_CORE.md` | 2026-07-01 |
 | 2 | Inbox + Kanban + Leads | ✅ done | `docs/maps/INBOX_KANBAN_LEADS.md` | 2026-07-01 |
-| 3 | Pipeline runtime | ⏳ pending | reescrever `docs/pipeline/runtime/*` | — |
+| 3 | Pipeline runtime | ✅ done | `docs/maps/PIPELINE_RUNTIME.md` (hub) + revalidação dos 20 arquivos em `docs/pipeline/runtime/` | 2026-07-01 |
 | 4 | Agentes IA & IA Hub | ⏳ pending | `docs/ai/{BUILDER,AUTO_REPLY,RAG,COSTS}.md` + agents | — |
 | 5 | WhatsApp / Evolution / Broadcasts | ⏳ pending | `docs/maps/{WHATSAPP,BROADCASTS,EVOLUTION_EDGES}.md` | — |
 | 6 | Automações / Sequências / Templates / Tarefas | ⏳ pending | `docs/maps/{AUTOMATIONS,SEQUENCES,TEMPLATES,TASKS}.md` | — |
