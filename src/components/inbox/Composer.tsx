@@ -33,7 +33,7 @@ function fmtTime(s: number) {
   return `${m}:${ss}`;
 }
 
-export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string, opts?: { previewMode?: "auto" | "text_only" | "link_preview" | "video_card" }) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
   const { t } = useTranslation();
   const [text, setText] = useState(() => getDraft(lead.id));
   const [sending, setSending] = useState(false);
@@ -42,6 +42,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [videoCard, setVideoCard] = useState<boolean>(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
