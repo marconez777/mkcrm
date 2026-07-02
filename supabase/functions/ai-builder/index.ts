@@ -1481,13 +1481,17 @@ Deno.serve(async (req) => {
   try {
     switch (body.action) {
       case "ping": {
-        const hasOverride = !!(body.api_key && body.provider && body.model);
+        const isLovable = body.provider === "lovable";
+        const lovableKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+        const hasOverride = isLovable
+          ? !!(body.provider && body.model && lovableKey)
+          : !!(body.api_key && body.provider && body.model);
         const target: Agent = hasOverride
           ? {
               ...builder,
               provider: body.provider as Agent["provider"],
-              api_key: body.api_key!,
-              base_url: body.base_url ?? null,
+              api_key: isLovable ? lovableKey : body.api_key!,
+              base_url: body.base_url ?? (isLovable ? "https://ai.gateway.lovable.dev/v1" : null),
               model: body.model!,
             }
           : builder;

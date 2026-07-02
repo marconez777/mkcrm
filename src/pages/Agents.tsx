@@ -33,7 +33,7 @@ import { AuditLogPanel } from "@/components/agents/AuditLogPanel";
 import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
-type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+type Provider = "openai" | "anthropic" | "google" | "xai" | "manus" | "lovable";
 
 const NICHE_OPTS: { v: string; l: string }[] = [
   { v: "clinic", l: "Empresa / Saúde" },
@@ -90,12 +90,15 @@ const PROVIDER_MODELS: Record<Provider, string[]> = {
   google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
   xai: ["grok-2-latest", "grok-2-mini", "grok-beta", "grok-vision-beta"],
   manus: [],
+  lovable: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
 };
 const PROVIDER_LABEL: Record<Provider, string> = {
   openai: "OpenAI", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", xai: "xAI (Grok)", manus: "Manus",
+  lovable: "Gemini Chat Funnel AI",
 };
 const PROVIDER_KEY_PLACEHOLDER: Record<Provider, string> = {
   openai: "sk-...", anthropic: "sk-ant-...", google: "AIza...", xai: "xai-...", manus: "API key Manus",
+  lovable: "(gerenciado pela Chat Funnel AI)",
 };
 const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
   openai: "https://api.openai.com/v1",
@@ -103,9 +106,10 @@ const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
   google: "https://generativelanguage.googleapis.com/v1beta",
   xai: "https://api.x.ai/v1",
   manus: "https://api.manus.example/v1 (obrigatório)",
+  lovable: "https://ai.gateway.lovable.dev/v1",
 };
 /** Providers that don't have native embeddings — user must supply an OpenAI/Google embedding key. */
-const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus"];
+const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus", "lovable"];
 
 const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
   {
