@@ -16,7 +16,7 @@ export type LogCtx = {
   note?: string | null;
 };
 
-export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus" | "lovable";
 
 export type Agent = {
   id: string;
