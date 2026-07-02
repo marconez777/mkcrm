@@ -77,7 +77,7 @@ export default function ConversationList(props: {
   onCollapse?: () => void;
 }) {
   const { t } = useTranslation();
-  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing, instances = [], instanceId = null, setInstanceId } = props;
+  const { leads, stages, attendants, allTags, selectedId, onSelect, loaded = true, hasMore, loadingMore, onLoadMore, onRefresh, refreshing, instances = [], instanceId = null, setInstanceId, hiddenStageIds = [], onToggleHiddenStage, onClearHiddenStages } = props;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prompt = usePrompt();
