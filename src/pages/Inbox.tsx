@@ -151,7 +151,7 @@ export default function InboxPage() {
       return 0;
     });
     return arr;
-  }, [leads, q, filter, stageFilter, tagFilter, sort]);
+  }, [leads, q, filter, stageFilter, tagFilter, sort, hiddenStageIds]);
 
   const selected: Lead | null = useMemo(
     () => leads.find((l) => l.id === leadId) ?? null,
