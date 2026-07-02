@@ -670,7 +670,7 @@ export default function AgentWizard() {
         : {
             clinic_id: clinicId,
             provider,
-            api_key: apiKey,
+            api_key: provider === "lovable" ? undefined : apiKey,
             base_url: baseUrl || null,
             model,
           };
