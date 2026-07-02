@@ -202,6 +202,9 @@ export default function InboxPage() {
             setStageFilter={setStageFilter}
             tagFilter={tagFilter}
             setTagFilter={setTagFilter}
+            hiddenStageIds={hiddenStageIds}
+            onToggleHiddenStage={toggleHiddenStage}
+            onClearHiddenStages={() => setHiddenStageIds([])}
             instances={instances}
             instanceId={instanceId}
             setInstanceId={setInstanceId}
