@@ -399,6 +399,9 @@ function Column({
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
           <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveAllLeads")}
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onExport(stage), 0); }}>
+          <Download className="mr-2 h-3.5 w-3.5" />Exportar para Excel
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
           <Trash2 className="mr-2 h-3.5 w-3.5" />{t("kanban.deleteStage")}
         </DropdownMenuItem>
