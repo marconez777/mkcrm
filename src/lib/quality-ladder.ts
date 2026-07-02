@@ -1,7 +1,7 @@
 // Maps a "Velocidade ↔ Qualidade" slider (0..2) to a concrete model per provider.
 // Index 0 = mais rápido / barato; último índice = melhor qualidade.
 
-export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus" | "lovable";
 
 export const QUALITY_LADDER: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"],
@@ -9,6 +9,7 @@ export const QUALITY_LADDER: Record<Provider, string[]> = {
   google: ["gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
   xai: ["grok-2-mini", "grok-2-mini", "grok-2-latest"],
   manus: [],
+  lovable: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
 };
 
 export const QUALITY_LABELS = ["Rápido", "Equilíbrio", "Qualidade"] as const;
