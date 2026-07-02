@@ -207,10 +207,7 @@ Cobre DST, DD/MM, DD/MM/AAAA, ISO. Datas resolvidas viram `consulta_agendada_em`
 4. **`apply.ts`** lê `lead.custom_fields_last_human_edit[key]`; se o timestamp
    for mais novo que `now − 7d`, descarta a sugestão da IA para essa chave e
    registra em `applied.custom_fields.blocked_by_g10`.
-   - **Exceção (Override de Data)**: Se o parser identificar uma data e a confiança
-     da IA for `>= 0.85`, o sistema ignora o G10 (`isDateFromParser = true`) para as
-     chaves de `consulta_agendada_em` e `procedimento_agendado_em`, sobrepondo a
-     edição humana.
+   - **Transição de Agendamento Humano (Junho/2026)**: As datas de agendamento (`consulta_agendada_em`, `procedimento_agendado_em`) foram removidas do escopo da IA. Qualquer tentativa de escrita nelas é silenciosamente descartada com o motivo `ai_scheduling_disabled_by_human_transition`. Nenhuma exceção de G10 aplica-se mais a essas datas, a secretária é a única fonte da verdade.
 
 > Edições humanas via PostgREST (frontend, inbox, lead drawer) **não setam**
 > `app.actor` → o trigger as marca corretamente como humanas. Outras edge
@@ -225,7 +222,7 @@ Com a aprovação dos ajustes recentes (V5 → V6), o caminho genérico do Class
 
 0. **Lock D3 (Paciente antigo)** (`apply.ts:245-255`): se `ctx.stageName === "Paciente antigo"`, o Classifier **nem tenta** sugerir movimentação. `stageOutcome = { path: "guard_d3", reason: "locked_in_paciente_antigo", would_move: false }`. B2B/Nurture/General são pulados. Defesa em profundidade junto com o Guard D3 do `pipelineMove`.
 
-1. **Consulta Agendada (Ajuste B)**: Se a IA extrair com confiança a data de uma consulta confirmada no chat, ela aciona o General Move e move o lead para "Consulta agendada" via `pipelineMove`.
+1. **Bloqueio de Agendamentos**: Como parte da transição para agendamento estritamente humano, a IA não sugere e nem confirma movimentações para "Consulta agendada" ou estágios de finalização. O fluxo de General Move atua somente sobre estágios intermediários (ex: Não Qualificado, Qualificação, etc).
 
 Caminho **B2B** (Move automático estrito): exige **TODOS** os guards:
 

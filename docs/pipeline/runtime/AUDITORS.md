@@ -70,6 +70,7 @@ Regras:
 - confidence reflete sua certeza. Use ≤ 0.6 quando o histórico for ambíguo.
 - reasoning: 1 parágrafo curto em PT-BR justificando.
 - NUNCA sugira mover por mera intuição — exige evidência textual.
+- CRÍTICO: VOCÊ ESTÁ PROIBIDO DE SUGERIR "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada". O agendamento é agora estritamente manual pela secretária. Se o histórico sugere agendamento, sugira "Qualificação" (se o paciente sumiu) ou concorde com a coluna atual.
 ```
 
 ### Schema de saída

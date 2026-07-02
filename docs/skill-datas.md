@@ -826,12 +826,6 @@ ver `supabase/functions/_shared/pipeline-move.ts`.
 
 ---
 
-**Fim.** Qualquer adaptação envolvendo data, agendamento, lembrete ou
-custom field deve passar por: (1) seção 4 (cron), (2) seções 5–8 (fluxos),
-(3) seção 13 (invariantes) e (4) seção 15 (extensões já mapeadas).
-
----
-
 ## 9. Locks de campos (atualização Jun/2026)
 
 ### 9.1 G10 (janela de 7 dias)
@@ -849,8 +843,56 @@ custom field deve passar por: (1) seção 4 (cron), (2) seções 5–8 (fluxos),
 - A flag é exposta no contexto dos agentes como `PRIMEIRA_MENSAGEM_TEMPLATE: true|false`.
 - Summarizer, Typifier e Maestro tratam essa flag como instrução: nada de `interesse_consulta`, `interesse_tratamento`, `scheduling_intent` enquanto for `true`. A única extração permitida é `origem`.
 
+---
+
 ## 10. Monthly Sweep (atualização)
 - Função `ruleMonthlySweep` em `pipeline-deterministic/index.ts`.
 - Toggle: `automation.monthly_sweep_paciente_antigo.enabled` (ativado em Jun/2026).
 - Origem: aliases `Consulta finalizada` **e** `1ª Sessão Finalizada`. Destino: `Paciente antigo` + `eh_paciente_antigo=true`.
 - Filtro de janela: `stage_changed_at < primeiro dia do mês corrente (UTC)` — leads que entraram em finalizado no dia 1 do mês corrente ficam para o sweep do próximo mês, alinhado ao requisito "dia 2 até o último dia do mês".
+
+---
+
+## 17. Catálogo Completo de Campos Personalizados (Live)
+
+Com base na tabela `lead_custom_fields` da clínica ÓR (cf038458...), este é o dicionário de dados dos 23 campos atualmente ativos e seus comportamentos.
+
+| `field_key` | Label | `field_type` | options (enum) | Writers automáticos |
+|---|---|---|---|---|
+| `interesse` | Interesse | select | Infusão de Cetamina, EMT, Tratamento Alcoolismo, Hipnoterapia, EMDR, Tratamento para Depressão, Psicoterapia, Consulta com psiquiatria, Outro | form submission, manual |
+| `procedimentos` | Procedimentos | multiselect | Infusão de cetamina, EMT, Primeira Consulta, Consulta de seguimento, Retorno, Sessão de terapia | manual |
+| `data_horario` | Data e horário | datetime | — | manual |
+| `teleconsulta` | Teleconsulta? | boolean | — | manual |
+| `link_consulta` | Link de Consulta | url | — | manual |
+| `pagamento` | Pagamento | currency | — | manual |
+| `origem` | Origem | select | Google - Orgânico, Google - Ads, Youtube, Redes Sociais, Indicação de paciente, Indicação de Médico, Indicação de Psicóloga, Indeterminado | form submission, manual |
+| `mensagem` | Mensagem | textarea | — | form submission |
+| `enviar_dia` | Enviar Dia | date | — | manual |
+| `procedimento_agendado_em` | Data do procedimento | datetime | — | **classifier** (via `custom_fields_patch`, validado por `sanitizeDateField`) |
+| `status_financeiro` | Status Financeiro | select | pago, pendente, parcial, atrasado, nao_aplicavel | webhook `pipeline-payment-webhook` → `runPaymentConfirmed` (seta `pago`) |
+| `status_consulta` | Status da Consulta | select | agendada, realizada, faltou, cancelada | `auto:appointment-sync` (mapeia status do appointment) |
+| `interesse_consulta` | Interesse em Consulta | boolean | — | classifier (intent='interesse_tratamento' em alguns casos) |
+| `interesse_tratamento` | Interesse em Tratamento | boolean | — | classifier; lido por `auto:reactivation` |
+| `ciclo_concluido` | Ciclo Concluído | boolean | — | **manual** → dispara `auto:ciclo-concluido` |
+| `sessoes_realizadas` | Sessões Realizadas | number | — | `auto:appointment-sync` (incrementa quando `realizado`+`procedimento`) |
+| `nome_responsavel_financeiro` | Responsável Financeiro | text | — | classifier (quando familiar fala pelo paciente) |
+| `possui_liminar_judicial` | Possui Liminar Judicial | boolean | — | manual |
+| `saldo_sessoes_pacote` | Saldo de Sessões (Pacote) | number | — | manual |
+| `pagamento_alegado_em` | Pagamento Alegado em | datetime | — | `runPaymentAlleged` (intent='pagamento_alegado') |
+| `data_solicitacao_nf` | Data Solicitação NF | datetime | — | `runNfTask` (intent='nf_reembolso' + stage='Consulta finalizada') |
+| `modalidade_preferida` | Modalidade Preferida | select | presencial, online, indiferente | manual; mudar para `online` dispara `auto:modality-guard` (tag) |
+| `motivo_cancelamento` | Motivo de Cancelamento | text | — | manual (preenchido no fluxo de cancelamento de appointment) |
+
+### Campos Ocultos em código que merecem atenção
+Algumas chaves de custom fields são escritas ativamente pelo código (`pipeline-classify`, `pipeline-tasks`, `pipeline-fase4`), sendo inseridas no JSON do lead (`leads.custom_fields`), mas **não foram registradas** na UI (tabela `lead_custom_fields`). Como consequência, a UI não exibe estes dados para edição:
+- **`consulta_agendada_em`**: Usado pelo prompt e classifier como uma das chaves canônicas de data, mas aparentemente esquecido na hora de criar o field na UI. (Somente `procedimento_agendado_em` foi cadastrado como Datetime).
+- **`qualificacao`**: Sem definição na UI, o JSON grava livre.
+- **`motivo_desqualificacao`**: O enum de motivos é validado por `app_settings` mas não tem um componente visual mapeado como "Select".
+- **`judicializacao_em`**: Escrito por `runJudicializacao`, sem definição.
+- `tentou_pagamento`, `pagamento_confirmado`, `tentou_agendar`: Campos descontinuados/legados da versão antiga, que a função `reset_ai_classifications()` se encarrega de deletar.
+
+---
+
+**Fim.** Qualquer adaptação envolvendo data, agendamento, lembrete ou
+custom field deve passar por: (1) seção 4 (cron), (2) seções 5–8 (fluxos),
+(3) seção 13 (invariantes) e (4) seção 15 (extensões já mapeadas).

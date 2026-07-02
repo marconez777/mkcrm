@@ -53,8 +53,8 @@ Cron `pipeline-classify-tick` (1/min) processa até 50 leads com `needs_ai_revie
 | Resumir histórico recente do lead | `classifier:Resumidor` | `summary` + `mentioned_dates` (cru) | — (input dos próximos) | [CLASSIFIER §Resumidor](./CLASSIFIER.md) |
 | Detectar pedido/confirmação de agendamento | `classifier:Agendador` | `is_scheduling_action`, `scheduling_intent` | — | [CLASSIFIER §Agendador](./CLASSIFIER.md) |
 | Sugerir tags + patch de custom_fields | `classifier:Tipificador` | `tags_suggested`, `custom_fields_patch` | — (aplica via G10) | [CLASSIFIER §Tipificador](./CLASSIFIER.md) |
-| Sugerir movimento de stage | `classifier:Movimentador` | `stage_suggestion`, `intent`, `is_b2b` | qualquer (com gates) | [CLASSIFIER §Movimentador](./CLASSIFIER.md) |
-| Validar e decidir o movimento final | `classifier:Maestro` | veredicto final + confiança | move via `pipelineMove` se confiança alta | [CLASSIFIER §Maestro](./CLASSIFIER.md) |
+| Sugerir movimento de stage | `classifier:Movimentador` | `stage_suggestion`, `intent`, `is_b2b` | qualquer (exceto agendamento/finalização) | [CLASSIFIER §Movimentador](./CLASSIFIER.md) |
+| Validar e decidir o movimento final | `classifier:Maestro` | veredicto final + confiança | move via `pipelineMove` (vetado para agendamentos) | [CLASSIFIER §Maestro](./CLASSIFIER.md) |
 | Lead detectado B2B / stakeholder | `Movimentador.is_b2b=true` → Maestro | tag B2B + move | **B2B / Stakeholders** | [estudo/02](../../estudo/02-qualificação.md) |
 | Lead não qualificado | Maestro com `intent=nao_qualificado` | move + tag motivo | **Lead não qualificado** | [estudo/08](../../estudo/08-lead-não-qualificado.md) |
 
@@ -66,6 +66,8 @@ Cron `pipeline-classify-tick` (1/min) processa até 50 leads com `needs_ai_revie
 | Consulta finalizada (kind=consulta, status=completed) | idem | `det:appointment-sync` | **1ª Sessão Finalizada** | `automation.appointment_sync.consulta_completed.enabled` | [estudo/05](../../estudo/05-consulta-finalizada.md) |
 | Procedimento agendado (kind=procedimento, status=scheduled) | idem | `det:appointment-sync` | **Procedimento agendado** | `automation.appointment_sync.procedimento_scheduled.enabled` | [estudo/10](../../estudo/10-procedimento-agendado.md) |
 | Procedimento concluído / pago | idem + webhook pagamento | `det:appointment-sync` + `pipeline-payment-webhook` | **Procedimento pago** | `automation.appointment_sync.procedimento_completed.enabled` | [estudo/11](../../estudo/11-procedimento-pago.md) |
+| Secretária preenche consulta_agendada_em | `tg_auto_field_changed` | `det:field-changed → consulta` | **Consulta agendada** | `automation.appointment_sync.enabled` | [estudo/03](../../estudo/03-consulta-agendada.md) |
+| Secretária preenche procedimento_agendado_em | `tg_auto_field_changed` | `det:field-changed → procedimento` | **Tratamento agendado** | `automation.appointment_sync.enabled` | [estudo/10](../../estudo/10-procedimento-agendado.md) |
 
 ## 4. Custom fields e ciclo
 

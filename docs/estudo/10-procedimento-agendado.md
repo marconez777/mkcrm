@@ -11,6 +11,8 @@ summary: "Análise da coluna 'Procedimento Agendado' do funil Agendamentos Novo 
 
 **Coluna:** `Procedimento Agendado` (posição 10) — **15 leads** analisados.
 
+> [!IMPORTANT]
+> **Transição Agendamento Humano:** A IA está proibida de mover cards para esta coluna ou preencher o campo de data correspondente. A entrada neste estágio ocorre exclusivamente pela ação manual da secretária preenchendo o campo `procedimento_agendado_em` no CRM.
 
 ## 1. Perfil típico
 
