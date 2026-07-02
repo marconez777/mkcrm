@@ -221,6 +221,8 @@ interface DraftRow {
 export default function AgentWizard() {
   const nav = useNavigate();
   const { membership, user, loading } = useAuth();
+  const { subscription } = useSubscription(user?.id ?? null);
+  const isSupreme = ((subscription?.price_id ?? "").split("_")[0] ?? "") === "supreme";
   const [draft, setDraft] = useState<DraftRow | null>(null);
   const [hydrating, setHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
