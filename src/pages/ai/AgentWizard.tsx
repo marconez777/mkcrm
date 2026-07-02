@@ -1361,6 +1361,7 @@ function Step3({
   testing,
   testError,
   onTest,
+  isSupreme,
 }: {
   keySource: "builder" | "own";
   setKeySource: (s: "builder" | "own") => void;
@@ -1379,6 +1380,7 @@ function Step3({
   testing: boolean;
   testError: ProviderError | null;
   onTest: () => void;
+  isSupreme: boolean;
 }) {
   const [advanced, setAdvanced] = useState(!!baseUrl);
   const useBuilder = keySource === "builder";
