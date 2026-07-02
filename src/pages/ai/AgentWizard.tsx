@@ -1515,7 +1515,7 @@ function Step3({
               Provedor <WhyTooltip tip="provider" />
             </Label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {PROVIDERS.map((p) => {
+              {PROVIDERS.filter((p) => p.id !== "lovable" || isSupreme).map((p) => {
                 const active = provider === p.id;
                 return (
                   <button
@@ -1524,6 +1524,10 @@ function Step3({
                     onClick={() => {
                       setProvider(p.id);
                       setModel(p.defaultModel);
+                      if (p.id === "lovable") {
+                        setApiKey("");
+                        setBaseUrl("");
+                      }
                     }}
                     className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
                       active
@@ -1536,20 +1540,27 @@ function Step3({
                 );
               })}
             </div>
+            {isSupreme && (
+              <p className="text-[11px] text-muted-foreground">
+                Plano Supreme: você pode usar <strong>Gemini Chat Funnel AI</strong> sem precisar de chave própria.
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="flex items-center">
-              Chave de API <WhyTooltip tip="api_key" />
-            </Label>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={providerInfo.placeholder}
-              autoComplete="off"
-            />
-          </div>
+          {provider !== "lovable" && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center">
+                Chave de API <WhyTooltip tip="api_key" />
+              </Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={providerInfo.placeholder}
+                autoComplete="off"
+              />
+            </div>
+          )}
 
           {(() => {
             const opts = MODELS_BY_PROVIDER[provider] ?? [];
