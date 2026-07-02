@@ -68,6 +68,15 @@ export default function InboxPage() {
   const [sort, setSort] = useState<SortKey>("recent");
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [hiddenStageIds, setHiddenStageIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("inbox:hiddenStageIds") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("inbox:hiddenStageIds", JSON.stringify(hiddenStageIds)); } catch {}
+  }, [hiddenStageIds]);
+  const toggleHiddenStage = (id: string) => {
+    setHiddenStageIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
   const [showContext, setShowContext] = useState(true);
   const [showList, setShowList] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
@@ -116,6 +125,7 @@ export default function InboxPage() {
       if (filter === "unread" && (l.unread_count ?? 0) <= 0 && !l.marked_unread) return false;
       if (filter === "unassigned" && l.attendant_id) return false;
       if (stageFilter && l.stage_id !== stageFilter) return false;
+      if (hiddenStageIds.length > 0 && l.stage_id && hiddenStageIds.includes(l.stage_id)) return false;
       if (tagFilter && !(l.tags ?? []).includes(tagFilter)) return false;
       if (ql) {
         const hay = `${l.name ?? ""} ${l.phone} ${l.last_message_preview ?? ""}`.toLowerCase();
@@ -141,7 +151,7 @@ export default function InboxPage() {
       return 0;
     });
     return arr;
-  }, [leads, q, filter, stageFilter, tagFilter, sort]);
+  }, [leads, q, filter, stageFilter, tagFilter, sort, hiddenStageIds]);
 
   const selected: Lead | null = useMemo(
     () => leads.find((l) => l.id === leadId) ?? null,
@@ -192,6 +202,9 @@ export default function InboxPage() {
             setStageFilter={setStageFilter}
             tagFilter={tagFilter}
             setTagFilter={setTagFilter}
+            hiddenStageIds={hiddenStageIds}
+            onToggleHiddenStage={toggleHiddenStage}
+            onClearHiddenStages={() => setHiddenStageIds([])}
             instances={instances}
             instanceId={instanceId}
             setInstanceId={setInstanceId}
