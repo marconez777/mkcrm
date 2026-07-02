@@ -474,7 +474,7 @@ export default function AgentWizard() {
   const canNextFromStep3 =
     keySource === "builder"
       ? builderStatus === "ok" && !!(builderInfo?.api_key_set)
-      : !!apiKey && !!model && isVerified;
+      : (provider === "lovable" ? !!model && isVerified : !!apiKey && !!model && isVerified);
 
 
   const canNextFromStep4 = questions
