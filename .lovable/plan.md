@@ -1,30 +1,58 @@
-## Ajuste do SLA de "Paciente antigo" → "Nutrição Antigos"
+## Objetivo
+Permitir que contas do plano **Supreme** usem os créditos de IA da Lovable diretamente no builder de agentes. Um novo provedor aparece na lista com o rótulo **"Gemini Chat Funnel AI"** (internamente `lovable`), sem exigir chave de API do usuário.
 
-### O que muda
-Hoje o cron `pipeline-deterministic` (branch `ruleInactivityTick`) só move um lead de **Paciente antigo** para **Nutrição Antigos** se ele estiver há **60 dias** sem interação. Se o lead **não tem nenhuma data** de interação (nem `last_inbound_at`, nem `last_message_at`), ele fica preso — nunca entra no filtro.
+## Escopo (o que muda)
 
-Vamos:
+### Frontend — `src/pages/ai/AgentWizard.tsx`
+- Adicionar novo item em `PROVIDERS`:
+  - `id: "lovable"`, `label: "Gemini Chat Funnel AI"`, `defaultModel: "google/gemini-2.5-flash"`, `baseExample: "https://ai.gateway.lovable.dev/v1"`, `placeholder: "(gerenciado pela Chat Funnel AI)"`.
+- Adicionar entrada em `MODELS_BY_PROVIDER.lovable`:
+  - `google/gemini-2.5-flash-lite` (Rápido), `google/gemini-2.5-flash` (Equilíbrio), `google/gemini-2.5-pro` (Qualidade).
+- Ampliar o tipo `Provider` para incluir `"lovable"`.
+- Detectar plano Supreme via `useSubscription` (usar `subscription.price_id` — o token antes do primeiro `_` é o `plan.id`). Passar `isSupreme` para o passo do provedor.
+- Renderizar o botão do provedor `lovable` apenas quando `isSupreme === true`. Se o usuário não é Supreme e o agente já está salvo com `lovable`, mostrar aviso e permitir só leitura.
+- Quando `provider === "lovable"`:
+  - Ocultar campo **API Key** e **Base URL**; forçar `base_url = "https://ai.gateway.lovable.dev/v1"` e `api_key = null` no persist.
+  - No botão "Testar conexão", chamar a mesma edge de teste passando `provider: "lovable"` — o backend valida via `LOVABLE_API_KEY` do projeto.
+  - Exibir badge "Usando créditos Chat Funnel AI" no card.
 
-1. **Baixar o gatilho de 60 → 40 dias**.
-2. **Incluir também os leads sem data alguma** de interação (ambas as colunas `NULL`) para que sejam movidos no próximo tick.
-3. **Confirmar que a regra está habilitada** (`automation.inactivity_paciente_antigo.enabled` = true) — se estiver `off`, o cron nem roda esse branch, o que explicaria "não sei se está funcionando".
+### Frontend — listagem `src/pages/Agents.tsx`
+- Onde exibe o provedor (mapa de labels), acrescentar `lovable → "Gemini Chat Funnel AI"`.
 
-### Onde
-- `supabase/functions/pipeline-deterministic/index.ts` (linhas 642–678):
-  - Trocar `60 * 24 * 3600 * 1000` por `40 * 24 * 3600 * 1000`.
-  - Ajustar o filtro `.or(...)` para: `last_inbound_at.lt.<cutoff40>` **OU** `and(last_inbound_at.is.null, last_message_at.lt.<cutoff40>)` **OU** `and(last_inbound_at.is.null, last_message_at.is.null)`.
-  - Atualizar `reason` e `idempotencyKey` de `60d`/`ym` para `40d`/`ym` (mantém idempotência mensal, mas com novo prefixo `40d` para não colidir com runs antigos).
-  - Renomear a métrica `tier60pa` → `tier40pa` no retorno.
+### Backend — `supabase/functions/_shared/ai.ts`
+- Estender union `Provider` com `"lovable"`.
+- Em `chatOnce`, novo branch:
+  ```ts
+  else if (agent.provider === "lovable") {
+    resp = await openaiCompatibleChat(
+      { ...agent, api_key: Deno.env.get("LOVABLE_API_KEY")! },
+      messages, tools,
+      "https://ai.gateway.lovable.dev/v1",
+      { extraHeaders: { "Lovable-API-Key": Deno.env.get("LOVABLE_API_KEY")!, "X-Lovable-AIG-SDK": "vercel-ai-sdk" } },
+    );
+  }
+  ```
+- Ajustar `openaiCompatibleChat` para aceitar `extraHeaders` opcionais (usa header `Lovable-API-Key` em vez de `Authorization`).
+- Em `requireKey`, tratar `lovable` como caso especial (não exige `agent.api_key`).
+- Embeddings: `lovable` não expõe embeddings hoje → se `agent.provider === "lovable"` e faltar `embedding_api_key`, lançar erro claro pedindo chave OpenAI de embeddings (mesmo comportamento atual do Anthropic).
 
-- Verificar via query no banco se `app_settings.automation.inactivity_paciente_antigo.enabled` está `true`. Se estiver `false`/ausente, ligar via `supabase--insert`.
+### Backend — edge de teste de chave do agente
+- No handler que valida provider do wizard: se `provider === "lovable"`, pular verificação de `api_key` e apenas checar presença de `LOVABLE_API_KEY` no ambiente, retornando ok.
 
-### Docs a atualizar
-- `docs/archive/AUTOMATION_V5_ARCHITECTURE.md` e `docs/archive/ROADMAP_AUTOMATION_V5.md`: trocar as menções de "60 dias" → "40 dias".
-- `docs/maps/PIPELINE_RUNTIME.md` (se citar a janela).
+### Autorização server-side (defesa em profundidade)
+- Ao salvar/atualizar agente com `provider = "lovable"`, validar no handler que a clínica tem assinatura Supreme ativa. Se não tiver, rejeitar com 403 "Provedor disponível apenas no plano Supreme".
 
-### Fora de escopo
-- Não altero a lógica de reactivação (Nutrição Antigos → Paciente antigo quando o lead responde).
-- Não mexo em Kanban / UI: o move ocorre pelo cron a cada execução agendada.
+## Não escopo
+- Nada muda para agentes existentes com `openai/google/anthropic/xai/manus`.
+- Sem alteração no pipeline determinístico (já usa Lovable Gateway global).
+- Sem novo controle de cota — os limites de créditos Lovable do workspace já se aplicam.
 
-### Observação
-Como o cron roda em intervalo agendado (não instantâneo), a movimentação em massa acontece no próximo tick após o deploy. Se quiser, disparo o `pipeline-deterministic` manualmente uma vez depois do merge para varrer imediatamente.
+## Detalhes técnicos
+- Detecção de plano no client:
+  ```ts
+  const tier = subscription?.price_id?.split("_")[0]; // "starter" | "pro" | "supreme"
+  const isSupreme = tier === "supreme";
+  ```
+  Como esse valor pode ser burlado no navegador, a checagem real acontece nas edge functions ao gravar/rodar o agente.
+- Nomes de modelo enviados ao gateway devem manter o prefixo do vendor (`google/gemini-2.5-flash`), pois o Lovable Gateway exige `vendor/model`.
+- Nenhum arquivo auto-gerado (`client.ts`, `types.ts`, `.env`) é tocado.
