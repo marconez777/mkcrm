@@ -1643,7 +1643,7 @@ function Step3({
                 size="sm"
                 variant={isVerified ? "outline" : "default"}
                 onClick={onTest}
-                disabled={testing || !apiKey || !model}
+                disabled={testing || (provider !== "lovable" && !apiKey) || !model}
               >
                 {testing ? (
                   <>
