@@ -61,6 +61,9 @@ export default function ConversationList(props: {
   sort: SortKey; setSort: (v: SortKey) => void;
   stageFilter: string | null; setStageFilter: (v: string | null) => void;
   tagFilter: string | null; setTagFilter: (v: string | null) => void;
+  hiddenStageIds?: string[];
+  onToggleHiddenStage?: (id: string) => void;
+  onClearHiddenStages?: () => void;
   instances?: WhatsappInstance[];
   instanceId?: string | null;
   setInstanceId?: (v: string | null) => void;
