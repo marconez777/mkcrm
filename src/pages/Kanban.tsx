@@ -934,6 +934,7 @@ export default function KanbanPage() {
                         onConfigureAi={configureAiCb}
                         onDelete={requestDeleteStage}
                         onMoveAll={setMovingColumnStage}
+                        onExport={exportStageLeads}
                         aiBinding={aiBindings[s.id]}
                       />
                     ))}
