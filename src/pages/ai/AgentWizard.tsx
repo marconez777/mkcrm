@@ -779,7 +779,7 @@ export default function AgentWizard() {
           niche_other: nicheOther || null,
           key_source: useBuilder ? "builder" : "own",
           own_provider: useBuilder ? undefined : provider,
-          own_api_key: useBuilder ? undefined : apiKey,
+          own_api_key: useBuilder ? undefined : (provider === "lovable" ? "__lovable_managed__" : apiKey),
           own_base_url: useBuilder ? undefined : (baseUrl || null),
           own_model: useBuilder ? undefined : effectiveModel,
           system_prompt: bundle.system_prompt,
