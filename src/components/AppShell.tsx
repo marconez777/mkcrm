@@ -21,6 +21,7 @@ import brandLockup from "@/assets/chat-funnel-ai-500.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
 import SupportChatFab from "@/components/support/SupportChatFab";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 // Mapeia rotas → chave de tradução (`nav.<key>`). NavItem.label fica como fallback.
 const NAV_I18N_KEY: Record<string, string> = {
