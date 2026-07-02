@@ -34,7 +34,7 @@ Toda movimentação *DEVE* passar pelo helper `pipelineMove` (`_shared/pipeline-
 ### 1. Guard D3 (Trava de Paciente Antigo)
 - Pacientes na coluna "Paciente Antigo" **JAMAIS** se movem via IA ou MCP tools para frente no funil.
 - `if (fromStage === "Paciente antigo" && source !== "auto:inactivity-tick") return false;`
-- Eles podem apenas ir para "Nutrição inativa" após 60 dias de silêncio, processados pelo cron `pipeline-deterministic`.
+- Eles podem apenas ir para "Nutrição inativa" após 40 dias de silêncio, processados pelo cron `pipeline-deterministic`.
 - Se eles agendam uma consulta, o *Tipificador* (Agente 2) altera os campos personalizados criando um chip "Consulta X", mas o card fica parado na mesma coluna.
 
 ### 2. Guard G10 Override (Override de Datas)
@@ -54,7 +54,7 @@ O sistema de inatividade e lembretes opera através de uma malha de Cron Jobs (S
 
 1. **`pipeline-deterministic/index.ts` (O Motor de Regras Fixas)**
    - **`ruleInactivityTick`**: O vigia implacável. Varre a inatividade.
-   - *Regra V5*: Foca especialmente em tirar leads de "Paciente Antigo" que não falam nada há 60 dias e jogá-los para "Nutrição Inativa".
+   - *Regra V5*: Foca especialmente em tirar leads de "Paciente Antigo" que não falam nada há 40 dias e jogá-los para "Nutrição Inativa".
    - Executa também as amarrações do calendário formal (sync).
 
 2. **`automations-tick/index.ts` (Automações da Interface / SLA 24h-48h)**
