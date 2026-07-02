@@ -32,7 +32,8 @@ import { useStages, useLeads } from "@/hooks/useCrm";
 import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download } from "lucide-react";
+import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -355,12 +356,12 @@ function Chip({ children, tone = "neutral", icon }: {
 
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, aiBinding,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, onExport, aiBinding,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
-  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
+  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void; onExport: (s: Stage) => void;
   aiBinding?: { agentName: string; autoReply: boolean };
 }) {
   const { t } = useTranslation();
@@ -397,6 +398,9 @@ function Column({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
           <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveAllLeads")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onExport(stage), 0); }}>
+          <Download className="mr-2 h-3.5 w-3.5" />Exportar para Excel
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
           <Trash2 className="mr-2 h-3.5 w-3.5" />{t("kanban.deleteStage")}
@@ -656,6 +660,24 @@ export default function KanbanPage() {
     }
     return map;
   }, [stages, leads]);
+
+  const exportStageLeads = useCallback((stage: Stage) => {
+    const rows = (leadsByStage.get(stage.id) ?? []).map((l) => {
+      const last = l.last_message_at ? new Date(l.last_message_at) : null;
+      const days = last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null;
+      return {
+        nome: l.name ?? "",
+        telefone: l.phone ?? "",
+        ultima_mensagem: last ? last.toLocaleString("pt-BR") : "",
+        dias_sem_interagir: days ?? "",
+      };
+    });
+    if (rows.length === 0) { toast.info("Coluna vazia"); return; }
+    const slug = (stage.name || "coluna").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCsv(`leads-${slug}-${date}.csv`, rows, ["nome", "telefone", "ultima_mensagem", "dias_sem_interagir"]);
+    toast.success(`${rows.length} lead(s) exportados`);
+  }, [leadsByStage]);
 
   useEffect(() => {
     saveUi({
@@ -930,6 +952,7 @@ export default function KanbanPage() {
                         onConfigureAi={configureAiCb}
                         onDelete={requestDeleteStage}
                         onMoveAll={setMovingColumnStage}
+                        onExport={exportStageLeads}
                         aiBinding={aiBindings[s.id]}
                       />
                     ))}
