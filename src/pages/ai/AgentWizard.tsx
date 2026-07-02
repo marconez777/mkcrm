@@ -46,7 +46,7 @@ import { filterKnownTools } from "@/lib/agent-tools";
 // ---------- Tipos / constantes ----------
 
 type Step = 1 | 2 | 3 | 4 | 5;
-type Provider = "openai" | "anthropic" | "google" | "xai";
+type Provider = "openai" | "anthropic" | "google" | "xai" | "lovable";
 
 export interface InterviewQuestion {
   id: string;
