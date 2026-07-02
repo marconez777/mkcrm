@@ -141,9 +141,11 @@ export default function AdminPipelineHealth() {
           Erro ao carregar views: {error}. Confirme que o usuário é super_admin.
         </Card>
       )}
+      <PipelineTicksCard />
       <PipelineErrorsCard />
       <ProviderHealthCard />
       <AutoRetryRecoveryCard />
+
 
 
 
