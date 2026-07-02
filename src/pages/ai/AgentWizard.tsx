@@ -918,6 +918,7 @@ export default function AgentWizard() {
                 testing={testing}
                 testError={testError}
                 onTest={testConnection}
+                isSupreme={isSupreme}
               />
             )}
 
