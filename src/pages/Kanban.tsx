@@ -661,6 +661,24 @@ export default function KanbanPage() {
     return map;
   }, [stages, leads]);
 
+  const exportStageLeads = useCallback((stage: Stage) => {
+    const rows = (leadsByStage.get(stage.id) ?? []).map((l) => {
+      const last = l.last_message_at ? new Date(l.last_message_at) : null;
+      const days = last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null;
+      return {
+        nome: l.name ?? "",
+        telefone: l.phone ?? "",
+        ultima_mensagem: last ? last.toLocaleString("pt-BR") : "",
+        dias_sem_interagir: days ?? "",
+      };
+    });
+    if (rows.length === 0) { toast.info("Coluna vazia"); return; }
+    const slug = (stage.name || "coluna").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCsv(`leads-${slug}-${date}.csv`, rows, ["nome", "telefone", "ultima_mensagem", "dias_sem_interagir"]);
+    toast.success(`${rows.length} lead(s) exportados`);
+  }, [leadsByStage]);
+
   useEffect(() => {
     saveUi({
       ...ui,
