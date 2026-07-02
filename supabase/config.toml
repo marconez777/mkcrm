@@ -83,3 +83,12 @@ verify_jwt = false
 [functions.eduzz-webhook]
 verify_jwt = false
 
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.create-portal-session]
+verify_jwt = false
+
+[functions.payments-webhook]
+verify_jwt = false

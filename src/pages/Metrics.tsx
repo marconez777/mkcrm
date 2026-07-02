@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
@@ -20,14 +21,15 @@ type Row = {
   created_at: string;
 };
 
-const RANGES = [
-  { id: "24h", label: "24h", hours: 24 },
-  { id: "7d", label: "7 dias", hours: 24 * 7 },
-  { id: "30d", label: "30 dias", hours: 24 * 30 },
-];
-
 export default function Metrics() {
+  const { t } = useTranslation();
+  const RANGES = [
+    { id: "24h", label: t("metrics.h24"), hours: 24 },
+    { id: "7d", label: t("metrics.d7"), hours: 24 * 7 },
+    { id: "30d", label: t("metrics.d30"), hours: 24 * 30 },
+  ];
   const [range, setRange] = useState(RANGES[1]);
+
   const [rows, setRows] = useState<Row[]>([]);
   const [agents, setAgents] = useState<Record<string, string>>({});
 
@@ -67,8 +69,9 @@ export default function Metrics() {
   const byAgent = useMemo(() => {
     const map = new Map<string, { count: number; tokens: number; latency: number; replied: number }>();
     for (const r of rows) {
-      const key = r.agent_id ?? "(sem agente)";
+      const key = r.agent_id ?? t("metrics.noAgent");
       const cur = map.get(key) ?? { count: 0, tokens: 0, latency: 0, replied: 0 };
+
       cur.count++;
       cur.tokens += r.total_tokens ?? 0;
       cur.latency += r.latency_ms ?? 0;
@@ -87,7 +90,7 @@ export default function Metrics() {
     <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Métricas IA</h1>
+          <h1 className="text-lg font-semibold">{t("metrics.title")}</h1>
           <div className="flex gap-1 rounded-md border p-1 text-xs">
             {RANGES.map((r) => (
               <button
@@ -102,22 +105,22 @@ export default function Metrics() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard icon={<Activity className="h-4 w-4" />} label="Chamadas" value={String(stats.total)} />
-          <StatCard icon={<Bot className="h-4 w-4" />} label="Respondeu" value={`${stats.replied} (${stats.replyRate}%)`} />
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Tokens" value={stats.tokens.toLocaleString()} />
-          <StatCard icon={<Clock className="h-4 w-4" />} label="Latência média" value={`${stats.avgLat} ms`} />
-          <StatCard icon={<Activity className="h-4 w-4" />} label="Tools usadas" value={String(stats.tools)} />
-          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Erros" value={String(stats.errors)} />
+          <StatCard icon={<Activity className="h-4 w-4" />} label={t("metrics.calls")} value={String(stats.total)} />
+          <StatCard icon={<Bot className="h-4 w-4" />} label={t("metrics.replied")} value={`${stats.replied} (${stats.replyRate}%)`} />
+          <StatCard icon={<Coins className="h-4 w-4" />} label={t("metrics.tokens")} value={stats.tokens.toLocaleString()} />
+          <StatCard icon={<Clock className="h-4 w-4" />} label={t("metrics.avgLatency")} value={`${stats.avgLat} ms`} />
+          <StatCard icon={<Activity className="h-4 w-4" />} label={t("metrics.tools")} value={String(stats.tools)} />
+          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label={t("metrics.errors")} value={String(stats.errors)} />
         </div>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Por agente</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("metrics.byAgent")}</h2>
           {byAgent.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sem dados no período.</p>
+            <p className="text-sm text-muted-foreground">{t("metrics.noData")}</p>
           ) : (
             <div className="space-y-1 text-sm">
               <div className="grid grid-cols-5 gap-2 border-b pb-1 text-xs font-medium text-muted-foreground">
-                <span>Agente</span><span>Chamadas</span><span>Tokens</span><span>Resp</span><span>Lat (ms)</span>
+                <span>{t("metrics.colAgent")}</span><span>{t("metrics.colCalls")}</span><span>{t("metrics.colTokens")}</span><span>{t("metrics.colReplied")}</span><span>{t("metrics.colLatency")}</span>
               </div>
               {byAgent.map((a) => (
                 <div key={a.id} className="grid grid-cols-5 gap-2 py-1">
@@ -133,7 +136,7 @@ export default function Metrics() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Últimas chamadas</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("metrics.lastCalls")}</h2>
           <div className="space-y-1 text-xs">
             {rows.slice(0, 30).map((r) => (
               <div key={r.id} className="flex items-center gap-2 border-b py-1">
@@ -149,13 +152,14 @@ export default function Metrics() {
                 </span>
               </div>
             ))}
-            {rows.length === 0 && <p className="text-muted-foreground">Sem chamadas registradas.</p>}
+            {rows.length === 0 && <p className="text-muted-foreground">{t("metrics.noCalls")}</p>}
           </div>
         </Card>
       </div>
     </div>
   );
 }
+
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (

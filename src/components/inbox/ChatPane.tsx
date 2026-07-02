@@ -314,12 +314,12 @@ export default function ChatPane({ lead }: { lead: Lead }) {
     requestAnimationFrame(() => pulseAndScroll(fetched[0].id));
   }
 
-  async function sendText(text: string) {
+  async function sendText(text: string, opts?: { previewMode?: "auto" | "text_only" | "link_preview" | "video_card" }) {
     const cid = crypto.randomUUID();
     const quoted = replyTo?.external_id ?? null;
     setReplyTo(null);
     const { data, error } = await supabase.functions.invoke("evolution-send", {
-      body: { lead_id: lead.id, text, client_message_id: cid, quoted_external_id: quoted },
+      body: { lead_id: lead.id, text, client_message_id: cid, quoted_external_id: quoted, preview_mode: opts?.previewMode ?? "auto" },
     });
     if (error || (data as any)?.error) {
       toast.error("Falha ao enviar: " + (error?.message || (data as any)?.error));

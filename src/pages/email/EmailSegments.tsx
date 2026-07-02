@@ -101,7 +101,7 @@ export default function EmailSegments() {
   const [active, setActive] = useState(true);
   const [clinicId, setClinicId] = useState<string | null>(null);
 
-  // Contatos da clínica (multi-select para segmentos estáticos)
+  // Contatos da empresa (multi-select para segmentos estáticos)
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [contactSearch, setContactSearch] = useState("");
@@ -408,7 +408,7 @@ export default function EmailSegments() {
         <Button size="sm" variant="outline" className="rounded-xl" onClick={async () => {
           const { data: { user } } = await supabase.auth.getUser();
           const { data: cm } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user!.id).limit(1).maybeSingle();
-          if (!cm?.clinic_id) return toast.error("Clínica não encontrada");
+          if (!cm?.clinic_id) return toast.error("Empresa não encontrada");
           const leads = await fetchAllPaged<any>(
             () => supabase.from("leads").select("form_source").eq("clinic_id", cm.clinic_id).not("form_source", "is", null),
             1000,

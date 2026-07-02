@@ -17,6 +17,7 @@ import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
 import { usePipelines } from "@/hooks/usePipelines";
 
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 function timeAgo(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -27,6 +28,7 @@ function timeAgo(iso: string) {
 }
 
 export default function ContextRail({ lead, stages, attendants, onClose }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void }) {
+  const { t } = useTranslation();
   const nav = useNavigate();
   const confirm = useConfirm();
   const [form, setForm] = useState<Partial<Lead>>(lead);
@@ -47,7 +49,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     const { data, error } = await supabase.functions.invoke("ai-assist", { body: { lead_id: lead.id, mode: "summary" } });
     setSummarizing(false);
     if (error || (data as any)?.error) {
-      toast.error("Falha IA: " + (error?.message || (data as any)?.error));
+      toast.error(t("inbox.context.aiFail") + ": " + (error?.message || (data as any)?.error));
       return;
     }
     setSummary((data as any)?.summary ?? "");
@@ -143,10 +145,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
     if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de conversa será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
     try {
       await deleteLead(lead.id);
-      toast.success("Conversa excluída");
+      toast.success(t("inbox.context.conversationDeleted"));
       nav("/inbox");
     } catch (error) {
-      toast.error("Falha ao excluir conversa", { description: error instanceof Error ? error.message : "Tente novamente." });
+      toast.error(t("inbox.context.deleteFailed"), { description: error instanceof Error ? error.message : t("inbox.context.tryAgain") });
     }
   }
 
@@ -171,13 +173,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   return (
     <div className="scrollbar-thin flex-1 overflow-y-auto">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-3 py-2">
-        <div className="text-xs font-semibold text-muted-foreground">Perfil</div>
+        <div className="text-xs font-semibold text-muted-foreground">{t("inbox.context.profile")}</div>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" onClick={togglePin} title={lead.pinned_at ? "Desafixar" : "Fixar no topo"} className="h-7 w-7">
+          <Button variant="ghost" size="icon" onClick={togglePin} title={lead.pinned_at ? t("inbox.context.unpin") : t("inbox.context.pin")} className="h-7 w-7">
             {lead.pinned_at ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4" />}
           </Button>
           {onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} title="Fechar perfil" className="h-7 w-7">
+            <Button variant="ghost" size="icon" onClick={onClose} title={t("inbox.context.closeProfile")} className="h-7 w-7">
               <X className="h-4 w-4" />
             </Button>
           )}
@@ -192,11 +194,11 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             value={form.name ?? ""}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             onBlur={() => patch({ name: form.name ?? null })}
-            placeholder="Nome do lead"
+            placeholder={t("inbox.context.namePlaceholder")}
             className="mt-2 border-0 text-center text-sm font-semibold focus-visible:ring-0"
           />
           <button
-            onClick={() => { navigator.clipboard.writeText(lead.phone); toast.success("Telefone copiado"); }}
+            onClick={() => { navigator.clipboard.writeText(lead.phone); toast.success(t("inbox.context.phoneCopied")); }}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <Phone className="h-3 w-3" /> {lead.phone} <Copy className="h-3 w-3" />
@@ -206,16 +208,16 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="rounded-md border bg-primary/5 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-primary" /> Resumo IA
+              <Sparkles className="h-3 w-3 text-primary" /> {t("inbox.context.aiSummary")}
             </Label>
             <Button variant="ghost" size="sm" onClick={generateSummary} disabled={summarizing} className="h-6 px-2 text-[11px]">
-              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? "Atualizar" : "Gerar")}
+              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? t("inbox.context.update") : t("inbox.context.generate"))}
             </Button>
           </div>
           {summary ? (
             <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{summary}</p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">Gere um resumo automático da conversa.</p>
+            <p className="text-[11px] text-muted-foreground">{t("inbox.context.summaryHint")}</p>
           )}
         </div>
 
@@ -228,10 +230,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="space-y-3">
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Funil</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.pipeline")}</Label>
             <Select value={currentPipelineId ?? undefined} onValueChange={changePipeline}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Selecionar funil">
+                <SelectValue placeholder={t("inbox.context.selectPipeline")}>
                   {(() => {
                     const p = pipelines.find((x) => x.id === currentPipelineId);
                     return p ? (
@@ -239,7 +241,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                         <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
                         {p.name}
                       </span>
-                    ) : "Selecionar funil";
+                    ) : t("inbox.context.selectPipeline");
                   })()}
                 </SelectValue>
               </SelectTrigger>
@@ -257,7 +259,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapa</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.stage")}</Label>
             <Select value={form.stage_id ?? undefined} onValueChange={(v) => patch({ stage_id: v })}>
               <SelectTrigger className="h-9">
                 <SelectValue>
@@ -266,7 +268,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                       <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
                       {stage.name}
                     </span>
-                  ) : "Selecionar"}
+                  ) : t("inbox.context.select")}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -283,14 +285,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Atendente</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.attendant")}</Label>
             <Select
               value={form.attendant_id ?? "__none"}
               onValueChange={(v) => patch({ attendant_id: v === "__none" ? null : v })}
             >
-              <SelectTrigger className="h-9"><SelectValue placeholder="Não atribuído" /></SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder={t("inbox.context.unassigned")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none">Não atribuído</SelectItem>
+                <SelectItem value="__none">{t("inbox.context.unassigned")}</SelectItem>
                 {attendants.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     <span className="flex items-center gap-2">
@@ -304,7 +306,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Valor (R$)</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.value")}</Label>
             <Input
               type="number"
               value={form.deal_value ?? ""}
@@ -315,7 +317,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground"><Mail className="mr-1 inline h-3 w-3" />E-mail</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground"><Mail className="mr-1 inline h-3 w-3" />{t("inbox.context.email")}</Label>
             <Input
               value={form.email ?? ""}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -325,7 +327,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Origem do formulário</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.formSource")}</Label>
             <Input
               value={(form as any).form_source ?? ""}
               onChange={(e) => setForm({ ...form, ...({ form_source: e.target.value } as any) })}
@@ -341,7 +343,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                 setForm({ ...form, ...({ form_source: slug } as any) });
                 patch({ form_source: slug } as any);
               }}
-              placeholder="teste-depressao, landing-cetamina…"
+              placeholder={t("inbox.context.formSourcePlaceholder")}
               className="h-9"
             />
           </div>
@@ -349,7 +351,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
 
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.tags")}</Label>
             <div className="flex flex-wrap gap-1">
               {(form.tags ?? []).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]">
@@ -362,14 +364,14 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
-              placeholder="Adicionar tag e Enter"
+              placeholder={t("inbox.context.addTag")}
               className="h-8 text-xs"
             />
           </div>
 
           <div className="space-y-1">
             <Label className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-              Notas {savingNotes && <span className="lowercase">salvando…</span>}
+              {t("inbox.context.notes")} {savingNotes && <span className="lowercase">{t("inbox.context.saving")}</span>}
             </Label>
             <Textarea
               rows={4}
@@ -402,11 +404,11 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <History className="h-3 w-3" />
-            {showHistory ? "Ocultar histórico IA" : "Ver histórico IA"}
+            {showHistory ? t("inbox.context.hideAiHistory") : t("inbox.context.showAiHistory")}
           </button>
           {showHistory && (
             <div className="space-y-1.5 rounded border bg-background p-2 max-h-64 overflow-y-auto">
-              {aiHistory.length === 0 && <p className="text-[11px] text-muted-foreground">Sem histórico ainda.</p>}
+              {aiHistory.length === 0 && <p className="text-[11px] text-muted-foreground">{t("inbox.context.noHistory")}</p>}
               {aiHistory.map((m, i) => (
                 <div key={i} className="text-[11px]">
                   <span className="font-semibold">
@@ -425,10 +427,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         {events.length > 0 && (
           <div>
             <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> Linha do tempo</span>
+              <span className="flex items-center gap-1"><Activity className="h-3 w-3" /> {t("inbox.context.timeline")}</span>
               {events.length > 5 && (
                 <button onClick={() => setEventsExpanded((v) => !v)} className="flex items-center gap-0.5 normal-case hover:text-foreground">
-                  {eventsExpanded ? <>Menos <ChevronUp className="h-3 w-3" /></> : <>Tudo ({events.length}) <ChevronDown className="h-3 w-3" /></>}
+                  {eventsExpanded ? <>{t("inbox.context.less")} <ChevronUp className="h-3 w-3" /></> : <>{t("inbox.context.all")} ({events.length}) <ChevronDown className="h-3 w-3" /></>}
                 </button>
               )}
             </div>
@@ -439,18 +441,18 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                 let color = "bg-muted-foreground";
                 if (e.type === "stage_changed") {
                   const to = stages.find((s) => s.id === e.payload?.to);
-                  label = `Etapa → ${to?.name ?? "—"}`;
+                  label = t("inbox.context.stageChanged", { name: to?.name ?? "—" });
                   Icon = GitBranch;
                   color = "bg-primary";
                 } else if (e.type === "attendant_changed") {
                   const to = attendants.find((a) => a.id === e.payload?.to);
-                  label = `Atendente → ${to?.name ?? "—"}`;
+                  label = t("inbox.context.attendantChanged", { name: to?.name ?? "—" });
                   Icon = UserCheck;
                   color = "bg-emerald-500";
                 } else if (e.type === "custom_fields_changed") {
                   const keys = e.payload?.changes ? Object.keys(e.payload.changes) : [];
                   const names = keys.map((k) => customDefs.find((d) => d.field_key === k)?.label || k);
-                  label = `Campo${names.length > 1 ? "s" : ""}: ${names.join(", ")}`;
+                  label = t("inbox.context.fieldsChanged", { count: names.length, names: names.join(", ") });
                   color = "bg-amber-500";
                 }
                 const actor = e.actor_user_id ? userMap[e.actor_user_id] : null;
@@ -463,7 +465,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                       <span className="truncate text-foreground/90">{label}</span>
                       <span className="shrink-0 text-[10px] text-muted-foreground" title={new Date(e.created_at).toLocaleString("pt-BR")}>{timeAgo(e.created_at)}</span>
                     </div>
-                    {actor && <div className="text-[10px] text-muted-foreground">por {actor}</div>}
+                    {actor && <div className="text-[10px] text-muted-foreground">{t("inbox.context.by")} {actor}</div>}
                   </li>
                 );
               })}
@@ -474,13 +476,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         <div className="flex flex-col gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={toggleUnread}>
             <Mail className="mr-2 h-4 w-4" />
-            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? "Marcar como lida" : "Marcar como não lida"}
+            {(lead.marked_unread || (lead.unread_count ?? 0) > 0) ? t("inbox.context.markAsRead") : t("inbox.context.markAsUnread")}
           </Button>
           <Button variant="outline" size="sm" onClick={toggleArchive}>
-            {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />Desarquivar</> : <><Archive className="mr-2 h-4 w-4" />Arquivar</>}
+            {lead.archived_at ? <><ArchiveRestore className="mr-2 h-4 w-4" />{t("inbox.context.unarchive")}</> : <><Archive className="mr-2 h-4 w-4" />{t("inbox.context.archive")}</>}
           </Button>
           <Button variant="ghost" size="sm" onClick={remove} className="text-destructive hover:text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" />Excluir lead
+            <Trash2 className="mr-2 h-4 w-4" />{t("inbox.context.deleteLead")}
           </Button>
         </div>
       </div>

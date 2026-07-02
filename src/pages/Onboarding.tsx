@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Check, Copy, Loader2, MessageSquare, Sparkles, Users } from "lucide-rea
 type Step = 1 | 2 | 3 | 4;
 
 export default function Onboarding() {
+  const { t } = useTranslation();
   const nav = useNavigate();
   const { membership, loading, refreshMembership } = useAuth();
   const [step, setStep] = useState<Step>(1);
@@ -28,7 +30,7 @@ export default function Onboarding() {
   const [inviteRole, setInviteRole] = useState<"admin" | "professional" | "viewer">("professional");
   const [generated, setGenerated] = useState<{ url: string; email: string }[]>([]);
 
-  useEffect(() => { document.title = "Onboarding — MK CRM"; }, []);
+  useEffect(() => { document.title = t("onboarding.pageTitle"); }, [t]);
   useEffect(() => { if (membership?.clinic?.name) setClinicName(membership.clinic.name); }, [membership]);
 
   if (loading) return null;
@@ -53,7 +55,7 @@ export default function Onboarding() {
         name: waName, evolution_url: waUrl, evolution_api_key: waKey, evolution_instance: waInstance, is_default: true,
       });
       if (error) throw error;
-      toast.success("WhatsApp conectado");
+      toast.success(t("onboarding.waConnected"));
       setStep(3);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
@@ -68,7 +70,7 @@ export default function Onboarding() {
       if (error) throw error;
       setGenerated((g) => [{ url: data.invite_url, email: inviteEmail }, ...g]);
       setInviteEmail("");
-      toast.success("Link gerado");
+      toast.success(t("onboarding.linkGenerated"));
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
@@ -89,8 +91,8 @@ export default function Onboarding() {
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-semibold">Bem-vindo(a) ao MK CRM</h1>
-          <p className="text-sm text-muted-foreground">Vamos configurar sua clínica em 3 passos rápidos</p>
+          <h1 className="text-2xl font-semibold">{t("onboarding.welcome")}</h1>
+          <p className="text-sm text-muted-foreground">{t("onboarding.subtitle")}</p>
         </div>
 
         <Stepper step={step} />
@@ -99,16 +101,16 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <h2 className="font-semibold">Dados da clínica</h2>
-                <p className="text-xs text-muted-foreground">Confirme o nome que aparecerá para sua equipe.</p>
+                <h2 className="font-semibold">{t("onboarding.companyTitle")}</h2>
+                <p className="text-xs text-muted-foreground">{t("onboarding.companyDesc")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Nome da clínica</Label>
+                <Label>{t("onboarding.companyName")}</Label>
                 <Input value={clinicName} onChange={(e) => setClinicName(e.target.value)} required />
               </div>
               <div className="flex justify-end">
                 <Button onClick={saveClinic} disabled={busy || !clinicName.trim()}>
-                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Continuar
+                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("onboarding.continue")}
                 </Button>
               </div>
             </div>
@@ -119,32 +121,32 @@ export default function Onboarding() {
               <div className="flex items-start gap-3">
                 <MessageSquare className="mt-0.5 h-5 w-5 text-primary" />
                 <div>
-                  <h2 className="font-semibold">Conectar WhatsApp</h2>
-                  <p className="text-xs text-muted-foreground">Use a Evolution API. Você pode pular e configurar depois em Configurações.</p>
+                  <h2 className="font-semibold">{t("onboarding.waTitle")}</h2>
+                  <p className="text-xs text-muted-foreground">{t("onboarding.waDesc")}</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Apelido</Label>
-                  <Input value={waName} onChange={(e) => setWaName(e.target.value)} placeholder="Ex: Recepção" />
+                  <Label>{t("onboarding.waNickname")}</Label>
+                  <Input value={waName} onChange={(e) => setWaName(e.target.value)} placeholder={t("onboarding.waNicknamePh")} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label>URL Evolution</Label>
+                  <Label>{t("onboarding.waUrl")}</Label>
                   <Input value={waUrl} onChange={(e) => setWaUrl(e.target.value)} placeholder="https://evolution.exemplo.com" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>API Key</Label>
+                  <Label>{t("onboarding.waApiKey")}</Label>
                   <Input value={waKey} onChange={(e) => setWaKey(e.target.value)} type="password" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Instance</Label>
-                  <Input value={waInstance} onChange={(e) => setWaInstance(e.target.value)} placeholder="nome-da-instancia" />
+                  <Label>{t("onboarding.waInstance")}</Label>
+                  <Input value={waInstance} onChange={(e) => setWaInstance(e.target.value)} placeholder={t("onboarding.waInstancePh")} />
                 </div>
               </div>
               <div className="flex justify-between">
-                <Button variant="ghost" onClick={() => setStep(3)}>Pular por agora</Button>
+                <Button variant="ghost" onClick={() => setStep(3)}>{t("onboarding.skipForNow")}</Button>
                 <Button onClick={saveWhatsApp} disabled={busy || !waUrl || !waKey || !waInstance || !waName}>
-                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Conectar e continuar
+                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("onboarding.connectContinue")}
                 </Button>
               </div>
             </div>
@@ -155,32 +157,32 @@ export default function Onboarding() {
               <div className="flex items-start gap-3">
                 <Users className="mt-0.5 h-5 w-5 text-primary" />
                 <div>
-                  <h2 className="font-semibold">Convidar equipe</h2>
-                  <p className="text-xs text-muted-foreground">Gere links de convite para profissionais da clínica. Envie por WhatsApp ou email.</p>
+                  <h2 className="font-semibold">{t("onboarding.teamTitle")}</h2>
+                  <p className="text-xs text-muted-foreground">{t("onboarding.teamDesc")}</p>
                 </div>
               </div>
 
               <form onSubmit={generateInvite} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@clinica.com" />
+                <Input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder={t("onboarding.emailPh")} />
                 <select className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)}>
-                  <option value="admin">Admin</option>
-                  <option value="professional">Profissional</option>
-                  <option value="viewer">Visualizador</option>
+                  <option value="admin">{t("onboarding.roleAdmin")}</option>
+                  <option value="professional">{t("onboarding.roleProfessional")}</option>
+                  <option value="viewer">{t("onboarding.roleViewer")}</option>
                 </select>
-                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Gerar link</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("onboarding.generateLink")}</Button>
               </form>
 
               {generated.length > 0 && (
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <p className="text-xs font-medium">Links gerados — envie manualmente</p>
+                  <p className="text-xs font-medium">{t("onboarding.linksGenerated")}</p>
                   {generated.map((g, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-medium">{g.email}</div>
                         <div className="truncate font-mono text-[11px] text-muted-foreground">{g.url}</div>
                       </div>
-                      <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(g.url); toast.success("Link copiado"); }}>
+                      <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(g.url); toast.success(t("onboarding.linkCopied")); }}>
                         <Copy className="h-3 w-3" />
                       </Button>
                     </div>
@@ -189,8 +191,8 @@ export default function Onboarding() {
               )}
 
               <div className="flex justify-between pt-2">
-                <Button variant="ghost" onClick={() => setStep(4)}>Pular</Button>
-                <Button onClick={() => setStep(4)}>Concluir</Button>
+                <Button variant="ghost" onClick={() => setStep(4)}>{t("onboarding.skip")}</Button>
+                <Button onClick={() => setStep(4)}>{t("onboarding.finish")}</Button>
               </div>
             </div>
           )}
@@ -201,11 +203,11 @@ export default function Onboarding() {
                 <Check className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="font-semibold">Tudo pronto!</h2>
-                <p className="text-sm text-muted-foreground">Sua clínica está configurada. Você pode ajustar tudo em Configurações depois.</p>
+                <h2 className="font-semibold">{t("onboarding.doneTitle")}</h2>
+                <p className="text-sm text-muted-foreground">{t("onboarding.doneDesc")}</p>
               </div>
               <Button onClick={finish} disabled={busy} className="w-full">
-                {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Ir para o CRM
+                {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("onboarding.goToCrm")}
               </Button>
             </div>
           )}
@@ -213,7 +215,7 @@ export default function Onboarding() {
 
         {step < 4 && (
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            <button onClick={finish} className="underline hover:text-foreground">Pular onboarding</button>
+            <button onClick={finish} className="underline hover:text-foreground">{t("onboarding.skipOnboarding")}</button>
           </p>
         )}
       </div>
@@ -222,10 +224,11 @@ export default function Onboarding() {
 }
 
 function Stepper({ step }: { step: Step }) {
+  const { t } = useTranslation();
   const items = [
-    { n: 1, label: "Clínica" },
-    { n: 2, label: "WhatsApp" },
-    { n: 3, label: "Equipe" },
+    { n: 1, label: t("onboarding.stepCompany") },
+    { n: 2, label: t("onboarding.stepWhatsApp") },
+    { n: 3, label: t("onboarding.stepTeam") },
   ];
   return (
     <div className="flex items-center justify-center gap-2">

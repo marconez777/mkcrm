@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Mail, Plus, Trash2, Play, Loader2, Copy, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Sequence = {
   id: string;
@@ -52,6 +53,7 @@ const minutesToHuman = (m: number) => {
 };
 
 export default function Sequences() {
+  const { t } = useTranslation();
   const [list, setList] = useState<Sequence[]>([]);
   const [selected, setSelected] = useState<Sequence | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
@@ -215,39 +217,68 @@ export default function Sequences() {
 
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
-      <aside className="w-72 shrink-0 border-r bg-muted/20">
-        <div className="flex items-center justify-between p-4">
-          <h2 className="text-sm font-semibold">Automação de mensagens</h2>
-          <div className="flex gap-1">
-            <Button size="sm" variant="ghost" onClick={runNow} disabled={running} title="Executar agora">
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+      <aside className="w-72 shrink-0 border-r bg-muted/10">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t("sequences.sidebarTitle")} <span className="ml-1 text-foreground/60">· {list.length}</span>
+          </h2>
+          <div className="flex gap-0.5">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title={t("sequences.runNow")}>
+              {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             </Button>
-            <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("sequences.newSequence")}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
-        <div className="px-2">
-          {list.map((a) => (
-            <div
-              key={a.id}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"}`}
-            >
-              <button onClick={() => setSelected(a)} className="flex flex-1 items-center gap-2 text-left min-w-0">
-                <Mail className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate">{a.name}</span>
-                <Badge variant={a.enabled ? "default" : "secondary"} className="text-[10px]">
-                  {a.enabled ? "Ativa" : "Pausada"}
-                </Badge>
-              </button>
-              <Switch
-                checked={a.enabled}
-                onClick={(e) => e.stopPropagation()}
-                onCheckedChange={() => toggleEnabled(a)}
-                className="scale-75"
-              />
-            </div>
-          ))}
+        <div className="px-2 pb-3">
+          {list.map((a) => {
+            const isActive = selected?.id === a.id;
+            const initials = (a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("")) || "S";
+            let hash = 0;
+            for (let i = 0; i < a.name.length; i++) hash = (hash * 31 + a.name.charCodeAt(i)) | 0;
+            const hue = Math.abs(hash) % 360;
+            const avatarStyle = { backgroundColor: `hsl(${hue} 55% 28%)`, color: `hsl(${hue} 70% 88%)` };
+            return (
+              <div
+                key={a.id}
+                className={`relative mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                  isActive ? "bg-muted" : "hover:bg-muted/40"
+                }`}
+              >
+                {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
+                <button onClick={() => setSelected(a)} className="flex flex-1 items-center gap-2.5 text-left min-w-0">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={avatarStyle}>
+                    {initials}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
+                    <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                      {a.enabled ? t("sequences.active") : t("sequences.paused")}
+                    </p>
+                  </div>
+                </button>
+                <Switch
+                  checked={a.enabled}
+                  onClick={(e) => e.stopPropagation()}
+                  onCheckedChange={() => toggleEnabled(a)}
+                  className="scale-75"
+                />
+              </div>
+            );
+          })}
+          <button
+            onClick={create}
+            className="mt-1 flex w-full items-center gap-2.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+            <span>{t("sequences.newSequence")}</span>
+          </button>
           {list.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhuma sequência. Crie a primeira.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{t("sequences.empty")}</p>
           )}
         </div>
       </aside>
@@ -255,7 +286,7 @@ export default function Sequences() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Crie uma sequência tipo "automação de e-mails" — passos enviados em intervalos, parando quando o lead responde.
+            {t("sequences.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-4xl space-y-6">

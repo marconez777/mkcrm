@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ type Template = {
 const VARIABLES = ["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{email}}", "{{empresa}}"];
 
 export default function Templates() {
+  const { t: tr } = useTranslation();
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
   const customDefs = useCustomFieldDefsFull();
@@ -75,27 +77,56 @@ export default function Templates() {
 
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
-      <aside className="w-72 shrink-0 border-r bg-muted/20">
-        <div className="flex items-center justify-between p-4">
-          <h2 className="text-sm font-semibold">Templates</h2>
-          <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
+      <aside className="w-72 shrink-0 border-r bg-muted/10">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {tr("templates.sidebarTitle")} <span className="ml-1 text-foreground/60">· {items.length}</span>
+          </h2>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={tr("templates.newTemplate")}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <div className="px-2">
-          {items.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setSelected(t)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
-                selected?.id === t.id ? "bg-accent" : "hover:bg-accent/50"
-              }`}
-            >
-              <FileText className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{t.name}</span>
-              {t.shortcut && <Badge variant="outline" className="text-[10px]">/{t.shortcut}</Badge>}
-            </button>
-          ))}
+        <div className="px-2 pb-3">
+          {items.map((t) => {
+            const isActive = selected?.id === t.id;
+            const initials = (t.name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("")) || "T";
+            let hash = 0;
+            for (let i = 0; i < t.name.length; i++) hash = (hash * 31 + t.name.charCodeAt(i)) | 0;
+            const hue = Math.abs(hash) % 360;
+            const avatarStyle = { backgroundColor: `hsl(${hue} 55% 28%)`, color: `hsl(${hue} 70% 88%)` };
+            return (
+              <button
+                key={t.id}
+                onClick={() => setSelected(t)}
+                className={`relative mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                  isActive ? "bg-muted" : "hover:bg-muted/40"
+                }`}
+              >
+                {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={avatarStyle}>
+                  {initials}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{t.name}</p>
+                  <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                    {t.shortcut ? `//${t.shortcut}` : tr("templates.noShortcut")}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          <button
+            onClick={create}
+            className="mt-1 flex w-full items-center gap-2.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+            <span>{tr("templates.newTemplate")}</span>
+          </button>
           {items.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum template.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{tr("templates.empty")}</p>
           )}
         </div>
       </aside>
@@ -103,30 +134,30 @@ export default function Templates() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie um template.
+            {tr("templates.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-4">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold">Editar template</h1>
+              <h1 className="text-lg font-semibold">{tr("templates.editTitle")}</h1>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => remove(selected.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />Salvar</Button>
+                <Button size="sm" onClick={save}><Save className="mr-1 h-4 w-4" />{tr("common.save")}</Button>
               </div>
             </div>
 
             <Card className="space-y-4 p-4">
               <div>
-                <Label>Nome</Label>
+                <Label>{tr("templates.fields.name")}</Label>
                 <Input
                   value={selected.name}
                   onChange={(e) => setSelected({ ...selected, name: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Atalho (opcional, ex: ola)</Label>
+                <Label>{tr("templates.fields.shortcut")}</Label>
                 <Input
                   value={selected.shortcut ?? ""}
                   onChange={(e) => setSelected({ ...selected, shortcut: e.target.value })}
@@ -134,14 +165,14 @@ export default function Templates() {
                 />
               </div>
               <div>
-                <Label>Descrição</Label>
+                <Label>{tr("templates.fields.description")}</Label>
                 <Input
                   value={selected.description ?? ""}
                   onChange={(e) => setSelected({ ...selected, description: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Conteúdo</Label>
+                <Label>{tr("templates.fields.content")}</Label>
                 <Textarea
                   rows={8}
                   value={selected.content}

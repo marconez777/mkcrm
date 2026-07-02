@@ -12,7 +12,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const CLINIC_ID    = "cf038458-457d-4c1a-9ac4-c88c3c8353a1";
 const STAGE_CONS   = "7584241f-6e4b-4824-aaea-e271e865227d"; // Consulta finalizada
 const STAGE_TRAT   = "2a352661-01e2-41f8-be10-032f803e2387"; // 1ª Sessão Finalizada
-const APP_URL      = Deno.env.get("PUBLIC_SITE_URL") ?? "https://mkcrm.lovable.app";
+const APP_URL      = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
 const TEMPLATE_SLUG = "or-monthly-finalizados-report";
 
 function previousMonthRange(now = new Date()) {

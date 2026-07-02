@@ -31,8 +31,8 @@ const TABLE: Record<string, SkipReasonInfo> = {
     tone: "warn",
   },
   clinic_not_allowlisted: {
-    label: "Clínica não autorizada",
-    desc: "Feature pipeline-classifier não está habilitada para esta clínica.",
+    label: "Empresa não autorizada",
+    desc: "Feature pipeline-classifier não está habilitada para esta empresa.",
     tone: "warn",
   },
   toggle_off: {
@@ -42,7 +42,7 @@ const TABLE: Record<string, SkipReasonInfo> = {
   },
   no_clinic_openai_key: {
     label: "Sem chave OpenAI",
-    desc: "Clínica não tem clinic_openai key configurada — agente não pôde rodar.",
+    desc: "Empresa não tem clinic_openai key configurada — agente não pôde rodar.",
     tone: "error",
   },
   worker_timeout_no_heartbeat: {

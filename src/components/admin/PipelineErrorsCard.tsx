@@ -194,7 +194,7 @@ export function PipelineErrorsCard() {
                 <AlertDialogTitle>Reprocessar todos os leads com erro?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Vai enfileirar {total} leads distintos (último erro nos últimos {sinceHours}h).
-                  Cada clínica recebe uma run separada.
+                  Cada empresa recebe uma run separada.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -213,7 +213,7 @@ export function PipelineErrorsCard() {
           <TableHeader>
             <TableRow>
               <TableHead>Lead</TableHead>
-              <TableHead>Clínica</TableHead>
+              <TableHead>Empresa</TableHead>
               <TableHead>Step</TableHead>
               <TableHead>Tent.</TableHead>
               <TableHead>Provider</TableHead>

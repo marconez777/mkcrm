@@ -1,5 +1,18 @@
 // Fetches a QR code (and pairing code) from Evolution API for a given instance.
-import { corsHeaders, json, loadInstance, evoFetch } from "../_shared/evolution.ts";
+import { corsHeaders, json, loadInstance, evoFetch, sb } from "../_shared/evolution.ts";
+
+async function logEvo(instance: any, message: string, extra: Record<string, unknown>) {
+  try {
+    await sb().from("error_events").insert({
+      clinic_id: instance?.clinic_id ?? null,
+      surface: "evolution",
+      function_name: "evolution-qr",
+      severity: "warning",
+      error_message: message,
+      metadata: { instance_id: instance?.id, evolution_instance: instance?.evolution_instance, ...extra },
+    });
+  } catch { /* ignore */ }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -18,6 +31,10 @@ Deno.serve(async (req) => {
     const stateData = await stateResp.json().catch(() => ({}));
     const state = stateData?.instance?.state ?? stateData?.state ?? "unknown";
 
+    if (!stateResp.ok) {
+      await logEvo(instance, `connectionState failed: ${stateResp.status}`, { status: stateResp.status, response: stateData });
+    }
+
     if (state === "open") {
       return json({ ok: true, state: "open" });
     }
@@ -30,6 +47,7 @@ Deno.serve(async (req) => {
     );
     const qrData = await qrResp.json().catch(() => ({}));
     if (!qrResp.ok) {
+      await logEvo(instance, `connect failed: ${qrResp.status}`, { status: qrResp.status, response: qrData });
       return json({ ok: false, state, error: qrData?.message ?? "Erro ao obter QR", detail: qrData }, 200);
     }
 

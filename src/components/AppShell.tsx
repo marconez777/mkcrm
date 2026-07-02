@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LayoutGrid, Inbox, Settings, Activity, Sparkles, LogOut, Keyboard,
   CalendarClock, Shield, Users, Mail, Radar, UserRound, ChevronsUpDown,
@@ -9,16 +10,34 @@ import { usePipelineAllowlist } from "@/hooks/usePipelineAllowlist";
 import { cn } from "@/lib/utils";
 import { useHealth } from "@/hooks/useHealth";
 import { useAuth } from "@/hooks/useAuth";
+import { useI18nSync } from "@/i18n/useI18nSync";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import mkLogo from "@/assets/mk-logo.png";
+import brandLockup from "@/assets/chat-funnel-ai-500.png";
 import type { FeatureKey } from "@/lib/features";
 import type { TabAccent } from "@/components/ui/category-tabs";
 import SupportChatFab from "@/components/support/SupportChatFab";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+
+// Mapeia rotas → chave de tradução (`nav.<key>`). NavItem.label fica como fallback.
+const NAV_I18N_KEY: Record<string, string> = {
+  "/": "nav.pipeline",
+  "/inbox": "nav.inbox",
+  "/tasks": "nav.tasks",
+  "/ai": "nav.ai",
+  "/email": "nav.email",
+  "/tracking": "nav.tracking",
+  "/tracking-debug": "nav.trackingDebug",
+  "/team": "nav.team",
+  "/pipeline-runs": "nav.pipelineRuns",
+  "/settings": "nav.settings",
+  "/admin": "nav.admin",
+};
+
 
 type GroupKey = "work" | "marketing" | "admin";
 
@@ -65,7 +84,11 @@ function SidebarItem({
   item: NavItem;
   badge?: number;
 }) {
+  const { t } = useTranslation();
   const accentVar = ACCENT_VAR[item.accent];
+  const i18nKey = NAV_I18N_KEY[item.to];
+  const label = i18nKey ? t(i18nKey, item.label) : item.label;
+
   return (
     <NavLink
       to={item.to}
@@ -75,8 +98,8 @@ function SidebarItem({
         cn(
           "relative mb-0.5 flex items-center gap-3 rounded-md pl-4 pr-3 py-2 text-[13px] transition-all duration-150",
           isActive
-            ? "bg-[hsl(var(--accent)/0.12)] font-medium text-sidebar-foreground shadow-[inset_0_1px_0_0_hsl(var(--accent)/0.15)]"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            ? "bg-[hsl(var(--accent)/0.12)] font-medium text-white shadow-[inset_0_1px_0_0_hsl(var(--accent)/0.15)]"
+            : "text-white/70 hover:bg-white/10 hover:text-white"
         )
       }
     >
@@ -93,17 +116,17 @@ function SidebarItem({
           <item.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              isActive ? "text-[hsl(var(--accent))]" : "text-sidebar-foreground/55"
+              isActive ? "text-[hsl(var(--accent))]" : "text-white/55"
             )}
           />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{label}</span>
           {badge != null && badge > 0 && (
             <span
               className={cn(
                 "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none tabular-nums",
                 isActive
                   ? "bg-[hsl(var(--accent)/0.22)] text-[hsl(var(--accent))]"
-                  : "bg-sidebar-accent/70 text-sidebar-foreground/75"
+                  : "bg-white/15 text-white/75"
               )}
             >
               {badge > 99 ? "99+" : badge}
@@ -148,12 +171,14 @@ function useUnreadTotal() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  useI18nSync();
   const { overall, health } = useHealth();
   const { user, isSuperAdmin, membership, hasFeature } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
   const unread = useUnreadTotal();
   const { enabled: pipelineAllowed } = usePipelineAllowlist();
+
 
   useEffect(() => {
     if (!user) { setProfile(null); return; }
@@ -218,19 +243,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border/40">
+      <aside className="flex w-60 shrink-0 flex-col bg-black text-white border-r border-white/10">
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
-          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border/40 bg-sidebar-accent/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]">
-            <img src={mkLogo} alt="Chat Funnel AI" className="h-8 w-8 object-contain" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[13px] font-semibold leading-none tracking-tight text-sidebar-foreground">Chat Funnel AI</div>
-            <div className="mt-1 text-[11px] text-sidebar-foreground/55">WhatsApp Pipeline</div>
-          </div>
+        <div className="flex items-center bg-black px-4 py-4">
+          <img src={brandLockup} alt="Chat Funnel AI" className="h-12 w-auto object-contain" />
         </div>
 
-        <div className="mx-3 mb-2 h-px bg-sidebar-border/40" />
+        <div className="mx-3 mb-2 h-px bg-white/10" />
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2 pb-2">
@@ -261,7 +280,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         >
           <NavLink
             to={overall === "down" ? "/settings?qr=1" : "/settings"}
-            className="group flex flex-1 items-center gap-2 rounded-lg border border-sidebar-border/40 bg-sidebar-accent/25 px-2.5 py-2 text-[11px] text-sidebar-foreground/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-sidebar-accent/45"
+            className="group flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 py-2 text-[11px] text-white/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-white/15"
             title={overall === "down" ? "Clique para escanear o QR Code" : (health?.webhook_last_error ?? label)}
           >
             <span className="relative flex h-2 w-2 shrink-0">
@@ -283,12 +302,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </NavLink>
           <button
             onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
-            className="rounded-lg border border-sidebar-border/40 bg-sidebar-accent/25 p-2 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            className="rounded-lg border border-white/10 bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
             title="Atalhos de teclado (?)"
             aria-label="Atalhos de teclado"
           >
             <Keyboard className="h-3.5 w-3.5" />
           </button>
+          <LanguageSwitcher variant="app" />
         </div>
 
         {/* Perfil */}
@@ -305,32 +325,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="mx-3 mb-3 flex items-center gap-2.5 rounded-xl border border-sidebar-border/30 bg-sidebar-accent/20 px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent/50 focus:outline-none focus:ring-2 focus:ring-sidebar-ring/40"
+                  className="mx-3 mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-left transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/20"
                   title={user.email ?? "Conta"}
                 >
                   <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9 ring-2 ring-sidebar-border/30">
+                    <Avatar className="h-9 w-9 ring-2 ring-white/20">
                       {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt={displayName} />}
-                      <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs font-semibold">
+                      <AvatarFallback className="bg-white/10 text-white text-xs font-semibold">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
                     <span
                       className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-[3px] ring-sidebar",
+                        "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-[3px] ring-black",
                         presenceColor,
                       )}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                    <div className="truncate text-[13px] font-semibold text-white">
                       {displayName}
                     </div>
-                    <div className="truncate text-[11px] text-sidebar-foreground/55">
+                    <div className="truncate text-[11px] text-white/55">
                       {user.email}
                     </div>
                   </div>
-                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-white/50" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="end" className="w-56">

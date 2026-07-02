@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Lightbulb, Loader2, Search, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, es, enUS } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 interface Insight {
   id: string;
@@ -44,6 +45,8 @@ function asArray(v: unknown): string[] {
 }
 
 export default function AiInsights() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language.startsWith("es") ? es : i18n.language.startsWith("en") ? enUS : ptBR;
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
@@ -117,10 +120,10 @@ export default function AiInsights() {
         body: { hours: 24 },
       });
       if (error) throw error;
-      toast.success(`Análise iniciada: ${(data as any)?.processed ?? 0} leads`);
+      toast.success(t("aiInsights.startedToast", { count: (data as any)?.processed ?? 0 }));
       setTimeout(load, 1500);
     } catch (e: any) {
-      toast.error(e?.message || "Falha ao executar analista");
+      toast.error(e?.message || t("aiInsights.failedToast"));
     } finally {
       setRunning(false);
     }
@@ -131,17 +134,17 @@ export default function AiInsights() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-semibold">Insights de conversas</h2>
+          <h2 className="text-xl font-semibold">{t("aiInsights.title")}</h2>
           <Badge variant="secondary">{filtered.length}</Badge>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
+            {t("aiInsights.refresh")}
           </Button>
           <Button size="sm" onClick={runAnalyst} disabled={running}>
             {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Lightbulb className="h-4 w-4 mr-1" />}
-            Rodar analista agora
+            {t("aiInsights.runNow")}
           </Button>
         </div>
       </div>
@@ -152,37 +155,37 @@ export default function AiInsights() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar em resumo, objeções, dúvidas, recomendações..."
+            placeholder={t("aiInsights.searchPlaceholder")}
             className="pl-8"
           />
         </div>
         <Select value={agentFilter} onValueChange={setAgentFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Agente" /></SelectTrigger>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder={t("aiInsights.agent")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os agentes</SelectItem>
+            <SelectItem value="all">{t("aiInsights.allAgents")}</SelectItem>
             {agentList.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sentimento" /></SelectTrigger>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder={t("aiInsights.sentiment")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos sentimentos</SelectItem>
-            <SelectItem value="positivo">Positivo</SelectItem>
-            <SelectItem value="neutro">Neutro</SelectItem>
-            <SelectItem value="negativo">Negativo</SelectItem>
-            <SelectItem value="ambivalente">Ambivalente</SelectItem>
+            <SelectItem value="all">{t("aiInsights.allSentiments")}</SelectItem>
+            <SelectItem value="positivo">{t("aiInsights.positive")}</SelectItem>
+            <SelectItem value="neutro">{t("aiInsights.neutral")}</SelectItem>
+            <SelectItem value="negativo">{t("aiInsights.negative")}</SelectItem>
+            <SelectItem value="ambivalente">{t("aiInsights.ambivalent")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carregando insights...
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> {t("aiInsights.loading")}
         </div>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            Nenhum insight ainda. O agente "Analista de Conversas" roda diariamente — ou clique em "Rodar analista agora".
+            {t("aiInsights.empty")}
           </CardContent>
         </Card>
       ) : (
@@ -206,17 +209,17 @@ export default function AiInsights() {
                       )}
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: ptBR })}
+                      {formatDistanceToNow(new Date(m.created_at), { addSuffix: true, locale: dateLocale })}
                     </span>
                   </div>
                   <CardTitle className="text-base font-medium leading-snug pt-2">{m.summary}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <InsightList label="Objeções" items={m.top_objections} tone="destructive" />
-                  <InsightList label="Dúvidas" items={m.top_doubts} tone="secondary" />
-                  <InsightList label="Interesses" items={m.top_interests} tone="default" />
-                  <InsightList label="Motivos de sumiço" items={m.drop_off_reasons} tone="outline" />
-                  <InsightList label="Recomendações" items={m.recommendations} tone="default" highlight />
+                  <InsightList label={t("aiInsights.objections")} items={m.top_objections} tone="destructive" />
+                  <InsightList label={t("aiInsights.doubts")} items={m.top_doubts} tone="secondary" />
+                  <InsightList label={t("aiInsights.interests")} items={m.top_interests} tone="default" />
+                  <InsightList label={t("aiInsights.dropOff")} items={m.drop_off_reasons} tone="outline" />
+                  <InsightList label={t("aiInsights.recommendations")} items={m.recommendations} tone="default" highlight />
                 </CardContent>
               </Card>
             );

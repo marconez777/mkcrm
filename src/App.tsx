@@ -55,6 +55,9 @@ import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
 import MarketingSite from "./pages/site/MarketingSite";
 import Apn from "./pages/Apn";
+import Billing from "./pages/Billing";
+import Checkout from "./pages/Checkout";
+import CheckoutReturn from "./pages/CheckoutReturn";
 import RootGate from "./components/RootGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -106,6 +109,8 @@ const App = () => (
           <Routes>
             <Route path="/site" element={<MarketingSite />} />
             <Route path="/apn" element={<Apn />} />
+            <Route path="/checkout/:priceId" element={<Checkout />} />
+            <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/" element={<RootGate />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -169,6 +174,7 @@ const App = () => (
                       <Route path="/metrics/engagement" element={<AiHub />} />
                       <Route path="/metrics" element={<AiHub />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/billing" element={<Billing />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/forms" element={<SettingsForms />} />
                       <Route path="/settings/integration" element={<SettingsForms />} />

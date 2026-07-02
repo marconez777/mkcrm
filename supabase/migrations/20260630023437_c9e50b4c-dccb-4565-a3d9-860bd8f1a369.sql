@@ -1,0 +1,1 @@
+DELETE FROM public.leads WHERE clinic_id = 'ab2f4484-886c-48f2-bfc6-0651d062c575';

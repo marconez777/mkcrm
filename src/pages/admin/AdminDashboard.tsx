@@ -6,7 +6,7 @@ export default function AdminDashboard() {
     <>
       <AdminPageHeader
         title="Dashboard"
-        description="Visão geral em tempo real da plataforma — clínicas, receita, uso de IA e e-mail."
+        description="Visão geral em tempo real da plataforma — empresas, receita, uso de IA e e-mail."
       />
       <DashboardPanel />
     </>

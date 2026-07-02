@@ -1600,6 +1600,7 @@ export type Database = {
           group_id: string
           id: string
           position: number
+          preview_mode: string
         }
         Insert: {
           content: string
@@ -1607,6 +1608,7 @@ export type Database = {
           group_id: string
           id?: string
           position: number
+          preview_mode?: string
         }
         Update: {
           content?: string
@@ -1614,6 +1616,7 @@ export type Database = {
           group_id?: string
           id?: string
           position?: number
+          preview_mode?: string
         }
         Relationships: [
           {
@@ -2118,37 +2121,52 @@ export type Database = {
         Row: {
           classifier_config: Json
           created_at: string
+          currency: string
           id: string
+          locale: string
           name: string
+          phone_country: string
           plan: string
           plan_id: string | null
+          region: string
           settings: Json
           slug: string
           status: string
+          timezone: string
           updated_at: string
         }
         Insert: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Update: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name?: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug?: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Relationships: [
@@ -4919,6 +4937,66 @@ export type Database = {
           },
         ]
       }
+      pipeline_tick_stats: {
+        Row: {
+          action: string
+          avg_ms_per_lead: number
+          candidates: number
+          duration_ms: number
+          error_message: string | null
+          errored: number
+          failure_reasons: Json
+          finished_at: string
+          id: string
+          moved: number
+          not_moved: number
+          ok: boolean
+          p95_ms_per_lead: number
+          phase: string | null
+          raw: Json | null
+          skipped_no_dest: number
+          started_at: string
+        }
+        Insert: {
+          action: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Update: {
+          action?: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Relationships: []
+      }
       pipelines: {
         Row: {
           clinic_id: string
@@ -5369,54 +5447,6 @@ export type Database = {
           },
         ]
       }
-      settings: {
-        Row: {
-          connection_state: string | null
-          created_at: string
-          evolution_api_key: string | null
-          evolution_instance: string | null
-          evolution_url: string | null
-          id: number
-          last_health_check: string | null
-          last_poll_at: string | null
-          updated_at: string
-          webhook_last_error: string | null
-          webhook_last_set_at: string | null
-          webhook_ok: boolean | null
-          webhook_token: string
-        }
-        Insert: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Update: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Relationships: []
-      }
       stage_ai_defaults: {
         Row: {
           agent_id: string | null
@@ -5545,6 +5575,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          environment: string
+          id: string
+          price_id: string
+          product_id: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          price_id: string
+          product_id: string
+          status?: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          price_id?: string
+          product_id?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       support_agent_config: {
         Row: {
@@ -7455,6 +7533,10 @@ export type Database = {
         }[]
       }
       get_openai_key: { Args: { _clinic_id: string }; Returns: string }
+      has_active_subscription: {
+        Args: { check_env?: string; user_uuid: string }
+        Returns: boolean
+      }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }

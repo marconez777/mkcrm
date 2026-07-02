@@ -60,8 +60,8 @@ export default function AuditPanel({ clinics }: { clinics?: { id: string; name: 
         <Select value={fClinic} onValueChange={setFClinic}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas clínicas</SelectItem>
-            <SelectItem value="none">Sem clínica</SelectItem>
+            <SelectItem value="all">Todas empresas</SelectItem>
+            <SelectItem value="none">Sem empresa</SelectItem>
             {clinics?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -78,7 +78,7 @@ export default function AuditPanel({ clinics }: { clinics?: { id: string; name: 
         <Table>
           <TableHeader><TableRow>
             <TableHead>Quando</TableHead>
-            <TableHead>Clínica</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead>Ação</TableHead>
             <TableHead>Entidade</TableHead>
             <TableHead>Diff</TableHead>

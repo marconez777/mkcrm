@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
@@ -59,6 +60,7 @@ const SNIPPET_URL = `${SUPABASE_URL}/functions/v1/forms-snippet`;
 const PLUGIN_URL = `${SUPABASE_URL}/functions/v1/forms-plugin-zip`;
 
 export default function SettingsForms() {
+  const { t, i18n } = useTranslation();
   const { isSuperAdmin, membership } = useAuth();
   const canManage = isSuperAdmin || ["owner", "admin"].includes(membership?.role || "");
   const [list, setList] = useState<Integration[]>([]);
@@ -69,7 +71,7 @@ export default function SettingsForms() {
   const [newDomains, setNewDomains] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Integração do Site — MK CRM"; load(); }, []);
+  useEffect(() => { document.title = `${t("settingsForms.title")} — Chat Funnel AI`; load(); }, [t]);
 
   async function load() {
     setLoading(true);
@@ -91,7 +93,7 @@ export default function SettingsForms() {
         body: { action: "create_integration", name: newName, allowed_domains, default_tags: [] },
       });
       if (error) throw error;
-      toast.success("Integração criada");
+      toast.success(t("settingsForms.newDialog.created"));
       setCreateOpen(false); setNewName(""); setNewDomains("");
       await load();
       setSelected((data as any).integration);
@@ -105,13 +107,13 @@ export default function SettingsForms() {
       <div className="mx-auto max-w-5xl p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Integração do Site</h1>
+            <h1 className="text-2xl font-semibold">{t("settingsForms.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pixel de rastreamento + captura de formulários num único SDK. Cada integração gera um prompt pronto para colar no chat do Lovable do site da clínica.
+              {t("settingsForms.subtitle")}
             </p>
           </div>
           {canManage && (
-            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Nova integração</Button>
+            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />{t("settingsForms.new")}</Button>
           )}
         </div>
 
@@ -119,7 +121,7 @@ export default function SettingsForms() {
           <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : list.length === 0 ? (
           <Card className="p-10 text-center text-sm text-muted-foreground">
-            Nenhuma integração criada ainda. Clique em "Nova integração" para começar.
+            {t("settingsForms.empty")}
           </Card>
         ) : (
           <div className="grid gap-3">
@@ -132,12 +134,12 @@ export default function SettingsForms() {
                       <Badge variant={i.status === "active" ? "default" : "secondary"}>{i.status}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate">
-                      {(i.allowed_domains || []).length ? i.allowed_domains.join(", ") : "Qualquer domínio"}
+                      {(i.allowed_domains || []).length ? i.allowed_domains.join(", ") : t("settingsForms.anyDomain")}
                     </div>
                   </div>
                   <div className="text-right text-xs text-muted-foreground shrink-0">
-                    <div>{i.total_submissions} envios</div>
-                    <div>{i.last_submission_at ? new Date(i.last_submission_at).toLocaleString("pt-BR") : "Sem envios"}</div>
+                    <div>{i.total_submissions} {t("settingsForms.submissions")}</div>
+                    <div>{i.last_submission_at ? new Date(i.last_submission_at).toLocaleString(i18n.language) : t("settingsForms.noSubmissions")}</div>
                   </div>
                 </div>
               </Card>
@@ -147,20 +149,20 @@ export default function SettingsForms() {
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Nova integração de formulários</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("settingsForms.newDialog.title")}</DialogTitle></DialogHeader>
             <form onSubmit={createIntegration} className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Site MKart" />
+                <Label>{t("settingsForms.newDialog.name")}</Label>
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder={t("settingsForms.newDialog.namePh")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Domínios permitidos (opcional)</Label>
-                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" />
-                <p className="text-xs text-muted-foreground">Separe por vírgula. Deixe em branco para aceitar qualquer origem.</p>
+                <Label>{t("settingsForms.newDialog.domains")}</Label>
+                <Input value={newDomains} onChange={(e) => setNewDomains(e.target.value)} placeholder={t("settingsForms.newDialog.domainsPh")} />
+                <p className="text-xs text-muted-foreground">{t("settingsForms.newDialog.domainsHint")}</p>
               </div>
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar</Button>
+                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>{t("settingsForms.newDialog.cancel")}</Button>
+                <Button type="submit" disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.newDialog.create")}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -171,6 +173,7 @@ export default function SettingsForms() {
 }
 
 function DetailView({ integration, onBack, canManage }: { integration: Integration; onBack: () => void; canManage: boolean }) {
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const [data, setData] = useState<Integration>(integration);
   const [defs, setDefs] = useState<Definition[]>([]);
@@ -197,18 +200,18 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     }
   }
 
-  function copy(s: string, label = "Copiado") {
-    navigator.clipboard.writeText(s).then(() => toast.success(label));
+  function copy(s: string, label?: string) {
+    navigator.clipboard.writeText(s).then(() => toast.success(label ?? t("settingsForms.install.copied")));
   }
 
   async function rotate() {
-    if (!(await confirm({ title: "Rotacionar token?", description: "O token atual continua válido por 24h.", confirmLabel: "Rotacionar" }))) return;
+    if (!(await confirm({ title: t("settingsForms.rotateConfirm.title"), description: t("settingsForms.rotateConfirm.description"), confirmLabel: t("settingsForms.rotateConfirm.confirm") }))) return;
     setBusy(true);
     try {
       const { data: res, error } = await supabase.functions.invoke("forms-admin", { body: { action: "rotate_token", id: integration.id } });
       if (error) throw error;
       setData((res as any).integration);
-      toast.success("Token rotacionado");
+      toast.success(t("settingsForms.rotated"));
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
@@ -224,15 +227,15 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
   }
 
   async function removeIntegration() {
-    if (!(await confirm({ title: "Excluir integração?", description: "Envios futuros com este token serão rejeitados.", confirmLabel: "Excluir", destructive: true }))) return;
+    if (!(await confirm({ title: t("settingsForms.deleteConfirm.title"), description: t("settingsForms.deleteConfirm.description"), confirmLabel: t("settingsForms.deleteConfirm.confirm"), destructive: true }))) return;
     const { error } = await supabase.functions.invoke("forms-admin", { body: { action: "delete_integration", id: integration.id } });
-    if (error) toast.error(error.message); else { toast.success("Excluída"); onBack(); }
+    if (error) toast.error(error.message); else { toast.success(t("settingsForms.deleted")); onBack(); }
   }
 
   const tokenValue = data.token ?? "";
   const tokenMasked = showToken
     ? tokenValue
-    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : "Carregando…";
+    : tokenValue ? tokenValue.slice(0, 8) + "•••••••••••••••" : t("settingsForms.install.loading");
   const snippetCode = `<script async src="${SNIPPET_URL}?token=${tokenValue}"></script>`;
   const pixelCode = `<script async src="${SUPABASE_URL}/functions/v1/tracking-pixel?project_id=${data.clinic_id}"></script>`;
   const primaryDomain = (data.allowed_domains || [])[0] || "seu-site.com";
@@ -251,15 +254,15 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl p-8 space-y-6">
         <div>
-          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Button>
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" />{t("settingsForms.back")}</Button>
           <div className="flex items-center justify-between mt-2">
             <div>
               <h1 className="text-2xl font-semibold">{data.name}</h1>
-              <p className="text-xs text-muted-foreground">{data.total_submissions} envios totais · {(data.allowed_domains || []).join(", ") || "qualquer domínio"}</p>
+              <p className="text-xs text-muted-foreground">{data.total_submissions} {t("settingsForms.totalSubmissions")} · {(data.allowed_domains || []).join(", ") || t("settingsForms.anyDomainLower")}</p>
             </div>
             {canManage && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={toggleStatus} disabled={busy}>{data.status === "active" ? "Pausar" : "Reativar"}</Button>
+                <Button variant="outline" size="sm" onClick={toggleStatus} disabled={busy}>{data.status === "active" ? t("settingsForms.pause") : t("settingsForms.resume")}</Button>
                 <Button variant="outline" size="sm" onClick={removeIntegration}><Trash2 className="h-4 w-4" /></Button>
               </div>
             )}
@@ -268,29 +271,25 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 
         <Tabs defaultValue="install">
           <TabsList>
-            <TabsTrigger value="install">Instalação</TabsTrigger>
-            <TabsTrigger value="forms">Formulários ({defs.length})</TabsTrigger>
-            <TabsTrigger value="submissions">Envios ({subs.length})</TabsTrigger>
-            <TabsTrigger value="traffic">Tráfego</TabsTrigger>
-            <TabsTrigger value="settings">Configurações</TabsTrigger>
+            <TabsTrigger value="install">{t("settingsForms.tabs.install")}</TabsTrigger>
+            <TabsTrigger value="forms">{t("settingsForms.tabs.forms")} ({defs.length})</TabsTrigger>
+            <TabsTrigger value="submissions">{t("settingsForms.tabs.submissions")} ({subs.length})</TabsTrigger>
+            <TabsTrigger value="traffic">{t("settingsForms.tabs.traffic")}</TabsTrigger>
+            <TabsTrigger value="settings">{t("settingsForms.tabs.settings")}</TabsTrigger>
           </TabsList>
-
-
 
           <TabsContent value="install" className="space-y-4">
             <Card className="p-4 bg-primary/5 border-primary/20">
-              <p className="text-sm">
-                <strong>Pixel + Formulários são instalados juntos.</strong> Cole o <strong>Prompt para IA</strong> abaixo no chat do Lovable do site da clínica — ele cuida da ordem dos scripts, do bridge para formulários customizados e do checklist de validação. Se o site não usa Lovable, os blocos WordPress / HTML / API direta continuam disponíveis nas outras abas.
-              </p>
+              <p className="text-sm">{t("settingsForms.install.banner")}</p>
             </Card>
 
             <Card className="p-4 space-y-3">
               <div>
-                <Label>Token da integração</Label>
+                <Label>{t("settingsForms.install.token")}</Label>
                 <div className="flex gap-2 mt-1.5">
                   <Input readOnly value={tokenMasked} className="font-mono text-xs" />
                   <Button variant="outline" size="icon" onClick={() => setShowToken((s) => !s)}>{showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-                  <Button variant="outline" size="icon" onClick={() => copy(tokenValue, "Token copiado")}><Copy className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => copy(tokenValue, t("settingsForms.install.tokenCopied"))}><Copy className="h-4 w-4" /></Button>
                   {canManage && <Button variant="outline" size="icon" onClick={rotate} disabled={busy}><RotateCcw className="h-4 w-4" /></Button>}
                 </div>
               </div>
@@ -298,23 +297,21 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 
             <Tabs defaultValue="ai">
               <TabsList>
-                <TabsTrigger value="ai">🤖 Prompt para IA (Lovable)</TabsTrigger>
-                <TabsTrigger value="wp">WordPress</TabsTrigger>
-                <TabsTrigger value="lovable">HTML</TabsTrigger>
-                <TabsTrigger value="api">API direta</TabsTrigger>
+                <TabsTrigger value="ai">{t("settingsForms.install.promptTitle")}</TabsTrigger>
+                <TabsTrigger value="wp">{t("settingsForms.install.wp")}</TabsTrigger>
+                <TabsTrigger value="lovable">{t("settingsForms.install.html")}</TabsTrigger>
+                <TabsTrigger value="api">{t("settingsForms.install.api")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="ai" className="space-y-3">
                 <Card className="p-4 space-y-3">
                   <div className="space-y-2 text-sm">
-                    <p className="font-medium">Prompt completo pra colar no chat do Lovable do site</p>
-                    <p className="text-muted-foreground text-xs">
-                      Copie o texto abaixo e cole no chat do projeto Lovable do site da clínica. Ele já vem com o token, o project_id e todas as instruções de instalação, peculiaridades dos formulários e checklist de validação.
-                    </p>
+                    <p className="font-medium">{t("settingsForms.install.promptHeader")}</p>
+                    <p className="text-muted-foreground text-xs">{t("settingsForms.install.promptHint")}</p>
                     <div className="relative">
                       <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono max-h-[480px] whitespace-pre-wrap">{aiPrompt}</pre>
-                      <Button size="sm" className="absolute top-2 right-2" onClick={() => copy(aiPrompt, "Prompt copiado — cole no chat do Lovable do site")}>
-                        <Copy className="h-3 w-3 mr-1" />Copiar tudo
+                      <Button size="sm" className="absolute top-2 right-2" onClick={() => copy(aiPrompt, t("settingsForms.install.promptCopied"))}>
+                        <Copy className="h-3 w-3 mr-1" />{t("settingsForms.install.copyAll")}
                       </Button>
                     </div>
                   </div>
@@ -324,18 +321,16 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               <TabsContent value="wp" className="space-y-3">
                 <Card className="p-4 space-y-3">
                   <div className="space-y-2 text-sm">
-                    <p className="font-medium">1. Baixe o plugin</p>
+                    <p className="font-medium">{t("settingsForms.install.wp1")}</p>
                     <a href={PLUGIN_URL} download>
-                      <Button variant="outline"><Download className="mr-2 h-4 w-4" />Baixar chat-funnel-ai-forms.zip</Button>
+                      <Button variant="outline"><Download className="mr-2 h-4 w-4" />{t("settingsForms.install.wpDownload")}</Button>
                     </a>
-                    <p className="font-medium pt-2">2. No WordPress</p>
+                    <p className="font-medium pt-2">{t("settingsForms.install.wp2")}</p>
                     <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                      <li>Plugins → Adicionar novo → Enviar plugin → faça upload do .zip e ative.</li>
-                      <li>Configurações → MK CRM Forms → cole o token acima e salve.</li>
+                      <li>{t("settingsForms.install.wpStep1")}</li>
+                      <li>{t("settingsForms.install.wpStep2")}</li>
                     </ul>
-                    <p className="text-muted-foreground pt-2">
-                      Suporta: Contact Form 7, Elementor Pro Forms, WPForms, Gravity Forms, Fluent Forms.
-                    </p>
+                    <p className="text-muted-foreground pt-2">{t("settingsForms.install.wpSupports")}</p>
                   </div>
                 </Card>
               </TabsContent>
@@ -343,27 +338,25 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               <TabsContent value="lovable" className="space-y-3">
                 <Card className="p-4 space-y-3">
                   <div className="space-y-2 text-sm">
-                    <p className="font-medium">Cole este script antes do <code>{"</body>"}</code>:</p>
+                    <p className="font-medium">{t("settingsForms.install.htmlIntro")}</p>
                     <div className="relative">
                       <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono">{snippetCode}</pre>
                       <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7" onClick={() => copy(snippetCode)}><Copy className="h-3 w-3" /></Button>
                     </div>
-                    <p className="text-muted-foreground pt-2">
-                      O script captura automaticamente qualquer <code>&lt;form&gt;</code> da página. Use <code>data-mk-form="contato"</code> no form para nomeá-lo, ou <code>data-mk-ignore</code> para ignorar.
-                    </p>
+                    <p className="text-muted-foreground pt-2">{t("settingsForms.install.htmlHint")}</p>
                   </div>
                 </Card>
               </TabsContent>
 
               <TabsContent value="api" className="space-y-3">
                 <Card className="p-4 space-y-3">
-                  <p className="text-sm font-medium">Envio direto via HTTP POST:</p>
+                  <p className="text-sm font-medium">{t("settingsForms.install.apiTitle")}</p>
                   <div className="relative">
                     <pre className="bg-muted p-3 rounded text-xs overflow-auto font-mono whitespace-pre">{curlCode}</pre>
                     <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7" onClick={() => copy(curlCode)}><Copy className="h-3 w-3" /></Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Endpoint: <code>{INGEST_URL}</code>
+                    {t("settingsForms.install.endpoint")}: <code>{INGEST_URL}</code>
                   </p>
                 </Card>
               </TabsContent>
@@ -375,23 +368,23 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Form key</TableHead>
-                    <TableHead>Envios</TableHead>
-                    <TableHead>Último</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead>{t("settingsForms.formsTab.name")}</TableHead>
+                    <TableHead>{t("settingsForms.formsTab.formKey")}</TableHead>
+                    <TableHead>{t("settingsForms.formsTab.sends")}</TableHead>
+                    <TableHead>{t("settingsForms.formsTab.last")}</TableHead>
+                    <TableHead className="text-right">{t("settingsForms.formsTab.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {defs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">Nenhum formulário detectado ainda. Submeta um envio para auto-descoberta.</TableCell></TableRow>}
+                  {defs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">{t("settingsForms.formsTab.empty")}</TableCell></TableRow>}
                   {defs.map((d) => (
                     <TableRow key={d.id}>
-                      <TableCell className="font-medium">{d.name} {!d.active && <Badge variant="secondary" className="ml-2">pausado</Badge>}</TableCell>
+                      <TableCell className="font-medium">{d.name} {!d.active && <Badge variant="secondary" className="ml-2">{t("settingsForms.formsTab.paused")}</Badge>}</TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">{d.form_key}</TableCell>
                       <TableCell>{d.total_submissions}</TableCell>
-                      <TableCell className="text-xs">{d.last_submission_at ? new Date(d.last_submission_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                      <TableCell className="text-xs">{d.last_submission_at ? new Date(d.last_submission_at).toLocaleString(i18n.language) : "—"}</TableCell>
                       <TableCell className="text-right">
-                        {canManage && <Button size="sm" variant="outline" onClick={() => setEditDef(d)}>Editar</Button>}
+                        {canManage && <Button size="sm" variant="outline" onClick={() => setEditDef(d)}>{t("settingsForms.formsTab.edit")}</Button>}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -405,26 +398,26 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Quando</TableHead>
-                    <TableHead>Formulário</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Payload</TableHead>
+                    <TableHead>{t("settingsForms.subsTab.when")}</TableHead>
+                    <TableHead>{t("settingsForms.subsTab.form")}</TableHead>
+                    <TableHead>{t("settingsForms.subsTab.status")}</TableHead>
+                    <TableHead>{t("settingsForms.subsTab.lead")}</TableHead>
+                    <TableHead>{t("settingsForms.subsTab.payload")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {subs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">Nenhum envio ainda</TableCell></TableRow>}
+                  {subs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">{t("settingsForms.subsTab.empty")}</TableCell></TableRow>}
                   {subs.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="text-xs">{new Date(s.created_at).toLocaleString("pt-BR")}</TableCell>
+                      <TableCell className="text-xs">{new Date(s.created_at).toLocaleString(i18n.language)}</TableCell>
                       <TableCell className="text-xs font-mono">{s.form_key}</TableCell>
                       <TableCell>
                         <Badge variant={s.status === "ok" ? "default" : s.status === "error" ? "destructive" : "secondary"}>
-                          {s.status}{s.is_new_lead ? " · novo" : ""}
+                          {s.status}{s.is_new_lead ? ` · ${t("settingsForms.subsTab.new")}` : ""}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {s.lead_id ? <a className="text-xs underline" href={`/leads/${s.lead_id}`} target="_blank" rel="noopener"><ExternalLink className="inline h-3 w-3 mr-1" />abrir</a> : <span className="text-xs text-muted-foreground">—</span>}
+                        {s.lead_id ? <a className="text-xs underline" href={`/leads/${s.lead_id}`} target="_blank" rel="noopener"><ExternalLink className="inline h-3 w-3 mr-1" />{t("settingsForms.subsTab.open")}</a> : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="max-w-xs">
                         <code className="text-[10px] text-muted-foreground line-clamp-2 break-all">{JSON.stringify(s.payload)}</code>
@@ -445,6 +438,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
           </TabsContent>
         </Tabs>
 
+
         {editDef && (
           <DefinitionEditor def={editDef} onClose={() => { setEditDef(null); loadAll(); }} canManage={canManage} />
         )}
@@ -454,6 +448,7 @@ function DetailView({ integration, onBack, canManage }: { integration: Integrati
 }
 
 function IntegrationSettings({ integration, onSaved, canManage }: { integration: Integration; onSaved: (i: Integration) => void; canManage: boolean }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(integration.name);
   const [domains, setDomains] = useState((integration.allowed_domains || []).join(", "));
   const [tags, setTags] = useState((integration.default_tags || []).join(", "));
@@ -472,17 +467,17 @@ function IntegrationSettings({ integration, onSaved, canManage }: { integration:
         },
       });
       if (error) throw error;
-      toast.success("Salvo");
+      toast.success(t("settingsForms.settingsTab.saved"));
       onSaved((data as any).integration);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
 
   return (
     <Card className="p-4 space-y-3">
-      <div className="space-y-1.5"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
-      <div className="space-y-1.5"><Label>Domínios permitidos</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="mkart.com.br, www.mkart.com.br" disabled={!canManage} /></div>
-      <div className="space-y-1.5"><Label>Tags padrão para novos leads</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="site, formulario" disabled={!canManage} /></div>
-      {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.domains")}</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="exemplo.com, www.exemplo.com" disabled={!canManage} /></div>
+      <div className="space-y-1.5"><Label>{t("settingsForms.settingsTab.tags")}</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("settingsForms.settingsTab.tagsPh")} disabled={!canManage} /></div>
+      {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.settingsTab.save")}</Button>}
     </Card>
   );
 }
@@ -491,6 +486,7 @@ type StageOpt = { id: string; name: string; pipeline_id: string; pipeline_name: 
 type SegmentOpt = { id: string; name: string; is_system: boolean };
 
 function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClose: () => void; canManage: boolean }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(def.name);
   const [map, setMap] = useState(JSON.stringify(def.field_map || {}, null, 2));
   const [active, setActive] = useState(def.active);
@@ -525,7 +521,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
     setBusy(true);
     try {
       let parsed: Record<string, string> = {};
-      try { parsed = JSON.parse(map); } catch { throw new Error("field_map inválido (JSON)"); }
+      try { parsed = JSON.parse(map); } catch { throw new Error(t("settingsForms.defEditor.invalidJson")); }
       const { error } = await supabase.functions.invoke("forms-admin", {
         body: {
           action: "update_definition",
@@ -538,7 +534,7 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
         },
       });
       if (error) throw error;
-      toast.success("Salvo");
+      toast.success(t("settingsForms.defEditor.saved"));
       onClose();
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   }
@@ -546,61 +542,59 @@ function DefinitionEditor({ def, onClose, canManage }: { def: Definition; onClos
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Editar formulário</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("settingsForms.defEditor.title")}</DialogTitle></DialogHeader>
         <div className="space-y-3 max-h-[70vh] overflow-auto">
-          <div className="space-y-1.5"><Label>Nome amigável</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
+          <div className="space-y-1.5"><Label>{t("settingsForms.defEditor.name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} /></div>
 
           <div className="space-y-1.5">
-            <Label>Pipeline / etapa de destino</Label>
+            <Label>{t("settingsForms.defEditor.pipeline")}</Label>
             <select
               className="w-full rounded border bg-background p-2 text-sm"
               value={stageId}
               onChange={(e) => setStageId(e.target.value)}
               disabled={!canManage}
             >
-              <option value="">Padrão do sistema (Formulário Site → Novo)</option>
+              <option value="">{t("settingsForms.defEditor.pipelineDefault")}</option>
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.pipeline_name}{s.is_system ? " (sistema)" : ""} → {s.name}
+                  {s.pipeline_name}{s.is_system ? ` ${t("settingsForms.defEditor.system")}` : ""} → {s.name}
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">Onde o lead aparecerá no kanban quando este formulário for enviado.</p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.pipelineHint")}</p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Lista de e-mail</Label>
+            <Label>{t("settingsForms.defEditor.list")}</Label>
             <select
               className="w-full rounded border bg-background p-2 text-sm"
               value={segmentId}
               onChange={(e) => setSegmentId(e.target.value)}
               disabled={!canManage}
             >
-              <option value="">Apenas "Leads Site" (padrão do sistema)</option>
+              <option value="">{t("settingsForms.defEditor.listDefault")}</option>
               {segments.filter((s) => !s.is_system).map((s) => (
                 <option key={s.id} value={s.id}>+ {s.name}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">O lead é sempre adicionado à lista "Leads Site". Aqui você escolhe uma lista extra opcional.</p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.listHint")}</p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Mapeamento de campos (JSON)</Label>
+            <Label>{t("settingsForms.defEditor.fieldMap")}</Label>
             <textarea
               className="w-full h-32 rounded border bg-background p-2 font-mono text-xs"
               value={map}
               onChange={(e) => setMap(e.target.value)}
               disabled={!canManage}
             />
-            <p className="text-xs text-muted-foreground">
-              Ex.: <code>{`{"name":"your-name","email":"your-email","phone":"tel-123"}`}</code>. Deixe vazio para auto-detecção.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("settingsForms.defEditor.fieldMapHint")}</p>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={!canManage} /> Ativo</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} disabled={!canManage} /> {t("settingsForms.defEditor.active")}</label>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Fechar</Button>
-          {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Salvar</Button>}
+          <Button variant="ghost" onClick={onClose}>{t("settingsForms.defEditor.close")}</Button>
+          {canManage && <Button onClick={save} disabled={busy}>{busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("settingsForms.defEditor.save")}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -616,15 +610,15 @@ function buildAiPrompt(args: {
   supabaseUrl: string;
 }) {
   const { pixelCode, snippetCode, clinicId, token, domain, supabaseUrl } = args;
-  return `# Integração com MK CRM — leia tudo e adapte o site
+  return `# Integração com Chat Funnel AI — leia tudo e adapte o site
 
-Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o MK CRM. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
+Este site precisa enviar **visitas, eventos de tracking e submissões de formulário** para o Chat Funnel AI. Abaixo está TUDO que você precisa: scripts prontos, regras dos formulários, peculiaridades conhecidas e checklist de validação. Não improvise — siga ao pé da letra.
 
 ---
 
 ## 0. INVENTÁRIO OBRIGATÓRIO — faça ANTES de mexer em qualquer arquivo
 
-Se este site **já tem alguma integração com o MK CRM** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
+Se este site **já tem alguma integração com o Chat Funnel AI** (parcial, antiga ou tentativa anterior), reinstalar tudo do zero vai duplicar requests, inflar métricas e/ou apagar o histórico de visitantes. Antes de aplicar as Seções 1-6 abaixo, faça este diagnóstico e **apresente o resultado ao usuário aguardando OK**.
 
 ### 0.1 Liste todos os \`<script>\` no \`<head>\` que mencionem:
 - \`tracking-pixel\`
@@ -671,9 +665,9 @@ Cole **exatamente nesta ordem** (o pixel TEM que vir antes do snippet de formul�
 
 
 \`\`\`html
-<!-- MK CRM — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
+<!-- Chat Funnel AI — Tracking Pixel (DEVE vir ANTES do forms-snippet) -->
 ${pixelCode}
-<!-- MK CRM — Forms Snippet -->
+<!-- Chat Funnel AI — Forms Snippet -->
 ${snippetCode}
 \`\`\`
 
@@ -765,7 +759,7 @@ Não precisa fazer nada — só ter o pixel instalado.
 | Submit chega mas sem email/phone | Nome do input não está nos aliases | Adicionar \`data-mk-field="email"\` (ou phone/name) |
 | Tracking não conta visitas | Pixel instalado depois do snippet, ou cache de pré-renderização | Verificar ordem e forçar re-render |
 | WhatsApp abre tela "unknown_project" | Project ID errado no script | Confirmar que o pixel tem exatamente: \`?project_id=${clinicId}\` |
-| CORS error no console | Domínio não está na allowlist do CRM | Pedir ao admin do CRM pra adicionar \`${domain}\` em domínios permitidos |
+| CORS error no console | Domínio não está na allowlist do Chat Funnel AI | Pedir ao admin do Chat Funnel AI pra adicionar \`${domain}\` em domínios permitidos |
 
 ---
 
@@ -795,11 +789,12 @@ Esses valores **já estão dentro dos scripts** do passo 1. Você não precisa r
 5. Preencha e envie um formulário. Em Network, filtre por \`forms-ingest\` — deve aparecer 1 POST com response \`{"ok":true,"status":"ok","lead_id":"..."}\`
 6. Clique no botão de WhatsApp — deve abrir o WhatsApp normalmente (passando pelo redirecionador do CRM, com um código de rastreio na mensagem)
 
-Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do CRM com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
+Se qualquer passo falhar, **NÃO mexa nos scripts**. Reporte ao admin do Chat Funnel AI com: o passo que falhou, o response da request (Network → clique → Response) e os erros do Console.
 `;
 }
 
 function TrafficSummary({ clinicId }: { clinicId: string }) {
+  const { t, i18n } = useTranslation();
   const [stats, setStats] = useState<{
     visitors24: number; visitors7d: number;
     events24: number; events7d: number;
@@ -841,13 +836,13 @@ function TrafficSummary({ clinicId }: { clinicId: string }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <div className="mt-2 flex items-baseline gap-3">
         <div>
-          <div className="text-2xl font-semibold">{v24.toLocaleString("pt-BR")}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimas 24h</div>
+          <div className="text-2xl font-semibold">{v24.toLocaleString(i18n.language)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("settingsForms.traffic.last24h")}</div>
         </div>
         <div className="text-muted-foreground">/</div>
         <div>
-          <div className="text-lg font-medium">{v7d.toLocaleString("pt-BR")}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">últimos 7 dias</div>
+          <div className="text-lg font-medium">{v7d.toLocaleString(i18n.language)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("settingsForms.traffic.last7d")}</div>
         </div>
       </div>
     </Card>
@@ -856,16 +851,16 @@ function TrafficSummary({ clinicId }: { clinicId: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Metric label="Visitantes únicos" v24={stats.visitors24} v7d={stats.visitors7d} />
-        <Metric label="Eventos de tracking" v24={stats.events24} v7d={stats.events7d} />
-        <Metric label="Cliques em WhatsApp" v24={stats.waIntents24} v7d={stats.waIntents7d} />
+        <Metric label={t("settingsForms.traffic.visitors")} v24={stats.visitors24} v7d={stats.visitors7d} />
+        <Metric label={t("settingsForms.traffic.events")} v24={stats.events24} v7d={stats.events7d} />
+        <Metric label={t("settingsForms.traffic.waClicks")} v24={stats.waIntents24} v7d={stats.waIntents7d} />
       </div>
       <Card className="p-4 flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium">Painel completo de rastreamento</p>
-          <p className="text-xs text-muted-foreground">Veja jornada de cada visitante, eventos detalhados, atribuição UTM e funis.</p>
+          <p className="text-sm font-medium">{t("settingsForms.traffic.panelTitle")}</p>
+          <p className="text-xs text-muted-foreground">{t("settingsForms.traffic.panelDesc")}</p>
         </div>
-        <a href="/tracking"><Button variant="outline"><ExternalLink className="h-4 w-4 mr-2" />Abrir painel</Button></a>
+        <a href="/tracking"><Button variant="outline"><ExternalLink className="h-4 w-4 mr-2" />{t("settingsForms.traffic.openPanel")}</Button></a>
       </Card>
     </div>
   );

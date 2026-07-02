@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import ImportPipelineDialog from "@/components/kanban/ImportPipelineDialog";
 import OpenAIKeyCard from "@/components/settings/OpenAIKeyCard";
+import AIPipelinesCard from "@/components/settings/AIPipelinesCard";
 import AILimitsCard from "@/components/settings/AILimitsCard";
 import { useConfirm } from "@/hooks/useDialogs";
 
@@ -42,6 +44,7 @@ type Instance = {
 
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { membership, isSuperAdmin, hasFeature } = useAuth();
   const confirm = useConfirm();
   const canManage = isSuperAdmin || !!membership;
@@ -78,15 +81,15 @@ export default function SettingsPage() {
 
 
   async function createInstance() {
-    if (!newName.trim()) { toast.error("Dê um nome para a conexão"); return; }
+    if (!newName.trim()) { toast.error(t("settings.wa.nameRequired")); return; }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke("evolution-provision", { body: { name: newName.trim() } });
     setCreating(false);
     if (error || (data as any)?.error) {
-      toast.error("Erro: " + (error?.message ?? (data as any)?.error));
+      toast.error(t("settings.wa.error") + ": " + (error?.message ?? (data as any)?.error));
       return;
     }
-    toast.success("Conexão criada — escaneie o QR Code");
+    toast.success(t("settings.wa.created"));
     setNewOpen(false);
     setNewName("");
     await load();
@@ -98,25 +101,24 @@ export default function SettingsPage() {
   }
 
   async function deleteInstance(id: string) {
-    if (!(await confirm({ title: "Excluir esta conexão?", description: "A instância será removida da Evolution.", confirmLabel: "Excluir", destructive: true }))) return;
+    if (!(await confirm({ title: t("settings.wa.deletedTitle"), description: t("settings.wa.deletedDesc"), confirmLabel: t("settings.wa.delete"), destructive: true }))) return;
     const { error, data } = await supabase.functions.invoke("evolution-delete-instance", { body: { instance_id: id } });
-    if (error || (data as any)?.error) { toast.error("Erro: " + (error?.message ?? (data as any)?.error)); return; }
-    toast.success("Conexão removida");
+    if (error || (data as any)?.error) { toast.error(t("settings.wa.error") + ": " + (error?.message ?? (data as any)?.error)); return; }
+    toast.success(t("settings.wa.removed"));
     load();
   }
 
   async function setDefault(id: string) {
-    // Clear current default in clinic, then set this one
     await supabase.from("whatsapp_instances").update({ is_default: false }).eq("is_default", true);
     const { error } = await supabase.from("whatsapp_instances").update({ is_default: true }).eq("id", id);
-    if (error) toast.error(error.message); else { toast.success("Conexão padrão atualizada"); load(); }
+    if (error) toast.error(error.message); else { toast.success(t("settings.wa.defaultUpdated")); load(); }
   }
 
   async function checkHealth(id: string) {
     setHealingId(id);
     const { error } = await supabase.functions.invoke("evolution-health", { body: { instance_id: id } });
     setHealingId(null);
-    if (error) toast.error(error.message); else { toast.success("Verificação concluída"); load(); }
+    if (error) toast.error(error.message); else { toast.success(t("settings.wa.checkDone")); load(); }
   }
 
   async function recoverInstance(id: string) {
@@ -124,39 +126,39 @@ export default function SettingsPage() {
     const { data, error } = await supabase.functions.invoke("evolution-restart", { body: { instance_id: id } });
     setHealingId(null);
     if (error || (data as any)?.ok === false) {
-      toast.error("Falha ao recuperar: " + (error?.message ?? (data as any)?.error ?? "erro"));
+      toast.error(t("settings.wa.recoverFail") + ": " + (error?.message ?? (data as any)?.error ?? "error"));
     } else {
-      toast.success("Conexão reiniciada — aguarde alguns segundos e teste enviando uma mensagem");
+      toast.success(t("settings.wa.restarted"));
       load();
     }
   }
 
   async function recoverMissedMessages(id: string) {
     setHealingId(id);
-    toast.info("Procurando mensagens perdidas — isso pode levar alguns minutos...");
+    toast.info(t("settings.wa.lookingMissed"));
     const { data, error } = await supabase.functions.invoke("evolution-backfill-all", {
       body: { instance_id: id, force: true, limit: 500 },
     });
     setHealingId(null);
     if (error || (data as any)?.error) {
-      toast.error("Falha: " + (error?.message ?? (data as any)?.error));
+      toast.error(t("settings.wa.missedFail") + ": " + (error?.message ?? (data as any)?.error));
       return;
     }
     const imported = (data as any)?.totalImported ?? 0;
-    toast.success(imported > 0 ? `${imported} mensagens recuperadas` : "Nenhuma mensagem nova encontrada");
+    toast.success(imported > 0 ? t("settings.wa.missedRecovered", { count: imported }) : t("settings.wa.missedNone"));
     load();
   }
 
   function formatRelative(iso: string | null): string {
-    if (!iso) return "nunca";
+    if (!iso) return t("settings.wa.never");
     const diff = Date.now() - new Date(iso).getTime();
     const min = Math.floor(diff / 60000);
-    if (min < 1) return "agora";
-    if (min < 60) return `há ${min}min`;
+    if (min < 1) return t("settings.wa.now");
+    if (min < 60) return t("settings.wa.minAgo", { n: min });
     const h = Math.floor(min / 60);
-    if (h < 24) return `há ${h}h`;
+    if (h < 24) return t("settings.wa.hAgo", { n: h });
     const d = Math.floor(h / 24);
-    return `há ${d}d`;
+    return t("settings.wa.dAgo", { n: d });
   }
 
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
@@ -165,8 +167,8 @@ export default function SettingsPage() {
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-8">
         <div>
-          <h1 className="text-2xl font-semibold">Configurações</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Gerencie suas conexões de WhatsApp e preferências.</p>
+          <h1 className="text-2xl font-semibold">{t("settings.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
         </div>
 
         <Tabs defaultValue="connection" className="w-full">
@@ -176,14 +178,14 @@ export default function SettingsPage() {
 
               return (
                 <>
-                  <TabsTrigger value="connection" className={triggerCls}>WhatsApp</TabsTrigger>
-                  {showFields && <TabsTrigger value="fields" className={triggerCls}>Campos</TabsTrigger>}
-                  <TabsTrigger value="quick-replies" className={triggerCls}>Respostas rápidas</TabsTrigger>
-                  <TabsTrigger value="forms" className={triggerCls}>Integração do Site</TabsTrigger>
-                  {showEmail && <TabsTrigger value="email" className={triggerCls}>Email Marketing</TabsTrigger>}
-                  {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>Importações</TabsTrigger>}
-                  {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>IA do Pipeline</TabsTrigger>}
-                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>Tipos de agendamento</TabsTrigger>}
+                  <TabsTrigger value="connection" className={triggerCls}>{t("settings.tabs.whatsapp")}</TabsTrigger>
+                  {showFields && <TabsTrigger value="fields" className={triggerCls}>{t("settings.tabs.fields")}</TabsTrigger>}
+                  <TabsTrigger value="quick-replies" className={triggerCls}>{t("settings.tabs.quickReplies")}</TabsTrigger>
+                  <TabsTrigger value="forms" className={triggerCls}>{t("settings.tabs.forms")}</TabsTrigger>
+                  {showEmail && <TabsTrigger value="email" className={triggerCls}>{t("settings.tabs.email")}</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>{t("settings.tabs.imports")}</TabsTrigger>}
+                  {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>{t("settings.tabs.aiPipeline")}</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>{t("settings.tabs.appointmentTypes")}</TabsTrigger>}
                 </>
               );
             })()}
@@ -194,12 +196,12 @@ export default function SettingsPage() {
             <Card className="space-y-4 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold">Minhas conexões</h2>
-                  <p className="text-xs text-muted-foreground">Cada número de WhatsApp gera uma conexão própria.</p>
+                  <h2 className="text-base font-semibold">{t("settings.wa.myConnections")}</h2>
+                  <p className="text-xs text-muted-foreground">{t("settings.wa.myConnectionsHint")}</p>
                 </div>
                 {canManage && (
                   <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Novo WhatsApp
+                    <Plus className="mr-2 h-4 w-4" /> {t("settings.wa.new")}
                   </Button>
                 )}
               </div>
@@ -207,7 +209,7 @@ export default function SettingsPage() {
               {instances.length === 0 && (
                 <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
                   <Smartphone className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                  Nenhuma conexão ainda.{canManage && " Clique em \"Novo WhatsApp\" para começar."}
+                  {t("settings.wa.empty")}{canManage && t("settings.wa.emptyCta")}
                 </div>
               )}
 
@@ -245,42 +247,42 @@ export default function SettingsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{inst.name}</span>
-                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />padrão</span>}
-                            {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão expirada — reescaneie o QR</span>}
-                            {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">sessão travada — tentando reiniciar</span>}
-                            {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">sem eventos há {minutesSinceInbound}min — verificando</span>}
+                            {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />{t("settings.wa.default")}</span>}
+                            {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionExpired")}</span>}
+                            {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionStuck")}</span>}
+                            {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">{t("settings.wa.noEvents", { minutes: minutesSinceInbound })}</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {inst.connection_state ?? "desconhecido"} · {inst.evolution_instance}
+                            {inst.connection_state ?? t("settings.wa.unknown")} · {inst.evolution_instance}
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
-                            Última mensagem recebida: {formatRelative(inst.last_inbound_webhook_at)}
-                            {inst.last_reconnect_at && <> · Última reconexão: {formatRelative(inst.last_reconnect_at)}</>}
-                            {inst.last_auto_restart_at && <> · Auto-restart: {formatRelative(inst.last_auto_restart_at)}</>}
-                            {inst.last_auto_logout_at && <> · Auto-logout: {formatRelative(inst.last_auto_logout_at)}</>}
+                            {t("settings.wa.lastInbound")}: {formatRelative(inst.last_inbound_webhook_at)}
+                            {inst.last_reconnect_at && <> · {t("settings.wa.lastReconnect")}: {formatRelative(inst.last_reconnect_at)}</>}
+                            {inst.last_auto_restart_at && <> · {t("settings.wa.autoRestart")}: {formatRelative(inst.last_auto_restart_at)}</>}
+                            {inst.last_auto_logout_at && <> · {t("settings.wa.autoLogout")}: {formatRelative(inst.last_auto_logout_at)}</>}
                             {inst.last_backfill_at && (
-                              <> · Última recuperação: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} msgs)</>
+                              <> · {t("settings.wa.lastBackfill")}: {formatRelative(inst.last_backfill_at)} ({inst.last_backfill_imported ?? 0} {t("settings.wa.msgs")})</>
                             )}
                           </div>
                           {expired && (
                             <div className="mt-2 text-xs text-red-700">
-                              A sessão WhatsApp Web caiu do lado do celular. Clique em <strong>{open ? "Gerenciar" : "Escanear QR"}</strong> e refaça o pareamento (Aparelhos conectados → Conectar aparelho).
+                              <span dangerouslySetInnerHTML={{ __html: t("settings.wa.expiredHelp", { action: open ? t("settings.wa.manage") : t("settings.wa.scanQr") }) }} />
                             </div>
                           )}
                         </div>
                         {expired && canManage && (
                           <Button variant="destructive" size="sm" onClick={() => setQrFor(inst)}>
-                            <QrCode className="mr-2 h-3 w-3" /> Reescanear QR
+                            <QrCode className="mr-2 h-3 w-3" /> {t("settings.wa.rescan")}
                           </Button>
                         )}
                         {!expired && stuck && canManage && (
                           <Button variant="default" size="sm" onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
-                            <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> Recuperar
+                            <RefreshCw className={`mr-2 h-3 w-3 ${healingId === inst.id ? "animate-spin" : ""}`} /> {t("settings.wa.recover")}
                           </Button>
                         )}
                         <Button variant="outline" size="sm" onClick={() => setQrFor(inst)}>
                           <QrCode className="mr-2 h-3 w-3" />
-                          {open ? "Gerenciar" : "Escanear QR"}
+                          {open ? t("settings.wa.manage") : t("settings.wa.scanQr")}
                         </Button>
                         {canManage && (
                           <DropdownMenu>
@@ -289,21 +291,21 @@ export default function SettingsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => checkHealth(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Verificar status
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.checkStatus")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => recoverInstance(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar conexão
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.recoverConnection")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => recoverMissedMessages(inst.id)} disabled={healingId === inst.id}>
-                                <RefreshCw className="mr-2 h-3 w-3" /> Recuperar mensagens perdidas
+                                <RefreshCw className="mr-2 h-3 w-3" /> {t("settings.wa.recoverMissed")}
                               </DropdownMenuItem>
                               {!inst.is_default && (
                                 <DropdownMenuItem onClick={() => setDefault(inst.id)}>
-                                  <Star className="mr-2 h-3 w-3" /> Definir como padrão
+                                  <Star className="mr-2 h-3 w-3" /> {t("settings.wa.setDefault")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem onClick={() => deleteInstance(inst.id)} className="text-destructive">
-                                <Trash2 className="mr-2 h-3 w-3" /> Excluir
+                                <Trash2 className="mr-2 h-3 w-3" /> {t("settings.wa.delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -321,10 +323,10 @@ export default function SettingsPage() {
               <Card className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold">Campos personalizados do lead</div>
-                    <div className="text-sm text-muted-foreground">Defina os campos exibidos no painel de cada lead (Interesse, Procedimentos, Origem, etc.)</div>
+                    <div className="font-semibold">{t("settings.fields.title")}</div>
+                    <div className="text-sm text-muted-foreground">{t("settings.fields.desc")}</div>
                   </div>
-                  <Link to="/settings/fields"><Button variant="outline">Gerenciar</Button></Link>
+                  <Link to="/settings/fields"><Button variant="outline">{t("settings.fields.manage")}</Button></Link>
                 </div>
               </Card>
             </TabsContent>
@@ -338,12 +340,12 @@ export default function SettingsPage() {
             <Card className="p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />Integração do Site (Pixel + Formulários)</h2>
+                  <h2 className="flex items-center gap-2 text-base font-semibold"><Globe className="h-4 w-4" />{t("settings.forms.title")}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Um único SDK que instala o pixel de rastreamento e a captura de formulários juntos. Inclui prompt pronto para colar no chat do Lovable do site da clínica.
+                    {t("settings.forms.desc")}
                   </p>
                 </div>
-                <Link to="/settings/integration"><Button variant="outline">Abrir</Button></Link>
+                <Link to="/settings/integration"><Button variant="outline">{t("settings.forms.open")}</Button></Link>
               </div>
             </Card>
           </TabsContent>
@@ -353,12 +355,12 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />Domínio de envio</h2>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Mail className="h-4 w-4" />{t("settings.email.title")}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Configure o domínio de envio, registros DNS (SPF/DKIM/DMARC) e preferências padrão (remetente e reply-to).
+                      {t("settings.email.desc")}
                     </p>
                   </div>
-                  <Link to="/settings/email"><Button variant="outline">Abrir</Button></Link>
+                  <Link to="/settings/email"><Button variant="outline">{t("settings.email.open")}</Button></Link>
                 </div>
               </Card>
 
@@ -372,13 +374,13 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />Importar pipeline</h2>
+                    <h2 className="flex items-center gap-2 text-base font-semibold"><Upload className="h-4 w-4" />{t("settings.imports.title")}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Traga seus funis e leads de outro CRM. Suporte atual: Kommo (planilha .xlsx). Em breve: RD Station, Pipedrive, HubSpot.
+                      {t("settings.imports.desc")}
                     </p>
                   </div>
                   <Button onClick={() => setImportOpen(true)}>
-                    <Upload className="mr-2 h-4 w-4" /> Importar pipeline
+                    <Upload className="mr-2 h-4 w-4" /> {t("settings.imports.cta")}
                   </Button>
                 </div>
               </Card>
@@ -388,13 +390,19 @@ export default function SettingsPage() {
           {!isProfessional && (
             <TabsContent value="ai-pipeline" className="space-y-6">
               {membership?.clinic_id ? (
-                <OpenAIKeyCard
-                  clinicId={membership.clinic_id}
-                  canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
-                />
+                <>
+                  <OpenAIKeyCard
+                    clinicId={membership.clinic_id}
+                    canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
+                  />
+                  <AIPipelinesCard
+                    clinicId={membership.clinic_id}
+                    canManage={canManage && (membership.role === "owner" || membership.role === "admin" || isSuperAdmin)}
+                  />
+                </>
               ) : (
                 <Card className="p-6 text-sm text-muted-foreground">
-                  Você precisa pertencer a uma clínica para configurar a IA do pipeline.
+                  {t("settings.ai.noCompany")}
                 </Card>
               )}
               {membership?.clinic_id && <AILimitsCard clinicId={membership.clinic_id} />}
@@ -405,13 +413,13 @@ export default function SettingsPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="font-semibold">Tipos de agendamento</div>
+                    <div className="font-semibold">{t("settings.apt.title")}</div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Gerencie o catálogo de consultas, procedimentos e retornos exibido no calendário.
+                      {t("settings.apt.desc")}
                     </p>
                   </div>
                   <Button asChild>
-                    <Link to="/settings/appointment-types">Gerenciar tipos</Link>
+                    <Link to="/settings/appointment-types">{t("settings.apt.manage")}</Link>
                   </Button>
                 </div>
               </Card>
@@ -438,24 +446,24 @@ export default function SettingsPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo WhatsApp</DialogTitle>
+            <DialogTitle>{t("settings.wa.newDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Nome da conexão</Label>
+            <Label>{t("settings.wa.connectionName")}</Label>
             <Input
               autoFocus
-              placeholder="Ex: Recepção, Dr. João..."
+              placeholder={t("settings.wa.connectionPlaceholder")}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") createInstance(); }}
             />
-            <p className="text-xs text-muted-foreground">Vamos criar uma instância dedicada e abrir o QR Code para você escanear.</p>
+            <p className="text-xs text-muted-foreground">{t("settings.wa.newDialogHint")}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>{t("settings.wa.cancel")}</Button>
             <Button onClick={createInstance} disabled={creating}>
               {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar e escanear
+              {t("settings.wa.createScan")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -465,6 +473,7 @@ export default function SettingsPage() {
 }
 
 function QuickRepliesCard() {
+  const { t } = useTranslation();
   const { items } = useQuickReplies();
   const [shortcut, setShortcut] = useState("");
   const [content, setContent] = useState("");
@@ -472,13 +481,13 @@ function QuickRepliesCard() {
 
   async function add() {
     const sc = shortcut.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!sc || !content.trim()) { toast.error("Atalho e conteúdo são obrigatórios"); return; }
+    if (!sc || !content.trim()) { toast.error(t("settings.quick.required")); return; }
     setSaving(true);
     const { error } = await supabase.from("quick_replies").insert({ shortcut: sc, content: content.trim() });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     setShortcut(""); setContent("");
-    toast.success("Resposta rápida criada");
+    toast.success(t("settings.quick.created"));
   }
 
   async function remove(id: string) {
@@ -488,20 +497,22 @@ function QuickRepliesCard() {
   return (
     <Card className="space-y-4 p-6">
       <div>
-        <h2 className="flex items-center gap-2 text-base font-semibold"><Zap className="h-4 w-4" />Respostas rápidas</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Use no chat digitando <code className="rounded bg-muted px-1">/atalho</code>. Variáveis: <code className="rounded bg-muted px-1">{`{{nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code>, <code className="rounded bg-muted px-1">{`{{telefone}}`}</code>, <code className="rounded bg-muted px-1">{`{{campo.<chave>}}`}</code> (ex.: <code className="rounded bg-muted px-1">{`{{campo.data_horario:data}}`}</code>).</p>
+        <h2 className="flex items-center gap-2 text-base font-semibold"><Zap className="h-4 w-4" />{t("settings.quick.title")}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          <code className="rounded bg-muted px-1">/{t("settings.quick.shortcut")}</code> · <code className="rounded bg-muted px-1">{`{{nome}}`}</code> <code className="rounded bg-muted px-1">{`{{primeiro_nome}}`}</code> <code className="rounded bg-muted px-1">{`{{telefone}}`}</code> <code className="rounded bg-muted px-1">{`{{campo.<chave>}}`}</code>
+        </p>
       </div>
 
       <div className="grid grid-cols-[1fr_2fr_auto] gap-2">
-        <Input placeholder="atalho" value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
-        <Textarea rows={1} placeholder="Olá {{primeiro_nome}}, tudo bem?" value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[40px]" />
+        <Input placeholder={t("settings.quick.shortcut")} value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
+        <Textarea rows={1} placeholder={t("settings.quick.messagePlaceholder")} value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[40px]" />
         <Button onClick={add} disabled={saving} size="icon">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </Button>
       </div>
 
       <div className="space-y-1">
-        {items.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma resposta rápida ainda.</div>}
+        {items.length === 0 && <div className="text-xs text-muted-foreground">{t("settings.quick.empty")}</div>}
         {items.map((q) => (
           <div key={q.id} className="flex items-start gap-2 rounded-md border p-2">
             <span className="mt-0.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">/{q.shortcut}</span>

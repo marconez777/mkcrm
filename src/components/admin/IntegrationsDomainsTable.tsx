@@ -88,7 +88,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         body: { action: "create", clinic_id: newClinicId, domain: newDomain, region: newRegion },
       });
       if (error) throw error;
-      toast.success("Domínio criado. Configure o DNS na clínica.");
+      toast.success("Domínio criado. Configure o DNS na empresa.");
       setOpenAdd(false);
       setNewClinicId("");
       setNewDomain("");
@@ -153,7 +153,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         <div>
           <h2 className="text-sm font-semibold">Domínios de email</h2>
           <p className="text-xs text-muted-foreground">
-            Um domínio por clínica. Os clientes apenas informam o domínio deles — você gerencia tudo aqui.
+            Um domínio por empresa. Os clientes apenas informam o domínio deles — você gerencia tudo aqui.
           </p>
         </div>
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
@@ -169,7 +169,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
             </DialogHeader>
             <form onSubmit={createDomain} className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Clínica</Label>
+                <Label>Empresa</Label>
                 <select
                   required
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -187,7 +187,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
               <div className="space-y-1.5">
                 <Label>Domínio</Label>
                 <Input
-                  placeholder="mail.clinica.com.br"
+                  placeholder="mail.empresa.com.br"
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
                   required
@@ -223,7 +223,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Clínica</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead>Domínio</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Região</TableHead>
@@ -272,7 +272,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
             <DialogTitle>DNS — {openDns?.domain}</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Peça à clínica para cadastrar estes registros no provedor de DNS dela. A verificação
+            Peça à empresa para cadastrar estes registros no provedor de DNS dela. A verificação
             roda automaticamente a cada 20 segundos enquanto este diálogo estiver aberto.
           </p>
           {openDns && (

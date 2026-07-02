@@ -29,7 +29,7 @@ function AvatarUpload({ value, onChange }: { value: string; onChange: (url: stri
         .eq("user_id", user.id)
         .limit(1)
         .maybeSingle();
-      if (!cm?.clinic_id) throw new Error("Clínica não encontrada");
+      if (!cm?.clinic_id) throw new Error("Empresa não encontrada");
       const ext = file.name.split(".").pop() || "png";
       const path = `${cm.clinic_id}/signatures/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from("email-assets").upload(path, file, { upsert: false, contentType: file.type });

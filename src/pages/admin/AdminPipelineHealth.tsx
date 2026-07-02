@@ -25,6 +25,7 @@ import {
 import { PipelineErrorsCard } from "@/components/admin/PipelineErrorsCard";
 import { ProviderHealthCard } from "@/components/admin/ProviderHealthCard";
 import { AutoRetryRecoveryCard } from "@/components/admin/AutoRetryRecoveryCard";
+import { PipelineTicksCard } from "@/components/admin/PipelineTicksCard";
 
 
 // G2 — Pipeline health admin page.
@@ -140,9 +141,11 @@ export default function AdminPipelineHealth() {
           Erro ao carregar views: {error}. Confirme que o usuário é super_admin.
         </Card>
       )}
+      <PipelineTicksCard />
       <PipelineErrorsCard />
       <ProviderHealthCard />
       <AutoRetryRecoveryCard />
+
 
 
 

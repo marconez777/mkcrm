@@ -46,7 +46,7 @@ const NAV: NavGroup[] = [
   {
     title: "Clientes",
     items: [
-      { to: "/admin/clinics", label: "Clínicas", icon: Building2 },
+      { to: "/admin/clinics", label: "Empresas", icon: Building2 },
       { to: "/admin/users", label: "Usuários", icon: Users },
     ],
   },
@@ -97,7 +97,7 @@ export default function AdminShell() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => { document.title = "Super Admin — MK CRM"; }, []);
+  useEffect(() => { document.title = "Super Admin — Chat Funnel AI"; }, []);
 
   // Keyboard: cmd+k focus search
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function AdminShell() {
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-admin-sidebar-text-active">MK Admin</span>
+              <span className="text-sm font-semibold text-admin-sidebar-text-active">Chat Funnel AI Admin</span>
               <span className="text-[11px] text-admin-sidebar-muted">Painel da plataforma</span>
             </div>
           )}
@@ -203,7 +203,7 @@ export default function AdminShell() {
             className="hidden md:flex flex-1 max-w-md ml-4 relative items-center h-9 rounded-lg bg-admin-surface-2 border border-admin-border px-3 text-sm text-admin-text-subtle hover:border-admin-primary/40 hover:text-admin-text-muted transition-colors"
           >
             <Search className="h-4 w-4 mr-2 shrink-0" />
-            <span className="flex-1 text-left truncate">Buscar clínica, usuário, ações…</span>
+            <span className="flex-1 text-left truncate">Buscar empresa, usuário, ações…</span>
             <kbd className="hidden lg:flex items-center gap-1 rounded-md border border-admin-border bg-admin-surface px-1.5 py-0.5 text-[10px] text-admin-text-muted ml-2">
               <Command className="h-3 w-3" />K
             </kbd>

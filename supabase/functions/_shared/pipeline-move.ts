@@ -26,6 +26,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "./ai-pipeline-filter.ts";
 
 export type PipelineMoveSource =
   | `auto:${string}`
@@ -129,7 +130,7 @@ export async function pipelineMove(
   // Carrega lead + stage atual + stage destino (1 select cada para clareza).
   const { data: lead, error: leadErr } = await client
     .from("leads")
-    .select("id, clinic_id, stage_id")
+    .select("id, clinic_id, stage_id, pipeline_id")
     .eq("id", leadId)
     .maybeSingle();
   if (leadErr || !lead) {
@@ -139,6 +140,15 @@ export async function pipelineMove(
   // Allowlist por clínica (Marco 4.5) — só fontes automáticas são gateadas.
   if (isAutoSource && !(await isClinicPipelineAllowed(client, lead.clinic_id))) {
     return { moved: false, reason: "clinic_not_allowlisted" };
+  }
+
+  // Filtro de pipelines da IA (clinics.settings.ai_target_pipeline_ids).
+  // Lista vazia/ausente = todos os pipelines. Só gateia fontes automáticas.
+  if (
+    isAutoSource &&
+    !(await isAiAllowedForPipeline(client, lead.clinic_id, (lead as { pipeline_id?: string }).pipeline_id))
+  ) {
+    return { moved: false, reason: "pipeline_not_in_ai_targets" };
   }
 
   // PR4 — gate G1 (manual_lock_until) removido.

@@ -5,6 +5,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { handleV1 } from "./index.v1.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "../_shared/ai-pipeline-filter.ts";
 import { loadLeadContext } from "./context.ts";
 import { runAgent } from "./agent-core.ts";
 import {
@@ -127,6 +128,22 @@ async function classifyOneV2(
     return { skipped: "clinic_not_allowlisted" };
   }
 
+  if (!(await isAiAllowedForPipeline(client, ctx.lead.clinic_id, ctx.lead.pipeline_id))) {
+    await writeSkipTelemetry(
+      client,
+      { clinic_id: ctx.lead.clinic_id, lead_id: leadId },
+      "pipeline_not_in_ai_targets",
+    );
+    await updateWatermark(
+      client,
+      leadId,
+      ctx.lead.last_processed_message_id_classifier ?? "",
+    );
+    await clearQueueFlag(client, leadId);
+    return { skipped: "pipeline_not_in_ai_targets" };
+  }
+
+
   const historyToolEnabled = await isEnabled(
     client,
     "automation.classifier.history_tool_enabled",
@@ -174,7 +191,7 @@ async function classifyOneV2(
     telemetry,
     agents: agentOut.agents
       ? {
-          provider: agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai",
+          provider: (agentOut.agents as any).provider ?? (agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai"),
           models: {
             summarizer: agentOut.agents.summarizer_model,
             agendador: agentOut.agents.agendador_model,

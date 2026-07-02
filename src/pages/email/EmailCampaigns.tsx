@@ -428,7 +428,7 @@ export default function EmailCampaigns() {
               <div className="space-y-1.5">
                 <Label>Nome de exibição (De)</Label>
                 <Input
-                  placeholder="Ex.: Clínica Ór"
+                  placeholder="Ex.: Empresa Ór"
                   value={editing.from_name_override ?? ""}
                   onChange={(e) => setEditing({ ...editing, from_name_override: e.target.value })}
                 />

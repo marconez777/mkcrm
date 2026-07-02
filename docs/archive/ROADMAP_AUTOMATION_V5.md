@@ -9,8 +9,8 @@
 | **Movimentação para "Consulta agendada"** | Bloqueada por `strict_no_move`. Só se move via gatilho de calendário formal. | **IA move sozinha** (General Move) ao extrair a data do chat com alta confiança, sem depender do evento no calendário. |
 | **Proteção de Edição (G10)** | Se um humano preenche um campo, a IA fica proibida de alterá-lo por 7 dias. | **Override para Datas:** Se a IA extrai uma nova data confirmada pelo paciente, ela sobrepõe a data da secretária ignorando a G10. |
 | **Tags de IA (Chips Semânticos)** | A IA tenta colocar tags semânticas, mas a `whitelist` bloqueia a maioria. | Os "Chips" visuais no frontend são alimentados por **Campos Personalizados**. A IA atualiza livremente os campos personalizados correspondentes. |
-| **Paciente Antigo** | IA tenta reciclar pacientes antigos e muitas vezes gera conflito com retornos. MCP Tools conseguem burlar a trava. | **Proteção Absoluta:** Um paciente em "Paciente Antigo" **NUNCA** sai dessa coluna (apenas para Nutrição inativa via cron após 60 dias). O Lovable deve corrigir as ferramentas MCP (`move_lead_stage`) e `automations-tick` para não darem *bypass* no `pipelineMove`. |
-| **SLA / Inatividade** | Inatividade básica baseada em `pipeline-deterministic` (7 dias). | **Cascata Dupla:** As automações de Interface (Aba Automations) cuidam do follow-up de 24h e 48h. Mas o cron de back-end (`pipeline-deterministic`) DEVE ser ajustado para varrer "Paciente antigo" (60 dias -> Nutrição inativa). |
+| **Paciente Antigo** | IA tenta reciclar pacientes antigos e muitas vezes gera conflito com retornos. MCP Tools conseguem burlar a trava. | **Proteção Absoluta:** Um paciente em "Paciente Antigo" **NUNCA** sai dessa coluna (apenas para Nutrição inativa via cron após 40 dias). O Lovable deve corrigir as ferramentas MCP (`move_lead_stage`) e `automations-tick` para não darem *bypass* no `pipelineMove`. |
+| **SLA / Inatividade** | Inatividade básica baseada em `pipeline-deterministic` (7 dias). | **Cascata Dupla:** As automações de Interface (Aba Automations) cuidam do follow-up de 24h e 48h. Mas o cron de back-end (`pipeline-deterministic`) DEVE ser ajustado para varrer "Paciente antigo" (40 dias -> Nutrição inativa). |
 | **Limpeza de Chips** | Chips (campos personalizados) acumulam-se no card indefinidamente. | **Wipe Centralizado:** Em `_shared/pipeline-move.ts`. Se for para "Consulta finalizada", limpa-se os custom_fields antigos e injeta-se "Aguardando". |
 
 ---
@@ -31,7 +31,7 @@ Abaixo estão os locais exatos que **devem** ser modificados, baseados na audito
 ### 2.3. `supabase/functions/pipeline-deterministic/index.ts` (O Cron de SLA)
 - **O que fazer:** Na função `ruleInactivityTick` (aprox. linha 414), o array `ACTIVE` monitora apenas "Novo", "Qualificação", etc.
 - **Conflito:** O cron NUNCA limpa Pacientes Antigos.
-- **Solução:** Adicionar `Paciente antigo` à query. Se o lead estiver em "Paciente antigo" e a inatividade (last_message_at) for maior que 60 dias, movê-lo para `Nutrição inativa`.
+- **Solução:** Adicionar `Paciente antigo` à query. Se o lead estiver em "Paciente antigo" e a inatividade (last_message_at) for maior que 40 dias, movê-lo para `Nutrição inativa`.
 
 ### 2.4. `supabase/functions/pipeline-classify/apply.ts` (G10 & General Move)
 - **O que fazer (G10 Override):** Na função `tryApplyField`, criar uma flag `isDateFromParser`. Se o campo for de data (`consulta_agendada_em`, `procedimento_agendado_em`), ignorar a trava de `G10_WINDOW_MS` (7 dias). 

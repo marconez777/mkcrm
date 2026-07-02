@@ -148,13 +148,13 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px] max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
-              <Input className="pl-9 h-9 bg-admin-surface-2 border-admin-border" placeholder="Buscar email, nome ou clínica…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input className="pl-9 h-9 bg-admin-surface-2 border-admin-border" placeholder="Buscar email, nome ou empresa…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Select value={fClinic} onValueChange={setFClinic}>
               <SelectTrigger className="w-[180px] h-9 bg-admin-surface-2 border-admin-border"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas clínicas</SelectItem>
-                <SelectItem value="none">Sem clínica</SelectItem>
+                <SelectItem value="all">Todas empresas</SelectItem>
+                <SelectItem value="none">Sem empresa</SelectItem>
                 {clinics?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -204,7 +204,7 @@ export default function UsersPanel({ clinics }: { clinics?: { id: string; name: 
             <TableRow className="border-admin-border hover:bg-transparent">
               <TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} /></TableHead>
               <TableHead>Usuário</TableHead>
-              <TableHead>Clínica</TableHead>
+              <TableHead>Empresa</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead>Status</TableHead>
               <TableHead title="Última vez que a sessão do usuário foi renovada (uso real do app, não apenas login com senha).">Última atividade</TableHead>

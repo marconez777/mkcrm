@@ -60,7 +60,7 @@ export function ProviderHealthCard() {
       toast({ title: "Falha ao desbloquear", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Desbloqueado", description: `${provider} liberado para a clínica` });
+    toast({ title: "Desbloqueado", description: `${provider} liberado para a empresa` });
     void load();
   };
 
@@ -73,7 +73,7 @@ export function ProviderHealthCard() {
             Provedores de IA bloqueados por quota
           </h2>
           <p className="text-xs text-muted-foreground">
-            Clínicas com Lovable AI ou OpenAI temporariamente bloqueados (30min após cota esgotada).
+            Empresas com Lovable AI ou OpenAI temporariamente bloqueados (30min após cota esgotada).
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
@@ -89,7 +89,7 @@ export function ProviderHealthCard() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Clínica</TableHead>
+              <TableHead>Empresa</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Restam</TableHead>
               <TableHead>Último erro</TableHead>

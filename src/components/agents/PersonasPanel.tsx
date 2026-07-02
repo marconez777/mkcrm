@@ -48,7 +48,7 @@ type FormState = {
   opening_message: string;
   custom_fields: Record<string, string>;
   tags: string[];
-  scope_all: boolean; // null agent_id (global na clínica) ou específico do agente
+  scope_all: boolean; // null agent_id (global na empresa) ou específico do agente
 };
 
 const EMPTY_FORM: FormState = {
@@ -357,7 +357,7 @@ export function PersonasPanel({ agentId, clinicId }: Props) {
                 onCheckedChange={(v) => setForm({ ...form, scope_all: v })}
               />
               <div className="text-xs">
-                <div className="font-medium">Disponível para todos os agentes da clínica</div>
+                <div className="font-medium">Disponível para todos os agentes da empresa</div>
                 <div className="text-muted-foreground">
                   Quando desligado, esta persona aparece só neste agente.
                 </div>

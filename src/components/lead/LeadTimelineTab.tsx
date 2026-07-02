@@ -203,7 +203,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           id: `first-contact-${firstMsg.id}`,
           at: firstMsg.timestamp,
           category: "site",
-          title: firstMsg.from_me ? "Primeiro contato (enviado pela clínica)" : "Primeiro contato no WhatsApp",
+          title: firstMsg.from_me ? "Primeiro contato (enviado pela empresa)" : "Primeiro contato no WhatsApp",
           meta: null,
         });
       }

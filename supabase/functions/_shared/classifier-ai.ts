@@ -24,36 +24,88 @@ export interface ClassifierAi {
   provider: ClassifierProvider;
 }
 
+function log(payload: Record<string, unknown>) {
+  try {
+    console.log(JSON.stringify({ tag: "classifier-ai", ...payload }));
+  } catch { /* noop */ }
+}
+
 export async function getClassifierAi(
   client: SupabaseClient,
   clinicId: string,
   opts: { forceProvider?: ClassifierProvider } = {},
 ): Promise<ClassifierAi | null> {
   if (opts.forceProvider) {
-    return await resolveProvider(client, clinicId, opts.forceProvider);
+    log({ step: "force-provider", clinic_id: clinicId, requested: opts.forceProvider });
+    const ai = await resolveProvider(client, clinicId, opts.forceProvider);
+    log({
+      step: "resolve",
+      clinic_id: clinicId,
+      requested: opts.forceProvider,
+      resolved_provider: ai?.provider ?? null,
+      fallback_used: false,
+    });
+    return ai;
   }
 
   // Consulta o provedor ativo da clínica.
   let active: ClassifierProvider | null = null;
+  let activeRaw: string | null = null;
+  let readError: string | null = null;
   try {
-    const { data } = await client
+    const { data, error } = await client
       .from("clinic_secrets")
       .select("active_ai_provider")
       .eq("clinic_id", clinicId)
       .maybeSingle();
-    const v = (data?.active_ai_provider as string | undefined)?.toLowerCase();
+    if (error) readError = error.message;
+    activeRaw = (data?.active_ai_provider as string | undefined) ?? null;
+    const v = activeRaw?.toLowerCase();
     if (v === "gemini") active = "google";
     else if (v === "openai") active = "openai";
-  } catch { /* segue p/ fallback */ }
+  } catch (e) {
+    readError = (e as Error)?.message ?? String(e);
+  }
+
+  log({
+    step: "active-provider",
+    clinic_id: clinicId,
+    active_raw: activeRaw,
+    active_normalized: active,
+    read_error: readError,
+  });
 
   if (active) {
     const ai = await resolveProvider(client, clinicId, active);
-    if (ai) return ai;
+    if (ai) {
+      log({
+        step: "resolve",
+        clinic_id: clinicId,
+        requested: active,
+        resolved_provider: ai.provider,
+        fallback_used: false,
+      });
+      return ai;
+    }
+    log({
+      step: "byok-missing",
+      clinic_id: clinicId,
+      requested: active,
+      reason: active === "google" ? "gemini_key_missing" : "openai_key_missing",
+    });
     // se BYOK selecionado mas chave ausente, cai no fallback de gateway
   }
 
   const envDefault = ((Deno.env.get("CLASSIFIER_PROVIDER") || "lovable").toLowerCase()) as ClassifierProvider;
-  return await resolveProvider(client, clinicId, envDefault);
+  const ai = await resolveProvider(client, clinicId, envDefault);
+  log({
+    step: "resolve",
+    clinic_id: clinicId,
+    requested: envDefault,
+    resolved_provider: ai?.provider ?? null,
+    fallback_used: !!active, // true se queríamos BYOK e caímos no gateway
+  });
+  return ai;
 }
 
 async function resolveProvider(

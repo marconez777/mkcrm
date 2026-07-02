@@ -21,7 +21,7 @@ export default function RootGate() {
     );
   }
   if (!session) return <MarketingSite />;
-  // Super admin "puro" (sem clínica) vai direto para o painel da plataforma.
+  // Super admin "puro" (sem empresa) vai direto para o painel da plataforma.
   if (isSuperAdmin && !membership) return <Navigate to="/admin" replace />;
   return (
     <AppShell>

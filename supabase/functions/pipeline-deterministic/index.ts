@@ -639,12 +639,20 @@ async function ruleInactivityTick(client: SupabaseClient) {
   }
 
 
-  // V5 — SLA 60d em "Paciente antigo" → "Nutrição Antigos".
+  // V5 — SLA 40d em "Paciente antigo" → "Nutrição Antigos".
+  // Também inclui leads sem nenhuma data de interação (last_inbound_at
+  // e last_message_at ambos NULL), que antes ficavam presos na coluna.
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
-  let tier60pa = 0;
-  const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
-  if (t60pa) {
-    const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
+  let tier40pa = 0;
+  const perLead: Array<{ lead_id: string; ms: number; moved: boolean; reason?: string }> = [];
+  let skippedNoDest = 0;
+  let notMoved = 0;
+  let errored = 0;
+  const t40paStart = Date.now();
+  const t40pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+  let candidates = 0;
+  if (t40pa) {
+    const cutoff40 = new Date(now - 40 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
     const paStageIds = new Set(paAliases.map((a) => a.stage_id));
     if (paStageIds.size > 0) {
@@ -654,31 +662,77 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .in("stage_id", Array.from(paStageIds))
         .is("archived_at", null)
         .eq("is_internal_contact", false)
-        .or(`last_inbound_at.lt.${cutoff60},and(last_inbound_at.is.null,last_message_at.lt.${cutoff60})`)
-        .limit(2000);
+        .or(
+          `last_inbound_at.lt.${cutoff40},` +
+          `and(last_inbound_at.is.null,last_message_at.lt.${cutoff40}),` +
+          `and(last_inbound_at.is.null,last_message_at.is.null)`
+        )
+        .limit(50);
+
+      candidates = paLeads?.length ?? 0;
+      console.log(JSON.stringify({ v: "det-v2", phase: "pa40:start", candidates, stages: paStageIds.size }));
 
       for (const lead of paLeads ?? []) {
+        const leadStart = Date.now();
         const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
-        if (!destId) continue;
+        if (!destId) {
+          skippedNoDest++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "no_destination_stage" });
+          continue;
+        }
         const ym = new Date().toISOString().slice(0, 7);
-        const res = await pipelineMove(client, {
-          leadId: lead.id,
-          toStageId: destId,
-          source: "auto:inactivity-tick",
-          reason: "60d sem inbound em Paciente antigo — Nutrição Antigos",
-          ruleKey: "automation.inactivity_paciente_antigo.enabled",
-          idempotencyKey: `inactivity:paciente_antigo:antigos:${lead.id}:${ym}`,
-        });
-        if ((res as { moved?: boolean }).moved) {
-          tier60pa++;
-          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
+        try {
+          const res = await pipelineMove(client, {
+            leadId: lead.id,
+            toStageId: destId,
+            source: "auto:inactivity-tick",
+            reason: "40d sem inbound em Paciente antigo — Nutrição Antigos",
+            ruleKey: "automation.inactivity_paciente_antigo.enabled",
+            idempotencyKey: `inactivity:paciente_antigo:antigos:40d:${lead.id}:${ym}`,
+          });
+          const ms = Date.now() - leadStart;
+          const moved = !!(res as { moved?: boolean }).moved;
+          if (moved) {
+            tier40pa++;
+            await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
+          } else {
+            notMoved++;
+          }
+          perLead.push({ lead_id: lead.id, ms, moved, reason: moved ? undefined : (res as { reason?: string })?.reason ?? "not_moved" });
+        } catch (e) {
+          errored++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: `error:${(e as Error).message?.slice(0, 120)}` });
         }
       }
     }
   }
 
-  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0 };
+  const totalMs = Date.now() - t40paStart;
+  const times = perLead.map((p) => p.ms).sort((a, b) => a - b);
+  const avg = times.length ? Math.round(times.reduce((s, n) => s + n, 0) / times.length) : 0;
+  const p95 = times.length ? times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] : 0;
+  const slow = [...perLead].sort((a, b) => b.ms - a.ms).slice(0, 5);
+  const failureReasons: Record<string, number> = {};
+  for (const p of perLead) if (!p.moved && p.reason) failureReasons[p.reason] = (failureReasons[p.reason] ?? 0) + 1;
+
+  console.log(JSON.stringify({
+    v: "det-v2",
+    phase: "pa40:done",
+    total_ms: totalMs,
+    candidates,
+    moved: tier40pa,
+    not_moved: notMoved,
+    skipped_no_dest: skippedNoDest,
+    errored,
+    avg_ms_per_lead: avg,
+    p95_ms_per_lead: p95,
+    slowest: slow,
+    failure_reasons: failureReasons,
+  }));
+
+  return { tier24, tier3, tier7, tier40pa, scanned: leads?.length ?? 0, pa40: { total_ms: totalMs, candidates, moved: tier40pa, not_moved: notMoved, skipped_no_dest: skippedNoDest, errored, avg_ms_per_lead: avg, p95_ms_per_lead: p95, failure_reasons: failureReasons } };
 }
+
 
 async function ruleReactivationTick(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.reactivation.enabled"))) {
@@ -947,9 +1001,57 @@ async function ruleMonthlySweep(client: SupabaseClient, opts?: { dryRun?: boolea
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const startedAt = new Date();
+  const t0 = Date.now();
+  let bodyAction = "unknown";
+  const client = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  async function persistTickStats(params: {
+    ok: boolean;
+    result?: unknown;
+    errorMessage?: string;
+  }) {
+    try {
+      // Extrai métricas da fase pa40 (quando presente).
+      const r = params.result as { inactivity?: { pa40?: Record<string, unknown> } } | undefined;
+      const pa40 = r?.inactivity?.pa40 ?? {};
+      const p = pa40 as {
+        total_ms?: number;
+        candidates?: number;
+        moved?: number;
+        not_moved?: number;
+        skipped_no_dest?: number;
+        errored?: number;
+        avg_ms_per_lead?: number;
+        p95_ms_per_lead?: number;
+        failure_reasons?: Record<string, number>;
+      };
+      await client.from("pipeline_tick_stats").insert({
+        action: bodyAction,
+        phase: r?.inactivity ? "inactivity" : null,
+        started_at: startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - t0,
+        ok: params.ok,
+        candidates: p.candidates ?? 0,
+        moved: p.moved ?? 0,
+        not_moved: p.not_moved ?? 0,
+        skipped_no_dest: p.skipped_no_dest ?? 0,
+        errored: p.errored ?? 0,
+        avg_ms_per_lead: p.avg_ms_per_lead ?? 0,
+        p95_ms_per_lead: p.p95_ms_per_lead ?? 0,
+        failure_reasons: p.failure_reasons ?? {},
+        error_message: params.errorMessage ?? null,
+        raw: (params.result ?? null) as never,
+      });
+    } catch (e) {
+      console.error("pipeline_tick_stats insert failed", (e as Error).message);
+    }
+  }
+
   try {
     const body = (await req.json()) as Body;
-    const client = createClient(SUPABASE_URL, SERVICE_KEY);
+    bodyAction = body.action ?? "unknown";
     let result: unknown;
 
     switch (body.action) {
@@ -996,6 +1098,7 @@ Deno.serve(async (req) => {
         break;
       }
       default:
+        await persistTickStats({ ok: false, errorMessage: "unknown_action" });
         return new Response(
           JSON.stringify({ error: "unknown_action" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1003,15 +1106,18 @@ Deno.serve(async (req) => {
     }
 
     console.log(JSON.stringify({ action: body.action, result }));
+    await persistTickStats({ ok: true, result });
     return new Response(JSON.stringify({ ok: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("pipeline-deterministic error", msg);
+    await persistTickStats({ ok: false, errorMessage: msg });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+

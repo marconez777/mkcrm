@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { APP_BASE_URL } from "@/lib/app-url";
 type Mode = "login" | "forgot";
 
 export default function AuthPage() {
+  const { t } = useTranslation();
   const { session, loading: bootLoading } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
@@ -21,7 +23,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "Entrar — MK CRM"; }, []);
+  useEffect(() => { document.title = t("auth.pageTitle"); }, [t]);
 
   if (bootLoading) return null;
   if (session) return <Navigate to={from} replace />;
@@ -34,19 +36,19 @@ export default function AuthPage() {
       const { data, error } = await supabase.functions.invoke("auth-login", {
         body: { email: email.trim().toLowerCase(), password },
       });
-      // supabase.functions.invoke surfaces non-2xx as FunctionsHttpError, but the JSON body
-      // ainda chega no error.context — tentamos ler de ambos.
       const payload: any = data ?? (await (error as any)?.context?.json?.().catch(() => null));
 
       if (payload?.error === "locked") {
         const secs = Number(payload.retry_after_seconds ?? 0);
         const mins = Math.ceil(secs / 60);
-        const human = mins >= 60 ? `${Math.ceil(mins / 60)} h` : `${mins} min`;
-        toast.error(`Conta bloqueada por excesso de tentativas. Tente novamente em ${human}.`);
+        const human = mins >= 60
+          ? `${Math.ceil(mins / 60)} ${t("auth.hourShort")}`
+          : `${mins} ${t("auth.minShort")}`;
+        toast.error(t("auth.locked", { time: human }));
         return;
       }
       if (error || !payload?.ok || !payload?.session) {
-        toast.error("Email ou senha inválidos.");
+        toast.error(t("auth.invalid"));
         return;
       }
 
@@ -56,7 +58,6 @@ export default function AuthPage() {
       });
       if (setErr) throw setErr;
 
-      // Super admin "puro" não entra pelo login normal — usa /admin/login.
       const uid = (await supabase.auth.getUser()).data.user?.id;
       if (uid) {
         const [{ data: roleRow }, { data: memberRow }] = await Promise.all([
@@ -65,14 +66,14 @@ export default function AuthPage() {
         ]);
         if (roleRow && !memberRow) {
           await supabase.auth.signOut();
-          toast.error("Esta conta é de Super Admin. Use o Portal Admin para entrar.");
+          toast.error(t("auth.superAdminWrongPortal"));
           return;
         }
       }
 
       nav(from, { replace: true });
     } catch (err: any) {
-      toast.error(err?.message ?? "Falha na autenticação");
+      toast.error(err?.message ?? t("auth.authFail"));
     } finally {
       setBusy(false);
     }
@@ -87,15 +88,13 @@ export default function AuthPage() {
         email.trim().toLowerCase(),
         { redirectTo: `${APP_BASE_URL}/reset-password` },
       );
-      // Sempre mostra mensagem neutra para não vazar quais emails existem.
       if (error && !/rate/i.test(error.message)) {
-        // só loga; usuário vê msg neutra mesmo assim
         console.warn("resetPasswordForEmail:", error.message);
       }
-      toast.success("Se o email existir, enviamos um link para redefinir a senha.");
+      toast.success(t("auth.resetSent"));
       setMode("login");
     } catch (err: any) {
-      toast.error(err?.message ?? "Não foi possível enviar o email.");
+      toast.error(err?.message ?? t("auth.resetFail"));
     } finally {
       setBusy(false);
     }
@@ -109,24 +108,22 @@ export default function AuthPage() {
             <MessageSquare className="h-5 w-5" />
           </div>
           <h1 className="text-lg font-semibold">
-            {mode === "login" ? "Entrar" : "Esqueci minha senha"}
+            {mode === "login" ? t("auth.loginTitle") : t("auth.forgotTitle")}
           </h1>
           <p className="text-xs text-muted-foreground text-center">
-            {mode === "login"
-              ? "Acesso à equipe de atendimento"
-              : "Enviaremos um link para você redefinir sua senha"}
+            {mode === "login" ? t("auth.loginSubtitle") : t("auth.forgotSubtitle")}
           </p>
         </div>
 
         {mode === "login" ? (
           <form onSubmit={submit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Label htmlFor="email" className="text-xs">{t("auth.email")}</Label>
               <Input id="email" type="email" autoComplete="email" required
                 value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs">Senha</Label>
+              <Label htmlFor="password" className="text-xs">{t("auth.password")}</Label>
               <Input id="password" type="password"
                 autoComplete="current-password"
                 required minLength={6}
@@ -134,33 +131,33 @@ export default function AuthPage() {
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-              Entrar
+              {t("auth.login")}
             </Button>
             <button
               type="button"
               onClick={() => setMode("forgot")}
               className="block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
             >
-              Esqueci minha senha
+              {t("auth.forgot")}
             </button>
           </form>
         ) : (
           <form onSubmit={submitForgot} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
+              <Label htmlFor="email" className="text-xs">{t("auth.email")}</Label>
               <Input id="email" type="email" autoComplete="email" required
                 value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-              Enviar link de redefinição
+              {t("auth.sendReset")}
             </Button>
             <button
               type="button"
               onClick={() => setMode("login")}
               className="block w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
             >
-              Voltar para o login
+              {t("auth.backToLogin")}
             </button>
           </form>
         )}

@@ -100,7 +100,7 @@ export default function KommoImportDialog({ open, onOpenChange, whatsappInstance
       if (!user) throw new Error("Não autenticado");
       const { data: mem } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", user.id).maybeSingle();
       const clinicId = mem?.clinic_id;
-      if (!clinicId) throw new Error("Sem clínica");
+      if (!clinicId) throw new Error("Sem empresa");
 
       // 2. Cria pipeline
       setProgress("Criando funil…");

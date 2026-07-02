@@ -14,7 +14,7 @@ export type LeadLike = {
   custom_fields?: Record<string, any> | null;
 };
 
-const TZ = "America/Sao_Paulo";
+const DEFAULT_TZ = "America/Sao_Paulo";
 const WEEKDAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 const MONTHS_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -32,9 +32,9 @@ function parseDate(v: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function partsInTZ(d: Date) {
+function partsInTZ(d: Date, tz: string) {
   const fmt = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false, weekday: "long",
   });
   const map: Record<string, string> = {};
@@ -42,12 +42,12 @@ function partsInTZ(d: Date) {
   return map;
 }
 
-function formatCustom(value: any, fieldType: string, modifier: string | null): string {
+function formatCustom(value: any, fieldType: string, modifier: string | null, tz: string): string {
   if (value == null || value === "") return "";
   if (fieldType === "date" || fieldType === "datetime") {
     const d = parseDate(value);
     if (!d) return String(value);
-    const p = partsInTZ(d);
+    const p = partsInTZ(d, tz);
     const day = p.day, month = p.month, year = p.year, hour = p.hour, minute = p.minute;
     const weekday = (p.weekday || "").toLowerCase();
     const monthIdx = Number(month) - 1;
@@ -70,6 +70,7 @@ export function renderTemplate(
   text: string,
   lead: LeadLike,
   customFieldDefs: CustomFieldDef[] = [],
+  tz: string = DEFAULT_TZ,
 ): string {
   if (!text) return text;
   const name = lead?.name || lead?.phone || "";
@@ -86,6 +87,6 @@ export function renderTemplate(
     .replace(/\{\{\s*campo\.([a-zA-Z0-9_]+)(?::([a-zA-Z_]+))?\s*\}\}/g, (_m, key: string, mod?: string) => {
       const val = (cf as any)[key];
       const ftype = defByKey.get(key) || "text";
-      return formatCustom(val, ftype, mod ?? null);
+      return formatCustom(val, ftype, mod ?? null, tz);
     });
 }

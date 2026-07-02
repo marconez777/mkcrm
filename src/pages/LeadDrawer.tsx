@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/crm";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -16,6 +17,7 @@ import LeadTimelineTab from "@/components/lead/LeadTimelineTab";
 import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
+  const { t } = useTranslation("leadDrawer");
   const open = !!lead;
   const { stages } = useStages();
   const { attendants } = useAttendants();
@@ -30,8 +32,8 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     const { data, error } = await supabase.functions.invoke("evolution-sync-lead", { body: { lead_id: lead!.id } });
     setSyncing(false);
     const errMsg = (data as any)?.error;
-    if (error || errMsg) toast.error("Falha: " + (errMsg || error?.message));
-    else toast.success(`Sincronizado: ${(data as any)?.imported ?? 0} mensagens`);
+    if (error || errMsg) toast.error(t("syncFail") + (errMsg || error?.message));
+    else toast.success(t("syncOk", { count: (data as any)?.imported ?? 0 }));
 
   }
 
@@ -39,33 +41,32 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
     if (!lead) return;
     setReviewing(true);
     try {
-      // 1. Descobre o Watcher da instância do lead
       const { data: leadRow } = await supabase
         .from("leads").select("whatsapp_instance_id").eq("id", lead.id).maybeSingle();
       const instanceId = leadRow?.whatsapp_instance_id;
-      if (!instanceId) { toast.error("Lead sem WhatsApp vinculado"); return; }
+      if (!instanceId) { toast.error(t("noWhats")); return; }
       const { data: inst } = await supabase
         .from("whatsapp_instances").select("watcher_agent_id").eq("id", instanceId).maybeSingle();
       const agentId = inst?.watcher_agent_id;
-      if (!agentId) { toast.error("Nenhum agente vigia configurado para esta conexão"); return; }
+      if (!agentId) { toast.error(t("noWatcher")); return; }
       const { error } = await supabase.functions.invoke("ai-chat", {
         body: { agent_id: agentId, lead_id: lead.id, messages: [] },
       });
-      if (error) { toast.error("Falha: " + error.message); return; }
-      toast.success("Vigia revisou a conversa");
+      if (error) { toast.error(t("watcherFail") + error.message); return; }
+      toast.success(t("watcherOk"));
     } finally {
       setReviewing(false);
     }
   }
 
   async function remove() {
-    if (!(await confirm({ title: "Excluir este lead?", description: "Todo o histórico de mensagens será removido. Esta ação é irreversível.", confirmLabel: "Excluir definitivamente", destructive: true, requireTyping: "EXCLUIR" }))) return;
+    if (!(await confirm({ title: t("confirmTitle"), description: t("confirmDesc"), confirmLabel: t("confirmBtn"), destructive: true, requireTyping: "EXCLUIR" }))) return;
     try {
       await deleteLead(lead.id);
-      toast.success("Lead excluído");
+      toast.success(t("deleted"));
       onClose();
     } catch (error) {
-      toast.error("Falha ao excluir lead", { description: error instanceof Error ? error.message : "Tente novamente." });
+      toast.error(t("deleteFail"), { description: error instanceof Error ? error.message : t("deleteRetry") });
     }
   }
 
@@ -83,21 +84,21 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
             </div>
           </div>
           <div className="flex items-center gap-1 pr-10">
-            <Button variant="ghost" size="icon" onClick={reviewWithAi} disabled={reviewing} title="Revisar conversa com IA (vigia)">
+            <Button variant="ghost" size="icon" onClick={reviewWithAi} disabled={reviewing} title={t("reviewTitle")}>
               {reviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title="Sincronizar histórico completo">
+            <Button variant="ghost" size="icon" onClick={syncHistory} disabled={syncing} title={t("syncTitle")}>
               {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon" onClick={remove} title="Excluir lead"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            <Button variant="ghost" size="icon" onClick={remove} title={t("deleteTitle")}><Trash2 className="h-4 w-4 text-destructive" /></Button>
           </div>
         </header>
 
         <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-3">
-            <TabsTrigger value="chat">Chat</TabsTrigger>
-            <TabsTrigger value="details">Detalhes</TabsTrigger>
-            <TabsTrigger value="journey">Linha do tempo</TabsTrigger>
+            <TabsTrigger value="chat">{t("tabChat")}</TabsTrigger>
+            <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
+            <TabsTrigger value="journey">{t("tabJourney")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="chat" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
