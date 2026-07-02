@@ -736,7 +736,9 @@ export default function AgentWizard() {
     }
     const useBuilder = keySource === "builder";
     const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
-    const hasKey = useBuilder ? !!builderInfo?.api_key_set : !!apiKey;
+    const hasKey = useBuilder
+      ? !!builderInfo?.api_key_set
+      : (provider === "lovable" ? true : !!apiKey);
     if (!hasKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
