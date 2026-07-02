@@ -68,6 +68,15 @@ export default function InboxPage() {
   const [sort, setSort] = useState<SortKey>("recent");
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [hiddenStageIds, setHiddenStageIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("inbox:hiddenStageIds") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("inbox:hiddenStageIds", JSON.stringify(hiddenStageIds)); } catch {}
+  }, [hiddenStageIds]);
+  const toggleHiddenStage = (id: string) => {
+    setHiddenStageIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
   const [showContext, setShowContext] = useState(true);
   const [showList, setShowList] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
