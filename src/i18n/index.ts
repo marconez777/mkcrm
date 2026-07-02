@@ -12,9 +12,17 @@ import enUS from "./locales/en-US.json";
 export const SUPPORTED_LOCALES = ["pt-BR", "es-ES", "en-US"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
+function readInitialLocale(): Locale {
+  try {
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem("i18n.override") : null;
+    if (v && (SUPPORTED_LOCALES as readonly string[]).includes(v)) return v as Locale;
+  } catch {}
+  return "pt-BR";
+}
+
 if (!i18n.isInitialized) {
   void i18n.use(initReactI18next).init({
-    lng: "pt-BR",
+    lng: readInitialLocale(),
     fallbackLng: "pt-BR",
     supportedLngs: SUPPORTED_LOCALES as unknown as string[],
     resources: {
