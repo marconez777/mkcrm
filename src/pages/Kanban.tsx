@@ -356,12 +356,12 @@ function Chip({ children, tone = "neutral", icon }: {
 
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, aiBinding,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, onExport, aiBinding,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
-  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
+  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void; onExport: (s: Stage) => void;
   aiBinding?: { agentName: string; autoReply: boolean };
 }) {
   const { t } = useTranslation();
