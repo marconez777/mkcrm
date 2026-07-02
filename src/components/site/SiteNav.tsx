@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import brandLockup from "@/assets/chat-funnel-ai-500.png";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const NAV_LINKS = [
   { href: "#sobre", label: "Sobre" },
