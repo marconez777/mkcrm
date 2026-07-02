@@ -82,13 +82,33 @@ Deno.serve(async (req) => {
     baseUrl = builder.base_url ?? null;
     model = builder.model ?? "";
   } else {
-    if (!p.own_provider || !p.own_api_key || !p.own_model) {
-      return json(400, { error: "own_provider/own_api_key/own_model required" });
+    if (p.own_provider === "lovable") {
+      // Plano Supreme: usa créditos da Chat Funnel AI (LOVABLE_API_KEY server-side)
+      const { data: sub } = await admin
+        .from("subscriptions")
+        .select("status, price_id")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing"])
+        .maybeSingle();
+      const priceId = (sub?.price_id ?? "") as string;
+      const isSupreme = priceId.split("_")[0] === "supreme";
+      if (!isSupreme) {
+        return json(403, { error: "Gemini Chat Funnel AI está disponível apenas para o plano Supreme." });
+      }
+      if (!p.own_model) return json(400, { error: "own_model required" });
+      provider = "lovable";
+      apiKey = "__lovable_managed__"; // marcador; a chave real vem da env server-side
+      baseUrl = p.own_base_url ?? "https://ai.gateway.lovable.dev/v1";
+      model = p.own_model;
+    } else {
+      if (!p.own_provider || !p.own_api_key || !p.own_model) {
+        return json(400, { error: "own_provider/own_api_key/own_model required" });
+      }
+      provider = p.own_provider;
+      apiKey = p.own_api_key;
+      baseUrl = p.own_base_url ?? null;
+      model = p.own_model;
     }
-    provider = p.own_provider;
-    apiKey = p.own_api_key;
-    baseUrl = p.own_base_url ?? null;
-    model = p.own_model;
   }
 
   const { data: inserted, error: insErr } = await admin
