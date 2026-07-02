@@ -76,6 +76,11 @@ export async function chatCompletion(
   ctx?: LogCtx,
 ): Promise<NormalizedResponse> {
   const startedAt = Date.now();
+  // Plano Supreme: quando provider === "lovable", usa a LOVABLE_API_KEY do ambiente.
+  if (agent.provider === "lovable") {
+    const envKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+    if (envKey) agent = { ...agent, api_key: envKey };
+  }
   let resp: NormalizedResponse;
   try {
     if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
