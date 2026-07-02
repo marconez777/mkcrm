@@ -661,7 +661,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
           `and(last_inbound_at.is.null,last_message_at.lt.${cutoff40}),` +
           `and(last_inbound_at.is.null,last_message_at.is.null)`
         )
-        .limit(2000);
+        .limit(50);
 
       for (const lead of paLeads ?? []) {
         const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
