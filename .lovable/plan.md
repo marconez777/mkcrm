@@ -1,93 +1,30 @@
-# Preview de vídeo (YT Shorts / Instagram Reels) — Disparo em massa + Inbox
+## Ajuste do SLA de "Paciente antigo" → "Nutrição Antigos"
 
-## O que a pesquisa mostrou
+### O que muda
+Hoje o cron `pipeline-deterministic` (branch `ruleInactivityTick`) só move um lead de **Paciente antigo** para **Nutrição Antigos** se ele estiver há **60 dias** sem interação. Se o lead **não tem nenhuma data** de interação (nem `last_inbound_at`, nem `last_message_at`), ele fica preso — nunca entra no filtro.
 
-Vasculhei os repos do **Evolution API** e **Baileys** e discussões relacionadas:
+Vamos:
 
-- Evolution v2 expõe apenas `options.linkPreview: boolean` no `/message/sendText`. Tem **bug crônico e reaberto** (issues #1859, #2101, #2262): mesmo com `true`, preview simplesmente não aparece em muitos casos — depende da versão do Evolution, do estado do Baileys e do OG do site.
-- Baileys internamente aceita um **objeto rico** `{title, description, canonical-url, matched-text, jpegThumbnail}` (arquivo `Utils/link-preview.ts`), mas a API REST do Evolution **não expõe** esses campos — então não dá pra "empurrar" um preview custom via sendText.
-- **YouTube**: OG é público → `linkPreview:true` funciona _às vezes_. Thumbnail direto via `https://img.youtube.com/vi/<id>/hqdefault.jpg` (ou `maxresdefault.jpg`) é 100% confiável sem auth. Cobre Shorts também (`youtube.com/shorts/<id>`, `youtu.be/<id>`).
-- **Instagram**: bloqueia scraping do OG para bots (retorna login wall). oEmbed oficial exige App Token do Graph. Devs no ecossistema Baileys (repos tipo `neoxr/wb`, `Zapstream-bot`, threads no fórum Evolution) convergem para **um mesmo workaround**: buscar a thumbnail (via oEmbed com token OU baixar o próprio vídeo/thumb de um serviço público) e **enviar como imagem com caption contendo o link** — visualmente vira um card grande com play, muito melhor que o preview minúsculo do WhatsApp.
+1. **Baixar o gatilho de 60 → 40 dias**.
+2. **Incluir também os leads sem data alguma** de interação (ambas as colunas `NULL`) para que sejam movidos no próximo tick.
+3. **Confirmar que a regra está habilitada** (`automation.inactivity_paciente_antigo.enabled` = true) — se estiver `off`, o cron nem roda esse branch, o que explicaria "não sei se está funcionando".
 
-**Conclusão sobre acertividade**: `linkPreview:true` sozinho é frágil. O modo "card de vídeo" (`sendMedia` image + caption com link) é o único caminho consistente para Reels e Shorts. Vamos usar os dois em cascata:
+### Onde
+- `supabase/functions/pipeline-deterministic/index.ts` (linhas 642–678):
+  - Trocar `60 * 24 * 3600 * 1000` por `40 * 24 * 3600 * 1000`.
+  - Ajustar o filtro `.or(...)` para: `last_inbound_at.lt.<cutoff40>` **OU** `and(last_inbound_at.is.null, last_message_at.lt.<cutoff40>)` **OU** `and(last_inbound_at.is.null, last_message_at.is.null)`.
+  - Atualizar `reason` e `idempotencyKey` de `60d`/`ym` para `40d`/`ym` (mantém idempotência mensal, mas com novo prefixo `40d` para não colidir com runs antigos).
+  - Renomear a métrica `tier60pa` → `tier40pa` no retorno.
 
-```
-video_card (sendMedia img + caption) ─┐
-   fallback ↓ (thumb não encontrada)  │
-link_preview (sendText + linkPreview) │  ← default automático inteligente
-   fallback ↓ (Evolution não gerou)   │
-text_only  (envio cru, comportamento antigo)
-```
+- Verificar via query no banco se `app_settings.automation.inactivity_paciente_antigo.enabled` está `true`. Se estiver `false`/ausente, ligar via `supabase--insert`.
 
-## Escopo (agora cobrindo Inbox também)
+### Docs a atualizar
+- `docs/archive/AUTOMATION_V5_ARCHITECTURE.md` e `docs/archive/ROADMAP_AUTOMATION_V5.md`: trocar as menções de "60 dias" → "40 dias".
+- `docs/maps/PIPELINE_RUNTIME.md` (se citar a janela).
 
-### 1. Helper compartilhado — `supabase/functions/_shared/link-preview.ts` (novo)
-- `detectVideoLink(text)` → `{ kind, url, videoId? }` reconhecendo:
-  - `youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/shorts/…`
-  - `instagram.com/(reel|reels|p|tv)/…`
-  - domínios genéricos com `og:image` (opcional, para "auto")
-- `resolveThumbnail(link, { instagramToken? })`:
-  - YouTube/Shorts: monta URL `img.youtube.com/vi/<id>/maxresdefault.jpg` (HEAD; se 404 → `hqdefault.jpg`).
-  - Instagram:
-    1. Se `INSTAGRAM_OEMBED_TOKEN` disponível → `graph.facebook.com/v18.0/instagram_oembed?url=…&access_token=…`.
-    2. Senão → fetch do HTML da URL com `User-Agent` de browser (Chrome desktop) e regex de `<meta property="og:image">` (muitas vezes falha, mas é grátis).
-    3. Falhou → `null`.
-  - Cache 24h em memória (`Map<url, {thumb, exp}>`).
-- `resolveTitle(link)`: idem (oEmbed do YouTube: `https://www.youtube.com/oembed?url=…&format=json` — não requer auth; oEmbed do Insta via token).
-- `buildSendPayloads({ instance, phone, text, mode, quotedId })` → array de `{ endpoint, body, waFor:number }` (para permitir o "card + follow-up de texto" quando o texto tem mais do que só o link).
+### Fora de escopo
+- Não altero a lógica de reactivação (Nutrição Antigos → Paciente antigo quando o lead responde).
+- Não mexo em Kanban / UI: o move ocorre pelo cron a cada execução agendada.
 
-### 2. Backend — envios
-
-**`supabase/functions/broadcast-tick/index.ts`**
-- Onde hoje faz `sendText`, chamar `buildSendPayloads(...)` respeitando `part.preview_mode`.
-- Manter drip de 1s entre payloads dentro da mesma parte (quando modo `video_card` gerar 2: imagem+link e depois texto adicional, se houver).
-
-**`supabase/functions/evolution-send/index.ts` (Inbox)**
-- Aceitar novos parâmetros opcionais no body: `preview_mode?: 'auto'|'text_only'|'link_preview'|'video_card'` (default `auto`).
-- Mesma refatoração via `buildSendPayloads`.
-- Idempotência (`client_message_id`) permanece; se gerar 2 payloads, o segundo usa `client_message_id + ':2'`.
-- `messages.message_type` = `image` quando `video_card` for usado, com o link salvo em `content` para preservar timeline.
-
-### 3. Schema
-
-Migração:
-```sql
-ALTER TABLE broadcast_message_parts
-  ADD COLUMN preview_mode text NOT NULL DEFAULT 'auto'
-  CHECK (preview_mode IN ('auto','text_only','link_preview','video_card'));
-```
-Sem coluna extra em `messages` (o modo é comportamento de envio, não persistente).
-
-### 4. Frontend
-
-**`src/pages/Broadcasts.tsx` — aba Mensagens**
-- Em cada parte: `<Select>` "Preview do link" com 4 opções + tooltip explicando cada uma.
-- Mini preview visual quando o texto contém link YT/Insta (usando `img.youtube.com/...` no client — instantâneo, sem edge).
-- Aviso amarelo quando escolher `video_card` e a thumbnail não puder ser resolvida no client (Insta): "Preview será tentado no envio; se falhar cai para link simples."
-
-**`src/components/inbox/Composer.tsx`**
-- Quando detectar URL de YT/Insta ao digitar, mostrar chip embaixo do input: **[✓ Enviar como card de vídeo]** (toggle rápido). Default ON para Shorts/Reels, OFF para links genéricos.
-- Se OFF → payload manda `preview_mode:'text_only'` (comportamento atual). Se ON → `video_card`.
-
-### 5. Secrets (opcional, mas melhora Insta)
-
-Se o usuário aceitar, adicionar `INSTAGRAM_OEMBED_TOKEN` (App Token do Facebook Graph) via `add_secret`. Sem ele, funciona só para posts públicos cujo OG vaza no HTML.
-
-### 6. Docs
-
-- `docs/maps/BROADCASTS.md`: §2 (novo campo `preview_mode`), §5 (invariante: fallback cascata é obrigatório), §7 (novo secret opcional).
-- `docs/maps/EVOLUTION_EDGES.md`: nota sobre `_shared/link-preview.ts` e comportamento do `evolution-send` refatorado.
-
-## Fases de execução
-
-1. `_shared/link-preview.ts` + migração `preview_mode`.
-2. Refatorar `broadcast-tick` e `evolution-send` para usar o helper (com fallback cascata).
-3. UI: select em Broadcasts + toggle no Composer.
-4. (Opcional) Secret `INSTAGRAM_OEMBED_TOKEN`.
-5. Docs.
-
-## Resumo — vale a pena?
-
-Sim. `linkPreview:true` sozinho é loteria (bug histórico). O modo `video_card` via `sendMedia` é o que os devs no ecossistema Baileys/Evolution estão de fato usando e resolve Reels/Shorts com preview grande e clicável. Vou implementar os dois em cascata para maximizar acertividade sem penalizar quem só quer texto puro.
-
-Confirma que sigo assim?
+### Observação
+Como o cron roda em intervalo agendado (não instantâneo), a movimentação em massa acontece no próximo tick após o deploy. Se quiser, disparo o `pipeline-deterministic` manualmente uma vez depois do merge para varrer imediatamente.

@@ -639,12 +639,14 @@ async function ruleInactivityTick(client: SupabaseClient) {
   }
 
 
-  // V5 — SLA 60d em "Paciente antigo" → "Nutrição Antigos".
+  // V5 — SLA 40d em "Paciente antigo" → "Nutrição Antigos".
+  // Também inclui leads sem nenhuma data de interação (last_inbound_at
+  // e last_message_at ambos NULL), que antes ficavam presos na coluna.
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
-  let tier60pa = 0;
-  const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
-  if (t60pa) {
-    const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
+  let tier40pa = 0;
+  const t40pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+  if (t40pa) {
+    const cutoff40 = new Date(now - 40 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
     const paStageIds = new Set(paAliases.map((a) => a.stage_id));
     if (paStageIds.size > 0) {
@@ -654,7 +656,11 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .in("stage_id", Array.from(paStageIds))
         .is("archived_at", null)
         .eq("is_internal_contact", false)
-        .or(`last_inbound_at.lt.${cutoff60},and(last_inbound_at.is.null,last_message_at.lt.${cutoff60})`)
+        .or(
+          `last_inbound_at.lt.${cutoff40},` +
+          `and(last_inbound_at.is.null,last_message_at.lt.${cutoff40}),` +
+          `and(last_inbound_at.is.null,last_message_at.is.null)`
+        )
         .limit(2000);
 
       for (const lead of paLeads ?? []) {
@@ -665,19 +671,19 @@ async function ruleInactivityTick(client: SupabaseClient) {
           leadId: lead.id,
           toStageId: destId,
           source: "auto:inactivity-tick",
-          reason: "60d sem inbound em Paciente antigo — Nutrição Antigos",
+          reason: "40d sem inbound em Paciente antigo — Nutrição Antigos",
           ruleKey: "automation.inactivity_paciente_antigo.enabled",
-          idempotencyKey: `inactivity:paciente_antigo:antigos:${lead.id}:${ym}`,
+          idempotencyKey: `inactivity:paciente_antigo:antigos:40d:${lead.id}:${ym}`,
         });
         if ((res as { moved?: boolean }).moved) {
-          tier60pa++;
+          tier40pa++;
           await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
         }
       }
     }
   }
 
-  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0 };
+  return { tier24, tier3, tier7, tier40pa, scanned: leads?.length ?? 0 };
 }
 
 async function ruleReactivationTick(client: SupabaseClient) {
