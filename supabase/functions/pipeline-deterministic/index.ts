@@ -644,7 +644,13 @@ async function ruleInactivityTick(client: SupabaseClient) {
   // e last_message_at ambos NULL), que antes ficavam presos na coluna.
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
   let tier40pa = 0;
+  const perLead: Array<{ lead_id: string; ms: number; moved: boolean; reason?: string }> = [];
+  let skippedNoDest = 0;
+  let notMoved = 0;
+  let errored = 0;
+  const t40paStart = Date.now();
   const t40pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+  let candidates = 0;
   if (t40pa) {
     const cutoff40 = new Date(now - 40 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
@@ -663,28 +669,70 @@ async function ruleInactivityTick(client: SupabaseClient) {
         )
         .limit(50);
 
+      candidates = paLeads?.length ?? 0;
+      console.log(JSON.stringify({ v: "det-v2", phase: "pa40:start", candidates, stages: paStageIds.size }));
+
       for (const lead of paLeads ?? []) {
+        const leadStart = Date.now();
         const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
-        if (!destId) continue;
+        if (!destId) {
+          skippedNoDest++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "no_destination_stage" });
+          continue;
+        }
         const ym = new Date().toISOString().slice(0, 7);
-        const res = await pipelineMove(client, {
-          leadId: lead.id,
-          toStageId: destId,
-          source: "auto:inactivity-tick",
-          reason: "40d sem inbound em Paciente antigo — Nutrição Antigos",
-          ruleKey: "automation.inactivity_paciente_antigo.enabled",
-          idempotencyKey: `inactivity:paciente_antigo:antigos:40d:${lead.id}:${ym}`,
-        });
-        if ((res as { moved?: boolean }).moved) {
-          tier40pa++;
-          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
+        try {
+          const res = await pipelineMove(client, {
+            leadId: lead.id,
+            toStageId: destId,
+            source: "auto:inactivity-tick",
+            reason: "40d sem inbound em Paciente antigo — Nutrição Antigos",
+            ruleKey: "automation.inactivity_paciente_antigo.enabled",
+            idempotencyKey: `inactivity:paciente_antigo:antigos:40d:${lead.id}:${ym}`,
+          });
+          const ms = Date.now() - leadStart;
+          const moved = !!(res as { moved?: boolean }).moved;
+          if (moved) {
+            tier40pa++;
+            await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
+          } else {
+            notMoved++;
+          }
+          perLead.push({ lead_id: lead.id, ms, moved, reason: moved ? undefined : (res as { reason?: string })?.reason ?? "not_moved" });
+        } catch (e) {
+          errored++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: `error:${(e as Error).message?.slice(0, 120)}` });
         }
       }
     }
   }
 
-  return { tier24, tier3, tier7, tier40pa, scanned: leads?.length ?? 0 };
+  const totalMs = Date.now() - t40paStart;
+  const times = perLead.map((p) => p.ms).sort((a, b) => a - b);
+  const avg = times.length ? Math.round(times.reduce((s, n) => s + n, 0) / times.length) : 0;
+  const p95 = times.length ? times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] : 0;
+  const slow = [...perLead].sort((a, b) => b.ms - a.ms).slice(0, 5);
+  const failureReasons: Record<string, number> = {};
+  for (const p of perLead) if (!p.moved && p.reason) failureReasons[p.reason] = (failureReasons[p.reason] ?? 0) + 1;
+
+  console.log(JSON.stringify({
+    v: "det-v2",
+    phase: "pa40:done",
+    total_ms: totalMs,
+    candidates,
+    moved: tier40pa,
+    not_moved: notMoved,
+    skipped_no_dest: skippedNoDest,
+    errored,
+    avg_ms_per_lead: avg,
+    p95_ms_per_lead: p95,
+    slowest: slow,
+    failure_reasons: failureReasons,
+  }));
+
+  return { tier24, tier3, tier7, tier40pa, scanned: leads?.length ?? 0, pa40: { total_ms: totalMs, candidates, moved: tier40pa, not_moved: notMoved, skipped_no_dest: skippedNoDest, errored, avg_ms_per_lead: avg, p95_ms_per_lead: p95, failure_reasons: failureReasons } };
 }
+
 
 async function ruleReactivationTick(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.reactivation.enabled"))) {
