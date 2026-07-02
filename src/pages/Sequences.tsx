@@ -67,7 +67,7 @@ export default function Sequences() {
 
   const load = async () => {
     const [s, { data: st }, { data: pp }, { data: tp }, { data: ins }] = await Promise.all([
-      fetchAllPaged<any>(() => supabase.from("message_sequences").select("*").order("created_at")),
+      fetchAllPaged<any>(() => supabase.from("message_sequences").select("id, clinic_id, name, description, enabled, trigger_type, trigger_config, whatsapp_instance_id, stop_on_reply, cooldown_days, created_at, updated_at").order("created_at")),
       supabase.from("pipeline_stages").select("id, name, pipeline_id, color").order("position"),
       supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("message_templates").select("id, name, content").order("name"),
@@ -101,7 +101,7 @@ export default function Sequences() {
       trigger_config: {},
       stop_on_reply: true,
       cooldown_days: 30,
-    }).select("*").single();
+    }).select("id, clinic_id, name, description, enabled, trigger_type, trigger_config, whatsapp_instance_id, stop_on_reply, cooldown_days, created_at, updated_at").single();
     if (error) return toast.error(error.message);
     await load();
     setSelected(data as any);
