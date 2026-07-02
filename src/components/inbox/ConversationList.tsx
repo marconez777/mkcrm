@@ -306,8 +306,50 @@ export default function ConversationList(props: {
                     ))}
                   </>
                 )}
+                {stages.length > 0 && onToggleHiddenStage && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> Ocultar etapas</span>
+                      {hiddenStageIds.length > 0 && onClearHiddenStages && (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClearHiddenStages(); }}
+                          className="text-[10px] font-normal normal-case tracking-normal text-primary hover:underline"
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </DropdownMenuLabel>
+                    {stages.map((s) => {
+                      const hidden = hiddenStageIds.includes(s.id);
+                      return (
+                        <DropdownMenuItem
+                          key={`hide-${s.id}`}
+                          onSelect={(e) => { e.preventDefault(); onToggleHiddenStage(s.id); }}
+                        >
+                          {hidden ? <EyeOff className="mr-2 h-3.5 w-3.5 text-destructive" /> : <Eye className="mr-2 h-3.5 w-3.5 opacity-40" />}
+                          <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: s.color }} />
+                          <span className={cn("flex-1 text-xs", hidden && "text-muted-foreground line-through")}>
+                            {s.name}
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
+            {hiddenStageIds.length > 0 && onClearHiddenStages && (
+              <button
+                onClick={onClearHiddenStages}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/20"
+                title="Etapas ocultas"
+              >
+                <EyeOff className="h-3 w-3" />
+                {hiddenStageIds.length} oculta{hiddenStageIds.length > 1 ? "s" : ""}
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         )}
       </header>
