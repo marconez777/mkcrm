@@ -640,15 +640,53 @@ export async function updateWatermark(
     .select("ai_review_reasons")
     .eq("id", leadId)
     .single();
+
   const nextReasons =
     (row?.ai_review_reasons as string[] | null)?.filter((r) => r !== "pipeline-classifier") ?? [];
-  await client
-    .from("leads")
-    .update({
-      last_processed_message_id_classifier: lastMessageId,
-      needs_ai_review: false,
-      last_classified_at: new Date().toISOString(),
-      ai_review_reasons: nextReasons,
-    })
-    .eq("id", leadId);
+
+  // Pega a data da última mensagem processada
+  const { data: lastMsg } = await client
+    .from("messages")
+    .select("created_at")
+    .eq("id", lastMessageId)
+    .maybeSingle();
+
+  let hasNewer = false;
+  if (lastMsg?.created_at) {
+    const { count } = await client
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("from_me", false)
+      .gt("created_at", lastMsg.created_at);
+    hasNewer = (count ?? 0) > 0;
+  }
+
+  if (hasNewer) {
+    // Nova mensagem do lead chegou durante o processamento.
+    // Devolve a flag para a fila e libera o lock.
+    if (!nextReasons.includes("pipeline-classifier")) nextReasons.push("pipeline-classifier");
+    await client
+      .from("leads")
+      .update({
+        last_processed_message_id_classifier: lastMessageId,
+        ai_review_queued_at: null,
+        ai_review_fail_count: 0,
+        ai_review_reasons: nextReasons,
+      })
+      .eq("id", leadId);
+  } else {
+    // Nenhuma mensagem nova, fluxo normal.
+    await client
+      .from("leads")
+      .update({
+        last_processed_message_id_classifier: lastMessageId,
+        needs_ai_review: false,
+        ai_review_queued_at: null,
+        ai_review_fail_count: 0,
+        last_classified_at: new Date().toISOString(),
+        ai_review_reasons: nextReasons,
+      })
+      .eq("id", leadId);
+  }
 }
