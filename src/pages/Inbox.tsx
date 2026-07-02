@@ -125,6 +125,7 @@ export default function InboxPage() {
       if (filter === "unread" && (l.unread_count ?? 0) <= 0 && !l.marked_unread) return false;
       if (filter === "unassigned" && l.attendant_id) return false;
       if (stageFilter && l.stage_id !== stageFilter) return false;
+      if (hiddenStageIds.length > 0 && l.stage_id && hiddenStageIds.includes(l.stage_id)) return false;
       if (tagFilter && !(l.tags ?? []).includes(tagFilter)) return false;
       if (ql) {
         const hay = `${l.name ?? ""} ${l.phone} ${l.last_message_preview ?? ""}`.toLowerCase();
