@@ -1286,11 +1286,9 @@ const COPILOT_PATCH_TOOL = {
                 "add_lead_tag, remove_lead_tag, get_lead_state, search_knowledge_base, generate_insight_report.",
             },
           },
-          additionalProperties: false,
         },
       },
       required: ["message", "changes"],
-      additionalProperties: false,
     },
   },
 };
