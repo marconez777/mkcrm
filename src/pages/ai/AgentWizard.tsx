@@ -152,6 +152,13 @@ const PROVIDERS: { id: Provider; label: string; defaultModel: string; placeholde
     placeholder: "xai-...",
     baseExample: "https://api.x.ai/v1",
   },
+  {
+    id: "lovable",
+    label: "Gemini Chat Funnel AI",
+    defaultModel: "google/gemini-2.5-flash",
+    placeholder: "(gerenciado pela Chat Funnel AI)",
+    baseExample: "https://ai.gateway.lovable.dev/v1",
+  },
 ];
 
 const MODELS_BY_PROVIDER: Record<Provider, { value: string; label: string; hint?: string }[]> = {
@@ -179,6 +186,11 @@ const MODELS_BY_PROVIDER: Record<Provider, { value: string; label: string; hint?
   xai: [
     { value: "grok-2-mini", label: "grok-2-mini", hint: "Rápido" },
     { value: "grok-2-latest", label: "grok-2-latest", hint: "Qualidade" },
+  ],
+  lovable: [
+    { value: "google/gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite", hint: "Rápido" },
+    { value: "google/gemini-2.5-flash", label: "gemini-2.5-flash", hint: "Equilíbrio" },
+    { value: "google/gemini-2.5-pro", label: "gemini-2.5-pro", hint: "Qualidade" },
   ],
 };
 
