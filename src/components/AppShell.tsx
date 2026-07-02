@@ -308,6 +308,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Keyboard className="h-3.5 w-3.5" />
           </button>
+          <LanguageSwitcher variant="app" />
         </div>
 
         {/* Perfil */}
