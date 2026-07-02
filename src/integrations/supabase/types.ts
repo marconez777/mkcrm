@@ -4937,6 +4937,66 @@ export type Database = {
           },
         ]
       }
+      pipeline_tick_stats: {
+        Row: {
+          action: string
+          avg_ms_per_lead: number
+          candidates: number
+          duration_ms: number
+          error_message: string | null
+          errored: number
+          failure_reasons: Json
+          finished_at: string
+          id: string
+          moved: number
+          not_moved: number
+          ok: boolean
+          p95_ms_per_lead: number
+          phase: string | null
+          raw: Json | null
+          skipped_no_dest: number
+          started_at: string
+        }
+        Insert: {
+          action: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Update: {
+          action?: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Relationships: []
+      }
       pipelines: {
         Row: {
           clinic_id: string

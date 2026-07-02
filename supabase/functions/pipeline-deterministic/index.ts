@@ -1001,9 +1001,57 @@ async function ruleMonthlySweep(client: SupabaseClient, opts?: { dryRun?: boolea
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const startedAt = new Date();
+  const t0 = Date.now();
+  let bodyAction = "unknown";
+  const client = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  async function persistTickStats(params: {
+    ok: boolean;
+    result?: unknown;
+    errorMessage?: string;
+  }) {
+    try {
+      // Extrai métricas da fase pa40 (quando presente).
+      const r = params.result as { inactivity?: { pa40?: Record<string, unknown> } } | undefined;
+      const pa40 = r?.inactivity?.pa40 ?? {};
+      const p = pa40 as {
+        total_ms?: number;
+        candidates?: number;
+        moved?: number;
+        not_moved?: number;
+        skipped_no_dest?: number;
+        errored?: number;
+        avg_ms_per_lead?: number;
+        p95_ms_per_lead?: number;
+        failure_reasons?: Record<string, number>;
+      };
+      await client.from("pipeline_tick_stats").insert({
+        action: bodyAction,
+        phase: r?.inactivity ? "inactivity" : null,
+        started_at: startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - t0,
+        ok: params.ok,
+        candidates: p.candidates ?? 0,
+        moved: p.moved ?? 0,
+        not_moved: p.not_moved ?? 0,
+        skipped_no_dest: p.skipped_no_dest ?? 0,
+        errored: p.errored ?? 0,
+        avg_ms_per_lead: p.avg_ms_per_lead ?? 0,
+        p95_ms_per_lead: p.p95_ms_per_lead ?? 0,
+        failure_reasons: p.failure_reasons ?? {},
+        error_message: params.errorMessage ?? null,
+        raw: (params.result ?? null) as never,
+      });
+    } catch (e) {
+      console.error("pipeline_tick_stats insert failed", (e as Error).message);
+    }
+  }
+
   try {
     const body = (await req.json()) as Body;
-    const client = createClient(SUPABASE_URL, SERVICE_KEY);
+    bodyAction = body.action ?? "unknown";
     let result: unknown;
 
     switch (body.action) {
@@ -1050,6 +1098,7 @@ Deno.serve(async (req) => {
         break;
       }
       default:
+        await persistTickStats({ ok: false, errorMessage: "unknown_action" });
         return new Response(
           JSON.stringify({ error: "unknown_action" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1057,15 +1106,18 @@ Deno.serve(async (req) => {
     }
 
     console.log(JSON.stringify({ action: body.action, result }));
+    await persistTickStats({ ok: true, result });
     return new Response(JSON.stringify({ ok: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("pipeline-deterministic error", msg);
+    await persistTickStats({ ok: false, errorMessage: msg });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+
