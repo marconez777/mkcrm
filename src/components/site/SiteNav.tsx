@@ -32,6 +32,7 @@ export default function SiteNav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <LanguageSwitcher variant="site" />
           <Link
             to="/auth"
             className="site-font-body hidden text-[15px] text-site-muted transition-colors hover:text-site-text sm:inline-block"
