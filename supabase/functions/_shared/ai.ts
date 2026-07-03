@@ -339,6 +339,11 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     } else if (agent.provider === "google") {
       model = agent.embedding_model || "text-embedding-004";
       vectors = await googleEmbed(requireKey(agent), model, texts);
+    } else if (agent.provider === "lovable") {
+      const key = Deno.env.get("LOVABLE_API_KEY");
+      if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
+      model = agent.embedding_model || "openai/text-embedding-3-small";
+      vectors = await lovableEmbed(key, model, texts);
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
     }
