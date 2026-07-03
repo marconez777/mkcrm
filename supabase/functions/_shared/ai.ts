@@ -339,6 +339,11 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     } else if (agent.provider === "google") {
       model = agent.embedding_model || "text-embedding-004";
       vectors = await googleEmbed(requireKey(agent), model, texts);
+    } else if (agent.provider === "lovable") {
+      const key = Deno.env.get("LOVABLE_API_KEY");
+      if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
+      model = agent.embedding_model || "openai/text-embedding-3-small";
+      vectors = await lovableEmbed(key, model, texts);
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
     }
@@ -393,6 +398,22 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   if (!r.ok) throw new Error(`google embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const data = await r.json();
   return (data.embeddings ?? []).map((e: any) => e.values as number[]);
+}
+
+
+async function lovableEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Lovable-API-Key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, input: texts, dimensions: 768 }),
+  });
+  if (!r.ok) throw new Error(`lovable embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const data = await r.json();
+  return (data.data ?? []).map((d: any) => d.embedding as number[]);
 }
 
 /** Naive char-based chunker with overlap. */
