@@ -400,6 +400,22 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   return (data.embeddings ?? []).map((e: any) => e.values as number[]);
 }
 
+
+async function lovableEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Lovable-API-Key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, input: texts, dimensions: 768 }),
+  });
+  if (!r.ok) throw new Error(`lovable embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const data = await r.json();
+  return (data.data ?? []).map((d: any) => d.embedding as number[]);
+}
+
 /** Naive char-based chunker with overlap. */
 export function chunkText(text: string, size = 800, overlap = 100): string[] {
   const out: string[] = [];
