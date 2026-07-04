@@ -183,15 +183,23 @@ function FieldInput({ field, value, onChange }: { field: CustomFieldDef; value: 
           <span className="text-sm text-foreground">{currencySymbol(region.currency, region.locale)}</span>
 
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={local}
             onChange={(e) => setLocal(e.target.value)}
-            onBlur={() => onChange(local === "" ? null : Number(local))}
+            onBlur={() => {
+              const raw = String(local ?? "").trim();
+              if (raw === "") return onChange(null);
+              const normalized = raw.replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+              const n = Number(normalized);
+              if (Number.isFinite(n)) onChange(n);
+            }}
             className={cn(nakedInput, local !== "" && "underline decoration-primary/40 underline-offset-2")}
             placeholder="0"
           />
         </div>
       );
+
 
     case "boolean":
       return (
