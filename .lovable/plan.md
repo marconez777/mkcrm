@@ -1,58 +1,60 @@
-## Objetivo
-Permitir que contas do plano **Supreme** usem os créditos de IA da Lovable diretamente no builder de agentes. Um novo provedor aparece na lista com o rótulo **"Gemini Chat Funnel AI"** (internamente `lovable`), sem exigir chave de API do usuário.
+## Diagnóstico da raiz
 
-## Escopo (o que muda)
+Confirmei lendo `src/components/inbox/CustomFieldsPanel.tsx`. O bug real é **um só, com dois amplificadores**:
 
-### Frontend — `src/pages/ai/AgentWizard.tsx`
-- Adicionar novo item em `PROVIDERS`:
-  - `id: "lovable"`, `label: "Gemini Chat Funnel AI"`, `defaultModel: "google/gemini-2.5-flash"`, `baseExample: "https://ai.gateway.lovable.dev/v1"`, `placeholder: "(gerenciado pela Chat Funnel AI)"`.
-- Adicionar entrada em `MODELS_BY_PROVIDER.lovable`:
-  - `google/gemini-2.5-flash-lite` (Rápido), `google/gemini-2.5-flash` (Equilíbrio), `google/gemini-2.5-pro` (Qualidade).
-- Ampliar o tipo `Provider` para incluir `"lovable"`.
-- Detectar plano Supreme via `useSubscription` (usar `subscription.price_id` — o token antes do primeiro `_` é o `plan.id`). Passar `isSupreme` para o passo do provedor.
-- Renderizar o botão do provedor `lovable` apenas quando `isSupreme === true`. Se o usuário não é Supreme e o agente já está salvo com `lovable`, mostrar aviso e permitir só leitura.
-- Quando `provider === "lovable"`:
-  - Ocultar campo **API Key** e **Base URL**; forçar `base_url = "https://ai.gateway.lovable.dev/v1"` e `api_key = null` no persist.
-  - No botão "Testar conexão", chamar a mesma edge de teste passando `provider: "lovable"` — o backend valida via `LOVABLE_API_KEY` do projeto.
-  - Exibir badge "Usando créditos Chat Funnel AI" no card.
+**Causa raiz — Lost Update no JSONB `leads.custom_fields`**
 
-### Frontend — listagem `src/pages/Agents.tsx`
-- Onde exibe o provedor (mapa de labels), acrescentar `lovable → "Gemini Chat Funnel AI"`.
+- `save(next)` faz `UPDATE leads SET custom_fields = <objeto inteiro>`.
+- `set(key, v)` monta `next` a partir de `{ ...lead.custom_fields, ...values }` — **capturado no momento da chamada** (closure).
+- Quando o usuário fecha o painel/popover, dois campos comitam quase simultaneamente (ex.: `onBlur` do `input type="time"` do calendário + `onBlur` do `currency`). Ambos leem o mesmo `lead.custom_fields` (o realtime ainda não trouxe o write do primeiro), cada um monta seu próprio "objeto inteiro", e o segundo `UPDATE` **apaga** a alteração do primeiro.
+- Depois de alguns segundos, quando o Postgres notifica via realtime, a UI recebe o estado que ganhou a corrida e o usuário "vê" o campo que sumiu reaparecer só quando reabre — exatamente o sintoma descrito.
 
-### Backend — `supabase/functions/_shared/ai.ts`
-- Estender union `Provider` com `"lovable"`.
-- Em `chatOnce`, novo branch:
-  ```ts
-  else if (agent.provider === "lovable") {
-    resp = await openaiCompatibleChat(
-      { ...agent, api_key: Deno.env.get("LOVABLE_API_KEY")! },
-      messages, tools,
-      "https://ai.gateway.lovable.dev/v1",
-      { extraHeaders: { "Lovable-API-Key": Deno.env.get("LOVABLE_API_KEY")!, "X-Lovable-AIG-SDK": "vercel-ai-sdk" } },
-    );
-  }
-  ```
-- Ajustar `openaiCompatibleChat` para aceitar `extraHeaders` opcionais (usa header `Lovable-API-Key` em vez de `Authorization`).
-- Em `requireKey`, tratar `lovable` como caso especial (não exige `agent.api_key`).
-- Embeddings: `lovable` não expõe embeddings hoje → se `agent.provider === "lovable"` e faltar `embedding_api_key`, lançar erro claro pedindo chave OpenAI de embeddings (mesmo comportamento atual do Anthropic).
+Os outros pontos que levantei antes (Popover fechando antes do commit, `NaN` no currency) são secundários. O primeiro já está mitigado por `onBlur`; o segundo só afeta colagens exóticas.
 
-### Backend — edge de teste de chave do agente
-- No handler que valida provider do wizard: se `provider === "lovable"`, pular verificação de `api_key` e apenas checar presença de `LOVABLE_API_KEY` no ambiente, retornando ok.
+## Correção proposta
 
-### Autorização server-side (defesa em profundidade)
-- Ao salvar/atualizar agente com `provider = "lovable"`, validar no handler que a clínica tem assinatura Supreme ativa. Se não tiver, rejeitar com 403 "Provedor disponível apenas no plano Supreme".
+Ataque duplo, alinhado com a Solução A (patch no banco) + parte da B (serialização no cliente). Sem tocar em lógica de negócio, só na camada de persistência do painel.
 
-## Não escopo
-- Nada muda para agentes existentes com `openai/google/anthropic/xai/manus`.
-- Sem alteração no pipeline determinístico (já usa Lovable Gateway global).
-- Sem novo controle de cota — os limites de créditos Lovable do workspace já se aplicam.
+### 1. Novo RPC no banco: `merge_lead_custom_fields`
+
+Uma function `SECURITY DEFINER` que faz merge atômico usando o operador `||` do JSONB e remove chaves nulas:
+
+```text
+public.merge_lead_custom_fields(p_lead_id uuid, p_patch jsonb, p_remove_keys text[])
+  -> UPDATE leads
+     SET custom_fields = (COALESCE(custom_fields,'{}'::jsonb) || p_patch) - p_remove_keys
+     WHERE id = p_lead_id AND clinic_id = <clinic do caller>
+     RETURNING custom_fields;
+```
+
+- Recebe apenas o **patch** (chaves alteradas) — nunca o objeto inteiro.
+- Apagar campo = mandar a chave em `p_remove_keys` (evita ambiguidade entre "vazio" e "remover").
+- RLS: valida `clinic_id` via `has_role`/`clinic_members`, mesmo pattern das outras RPCs.
+- Retorna o `custom_fields` já mesclado para a UI reconciliar.
+
+Isso elimina o Lost Update por definição: dois patches concorrentes se somam no banco em vez de se sobrescreverem.
+
+### 2. Refactor de `CustomFieldsPanel.tsx`
+
+- `save(patch, removeKeys)` chama `supabase.rpc("merge_lead_custom_fields", …)` em vez de `UPDATE ... custom_fields = next`.
+- `set(key, v)` deixa de montar o objeto inteiro; envia só `{ [key]: v }` como patch, ou `[key]` em `removeKeys` quando limpa.
+- Fila serial via `useRef<Promise>` para encadear chamadas (`queue = queue.then(() => rpc(...))`) — garante ordem determinística mesmo com dois `onBlur` disparando no mesmo tick.
+- Optimistic update local continua igual (setValues + onChange), só a persistência muda.
+- Após o RPC, aplica o `custom_fields` retornado como fonte da verdade (rebate no `onChange` do pai).
+
+### 3. Salvaguarda no currency
+
+Pequeno ajuste no branch `currency`: normalizar `local` (`.replace(",", ".")`) antes de `Number()`, e só enviar patch se o valor final for número válido ou string vazia. Impede que colagens com vírgula virem `NaN → null` e apaguem o campo.
 
 ## Detalhes técnicos
-- Detecção de plano no client:
-  ```ts
-  const tier = subscription?.price_id?.split("_")[0]; // "starter" | "pro" | "supreme"
-  const isSupreme = tier === "supreme";
-  ```
-  Como esse valor pode ser burlado no navegador, a checagem real acontece nas edge functions ao gravar/rodar o agente.
-- Nomes de modelo enviados ao gateway devem manter o prefixo do vendor (`google/gemini-2.5-flash`), pois o Lovable Gateway exige `vendor/model`.
-- Nenhum arquivo auto-gerado (`client.ts`, `types.ts`, `.env`) é tocado.
+
+- **Arquivos:**
+  - Nova migration criando `public.merge_lead_custom_fields(uuid, jsonb, text[])` com `GRANT EXECUTE ... TO authenticated` e checagem de acesso à clínica do lead.
+  - `src/components/inbox/CustomFieldsPanel.tsx`: reescrever `save`/`set`, adicionar `queueRef`, ajustar branch `currency`.
+- **Sem mudanças** em: gatilhos `tg_appointments_recompute`, classifier, edge functions. Escopo estritamente de UI + uma RPC nova.
+- **Verificação:** abrir painel, alterar Data/Hora e Valor em sequência, fechar imediato → recarregar → ambos persistidos. Testar também via `code--exec` com Playwright autenticado se o usuário quiser prova visual.
+
+## Fora do escopo
+
+- Não vou mexer no fluxo do Popover nem no `Calendar` — o `onBlur` do time já commita antes do unmount; o problema estava na persistência, não no timing.
+- Não vou trocar `input type="number"` por máscara de moeda agora (é mudança de UX; posso propor depois).
