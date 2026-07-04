@@ -30,42 +30,48 @@ type Props = {
 };
 
 export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
-  // Fonte da verdade = lead.custom_fields (sempre fresco via props/realtime).
-  // `values` local serve apenas para inputs com edição em progresso (text/number/textarea),
-  // que mantêm seu próprio `local` state interno via `FieldInput`.
-  // Para evitar o bug em que um save reenviava o JSONB inteiro com state stale
-  // (ressuscitando valores que o usuário tinha acabado de limpar), todo `set`
-  // mescla contra `lead.custom_fields` mais recente.
+  // Fonte da verdade = lead.custom_fields (props/realtime).
+  // `values` = overlay otimista para writes ainda em voo. Toda mutação envia
+  // apenas o PATCH (chave alterada) via RPC `merge_lead_custom_fields`, que
+  // faz merge atômico no JSONB no Postgres — evita o Lost Update clássico em
+  // que dois `UPDATE ... custom_fields = <objeto inteiro>` concorrentes se
+  // sobrescrevem quando o usuário fecha o painel logo após editar 2 campos.
   const [values, setValues] = useState<Record<string, any>>(lead.custom_fields ?? {});
+  const queueRef = useRef<Promise<any>>(Promise.resolve());
 
-  // Re-sincroniza local toda vez que o lead muda (id OU custom_fields novo),
-  // garantindo que limpezas/atualizações vindas de outras fontes (realtime,
-  // recompute de appointments, etc.) reflitam imediatamente.
   useEffect(() => {
     setValues(lead.custom_fields ?? {});
   }, [lead.id, lead.custom_fields]);
 
-  async function save(next: Record<string, any>) {
-    setValues(next);
-    onChange(next);
-    const { error } = await supabase
-      .from("leads")
-      .update({ custom_fields: next })
-      .eq("id", lead.id);
-    if (error) console.error("[CustomFieldsPanel] save failed", error.message);
-  }
-
   function set(key: string, v: any) {
-    // SEMPRE mescla contra o estado mais fresco do lead (não contra `values`
-    // local, que pode estar stale entre o write otimista e o realtime).
-    const base = { ...(lead.custom_fields ?? {}), ...values };
-    const next = { ...base };
-    if (v === null || v === undefined || v === "") {
-      delete next[key];
-    } else {
-      next[key] = v;
-    }
-    save(next);
+    const remove = v === null || v === undefined || v === "";
+    // Optimistic update local (merge contra a fonte mais fresca).
+    const optimistic = { ...(lead.custom_fields ?? {}), ...values };
+    if (remove) delete optimistic[key]; else optimistic[key] = v;
+    setValues(optimistic);
+    onChange(optimistic);
+
+    // Fila serial: encadeia chamadas para que dois onBlur no mesmo tick
+    // não disputem — cada uma manda só seu patch e o Postgres soma.
+    queueRef.current = queueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const patch = remove ? {} : { [key]: v };
+        const removeKeys = remove ? [key] : [];
+        const { data, error } = await supabase.rpc("merge_lead_custom_fields", {
+          p_lead_id: lead.id,
+          p_patch: patch,
+          p_remove_keys: removeKeys,
+        });
+        if (error) {
+          console.error("[CustomFieldsPanel] merge failed", error.message);
+          return;
+        }
+        if (data && typeof data === "object") {
+          setValues(data as Record<string, any>);
+          onChange(data as Record<string, any>);
+        }
+      });
   }
 
   if (fields.length === 0) return null;
@@ -84,6 +90,7 @@ export default function CustomFieldsPanel({ lead, fields, onChange }: Props) {
     </div>
   );
 }
+
 
 function ResizableTextareaField({
   fieldKey,
