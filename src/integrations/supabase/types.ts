@@ -7628,6 +7628,10 @@ export type Database = {
           title: string
         }[]
       }
+      merge_lead_custom_fields: {
+        Args: { p_lead_id: string; p_patch?: Json; p_remove_keys?: string[] }
+        Returns: Json
+      }
       notify_pipeline_deterministic: {
         Args: { _action: string; _payload?: Json }
         Returns: undefined
