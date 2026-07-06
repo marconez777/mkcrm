@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
 import SettingsAppointmentTypes from "./pages/SettingsAppointmentTypes";
+import SettingsAppointmentKinds from "./pages/SettingsAppointmentKinds";
 
 import { lazy, Suspense } from "react";
 import Tasks from "./pages/Tasks";
@@ -180,6 +181,7 @@ const App = () => (
                       <Route path="/settings/integration" element={<SettingsForms />} />
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
                       <Route path="/settings/appointment-types" element={<SettingsAppointmentTypes />} />
+                      <Route path="/settings/appointment-kinds" element={<SettingsAppointmentKinds />} />
                       <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates/:id" element={<FeatureRoute feature="email_marketing"><EmailTemplateEditor /></FeatureRoute>} />

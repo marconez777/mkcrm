@@ -186,6 +186,7 @@ export default function SettingsPage() {
                   {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>{t("settings.tabs.imports")}</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>{t("settings.tabs.aiPipeline")}</TabsTrigger>}
                   {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>{t("settings.tabs.appointmentTypes")}</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointments" className={triggerCls}>Agendamentos</TabsTrigger>}
                 </>
               );
             })()}
@@ -420,6 +421,23 @@ export default function SettingsPage() {
                   </div>
                   <Button asChild>
                     <Link to="/settings/appointment-types">{t("settings.apt.manage")}</Link>
+                  </Button>
+                </div>
+              </Card>
+            </TabsContent>
+          )}
+          {canManage && (
+            <TabsContent value="appointments" className="space-y-4">
+              <Card className="p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold">Tipos de agendamento (kinds)</div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Ative, edite ou crie novos tipos de agendamento (ex.: Consulta, Procedimento, Exame). Cada tipo ativo é sincronizado nos leads.
+                    </p>
+                  </div>
+                  <Button asChild>
+                    <Link to="/settings/appointment-kinds">Gerenciar</Link>
                   </Button>
                 </div>
               </Card>
