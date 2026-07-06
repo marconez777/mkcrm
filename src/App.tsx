@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
 import SettingsAppointmentTypes from "./pages/SettingsAppointmentTypes";
+import SettingsAppointmentKinds from "./pages/SettingsAppointmentKinds";
 
 import { lazy, Suspense } from "react";
 import Tasks from "./pages/Tasks";
