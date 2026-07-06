@@ -181,6 +181,7 @@ const App = () => (
                       <Route path="/settings/integration" element={<SettingsForms />} />
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
                       <Route path="/settings/appointment-types" element={<SettingsAppointmentTypes />} />
+                      <Route path="/settings/appointment-kinds" element={<SettingsAppointmentKinds />} />
                       <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates/:id" element={<FeatureRoute feature="email_marketing"><EmailTemplateEditor /></FeatureRoute>} />
