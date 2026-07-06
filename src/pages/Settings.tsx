@@ -186,6 +186,7 @@ export default function SettingsPage() {
                   {!isProfessional && <TabsTrigger value="imports" className={triggerCls}>{t("settings.tabs.imports")}</TabsTrigger>}
                   {!isProfessional && <TabsTrigger value="ai-pipeline" className={triggerCls}>{t("settings.tabs.aiPipeline")}</TabsTrigger>}
                   {canManage && <TabsTrigger value="appointment-types" className={triggerCls}>{t("settings.tabs.appointmentTypes")}</TabsTrigger>}
+                  {canManage && <TabsTrigger value="appointments" className={triggerCls}>Agendamentos</TabsTrigger>}
                 </>
               );
             })()}
