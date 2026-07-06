@@ -426,6 +426,23 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
           )}
+          {canManage && (
+            <TabsContent value="appointments" className="space-y-4">
+              <Card className="p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold">Tipos de agendamento (kinds)</div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Ative, edite ou crie novos tipos de agendamento (ex.: Consulta, Procedimento, Exame). Cada tipo ativo é sincronizado nos leads.
+                    </p>
+                  </div>
+                  <Button asChild>
+                    <Link to="/settings/appointment-kinds">Gerenciar</Link>
+                  </Button>
+                </div>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
