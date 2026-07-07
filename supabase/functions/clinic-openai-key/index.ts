@@ -10,7 +10,7 @@
 import { corsHeaders, json, sb, requireUser } from "../_shared/evolution.ts";
 
 type Action = "status" | "set" | "test" | "clear";
-type Provider = "openai" | "gemini";
+type Provider = "openai" | "gemini" | "lovable";
 
 interface Body {
   action: Action;
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   }
 
   const { action, clinic_id } = body;
-  const provider: Provider = body.provider === "gemini" ? "gemini" : "openai";
+  const provider: Provider = body.provider === "gemini" ? "gemini" : body.provider === "lovable" ? "lovable" : "openai";
   if (!clinic_id || !action) return json({ error: "missing_params" }, 400);
 
   const needsAdmin = action === "set" || action === "clear";
@@ -170,6 +170,9 @@ Deno.serve(async (req) => {
   }
 
   if (action === "test") {
+    if (provider === "lovable") {
+      return json({ ok: true, status: await loadStatus(clinic_id) });
+    }
     const supabase = sb();
     const { data } = await supabase
       .from("clinic_secrets")
@@ -195,6 +198,12 @@ Deno.serve(async (req) => {
   }
 
   if (action === "set") {
+    if (provider === "lovable") {
+      const patch: Record<string, unknown> = { active_ai_provider: "lovable" };
+      await upsertStatus(clinic_id, patch);
+      return json({ ok: true, status: await loadStatus(clinic_id) });
+    }
+
     const key = (body.api_key ?? "").trim();
     if (!key || key.length < 20) return json({ ok: false, error: "invalid_key_format" }, 400);
 

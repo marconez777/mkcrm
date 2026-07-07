@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loader2, KeyRound, CheckCircle2, AlertTriangle, Trash2, Sparkles } from "lucide-react";
 
 type ProviderStatus = "empty" | "configured" | "invalid";
-type Provider = "openai" | "gemini";
+type Provider = "openai" | "gemini" | "lovable";
 
 interface Status {
   openai_status: ProviderStatus;
@@ -67,7 +67,7 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
       const r = await call("status", "openai");
       const s = (r ?? EMPTY) as Status;
       setStatus(s);
-      setTab(s.active_ai_provider === "gemini" ? "gemini" : "openai");
+      setTab(s.active_ai_provider || "openai");
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao carregar status");
     } finally {
@@ -78,6 +78,21 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clinicId]);
 
   async function onSet(provider: Provider) {
+    if (provider === "lovable") {
+      setBusy("set");
+      try {
+        const r = await call("set", "lovable");
+        if (r?.ok === false) toast.error(r.error ?? "Falha ao ativar");
+        else toast.success("Gemini Chat Funnel AI ativado como provedor principal");
+        setStatus((r.status ?? EMPTY) as Status);
+      } catch (e: any) {
+        toast.error(e.message ?? "Falha ao salvar");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
     const key = (provider === "gemini" ? keyGemini : keyOpenai).trim();
     if (!key) { toast.error(`Cole a chave do ${provider === "gemini" ? "Gemini" : "OpenAI"}`); return; }
     setBusy("set");
@@ -152,7 +167,7 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Provider)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="openai">
             OpenAI
             <StatusDot className="ml-2" status={status.openai_status} />
@@ -160,6 +175,10 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
           <TabsTrigger value="gemini">
             Google Gemini
             <StatusDot className="ml-2" status={status.gemini_status} />
+          </TabsTrigger>
+          <TabsTrigger value="lovable">
+            Gemini Chat Funnel AI
+            <StatusDot className="ml-2" status={status.active_ai_provider === "lovable" ? "configured" : "empty"} />
           </TabsTrigger>
         </TabsList>
 
@@ -205,6 +224,27 @@ export default function OpenAIKeyCard({ clinicId, canManage }: Props) {
             helpLabel="aistudio.google.com/app/apikey"
             helpHint="Recomendado: habilitar gemini-2.5-flash e gemini-2.5-flash-lite."
           />
+        </TabsContent>
+
+        <TabsContent value="lovable" className="space-y-4 pt-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <StatusBadge status={status.active_ai_provider === "lovable" ? "configured" : "empty"} />
+              {status.active_ai_provider === "lovable" && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-blue-300 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700">
+                  <Sparkles className="h-3 w-3" /> Provedor ativo
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Usa os créditos de IA integrados do Chat Funnel AI. Não é necessário configurar nenhuma chave externa.
+            </p>
+            {canManage && (
+              <Button onClick={() => onSet("lovable")} disabled={busy !== null || status.active_ai_provider === "lovable"}>
+                {busy === "set" ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" />Ativando…</> : "Ativar Gemini Chat Funnel AI"}
+              </Button>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </Card>
@@ -350,7 +390,7 @@ function StatusDot({ status, className = "" }: { status: ProviderStatus; classNa
 }
 
 function ActiveProviderBadge({ active }: { active: Provider }) {
-  const label = active === "gemini" ? "Gemini" : "OpenAI";
+  const label = active === "gemini" ? "Gemini" : active === "lovable" ? "Gemini Chat Funnel AI" : "OpenAI";
   return (
     <span className="inline-flex items-center gap-1 rounded-md border border-blue-300 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-700">
       <Sparkles className="h-3 w-3" /> Ativo: {label}
