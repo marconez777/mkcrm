@@ -861,13 +861,12 @@ Com base na tabela `lead_custom_fields` da clínica ÓR (cf038458...), este é o
 |---|---|---|---|---|
 | `interesse` | Interesse | select | Infusão de Cetamina, EMT, Tratamento Alcoolismo, Hipnoterapia, EMDR, Tratamento para Depressão, Psicoterapia, Consulta com psiquiatria, Outro | form submission, manual |
 | `procedimentos` | Procedimentos | multiselect | Infusão de cetamina, EMT, Primeira Consulta, Consulta de seguimento, Retorno, Sessão de terapia | manual |
-| `data_horario` | Data e horário | datetime | — | manual |
+| `consulta_agendada_em` | Data da consulta | datetime | — | **classifier** (via `custom_fields_patch`, validado por `sanitizeDateField`), manual |
 | `teleconsulta` | Teleconsulta? | boolean | — | manual |
 | `link_consulta` | Link de Consulta | url | — | manual |
 | `pagamento` | Pagamento | currency | — | manual |
 | `origem` | Origem | select | Google - Orgânico, Google - Ads, Youtube, Redes Sociais, Indicação de paciente, Indicação de Médico, Indicação de Psicóloga, Indeterminado | form submission, manual |
 | `mensagem` | Mensagem | textarea | — | form submission |
-| `enviar_dia` | Enviar Dia | date | — | manual |
 | `procedimento_agendado_em` | Data do procedimento | datetime | — | **classifier** (via `custom_fields_patch`, validado por `sanitizeDateField`) |
 | `status_financeiro` | Status Financeiro | select | pago, pendente, parcial, atrasado, nao_aplicavel | webhook `pipeline-payment-webhook` → `runPaymentConfirmed` (seta `pago`) |
 | `status_consulta` | Status da Consulta | select | agendada, realizada, faltou, cancelada | `auto:appointment-sync` (mapeia status do appointment) |
@@ -885,7 +884,6 @@ Com base na tabela `lead_custom_fields` da clínica ÓR (cf038458...), este é o
 
 ### Campos Ocultos em código que merecem atenção
 Algumas chaves de custom fields são escritas ativamente pelo código (`pipeline-classify`, `pipeline-tasks`, `pipeline-fase4`), sendo inseridas no JSON do lead (`leads.custom_fields`), mas **não foram registradas** na UI (tabela `lead_custom_fields`). Como consequência, a UI não exibe estes dados para edição:
-- **`consulta_agendada_em`**: Usado pelo prompt e classifier como uma das chaves canônicas de data, mas aparentemente esquecido na hora de criar o field na UI. (Somente `procedimento_agendado_em` foi cadastrado como Datetime).
 - **`qualificacao`**: Sem definição na UI, o JSON grava livre.
 - **`motivo_desqualificacao`**: O enum de motivos é validado por `app_settings` mas não tem um componente visual mapeado como "Select".
 - **`judicializacao_em`**: Escrito por `runJudicializacao`, sem definição.

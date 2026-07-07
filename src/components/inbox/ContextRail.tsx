@@ -75,9 +75,10 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
   useEffect(() => {
     let active = true;
     (async () => {
-      const [{ data: ev }, { data: defs }] = await Promise.all([
+      const [{ data: ev }, { data: defs }, { data: apptKinds }] = await Promise.all([
         supabase.from("lead_events").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false }).limit(50),
         supabase.from("lead_custom_fields").select("*").order("position", { ascending: true }),
+        supabase.from("clinic_appointment_types").select("*").eq("is_active", true).order("created_at", { ascending: true }),
       ]);
       if (!active) return;
       if (ev) {
@@ -90,7 +91,18 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           if (active) setUserMap((prev) => ({ ...prev, ...m }));
         }
       }
-      setCustomDefs((defs ?? []) as any);
+      
+      // Mapeia os Appointment Kinds ativos para campos virtuais do tipo datetime
+      const virtualFields = (apptKinds || []).map((k: any) => ({
+        id: `virtual-appt-${k.id}`,
+        label: k.label || `Data de ${k.kind_name}`,
+        field_key: `${k.kind_name}_agendado_em`,
+        field_type: "datetime" as const,
+        options: null,
+        position: -1,
+      }));
+      
+      setCustomDefs([...virtualFields, ...((defs ?? []) as any)]);
     })();
     // Realtime: append new events
     const ch = supabase
