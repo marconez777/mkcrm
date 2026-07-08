@@ -31,7 +31,7 @@ type Instance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
-  
+  phone_number: string | null;
   last_inbound_webhook_at: string | null;
   last_auto_restart_at: string | null;
   last_reconnect_at: string | null;
