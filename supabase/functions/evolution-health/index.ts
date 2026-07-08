@@ -290,6 +290,7 @@ async function processInstance(instance: Instance) {
 
   const { webhookOk, lastError: webhookErr } = await ensureWebhook(instance);
   const poll = connectionState === "open" ? await pollRecentMessages(instance) : { skipped: "not-open" };
+  const phoneNumber = connectionState === "open" ? await fetchOwnerPhone(instance) : null;
 
   // Escalonamento por tempo sem eventos inbound.
   let autoRestart: any = { attempted: false, reason: "skip" };
