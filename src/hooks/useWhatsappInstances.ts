@@ -9,6 +9,7 @@ export type WhatsappInstance = {
   is_default: boolean;
   webhook_ok: boolean | null;
   last_health_check: string | null;
+  phone_number: string | null;
 };
 
 export function useWhatsappInstances() {
@@ -20,7 +21,7 @@ export function useWhatsappInstances() {
     const load = async () => {
       const { data } = await supabase
         .from("whatsapp_instances")
-        .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check")
+        .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, phone_number")
         .order("is_default", { ascending: false })
         .order("name", { ascending: true });
       if (!active) return;
