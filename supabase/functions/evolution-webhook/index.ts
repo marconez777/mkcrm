@@ -234,9 +234,14 @@ Deno.serve(async (req) => {
     // Antes filtrávamos só por MESSAGES_*, mas isso gerava falso positivo
     // quando ninguém escrevia por >15min. Qualquer evento (presence, chats,
     // connection update) prova que a Evolution está conversando conosco.
+    const updatePayload: any = { last_inbound_webhook_at: new Date().toISOString() };
+    if (instance.connection_state !== "open" && eventType !== "CONNECTION_UPDATE") {
+      updatePayload.connection_state = "open";
+    }
+
     await supabase
       .from("whatsapp_instances")
-      .update({ last_inbound_webhook_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", instance.id);
 
     if (auditId) {

@@ -288,6 +288,15 @@ async function processInstance(instance: Instance) {
     connectionError = String(e);
   }
 
+  const lastInbound = inst.last_inbound_webhook_at ? new Date(inst.last_inbound_webhook_at).getTime() : 0;
+  const minutesSinceInbound = lastInbound ? (Date.now() - lastInbound) / 60000 : Infinity;
+
+  // Se recebemos um webhook útil nos últimos 5 minutos, assumimos que a conexão está "open",
+  // mesmo que o endpoint connectionState da Evolution diga o contrário (bug comum de dessincronia).
+  if (connectionState !== "open" && minutesSinceInbound < 5) {
+    connectionState = "open";
+  }
+
   const { webhookOk, lastError: webhookErr } = await ensureWebhook(instance);
   const poll = connectionState === "open" ? await pollRecentMessages(instance) : { skipped: "not-open" };
   const phoneNumber = connectionState === "open" ? await fetchOwnerPhone(instance) : null;
@@ -298,8 +307,7 @@ async function processInstance(instance: Instance) {
   let staleUpdate: { session_stale_since?: string | null } = {};
 
   if (connectionState === "open") {
-    const lastInbound = inst.last_inbound_webhook_at ? new Date(inst.last_inbound_webhook_at).getTime() : 0;
-    const minutesSinceInbound = lastInbound ? (Date.now() - lastInbound) / 60000 : Infinity;
+
 
     if (minutesSinceInbound >= STALE_DETECT_MIN) {
       // marca o início da janela de silêncio se ainda não estiver marcada

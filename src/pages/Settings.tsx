@@ -218,10 +218,15 @@ export default function SettingsPage() {
 
               <div className="space-y-2">
                 {instances.map((inst) => {
-                  const open = inst.connection_state === "open";
                   const minutesSinceInbound = inst.last_inbound_webhook_at
                     ? Math.floor((Date.now() - new Date(inst.last_inbound_webhook_at).getTime()) / 60000)
                     : null;
+                  
+                  // Se recebemos mensagem nos últimos 5 minutos, consideramos "open" visualmente,
+                  // mesmo que a API da Evolution reporte "close" erroneamente.
+                  const actuallyReceiving = minutesSinceInbound !== null && minutesSinceInbound < 5;
+                  const open = inst.connection_state === "open" || actuallyReceiving;
+                  
                   const minutesSinceLogout = inst.last_auto_logout_at
                     ? Math.floor((Date.now() - new Date(inst.last_auto_logout_at).getTime()) / 60000)
                     : null;
