@@ -95,7 +95,7 @@ export default function SettingsPage() {
     await load();
     const created = (data as any)?.instance_id;
     if (created) {
-      const inst = (await supabase.from("whatsapp_instances").select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check").eq("id", created).maybeSingle()).data;
+      const inst = (await supabase.from("whatsapp_instances").select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, phone_number").eq("id", created).maybeSingle()).data;
       if (inst) setQrFor(inst as Instance);
     }
   }
