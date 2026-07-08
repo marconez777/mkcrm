@@ -6897,6 +6897,7 @@ export type Database = {
           last_poll_at: string | null
           last_reconnect_at: string | null
           name: string
+          phone_number: string | null
           session_stale_since: string | null
           updated_at: string
           watcher_agent_id: string | null
@@ -6928,6 +6929,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name: string
+          phone_number?: string | null
           session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
@@ -6959,6 +6961,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name?: string
+          phone_number?: string | null
           session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
