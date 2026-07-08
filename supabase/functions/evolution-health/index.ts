@@ -40,6 +40,29 @@ async function checkConnection(instance: Instance) {
   return data?.instance?.state ?? data?.state ?? "unknown";
 }
 
+async function fetchOwnerPhone(instance: Instance): Promise<string | null> {
+  try {
+    const resp = await evoFetch(
+      instance,
+      `/instance/fetchInstances?instanceName=${encodeURIComponent(instance.evolution_instance)}`,
+      { method: "GET" },
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    const arr = Array.isArray(data) ? data : (data ? [data] : []);
+    for (const it of arr) {
+      const jid: string | undefined =
+        it?.ownerJid ?? it?.owner ?? it?.instance?.owner ?? it?.instance?.wuid ??
+        it?.wuid ?? it?.number ?? it?.profile?.wuid;
+      if (typeof jid === "string" && jid.length > 0) {
+        const digits = jid.split("@")[0].replace(/\D/g, "");
+        if (digits.length >= 8 && digits.length <= 15) return digits;
+      }
+    }
+  } catch (_) { /* ignore */ }
+  return null;
+}
+
 async function ensureWebhook(instance: Instance) {
   const expected = buildWebhookUrl(instance.webhook_token);
   let webhookOk = false;
