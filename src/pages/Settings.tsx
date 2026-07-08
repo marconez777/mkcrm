@@ -249,14 +249,31 @@ export default function SettingsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium truncate">{inst.name}</span>
+                            <span className="font-medium truncate">
+                              {inst.phone_number ? formatPhoneDisplay(inst.phone_number) : inst.name}
+                            </span>
+                            {inst.phone_number && (
+                              <span className="text-xs text-muted-foreground truncate">{inst.name}</span>
+                            )}
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button type="button" className="inline-flex items-center text-muted-foreground hover:text-foreground" aria-label="Detalhes da instância">
+                                    <Info className="h-3.5 w-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  <div className="font-mono">{inst.evolution_instance}</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             {inst.is_default && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"><Star className="h-2.5 w-2.5" />{t("settings.wa.default")}</span>}
                             {expired && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionExpired")}</span>}
                             {!expired && stuck && <span className="inline-flex items-center rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-700">{t("settings.wa.sessionStuck")}</span>}
                             {!expired && !stuck && watching && <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">{t("settings.wa.noEvents", { minutes: minutesSinceInbound })}</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {inst.connection_state ?? t("settings.wa.unknown")} · {inst.evolution_instance}
+                            {inst.connection_state ?? t("settings.wa.unknown")}
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5">
                             {t("settings.wa.lastInbound")}: {formatRelative(inst.last_inbound_webhook_at)}
