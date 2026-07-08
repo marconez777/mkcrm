@@ -68,10 +68,15 @@ export default function SettingsPage() {
   
 
   async function load() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("whatsapp_instances")
-      .select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, phone_number, last_inbound_webhook_at, last_auto_restart_at, last_reconnect_at, last_backfill_at, last_backfill_imported, session_stale_since, last_auto_logout_at")
+      .select("*")
       .order("created_at");
+    
+    if (error) {
+      console.error("Error loading instances:", error);
+    }
+    
     setInstances((data as Instance[]) ?? []);
     setLoading(false);
   }
@@ -97,7 +102,7 @@ export default function SettingsPage() {
     await load();
     const created = (data as any)?.instance_id;
     if (created) {
-      const inst = (await supabase.from("whatsapp_instances").select("id, name, evolution_instance, connection_state, is_default, webhook_ok, last_health_check, phone_number").eq("id", created).maybeSingle()).data;
+      const inst = (await supabase.from("whatsapp_instances").select("*").eq("id", created).maybeSingle()).data;
       if (inst) setQrFor(inst as Instance);
     }
   }
