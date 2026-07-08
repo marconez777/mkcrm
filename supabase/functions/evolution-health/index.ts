@@ -330,6 +330,7 @@ async function processInstance(instance: Instance) {
       webhook_last_error: webhookErr ?? connectionError ?? null,
       webhook_last_set_at: webhookOk ? new Date().toISOString() : undefined,
       last_poll_at: new Date().toISOString(),
+      ...(phoneNumber ? { phone_number: phoneNumber } : {}),
       ...staleUpdate,
     })
     .eq("id", instance.id);
