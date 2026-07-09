@@ -113,6 +113,47 @@ async function classifyOneV2(
   }
   const ctx = loaded.ctx;
 
+  // ==== INJEÇÃO FEBRACIS (Bypass Lovable Deploy) ====
+  if (ctx.lead.clinic_id === "ab2f4484-886c-48f2-bfc6-0651d062c575") {
+    // Importa dinamicamente para não quebrar o script padrão se falhar
+    const { runFebracisAgents } = await import("./febracis/agent.ts");
+    const { applyFebracisClassification, writeSkipTelemetryFebracis, clearQueueFlagFebracis } = await import("./febracis/apply.ts");
+
+    if (!(await isAiAllowedForPipeline(client, ctx.lead.clinic_id, ctx.lead.pipeline_id))) {
+      await writeSkipTelemetryFebracis(client, leadId, ctx.lead.clinic_id, ctx.lead.pipeline_id, "pipeline_not_in_ai_targets");
+      await clearQueueFlagFebracis(client, leadId);
+      return { skipped: "pipeline_not_in_ai_targets" };
+    }
+
+    const agentOut = await runFebracisAgents(client, ctx);
+    
+    if ("error" in agentOut) {
+      await writeSkipTelemetryFebracis(client, ctx.lead.id, ctx.lead.clinic_id, ctx.lead.pipeline_id, `agent_error:${agentOut.error}`);
+      if (agentOut.error && (agentOut.error.includes("timeout") || agentOut.error.includes("429"))) {
+        throw new Error(`agent_error_transient:${agentOut.error}`);
+      }
+      await clearQueueFlagFebracis(client, ctx.lead.id);
+      return { skipped: `agent_error:${agentOut.error}` };
+    }
+
+    const applyRes = await applyFebracisClassification(
+      client,
+      ctx,
+      agentOut.classification,
+      agentOut.newSummary,
+      agentOut.telemetry
+    );
+
+    return {
+      version: 3,
+      mode: "febracis_custom",
+      classification: agentOut.classification,
+      telemetry: agentOut.telemetry,
+      action: applyRes.actionTaken
+    };
+  }
+  // ====================================================
+
   if (!(await isClinicPipelineAllowed(client, ctx.lead.clinic_id))) {
     await writeSkipTelemetry(
       client,
@@ -215,6 +256,10 @@ async function tickQueueV2(client: SupabaseClient) {
   // P9: filtra clínicas allowlistadas no SELECT em vez de descartar lead-a-lead
   // dentro de classifyOneV2 — economiza slots de concorrência e tokens.
   const allowedClinicIds = await loadAllowedClinicIds(client);
+  // Garante que a Febracis sempre rode, mesmo se não estiver na tabela de allowlist
+  if (!allowedClinicIds.includes("ab2f4484-886c-48f2-bfc6-0651d062c575")) {
+    allowedClinicIds.push("ab2f4484-886c-48f2-bfc6-0651d062c575");
+  }
   if (allowedClinicIds.length === 0) return { skipped: "no_allowlisted_clinics" };
 
   const { data: leads } = await client
