@@ -1,7 +1,7 @@
 // supabase/functions/pipeline-classify-febracis/agent.ts
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { generateObject, generateText } from "npm:ai@^3";
+import { generateObject, generateText } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 import { getClassifierAi, pickModel, isTransientAgentError } from "../_shared/classifier-ai.ts";
 import { logUsage } from "../_shared/metrics.ts";
@@ -39,14 +39,20 @@ export async function runFebracisAgents(
 
   const model = ai.model(modelStr);
 
-  // Filtra as mensagens APÓS o watermark, mas vamos pegar do context.
-  // O loadLeadContext já pode ter carregado isso, mas vamos pegar as strings formatadas
-  const msgs = ctx.messages || [];
-  if (msgs.length === 0) {
-    return { error: "no_messages_to_process" };
+  // Filtra as mensagens APÓS o watermark para garantir O(1) tokens reais
+  let watermarkIndex = -1;
+  if (ctx.lead.last_processed_message_id_classifier) {
+    watermarkIndex = ctx.messages.findIndex(m => m.id === ctx.lead.last_processed_message_id_classifier);
+  }
+  
+  // Como as mensagens vêm do mais antigo pro mais novo (cronológico), cortamos após o watermark
+  const newMessages = watermarkIndex >= 0 ? ctx.messages.slice(watermarkIndex + 1) : ctx.messages;
+  
+  if (newMessages.length === 0) {
+    return { error: "no_new_messages_after_watermark" };
   }
 
-  const rawThread = msgs.map(m => `[${m.source}] ${m.content}`).join("\n");
+  const rawThread = newMessages.map(m => `[${m.from_me ? "ATENDENTE" : "LEAD"}] ${m.content}`).join("\n");
   const oldSummary = ctx.lead.ai_summary || "Nenhum resumo anterior.";
 
   // ETAPA 1: RESUMIDOR INCREMENTAL
@@ -80,9 +86,15 @@ Retorne APENAS o novo resumo em texto puro. Seja extremamente sucinto.
     usageResumidor = res.usage || {};
     
     // Telemetria Resumidor
-    await logUsage(client, ctx.lead.clinic_id, "classifier:febracis_resumidor", usageResumidor.totalTokens || 0, {
+    await logUsage({
+      clinic_id: ctx.lead.clinic_id,
+      lead_id: ctx.lead.id,
       model: modelStr,
-      latencyMs: Date.now() - t0,
+      operation: "classifier:febracis_resumidor",
+      input_tokens: usageResumidor.promptTokens || 0,
+      output_tokens: usageResumidor.completionTokens || 0,
+      total_tokens: usageResumidor.totalTokens || 0,
+      latency_ms: Date.now() - t0,
     });
   } catch (err: any) {
     console.error("Febracis Summarizer Error", err);
@@ -124,9 +136,15 @@ ${newSummary}
     typifierOut = res.object;
     usageTipificador = res.usage || {};
 
-    await logUsage(client, ctx.lead.clinic_id, "classifier:febracis_tipificador", usageTipificador.totalTokens || 0, {
+    await logUsage({
+      clinic_id: ctx.lead.clinic_id,
+      lead_id: ctx.lead.id,
       model: modelStr,
-      latencyMs: Date.now() - t1,
+      operation: "classifier:febracis_tipificador",
+      input_tokens: usageTipificador.promptTokens || 0,
+      output_tokens: usageTipificador.completionTokens || 0,
+      total_tokens: usageTipificador.totalTokens || 0,
+      latency_ms: Date.now() - t1,
     });
   } catch (err: any) {
     console.error("Febracis Typifier Error", err);

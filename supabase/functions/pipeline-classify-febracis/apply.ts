@@ -2,9 +2,15 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import type { LeadContext } from "../pipeline-classify/context.ts";
-import { executePipelineMove } from "../_shared/pipeline-move.ts";
+import { pipelineMove } from "../_shared/pipeline-move.ts";
 import type { FebracisIntentOutput } from "./agent.ts";
-import { insertTags } from "../pipeline-classify/apply.ts";
+
+const FEBRACIS_ALLOWED_TAGS = new Set([
+  "aluno_antigo",
+  "reclamacao",
+  "urgencia_financeira",
+  "vip"
+]);
 
 export async function updateWatermarkFebracis(
   client: SupabaseClient,
@@ -44,10 +50,14 @@ export async function clearQueueFlagFebracis(client: SupabaseClient, leadId: str
 export async function writeSkipTelemetryFebracis(
   client: SupabaseClient,
   leadId: string,
+  clinicId: string,
+  pipelineId: string,
   reason: string
 ) {
   const { error } = await client.from("pipeline_run_items").insert({
     lead_id: leadId,
+    clinic_id: clinicId,
+    pipeline_id: pipelineId,
     run_type: "classifier",
     status: "skipped",
     skipped_reason: reason,
@@ -86,12 +96,26 @@ export async function applyFebracisClassification(
   let actionTaken = "no_move";
   const pId = ctx.lead.pipeline_id;
 
-  // Aplica tags (se houver)
+  // 1. Aplica tags de forma segura com restrição da Febracis
   if (classification.tags_suggested && classification.tags_suggested.length > 0) {
-    await insertTags(client, ctx.lead.id, ctx.lead.clinic_id, classification.tags_suggested);
+    const validTags = classification.tags_suggested.filter(t => FEBRACIS_ALLOWED_TAGS.has(t));
+    if (validTags.length > 0) {
+      const currentTags = ctx.lead.tags || [];
+      const nextTagsSet = new Set([...currentTags, ...validTags]);
+      const nextTags = Array.from(nextTagsSet);
+      
+      const { error: rpcErr } = await client.rpc("apply_lead_automation_patch", {
+        p_lead_id: ctx.lead.id,
+        p_custom_fields: null,
+        p_tags: nextTags,
+      });
+      if (rpcErr) {
+        console.error("apply_lead_automation_patch failed (tags)", rpcErr.message);
+      }
+    }
   }
 
-  // Define coluna de destino baseado na intenção
+  // 2. Define coluna de destino baseado na intenção
   let targetName = "";
   if (classification.intent === "quer_comprar") {
     targetName = "Comprando";
@@ -107,28 +131,28 @@ export async function applyFebracisClassification(
     targetStageId = await getStageIdByName(client, pId, targetName);
   }
 
-  // Executa o movimento real se o stage mudou
+  // 3. Executa o movimento real se o stage mudou
   if (targetStageId && targetStageId !== ctx.lead.stage_id) {
-    const moveRes = await executePipelineMove({
-      client,
+    const moveRes = await pipelineMove(client, {
       leadId: ctx.lead.id,
-      clinicId: ctx.lead.clinic_id,
-      pipelineId: pId,
-      newStageId: targetStageId,
-      triggerType: "automation",
+      toStageId: targetStageId,
+      source: "auto:classifier-febracis",
       reason: `IA detectou intenção: ${classification.intent}`,
+      idempotencyKey: `febracis:${ctx.lead.id}:${lastMessageId}`,
     });
 
-    if (moveRes.success) {
+    if (moveRes.moved) {
       actionTaken = `moved_to_${targetName}`;
     } else {
-      actionTaken = `move_failed_${moveRes.error}`;
+      actionTaken = `move_failed_${moveRes.reason}`;
     }
   }
 
-  // Grava Telemetria da Movimentação/Decisão
+  // 4. Grava Telemetria da Movimentação/Decisão
   await client.from("pipeline_run_items").insert({
     lead_id: ctx.lead.id,
+    clinic_id: ctx.lead.clinic_id,
+    pipeline_id: pId,
     run_type: "classifier",
     status: "completed",
     result: {
@@ -141,7 +165,7 @@ export async function applyFebracisClassification(
     },
   });
 
-  // Atualiza Lead (Watermark + Summary)
+  // 5. Atualiza Lead (Watermark + Summary)
   if (lastMessageId) {
     await updateWatermarkFebracis(client, ctx.lead.id, lastMessageId, newSummary);
   } else {

@@ -54,12 +54,12 @@ async function classifyOneFebracis(
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
         .from("leads")
-        .select("last_processed_message_id_classifier, ai_summary")
+        .select("last_processed_message_id_classifier, ai_summary, clinic_id, pipeline_id")
         .eq("id", leadId)
         .single();
         
       if (lead) {
-        await writeSkipTelemetryFebracis(client, leadId, loaded.reason);
+        await writeSkipTelemetryFebracis(client, leadId, lead.clinic_id, lead.pipeline_id, loaded.reason);
         await updateWatermarkFebracis(
           client,
           leadId,
@@ -76,13 +76,13 @@ async function classifyOneFebracis(
 
   // Garantia dupla que só opera para a clínica correta
   if (ctx.lead.clinic_id !== FEBRACIS_CLINIC_ID) {
-    await writeSkipTelemetryFebracis(client, leadId, "invalid_clinic_routing");
+    await writeSkipTelemetryFebracis(client, leadId, ctx.lead.clinic_id, ctx.lead.pipeline_id, "invalid_clinic_routing");
     await clearQueueFlagFebracis(client, leadId);
     return { skipped: "invalid_clinic_routing" };
   }
 
   if (!(await isAiAllowedForPipeline(client, ctx.lead.clinic_id, ctx.lead.pipeline_id))) {
-    await writeSkipTelemetryFebracis(client, leadId, "pipeline_not_in_ai_targets");
+    await writeSkipTelemetryFebracis(client, leadId, ctx.lead.clinic_id, ctx.lead.pipeline_id, "pipeline_not_in_ai_targets");
     await clearQueueFlagFebracis(client, leadId);
     return { skipped: "pipeline_not_in_ai_targets" };
   }
@@ -91,7 +91,7 @@ async function classifyOneFebracis(
   const agentOut = await runFebracisAgents(client, ctx);
   
   if ("error" in agentOut) {
-    await writeSkipTelemetryFebracis(client, ctx.lead.id, `agent_error:${agentOut.error}`);
+    await writeSkipTelemetryFebracis(client, ctx.lead.id, ctx.lead.clinic_id, ctx.lead.pipeline_id, `agent_error:${agentOut.error}`);
     // Se for timeout ou rate_limit, joga pra fila do backoff
     if (agentOut.error && (agentOut.error.includes("timeout") || agentOut.error.includes("429"))) {
       throw new Error(`agent_error_transient:${agentOut.error}`);
