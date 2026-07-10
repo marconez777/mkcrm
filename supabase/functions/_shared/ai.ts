@@ -286,18 +286,43 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       })) }]
     : undefined;
 
+  const body = JSON.stringify({
+    contents,
+    systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
+    tools: gTools,
+    generationConfig: { temperature: Number(agent.temperature) || 0.7 },
+  });
+  const apiKey = requireKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${requireKey(agent)}`;
-  const r = await fetch(url, {
+  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+  let r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents,
-      systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
-      tools: gTools,
-      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
-    }),
+    body,
   });
+  if (!r.ok && r.status === 404 && !agent.base_url && base.endsWith("/v1beta")) {
+    const firstErrorText = await r.text();
+    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+    const retry = await fetch(v1Url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (retry.ok) {
+      r = retry;
+    } else {
+      const retryErrorText = await retry.text();
+      console.error("[googleChat] provider error", {
+        status: retry.status,
+        model: agent.model,
+        error: compactErrorText(retryErrorText),
+        fallback_from_v1beta: compactErrorText(firstErrorText, 240),
+        messages: messages.length,
+        tools: tools?.length ?? 0,
+      });
+      return { ok: false, status: retry.status, errorText: retryErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
+    }
+  }
   if (!r.ok) {
     const errorText = await r.text();
     console.error("[googleChat] provider error", {
@@ -485,7 +510,8 @@ function normalizeLovableEmbeddingModel(model?: string | null): string {
     return "openai/text-embedding-3-small";
   }
   if (model === "text-embedding-3-large") return "openai/text-embedding-3-large";
-  if (model.startsWith("openai/") || model.startsWith("google/")) return model;
+  if (model.startsWith("openai/")) return model;
+  if (model.startsWith("google/")) return "openai/text-embedding-3-small";
   return "openai/text-embedding-3-small";
 }
 
