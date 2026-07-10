@@ -111,6 +111,21 @@ const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
 /** Providers that don't have native embeddings — user must supply an OpenAI/Google embedding key. */
 const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus", "lovable"];
 
+function isLikelyProviderKey(provider: Provider, key: string): boolean {
+  const clean = key.trim();
+  if (!clean) return true;
+  if (provider === "google") return clean.length >= 30 && (clean.startsWith("AIza") || clean.startsWith("AQ."));
+  if (provider === "openai") return clean.startsWith("sk-") && clean.length >= 30;
+  if (provider === "anthropic") return clean.startsWith("sk-ant-") && clean.length >= 30;
+  if (provider === "xai") return clean.startsWith("xai-") && clean.length >= 20;
+  return clean.length >= 20;
+}
+
+function providerKeyHelp(provider: Provider): string {
+  if (provider === "google") return "Chave Gemini inválida. Cole a chave completa do AI Studio (começa com AIza... ou AQ... e tem bem mais de 30 caracteres).";
+  return "API key parece incompleta. Cole a chave completa do provedor.";
+}
+
 const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
   {
     group: "Pipeline & Lead",
@@ -427,7 +442,10 @@ export default function Agents() {
       niche_other: selected.niche_other ?? null,
     };
     // Only update credentials if user typed something (avoids wiping existing keys)
-    if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
+    if (typeof selected.api_key === "string" && selected.api_key.trim().length > 0) {
+      if (!isLikelyProviderKey(selected.provider, selected.api_key)) return toast.error(providerKeyHelp(selected.provider));
+      payload.api_key = selected.api_key.trim();
+    }
     if (typeof selected.embedding_api_key === "string" && selected.embedding_api_key.length > 0) payload.embedding_api_key = selected.embedding_api_key;
     if (typeof selected.reranker_api_key === "string" && selected.reranker_api_key.length > 0) payload.reranker_api_key = selected.reranker_api_key;
     const { error } = await supabase
