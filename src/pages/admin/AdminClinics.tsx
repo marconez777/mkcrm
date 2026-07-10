@@ -22,6 +22,17 @@ import { APP_BASE_URL } from "@/lib/app-url";
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null; wa_instances?: { name: string; connection_state: string | null; session_stale_since: string | null; last_inbound_webhook_at: string | null }[] };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
 
+const LEGACY_APP_ORIGINS = ["https://crm.mkart.com.br", "https://mkcrm.lovable.app"];
+
+function normalizeInviteUrl(rawUrl?: string | null, token?: string | null) {
+  if (token) return `${APP_BASE_URL}/invite/${token}`;
+  if (!rawUrl) return "";
+  return LEGACY_APP_ORIGINS.reduce(
+    (url, legacyOrigin) => url.replace(legacyOrigin, APP_BASE_URL),
+    rawUrl,
+  );
+}
+
 function slugify(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
@@ -110,7 +121,7 @@ export default function AdminClinics() {
         body: { clinic_id: openInvite.id, email: inviteEmail, role: inviteRole },
       });
       if (error) throw error;
-      const urlToUse = data.token ? `${APP_BASE_URL}/invite/${data.token}` : data.invite_url;
+      const urlToUse = normalizeInviteUrl(data.invite_url, data.token);
       setGeneratedLink({ url: urlToUse, expires_at: data.expires_at });
       toast.success("Convite criado");
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
