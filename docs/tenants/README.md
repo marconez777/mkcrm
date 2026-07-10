@@ -23,7 +23,8 @@ Para criar um agente novo para uma conta nova, siga o passo a passo em [`docs/pi
 | Slug | Clinic ID | Edge Function | Status | Docs |
 |---|---|---|---|---|
 | `clinica-or` | `cf038458-457d-4c1a-9ac4-c88c3c8353a1` | `pipeline-classify` (compartilhada — arquitetura V6, 5 agentes) | Produção | [README](./clinica-or/README.md) |
-| `febracis` | `ab2f4484-886c-48f2-bfc6-0651d062c575` | `pipeline-classify-febracis` (isolada — 2 micro-agentes O(1)) | Em auditoria de código | [README](./febracis/README.md) |
+
+> **Febracis**: código e docs do classificador foram removidos em 2026-07-10. Será reconstruído do zero em cima do registry `pipeline_tenant_classifiers` após as Fases 1–5 do roadmap (`.lovable/plan.md`).
 
 ## Estrutura padrão de cada tenant
 
