@@ -286,6 +286,16 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       })) }]
     : undefined;
 
+  // Safety settings PERMISSIVAS — sem isso o Gemini bloqueia respostas de vendas/WhatsApp
+  // silenciosamente (finishReason=SAFETY, content vazio). Categorias oficiais Gemini API.
+  const SAFETY_SETTINGS = [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+  ];
+
   const buildBody = (opts: { includeSystemInstruction: boolean }) => {
     const contentsFinal = [...contents];
     if (sys && !opts.includeSystemInstruction) {
@@ -298,8 +308,13 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         ? { systemInstruction: { parts: [{ text: sys }] } }
         : {}),
       tools: gTools,
+      safetySettings: SAFETY_SETTINGS,
       generationConfig: {
         temperature: Number(agent.temperature) || 0.7,
+        // Sem maxOutputTokens explícito o Gemini pode gastar TODO orçamento em
+        // thinking silencioso (mesmo com budget=0 alguns modelos ignoram) e
+        // devolver content vazio com finishReason=MAX_TOKENS. Fixamos um teto real.
+        maxOutputTokens: 2048,
         // gemini-2.5-* / gemini-flash-latest ligam "thinking" por padrão, o que
         // consome tokens em partes com { thought: true } SEM texto visível — o
         // agente ficava mudo (output_tokens>0, content vazio). Desligamos aqui.
@@ -380,12 +395,26 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     }
   }
   if (!text && !tool_calls.length) {
-    console.warn("[googleChat] empty response", {
+    // Loga TUDO que dá pra usar no diagnóstico: finishReason, safety, parts crus, prompt feedback.
+    console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
       model: agent.model,
       finishReason: cand?.finishReason,
-      hasParts: !!cand?.content?.parts?.length,
+      safetyRatings: cand?.safetyRatings,
+      promptFeedback: data.promptFeedback,
+      partsCount: cand?.content?.parts?.length ?? 0,
+      partsRaw: JSON.stringify(cand?.content?.parts ?? []).slice(0, 500),
       usage: data.usageMetadata,
     });
+    // Retorna erro retryable para o caller decidir (dispatcher tenta de novo, ai-chat devolve 502).
+    // Isso é MUITO melhor do que "sucesso com content vazio" — o agente ficava mudo silenciosamente.
+    const reason = cand?.finishReason ?? "no_candidate";
+    return {
+      ok: false,
+      status: 502,
+      errorText: `empty response from ${agent.model} (finishReason=${reason})`,
+      retryable: reason === "MAX_TOKENS" || reason === "OTHER" || reason === "no_candidate",
+      choices: [],
+    };
   }
 
   return {

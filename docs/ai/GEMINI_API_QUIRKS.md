@@ -113,8 +113,33 @@ Em `googleChat` (`supabase/functions/_shared/ai.ts`):
 ```ts
 generationConfig: {
   temperature: ...,
+  maxOutputTokens: 2048,               // OBRIGATÓRIO
   thinkingConfig: { thinkingBudget: 0 }, // OBRIGATÓRIO — não remover
 }
 // ... e no parser:
 if (p.thought) continue;
 ```
+
+## Regra #7 — Sempre mandar `safetySettings`, `maxOutputTokens` e falhar em resposta vazia
+
+Sem `safetySettings` explícito, o Gemini bloqueia respostas de vendas/WhatsApp em silêncio (`finishReason=SAFETY`, `content` vazio, `usageMetadata` normal). Isso é indistinguível de sucesso pro pipeline. Sempre mandar:
+
+```ts
+safetySettings: [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+]
+```
+
+Sem `maxOutputTokens`, alguns modelos gastam TODO orçamento em thinking (mesmo com `thinkingBudget=0` ignorado) e devolvem vazio com `finishReason=MAX_TOKENS`. Fixar em 2048.
+
+E — quando ainda assim vier vazio — **NÃO devolver `{ ok: true, content: "" }`**. Devolver `{ ok:false, status:502, errorText: "empty response ... finishReason=X", retryable:true }` para que:
+- o `ai-chat` propague 502 pro dispatcher em vez de mandar mensagem em branco;
+- `ai_usage` mostre o erro real (não `turn:summary`);
+- o log `[googleChat] empty response — DIAGNOSTIC DUMP` traga `finishReason`, `safetyRatings`, `promptFeedback` e as partes cruas.
+
+Histórico: 2026-07-10 — SDR Febracis ficou mudo depois do fix de thinking. Causa: modelo devolvia `finishReason=MAX_TOKENS` gastando o budget default em thinking silencioso, e sem `safetySettings` uma parte também caía em block. Fix combinado: safety BLOCK_NONE + maxOutputTokens=2048 + erro real quando vazio.
+
