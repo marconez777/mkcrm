@@ -56,8 +56,10 @@ Deno.serve(async (req) => {
 
     const { data: clinic } = await admin.from("clinics").select("name").eq("id", clinic_id).single();
 
-    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
-    const inviteUrl = `${siteUrl.replace(/\/$/, "")}/invite/${invite!.token}`;
+    // Domínio oficial do app — hardcoded para evitar que secrets legados
+    // (PUBLIC_SITE_URL apontando para o domínio antigo) contaminem os links.
+    const siteUrl = "https://chatfunnelai.com";
+    const inviteUrl = `${siteUrl}/invite/${invite!.token}`;
 
     return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, token: invite!.token, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
