@@ -72,6 +72,26 @@ function compactErrorText(text: string, max = 500): string {
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
+// Regra #10: transforma o JSON cru do Google em mensagem acionável no ai_usage.error.
+// API_KEY_INVALID quase nunca é a chave em si — é a Generative Language API
+// desabilitada no projeto GCP dono da chave, ou o projeto sem billing.
+function enrichGoogleError(errorText: string): string {
+  const raw = String(errorText ?? "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("api_key_invalid") || lower.includes("api key not valid")) {
+    return `Gemini API_KEY_INVALID — a chave foi rejeitada. Causas comuns: (1) Generative Language API não está habilitada no projeto GCP dono da chave — abra https://console.developers.google.com/apis/api/generativelanguage.googleapis.com e clique Enable; (2) chave apagada/regenerada no AI Studio — cole a nova em Agentes → editar. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("permission_denied") || lower.includes("permission denied")) {
+    return `Gemini PERMISSION_DENIED — chave existe mas não tem permissão pra esse modelo/endpoint. Verifique se a Generative Language API está Enabled no projeto GCP e se a chave não tem restrição por API. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("quota") && (lower.includes("exceeded") || lower.includes("free_tier"))) {
+    return `Gemini quota esgotada — o projeto GCP dessa chave está no free tier (20 req/dia por modelo) ou bateu no limite pago. Habilite billing no projeto ou espere reset diário. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  return raw;
+}
+
+
+
 // ---------- CHAT ----------
 
 export async function chatCompletion(
