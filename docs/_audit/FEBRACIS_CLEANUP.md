@@ -38,7 +38,7 @@ Apenas o **classificador de pipeline** Febracis (edge `pipeline-classify-febraci
 | Docs `docs/agents/FEBRACIS_*.md` (3 arquivos) | Deletadas | ✅ |
 | Docs `docs/tenants/febracis/**` (5 arquivos) | Deletadas | ✅ |
 | Menções em `docs/tenants/README.md`, `docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md`, `docs/maps/AI_AGENTS.md`, `docs/agents/TRAINING_FRAMEWORK.md`, `docs/_audit/INVENTORY.md` | Reescritas | ✅ |
-| Edge deployada `pipeline-classify-febracis` na Cloud | `delete_edge_functions` falhou; função órfã sem cron e inerte | ⚠️ aguardando purge manual |
+| Edge deployada `pipeline-classify-febracis` na Cloud | Substituída por stub 410 Gone e então deletada com sucesso (2026-07-10). `cron.job` e `pg_proc` reconfirmados: 0 referências. | ✅ |
 
 ## Varreduras (esta rodada)
 
