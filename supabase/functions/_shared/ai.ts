@@ -286,28 +286,48 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       })) }]
     : undefined;
 
-  const body = JSON.stringify({
-    contents,
-    systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
-    tools: gTools,
-    generationConfig: { temperature: Number(agent.temperature) || 0.7 },
-  });
+  const buildBody = (opts: { includeSystemInstruction: boolean }) => {
+    const contentsFinal = [...contents];
+    if (sys && !opts.includeSystemInstruction) {
+      // v1 endpoint (or retries) may not accept systemInstruction — prepend as user turn.
+      contentsFinal.unshift({ role: "user", parts: [{ text: `[System]\n${sys}` }] });
+    }
+    return JSON.stringify({
+      contents: contentsFinal,
+      ...(opts.includeSystemInstruction && sys
+        ? { systemInstruction: { parts: [{ text: sys }] } }
+        : {}),
+      tools: gTools,
+      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
+    });
+  };
   const apiKey = requireKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
   const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
   let r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body,
+    body: buildBody({ includeSystemInstruction: true }),
   });
-  if (!r.ok && r.status === 404 && !agent.base_url && base.endsWith("/v1beta")) {
+  // Fallback chain when v1beta rejects (e.g. 404 model, or 400 systemInstruction):
+  // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
+  if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
     const firstErrorText = await r.text();
     const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
-    const retry = await fetch(v1Url, {
+    let retry = await fetch(v1Url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body,
+      body: buildBody({ includeSystemInstruction: true }),
     });
+    let secondErrorText = "";
+    if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
+      secondErrorText = await retry.text();
+      retry = await fetch(v1Url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: buildBody({ includeSystemInstruction: false }),
+      });
+    }
     if (retry.ok) {
       r = retry;
     } else {
@@ -317,12 +337,14 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         model: agent.model,
         error: compactErrorText(retryErrorText),
         fallback_from_v1beta: compactErrorText(firstErrorText, 240),
+        fallback_v1_with_sys: secondErrorText ? compactErrorText(secondErrorText, 240) : undefined,
         messages: messages.length,
         tools: tools?.length ?? 0,
       });
-      return { ok: false, status: retry.status, errorText: retryErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
+      return { ok: false, status: retry.status, errorText: retryErrorText || secondErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
     }
   }
+
   if (!r.ok) {
     const errorText = await r.text();
     console.error("[googleChat] provider error", {
