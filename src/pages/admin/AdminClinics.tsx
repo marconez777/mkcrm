@@ -109,7 +109,7 @@ export default function AdminClinics() {
         body: { clinic_id: openInvite.id, email: inviteEmail, role: inviteRole },
       });
       if (error) throw error;
-      const urlToUse = data.token ? `${window.location.origin}/invite/${data.token}` : data.invite_url;
+      const urlToUse = data.token ? `${APP_BASE_URL}/invite/${data.token}` : data.invite_url;
       setGeneratedLink({ url: urlToUse, expires_at: data.expires_at });
       toast.success("Convite criado");
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
