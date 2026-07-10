@@ -50,3 +50,6 @@ Plano completo em `.lovable/plan.md`. Inventário em `docs/_audit/INVENTORY.md`.
 
 ## Fase 10 — Admin Console ✅
 - `docs/maps/ADMIN_CONSOLE.md`: shell, guardas, rotas, painéis, edges admin-*, segurança e dívidas.
+
+## Limpeza Febracis (classificador de pipeline) ✅ 2026-07-10
+- Relatório em `docs/_audit/FEBRACIS_CLEANUP.md`. Varredura de 8 fases (código, edges, cron, RPCs, DB, migrations, scripts, plan) confirmou zero legado do classificador. Edge deployada `pipeline-classify-febracis` continua órfã na Cloud (delete falhou) — inerte, aguardando purge manual.
