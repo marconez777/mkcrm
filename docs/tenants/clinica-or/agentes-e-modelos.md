@@ -1,3 +1,22 @@
+---
+title: "Agentes e Modelos de IA (V6) — Clínica ÓR"
+topic: kanban
+kind: feature
+audience: agent
+updated: 2026-07-10
+summary: "Arquitetura V6 do classificador da Clínica ÓR: 5 micro-agentes (Resumidor, Agendador, Tipificador, Movimentador, Maestro) e auditores A1/A2/A3."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Agentes e Modelos de IA (V6) — Clínica ÓR
 
 ## O Classificador V6 (Linha de Montagem)

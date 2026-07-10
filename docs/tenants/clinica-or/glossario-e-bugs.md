@@ -1,3 +1,22 @@
+---
+title: "Glossário de Funções e Mapeamento de Bugs — Clínica ÓR"
+topic: kanban
+kind: reference
+audience: agent
+updated: 2026-07-10
+summary: "Glossário das edge functions do pipeline da Clínica ÓR e bugs conhecidos."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Glossário de Funções e Mapeamento de Bugs — Clínica ÓR
 
 ## Glossário de Edge Functions do Pipeline

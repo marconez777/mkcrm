@@ -1,3 +1,22 @@
+---
+title: "Gatilhos e Automações (Rule Engine) — Clínica ÓR"
+topic: kanban
+kind: feature
+audience: agent
+updated: 2026-07-10
+summary: "Rule engine da Clínica ÓR: gatilhos determinísticos, geladeiras de inatividade, reator humano e relatório mensal Dia 1."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Gatilhos e Automações (Rule Engine) — Clínica ÓR
 
 O "Rule Engine" processa regras determinísticas sem depender do LLM. Operam na camada do banco ou via *edge functions* engatilhadas por crons e Webhooks.

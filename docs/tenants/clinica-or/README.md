@@ -1,3 +1,22 @@
+---
+title: "Visão Geral do Pipeline — Clínica ÓR"
+topic: kanban
+kind: map
+audience: agent
+updated: 2026-07-10
+summary: "Visão geral do pipeline da Clínica ÓR: arquitetura de decisão, estágios, regras temporais e gates."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Visão Geral do Pipeline — Clínica ÓR
 
 ## Introdução
