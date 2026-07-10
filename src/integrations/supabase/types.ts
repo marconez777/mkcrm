@@ -4975,6 +4975,39 @@ export type Database = {
           },
         ]
       }
+      pipeline_tenant_classifiers: {
+        Row: {
+          byok_required: boolean
+          clinic_id: string
+          created_at: string
+          cron_enabled: boolean
+          edge_function_name: string
+          notes: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          byok_required?: boolean
+          clinic_id: string
+          created_at?: string
+          cron_enabled?: boolean
+          edge_function_name: string
+          notes?: string | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          byok_required?: boolean
+          clinic_id?: string
+          created_at?: string
+          cron_enabled?: boolean
+          edge_function_name?: string
+          notes?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pipeline_tick_stats: {
         Row: {
           action: string
