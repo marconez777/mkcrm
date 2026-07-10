@@ -175,7 +175,7 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
       if (!l) break;
       const fails = (l.ai_review_fail_count as number | null) ?? 0;
       try {
-        const r = await classifyOne(client, l.id as string, { dryRun });
+        const r = await classifyOne(client, l.id as string, { dryRun, version });
         results.push({ lead_id: l.id, ok: true, ...r });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
