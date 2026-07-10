@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Check, Copy, Loader2, MessageSquare, Sparkles, Users } from "lucide-react";
+import { buildInviteUrl } from "@/lib/app-url";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -68,7 +69,7 @@ export default function Onboarding() {
         body: { clinic_id: membership!.clinic_id, email: inviteEmail, role: inviteRole },
       });
       if (error) throw error;
-      setGenerated((g) => [{ url: data.invite_url, email: inviteEmail }, ...g]);
+      setGenerated((g) => [{ url: buildInviteUrl(data.invite_url, data.token), email: inviteEmail }, ...g]);
       setInviteEmail("");
       toast.success(t("onboarding.linkGenerated"));
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }

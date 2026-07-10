@@ -8,3 +8,14 @@
  * no allowlist do Auth durante o cutover, mas não devem ser usados aqui.
  */
 export const APP_BASE_URL = "https://chatfunnelai.com";
+
+const LEGACY_APP_ORIGINS = ["https://crm.mkart.com.br", "https://mkcrm.lovable.app"];
+
+export function buildInviteUrl(inviteUrl?: string | null, token?: string | null) {
+  if (token) return `${APP_BASE_URL}/invite/${token}`;
+  if (!inviteUrl) return "";
+  return LEGACY_APP_ORIGINS.reduce(
+    (url, legacyOrigin) => url.replace(legacyOrigin, APP_BASE_URL),
+    inviteUrl,
+  );
+}
