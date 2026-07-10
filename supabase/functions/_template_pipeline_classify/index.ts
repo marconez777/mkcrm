@@ -139,11 +139,14 @@ async function classifyOne(
 // -----------------------------------------------------------------------------
 // Tick: drena a fila do namespace `pipeline-classifier:<slug>`.
 // -----------------------------------------------------------------------------
-async function tick(client: SupabaseClient) {
+async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } = {}) {
   if (!(await getTenantToggle(client, TENANT_SLUG, "enabled"))) {
     return { skipped: "toggle_off" };
   }
-  const dryRun = await getTenantToggle(client, TENANT_SLUG, "dry_run");
+  // G9 — dry_run pode vir do payload (smoke test) OU do setting `automation.<slug>.dry_run`.
+  const dryRun = opts.dryRunOverride === true
+    ? true
+    : await getTenantToggle(client, TENANT_SLUG, "dry_run");
 
   const { data: leads } = await client
     .from("leads")
