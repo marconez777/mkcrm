@@ -1,7 +1,7 @@
 // Multi-provider AI helpers. Each agent carries provider + api_key + optional base_url.
 // Chat: OpenAI / Anthropic / Google. Returned shape is normalized to OpenAI-like:
 //   { ok, status, choices:[{message:{content, tool_calls?:[{id,function:{name,arguments}}]}}], usage:{prompt_tokens,completion_tokens,total_tokens} }
-// Embeddings: provider-native (openai or google). All embeddings forced to 768 dims to match ai_chunks.
+// Embeddings: all vectors are forced to 768 dims to match ai_chunks.
 //
 // All chat and embed calls auto-log to ai_usage when a `ctx` is provided.
 
@@ -65,6 +65,11 @@ export function isRetryableStatus(s: number): boolean {
 function requireKey(agent: Agent) {
   if (!agent.api_key) throw new Error(`Agent ${agent.id} sem api_key configurada`);
   return agent.api_key;
+}
+
+function compactErrorText(text: string, max = 500): string {
+  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
 // ---------- CHAT ----------
@@ -274,40 +279,61 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   }
 
   const gTools = tools?.length
-    ? [{ functionDeclarations: tools.map((t) => {
-        let p = t.function.parameters ? JSON.parse(JSON.stringify(t.function.parameters)) : undefined;
-        if (p) {
-          const walk = (obj: any) => {
-            if (!obj || typeof obj !== "object") return;
-            if ("default" in obj) delete obj.default;
-            for (const k in obj) walk(obj[k]);
-          };
-          walk(p);
-          if (p.type === "object" && p.properties && Object.keys(p.properties).length === 0) {
-            p = undefined;
-          }
-        }
-        return {
-          name: t.function.name,
-          description: t.function.description,
-          parameters: p,
-        };
-      }) }]
+    ? [{ functionDeclarations: tools.map((t) => ({
+        name: t.function.name,
+        description: t.function.description,
+        parameters: sanitizeGeminiSchema(t.function.parameters),
+      })) }]
     : undefined;
 
+  const body = JSON.stringify({
+    contents,
+    systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
+    tools: gTools,
+    generationConfig: { temperature: Number(agent.temperature) || 0.7 },
+  });
+  const apiKey = requireKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${requireKey(agent)}`;
-  const r = await fetch(url, {
+  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+  let r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents,
-      systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
-      tools: gTools,
-      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
-    }),
+    body,
   });
-  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
+  if (!r.ok && r.status === 404 && !agent.base_url && base.endsWith("/v1beta")) {
+    const firstErrorText = await r.text();
+    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+    const retry = await fetch(v1Url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (retry.ok) {
+      r = retry;
+    } else {
+      const retryErrorText = await retry.text();
+      console.error("[googleChat] provider error", {
+        status: retry.status,
+        model: agent.model,
+        error: compactErrorText(retryErrorText),
+        fallback_from_v1beta: compactErrorText(firstErrorText, 240),
+        messages: messages.length,
+        tools: tools?.length ?? 0,
+      });
+      return { ok: false, status: retry.status, errorText: retryErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
+    }
+  }
+  if (!r.ok) {
+    const errorText = await r.text();
+    console.error("[googleChat] provider error", {
+      status: r.status,
+      model: agent.model,
+      error: compactErrorText(errorText),
+      messages: messages.length,
+      tools: tools?.length ?? 0,
+    });
+    return { ok: false, status: r.status, errorText, retryable: isRetryableStatus(r.status), choices: [] };
+  }
   const data = await r.json();
   const cand = data.candidates?.[0];
   let text = "";
@@ -335,6 +361,89 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   };
 }
 
+function sanitizeGeminiSchema(schema: any): any | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+
+  const clone = JSON.parse(JSON.stringify(schema));
+  const unsupported = new Set([
+    "$schema",
+    "$id",
+    "$defs",
+    "definitions",
+    "$ref",
+    "default",
+    "additionalProperties",
+    "nullable",
+    "strict",
+    "oneOf",
+    "anyOf",
+    "allOf",
+    "not",
+    "format",
+    "pattern",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "minItems",
+    "maxItems",
+  ]);
+
+  const clean = (node: any): any | undefined => {
+    if (!node || typeof node !== "object") return undefined;
+    if (Array.isArray(node)) return node.map(clean).filter(Boolean);
+
+    for (const key of Object.keys(node)) {
+      if (unsupported.has(key)) delete node[key];
+    }
+
+    if (Array.isArray(node.type)) {
+      node.type = node.type.find((t: unknown) => t !== "null") ?? "string";
+    }
+
+    if (node.properties && typeof node.properties === "object") {
+      for (const key of Object.keys(node.properties)) {
+        const child = clean(node.properties[key]);
+        if (child) node.properties[key] = child;
+        else delete node.properties[key];
+      }
+      if (node.type === "object" && Object.keys(node.properties).length === 0) {
+        delete node.properties;
+        delete node.required;
+      }
+    }
+
+    if (node.items) {
+      const items = clean(node.items);
+      if (items) node.items = items;
+      else delete node.items;
+    }
+
+    if (Array.isArray(node.required) && node.properties) {
+      const props = new Set(Object.keys(node.properties));
+      node.required = node.required.filter((key: unknown) => typeof key === "string" && props.has(key));
+      if (node.required.length === 0) delete node.required;
+    }
+
+    if (!node.type) {
+      if (node.properties) node.type = "object";
+      else if (node.items) node.type = "array";
+      else node.type = "string";
+    }
+
+    if (node.type === "array" && !node.items) {
+      node.items = { type: "string" };
+    }
+
+    return node;
+  };
+
+  const result = clean(clone);
+  if (!result) return undefined;
+  if (result.type === "object" && result.properties && Object.keys(result.properties).length === 0) return undefined;
+  return result;
+}
+
 // ---------- EMBEDDINGS (always 768 dims to match ai_chunks) ----------
 
 export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promise<number[][]> {
@@ -342,21 +451,29 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
   let model = "unknown";
   try {
     let vectors: number[][];
-    // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
-    // else use the same provider's native embedding endpoint.
+    // Pick embedding provider. Google chat BYOK no longer defaults to the native
+    // `text-embedding-004` endpoint because it 404s for some Gemini API keys and
+    // blocks SDR replies. Use Lovable AI's OpenAI-compatible embeddings by default
+    // so vectors stay 768-dim for the existing ai_chunks schema.
     if (agent.embedding_api_key) {
-      model = agent.embedding_model || "text-embedding-3-small";
+      model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
     } else if (agent.provider === "openai") {
-      model = agent.embedding_model || "text-embedding-3-small";
+      model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
     } else if (agent.provider === "google") {
-      model = agent.embedding_model || "text-embedding-004";
-      vectors = await googleEmbed(requireKey(agent), model, texts);
+      const key = Deno.env.get("LOVABLE_API_KEY");
+      if (!key) {
+        model = agent.embedding_model || "text-embedding-004";
+        vectors = await googleEmbed(requireKey(agent), model, texts);
+      } else {
+        model = normalizeLovableEmbeddingModel(agent.embedding_model);
+        vectors = await lovableEmbed(key, model, texts);
+      }
     } else if (agent.provider === "lovable") {
       const key = Deno.env.get("LOVABLE_API_KEY");
       if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
-      model = agent.embedding_model || "openai/text-embedding-3-small";
+      model = normalizeLovableEmbeddingModel(agent.embedding_model);
       vectors = await lovableEmbed(key, model, texts);
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
@@ -381,6 +498,21 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     }
     throw e;
   }
+}
+
+function normalizeOpenAIEmbeddingModel(model: string): string {
+  if (model.startsWith("openai/")) return model.replace(/^openai\//, "");
+  return model;
+}
+
+function normalizeLovableEmbeddingModel(model?: string | null): string {
+  if (!model || model === "text-embedding-004" || model === "text-embedding-3-small") {
+    return "openai/text-embedding-3-small";
+  }
+  if (model === "text-embedding-3-large") return "openai/text-embedding-3-large";
+  if (model.startsWith("openai/")) return model;
+  if (model.startsWith("google/")) return "openai/text-embedding-3-small";
+  return "openai/text-embedding-3-small";
 }
 
 async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?: string | null): Promise<number[][]> {
