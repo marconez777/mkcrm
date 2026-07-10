@@ -7500,6 +7500,13 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
       }
+      dispatch_pipeline_classifiers: {
+        Args: never
+        Returns: {
+          request_id: number
+          slug: string
+        }[]
+      }
       engagement_broadcasts_summary: {
         Args: { _from: string; _to: string }
         Returns: {

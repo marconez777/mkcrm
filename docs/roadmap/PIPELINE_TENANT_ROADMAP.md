@@ -58,15 +58,19 @@ Auditado: função é 100% genérica (`pg_try_advisory_xact_lock(hashtext('class
 
 ---
 
-### G5 — Cron centralizado + fan-out via `pg_net`
+### G5 — Cron centralizado + fan-out via `pg_net` ✅ 2026-07-10
 
 Substitui a ideia ruim de "1 cron por tenant" (quebra `cron.max_running_jobs`).
 
-- Cron único `pipeline-dispatcher-tick` (`* * * * *`).
-- Função PL/pgSQL `dispatch_pipeline_classifiers()` lê `pipeline_tenant_classifiers WHERE cron_enabled = true`.
-- Para cada tenant, `net.http_post` para a edge do tenant com body `{ "action": "tick" }`.
-- Runbook em `docs/pipeline/runtime/CRON_JOBS.md` (nova seção): ligar/desligar tenant, kill switch global, monitor `net._http_response`.
-- Pré-requisito: confirmar extensão `pg_net` habilitada.
+- Cron único `pipeline-dispatcher-tick` (`* * * * *`, jobid **53**, `active=true`).
+- Função PL/pgSQL `public.dispatch_pipeline_classifiers()` (SECURITY DEFINER, EXECUTE só para `service_role`) lê `pipeline_tenant_classifiers WHERE cron_enabled = true`.
+- Para cada tenant, `net.http_post` para `<edge_function_name>` com body `{ "action":"tick", "source":"pipeline-dispatcher", "slug":"<slug>" }` e header `x-dispatch-slug`.
+- Estado atual: **no-op** — ÓR está `cron_enabled=false` (adoção retroativa). Cron legado `pipeline-classify-tick` (jobid 38) continua ativo. A virada é: `UPDATE ptc SET cron_enabled=true WHERE slug='clinica-or'` + desligar jobid 38 — feito quando o primeiro tenant novo estiver validado.
+- Pré-requisitos confirmados: `pg_net` e `pg_cron` habilitados.
+
+**Pendências** (não bloqueiam encerrar o gap, viram P2/P3):
+- Runbook em `docs/pipeline/runtime/CRON_JOBS.md` documentando o novo dispatcher + procedimento de virada.
+- Monitor `net._http_response` (cron horário que alerta edges travadas).
 
 **Esforço:** 1 dia. **Depende:** G3, G17. **Bloqueia:** produção do 2º tenant.
 
