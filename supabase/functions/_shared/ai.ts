@@ -274,11 +274,25 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   }
 
   const gTools = tools?.length
-    ? [{ functionDeclarations: tools.map((t) => ({
-        name: t.function.name,
-        description: t.function.description,
-        parameters: t.function.parameters,
-      })) }]
+    ? [{ functionDeclarations: tools.map((t) => {
+        let p = t.function.parameters ? JSON.parse(JSON.stringify(t.function.parameters)) : undefined;
+        if (p) {
+          const walk = (obj: any) => {
+            if (!obj || typeof obj !== "object") return;
+            if ("default" in obj) delete obj.default;
+            for (const k in obj) walk(obj[k]);
+          };
+          walk(p);
+          if (p.type === "object" && p.properties && Object.keys(p.properties).length === 0) {
+            p = undefined;
+          }
+        }
+        return {
+          name: t.function.name,
+          description: t.function.description,
+          parameters: p,
+        };
+      }) }]
     : undefined;
 
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
