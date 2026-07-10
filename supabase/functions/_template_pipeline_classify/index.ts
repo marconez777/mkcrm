@@ -22,7 +22,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { runAgent } from "./agent.ts";
 import { applyClassification } from "./apply.ts";
-import { getTenantSetting, getTenantToggle } from "../_shared/app-settings.ts"; // G2 (a criar)
+import { getTenantToggle } from "../_shared/app-settings.ts";
 import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 // ---------------------------------------------------------------------------
@@ -139,11 +139,14 @@ async function classifyOne(
 // -----------------------------------------------------------------------------
 // Tick: drena a fila do namespace `pipeline-classifier:<slug>`.
 // -----------------------------------------------------------------------------
-async function tick(client: SupabaseClient) {
+async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } = {}) {
   if (!(await getTenantToggle(client, TENANT_SLUG, "enabled"))) {
     return { skipped: "toggle_off" };
   }
-  const dryRun = await getTenantToggle(client, TENANT_SLUG, "dry_run");
+  // G9 — dry_run pode vir do payload (smoke test) OU do setting `automation.<slug>.dry_run`.
+  const dryRun = opts.dryRunOverride === true
+    ? true
+    : await getTenantToggle(client, TENANT_SLUG, "dry_run");
 
   const { data: leads } = await client
     .from("leads")
@@ -197,7 +200,7 @@ Deno.serve(async (req) => {
     let result: unknown;
 
     if (body.action === "tick") {
-      result = await tick(client);
+      result = await tick(client, { dryRunOverride: body.dry_run === true });
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
       result = await classifyOne(client, body.lead_id, {
