@@ -368,6 +368,8 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const tool_calls: any[] = [];
   let i = 0;
   for (const p of cand?.content?.parts ?? []) {
+    // Ignora "thinking parts" (p.thought === true) — não são resposta ao usuário.
+    if (p.thought) continue;
     if (p.text) text += p.text;
     if (p.functionCall) {
       tool_calls.push({
@@ -377,6 +379,15 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       });
     }
   }
+  if (!text && !tool_calls.length) {
+    console.warn("[googleChat] empty response", {
+      model: agent.model,
+      finishReason: cand?.finishReason,
+      hasParts: !!cand?.content?.parts?.length,
+      usage: data.usageMetadata,
+    });
+  }
+
   return {
     ok: true,
     status: 200,
