@@ -194,7 +194,7 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
-  return { processed: results.length, dry_run: dryRun, results };
+  return { processed: results.length, dry_run: dryRun, version, results };
 }
 
 // -----------------------------------------------------------------------------
