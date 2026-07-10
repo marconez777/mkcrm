@@ -76,13 +76,15 @@ Substitui a ideia ruim de "1 cron por tenant" (quebra `cron.max_running_jobs`).
 
 ---
 
-### G14 — Namespace `pipeline-classifier:<slug>` em `ai_review_reasons`
+### G14 — Namespace `pipeline-classifier:<slug>` em `ai_review_reasons` ✅ 2026-07-10
 
 Hoje `ai_review_reasons` usa a string global `'pipeline-classifier'`. Com 2+ tenants, dispatchers pisam um no outro drenando a mesma fila.
 
-- Convenção: cada tenant enfileira/drena `'pipeline-classifier:<slug>'`.
-- Migration para a ÓR: `UPDATE leads SET ai_review_reasons = ...` trocando `'pipeline-classifier'` por `'pipeline-classifier:clinica-or'`.
-- Atualizar `evolution-webhook` (ou trigger de mensagem inbound) para enfileirar com o slug correto conforme `clinic_id`.
+- **Estratégia dual-tag** (não breaking): trigger `tg_enqueue_classifier` agora enfileira com `'pipeline-classifier'` **+** `'pipeline-classifier:<slug>'` quando a clínica está no registry (G3). Legacy segue funcionando; template do G1 drena pelo namespace novo.
+- Backfill dos leads em fila: 0 aplicados (nenhum lead em fila é da ÓR — ver bug operacional abaixo).
+- **Remoção do legacy** vira uma tarefa da virada do G5, junto com o cutover do cron.
+
+**Bug operacional descoberto** (registrar em `KNOWN_ISSUES.md`): a trigger enfileira **todo** lead inbound, mesmo de clínicas sem agente de pipeline. Snapshot atual: 516 leads em fila (Sanapta 306, FEBRACIS-PRI órfã 189, MK Espanha 11, MKart 9, MCD 1) — todos descartados a cada tick como `clinic_not_allowlisted`. Correção proposta (fora deste roadmap): filtrar no `tg_enqueue_classifier` por `EXISTS (SELECT 1 FROM pipeline_tenant_classifiers WHERE clinic_id = l.clinic_id AND cron_enabled=true)` ou similar. Custo hoje: 1 SELECT + descarte por lead × ticks/min — mensurável mas não crítico.
 
 **Esforço:** ½ dia. **Depende:** G3. **Bloqueia:** 2º tenant em produção.
 
