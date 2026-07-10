@@ -106,14 +106,18 @@ async function classifyOne(
     return { skipped: "no_new_messages" };
   }
 
+  // G16 — versão do classifier vem do setting; opts.version tem prioridade (smoke test).
+  const version: ClassifierVersion = opts.version
+    ?? (((await getTenantSetting(client, TENANT_SLUG, "classifier_version")) === "v2") ? "v2" : "v1");
+
   // Executa a esteira de micro-agentes (definida em agent.ts).
-  const agentOut = await runAgent(client, { lead, messages: messages ?? [] });
+  const agentOut = await runAgent(client, { lead, messages: messages ?? [] }, { version });
   if ("error" in agentOut) {
     if (isTransientAgentError(agentOut.error)) {
       throw new Error(`agent_error_transient:${agentOut.error}`);
     }
     await clearQueueFlag(client, leadId);
-    return { skipped: `agent_error:${agentOut.error}` };
+    return { skipped: `agent_error:${agentOut.error}`, version };
   }
 
   // Aplica a classificação (mover card / tags / custom_fields) — respeitando dry_run.
@@ -134,7 +138,7 @@ async function classifyOne(
   }
 
   await clearQueueFlag(client, leadId);
-  return { ok: true, dry_run: !!opts.dryRun, applied };
+  return { ok: true, dry_run: !!opts.dryRun, version, applied };
 }
 
 // -----------------------------------------------------------------------------
