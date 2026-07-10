@@ -379,8 +379,9 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       messages: messages.length,
       tools: tools?.length ?? 0,
     });
-    return { ok: false, status: r.status, errorText, retryable: isRetryableStatus(r.status), choices: [] };
+    return { ok: false, status: r.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(r.status), choices: [] };
   }
+
   const data = await r.json();
   const cand = data.candidates?.[0];
   let text = "";
