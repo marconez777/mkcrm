@@ -91,3 +91,55 @@ export async function getSettingNumber(
   if (!Number.isFinite(n) || n <= 0) return defaultValue;
   return max !== undefined ? Math.min(n, max) : n;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G2 — Helpers com scope de tenant (multi-clínica pipeline classifier)
+//
+// Convenção de chave: `automation.<slug>.<key>` (ex.: `automation.or.enabled`,
+// `automation.or.dry_run`, `automation.or.allowed_tags`).
+//
+// Toda edge derivada de `_template_pipeline_classify` deve ler seus toggles /
+// listas via estas funções, garantindo isolamento entre tenants sem colisão
+// com a namespace legacy `automation.classifier.*` do pipeline-classify V1.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function tenantKey(slug: string, key: string): string {
+  const cleanSlug = slug.trim().toLowerCase();
+  if (!cleanSlug) throw new Error("tenant slug is required");
+  return `automation.${cleanSlug}.${key}`;
+}
+
+export async function getTenantSetting(
+  client: SupabaseClient,
+  slug: string,
+  key: string,
+): Promise<string | null> {
+  return getSettingString(client, tenantKey(slug, key));
+}
+
+export async function getTenantToggle(
+  client: SupabaseClient,
+  slug: string,
+  key: string,
+  defaultValue = false,
+): Promise<boolean> {
+  return getToggle(client, tenantKey(slug, key), defaultValue);
+}
+
+export async function getTenantSettingJSON<T = unknown>(
+  client: SupabaseClient,
+  slug: string,
+  key: string,
+): Promise<T | null> {
+  return getSettingJSON<T>(client, tenantKey(slug, key));
+}
+
+export async function getTenantSettingNumber(
+  client: SupabaseClient,
+  slug: string,
+  key: string,
+  defaultValue: number,
+  max?: number,
+): Promise<number> {
+  return getSettingNumber(client, tenantKey(slug, key), defaultValue, max);
+}
