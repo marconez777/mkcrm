@@ -154,12 +154,14 @@ Quando o dry-run é desligado, o watermark oficial continua exatamente de onde e
 
 ## Fase P1 — Endurecimento cliente-final
 
-### G16 — Flag `classifier_version` por tenant
+### G16 — Flag `classifier_version` por tenant ✅ (2026-07-10)
 
 Padrão da ÓR (`automation.classifier.version = v1|v2`). Permite dark-launch de um prompt novo com rollback em segundos.
 
-- Setting `automation.<slug>.classifier_version` lido pelo dispatcher do template.
-- `agent.ts` exporta `handleV1`/`handleV2`; no dia 1 só há v1.
+- Setting `automation.<slug>.classifier_version` lido pelo dispatcher do template (resolvido 1× por tick, cache implícito por request).
+- `agent.ts` exporta `handleV1`/`handleV2`; hoje `handleV2` delega em v1 (stub pronto para receber prompt novo).
+- Payload `{action:"lead", version:"v2"}` permite smoke test manual sem tocar em `app_settings`.
+- Retorno de `tick`/`lead` inclui `version` para auditoria via `edge_function_logs`.
 
 **Esforço:** ½ dia. **Depende:** G1, G2.
 
