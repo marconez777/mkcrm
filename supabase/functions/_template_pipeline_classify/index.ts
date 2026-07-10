@@ -15,14 +15,15 @@
 //   • Backoff escalonado 2/5/30 min por falhas consecutivas
 //   • Distingue erro transiente (retry) vs terminal (drop)
 //   • Suporta payload `{ action:"tick", dry_run:true }` — pula `pipelineMove` sem contaminar watermark (G9)
+//   • Lê `automation.<slug>.classifier_version` (v1|v2) — dark-launch de prompt novo (G16)
 //   • Concorrência limitada (5 leads por tick)
 //   • CORS + ações "tick" e "lead" (smoke test manual)
 // ============================================================================
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { runAgent } from "./agent.ts";
+import { runAgent, type ClassifierVersion } from "./agent.ts";
 import { applyClassification } from "./apply.ts";
-import { getTenantToggle } from "../_shared/app-settings.ts";
+import { getTenantSetting, getTenantToggle } from "../_shared/app-settings.ts";
 import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 // ---------------------------------------------------------------------------
