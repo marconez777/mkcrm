@@ -70,7 +70,7 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
 async function classifyOne(
   client: SupabaseClient,
   leadId: string,
-  opts: { dryRun?: boolean; force?: boolean } = {},
+  opts: { dryRun?: boolean; force?: boolean; version?: ClassifierVersion } = {},
 ) {
   // G17 — lock por lead. Evita reentrada quando um tick paralelo estoura 60s.
   const { data: locked } = await client.rpc("try_classify_lock", { _lead_id: leadId });
