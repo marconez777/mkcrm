@@ -24,7 +24,7 @@ Para criar um agente novo para uma conta nova, siga o passo a passo em [`docs/pi
 |---|---|---|---|---|
 | `clinica-or` | `cf038458-457d-4c1a-9ac4-c88c3c8353a1` | `pipeline-classify` (compartilhada — arquitetura V6, 5 agentes) | Produção | [README](./clinica-or/README.md) |
 
-> **Febracis**: código e docs do classificador foram removidos em 2026-07-10. Será reconstruído do zero em cima do registry `pipeline_tenant_classifiers` após as Fases 1–5 do roadmap (`.lovable/plan.md`).
+> Novos tenants serão adicionados sobre o registry `pipeline_tenant_classifiers` conforme as Fases 1–6 do roadmap (`.lovable/plan.md`).
 
 ## Estrutura padrão de cada tenant
 

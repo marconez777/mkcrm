@@ -44,9 +44,6 @@ code_refs:
   - supabase/functions/_shared/clinic-openai.ts
   - supabase/functions/_shared/lovable-ai.ts
 related_docs:
-  - docs/agents/FEBRACIS_ATENDIMENTO.md
-  - docs/agents/FEBRACIS_PRI.md
-  - docs/agents/FEBRACIS_ROADMAP.md
   - docs/agents/TRAINING_FRAMEWORK.md
   - docs/maps/PIPELINE_RUNTIME.md
   - docs/maps/INBOX_KANBAN_LEADS.md
@@ -284,7 +281,7 @@ Aplicado em migration prévia (Fase de security scan):
 ## 16. Dívidas técnicas
 
 - `ai-chat` (912 LOC) e `ai-builder` (1561 LOC) são candidatos claros a split por action/responsabilidade.
-- Docs em `docs/agents/` cobrem só Febracis (4 arquivos). Falta template genérico "how to write an agent".
+- Falta template genérico "how to write an agent" além do `TRAINING_FRAMEWORK.md`.
 - Não há doc de `mcp.ts` — configuração de MCP servers é feita direto em `ai_agents.mcp_servers` (JSONB) sem UI dedicada.
 - `transcribe-audio` (249 LOC) merece doc própria (provider selection, storage do áudio, custo).
 - `ai-eval-run` (36 LOC) é stub — a lógica real de eval vive em `ai-builder action:run_evaluation`. Consolidar.
@@ -294,9 +291,6 @@ Aplicado em migration prévia (Fase de security scan):
 
 ## 17. Docs relacionadas existentes
 
-- `docs/agents/FEBRACIS_ATENDIMENTO.md` — playbook do agente Febracis Pri (11k+ chars).
-- `docs/agents/FEBRACIS_PRI.md` — documentação da clínica.
-- `docs/agents/FEBRACIS_ROADMAP.md` — roadmap de melhorias.
 - `docs/agents/TRAINING_FRAMEWORK.md` — framework para treinar agentes.
 
 Não há docs para: `ai-chat` runtime, `ai-builder` API completa, MCP setup, RAG pipeline, `ai_spend_limits`, TestLab, StagesPanel, `agent-learn-from-thread`. **Registrado em INVENTORY como dívida da Fase 4**.

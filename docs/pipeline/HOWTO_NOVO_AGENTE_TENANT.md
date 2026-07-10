@@ -35,14 +35,11 @@ Cada tenant recebe uma edge function **isolada** — nunca aninhe o classifier d
 ```text
 supabase/functions/
 ├── pipeline-classify/                 # tenant Clínica ÓR (V6 — 5 agentes)
-├── pipeline-classify-febracis/        # tenant Febracis (2 micro-agentes O(1))
 └── pipeline-classify-<slug>/          # cada novo tenant vai aqui
     ├── index.ts                       # dispatcher: tick/lead, lock, watermark
     ├── agent.ts                       # micro-agentes (Resumidor, Tipificador, ...)
     └── apply.ts                       # move card + tags + telemetria
 ```
-
-> **Dívida técnica registrada:** `supabase/functions/pipeline-classify/febracis/` ainda está aninhado dentro do classifier da ÓR e deve migrar para `supabase/functions/pipeline-classify-febracis/`. Isso é TODO em aberto — não repita esse padrão em tenants novos.
 
 Utilitários compartilhados vão em `supabase/functions/_shared/` (`pipeline-move.ts`, `app-settings.ts`, `metrics.ts`, etc.). Nunca duplique lógica de `pipelineMove` ou de escrita de telemetria.
 
@@ -104,7 +101,7 @@ await pipelineMove(client, {
 - [ ] **2. Estágios no banco.** Inserir/renomear em `pipeline_stages` para o `pipeline_id` do tenant. Confirmar que os nomes usados no código (`getStageIdByName`) batem exatamente com o `name` da linha.
 - [ ] **3. Whitelist de tags.** Registrar `app_settings.automation.<slug>.allowed_tags` (JSON array). Se o `app_settings` já foi migrado para ter `clinic_id`, gravar por tenant; senão, namespaced pelo slug.
 - [ ] **4. Diretório de docs.** Criar `docs/tenants/<slug>/` com os 5 arquivos canônicos (ver template em [`docs/tenants/README.md`](../tenants/README.md)). Preencher frontmatter com `tenant`, `clinic_id` e `code_refs`.
-- [ ] **5. Edge function.** Criar `supabase/functions/pipeline-classify-<slug>/{index.ts,agent.ts,apply.ts}`. Copiar esqueleto de um tenant existente (Febracis é o mais enxuto).
+- [ ] **5. Edge function.** Criar `supabase/functions/pipeline-classify-<slug>/{index.ts,agent.ts,apply.ts}`. Copiar esqueleto de um tenant existente como referência.
 - [ ] **6. Micro-agentes.** Mínimo: **Resumidor Incremental** + **Tipificador de Intenção**. Modelos baratos por padrão (`google/gemini-2.5-flash-lite` ou `openai/gpt-5-nano`). Só adicione Maestro se a complexidade justificar (caso ÓR).
 - [ ] **7. Mapeamento intent → estágio.** Em `apply.ts`, `switch(intent)` que resolve o nome da coluna via `getStageIdByName(client, pipelineId, name)`.
 - [ ] **8. Testes.** Escrever unit test para `apply.ts` mockando `pipelineMove` — cobrir cada intent e o caso "sem movimento".
@@ -126,7 +123,6 @@ await pipelineMove(client, {
 ## 6. Referências
 
 - Arquitetura V6 (referência de complexidade máxima): [`docs/tenants/clinica-or/agentes-e-modelos.md`](../tenants/clinica-or/agentes-e-modelos.md)
-- Arquitetura enxuta O(1) (referência de custo mínimo): [`docs/tenants/febracis/README.md`](../tenants/febracis/README.md) §4
 - Gates 1–11: [`docs/pipeline/runtime/GATES.md`](./runtime/GATES.md)
 - Classifier runtime: [`docs/pipeline/runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md)
 - Cron jobs: [`docs/pipeline/runtime/CRON_JOBS.md`](./runtime/CRON_JOBS.md)

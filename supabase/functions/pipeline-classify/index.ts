@@ -113,8 +113,8 @@ async function classifyOneV2(
   }
   const ctx = loaded.ctx;
 
-  // Febracis-specific classifier removed 2026-07-10 — will be rebuilt on top of
-  // the tenant-classifier registry (see .lovable/plan.md, Fases 1-6).
+  // Tenant-specific classifier dispatch was removed 2026-07-10 — future tenants
+  // are routed via the `pipeline_tenant_classifiers` registry (see .lovable/plan.md, Fases 1-6).
 
 
   if (!(await isClinicPipelineAllowed(client, ctx.lead.clinic_id))) {
