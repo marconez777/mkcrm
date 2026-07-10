@@ -4,6 +4,7 @@ topic: ai
 kind: troubleshooting
 audience: agent
 updated: 2026-07-10
+
 summary: "Regras práticas para chamar a Gemini API direta (BYOK): endpoint v1beta vs v1, systemInstruction, modelos disponíveis, embeddings. Existe para não cair de novo no erro `Unknown name systemInstruction` e no 404 de `gemini-2.5-flash`."
 code_refs:
   - supabase/functions/_shared/ai.ts
