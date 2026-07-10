@@ -17,6 +17,7 @@ import ClinicDetailsDialog from "@/components/admin/ClinicDetailsDialog";
 import { downloadCsv } from "@/lib/csv";
 import { AdminCard, AdminPageHeader } from "@/layouts/AdminShell";
 import { cn } from "@/lib/utils";
+import { APP_BASE_URL } from "@/lib/app-url";
 
 type Clinic = { id: string; name: string; slug: string; status: string; plan: string; created_at: string; settings: { features?: Record<string, boolean> } & Record<string, any>; grant_reason?: string | null; wa_instances?: { name: string; connection_state: string | null; session_stale_since: string | null; last_inbound_webhook_at: string | null }[] };
 type PlanRow = { code: string; name: string; limits: Record<string, number | null> };
@@ -109,7 +110,7 @@ export default function AdminClinics() {
         body: { clinic_id: openInvite.id, email: inviteEmail, role: inviteRole },
       });
       if (error) throw error;
-      const urlToUse = data.token ? `${window.location.origin}/invite/${data.token}` : data.invite_url;
+      const urlToUse = data.token ? `${APP_BASE_URL}/invite/${data.token}` : data.invite_url;
       setGeneratedLink({ url: urlToUse, expires_at: data.expires_at });
       toast.success("Convite criado");
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
