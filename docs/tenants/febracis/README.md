@@ -1,3 +1,19 @@
+---
+title: "Pipeline Febracis — Definição do Fluxo"
+topic: kanban
+kind: map
+audience: agent
+updated: 2026-07-10
+summary: "Definição do pipeline da Febracis: estágios, gatilhos determinísticos, arquitetura de 2 micro-agentes O(1) e telemetria."
+tenant: febracis
+clinic_id: ab2f4484-886c-48f2-bfc6-0651d062c575
+code_refs:
+  - supabase/functions/pipeline-classify/febracis/
+related_docs:
+  - docs/tenants/febracis/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Pipeline Febracis — Definição do Fluxo
 
 Este documento mapeia o comportamento do agente e os gatilhos do pipeline de vendas de eventos/cursos da Febracis. O fluxo é construído para ser objetivo, priorizando gatilhos transacionais (Stripe) e gatilhos temporais, com a IA atuando na detecção básica de intenções para facilitar o trabalho dos vendedores.
