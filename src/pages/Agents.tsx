@@ -87,7 +87,7 @@ type Agent = {
 const PROVIDER_MODELS: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
   anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-  google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+  google: ["gemini-flash-latest", "gemini-pro-latest", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
   xai: ["grok-2-latest", "grok-2-mini", "grok-beta", "grok-vision-beta"],
   manus: [],
   lovable: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
@@ -97,7 +97,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   lovable: "Gemini Chat Funnel AI",
 };
 const PROVIDER_KEY_PLACEHOLDER: Record<Provider, string> = {
-  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza...", xai: "xai-...", manus: "API key Manus",
+  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza... ou AQ....", xai: "xai-...", manus: "API key Manus",
   lovable: "(gerenciado pela Chat Funnel AI)",
 };
 const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {

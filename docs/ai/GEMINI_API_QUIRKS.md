@@ -4,6 +4,7 @@ topic: ai
 kind: troubleshooting
 audience: agent
 updated: 2026-07-10
+
 summary: "Regras práticas para chamar a Gemini API direta (BYOK): endpoint v1beta vs v1, systemInstruction, modelos disponíveis, embeddings. Existe para não cair de novo no erro `Unknown name systemInstruction` e no 404 de `gemini-2.5-flash`."
 code_refs:
   - supabase/functions/_shared/ai.ts
@@ -142,4 +143,37 @@ E — quando ainda assim vier vazio — **NÃO devolver `{ ok: true, content: ""
 - o log `[googleChat] empty response — DIAGNOSTIC DUMP` traga `finishReason`, `safetyRatings`, `promptFeedback` e as partes cruas.
 
 Histórico: 2026-07-10 — SDR Febracis ficou mudo depois do fix de thinking. Causa: modelo devolvia `finishReason=MAX_TOKENS` gastando o budget default em thinking silencioso, e sem `safetySettings` uma parte também caía em block. Fix combinado: safety BLOCK_NONE + maxOutputTokens=2048 + erro real quando vazio.
+
+## Regra #8 — Chaves Gemini têm DOIS formatos válidos hoje (não recuse `AQ.`)
+
+O Google introduziu um segundo formato de API key no AI Studio. Ambos são legítimos:
+
+- **`AIzaSy...`** (39 chars) — formato clássico. Ampla escopo, sem projeto GCP explícito.
+- **`AQ.Ab8...`** (variável) — formato novo "auth keys". Escopado a um projeto GCP (mostrado como `projects/<number>` no modal). Exige que a **Generative Language API esteja habilitada nesse projeto**.
+
+Não bloquear/validar por prefixo. Uma versão passada desta doc dizia "chave só é válida se começar com AIzaSy" — errado. Ambos são aceitos pela API; a diferença está em qual projeto GCP eles falam.
+
+## Regra #9 — Mandar a chave via header, não `?key=` na URL
+
+Sempre usar:
+```ts
+headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" }
+```
+
+`?key=<chave>` na URL funciona pra chaves antigas `AIza`, mas as chaves novas `AQ.` frequentemente devolvem `API_KEY_INVALID` quando passadas por query string em endpoints `v1`/`v1beta`. O header é o padrão canônico atual do Google (é o que o próprio botão "Copy cURL quickstart" do AI Studio gera).
+
+Aplicado em `googleChat` E `googleEmbed` em `supabase/functions/_shared/ai.ts`. Se abrir mais um endpoint Google, use header.
+
+## Regra #10 — `API_KEY_INVALID` quase nunca é a chave em si
+
+Em 90% dos casos com chaves `AQ.` (e boa parte das `AIza`), o erro `API_KEY_INVALID` significa uma dessas três coisas — nesta ordem de probabilidade:
+
+1. **Generative Language API não está habilitada** no projeto GCP dono da chave. Fix: abrir `https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=<PROJECT_NUMBER>` e clicar **Enable**. Espera 1-2 min.
+2. **Billing não está habilitado** no projeto GCP (chaves free tier caem no `PERMISSION_DENIED` ou `QUOTA_EXCEEDED`, mas às vezes vem como `API_KEY_INVALID`).
+3. A chave foi mesmo apagada/regenerada no AI Studio — user precisa colar a nova.
+
+**Nunca** pedir pra usuário "gerar outra chave" antes de verificar (1) e (2). A função `enrichGoogleError` em `ai.ts` transforma o JSON cru do Google numa mensagem acionável no `ai_usage.error` com essas três hipóteses e o link direto do console.
+
+Histórico: 2026-07-10 — Cliente colou chave `AQ.Ab8RN6...` legítima do AI Studio, agente devolvia `API_KEY_INVALID` toda hora. Diagnóstico errado inicial: "chave inválida por prefixo". Diagnóstico correto: Generative Language API não habilitada no projeto GCP `124528952777` + `?key=` na URL em vez de header.
+
 

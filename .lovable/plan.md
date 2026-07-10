@@ -1,117 +1,77 @@
-## Roadmap de investigação — Agente SDR 3.0 / Gemini Febracis
 
-### Evidência inicial já encontrada
-- Os erros atuais do `ai-chat` não parecem ser de chave inválida.
-- A tabela de uso mostra o agente `a75fcb1a-7597-47d2-af23-18f1636b3564` (`Agente SDR 3.0`) falhando com `google error 400` e, depois da troca da API, também `google error 404`.
-- Os logs da função mostram um erro concreto no RAG/embedding:
-  - `google embed 404: models/text-embedding-004 is not found for API version v1beta, or is not supported for embedContent`
-- Isso aponta para bug/compatibilidade no nosso runtime, possivelmente em duas frentes:
-  1. schema de ferramentas enviado ao Gemini causando `400`;
-  2. modelo de embedding Google usado pelo RAG causando `404` antes/durante o atendimento.
+## O que descobri
 
-### Objetivo
-Interromper temporariamente a sequência do roadmap do pipeline-classifier e criar um diagnóstico por fases para revisar o runtime do agente de atendimento de ponta a ponta, até isolar a causa real e só então corrigir.
+Duas coisas mudam completamente o diagnóstico anterior:
 
-## Fase 0 — Congelar escopo e não mexer no pipeline
-- Não avançar G4/G6 enquanto o SDR Febracis estiver quebrado.
-- Não alterar o dispatcher do pipeline-classifier nesta investigação, exceto se aparecer prova direta de impacto, o que ainda não apareceu.
-- Foco exclusivo: `ai-chat`, `_shared/ai.ts`, RAG, configuração do agente, ferramentas e telemetria.
+**1. A chave `AQ.Ab8RN6...` É uma chave Gemini válida — formato novo do Google**
 
-## Fase 1 — Coleta de evidências reais
-- Consultar `ai_usage` filtrando por:
-  - agente `Agente SDR 3.0`;
-  - clínica/tenant Febracis;
-  - últimos erros `400`, `404`, `502`;
-  - `lead_id`, modelo, latência, erro e horário.
-- Ler logs recentes da função `ai-chat` sem depender apenas da tela.
-- Identificar se os erros acontecem:
-  - antes de chamar o chat;
-  - durante retrieval/RAG;
-  - na chamada `generateContent` do Gemini;
-  - no loop de tools;
-  - ou no envio final da resposta.
+Olhando o print da AI Studio: aparece "For details on using **auth keys** with Gemini API". O Google lançou recentemente um novo formato de API key com prefixo `AQ.` (as antigas `AIzaSy...` continuam funcionando também). Ou seja, minha "Regra #8" da tentativa anterior estava errada — a chave está OK.
 
-## Fase 2 — Revisão do runtime Gemini em `_shared/ai.ts`
-- Auditar `googleChat` inteiro:
-  - conversão de mensagens OpenAI-like para Gemini `contents`;
-  - conversão de `assistant.tool_calls` para `functionCall`;
-  - conversão de mensagens `tool` para `functionResponse`;
-  - sanitização de schemas de tools;
-  - uso de `systemInstruction`;
-  - `generationConfig`;
-  - tratamento de respostas sem candidatos ou com bloqueio de segurança.
-- Revisar se a correção anterior de schema realmente cobre todos os casos do Gemini:
-  - `default`;
-  - `additionalProperties`;
-  - propriedades vazias;
-  - arrays sem `items` válido;
-  - enums/formatos incompatíveis;
-  - campos `nullable`, `strict`, `$schema`, `$ref`, `oneOf`, `anyOf`, `allOf`.
-- Melhorar o log de erro para preservar a mensagem real do Google, não apenas `google error 400`.
+O 400 `API_KEY_INVALID` provavelmente vem de um destes três motivos, em ordem de probabilidade:
 
-## Fase 3 — Revisão do RAG/embeddings
-- Auditar `_shared/rag.ts` e chamadas a `embed()`.
-- Corrigir o erro já evidenciado:
-  - `text-embedding-004` está sendo chamado no endpoint/modelo errado para a chave/modelo atual.
-- Decidir a estratégia segura:
-  - ajustar o nome do modelo para o formato esperado;
-  - trocar para um embedding Google suportado;
-  - ou usar fallback de embedding via Lovable AI/OpenAI-compatible quando o provider de chat for Gemini.
-- Garantir que falha no RAG não derrube todo o atendimento quando houver fallback aceitável.
+- **(a) A Generative Language API não está habilitada** no GCP project `124528952777`. Chave `AQ.` é escopada por projeto; se o projeto não tem a API ligada, o Google devolve `API_KEY_INVALID` genérico.
+- **(b) As chaves `AQ.` querem `x-goog-api-key` header**, não `?key=...` na URL. Nosso `googleChat` hoje só passa `?key=`. Em chaves `AIza` os dois funcionam; em `AQ.` só o header é garantido.
+- **(c) A chave foi regenerada/apagada** — mas o print mostra ela ativa em "API chat funnel 1".
 
-## Fase 4 — Revisão da configuração do agente Febracis
-- Ler a configuração real do agente:
-  - `provider`;
-  - `model`;
-  - `embedding_model`;
-  - `tools`;
-  - `rag_top_k`;
-  - `max_tool_calls`;
-  - estágios e `allowed_tools`.
-- Verificar se o agente foi migrado parcialmente de OpenAI para Gemini e ficou com configuração incompatível.
-- Confirmar se a chave está salva corretamente sem expor o segredo:
-  - só checar presença, tamanho e últimos 4 caracteres quando já armazenados;
-  - nunca logar nem retornar a chave.
+**2. O dropdown de modelo (`src/pages/Agents.tsx`) não tem `gemini-flash-latest`**
 
-## Fase 5 — Reprodução controlada
-- Criar um teste controlado contra `ai-chat` com um lead afetado e o agente SDR 3.0.
-- Rodar primeiro com RAG desligado/isolado logicamente para separar:
-  - erro de embedding/RAG;
-  - erro de chat Gemini;
-  - erro de tool schema.
-- Rodar depois com tools mínimas para identificar qual tool/schema quebra.
-- Rodar por fim com configuração real completa.
+Só oferece `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`. Por isso você voltou pro `2.5-flash` — era a única opção "flash" viável. Precisa adicionar os aliases `-latest`.
 
-## Fase 6 — Correções prováveis, aplicadas só após prova
-- Se o erro for RAG/embedding:
-  - corrigir modelo/endpoint/fallback de embedding;
-  - registrar erro detalhado em `ai_usage`.
-- Se o erro for schema de tool:
-  - criar sanitizador Gemini robusto e testável;
-  - aplicar antes de enviar `functionDeclarations`;
-  - manter compatibilidade OpenAI/Anthropic sem mexer neles.
-- Se o erro for formato de conversa/tool loop:
-  - ajustar `functionResponse`, IDs, nomes e sequência de mensagens no formato aceito pelo Gemini.
-- Se for configuração do agente:
-  - corrigir dados do agente/embedding model de forma pontual e documentada.
+## Plano
 
-## Fase 7 — Verificação final
-- Validar com logs novos que:
-  - `ai-chat` retorna sucesso;
-  - `ai_usage` registra `status=success` com tokens;
-  - o agente responde para leads reais afetados;
-  - não há novos `google error 400/404`.
-- Só depois retomar o roadmap do pipeline-classifier em G4.
+**Passo 1 — Mandar a chave pelo header, não pela query string**
 
-## Arquivos prováveis de análise/correção
-- `supabase/functions/_shared/ai.ts`
-- `supabase/functions/_shared/rag.ts`
-- `supabase/functions/ai-chat/index.ts`
-- tabelas de configuração dos agentes e logs de `ai_usage`
-- docs de roadmap apenas para registrar a pausa/retomada se necessário
+Em `supabase/functions/_shared/ai.ts` (`googleChat` e `googleEmbed`):
+- Remover `?key=${apiKey}` da URL.
+- Adicionar header `x-goog-api-key: ${apiKey}`.
+- Vale pra ambos formatos (`AIza` e `AQ.`) — é o padrão oficial atual da Gemini API.
 
-## Fora do escopo neste roadmap
-- Não mexer em UI.
-- Não recriar chave de API.
-- Não avançar G4/G6.
-- Não alterar o pipeline-classifier sem evidência direta.
+**Passo 2 — Ampliar o dropdown de modelo Gemini**
+
+Em `src/pages/Agents.tsx`:
+```ts
+google: [
+  "gemini-flash-latest",    // recomendado — sempre a versão flash mais nova
+  "gemini-pro-latest",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+]
+```
+Também alinhar `src/lib/quality-ladder.ts` e `src/lib/ai-pricing.ts` (senão o custo aparece $0).
+
+**Passo 3 — Trocar o modelo do SDR 3.0 pra `gemini-flash-latest` via migração**
+
+`UPDATE ai_agents SET model='gemini-flash-latest' WHERE id='a75fcb1a-7597-47d2-af23-18f1636b3564'` — porque o `2.5-flash` continua 404 em chaves novas (Regra #2).
+
+**Passo 4 — Melhorar o erro para casos assim**
+
+Quando o Google devolver `API_KEY_INVALID`, o `[googleChat] provider error` já loga o corpo. Vou fazer o `ai-chat` propagar uma mensagem específica pra `ai_usage.error`: `"Gemini API_KEY_INVALID — verifique se a Generative Language API está habilitada no GCP project X"` em vez do JSON cru. Assim a próxima ocorrência é auto-explicativa.
+
+**Passo 5 — Instrução pra você (fora do código)**
+
+Independente do fix, abra https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=124528952777 e confirme que **Generative Language API** está **Enabled**. Se não estiver, ative e aguarde 1–2min. Isso resolve 90% dos `API_KEY_INVALID` com chaves `AQ.`.
+
+**Passo 6 — Atualizar a doc**
+
+`docs/ai/GEMINI_API_QUIRKS.md`:
+- Corrigir a Regra #8 anterior (chaves `AQ.` são válidas, não recusar).
+- Nova Regra #9: usar `x-goog-api-key` header em vez de `?key=`.
+- Nova Regra #10: em `API_KEY_INVALID`, o suspeito nº1 não é a chave — é a API não estar habilitada no projeto GCP dono da chave.
+
+## Validação
+
+- Você manda "oi" pro Febracis.
+- `ai_usage` mostra `status=success`, `output_tokens>50`, `replied=true`.
+- Se ainda vier `API_KEY_INVALID`, você abre o link do passo 5 e habilita a API.
+
+## Detalhes técnicos (opcional)
+
+- Header `x-goog-api-key` é a forma canônica atual documentada no `curl quickstart` da própria AI Studio (botão "Copy cURL quickstart" no print).
+- `gemini-flash-latest` é alias mantido pelo Google, roteia hoje pra `gemini-flash-2.5-002`; funciona em `v1` e `v1beta`.
+- A migração do modelo é 1 linha, não toca em RLS nem estrutura.
+
+## Confirma?
+
+Se ok, saio do modo plano e implemento nessa ordem. Qualquer objeção (ex.: você prefere manter `?key=` como fallback, ou não quer ampliar o dropdown), me diga antes.

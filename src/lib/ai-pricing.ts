@@ -26,6 +26,10 @@ const PRICING: Record<string, Price> = {
   "gemini-2.5-pro": { in: 1.25, out: 10.0 },
   "gemini-2.5-flash": { in: 0.3, out: 2.5 },
   "gemini-2.5-flash-lite": { in: 0.1, out: 0.4 },
+  "gemini-flash-latest": { in: 0.3, out: 2.5 },
+  "gemini-pro-latest": { in: 1.25, out: 10.0 },
+  "gemini-2.0-flash": { in: 0.1, out: 0.4 },
+
   "gemini-3-flash-preview": { in: 0.3, out: 2.5 },
   "gemini-3.1-pro-preview": { in: 1.25, out: 10.0 },
   "text-embedding-004": { in: 0.0, out: 0 },

@@ -72,6 +72,26 @@ function compactErrorText(text: string, max = 500): string {
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
+// Regra #10: transforma o JSON cru do Google em mensagem acionável no ai_usage.error.
+// API_KEY_INVALID quase nunca é a chave em si — é a Generative Language API
+// desabilitada no projeto GCP dono da chave, ou o projeto sem billing.
+function enrichGoogleError(errorText: string): string {
+  const raw = String(errorText ?? "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("api_key_invalid") || lower.includes("api key not valid")) {
+    return `Gemini API_KEY_INVALID — a chave foi rejeitada. Causas comuns: (1) Generative Language API não está habilitada no projeto GCP dono da chave — abra https://console.developers.google.com/apis/api/generativelanguage.googleapis.com e clique Enable; (2) chave apagada/regenerada no AI Studio — cole a nova em Agentes → editar. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("permission_denied") || lower.includes("permission denied")) {
+    return `Gemini PERMISSION_DENIED — chave existe mas não tem permissão pra esse modelo/endpoint. Verifique se a Generative Language API está Enabled no projeto GCP e se a chave não tem restrição por API. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("quota") && (lower.includes("exceeded") || lower.includes("free_tier"))) {
+    return `Gemini quota esgotada — o projeto GCP dessa chave está no free tier (20 req/dia por modelo) ou bateu no limite pago. Habilite billing no projeto ou espere reset diário. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  return raw;
+}
+
+
+
 // ---------- CHAT ----------
 
 export async function chatCompletion(
@@ -324,20 +344,23 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   };
   const apiKey = requireKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent`;
+  // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
+  // ?key= na URL falha silenciosamente com API_KEY_INVALID em chaves novas AQ..
+  const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
   let r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: gHeaders,
     body: buildBody({ includeSystemInstruction: true }),
   });
   // Fallback chain when v1beta rejects (e.g. 404 model, or 400 systemInstruction):
   // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
   if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
     const firstErrorText = await r.text();
-    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent`;
     let retry = await fetch(v1Url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: gHeaders,
       body: buildBody({ includeSystemInstruction: true }),
     });
     let secondErrorText = "";
@@ -345,10 +368,11 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       secondErrorText = await retry.text();
       retry = await fetch(v1Url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: gHeaders,
         body: buildBody({ includeSystemInstruction: false }),
       });
     }
+
     if (retry.ok) {
       r = retry;
     } else {
@@ -362,7 +386,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         messages: messages.length,
         tools: tools?.length ?? 0,
       });
-      return { ok: false, status: retry.status, errorText: retryErrorText || secondErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
+      return { ok: false, status: retry.status, errorText: enrichGoogleError(retryErrorText || secondErrorText || firstErrorText), retryable: isRetryableStatus(retry.status), choices: [] };
     }
   }
 
@@ -375,8 +399,9 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       messages: messages.length,
       tools: tools?.length ?? 0,
     });
-    return { ok: false, status: r.status, errorText, retryable: isRetryableStatus(r.status), choices: [] };
+    return { ok: false, status: r.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(r.status), choices: [] };
   }
+
   const data = await r.json();
   const cand = data.candidates?.[0];
   let text = "";
@@ -600,10 +625,10 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   // Try v1beta first (supports gemini-embedding-001 and text-embedding-004),
   // fall back to v1 if the key/model isn't enabled on v1beta.
   const call = async (apiVersion: "v1beta" | "v1") => {
-    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents`;
     return await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body,
     });
   };
@@ -611,6 +636,7 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   if (r.status === 404) {
     const fallback = await call("v1");
     if (fallback.ok) r = fallback;
+
     else {
       const t1 = await r.text().catch(() => "");
       const t2 = await fallback.text().catch(() => "");
