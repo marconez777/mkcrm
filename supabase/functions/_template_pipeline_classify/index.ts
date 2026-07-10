@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
     let result: unknown;
 
     if (body.action === "tick") {
-      result = await tick(client);
+      result = await tick(client, { dryRunOverride: body.dry_run === true });
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
       result = await classifyOne(client, body.lead_id, {
