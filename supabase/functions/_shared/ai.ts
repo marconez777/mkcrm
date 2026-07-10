@@ -298,7 +298,13 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         ? { systemInstruction: { parts: [{ text: sys }] } }
         : {}),
       tools: gTools,
-      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
+      generationConfig: {
+        temperature: Number(agent.temperature) || 0.7,
+        // gemini-2.5-* / gemini-flash-latest ligam "thinking" por padrão, o que
+        // consome tokens em partes com { thought: true } SEM texto visível — o
+        // agente ficava mudo (output_tokens>0, content vazio). Desligamos aqui.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     });
   };
   const apiKey = requireKey(agent);
