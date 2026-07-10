@@ -298,7 +298,13 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         ? { systemInstruction: { parts: [{ text: sys }] } }
         : {}),
       tools: gTools,
-      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
+      generationConfig: {
+        temperature: Number(agent.temperature) || 0.7,
+        // gemini-2.5-* / gemini-flash-latest ligam "thinking" por padrão, o que
+        // consome tokens em partes com { thought: true } SEM texto visível — o
+        // agente ficava mudo (output_tokens>0, content vazio). Desligamos aqui.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     });
   };
   const apiKey = requireKey(agent);
@@ -362,6 +368,8 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const tool_calls: any[] = [];
   let i = 0;
   for (const p of cand?.content?.parts ?? []) {
+    // Ignora "thinking parts" (p.thought === true) — não são resposta ao usuário.
+    if (p.thought) continue;
     if (p.text) text += p.text;
     if (p.functionCall) {
       tool_calls.push({
@@ -371,6 +379,15 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       });
     }
   }
+  if (!text && !tool_calls.length) {
+    console.warn("[googleChat] empty response", {
+      model: agent.model,
+      finishReason: cand?.finishReason,
+      hasParts: !!cand?.content?.parts?.length,
+      usage: data.usageMetadata,
+    });
+  }
+
   return {
     ok: true,
     status: 200,

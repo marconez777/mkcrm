@@ -100,3 +100,21 @@ Se qualquer um for "não", **pare e leia este doc de novo**.
 - 2026-07-10 — 400 `Unknown systemInstruction` no fallback `v1` do SDR Febracis. Fix: 3º estágio do fallback prependa sys como `user`. Ver `docs/roadmap/FEBRACIS_SDR_GEMINI_INVESTIGATION.md`.
 - 2026-07-10 — 404 `text-embedding-004` no RAG. Fix inicial (rotear pra Lovable AI) foi revertido; correção final = `gemini-embedding-001` + `outputDimensionality: 768` na chave BYOK.
 - 2026-07-10 — 404 `gemini-2.5-flash` "no longer available to new users" em chaves novas. Fix: fallback automático `v1beta`→`v1` em `googleChat`.
+- 2026-07-10 — Agente "mudo" com `gemini-flash-latest`: `output_tokens>0` (ex.: 18–21) mas `content` vazio (`replied:false`, `error:turn:summary`). Causa: os modelos `gemini-2.5-*` / `gemini-flash-latest` ligam **thinking** por padrão e retornam apenas partes com `{ thought: true }`, sem `text`. Fix: enviar `generationConfig.thinkingConfig.thinkingBudget = 0` em `googleChat`, e ignorar `parts[i].thought === true` ao montar o texto. Se precisar de raciocínio, aumentar o budget explicitamente — NUNCA remover o campo.
+
+## Regra #6 — Desligar "thinking" no chat do agente
+
+Modelos `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-latest` e variantes lite têm **thinking on por padrão**. Isso quebra chat porque:
+- O modelo devolve `candidates[0].content.parts = [{ thought: true }]` sem `text`.
+- `usageMetadata.candidatesTokenCount` marca 15–30 tokens.
+- Nosso pipeline enxerga isso como sucesso e loga `replied:false / turn:summary`.
+
+Em `googleChat` (`supabase/functions/_shared/ai.ts`):
+```ts
+generationConfig: {
+  temperature: ...,
+  thinkingConfig: { thinkingBudget: 0 }, // OBRIGATÓRIO — não remover
+}
+// ... e no parser:
+if (p.thought) continue;
+```
