@@ -366,7 +366,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
         messages: messages.length,
         tools: tools?.length ?? 0,
       });
-      return { ok: false, status: retry.status, errorText: retryErrorText || secondErrorText || firstErrorText, retryable: isRetryableStatus(retry.status), choices: [] };
+      return { ok: false, status: retry.status, errorText: enrichGoogleError(retryErrorText || secondErrorText || firstErrorText), retryable: isRetryableStatus(retry.status), choices: [] };
     }
   }
 
