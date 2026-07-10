@@ -324,20 +324,23 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   };
   const apiKey = requireKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent`;
+  // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
+  // ?key= na URL falha silenciosamente com API_KEY_INVALID em chaves novas AQ..
+  const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
   let r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: gHeaders,
     body: buildBody({ includeSystemInstruction: true }),
   });
   // Fallback chain when v1beta rejects (e.g. 404 model, or 400 systemInstruction):
   // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
   if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
     const firstErrorText = await r.text();
-    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent?key=${apiKey}`;
+    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent`;
     let retry = await fetch(v1Url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: gHeaders,
       body: buildBody({ includeSystemInstruction: true }),
     });
     let secondErrorText = "";
@@ -345,10 +348,11 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       secondErrorText = await retry.text();
       retry = await fetch(v1Url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: gHeaders,
         body: buildBody({ includeSystemInstruction: false }),
       });
     }
+
     if (retry.ok) {
       r = retry;
     } else {
