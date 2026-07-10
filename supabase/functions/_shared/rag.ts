@@ -159,7 +159,10 @@ export async function retrieveContext(opts: {
   // 3. Embed (with cache hit short-circuit)
   let queryVec: number[] | null = null;
   const embedModel = agent.embedding_model
-    ?? (agent.provider === "google" || agent.provider === "lovable" ? "openai/text-embedding-3-small" : "text-embedding-3-small");
+    ?? (agent.provider === "google" ? "gemini-embedding-001"
+      : agent.provider === "lovable" ? "openai/text-embedding-3-small"
+      : "text-embedding-3-small");
+
   try {
     const cached = await getCachedEmbedding(supabase, textForEmbed, embedModel);
     if (cached) {
