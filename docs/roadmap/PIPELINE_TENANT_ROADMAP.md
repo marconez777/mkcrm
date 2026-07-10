@@ -36,21 +36,23 @@ Um gap é considerado **feito** quando: (a) código merged, (b) doc atualizada c
 
 ## Fase P0 — Fundação (bloqueia 2º tenant)
 
-### G3 — Tabela `pipeline_tenant_classifiers`
+### G3 — Tabela `pipeline_tenant_classifiers` ✅ 2026-07-10
 
 Registry no banco, não em TypeScript, para que UI e dispatcher leiam a mesma verdade.
 
-Colunas: `slug pk`, `clinic_id unique`, `edge_function_name`, `cron_enabled`, `byok_required`, `created_at`, `updated_at`.
+Colunas: `slug pk`, `clinic_id unique`, `edge_function_name`, `cron_enabled`, `byok_required`, `notes`, `created_at`, `updated_at`.
 
-RLS: `authenticated` lê apenas a linha da própria clínica; `service_role` escreve.
+RLS: `authenticated` lê apenas a linha da própria clínica (via `clinic_members`); `service_role` escreve.
+
+Seed inicial: `clinica-or` já cadastrada com `cron_enabled=false` (adoção retroativa — só ativa quando G5 substituir o cron legado).
 
 **Esforço:** ½ dia. **Depende:** nada.
 
 ---
 
-### G17 — Auditar `try_classify_lock` como RPC genérico
+### G17 — Auditar `try_classify_lock` como RPC genérico ✅ 2026-07-10
 
-O RPC hoje vive dentro da suite da ÓR. Antes de fan-out (G5) e antes do template (G1), confirmar que o `_lead_id` é o único parâmetro relevante e que a função **não** referencia nada tenant-específico. Se referenciar, generalizar.
+Auditado: função é 100% genérica (`pg_try_advisory_xact_lock(hashtext('classify:'||_lead_id))`), sem nada tenant-específico. Pode ser reusado por qualquer edge de tenant sem alteração.
 
 **Esforço:** ¼ dia. **Depende:** nada. **Bloqueia:** G5, G1.
 
