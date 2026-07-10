@@ -152,6 +152,9 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
   const dryRun = opts.dryRunOverride === true
     ? true
     : await getTenantToggle(client, TENANT_SLUG, "dry_run");
+  // G16 — resolve versão do classifier UMA vez por tick (evita N leituras em `app_settings`).
+  const version: ClassifierVersion =
+    ((await getTenantSetting(client, TENANT_SLUG, "classifier_version")) === "v2") ? "v2" : "v1";
 
   const { data: leads } = await client
     .from("leads")
