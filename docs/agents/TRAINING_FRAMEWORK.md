@@ -9,14 +9,12 @@ code_refs:
   - supabase/functions/_shared/
   - src/components/agents/
   - src/pages/ai/AgentWizard.tsx
-related_docs:
-  - docs/agents/FEBRACIS_ATENDIMENTO.md
-  - docs/agents/FEBRACIS_ROADMAP.md
+related_docs: []
 ---
 
 # Framework de Treinamento de Agentes de IA
 
-Estrutura padrão que **todo agente novo da ferramenta** deve seguir. Pensado a partir do caso Febracis, mas independente de tenant/produto.
+Estrutura padrão que **todo agente novo da ferramenta** deve seguir. Independente de tenant/produto.
 
 Use como checklist ao criar agente no Agent Wizard. Use como roteiro ao refinar agente existente.
 
@@ -168,9 +166,7 @@ Sem isso, o agente degrada. Ciclo semanal:
 
 Quando criar agente novo, copiar de:
 
-- **Bloco de estilo** → seção 4.1 de `docs/agents/FEBRACIS_ROADMAP.md`.
 - **Bloco de copy** → seção 4 deste arquivo.
-- **Banco de fechamentos** → seção 4.2 de `docs/agents/FEBRACIS_ROADMAP.md` (adaptar tom).
-- **Validador** → `supabase/functions/_shared/agent-response-validator.ts` (quando existir — Fase 2 do roadmap Febracis).
+- **Validador** → `supabase/functions/_shared/agent-response-validator.ts` (quando existir).
 
 Manter este framework atualizado conforme novos agentes ensinem coisas novas.
