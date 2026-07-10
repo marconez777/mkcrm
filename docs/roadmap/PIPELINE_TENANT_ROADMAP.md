@@ -137,14 +137,14 @@ O template já entrega de graça:
 
 ---
 
-### G9 — Dry-run com watermark isolado
+### G9 — Dry-run com watermark isolado ✅
 
-Coluna nova `leads.last_processed_message_id_classifier_dry` (nullable). Payload `{ action: "tick", dry_run: true }` ou setting `automation.<slug>.dry_run = true`:
+Coluna `leads.last_processed_message_id_classifier_dry text NULL` adicionada (nullable, sem default — leads que nunca rodaram dry ficam com NULL e são tratados como “sem watermark”).
 
-- Roda LLM + telemetria normalmente.
-- Pula `pipelineMove` (grava skip com razão `dry_run`).
-- Avança **apenas** o watermark dry — nunca o oficial.
-- Marca `dry_run: true` no `pipeline_run_items.result` para não contaminar SLAs.
+Dispatcher do template (`_template_pipeline_classify/index.ts`) já usa:
+- `classifyOne` seleciona a coluna de watermark correta em runtime (`watermarkCol` = dry vs oficial) e só atualiza aquela linha — dry_run **nunca** move o watermark de produção.
+- `tick(client, { dryRunOverride })` aceita a flag vinda do payload (`{ action:"tick", dry_run:true }`) além do setting `automation.<slug>.dry_run`. Assim dá pra rodar smoke test manual sem tocar em settings.
+- `applyClassification` recebe `dryRun` e pula `pipelineMove` (grava skip com razão `dry_run`, sem contaminar telemetria).
 
 Quando o dry-run é desligado, o watermark oficial continua exatamente de onde estava.
 
