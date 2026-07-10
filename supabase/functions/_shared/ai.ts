@@ -605,10 +605,10 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   // Try v1beta first (supports gemini-embedding-001 and text-embedding-004),
   // fall back to v1 if the key/model isn't enabled on v1beta.
   const call = async (apiVersion: "v1beta" | "v1") => {
-    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents`;
     return await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body,
     });
   };
@@ -616,6 +616,7 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
   if (r.status === 404) {
     const fallback = await call("v1");
     if (fallback.ok) r = fallback;
+
     else {
       const t1 = await r.text().catch(() => "");
       const t2 = await fallback.text().catch(() => "");
