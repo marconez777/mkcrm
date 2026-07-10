@@ -395,12 +395,26 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     }
   }
   if (!text && !tool_calls.length) {
-    console.warn("[googleChat] empty response", {
+    // Loga TUDO que dá pra usar no diagnóstico: finishReason, safety, parts crus, prompt feedback.
+    console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
       model: agent.model,
       finishReason: cand?.finishReason,
-      hasParts: !!cand?.content?.parts?.length,
+      safetyRatings: cand?.safetyRatings,
+      promptFeedback: data.promptFeedback,
+      partsCount: cand?.content?.parts?.length ?? 0,
+      partsRaw: JSON.stringify(cand?.content?.parts ?? []).slice(0, 500),
       usage: data.usageMetadata,
     });
+    // Retorna erro retryable para o caller decidir (dispatcher tenta de novo, ai-chat devolve 502).
+    // Isso é MUITO melhor do que "sucesso com content vazio" — o agente ficava mudo silenciosamente.
+    const reason = cand?.finishReason ?? "no_candidate";
+    return {
+      ok: false,
+      status: 502,
+      errorText: `empty response from ${agent.model} (finishReason=${reason})`,
+      retryable: reason === "MAX_TOKENS" || reason === "OTHER" || reason === "no_candidate",
+      choices: [],
+    };
   }
 
   return {
