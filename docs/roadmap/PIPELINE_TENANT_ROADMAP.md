@@ -90,25 +90,33 @@ Hoje `ai_review_reasons` usa a string global `'pipeline-classifier'`. Com 2+ ten
 
 ---
 
-### G1 — Esqueleto `pipeline-classify-_template_/`
+### G1 — Esqueleto `_template_pipeline_classify/` ✅ 2026-07-10
 
-O deliverable central. Um diretório clonável com:
+Deliverable central. Diretório clonável em `supabase/functions/_template_pipeline_classify/` (prefixo `_` faz o Supabase pular deploy):
 
 ```text
-supabase/functions/pipeline-classify-_template_/
-├── index.ts       # dispatcher com fila (G12), backoff (G13), lock (G17), CORS shared (G15)
-├── agent.ts       # 2 micro-agentes mínimos: Resumidor + Tipificador
-├── apply.ts       # switch(intent) → getStageIdByName → pipelineMove
-├── schema.ts      # Zod schema do output do Tipificador
-└── README.md      # como clonar para <slug>
+_template_pipeline_classify/
+├── index.ts   # dispatcher: fila por slug, backoff 2/5/30, lock, dry_run
+├── agent.ts   # esteira mínima (Tipificador com BYOK → fallback Lovable AI)
+├── apply.ts   # INTENT_TO_STAGE + whitelist tags + pipelineMove
+├── schema.ts  # Zod: intent, confidence, tags_suggested, reason_summary
+└── README.md  # instruções de clonagem (constantes, seeds, deploy)
 ```
 
-O dispatcher já vem com:
-- Query da fila `needs_ai_review` filtrada por `ai_review_reasons @> ['pipeline-classifier:<slug>']`.
-- Concorrência 5, backoff 2/5/30 min, `isTransientAgentError` distinguindo retry vs drop.
-- Chamada obrigatória a `try_classify_lock`.
-- Suporte a `dry_run: true` (G9).
-- Dispatch v1/v2 via flag (G16).
+O template já entrega de graça:
+- Drena `ai_review_reasons @> ['pipeline-classifier:<slug>']` (G14).
+- Lock por lead via `try_classify_lock` (G17).
+- Backoff escalonado 2/5/30 min por `ai_review_fail_count`.
+- `isTransientAgentError` para distinguir retry vs drop.
+- Suporte a `dry_run` (G9) com watermark isolado.
+- Concorrência 5, ações `tick` e `lead` (smoke).
+
+**Pendências que não bloqueiam encerrar o gap** (viram G2/G9/G16):
+- `getTenantToggle`/`getTenantSettingJSON` referenciados mas ainda não existem — G2.
+- Coluna `leads.last_processed_message_id_classifier_dry` referenciada mas ainda não existe — G9.
+- Dispatcher v1/v2 por flag — G16 (adição, não bloqueia clonagem inicial).
+
+**Ordem para ligar o primeiro tenant novo**: G2 → G9 → clonar template → validar em dry_run → flip `cron_enabled=true`.
 
 **Esforço:** 1–1½ dia. **Depende:** G17, G14, G15. **Bloqueia:** todo tenant novo.
 
