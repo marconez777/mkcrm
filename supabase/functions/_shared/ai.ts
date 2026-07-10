@@ -67,6 +67,22 @@ function requireKey(agent: Agent) {
   return agent.api_key;
 }
 
+function requireGoogleKey(agent: Pick<Agent, "id" | "api_key">): string {
+  const key = String(agent.api_key ?? "").trim();
+  if (!key) throw new Error(`Agent ${agent.id} sem api_key Gemini configurada`);
+  if (key.length < 30) {
+    throw new Error(`Agent ${agent.id} com api_key Gemini inválida: chave curta (${key.length} caracteres). Cole a chave completa do AI Studio.`);
+  }
+  return key;
+}
+
+function assertGoogleKeyLooksUsable(key: string): string {
+  const clean = String(key ?? "").trim();
+  if (!clean) throw new Error("Gemini api_key vazia");
+  if (clean.length < 30) throw new Error(`Gemini api_key inválida: chave curta (${clean.length} caracteres). Cole a chave completa do AI Studio.`);
+  return clean;
+}
+
 function compactErrorText(text: string, max = 500): string {
   const clean = String(text ?? "").replace(/\s+/g, " ").trim();
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
@@ -342,7 +358,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       },
     });
   };
-  const apiKey = requireKey(agent);
+  const apiKey = requireGoogleKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
   const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent`;
   // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
@@ -615,6 +631,7 @@ async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?
 }
 
 async function googleEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
+  const apiKey = assertGoogleKeyLooksUsable(key);
   const body = JSON.stringify({
     requests: texts.map((t) => ({
       model: `models/${model}`,
@@ -628,7 +645,7 @@ async function googleEmbed(key: string, model: string, texts: string[]): Promise
     const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents`;
     return await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body,
     });
   };
