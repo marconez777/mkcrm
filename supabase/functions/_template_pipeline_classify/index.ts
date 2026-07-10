@@ -22,7 +22,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { runAgent } from "./agent.ts";
 import { applyClassification } from "./apply.ts";
-import { getTenantSetting, getTenantToggle } from "../_shared/app-settings.ts"; // G2 (a criar)
+import { getTenantToggle } from "../_shared/app-settings.ts";
 import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 // ---------------------------------------------------------------------------
