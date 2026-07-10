@@ -451,10 +451,7 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
   let model = "unknown";
   try {
     let vectors: number[][];
-    // Pick embedding provider. Google chat BYOK no longer defaults to the native
-    // `text-embedding-004` endpoint because it 404s for some Gemini API keys and
-    // blocks SDR replies. Use Lovable AI's OpenAI-compatible embeddings by default
-    // so vectors stay 768-dim for the existing ai_chunks schema.
+    // Pick embedding provider based on the agent's configured provider/key.
     if (agent.embedding_api_key) {
       model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
@@ -462,14 +459,10 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
       model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
     } else if (agent.provider === "google") {
-      const key = Deno.env.get("LOVABLE_API_KEY");
-      if (!key) {
-        model = agent.embedding_model || "text-embedding-004";
-        vectors = await googleEmbed(requireKey(agent), model, texts);
-      } else {
-        model = normalizeLovableEmbeddingModel(agent.embedding_model);
-        vectors = await lovableEmbed(key, model, texts);
-      }
+      // Uses the agent's own Gemini API key. Default to gemini-embedding-001
+      // (v1beta) which supports outputDimensionality=768 to match ai_chunks.
+      model = agent.embedding_model || "gemini-embedding-001";
+      vectors = await googleEmbed(requireKey(agent), model, texts);
     } else if (agent.provider === "lovable") {
       const key = Deno.env.get("LOVABLE_API_KEY");
       if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
@@ -478,6 +471,7 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
     }
+
     if (ctx) {
       // OpenAI/Google embedding APIs return token counts only on OpenAI; we estimate via char/4 fallback.
       const approxIn = texts.reduce((s, t) => s + Math.ceil((t?.length ?? 0) / 4), 0);
