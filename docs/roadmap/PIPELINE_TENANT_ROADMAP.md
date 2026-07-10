@@ -122,11 +122,16 @@ O template já entrega de graça:
 
 ---
 
-### G2 — Namespace `automation.<slug>.*` + helper
+### G2 — Namespace `automation.<slug>.*` + helper ✅
 
 - Chaves padronizadas em `app_settings`: `automation.<slug>.enabled`, `.allowed_tags`, `.model_override`, `.dry_run`, `.classifier_version`.
-- Novo helper `getTenantSetting(client, slug, key)` em `_shared/app-settings.ts`.
-- Snippet SQL para semear as chaves quando `INSERT` em `pipeline_tenant_classifiers` (idealmente via trigger — reuso no G10).
+- Helpers publicados em `_shared/app-settings.ts`:
+  - `getTenantSetting(client, slug, key)` → string bruta.
+  - `getTenantToggle(client, slug, key, default?)` → boolean (mesma normalização do `getToggle` legacy).
+  - `getTenantSettingJSON<T>(client, slug, key)` → objeto/array (para `allowed_tags`).
+  - `getTenantSettingNumber(client, slug, key, default, max?)` → número com teto opcional.
+- Todos delegam para os leitores existentes (`getSettingString`, `getSettingJSON`, `getToggle`, `getSettingNumber`), então mantêm o parser único e não conflitam com a namespace `automation.classifier.*` do V1.
+- Snippet SQL para semear as chaves quando `INSERT` em `pipeline_tenant_classifiers` (idealmente via trigger — reuso no G10) fica como follow-up (bloqueio de onboarding, não do template).
 
 **Esforço:** ½ dia. **Depende:** G3. **Bloqueia:** G1 (o template lê essas chaves).
 
