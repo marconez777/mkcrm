@@ -211,9 +211,12 @@ Deno.serve(async (req) => {
       result = await tick(client, { dryRunOverride: body.dry_run === true });
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
+      const versionOverride: ClassifierVersion | undefined =
+        body.version === "v1" || body.version === "v2" ? body.version : undefined;
       result = await classifyOne(client, body.lead_id, {
         dryRun: body.dry_run === true,
         force: body.force === true,
+        version: versionOverride,
       });
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
