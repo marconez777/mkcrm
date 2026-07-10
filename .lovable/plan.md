@@ -1,153 +1,90 @@
-# Roadmap — Classificador de Pipeline por Tenant (revisado após auditoria do código)
+## Escopo
 
-Objetivo: cada conta pode ter um agente de classificação **hardcoded, isolado, opcional** — sem colidir com o classificador genérico, sem duplicar cron/telemetria, sem "vazar" lógica entre tenants.
+"Legado do agente de pipeline Febracis" = artefatos residuais do **classificador de pipeline** (edge `pipeline-classify-febracis`, dispatch inline, docs, config, cron, DB) que foi removido em 2026‑07‑10. **Fora do escopo**: a clínica FEBRACIS-PRI, o agente de atendimento "Atendimento Febracis"/"Agente SDR 3.0", a instância WhatsApp "Lucia" e os 198 leads — tudo isso é atendimento live e permanece intocado.
 
-A auditoria confirmou que o problema é maior do que parecia: hoje temos **um classificador único (`pipeline-classify`) que é ÓR-específico disfarçado de genérico**, com Febracis injetado inline por `if clinic_id === "…"`, mais uma cópia standalone (`pipeline-classify-febracis`) **byte-idêntica e sem cron atrelado**, e vários consumidores (executor, auditors, gates) assumindo tanto o nome da edge function quanto o vocabulário de stages da ÓR.
+## Baseline já observado
 
-Riscos concretos incorporados abaixo com localização `arquivo:linha`.
+- Código de edge functions: `pipeline-classify-febracis/` e `pipeline-classify/febracis/` deletados; dispatch inline em `pipeline-classify/index.ts` removido; hack no `tickQueueV2` (`allowedClinicIds.push`) removido.
+- Docs: menções a Febracis já limpas em `docs/tenants/README.md`, `docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md`, `docs/maps/AI_AGENTS.md`, `docs/agents/TRAINING_FRAMEWORK.md`, `docs/_audit/INVENTORY.md`. Arquivos `docs/agents/FEBRACIS_*` já deletados.
+- Cron `pipeline-classify-febracis-tick` já desagendado.
+- **DB (verificado agora)**: `pipeline_automation_allowlist`, `app_settings.automation.febracis.*`, `pipeline_run_items`, `pipeline_runs`, `lead_events` (auto:classifier), `stage_sequence_bindings` e `stage_canonical_aliases` — **todos com 0 linhas** para o `clinic_id` da Febracis. Nada do classificador sobrou no banco.
 
----
+Falta: uma varredura sistemática que dê carimbo de "limpo" e cubra os pontos abaixo, mais a decisão sobre uma edge function órfã e sobre 12 migrations históricas.
 
-## Fase 0 — Diagnóstico e trava de sangria (1 dia)
+## Fase 1 — Varredura de código
 
-- **F0.1** Confirmar via SQL contra o banco vivo:
-  - `SELECT * FROM cron.job` (checar se algum cron ad-hoc dispara `pipeline-classify-febracis` — migrations não listam nenhum).
-  - `SELECT * FROM pipeline_automation_allowlist` (Febracis nunca foi seed-inserted; migration `20260618032209_*.sql:22-23` só tem ÓR).
-- **F0.2** Diff `pipeline-classify/febracis/*` vs `pipeline-classify-febracis/*` (auditoria confirma: idênticos exceto import paths). Escolher a versão standalone como canônica e **deletar a aninhada** — a nested viola isolamento e cria drift trap para bugfixes.
-- **F0.3** Inventário completo de `clinic_id` literal (`ab2f4484…` Febracis, `cf038458…` ÓR) — auditoria já mapeou 30+ ocorrências:
-  - código: `pipeline-classify/index.ts:117,260-262`, `pipeline-classify-febracis/index.ts:26`, `pipeline-monthly-cycle-or/index.ts:11`, `report-finalizados-mensal-or/index.ts:12`, `src/pages/TrackingDebug.tsx:72`.
-  - migrations: `20260630004105/004312/004405/014034/023437`, `20260709161813/163124/164105/164614`, `20260613170406`, `20260615005830`, `20260616150624/659`.
-  - registrar em `docs/tenants/_DEBT.md` com nível (produção crítica vs doc/scratch).
-- **F0.4** Congelar `pipeline-classify` genérico para novas regras de tenant até Fase 2.
+Objetivo: garantir zero import/string/constante do classificador Febracis em `src/**` e `supabase/functions/**`.
 
----
+- `rg -n -i "febracis|pipeline-classify-febracis|ab2f4484-886c-48f2-bfc6-0651d062c575"` em `src/` e `supabase/functions/` (excluindo `migrations/`).
+- Conferir `_shared/pipeline-allowlist.ts`, `_shared/pipeline-move.ts`, `_shared/stage-bindings.ts`, `_shared/agent-flags.ts`, `_shared/metrics.ts`, `pipeline-classify/index.ts` (agent-core, tickQueueV2, `getLoaded`).
+- Conferir `pipeline-deterministic/`, `pipeline-position-auditor/`, `pipeline-post-move-verifier/`, `pipeline-run-executor/`, `pipeline-auto-retry/`, `pipeline-queue-alert/`, `pipeline-summarize/`.
+- Front: `src/pages/admin/AdminPipelineAutomations.tsx`, `AdminPipelineHealth.tsx`, `PipelineRuns.tsx`, `MetricsAiUsage.tsx`, `MetricsOps.tsx`.
+- Confirmar que nenhum arquivo referencia `ai-pipeline-filter.ts` com hack específico da Febracis.
 
-## Fase 1 — Contrato do "Tenant Classifier" (2–3 dias)
+Saída: registrar em `docs/_audit/FEBRACIS_CLEANUP.md` a lista de arquivos varridos e hits residuais (esperado: zero).
 
-- **F1.1** Spec `TenantClassifier` em `docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md`:
-  - Input: `{ action: "tick" | "lead", lead_id?, force? }`.
-  - Guards obrigatórios: allowlist → `try_classify_lock` RPC → watermark → G10 → G11 → Guard D3.
-  - Movimentação **apenas** via `pipelineMove()` (`_shared/pipeline-move.ts`).
-  - Telemetria: `ai_usage` (por sub-agente) + `pipeline_run_items`.
-  - Tags: whitelist hardcoded em memória (padrão Febracis `apply.ts:8-13`) — **nunca** ler `automation.v42.allowed_tags` (chave global, ÓR-específica).
-- **F1.2** Helper `supabase/functions/_shared/tenant-classifier.ts`:
-  - `runTenantTick({ tenantSlug, clinicId, classifyOne })` — encapsula fila `needs_ai_review`, backoff 2/5/30min, concorrência 5.
-  - `assertTenantGuards(ctx, { oldPatientStageName, nutritionStageName })` — **parametriza** os nomes de stage do D3 (hoje `"Paciente antigo"` / `"Nutrição inativa"` estão hardcoded em `pipeline-move.ts:66,185-186`, silenciando o guard para qualquer tenant com taxonomia diferente).
-  - `assertSameTenant(ctx, expectedClinicId)` — aborta com `wrong_tenant` se o lead não é do clinic_id esperado.
-- **F1.3** Testes de contrato em `scripts/tenant-classifier-contract.test.ts`.
+## Fase 2 — Edge function órfã na Cloud
 
----
+O `delete_edge_functions` falhou 3× em turnos anteriores para `pipeline-classify-febracis`. A função continua listada na Cloud sem cron/gateway apontando para ela (portanto inerte).
 
-## Fase 2 — Registry de tenants + dispatcher (2–3 dias)
+- Reexecutar `supabase--delete_edge_functions` para `pipeline-classify-febracis`.
+- Se falhar novamente, deployar um `index.ts` stub que retorna 410 Gone e documentar como "aguardando purge manual".
 
-- **F2.1** Migration `pipeline_tenant_classifiers`:
-  - `clinic_id` UNIQUE, `edge_function_name`, `enabled`, `priority`, `max_batch_per_tick`, `notes`.
-  - Grants + RLS: leitura só `authenticated` via `has_role(admin)`, escrita só `service_role`.
-- **F2.2** Seed com ÓR (aponta para a futura `pipeline-classify-clinica-or` — ver F6.2) e Febracis (`pipeline-classify-febracis`).
-- **F2.3** Refatorar `tickQueueV2` em `pipeline-classify/index.ts`:
-  - Remover o `push("ab2f4484…")` hardcoded (linhas 260-262).
-  - Remover o `if clinic_id === "ab2f4484…"` dinâmico (linha 117).
-  - Cada lead na fila: consultar registry → se tem edge function própria, `supabase.functions.invoke(edgeFn, { action:"lead", lead_id })`; senão roda pipeline genérico legado.
-- **F2.4** Cron único: manter apenas `pipeline-classify-tick` → `pipeline-classify`. Dispatcher fan-out via invoke. Elimina o risco (F0.1) de alguém ligar cron para `pipeline-classify-febracis` e criar double-processing na mesma fila.
-- **F2.5** Consertar `pipeline-run-executor/index.ts` (`callClassify` faz `fetch(…/pipeline-classify)` hardcoded): resolver dinamicamente via registry antes do fetch, senão manual re-run pelo UI `/pipeline-runs` sempre bate na função errada para tenants não-ÓR.
+## Fase 3 — Cron / triggers / RPC
 
----
+Objetivo: garantir que nenhum job agendado ou trigger de banco chame ou dependa do classificador Febracis.
 
-## Fase 3 — Isolamento operacional (2 dias)
+- `SELECT jobname, schedule, active, command FROM cron.job WHERE command ILIKE '%febracis%' OR command ILIKE '%ab2f4484%';` — esperar zero.
+- `pg_trigger` / `pg_proc`: `SELECT proname FROM pg_proc WHERE prosrc ILIKE '%febracis%' OR prosrc ILIKE '%ab2f4484-886c-48f2-bfc6-0651d062c575%';` — mapear se algum RPC hardcoda o clinic_id.
+- Conferir `try_classify_lock`, `enqueue_classifier_review`, `pipeline_move` RPCs — não devem citar Febracis.
 
-- **F3.1** `idempotencyKey` do `pipelineMove` sempre prefixada por `<tenant-slug>:` (Febracis já faz em `apply.ts`; padronizar via helper).
-- **F3.2** Adicionar coluna `tenant_slug` (nullable) em `pipeline_run_items` — hoje o schema (migration `20260618032209:79-96`) não tem como distinguir origem por tenant sem parse de string.
-- **F3.3** **Kill-switch por tenant**: hoje `automation.classifier.enabled` (checado em `pipeline-classify/index.ts:253` e `pipeline-classify-febracis/index.ts:122`) é global — desligar em incidente da ÓR mata a Febracis. Introduzir chave `automation.classifier.<tenant_slug>.enabled` com fallback para a global. Depende do F4.1.
-- **F3.4** **Circuit breaker por tenant**: se um `edge_function_name` retorna 5xx em >30% do batch em 5min, marcar `enabled=false` no registry e inserir alerta em `email_operational_alerts`.
-- **F3.5** Cap de leads por tenant por tick (`max_batch_per_tick` do registry) — sem isso, uma clínica com fila grande engole o `BATCH_LIMIT=50` compartilhado.
-- **F3.6** Reafirmar que `try_classify_lock` RPC (advisory lock keyed por `lead_id`) já é seguro contra double-processing entre funções distintas — **não precisa ser reescrito**, mas documentar como invariante.
+## Fase 4 — DB config residual
 
----
+Objetivo: revalidar que o classificador Febracis não deixou linhas dispersas.
 
-## Fase 4 — Governança de settings, gates e allowlist (2 dias)
+- `pipeline_automation_allowlist`, `app_settings` (`automation.febracis.*`, `automation.v42.allowed_tags`), `stage_ai_defaults`, `stage_canonical_aliases`, `stage_sequence_bindings`, `lead_ai_settings`, `whatsapp_intents` (para clinic Febracis, kind pipeline), `pipeline_provider_health`, `pipeline_tick_stats`, `pipeline_runs` com `run_type='classifier'`, `pipeline_run_items`, `lead_events` (`type IN ('auto:classifier','position_audit_disagreement','post_move_disagreement')`), `ai_usage` (nome/tipo indicando classifier — checar schema real primeiro).
+- Para cada tabela: contar linhas Febracis + amostrar 3 linhas. Se aparecer algo, decidir com o usuário: manter como histórico, arquivar ou purgar via migration.
 
-- **F4.1** Coluna `clinic_id` (nullable) em `app_settings`; adaptar `_shared/app-settings.ts` (`getSettingString/getToggle/getSettingJSON/getSettingNumber`) para aceitar `clinicId?` com fallback para linha global. Sem isso F3.3 e overrides por tenant (allowed_tags, b2b_move, nurture_move) não funcionam.
-- **F4.2** **Namespace por tenant** para toggles ÓR-específicos hoje globais: `automation.b2b_move.enabled` e `automation.nurture_move.enabled` (`pipeline-classify/apply.ts:322,387`) — quando o dispatcher rodar Febracis, esses toggles não devem sequer ser lidos.
-- **F4.3** Formalizar a allowlist:
-  - Inserir seed row para Febracis em `pipeline_automation_allowlist` **antes** de remover o hack F2.3, senão `pipeline-move.ts` (gate Allowlist, `GATES.md:37`), `pipeline-run-executor:76` (`assertAllowlisted`) e `pipeline-position-auditor` param de aceitar Febracis silenciosamente — três superfícies dependendo dessa linha.
-- **F4.4** Rodar `supabase--linter` após F2.1/F4.1; garantir `pipeline_tenant_classifiers` sem leitura `anon`.
+## Fase 5 — Migrations históricas
 
----
+Existem 12 arquivos SQL em `supabase/migrations/` mencionando Febracis. Precisam ser **categorizados** (não removidos — migrations são imutáveis):
 
-## Fase 5 — Auditors e gates tenant-aware (2 dias)
+- **Grupo A — Atendimento (SDR 2.0/3.0)**: `20260709*` (5 arquivos). Criam/atualizam o agente de atendimento na tabela `ai_agents`. Não são do classificador de pipeline. **Manter sem tocar.**
+- **Grupo B — Setup inicial Febracis clinic/pipeline** (`20260630*`, 7 arquivos): criaram clínica, pipeline, stages e provavelmente allowlist. Precisam ser lidos linha a linha para decidir se algum criou linha em `pipeline_automation_allowlist` ou `app_settings.automation.febracis.*` que já não existe mais (Fase 4 confirma).
 
-Achado crítico da auditoria: os auditors rodam contra qualquer clínica allowlistada **usando a taxonomia canônica da ÓR**.
+Saída: seção "Migrations Febracis" em `docs/_audit/FEBRACIS_CLEANUP.md` classificando cada arquivo (A vs B) com uma linha do que faz. Nenhum arquivo `.sql` é editado.
 
-- **F5.1** `pipeline-position-auditor/index.ts`:
-  - `EXCLUDED_CANONICALS` (linhas 40-47: `"Paciente antigo"`, `"B2B / Stakeholders"`, `"Nutrição inativa"`) é ÓR-only.
-  - Prompt embute stages canônicos v4.2 (`CLASSIFIER.md`).
-  - Refatorar: buscar taxonomia do tenant via registry OU pular tenants sem `canonical_stages_ref` definido. Documentar em `AUDITORS.md`.
-- **F5.2** `pipeline-post-move-verifier` (Hook A2): auditar se assume nomes de stage ÓR; parametrizar se sim.
-- **F5.3** Guard D3 em `_shared/pipeline-move.ts:66,185-186`: aceitar `oldPatientStageName`/`nutritionStageName` como parâmetro (via registry ou helper `assertTenantGuards`) — hoje é silent no-op para qualquer tenant que não use exatamente esses strings.
-- **F5.4** Adicionar em `docs/pipeline/runtime/KNOWN_ISSUES.md` a categoria "cross-tenant stage-name assumptions" — hoje só há entradas para `automations-tick` e `leads.pipeline_id/stage_id`.
+## Fase 6 — Scripts / utilitários soltos
 
----
+Verificar arquivos na raiz do repo (`fetch_leads.py`, `test_query.py`, `check_ai.py`, `trigger_ai.py`, `generate_pdf.py`, `mermaid_pdf.ts`, `scratch.mjs`, `scratch.ts`, `check-logs.ts`, `scripts/pipeline-replay.ts`, `dry-run-pr2/**`) e `.env*` por hardcode de `ab2f4484…` ou string "febracis".
 
-## Fase 6 — Migração dos tenants atuais (2–3 dias)
+Se encontrado: mover para `.lovable/scratch/` ou remover com anotação.
 
-- **F6.1 Febracis**: já isolada. Ordem: (a) seed `pipeline_automation_allowlist` [F4.3], (b) seed `pipeline_tenant_classifiers`, (c) refatorar dispatcher [F2.3] atrás de feature-flag `tenant_dispatch.enabled`, (d) validar 48h de execução paralela via telemetria (F3.2), (e) deletar `pipeline-classify/febracis/` [F0.2].
-- **F6.2 Clínica ÓR**: extrair `agent-core.ts`, `apply.ts`, `context.ts`, `rules/`, `date-parser.ts`, `schema.ts` para `supabase/functions/pipeline-classify-clinica-or/`. `pipeline-classify` vira dispatcher puro. Idem feature-flag.
-- **F6.3** Deprecar `index.v1.ts` só depois de 7 dias sem tráfego (checar `ai_usage.operation`).
-- **F6.4** Precedente já existente: `pipeline-monthly-cycle-or` e `report-finalizados-mensal-or` são standalone por tenant via `CLINIC_ID` const — considerar se devem entrar no registry também (fora do escopo do classifier, mas padrão idêntico).
+## Fase 7 — Plan e memória
 
----
+- Reler `.lovable/plan.md` e remover blocos que ainda descrevam Febracis como tenant ativo (mantendo a menção "será reconstruído sobre `pipeline_tenant_classifiers`").
+- Atualizar `mem://index.md` / `mem://docs/maintenance-progress` se referenciarem o classificador Febracis.
+- Atualizar `docs/_audit/PROGRESS.md` com a data desta limpeza.
 
-## Fase 7 — DX (1 dia)
+## Fase 8 — Registro final
 
-- **F7.1** Template `supabase/functions/_templates/pipeline-classify-tenant/` (index.ts/agent.ts/apply.ts já plugados em `runTenantTick`).
-- **F7.2** Script `scripts/new-tenant-classifier.mjs <slug> <clinic_id>` — copia template, cria `docs/tenants/<slug>/`, gera SQL de seed para revisão.
-- **F7.3** Checklist final no HOWTO com 12 passos (F0.1 → F5 mapeados).
+Criar `docs/_audit/FEBRACIS_CLEANUP.md` como relatório único da revisão:
 
----
+- Data, escopo, checklist por fase.
+- Tabela "Onde estava × ação × status".
+- Lista de arquivos migrations categorizados.
+- Snapshot dos counts de DB (Fase 4).
+- Ponto de rearranque quando as Fases 1–6 do roadmap `pipeline_tenant_classifiers` forem executadas.
 
-## Fase 8 — Observabilidade e docs (1 dia)
+## Detalhes técnicos
 
-- **F8.1** Página admin `/admin/pipeline-tenants`: registry + últimas 100 execuções por tenant + custo médio/lead + botão pausar (usa F3.3).
-- **F8.2** Atualizar `docs/maps/PIPELINE_RUNTIME.md`, `docs/pipeline/runtime/CLASSIFIER.md`, `docs/pipeline/runtime/GATES.md` (documentar que allowlist deixa de ter bypass hardcoded), `docs/pipeline/runtime/AUDITORS.md` (tenant-awareness), `docs/tenants/README.md`.
-- **F8.3** Runbook `docs/pipeline/runtime/TENANT_CLASSIFIER_RUNBOOK.md`: como debugar quando um tenant específico para de classificar (checar registry.enabled → circuit-breaker → tenant kill-switch → cron do dispatcher → advisory lock).
+- Todos os `rg` rodam com `--glob '!node_modules'`, `--glob '!.git'`, `--glob '!package-lock.json'`, `--glob '!*.tsbuildinfo'` para evitar ruído.
+- Toda contagem de DB usa `supabase--read_query` (leitura). Qualquer purge de linhas residuais (Fase 4) só entra por `supabase--migration` após o usuário aprovar caso a caso.
+- `supabase--delete_edge_functions` (Fase 2) pode falhar silenciosamente — fallback é stub 410 com deploy.
+- Nenhuma alteração toca clínica FEBRACIS-PRI, agente "Atendimento Febracis", agente "SDR 3.0", instância WhatsApp "Lucia" ou os leads dessa clínica.
 
----
+## Não escopo
 
-## Arquitetura alvo
-
-```text
-cron (1/min) ─► pipeline-classify { action: "tick" } ─┐
-                                                       │
-                          ┌─── SELECT registry ────────┘
-                          ▼
-              ┌──────────────────────────────┐
-              │ para cada lead na fila:       │
-              │  registry[clinic_id]?         │
-              │   ├─ sim → invoke edge fn X   │
-              │   └─ não → classifier legacy  │
-              └──────────────────────────────┘
-
-Cada edge fn de tenant usa runTenantTick({
-  tenantSlug, clinicId,
-  allowedTags: [...],           // hardcoded no arquivo
-  oldPatientStageName, nutritionStageName,
-  classifyOne(ctx) { ... }      // agentes específicos do tenant
-})
-```
-
-## Fora de escopo
-
-- Redesign dos micro-agentes atuais da ÓR (Resumidor/Tipificador/Maestro/Agendador/Movimentador).
-- UI para usuário final configurar o próprio agente (por design, permanece serviço interno).
-- Troca de LLM/modelos default.
-
-## Riscos residuais
-
-- **Dispatcher vira gargalo** → invoke assíncrono (`EdgeRuntime.waitUntil`) + cap F3.5.
-- **Registry desatualizado** → circuit breaker F3.4 + alerta.
-- **Rollout gera billing duplicado** → feature-flag `tenant_dispatch.enabled` (F6.1/F6.2) + coluna `tenant_slug` (F3.2) para reconciliar `ai_usage`.
-- **Auditor legacy (F5.1) já roda hoje contra Febracis com stages errados** → correção crítica, não pode ficar para o fim; subir em paralelo com F2.
-
-## Ordem recomendada
-
-F0 → F1 → F4.1 (paralelo) → F2 → F5 (paralelo com F3, é correção de bug ativo) → F3 → F6 → F7 → F8. Estimativa: **12–14 dias** focados.
+- Reconstrução do classificador Febracis (aguarda Fases 1–6 do roadmap `pipeline_tenant_classifiers` em `.lovable/plan.md`).
+- Remoção de migrations históricas.
+- Qualquer mudança no agente de atendimento SDR 3.0 ou na copy do prompt.
