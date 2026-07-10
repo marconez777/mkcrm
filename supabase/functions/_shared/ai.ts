@@ -451,10 +451,7 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
   let model = "unknown";
   try {
     let vectors: number[][];
-    // Pick embedding provider. Google chat BYOK no longer defaults to the native
-    // `text-embedding-004` endpoint because it 404s for some Gemini API keys and
-    // blocks SDR replies. Use Lovable AI's OpenAI-compatible embeddings by default
-    // so vectors stay 768-dim for the existing ai_chunks schema.
+    // Pick embedding provider based on the agent's configured provider/key.
     if (agent.embedding_api_key) {
       model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
@@ -462,14 +459,10 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
       model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
     } else if (agent.provider === "google") {
-      const key = Deno.env.get("LOVABLE_API_KEY");
-      if (!key) {
-        model = agent.embedding_model || "text-embedding-004";
-        vectors = await googleEmbed(requireKey(agent), model, texts);
-      } else {
-        model = normalizeLovableEmbeddingModel(agent.embedding_model);
-        vectors = await lovableEmbed(key, model, texts);
-      }
+      // Uses the agent's own Gemini API key. Default to gemini-embedding-001
+      // (v1beta) which supports outputDimensionality=768 to match ai_chunks.
+      model = agent.embedding_model || "gemini-embedding-001";
+      vectors = await googleEmbed(requireKey(agent), model, texts);
     } else if (agent.provider === "lovable") {
       const key = Deno.env.get("LOVABLE_API_KEY");
       if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
@@ -478,6 +471,7 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
     }
+
     if (ctx) {
       // OpenAI/Google embedding APIs return token counts only on OpenAI; we estimate via char/4 fallback.
       const approxIn = texts.reduce((s, t) => s + Math.ceil((t?.length ?? 0) / 4), 0);
@@ -528,23 +522,38 @@ async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?
 }
 
 async function googleEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
-  const base = "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      requests: texts.map((t) => ({
-        model: `models/${model}`,
-        content: { parts: [{ text: t }] },
-        outputDimensionality: 768,
-      })),
-    }),
+  const body = JSON.stringify({
+    requests: texts.map((t) => ({
+      model: `models/${model}`,
+      content: { parts: [{ text: t }] },
+      outputDimensionality: 768,
+    })),
   });
-  if (!r.ok) throw new Error(`google embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  // Try v1beta first (supports gemini-embedding-001 and text-embedding-004),
+  // fall back to v1 if the key/model isn't enabled on v1beta.
+  const call = async (apiVersion: "v1beta" | "v1") => {
+    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+  };
+  let r = await call("v1beta");
+  if (r.status === 404) {
+    const fallback = await call("v1");
+    if (fallback.ok) r = fallback;
+    else {
+      const t1 = await r.text().catch(() => "");
+      const t2 = await fallback.text().catch(() => "");
+      throw new Error(`google embed 404 v1beta+v1 model=${model}: ${t1.slice(0,200)} | ${t2.slice(0,200)}`);
+    }
+  }
+  if (!r.ok) throw new Error(`google embed ${r.status} model=${model}: ${(await r.text()).slice(0, 300)}`);
   const data = await r.json();
   return (data.embeddings ?? []).map((e: any) => e.values as number[]);
 }
+
 
 
 async function lovableEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
