@@ -4127,6 +4127,7 @@ export type Database = {
           last_message_at: string | null
           last_message_preview: string | null
           last_processed_message_id_classifier: string | null
+          last_processed_message_id_classifier_dry: string | null
           last_processed_message_id_summarizer: string | null
           last_site_activity_at: string | null
           manual_lock_until: string | null
@@ -4177,6 +4178,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
+          last_processed_message_id_classifier_dry?: string | null
           last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
@@ -4227,6 +4229,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
+          last_processed_message_id_classifier_dry?: string | null
           last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
