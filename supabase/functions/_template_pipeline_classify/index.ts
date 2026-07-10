@@ -15,14 +15,15 @@
 //   • Backoff escalonado 2/5/30 min por falhas consecutivas
 //   • Distingue erro transiente (retry) vs terminal (drop)
 //   • Suporta payload `{ action:"tick", dry_run:true }` — pula `pipelineMove` sem contaminar watermark (G9)
+//   • Lê `automation.<slug>.classifier_version` (v1|v2) — dark-launch de prompt novo (G16)
 //   • Concorrência limitada (5 leads por tick)
 //   • CORS + ações "tick" e "lead" (smoke test manual)
 // ============================================================================
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { runAgent } from "./agent.ts";
+import { runAgent, type ClassifierVersion } from "./agent.ts";
 import { applyClassification } from "./apply.ts";
-import { getTenantToggle } from "../_shared/app-settings.ts";
+import { getTenantSetting, getTenantToggle } from "../_shared/app-settings.ts";
 import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
 async function classifyOne(
   client: SupabaseClient,
   leadId: string,
-  opts: { dryRun?: boolean; force?: boolean } = {},
+  opts: { dryRun?: boolean; force?: boolean; version?: ClassifierVersion } = {},
 ) {
   // G17 — lock por lead. Evita reentrada quando um tick paralelo estoura 60s.
   const { data: locked } = await client.rpc("try_classify_lock", { _lead_id: leadId });
@@ -105,14 +106,18 @@ async function classifyOne(
     return { skipped: "no_new_messages" };
   }
 
+  // G16 — versão do classifier vem do setting; opts.version tem prioridade (smoke test).
+  const version: ClassifierVersion = opts.version
+    ?? (((await getTenantSetting(client, TENANT_SLUG, "classifier_version")) === "v2") ? "v2" : "v1");
+
   // Executa a esteira de micro-agentes (definida em agent.ts).
-  const agentOut = await runAgent(client, { lead, messages: messages ?? [] });
+  const agentOut = await runAgent(client, { lead, messages: messages ?? [] }, { version });
   if ("error" in agentOut) {
     if (isTransientAgentError(agentOut.error)) {
       throw new Error(`agent_error_transient:${agentOut.error}`);
     }
     await clearQueueFlag(client, leadId);
-    return { skipped: `agent_error:${agentOut.error}` };
+    return { skipped: `agent_error:${agentOut.error}`, version };
   }
 
   // Aplica a classificação (mover card / tags / custom_fields) — respeitando dry_run.
@@ -133,7 +138,7 @@ async function classifyOne(
   }
 
   await clearQueueFlag(client, leadId);
-  return { ok: true, dry_run: !!opts.dryRun, applied };
+  return { ok: true, dry_run: !!opts.dryRun, version, applied };
 }
 
 // -----------------------------------------------------------------------------
@@ -147,6 +152,9 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
   const dryRun = opts.dryRunOverride === true
     ? true
     : await getTenantToggle(client, TENANT_SLUG, "dry_run");
+  // G16 — resolve versão do classifier UMA vez por tick (evita N leituras em `app_settings`).
+  const version: ClassifierVersion =
+    ((await getTenantSetting(client, TENANT_SLUG, "classifier_version")) === "v2") ? "v2" : "v1";
 
   const { data: leads } = await client
     .from("leads")
@@ -167,7 +175,7 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
       if (!l) break;
       const fails = (l.ai_review_fail_count as number | null) ?? 0;
       try {
-        const r = await classifyOne(client, l.id as string, { dryRun });
+        const r = await classifyOne(client, l.id as string, { dryRun, version });
         results.push({ lead_id: l.id, ok: true, ...r });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -186,7 +194,7 @@ async function tick(client: SupabaseClient, opts: { dryRunOverride?: boolean } =
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
-  return { processed: results.length, dry_run: dryRun, results };
+  return { processed: results.length, dry_run: dryRun, version, results };
 }
 
 // -----------------------------------------------------------------------------
@@ -203,9 +211,12 @@ Deno.serve(async (req) => {
       result = await tick(client, { dryRunOverride: body.dry_run === true });
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
+      const versionOverride: ClassifierVersion | undefined =
+        body.version === "v1" || body.version === "v2" ? body.version : undefined;
       result = await classifyOne(client, body.lead_id, {
         dryRun: body.dry_run === true,
         force: body.force === true,
+        version: versionOverride,
       });
     } else {
       return new Response(JSON.stringify({ error: "unknown_action" }), {
