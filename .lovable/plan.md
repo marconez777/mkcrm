@@ -227,6 +227,111 @@ Cada item vira um plano separado quando for executar. Aqui só a ordem:
 
 ---
 
-## Parte 6 — Como aprovar
+## Parte 6 — Revisão do código real da Clínica ÓR (o que o plano estava perdendo)
 
-Aprovar este plano significa **autorizar a execução do backlog na ordem P0 → P3**. Cada item vira um plano próprio quando for a vez dele — este documento é o mapa geral, não a implementação.
+Depois de reler `supabase/functions/pipeline-classify/index.ts` (dispatcher V2 real, 340 linhas) e `apply.ts` (692 linhas), achei **6 padrões de produção** que a ÓR já usa e que o plano original não estava capturando. Sem eles, o template do Gap 1 nasce fraco e cada tenant novo vai reinventar a mesma coisa (ou pior: vai ligar em produção sem eles e quebrar).
+
+### Gap 12 — Fila baseada em `needs_ai_review` (não varredura)
+
+**O que a ÓR faz:** o tick **não** varre todos os leads da clínica. Ele lê da fila `leads WHERE needs_ai_review = true AND ai_review_reasons @> ['pipeline-classifier'] AND ai_review_queued_at <= now()`. Quem enfileira é o webhook do WhatsApp ao receber mensagem nova. O tick só drena a fila.
+
+**Por que importa:** varredura tem custo O(leads × minuto). Fila tem custo O(mensagens novas). Para uma clínica com 5 mil leads, a diferença é entre gastar tokens à toa e não gastar.
+
+**O que precisa no template (Gap 1):** o esqueleto tem que já vir com a query de fila pronta, e o manual tem que explicar onde o tenant enfileira (`ai_review_reasons` deve incluir um identificador — hoje `'pipeline-classifier'` global, provavelmente deveria virar `'pipeline-classifier:<slug>'` para tenants co-existirem sem se pisar).
+
+**Bloqueia:** sim. Sem isso, o template não é usável.
+
+---
+
+### Gap 13 — Backoff escalonado + `ai_review_fail_count`
+
+**O que a ÓR faz:** cada falha do lead incrementa `ai_review_fail_count` e reagenda `ai_review_queued_at` para +2 min (1ª falha), +5 min (2ª), +30 min (3ª+). Falha transiente (rate-limit, timeout, quota) **não** limpa a fila — vai pro próximo tick. Falha terminal (agent_error não-transiente) limpa a fila. A função `isTransientAgentError` em `_shared/classifier-ai.ts` classifica.
+
+**Por que importa:** sem isso, ou o tenant novo trava em loop de erro (gastando tokens), ou perde leads em erros transientes (rate-limit da OpenAI = lead nunca mais processado).
+
+**O que precisa no template:** dispatcher já vem com o `try/catch` + backoff + `isTransientAgentError` cabeados. É código de infra, não de negócio; nenhum tenant precisa reescrever.
+
+**Bloqueia:** sim.
+
+---
+
+### Gap 14 — Namespace da fila `ai_review_reasons` por tenant
+
+**O que a ÓR faz:** hoje enfileira com a razão literal `'pipeline-classifier'` (string global). Se dois tenants forem para produção ao mesmo tempo com edges separadas, ambos vão puxar da mesma fila e um vai processar o lead do outro (que não é dele).
+
+**O que precisa:** convenção — cada tenant enfileira e drena com `'pipeline-classifier:<slug>'` (ou coluna dedicada). Migration/documentação clara. A ÓR migra para `'pipeline-classifier:clinica-or'` quando adotar o registry.
+
+**Bloqueia:** sim, quando houver 2+ tenants ativos simultaneamente.
+
+---
+
+### Gap 15 — CORS/boilerplate compartilhado
+
+**O que a ÓR faz:** duplica o bloco `corsHeaders` e o handler `OPTIONS` em cada edge. Cada nova edge de tenant vai duplicar de novo.
+
+**O que precisa:** um helper `_shared/http.ts` exportando `corsHeaders`, `withCors(handler)`, `jsonResponse(body, status)`. O template do Gap 1 já usa. Cosmético mas evita drift (uma edge esquece um header e quebra o preview).
+
+**Bloqueia:** não. Housekeeping.
+
+---
+
+### Gap 16 — Feature flag de versão do agente por tenant
+
+**O que a ÓR faz:** `automation.classifier.version` = `v1` ou `v2`. O dispatcher lê a flag e roteia. Permite dark-launch de uma nova versão do prompt sem redeploy — flipa a flag, se der problema volta em segundos.
+
+**Por que importa:** dry-run (Gap 9) resolve o onboarding inicial. Mas depois que o tenant está em produção, toda mudança grande de prompt/regra também precisa de rollback rápido. Sem flag de versão, a única opção é redeploy (~2 min de janela ruim).
+
+**O que precisa:** o template já vem com `automation.<slug>.classifier_version` lido pelo dispatcher, e o `agent.ts` exporta `handleV1`/`handleV2`. No começo só existe v1; quando o tenant maduro quiser trocar de prompt, cria v2 ao lado.
+
+**Bloqueia:** não no dia 1, mas evita dor no mês 2. Alinha com o padrão da ÓR e vira P1.
+
+---
+
+### Gap 17 — Advisory lock por lead (`try_classify_lock`)
+
+**O que a ÓR faz:** RPC `try_classify_lock(_lead_id)` retorna `false` se outro worker já pegou o mesmo lead. Evita que dois ticks paralelos (quando um estoura os 60s) processem o mesmo lead em dobro, duplicando telemetria e potencialmente movendo o card duas vezes.
+
+**Por que importa:** sem lock, o Gap 5 (cron centralizado disparando fan-out via `pg_net`) tem risco real de reentrada — se a edge de um tenant demora >60s, o próximo tick já disparou, e ambos podem pegar o mesmo lead.
+
+**O que precisa:** confirmar que o RPC `try_classify_lock` é **genérico** (aceita qualquer lead_id) e não específico da ÓR. Se for genérico, o template só chama. Se for específico, precisa generalizar para o schema.
+
+**Bloqueia:** sim, junto com Gap 5.
+
+---
+
+## Parte 7 — Backlog atualizado (v2 com os gaps acima)
+
+| Prioridade | Item | O que entrega | Esforço |
+|---|---|---|---|
+| **P0** | Gap 3 | Tabela `pipeline_tenant_classifiers` + RLS + GRANTs | ½ dia |
+| **P0** | Gap 17 | Auditar `try_classify_lock` (genérico?) e documentar uso obrigatório | ¼ dia |
+| **P0** | Gap 5 | Cron único + `dispatch_pipeline_classifiers()` + fan-out `pg_net` + runbook | 1 dia |
+| **P0** | Gap 14 | Namespace `pipeline-classifier:<slug>` em `ai_review_reasons` + migration da ÓR | ½ dia |
+| **P0** | Gap 1 | Esqueleto `pipeline-classify-_template_/` já com fila (G12), backoff (G13), CORS shared (G15), lock (G17) | 1-1½ dia |
+| **P0** | Gap 2 | Namespace `automation.<slug>.*` + `getTenantSetting()` | ½ dia |
+| **P0** | Gap 9 | Coluna watermark dry + payload isolado | ½ dia |
+| **P1** | Gap 16 | Flag `automation.<slug>.classifier_version` + template com dispatcher v1/v2 | ½ dia |
+| **P1** | Gap 4 | Auditar RLS `clinic_secrets` + Vault/pgsodium + endpoint `has_key` | 1-2 dias |
+| **P1** | Gap 6 | `AIPipelinesCard` por tenant | 1-2 dias |
+| **P2** | Gap 10 | Auto-seed `ai_spend_limits` + soft block | ½ dia |
+| **P2** | Gap 8 | Template de teste unitário | ½ dia |
+| **P2** | Gap 15 | Extrair `_shared/http.ts` (CORS/JSON) | ¼ dia |
+| **P3** | Gap 7 | Badge tenant slug no admin | ½ dia |
+| **P3** | Gap 11 | Doc de risco de escala | ¼ dia |
+
+**Regra atualizada:** com P0 (Gaps 3, 17, 5, 14, 1, 2, 9) + P1 (16, 4, 6) fechados, o onboarding de tenant novo cabe em **1 dia** com **infra de produção equivalente à ÓR** (fila, backoff, lock, dry-run, rollback por flag). Sem esses padrões, o template do Gap 1 nasce como brinquedo, não como produto.
+
+---
+
+## Parte 8 — O que este plano NÃO faz
+
+- Não escreve código nenhum agora.
+- Não recria o classificador da Febracis.
+- Não altera a ÓR imediatamente — ela adota `pipeline_tenant_classifiers`, `pipeline-classifier:<slug>` e `automation.clinica-or.*` de forma retroativa depois do template estar pronto.
+- Não define modelo LLM padrão nem política de billing BYOK.
+
+---
+
+## Parte 9 — Como aprovar
+
+Aprovar este plano significa **autorizar a execução do backlog P0 → P3 na ordem acima**. Cada item vira um plano próprio quando chegar sua vez.
