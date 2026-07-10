@@ -94,6 +94,7 @@ Consome RPC `admin_overview_metrics()` (migration
 Maior página do admin. Lista todas as clínicas com colunas de plano, MRR,
 status, uso vs limite. Ações:
 - **Ver detalhes** → `ClinicDetailsDialog` (usage, integrações, membros).
+- **Gerar Convite** → Invoca edge function `clinic-invite` para gerar link de acesso à empresa.
 - **Aplicar plano** → `admin-apply-plan`.
 - **Revogar plano** → `admin-revoke-plan`.
 - **Suspender/Ativar** → UPDATE direto em `clinics.status`.
@@ -190,6 +191,7 @@ consulta `user_roles.role='super_admin'` via service role → 403 se não for.
 | --------------------- | ----------------------------------------------------------- | --- |
 | `admin-users-list`    | GET paginado (`page`, `per_page`, `search`) — usa `auth.admin.listUsers` + joins locais | 107 |
 | `admin-user-action`   | POST `{action, user_id, ...}` — set_password, disable, enable, delete, send_recovery, set_role, remove_from_clinic | 93 |
+| `clinic-invite`       | POST `{clinic_id, email, role}` — Gera link de convite único restrito ao e-mail, salva em `clinic_invites` | 72 |
 | `admin-apply-plan`    | POST batch — aplica plano a `clinic_ids[]`, cancela sub anterior, insere `clinic_subscriptions`, grava `audit_log` | 125 |
 | `admin-revoke-plan`   | POST — cancela sub atual, insere fallback (`starter` default) `past_due`, sobrescreve `clinics.plan_id` | 67 |
 | `admin-delete-clinic` | POST — deleta membros (apaga `auth.user` se membro único), depois CASCADE em `clinics` | 123 |

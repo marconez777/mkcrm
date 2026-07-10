@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
     const inviteUrl = `${siteUrl.replace(/\/$/, "")}/invite/${invite!.token}`;
 
-    return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
+    return new Response(JSON.stringify({ ok: true, invite_url: inviteUrl, token: invite!.token, expires_at: invite!.expires_at, clinic_name: clinic?.name ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
