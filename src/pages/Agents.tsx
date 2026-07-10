@@ -97,7 +97,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   lovable: "Gemini Chat Funnel AI",
 };
 const PROVIDER_KEY_PLACEHOLDER: Record<Provider, string> = {
-  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza...", xai: "xai-...", manus: "API key Manus",
+  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza... ou AQ....", xai: "xai-...", manus: "API key Manus",
   lovable: "(gerenciado pela Chat Funnel AI)",
 };
 const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
