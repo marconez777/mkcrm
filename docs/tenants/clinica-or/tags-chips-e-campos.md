@@ -1,3 +1,22 @@
+---
+title: "Tags (Chips) e Campos Customizados — Clínica ÓR"
+topic: kanban
+kind: reference
+audience: agent
+updated: 2026-07-10
+summary: "Tags automáticas por estágio, whitelist da IA e campos customizados da Clínica ÓR."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Tags (Chips) e Campos Customizados — Clínica ÓR
 
 Na arquitetura MKCRM, "Chips" refere-se tipicamente às `tags` renderizadas no Kanban, além dos `custom_fields` (Campos Customizados) que guardam informações valiosas como datas, intenções de interesse e status financeiros.

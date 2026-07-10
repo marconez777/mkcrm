@@ -1,3 +1,19 @@
+---
+title: "Diagnóstico e Estrutura Atual: Agente de Pipeline (Febracis)"
+topic: kanban
+kind: reference
+audience: agent
+updated: 2026-07-10
+summary: "Estado atual da implementação do pipeline Febracis: separação de agentes, bugs conhecidos e plano de efetivação."
+tenant: febracis
+clinic_id: ab2f4484-886c-48f2-bfc6-0651d062c575
+code_refs:
+  - supabase/functions/pipeline-classify/febracis/
+related_docs:
+  - docs/tenants/febracis/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
 # Diagnóstico e Estrutura Atual: Agente de Pipeline (Febracis)
 
 **Objetivo:** Este documento mapeia como está estruturado o Agente de Pipeline para a conta Febracis hoje no MKCRM, servindo como guia de transição para quando formos efetivar a arquitetura de micro-agentes que desenhamos.
