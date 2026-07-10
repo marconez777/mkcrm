@@ -24,7 +24,7 @@ Para criar um agente novo para uma conta nova, siga o passo a passo em [`docs/pi
 |---|---|---|---|---|
 | `clinica-or` | `cf038458-457d-4c1a-9ac4-c88c3c8353a1` | `pipeline-classify` (compartilhada — arquitetura V6, 5 agentes) | Produção | [README](./clinica-or/README.md) |
 
-> Novos tenants serão adicionados sobre o registry `pipeline_tenant_classifiers` conforme as Fases 1–6 do roadmap (`.lovable/plan.md`).
+> Novos tenants serão adicionados sobre o registry `pipeline_tenant_classifiers`. Roadmap vivo em [`docs/roadmap/PIPELINE_TENANT_ROADMAP.md`](../roadmap/PIPELINE_TENANT_ROADMAP.md).
 
 ## Estrutura padrão de cada tenant
 
