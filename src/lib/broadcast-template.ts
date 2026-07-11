@@ -174,7 +174,7 @@ export async function parseContactsFile(
       errors.push({ row: rowNum, reason: "telefone vazio" });
       return;
     }
-    const phone = normalizePhone(phoneRaw, spec.phoneCountry);
+    const phone = normalizePhoneIntl(phoneRaw, spec.phoneCountry);
     if (!phone) {
       errors.push({ row: rowNum, reason: `telefone inválido (${phoneRaw})` });
       return;
