@@ -8,7 +8,7 @@
 //   Para retrocompat, `parseContactsFile(file)` sem região assume BR.
 
 import * as XLSX from "xlsx";
-import { normalizePhone, type PhoneCountry } from "@/lib/phone";
+import { normalizePhoneIntl, type PhoneCountry } from "@/lib/phone";
 import type { Region } from "@/lib/region";
 
 export type ContactRow = {
