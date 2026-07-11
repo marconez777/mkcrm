@@ -1,77 +1,53 @@
+## Objetivo
 
-## O que descobri
+Permitir que a importação de contatos do **Disparo em massa** aceite telefones em formato internacional (ex.: `+34 604 81 44 22`, `+1 415 555 9876`, `+351 …`), independente da região da conta (BR, ES, US).
 
-Duas coisas mudam completamente o diagnóstico anterior:
+## Diagnóstico
 
-**1. A chave `AQ.Ab8RN6...` É uma chave Gemini válida — formato novo do Google**
+- `src/lib/broadcast-template.ts::parseContactsFile` chama `normalizePhone(raw, region.phoneCountry)`.
+- `src/lib/phone.ts::normalizePhone` só passa números internacionais quando o `+` está presente **E** o libphonenumber consegue parsear com o país default. Se o Excel salvar a célula como numérica, o `+` some (`+34604814422` → `34604814422`) e o fallback BR prefixa `55`, gerando telefone inválido.
+- Não há UI de entrada manual de telefone no disparo — só upload de planilha —, então basta corrigir o parser + template.
 
-Olhando o print da AI Studio: aparece "For details on using **auth keys** with Gemini API". O Google lançou recentemente um novo formato de API key com prefixo `AQ.` (as antigas `AIzaSy...` continuam funcionando também). Ou seja, minha "Regra #8" da tentativa anterior estava errada — a chave está OK.
+## Mudanças
 
-O 400 `API_KEY_INVALID` provavelmente vem de um destes três motivos, em ordem de probabilidade:
+### 1. `src/lib/phone.ts` — parser internacional-first
 
-- **(a) A Generative Language API não está habilitada** no GCP project `124528952777`. Chave `AQ.` é escopada por projeto; se o projeto não tem a API ligada, o Google devolve `API_KEY_INVALID` genérico.
-- **(b) As chaves `AQ.` querem `x-goog-api-key` header**, não `?key=...` na URL. Nosso `googleChat` hoje só passa `?key=`. Em chaves `AIza` os dois funcionam; em `AQ.` só o header é garantido.
-- **(c) A chave foi regenerada/apagada** — mas o print mostra ela ativa em "API chat funnel 1".
+Adicionar helper `normalizePhoneIntl(raw, defaultCountry)`:
 
-**2. O dropdown de modelo (`src/pages/Agents.tsx`) não tem `gemini-flash-latest`**
+1. Se `raw` já começa com `+`, parsear sem hint de país.
+2. Se não começa com `+`, mas os dígitos batem com um **country code conhecido** (34, 1, 351, 44, 33, 55, 52, 54, 49, 39, 351, etc.), tentar `parsePhoneNumberFromString("+" + digits)`.
+3. Se ainda inválido, cair no comportamento atual (`normalizePhone(raw, defaultCountry)`).
+4. Devolver `null` se nada funcionar.
 
-Só oferece `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`. Por isso você voltou pro `2.5-flash` — era a única opção "flash" viável. Precisa adicionar os aliases `-latest`.
+Manter `normalizePhone` como está (usado em muitos lugares) — só o disparo passa a usar `normalizePhoneIntl`.
 
-## Plano
+### 2. `src/lib/broadcast-template.ts`
 
-**Passo 1 — Mandar a chave pelo header, não pela query string**
+- Trocar `normalizePhone(phoneRaw, spec.phoneCountry)` por `normalizePhoneIntl(phoneRaw, spec.phoneCountry)`.
+- Aceitar aliases adicionais no header: `phone`, `whatsapp`, `mobile` em todas as regiões (já é o caso na maioria — garantir consistência).
+- Atualizar `headerNote` das 3 regiões para deixar claro que números internacionais com `+DDI` são aceitos:
+  - BR: "Inclua DDD. DDI 55 é adicionado se ausente. Para números estrangeiros, use +DDI (ex.: +34 604 81 44 22)."
+  - ES: "Incluye +DDI para números extranjeros (ej.: +55 11 99999 8888)."
+  - US: "Include +country code for foreign numbers (e.g., +55 11 99999 8888)."
+- Nos exemplos do XLSX, incluir 1 linha internacional para ilustrar (ex.: `+1 415 555 9876` na planilha BR).
 
-Em `supabase/functions/_shared/ai.ts` (`googleChat` e `googleEmbed`):
-- Remover `?key=${apiKey}` da URL.
-- Adicionar header `x-goog-api-key: ${apiKey}`.
-- Vale pra ambos formatos (`AIza` e `AQ.`) — é o padrão oficial atual da Gemini API.
+### 3. Preservar `+` no Excel
 
-**Passo 2 — Ampliar o dropdown de modelo Gemini**
+Como planilhas costumam salvar telefones como número e perder o `+`, o parser já vai lidar tentando detectar country code por prefixo (passo 2 acima). Não precisa mudar o formato do template — só documentar.
 
-Em `src/pages/Agents.tsx`:
-```ts
-google: [
-  "gemini-flash-latest",    // recomendado — sempre a versão flash mais nova
-  "gemini-pro-latest",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
-]
-```
-Também alinhar `src/lib/quality-ladder.ts` e `src/lib/ai-pricing.ts` (senão o custo aparece $0).
+## Testes manuais
 
-**Passo 3 — Trocar o modelo do SDR 3.0 pra `gemini-flash-latest` via migração**
+Após implementar, testar upload com uma planilha contendo:
 
-`UPDATE ai_agents SET model='gemini-flash-latest' WHERE id='a75fcb1a-7597-47d2-af23-18f1636b3564'` — porque o `2.5-flash` continua 404 em chaves novas (Regra #2).
+- `+34 604 81 44 22` (ES com espaços)
+- `34604814422` (ES sem `+`, cell numérico)
+- `+1 (415) 555-9876` (US)
+- `5511999998888` (BR — continua funcionando)
+- `11999998888` (BR nacional — continua funcionando em conta BR)
 
-**Passo 4 — Melhorar o erro para casos assim**
+Todos devem entrar em `ok`, nenhum em `errors`.
 
-Quando o Google devolver `API_KEY_INVALID`, o `[googleChat] provider error` já loga o corpo. Vou fazer o `ai-chat` propagar uma mensagem específica pra `ai_usage.error`: `"Gemini API_KEY_INVALID — verifique se a Generative Language API está habilitada no GCP project X"` em vez do JSON cru. Assim a próxima ocorrência é auto-explicativa.
+## Fora de escopo
 
-**Passo 5 — Instrução pra você (fora do código)**
-
-Independente do fix, abra https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=124528952777 e confirme que **Generative Language API** está **Enabled**. Se não estiver, ative e aguarde 1–2min. Isso resolve 90% dos `API_KEY_INVALID` com chaves `AQ.`.
-
-**Passo 6 — Atualizar a doc**
-
-`docs/ai/GEMINI_API_QUIRKS.md`:
-- Corrigir a Regra #8 anterior (chaves `AQ.` são válidas, não recusar).
-- Nova Regra #9: usar `x-goog-api-key` header em vez de `?key=`.
-- Nova Regra #10: em `API_KEY_INVALID`, o suspeito nº1 não é a chave — é a API não estar habilitada no projeto GCP dono da chave.
-
-## Validação
-
-- Você manda "oi" pro Febracis.
-- `ai_usage` mostra `status=success`, `output_tokens>50`, `replied=true`.
-- Se ainda vier `API_KEY_INVALID`, você abre o link do passo 5 e habilita a API.
-
-## Detalhes técnicos (opcional)
-
-- Header `x-goog-api-key` é a forma canônica atual documentada no `curl quickstart` da própria AI Studio (botão "Copy cURL quickstart" no print).
-- `gemini-flash-latest` é alias mantido pelo Google, roteia hoje pra `gemini-flash-2.5-002`; funciona em `v1` e `v1beta`.
-- A migração do modelo é 1 linha, não toca em RLS nem estrutura.
-
-## Confirma?
-
-Se ok, saio do modo plano e implemento nessa ordem. Qualquer objeção (ex.: você prefere manter `?key=` como fallback, ou não quer ampliar o dropdown), me diga antes.
+- Import do Kommo (arquivo separado, mesmo helper pode ser reusado depois).
+- Novas conversas no Inbox (`NewConversationDialog`) — só se você pedir.

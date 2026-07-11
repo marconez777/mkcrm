@@ -8,7 +8,7 @@
 //   Para retrocompat, `parseContactsFile(file)` sem região assume BR.
 
 import * as XLSX from "xlsx";
-import { normalizePhone, type PhoneCountry } from "@/lib/phone";
+import { normalizePhoneIntl, type PhoneCountry } from "@/lib/phone";
 import type { Region } from "@/lib/region";
 
 export type ContactRow = {
@@ -44,8 +44,10 @@ const SPECS: Record<Region, TemplateSpec> = {
     examples: [
       ["5511999998888", "João Silva", "vip", ""],
       ["11988887777", "Maria", "", ""],
+      ["+34 604 81 44 22", "Juan (Espanha)", "", ""],
     ],
-    headerNote: "Inclua DDD. DDI 55 é adicionado automaticamente se ausente.",
+    headerNote:
+      "Inclua DDD. DDI 55 é adicionado se ausente. Para números estrangeiros, use +DDI (ex.: +34 604 81 44 22, +1 415 555 9876).",
     phoneAliases: ["telefone", "phone", "whatsapp", "celular", "numero", "número"],
     nameAliases: ["nome", "name"],
     phoneCountry: "BR",
@@ -57,9 +59,10 @@ const SPECS: Record<Region, TemplateSpec> = {
     examples: [
       ["34612345678", "Juan García", "vip", ""],
       ["+34 612 345 678", "María López", "", ""],
+      ["+55 11 99999 8888", "Contato Brasil", "", ""],
     ],
     headerNote:
-      "Incluye el código de país 34 o el prefijo +34. Los móviles empiezan por 6 o 7.",
+      "Incluye el código de país 34 o el prefijo +34. Para números extranjeros, usa +DDI (ej.: +55 11 99999 8888, +1 415 555 9876).",
     phoneAliases: ["telefono", "teléfono", "movil", "móvil", "whatsapp", "phone"],
     nameAliases: ["nombre", "name"],
     phoneCountry: "ES",
@@ -71,9 +74,10 @@ const SPECS: Record<Region, TemplateSpec> = {
     examples: [
       ["12125551234", "John Smith", "2026-01-15", "vip", ""],
       ["(415) 555-9876", "Jane Doe", "2026-02-03", "", ""],
+      ["+34 604 81 44 22", "Foreign Contact", "2026-03-10", "", ""],
     ],
     headerNote:
-      "Include area code. Country code +1 is added automatically. Written SMS opt-in (TCPA) recommended — see opt_in_date column.",
+      "Include area code. Country code +1 is added automatically. For foreign numbers use +country code (e.g., +34 604 81 44 22). Written SMS opt-in (TCPA) recommended — see opt_in_date column.",
     phoneAliases: ["phone", "mobile", "cell", "whatsapp"],
     nameAliases: ["name"],
     phoneCountry: "US",
@@ -174,7 +178,7 @@ export async function parseContactsFile(
       errors.push({ row: rowNum, reason: "telefone vazio" });
       return;
     }
-    const phone = normalizePhone(phoneRaw, spec.phoneCountry);
+    const phone = normalizePhoneIntl(phoneRaw, spec.phoneCountry);
     if (!phone) {
       errors.push({ row: rowNum, reason: `telefone inválido (${phoneRaw})` });
       return;
