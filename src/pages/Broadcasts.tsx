@@ -784,7 +784,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
                   <TableHeader><TableRow><TableHead>Telefone</TableHead><TableHead>Nome</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {extraContacts.slice(0, 50).map((c, i) => (
-                      <TableRow key={i}><TableCell className="font-mono text-xs">{c.phone}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
+                      <TableRow key={i}><TableCell className="font-mono text-xs">{formatPhoneDisplay(c.phone)}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
                     ))}
                   </TableBody>
                 </Table>
