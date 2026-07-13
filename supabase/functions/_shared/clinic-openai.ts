@@ -34,7 +34,7 @@ export async function getClinicOpenAI(
     .eq("clinic_id", clinicId)
     .maybeSingle();
   if (error || !data?.openai_api_key) return null;
-  const apiKey = String(data.openai_api_key);
+  const apiKey = String(data.openai_api_key).trim();
   // Sem `compatibility: "strict"`: nossos schemas Zod usam .default() em
   // vários campos, o que vira `optional` no JSON schema. O modo strict do
   // OpenAI json_schema rejeita schemas com properties opcionais, fazendo o

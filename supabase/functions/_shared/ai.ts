@@ -63,8 +63,8 @@ export function isRetryableStatus(s: number): boolean {
 }
 
 function requireKey(agent: Agent) {
-  if (!agent.api_key) throw new Error(`Agent ${agent.id} sem api_key configurada`);
-  return agent.api_key;
+  if (!agent.api_key?.trim()) throw new Error(`Agent ${agent.id} sem api_key configurada`);
+  return agent.api_key.trim();
 }
 
 function requireGoogleKey(agent: Pick<Agent, "id" | "api_key">): string {

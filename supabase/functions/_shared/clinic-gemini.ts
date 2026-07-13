@@ -57,7 +57,7 @@ export async function getClinicGemini(
   }
 
   try {
-    const apiKey = String(data!.gemini_api_key);
+    const apiKey = String(data!.gemini_api_key).trim();
     const provider = createGoogleGenerativeAI({ apiKey });
     log({ step: "resolved", clinic_id: clinicId, ok: true, key_len: apiKey.length });
     return { apiKey, model: (id: string) => provider(id) };

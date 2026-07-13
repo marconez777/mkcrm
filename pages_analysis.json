@@ -1,0 +1,1863 @@
+{
+  "layouts/AdminShell.tsx": {
+    "component": "NAV",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/components/admin/AdminCommandPalette",
+      "react",
+      "@/lib/utils",
+      "@/integrations/supabase/client",
+      "@/hooks/useAuth"
+    ],
+    "hooks": [
+      "useTheme",
+      "useLocation",
+      "useBrandingSync",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [
+      "/",
+      "\"/\""
+    ],
+    "size": 11187
+  },
+  "pages/AgentMemories.tsx": {
+    "component": "AgentMemories",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "date-fns/locale",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "date-fns",
+      "@/components/ui/badge",
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [
+      "`/inbox/${lead.id"
+    ],
+    "navigates": [],
+    "size": 9047
+  },
+  "pages/Agents.tsx": {
+    "component": "NICHE_OPTS",
+    "imports": [
+      "@/components/agents/PersonasPanel",
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/components/ui/slider",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/section-accordion",
+      "@/components/agents/AgentHealth",
+      "lucide-react",
+      "react-i18next",
+      "sonner",
+      "@/components/agents/CostsPanel",
+      "react-router-dom",
+      "@/hooks/useDialogs",
+      "@/components/agents/KbAssistant",
+      "@/components/ui/button",
+      "@/components/agents/StagesPanel",
+      "@/components/ui/dialog",
+      "@/integrations/supabase/client",
+      "@/components/agents/AuditLogPanel",
+      "@/components/agents/ThreadLearningPanel",
+      "@/components/agents/PromptHistory",
+      "@/components/ui/label",
+      "@/components/agents/CopilotPanel",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "@/hooks/useAuth",
+      "@/components/agents/BuilderSetupCard",
+      "@/components/agents/TestLab",
+      "@/components/agents/AgentInsights",
+      "@/lib/quality-ladder",
+      "@/components/ui/alert",
+      "@/components/ui/accordion"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useSearchParams",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [
+      "/ai/agents/new",
+      "\"/ai/agents/new\""
+    ],
+    "size": 63489
+  },
+  "pages/AiInsights.tsx": {
+    "component": "SENTIMENT_BADGE",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "date-fns/locale",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "date-fns",
+      "@/components/ui/badge",
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [
+      "`/inbox/${lead.id"
+    ],
+    "navigates": [],
+    "size": 10456
+  },
+  "pages/Apn.tsx": {
+    "component": "Apn",
+    "imports": [
+      "@/components/ui/button",
+      "@/components/proposal/proposalContent",
+      "react",
+      "lucide-react",
+      "@/components/proposal/ProposalSlide"
+    ],
+    "hooks": [
+      "useEffect"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 2103
+  },
+  "pages/Auth.tsx": {
+    "component": "AuthPage",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/lib/app-url",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "react",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useLocation",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 6504
+  },
+  "pages/Automations.tsx": {
+    "component": "TRIGGERS",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useTranslation",
+      "useDialogs",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 28431
+  },
+  "pages/Billing.tsx": {
+    "component": "Billing",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/hooks/useRegion",
+      "@/lib/stripe",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/plans",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "@/hooks/useSubscription",
+      "sonner"
+    ],
+    "hooks": [
+      "useSubscription",
+      "useAuth",
+      "useEffect",
+      "useRegion",
+      "useState"
+    ],
+    "links": [
+      "`/checkout/${plan.monthlyPriceId",
+      "`/checkout/${plan.yearlyPriceId"
+    ],
+    "navigates": [],
+    "size": 6232
+  },
+  "pages/Broadcasts.tsx": {
+    "component": "WEEKDAYS",
+    "imports": [
+      "@/lib/broadcast-template",
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "lucide-react",
+      "react-i18next",
+      "sonner",
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/hooks/useRegion",
+      "@/components/ui/table",
+      "@/components/ui/checkbox",
+      "@/integrations/supabase/client",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "@/components/ui/tabs",
+      "@/lib/phone"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useMemo",
+      "useEffect",
+      "useRegion",
+      "useParams",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [
+      "`/ai/broadcasts/${b.id}`",
+      "`/ai/broadcasts/${data.id}`",
+      "\"/ai/broadcasts\"",
+      "`/ai/broadcasts/${nb.id}`",
+      "/ai/broadcasts"
+    ],
+    "size": 42670
+  },
+  "pages/Checkout.tsx": {
+    "component": "Checkout",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/components/payments/StripeEmbeddedCheckout",
+      "react",
+      "@/components/payments/PaymentTestModeBanner",
+      "lucide-react",
+      "@/hooks/useAuth"
+    ],
+    "hooks": [
+      "useAuth",
+      "useParams",
+      "useEffect",
+      "useNavigate"
+    ],
+    "links": [],
+    "navigates": [
+      "-1"
+    ],
+    "size": 1398
+  },
+  "pages/CheckoutReturn.tsx": {
+    "component": "CheckoutReturn",
+    "imports": [
+      "react-router-dom",
+      "react",
+      "lucide-react"
+    ],
+    "hooks": [
+      "useEffect",
+      "useSearchParams"
+    ],
+    "links": [
+      "/billing"
+    ],
+    "navigates": [],
+    "size": 1309
+  },
+  "pages/Inbox.tsx": {
+    "component": "INSTANCE_LS_KEY",
+    "imports": [
+      "@/components/inbox/ChatPane",
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/hooks/useWhatsappInstances",
+      "react",
+      "@/types/crm",
+      "@/integrations/supabase/client",
+      "@/hooks/useCrm",
+      "@/hooks/useUnreadTitle",
+      "@/hooks/useLeadsPaginated",
+      "@/components/inbox/NewConversationDialog",
+      "lucide-react",
+      "@/hooks/useAttendants",
+      "react-i18next",
+      "@/components/inbox/ConversationList",
+      "@/components/inbox/ContextRail"
+    ],
+    "hooks": [
+      "useRef",
+      "useTranslation",
+      "useStages",
+      "useAttendants",
+      "useWhatsappInstances",
+      "useMemo",
+      "useCrm",
+      "useEffect",
+      "useUnreadTitle",
+      "useLeadsPaginated",
+      "useParams",
+      "useNavigate",
+      "useSearchParams",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 12003
+  },
+  "pages/Index.tsx": {
+    "component": "PlaceholderIndex",
+    "imports": [],
+    "hooks": [],
+    "links": [],
+    "navigates": [],
+    "size": 638
+  },
+  "pages/Invite.tsx": {
+    "component": "InvitePage",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "react",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useRef",
+      "useTranslation",
+      "useAuth",
+      "useEffect",
+      "useParams",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 7670
+  },
+  "pages/Kanban.tsx": {
+    "component": "EMPTY_LEADS",
+    "imports": [
+      "@/components/ui/input",
+      "@dnd-kit/sortable",
+      "@/components/kanban/MoveLeadDialog",
+      "@tanstack/react-virtual",
+      "react",
+      "@/hooks/useHorizontalScroll",
+      "lucide-react",
+      "react-i18next",
+      "sonner",
+      "@/components/ui/button",
+      "@/components/ui/dialog",
+      "@/components/kanban/PipelineDateFilter",
+      "@/hooks/usePipelines",
+      "@/integrations/supabase/client",
+      "@/components/kanban/PipelineSwitcher",
+      "@/components/kanban/EditStageDialog",
+      "@dnd-kit/utilities",
+      "@/components/ui/label",
+      "@/types/crm",
+      "@/components/kanban/NewPipelineDialog",
+      "./LeadDrawer",
+      "@/hooks/useCrm",
+      "@/components/ui/toggle",
+      "@/components/kanban/calendar/CalendarSheet",
+      "@/components/ui/dropdown-menu",
+      "@/lib/manual-stage-move",
+      "@/components/kanban/MoveColumnLeadsDialog",
+      "@/lib/format",
+      "@dnd-kit/core",
+      "@/components/kanban/EditPipelineDialog",
+      "@/lib/csv",
+      "@/hooks/useRegion",
+      "@/components/ui/alert-dialog"
+    ],
+    "hooks": [
+      "useRef",
+      "useSensor",
+      "useTranslation",
+      "useStages",
+      "useLeads",
+      "useHorizontalScroll",
+      "usePipelines",
+      "useMemo",
+      "useCallback",
+      "useVirtualizer",
+      "useSensors",
+      "useCrm",
+      "useEffect",
+      "useRegion",
+      "useSortable",
+      "useDroppable",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 51698
+  },
+  "pages/LeadDrawer.tsx": {
+    "component": "LeadDrawer",
+    "imports": [
+      "@/lib/delete-lead",
+      "@/components/inbox/ChatPane",
+      "@/components/lead/LeadTimelineTab",
+      "@/hooks/useDialogs",
+      "@/components/inbox/ContextRail",
+      "@/components/leads/LeadAttributionCard",
+      "@/components/ui/button",
+      "@/hooks/useAttendants",
+      "react-i18next",
+      "@/types/crm",
+      "react",
+      "@/hooks/useCrm",
+      "lucide-react",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "@/components/ui/sheet",
+      "sonner"
+    ],
+    "hooks": [
+      "useStages",
+      "useTranslation",
+      "useConfirm",
+      "useAttendants",
+      "useDialogs",
+      "useCrm",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 5847
+  },
+  "pages/Metrics.tsx": {
+    "component": "Metrics",
+    "imports": [
+      "react-i18next",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 7181
+  },
+  "pages/MetricsAiUsage.tsx": {
+    "component": "PAGE_SIZE",
+    "imports": [
+      "@/components/ai/usage/PipelineOverview",
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/lib/ai-pricing",
+      "@/components/admin/AiSpendLimitCard",
+      "@/components/ui/button",
+      "@/components/ai/usage/AgentRuntimeOverview",
+      "react-i18next",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "@/components/ui/sheet"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useMemo",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 33158
+  },
+  "pages/MetricsEngagement.tsx": {
+    "component": "MetricsEngagement",
+    "imports": [
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/badge",
+      "react",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 10489
+  },
+  "pages/MetricsOps.tsx": {
+    "component": "MetricsOps",
+    "imports": [
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 10931
+  },
+  "pages/NotFound.tsx": {
+    "component": "NotFound",
+    "imports": [
+      "react-i18next",
+      "react-router-dom",
+      "react"
+    ],
+    "hooks": [
+      "useLocation",
+      "useEffect",
+      "useTranslation"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 815
+  },
+  "pages/Onboarding.tsx": {
+    "component": "Onboarding",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/lib/app-url",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "react",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 11748
+  },
+  "pages/PipelineRuns.tsx": {
+    "component": "PipelineRuns",
+    "imports": [
+      "@/lib/pipeline-skip-reasons",
+      "@/components/ui/input",
+      "@/components/ui/badge",
+      "react",
+      "lucide-react",
+      "@/components/ui/scroll-area",
+      "react-i18next",
+      "sonner",
+      "@/components/ui/button",
+      "date-fns",
+      "@/components/ui/checkbox",
+      "@/components/ui/dialog",
+      "@/integrations/supabase/client",
+      "date-fns/locale",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "@/hooks/usePipelineAllowlist"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useMemo",
+      "useEffect",
+      "usePipelineAllowlist",
+      "useDateFnsLocale",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 44723
+  },
+  "pages/QueueLogs.tsx": {
+    "component": "QueueLogs",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "@/components/ui/table",
+      "@/components/ui/badge",
+      "react",
+      "@tanstack/react-query",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "react-i18next",
+      "sonner"
+    ],
+    "hooks": [
+      "useUpcomingQueue",
+      "useTranslation",
+      "useHistoryQueue",
+      "useQueueSummary",
+      "useFmtWhen",
+      "useQueueData",
+      "useQueryClient",
+      "useAutomationsPaused",
+      "useMemo",
+      "useAuth",
+      "useState"
+    ],
+    "links": [
+      "`/inbox/${r.leadId"
+    ],
+    "navigates": [],
+    "size": 12317
+  },
+  "pages/ResetPassword.tsx": {
+    "component": "ResetPassword",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "react",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [
+      "/auth"
+    ],
+    "navigates": [],
+    "size": 3839
+  },
+  "pages/ScheduledReports.tsx": {
+    "component": "ScheduledReports",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/checkbox",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useTranslation",
+      "useDialogs",
+      "useMemo",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 14876
+  },
+  "pages/Sequences.tsx": {
+    "component": "TRIGGERS",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react-i18next",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "lucide-react",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useTranslation",
+      "useDialogs",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 25327
+  },
+  "pages/Settings.tsx": {
+    "component": "SettingsPage",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/tooltip",
+      "react",
+      "lucide-react",
+      "react-i18next",
+      "sonner",
+      "react-router-dom",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/dialog",
+      "@/integrations/supabase/client",
+      "@/components/settings/AIPipelinesCard",
+      "@/components/settings/OpenAIKeyCard",
+      "@/components/ui/label",
+      "@/hooks/useQuickReplies",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/components/ui/dropdown-menu",
+      "@/components/kanban/ImportPipelineDialog",
+      "@/components/settings/AILimitsCard",
+      "@/components/settings/WhatsAppQrDialog",
+      "@/lib/phone"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useQuickReplies",
+      "useState"
+    ],
+    "links": [
+      "/settings/fields",
+      "/settings/appointment-types",
+      "/settings/integration",
+      "/settings/appointment-kinds",
+      "/settings/email"
+    ],
+    "navigates": [],
+    "size": 30170
+  },
+  "pages/SettingsAppointmentKinds.tsx": {
+    "component": "PROTECTED_KINDS",
+    "imports": [
+      "react-router-dom",
+      "@/hooks/useDialogs",
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "react",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [
+      "/settings"
+    ],
+    "navigates": [],
+    "size": 12411
+  },
+  "pages/SettingsAppointmentTypes.tsx": {
+    "component": "GROUP_KINDS",
+    "imports": [
+      "react-router-dom",
+      "@/hooks/useDialogs",
+      "@/hooks/useServiceTypes",
+      "@/components/ui/button",
+      "react-i18next",
+      "react",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner",
+      "@/components/settings/ServiceTypeDialog"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useMemo",
+      "useAuth",
+      "useEffect",
+      "useServiceTypes",
+      "useState"
+    ],
+    "links": [
+      "/settings"
+    ],
+    "navigates": [],
+    "size": 9862
+  },
+  "pages/SettingsCustomFields.tsx": {
+    "component": "TYPE_KEYS",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "react-i18next",
+      "@/components/ui/label",
+      "react",
+      "@/types/crm",
+      "@/components/ui/dialog",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useEffect",
+      "useState"
+    ],
+    "links": [
+      "/settings"
+    ],
+    "navigates": [],
+    "size": 8387
+  },
+  "pages/SettingsForms.tsx": {
+    "component": "SUPABASE_URL",
+    "imports": [
+      "@/components/ui/input",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/table",
+      "@/components/ui/dialog",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useRef",
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 42821
+  },
+  "pages/Tasks.tsx": {
+    "component": "Tasks",
+    "imports": [
+      "date-fns/locale",
+      "@dnd-kit/utilities",
+      "@/components/ui/input",
+      "@dnd-kit/sortable",
+      "@/components/ui/button",
+      "date-fns",
+      "react",
+      "@/hooks/useClinicTeam",
+      "lucide-react",
+      "@/lib/utils",
+      "@/integrations/supabase/client",
+      "react-i18next",
+      "@/components/ui/avatar",
+      "@/components/tasks/TaskDetailDialog"
+    ],
+    "hooks": [
+      "useSensor",
+      "useTranslation",
+      "useMemo",
+      "useSensors",
+      "useClinicTeam",
+      "useEffect",
+      "useSortable",
+      "useDroppable",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 16300
+  },
+  "pages/Team.tsx": {
+    "component": "Team",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "@/components/ui/table",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/badge",
+      "@/components/ui/dialog",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useAuth",
+      "useTranslation",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 7185
+  },
+  "pages/Templates.tsx": {
+    "component": "VARIABLES",
+    "imports": [
+      "@/components/ui/input",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "react-i18next",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/hooks/useCustomFieldDefs",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useEffect",
+      "useCustomFieldDefs",
+      "useCustomFieldDefsFull",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 9794
+  },
+  "pages/Tracking.tsx": {
+    "component": "REFERRER_NAMES",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "lucide-react",
+      "@/components/ui/skeleton",
+      "react-i18next",
+      "sonner",
+      "@/components/tracking/MonthlyFinalizadosReportCard",
+      "react-router-dom",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/table",
+      "@/components/ui/checkbox",
+      "@/components/ui/dialog",
+      "@/integrations/supabase/client",
+      "@/components/ui/select",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/components/ui/popover"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useConfirm",
+      "useDialogs",
+      "useCallback",
+      "useMemo",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 62038
+  },
+  "pages/TrackingDebug.tsx": {
+    "component": "PERIODS",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/select",
+      "react-i18next",
+      "@/components/ui/table",
+      "react",
+      "@/lib/fetch-all",
+      "@/lib/tracking-identify",
+      "@/components/ui/dialog",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useCallback",
+      "useMemo",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 28327
+  },
+  "pages/Unsubscribe.tsx": {
+    "component": "Unsubscribe",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/button",
+      "react",
+      "lucide-react",
+      "react-i18next"
+    ],
+    "hooks": [
+      "useTranslation",
+      "useEffect",
+      "useSearchParams",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 4051
+  },
+  "pages/admin/AdminBranding.tsx": {
+    "component": "DEFAULTS",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "react",
+      "@/layouts/AdminShell",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 7487
+  },
+  "pages/admin/AdminClinics.tsx": {
+    "component": "AdminClinics",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/lib/features",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/admin/ClinicDetailsDialog",
+      "lucide-react",
+      "sonner",
+      "@/components/ui/button",
+      "@/components/ui/table",
+      "@/components/ui/checkbox",
+      "@/components/ui/dialog",
+      "@/layouts/AdminShell",
+      "@/integrations/supabase/client",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/lib/app-url",
+      "@/lib/utils",
+      "@/lib/csv"
+    ],
+    "hooks": [
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 37676
+  },
+  "pages/admin/AdminDashboard.tsx": {
+    "component": "AdminDashboard",
+    "imports": [
+      "@/components/admin/DashboardPanel",
+      "@/layouts/AdminShell"
+    ],
+    "hooks": [],
+    "links": [],
+    "navigates": [],
+    "size": 383
+  },
+  "pages/admin/AdminEduzz.tsx": {
+    "component": "SUPABASE_URL",
+    "imports": [
+      "date-fns/locale",
+      "@/components/ui/button",
+      "date-fns",
+      "@/components/ui/badge",
+      "react",
+      "@/layouts/AdminShell",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 9162
+  },
+  "pages/admin/AdminLogin.tsx": {
+    "component": "AdminLogin",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "react",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 5021
+  },
+  "pages/admin/AdminPanels.tsx": {
+    "component": "Unknown",
+    "imports": [
+      "@/components/admin/PlansPanel",
+      "@/components/admin/SupportPanel",
+      "@/components/admin/BuilderManualPanel",
+      "@/components/admin/IntegrationsQuotaTable",
+      "@/components/admin/AuditPanel",
+      "@/components/admin/UsageLimitsPanel",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/admin/IntegrationsKeysCard",
+      "@/components/admin/FinancePanel",
+      "@/components/admin/IntegrationsDomainsTable",
+      "@/layouts/AdminShell",
+      "@/integrations/supabase/client",
+      "@/components/admin/ObservabilityPanel"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 3176
+  },
+  "pages/admin/AdminPipelineAutomations.tsx": {
+    "component": "RULES",
+    "imports": [
+      "@/components/ui/badge",
+      "@/components/ui/skeleton",
+      "react",
+      "@/components/ui/card",
+      "@/layouts/AdminShell",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client"
+    ],
+    "hooks": [
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 13496
+  },
+  "pages/admin/AdminPipelineHealth.tsx": {
+    "component": "OUTCOME_COLORS",
+    "imports": [
+      "@/components/ui/badge",
+      "react",
+      "@/components/admin/PipelineErrorsCard",
+      "@/components/admin/ProviderHealthCard",
+      "@/components/ui/card",
+      "@/components/admin/PipelineTicksCard",
+      "@/layouts/AdminShell",
+      "@/components/ui/skeleton",
+      "@/components/admin/AutoRetryRecoveryCard",
+      "@/integrations/supabase/client"
+    ],
+    "hooks": [
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 12566
+  },
+  "pages/admin/AdminUsers.tsx": {
+    "component": "AdminUsers",
+    "imports": [
+      "react",
+      "@/lib/fetch-all",
+      "@/layouts/AdminShell",
+      "@/integrations/supabase/client",
+      "@/components/admin/UsersPanel"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 781
+  },
+  "pages/ai/AgentWizard.tsx": {
+    "component": "NICHES",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/lib/builder-tooltips",
+      "@/lib/builder-errors",
+      "@/components/ui/button",
+      "@/lib/agent-tools",
+      "@/components/agents/ProviderErrorBanner",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "@/components/ui/alert",
+      "@/hooks/useSubscription",
+      "sonner"
+    ],
+    "hooks": [
+      "useBuilder",
+      "useRef",
+      "useSubscription",
+      "useMemo",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 71040
+  },
+  "pages/ai/AiDashboard.tsx": {
+    "component": "RANGES",
+    "imports": [
+      "@/lib/ai-pricing",
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client"
+    ],
+    "hooks": [
+      "useAuth",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [
+      "/ai/usage"
+    ],
+    "navigates": [],
+    "size": 16375
+  },
+  "pages/ai/AiHub.tsx": {
+    "component": "TABS",
+    "imports": [
+      "react-router-dom",
+      "@/lib/features",
+      "@/pages/AgentMemories",
+      "@/pages/Broadcasts",
+      "./Messages",
+      "@/pages/ScheduledReports",
+      "@/components/ui/category-tabs",
+      "@/pages/AiInsights",
+      "./AiDashboard",
+      "@/hooks/useAuth",
+      "@/pages/Agents",
+      "@/pages/MetricsAiUsage"
+    ],
+    "hooks": [
+      "useAuth",
+      "useLocation",
+      "useNavigate"
+    ],
+    "links": [],
+    "navigates": [
+      "t.path"
+    ],
+    "size": 3458
+  },
+  "pages/ai/Messages.tsx": {
+    "component": "SUBS",
+    "imports": [
+      "@/pages/Templates",
+      "react-router-dom",
+      "@/pages/Automations",
+      "@/lib/features",
+      "@/pages/MetricsEngagement",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/pages/Sequences",
+      "@/pages/QueueLogs"
+    ],
+    "hooks": [
+      "useAuth",
+      "useLocation",
+      "useNavigate"
+    ],
+    "links": [],
+    "navigates": [
+      "`/ai/messages/${v}`"
+    ],
+    "size": 3203
+  },
+  "pages/email/EmailAutomations.tsx": {
+    "component": "TRIGGERS",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "@/components/email/AutomationReportDialog",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 13862
+  },
+  "pages/email/EmailCampaigns.tsx": {
+    "component": "EmailCampaigns",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/email/live/CampaignLiveDialog",
+      "@/components/email/StatusBadge",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "lucide-react",
+      "sonner",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/checkbox",
+      "@/integrations/supabase/client",
+      "@/components/email/CampaignRecipientsPreview",
+      "@/components/ui/label",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/components/email/live/LivePulseDot",
+      "@/components/ui/popover",
+      "@/components/email/TablePager",
+      "@/components/email/CampaignReportDialog"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 25172
+  },
+  "pages/email/EmailContacts.tsx": {
+    "component": "EmailContacts",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "xlsx",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/loading-radial",
+      "@/components/email/TablePager",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useRef",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 26729
+  },
+  "pages/email/EmailDashboard.tsx": {
+    "component": "RANGES",
+    "imports": [
+      "@/hooks/useEmailMetrics",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "@/components/email/DomainHealthCard"
+    ],
+    "hooks": [
+      "useMemo",
+      "useAggregated",
+      "useAuth",
+      "useEffect",
+      "useEmailMetrics",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 23345
+  },
+  "pages/email/EmailHub.tsx": {
+    "component": "TABS",
+    "imports": [
+      "./EmailLogs",
+      "./EmailSegments",
+      "react-router-dom",
+      "./EmailDashboard",
+      "./EmailQueue",
+      "@/components/ui/category-tabs",
+      "./EmailContacts",
+      "./EmailUnsubscribes",
+      "./EmailAutomations",
+      "./EmailTemplates",
+      "./EmailCampaigns",
+      "./EmailReports"
+    ],
+    "hooks": [
+      "useLocation",
+      "useNavigate"
+    ],
+    "links": [],
+    "navigates": [
+      "t.path"
+    ],
+    "size": 2940
+  },
+  "pages/email/EmailLogs.tsx": {
+    "component": "FILTERS",
+    "imports": [
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/email/StatusBadge",
+      "@/components/ui/table",
+      "date-fns",
+      "react",
+      "@/components/email/TablePager",
+      "lucide-react",
+      "@/lib/utils",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 6114
+  },
+  "pages/email/EmailQueue.tsx": {
+    "component": "FILTERS",
+    "imports": [
+      "date-fns/locale",
+      "@/components/ui/button",
+      "@/components/email/StatusBadge",
+      "@/components/ui/table",
+      "date-fns",
+      "react",
+      "@/components/email/TablePager",
+      "lucide-react",
+      "@/lib/utils",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 7623
+  },
+  "pages/email/EmailReports.tsx": {
+    "component": "RANGES",
+    "imports": [
+      "@/components/ui/button",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useAuth",
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 14047
+  },
+  "pages/email/EmailSegments.tsx": {
+    "component": "RULE_LABELS",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/switch",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "@/components/ui/loading-radial",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useDialogs",
+      "useMemo",
+      "useEffect",
+      "useState"
+    ],
+    "links": [
+      "/email/contacts"
+    ],
+    "navigates": [],
+    "size": 39183
+  },
+  "pages/email/EmailTemplateEditor.tsx": {
+    "component": "SLUG_RE",
+    "imports": [
+      "@/components/ui/input",
+      "@dnd-kit/sortable",
+      "@/components/email/editor/Inspector",
+      "react",
+      "@/lib/email/variables",
+      "lucide-react",
+      "@/components/email/editor/Canvas",
+      "@/lib/email/blocksToHtml",
+      "sonner",
+      "react-router-dom",
+      "@/components/ui/button",
+      "@/components/ui/dialog",
+      "@/integrations/supabase/client",
+      "@/lib/email/types",
+      "@/components/ui/select",
+      "@/components/ui/label",
+      "@/lib/email/htmlToBlocks",
+      "@/lib/email/sanitize",
+      "@/components/ui/textarea",
+      "@/hooks/useAuth",
+      "@/components/email/editor/Palette"
+    ],
+    "hooks": [
+      "useRef",
+      "useSensor",
+      "useMemo",
+      "useSensors",
+      "useAuth",
+      "useEffect",
+      "useParams",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [
+      "\"/email/templates\"",
+      "`/email/templates/${res.data.id}`, { replace: true }",
+      "/email/templates"
+    ],
+    "size": 22791
+  },
+  "pages/email/EmailTemplates.tsx": {
+    "component": "EMPTY",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react",
+      "@/lib/fetch-all",
+      "@/components/ui/card",
+      "@/components/ui/textarea",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/components/ui/tabs",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useConfirm",
+      "useDialogs",
+      "useAuth",
+      "useEffect",
+      "useNavigate",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [
+      "/email/templates/new",
+      "\"/email/templates/new\"",
+      "`/email/templates/${t.id}`"
+    ],
+    "size": 18329
+  },
+  "pages/email/EmailUnsubscribes.tsx": {
+    "component": "EmailUnsubscribes",
+    "imports": [
+      "@/components/ui/input",
+      "@/hooks/useDialogs",
+      "@/components/ui/button",
+      "@/components/ui/table",
+      "date-fns",
+      "react",
+      "@/components/email/TablePager",
+      "lucide-react",
+      "@/integrations/supabase/client",
+      "sonner"
+    ],
+    "hooks": [
+      "useDialogs",
+      "useConfirm",
+      "useEffect",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 5611
+  },
+  "pages/email/SettingsEmailDomain.tsx": {
+    "component": "SettingsEmailDomain",
+    "imports": [
+      "react-router-dom",
+      "@/components/ui/input",
+      "@/components/ui/button",
+      "@/components/ui/label",
+      "@/components/ui/badge",
+      "react",
+      "@/components/ui/card",
+      "lucide-react",
+      "@/hooks/useAuth",
+      "@/integrations/supabase/client",
+      "@/components/email/DnsWizard",
+      "sonner"
+    ],
+    "hooks": [
+      "useAuth",
+      "useEffect",
+      "useState"
+    ],
+    "links": [
+      "/settings"
+    ],
+    "navigates": [],
+    "size": 6049
+  },
+  "pages/site/MarketingSite.tsx": {
+    "component": "MarketingSite",
+    "imports": [
+      "@/components/site/SiteFooter",
+      "@/components/site/Integrations",
+      "@/components/site/Testimonials",
+      "@/components/site/Blog",
+      "react",
+      "@/components/site/Features",
+      "@/components/site/Hero",
+      "@/components/site/Services",
+      "@/components/site/Pricing",
+      "@/components/site/About",
+      "@/components/site/SiteNav",
+      "@/components/site/Capabilities",
+      "@/components/site/Marquee"
+    ],
+    "hooks": [
+      "useEffect"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 1369
+  },
+  "pages/tracking/AttributionTab.tsx": {
+    "component": "Unknown",
+    "imports": [
+      "@/integrations/supabase/client",
+      "@/components/ui/card",
+      "react"
+    ],
+    "hooks": [
+      "useEffect",
+      "useMemo",
+      "useState"
+    ],
+    "links": [],
+    "navigates": [],
+    "size": 3810
+  }
+}
