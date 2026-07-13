@@ -443,7 +443,7 @@ export default function AgentWizard() {
         goal: goal || null,
         goal_other: goalOther || null,
         provider,
-        api_key: apiKey || null,
+        api_key: apiKey?.trim() || null,
         base_url: baseUrl || null,
         model: model || null,
         provider_verified_at: verifiedAt,

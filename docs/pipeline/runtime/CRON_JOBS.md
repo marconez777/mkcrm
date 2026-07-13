@@ -22,8 +22,13 @@ Estes jobs invocam as funções Edge via HTTP POST ou realizam operações de ba
 - **Frequência:** Dia 1 de cada mês às 00h de Brasília (`0 3 1 * *`).
 - **Alvo:** Edge Function `pipeline-deterministic`.
 - **Payload:** `{"action": "monthly-sweep-tick"}`.
-- **Função:** Move leads que terminaram o mês anterior em "Consulta finalizada" ou "1ª Sessão Finalizada" (estágios temporários de pós-atendimento) em lote para "Paciente antigo", marcando o ciclo como concluído.
+- **Função:** Move leads que terminaram o mês anterior em "Consulta finalizada" ou "1ª Sessão Finalizada" em lote para "Paciente antigo", marcando o ciclo como concluído.
 
+> [!WARNING]
+> ### 3.5. `pipeline-monthly-cycle-or` (Dívida Técnica / Tech Debt)
+> - **Alvo:** Edge Function `pipeline-monthly-cycle-or`.
+> - **Função:** Injeta regras hardcoded exclusivas de varredura mensal apenas para a clínica "ÓR". 
+> - **Atenção:** Este cron viola os princípios da arquitetura multi-tenant. É uma rotina fechada que precisa ser refatorada futuramente para usar configurações dinâmicas por tenant.
 ### 4. `pipeline-reactivation-tick`
 - **Frequência:** Diariamente às 04h de Brasília (`0 7 * * *`).
 - **Alvo:** Edge Function `pipeline-deterministic`.

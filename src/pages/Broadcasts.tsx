@@ -214,16 +214,18 @@ function BroadcastEditor({ id }: { id: string }) {
   const [recipients, setRecipients] = useState<Array<any>>([]);
   const [events, setEvents] = useState<Array<any>>([]);
   const [extraContacts, setExtraContacts] = useState<Array<{ phone: string; name?: string; custom?: any }>>([]);
+  const [metrics, setMetrics] = useState({ total: 0, sent: 0, failed: 0, replied: 0 });
+  const [recipientsPage, setRecipientsPage] = useState(0);
+  const pageSize = 50;
   const region = useRegion();
 
   const load = async () => {
-    const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: r }, { data: e }] = await Promise.all([
+    const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: e }] = await Promise.all([
       supabase.from("broadcasts").select("*").eq("id", id).maybeSingle(),
       supabase.from("broadcast_message_groups").select("id, position, name, broadcast_message_parts(id, position, content, preview_mode)").eq("broadcast_id", id).order("position"),
       supabase.from("whatsapp_instances").select("id, name"),
       supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("pipeline_stages").select("id, name, pipeline_id").order("position"),
-      supabase.from("broadcast_recipients").select("*").eq("broadcast_id", id).order("created_at"),
       supabase.from("broadcast_events").select("*").eq("broadcast_id", id).order("created_at", { ascending: false }).limit(100),
     ]);
     if (!b) { toast.error("Campanha não encontrada"); navigate("/ai/broadcasts"); return; }
@@ -232,19 +234,43 @@ function BroadcastEditor({ id }: { id: string }) {
     setInstances((ins ?? []) as any);
     setPipelines((p ?? []) as any);
     setStages((s ?? []) as any);
-    setRecipients(r ?? []);
     setEvents(e ?? []);
+    await loadMetricsAndRecipients();
+  };
+
+  const loadMetricsAndRecipients = async (page = recipientsPage) => {
+    const [
+      { count: total },
+      { count: sent },
+      { count: replied },
+      { count: failed },
+      { data: r }
+    ] = await Promise.all([
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).in("status", ["sent", "replied"]),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).eq("status", "replied"),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).eq("status", "failed"),
+      supabase.from("broadcast_recipients").select("*").eq("broadcast_id", id).order("created_at").range(page * pageSize, (page + 1) * pageSize - 1),
+    ]);
+    setMetrics({ total: total ?? 0, sent: sent ?? 0, replied: replied ?? 0, failed: failed ?? 0 });
+    setRecipients(r ?? []);
   };
 
   useEffect(() => { load(); }, [id]);
+  useEffect(() => { loadMetricsAndRecipients(recipientsPage); }, [recipientsPage]);
   useEffect(() => {
+    let timeout: any;
+    const debouncedReload = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => { loadMetricsAndRecipients(recipientsPage); }, 1500);
+    };
     const ch = supabase.channel(`bc-${id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_recipients", filter: `broadcast_id=eq.${id}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_recipients", filter: `broadcast_id=eq.${id}` }, debouncedReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_events", filter: `broadcast_id=eq.${id}` }, () => load())
       .subscribe();
-    const t = setInterval(load, 10000);
-    return () => { supabase.removeChannel(ch); clearInterval(t); };
-  }, [id]);
+    const t = setInterval(() => loadMetricsAndRecipients(recipientsPage), 15000);
+    return () => { supabase.removeChannel(ch); clearInterval(t); clearTimeout(timeout); };
+  }, [id, recipientsPage]);
 
   const save = async (patch: Partial<Broadcast>) => {
     if (!bc) return;
@@ -278,10 +304,10 @@ function BroadcastEditor({ id }: { id: string }) {
 
   if (!bc) return <div className="p-6">Carregando…</div>;
 
-  const totalRecipients = recipients.length;
-  const sent = recipients.filter((r) => r.status === "sent" || r.status === "replied").length;
-  const failed = recipients.filter((r) => r.status === "failed").length;
-  const replied = recipients.filter((r) => r.status === "replied").length;
+  const totalRecipients = metrics.total;
+  const sent = metrics.sent;
+  const failed = metrics.failed;
+  const replied = metrics.replied;
 
   return (
     <div className="space-y-4">
@@ -478,6 +504,7 @@ function BroadcastEditor({ id }: { id: string }) {
           <AudienceTab
             bc={bc} pipelines={pipelines} stages={stages}
             extraContacts={extraContacts} setExtraContacts={setExtraContacts}
+            totalRecipients={totalRecipients}
             onSave={save}
             onFreeze={async () => {
               const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
@@ -509,7 +536,7 @@ function BroadcastEditor({ id }: { id: string }) {
               <TableBody>
                 {recipients.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum destinatário. Congele a audiência na aba "Audiência".</TableCell></TableRow>
-                ) : recipients.slice(0, 200).map((r) => (
+                ) : recipients.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{formatPhoneDisplay(r.phone)}</TableCell>
                     <TableCell>{r.name ?? "—"}</TableCell>
@@ -520,7 +547,15 @@ function BroadcastEditor({ id }: { id: string }) {
                 ))}
               </TableBody>
             </Table>
-            {recipients.length > 200 && <div className="p-2 text-xs text-muted-foreground text-center">Mostrando 200 de {recipients.length}</div>}
+            {metrics.total > pageSize && (
+              <div className="flex items-center justify-between p-4 border-t">
+                <div className="text-sm text-muted-foreground">Mostrando {recipientsPage * pageSize + 1} a {Math.min((recipientsPage + 1) * pageSize, metrics.total)} de {metrics.total}</div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={recipientsPage === 0} onClick={() => setRecipientsPage(p => p - 1)}>Anterior</Button>
+                  <Button variant="outline" size="sm" disabled={(recipientsPage + 1) * pageSize >= metrics.total} onClick={() => setRecipientsPage(p => p + 1)}>Próxima</Button>
+                </div>
+              </div>
+            )}
           </CardContent></Card>
         </TabsContent>
 
@@ -668,7 +703,7 @@ function detectClientVideoLink(text: string): { label: string; thumb: string | n
   return null;
 }
 
-function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
+function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, totalRecipients, onSave, onFreeze, onFreezeAndStart }: any) {
   const region = useRegion();
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
@@ -799,7 +834,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
         <CardContent className="pt-6 flex items-center justify-between">
           <div>
             <div className="font-semibold">Congelar audiência</div>
-            <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")}` : "Ainda não congelada."}</p>
+            <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")} (${totalRecipients} contatos congelados no banco)` : "Ainda não congelada."}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>

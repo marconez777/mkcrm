@@ -196,6 +196,8 @@ consulta `user_roles.role='super_admin'` via service role → 403 se não for.
 | `admin-revoke-plan`   | POST — cancela sub atual, insere fallback (`starter` default) `past_due`, sobrescreve `clinics.plan_id` | 67 |
 | `admin-delete-clinic` | POST — deleta membros (apaga `auth.user` se membro único), depois CASCADE em `clinics` | 123 |
 | `admin-invoice`       | POST `{action: create\|mark_paid\|void\|delete, ...}` sobre `invoices` | 87 |
+| `eduzz-webhook`       | Recebe postbacks de vendas da Eduzz, atualizando o status financeiro de clientes (Tenant billing). | 110 |
+| `payments-webhook`    | Recebe postbacks do Stripe para renovação de licenças, upsell e downgrade (Integração financeira mestre). | 145 |
 
 Todos gravam em `audit_log` quando modificam estado sensível.
 
