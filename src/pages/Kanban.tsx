@@ -282,6 +282,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const reasons = rawReasons.filter((r) => {
     const k = r.toLowerCase();
     if (HIDDEN_REASONS.has(k)) return false;
+    if (k.startsWith("pipeline-classifier:")) return false;
     // redundância com chips de qualif/proc/pag/agenda
     if (k === "interesse" && qualif === "interessado") return false;
     if (k === "pagamento" && (pago || tentouPag)) return false;
