@@ -1,66 +1,92 @@
-## Diagnóstico
 
-Olhando o print, os telefones estrangeiros entraram como `5534604814422` e `5534614113278` — ou seja, o Excel apagou o `+` (célula numérica), o input virou `34604814422` (11 dígitos) e o **fallback BR** do `normalizePhone` prefixou `55`, resultando em número inválido.
+## Objetivo
 
-A ordem atual em `normalizePhoneIntl` (`src/lib/phone.ts`) é:
+Permitir que um mesmo pipeline receba leads de **N instâncias de WhatsApp**, para que todos caiam no mesmo funil e sejam atendidos pelo mesmo agente de IA.
 
-1. Se começa com `+` → parseia internacional. ✅
-2. **Tenta como nacional primeiro** via `normalizePhone(raw, defaultCountry)`. ❌ Aqui, para conta BR, o libphonenumber falha com "34604814422" como BR, cai no fallback legado (`digits.length === 10 || 11 → "55" + digits`) e devolve `5534604814422`. **Nunca chega no passo 3.**
-3. Prefix-match com `KNOWN_COUNTRY_CODES` (nunca executado no caso acima).
+## Como está hoje
 
-Ou seja: o fallback legado BR está "vencendo" a heurística internacional. Todo número estrangeiro de 10–11 dígitos sem `+` (ES, US, MX, AR etc.) é convertido em número BR falso.
+O vínculo pipeline↔instância é **1:1 exclusivo**:
+
+- `pipelines.whatsapp_instance_id` (uuid, único de fato — a UI bloqueia reutilização)
+- Ingestão em `supabase/functions/_shared/evolution.ts` (`ingestMessage`) faz:
+  ```
+  select id from pipelines
+   where clinic_id=? and kind='sales'
+     and whatsapp_instance_id = <instância que recebeu a msg>
+  ```
+  Se não achar, cai no pipeline default (sales) da clínica.
+- `EditPipelineDialog.tsx` monta um `Select` que **remove instâncias já usadas em outro funil** — impede compartilhar.
+- Outbound é **sticky no lead** (`leads.whatsapp_instance_id`): a resposta sai pelo número que criou o lead. Isso permanece assim (nada muda no envio).
+
+Ou seja: já temos toda a lógica de "vários números por clínica"; só falta trocar o vínculo pipeline→instância de 1:1 para N:M.
 
 ## Plano em fases
 
-### Fase 1 — Reordenar `normalizePhoneIntl` para priorizar detecção internacional
+### Fase 1 — Modelo de dados (migration)
 
-Em `src/lib/phone.ts`:
+Nova tabela de junção `public.pipeline_whatsapp_instances`:
 
-1. Se `raw` começa com `+` → parse internacional (mantém).
-2. **Tentar prefix-match de country code conhecido ANTES do fallback nacional**, quando os dígitos começam com um DDI ≠ do país default. Se `parsePhoneNumberFromString("+" + digits)` for `isValid()`, retornar.
-3. Tentar parse nacional estrito com libphonenumber (`parsePhoneNumberFromString(raw, defaultCountry)`) e só aceitar se `isValid()`.
-4. **Só então** aplicar o fallback legado BR (`10/11 dígitos → 55 + digits`), e **apenas quando `defaultCountry === "BR"` e o prefixo não bater com outro DDI conhecido**.
-5. Retornar `null` se nada validar.
+- `pipeline_id uuid → pipelines(id) on delete cascade`
+- `whatsapp_instance_id uuid → whatsapp_instances(id) on delete cascade`
+- `clinic_id uuid → clinics(id)` (para RLS e índice)
+- `created_at timestamptz default now()`
+- PK composta `(pipeline_id, whatsapp_instance_id)`
+- **Constraint chave:** `UNIQUE (clinic_id, whatsapp_instance_id)` — uma instância continua pertencendo a **no máximo um** pipeline de vendas (evita ambiguidade no inbound). O que muda é: um pipeline pode ter várias instâncias.
+- GRANTs padrão (`authenticated` full CRUD, `service_role` all).
+- RLS: membros da clínica leem/gerenciam; policies espelhando as de `pipelines`.
+- **Backfill:** `INSERT ... SELECT id, whatsapp_instance_id, clinic_id FROM pipelines WHERE whatsapp_instance_id IS NOT NULL`.
+- **Não remover** `pipelines.whatsapp_instance_id` nesta fase — mantido como coluna legada/"instância primária" (usada como default em UI/broadcast). Marcado como deprecated em comentário SQL.
 
-Isso resolve o caso `34604814422` (ES via BR): passo 2 detecta DDI 34, libphonenumber valida móvel espanhol de 9 dígitos, retorna `34604814422`.
+### Fase 2 — Ingestão inbound (edge)
 
-### Fase 2 — Blindar o fallback BR
+`supabase/functions/_shared/evolution.ts` (`ingestMessage`, linhas ~366-375):
 
-Ainda em `src/lib/phone.ts::normalizePhone`, restringir o fallback:
+Trocar o lookup por join:
+```
+select p.id
+  from pipeline_whatsapp_instances pwi
+  join pipelines p on p.id = pwi.pipeline_id
+ where pwi.clinic_id = ?
+   and pwi.whatsapp_instance_id = <instância recebida>
+   and p.kind = 'sales'
+ limit 1
+```
+Se vazio → cai no fallback existente (`is_default`).
+Manter compatibilidade lendo também `pipelines.whatsapp_instance_id` como fallback secundário até a Fase 5 (defesa em profundidade).
 
-- Aceitar `10/11 dígitos → 55+` só se **os dois primeiros dígitos formarem um DDD BR válido** (11–99, com a lista real de DDDs). Isso evita que "34…" (DDD inválido no BR) seja tratado como nacional.
-- Aceitar `12/13 dígitos` como já são se começarem com `55`; caso comecem com outro DDI conhecido, delegar para libphonenumber sem prefixar nada.
+### Fase 3 — UI de edição do pipeline
 
-### Fase 3 — Feedback visível ao usuário no disparo
+`src/components/kanban/EditPipelineDialog.tsx`:
 
-Em `src/pages/Broadcasts.tsx` (lista importada mostrada no print):
+- Substituir o `Select` único por multi-seleção (checkbox list ou `MultiSelect`) das instâncias.
+- Carregar seleção atual via `select whatsapp_instance_id from pipeline_whatsapp_instances where pipeline_id = ?`.
+- Manter regra "instância já usada em outro funil não aparece" (única, por causa do `UNIQUE (clinic_id, whatsapp_instance_id)`), mas mostrar as que já estão neste funil.
+- Ao salvar: diff — insert nas novas, delete nas removidas (transação otimista); também atualiza `pipelines.whatsapp_instance_id` para a **primeira** selecionada (retro-compat).
+- Texto de ajuda: "Todas as mensagens recebidas por esses números entrarão neste funil e serão atendidas pelo mesmo agente de IA."
 
-- Formatar o telefone renderizado com `formatPhoneDisplay` (`+34 604 81 44 22`) em vez do E.164 cru, para o usuário perceber imediatamente quando o parse foi para o país errado.
-- Continuar exibindo o contador de `errors` da `parseContactsFile`.
+### Fase 4 — Indicadores visuais
 
-### Fase 4 — Testes manuais de regressão
+`src/components/kanban/PipelineSwitcher.tsx`: mostrar o ícone `MessageCircleMore` quando **existir ao menos uma** instância no join (não só `p.whatsapp_instance_id`). Idealmente ler contagem via `usePipelines` (hook aumentado com `instance_ids: string[]`).
 
-Planilha de teste com uma linha de cada:
+### Fase 5 — Cleanup (opcional, depois de validado)
 
-| Input no XLSX | Conta | Esperado |
-|---|---|---|
-| `+34 604 81 44 22` | BR | `34604814422` |
-| `34604814422` (numérico, sem `+`) | BR | `34604814422` |
-| `+1 (415) 555-9876` | BR | `14155559876` |
-| `5511999998888` | BR | `5511999998888` |
-| `11999998888` | BR | `5511999998888` |
-| `34604814422` | ES | `34604814422` |
-| `+55 11 99999 8888` | ES | `5511999998888` |
+- Remover o fallback secundário em `ingestMessage`.
+- Depreciar `pipelines.whatsapp_instance_id` (manter coluna, parar de gravar — ou dropar em migration futura). **Fora deste escopo.**
 
-Todos devem cair em `ok`, zero em `errors`, e a UI deve mostrá-los formatados internacionalmente.
+## Fora do escopo
 
-## Fora de escopo
+- Outbound multi-número (leads continuam sticky ao número original — pedido do usuário é só entrada consolidada).
+- Broadcasts, sequences, automations (continuam usando `pipelines.whatsapp_instance_id` como default; nada quebra).
+- Kommo import, ai-auto-reply — leem do lead, não do pipeline.
 
-- Kommo import, NewConversationDialog, edge functions de envio (o telefone chega já normalizado da Fase 1).
-- Mudar o formato do XLSX de template.
+## Validação
 
-## Detalhes técnicos (para referência)
+1. Criar pipeline "Vendas Consolidado", vincular 2 instâncias.
+2. Mensagem inbound do número A → lead cai no pipeline consolidado com `whatsapp_instance_id=A`.
+3. Mensagem inbound de novo número de outro contato pelo número B → mesmo pipeline, `whatsapp_instance_id=B`.
+4. Agente IA responde os dois — cada um pelo seu respectivo número (sticky).
+5. Remover uma instância do pipeline → leads antigos permanecem, novos inbound daquele número caem no fallback.
 
-- Arquivos tocados: `src/lib/phone.ts`, `src/pages/Broadcasts.tsx`.
-- Dependência já instalada: `libphonenumber-js` (usa metadados completos).
-- DDDs BR válidos: 11–19, 21–24, 27, 28, 31–35, 37, 38, 41–49, 51, 53–55, 61–69, 71, 73–75, 77, 79, 81–89, 91–99 (lista fechada, ~67 valores).
+## Confirmações que preciso antes de mexer
+
+Nenhuma — plano segue exatamente o comportamento pedido. Aprovar para eu implementar Fases 1-4.

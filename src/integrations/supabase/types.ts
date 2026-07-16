@@ -5071,6 +5071,49 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_whatsapp_instances: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          pipeline_id: string
+          whatsapp_instance_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          pipeline_id: string
+          whatsapp_instance_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          pipeline_id?: string
+          whatsapp_instance_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipelines: {
         Row: {
           clinic_id: string
