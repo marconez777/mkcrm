@@ -31,6 +31,7 @@ export type Pipeline = {
   is_system?: boolean;
   system_key?: string | null;
   whatsapp_instance_id: string | null;
+  clinic_id?: string;
   created_at: string;
   updated_at: string;
 };
