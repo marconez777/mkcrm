@@ -359,19 +359,33 @@ export async function ingestMessage(
 
   let createdLead = false;
   if (!lead) {
-    // Resolve funil de entrada: prioriza funil de vendas vinculado a esta instância.
-    // Fallback: primeiro funil de vendas da clínica (default → menor position → mais antigo).
+    // Resolve funil de entrada: prioriza funil de vendas vinculado a esta instância
+    // via junção N:M (pipeline_whatsapp_instances). Mantém retro-compat lendo também
+    // pipelines.whatsapp_instance_id. Fallback: primeiro funil de vendas da clínica.
     let pipelineId: string | null = null;
     let pipelineFallback = false;
     if (instanceId) {
-      const { data: pipe } = await supabase
-        .from("pipelines")
-        .select("id")
+      // 1) join N:M
+      const { data: joinRow } = await supabase
+        .from("pipeline_whatsapp_instances")
+        .select("pipeline_id, pipelines!inner(id, kind)")
         .eq("clinic_id", clinicId)
-        .eq("kind", "sales")
         .eq("whatsapp_instance_id", instanceId)
+        .eq("pipelines.kind", "sales")
         .maybeSingle();
-      pipelineId = (pipe as any)?.id ?? null;
+      pipelineId = (joinRow as any)?.pipeline_id ?? null;
+
+      // 2) retro-compat: vínculo legado direto na coluna
+      if (!pipelineId) {
+        const { data: pipe } = await supabase
+          .from("pipelines")
+          .select("id")
+          .eq("clinic_id", clinicId)
+          .eq("kind", "sales")
+          .eq("whatsapp_instance_id", instanceId)
+          .maybeSingle();
+        pipelineId = (pipe as any)?.id ?? null;
+      }
     }
     if (!pipelineId) {
       const { data: fallbackPipe } = await supabase
