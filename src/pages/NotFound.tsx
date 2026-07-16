@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 const NotFound = () => {
   const location = useLocation();
-  const { t } = useTranslation("notFound");
+  const { t } = useTranslation("translation", { keyPrefix: "notFound" });
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);

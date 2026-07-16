@@ -17,7 +17,7 @@ import LeadTimelineTab from "@/components/lead/LeadTimelineTab";
 import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
-  const { t } = useTranslation("leadDrawer");
+  const { t } = useTranslation("translation", { keyPrefix: "leadDrawer" });
   const open = !!lead;
   const { stages } = useStages();
   const { attendants } = useAttendants();

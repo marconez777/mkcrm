@@ -83,7 +83,7 @@ function truncate(s: string | null | undefined, n = 60) {
 }
 
 export default function TrackingDebug() {
-  const { t } = useTranslation("trackingDebug");
+  const { t } = useTranslation("translation", { keyPrefix: "trackingDebug" });
   const [period, setPeriod] = useState<PeriodKey>("24h");
   const [eventNameFilter, setEventNameFilter] = useState("");
   const [visitorFilter, setVisitorFilter] = useState("");

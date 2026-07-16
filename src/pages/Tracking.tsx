@@ -22,7 +22,7 @@ import { fetchAllByIn } from "@/lib/fetch-all";
 import { MonthlyFinalizadosReportCard } from "@/components/tracking/MonthlyFinalizadosReportCard";
 
 function Pagination({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange: (s: number) => void; }) {
-  const { t } = useTranslation("tracking");
+  const { t } = useTranslation("translation", { keyPrefix: "tracking" });
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
   const start = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
@@ -235,7 +235,7 @@ function StagePicker({
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const { t } = useTranslation("tracking");
+  const { t } = useTranslation("translation", { keyPrefix: "tracking" });
   const entries = Object.entries(stages).sort((a, b) => a[1].name.localeCompare(b[1].name));
   const selSet = new Set(selected);
   const toggle = (id: string) => {
@@ -329,7 +329,7 @@ function suggestStageConfig(stages: Record<string, { name: string; color: string
 
 
 export default function Tracking() {
-  const { t, i18n } = useTranslation("tracking");
+  const { t, i18n } = useTranslation("translation", { keyPrefix: "tracking" });
   const [periodMode, setPeriodMode] = useState<PeriodMode>({ kind: "last", days: 7 });
   const [loading, setLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
