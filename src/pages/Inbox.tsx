@@ -153,10 +153,22 @@ export default function InboxPage() {
     return arr;
   }, [leads, q, filter, stageFilter, tagFilter, sort, hiddenStageIds]);
 
-  const selected: Lead | null = useMemo(
-    () => leads.find((l) => l.id === leadId) ?? null,
-    [leads, leadId],
-  );
+  const [extraLead, setExtraLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    if (leadId && !leads.some((l) => l.id === leadId)) {
+      supabase.from("leads").select("*").eq("id", leadId).maybeSingle().then(({ data }) => {
+        if (data) setExtraLead(data as Lead);
+      });
+    } else {
+      setExtraLead(null);
+    }
+  }, [leadId, leads]);
+
+  const selected: Lead | null = useMemo(() => {
+    if (!leadId) return null;
+    return leads.find((l) => l.id === leadId) || (extraLead?.id === leadId ? extraLead : null);
+  }, [leads, leadId, extraLead]);
 
   // Keyboard shortcuts
   useEffect(() => {
