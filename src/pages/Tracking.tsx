@@ -1060,9 +1060,13 @@ export default function Tracking() {
                           {link ? (
                             <div className="flex items-center gap-1 flex-wrap">
                               {isWhatsappSource(link.link_source) ? (
-                                <Badge variant="default" className="bg-green-600 hover:bg-green-600">WhatsApp</Badge>
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-600 max-w-[150px] truncate block" title={link.leads?.name || ""}>
+                                  {link.leads?.name || "WhatsApp"}
+                                </Badge>
                               ) : (
-                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent">{t("yes")}</Badge>
+                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent max-w-[150px] truncate block" title={link.leads?.name || ""}>
+                                  {link.leads?.name || t("yes")}
+                                </Badge>
                               )}
                             </div>
                           ) : <span className="text-muted-foreground">—</span>}
