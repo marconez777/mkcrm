@@ -1054,25 +1054,27 @@ export default function Tracking() {
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-[11px]">{referrerName(v.first_referrer)}</TableCell>
-                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">{t("yes")}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-center">{f?.fs ? <Badge className="bg-sky-400 hover:bg-sky-400 text-white border-transparent">{t("yes")}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{(f?.wa || isWhatsappSource(link?.link_source)) ? <Badge variant="default">ZAP</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="text-center">{f?.fs ? <Badge className="bg-sky-400 hover:bg-sky-400 text-white border-transparent">FORM</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                         <TableCell className="text-xs">
                           {link ? (
                             <div className="flex items-center gap-1 flex-wrap">
-                              {isWhatsappSource(link.link_source) ? (
-                                <Badge variant="default" className="bg-green-600 hover:bg-green-600 max-w-[150px] truncate block" title={link.leads?.name || ""}>
-                                  {link.leads?.name || "WhatsApp"}
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent max-w-[150px] truncate block" title={link.leads?.name || ""}>
-                                  {link.leads?.name || t("yes")}
-                                </Badge>
-                              )}
+                              <RouterLink to={`/inbox/${link.lead_id}`} className="hover:opacity-80 transition-opacity">
+                                {isWhatsappSource(link.link_source) ? (
+                                  <Badge variant="default" className="bg-green-600 hover:bg-green-600 max-w-[150px] truncate block cursor-pointer" title={link.leads?.name || ""}>
+                                    {link.leads?.name || "WhatsApp"}
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-amber-500 hover:bg-amber-500 text-white border-transparent max-w-[150px] truncate block cursor-pointer" title={link.leads?.name || ""}>
+                                    {link.leads?.name || t("yes")}
+                                  </Badge>
+                                )}
+                              </RouterLink>
                             </div>
                           ) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
+                          {stage ? <Badge style={{ backgroundColor: stage.color, color: "white" }} className="max-w-[150px] truncate block" title={stage.name}>{stage.name}</Badge> : <span className="text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
