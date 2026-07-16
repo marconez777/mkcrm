@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +27,8 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
   const isProfessional = membership?.role === "professional" && !isSuperAdmin;
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"sales" | "internal">("sales");
-  const [instanceId, setInstanceId] = useState<string>("none");
+  const [selectedInstances, setSelectedInstances] = useState<Set<string>>(new Set());
+  const [linkedByOther, setLinkedByOther] = useState<Map<string, string>>(new Map()); // instanceId -> pipelineId
   const [saving, setSaving] = useState(false);
   const [moving, setMoving] = useState(false);
   const [moveTargetPipeline, setMoveTargetPipeline] = useState<string>("");
@@ -38,12 +40,32 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
     if (!pipeline) return;
     setName(pipeline.name);
     setKind(pipeline.kind);
-    setInstanceId(pipeline.whatsapp_instance_id ?? "none");
     setMoveTargetPipeline("");
     setMoveTargetStage("");
     setTargetStages([]);
     supabase.from("leads").select("id", { count: "exact", head: true }).eq("pipeline_id", pipeline.id)
       .then(({ count }) => setLeadCount(count ?? 0));
+
+    // Carrega vínculos atuais + vínculos de outros pipelines na mesma clínica
+    (async () => {
+      const { data: mine } = await supabase
+        .from("pipeline_whatsapp_instances")
+        .select("whatsapp_instance_id")
+        .eq("pipeline_id", pipeline.id);
+      const set = new Set<string>((mine ?? []).map((r: any) => r.whatsapp_instance_id));
+      // Retro-compat: se ainda não há linha na junção, seed com a coluna legada
+      if (set.size === 0 && pipeline.whatsapp_instance_id) set.add(pipeline.whatsapp_instance_id);
+      setSelectedInstances(set);
+
+      const { data: others } = await supabase
+        .from("pipeline_whatsapp_instances")
+        .select("whatsapp_instance_id, pipeline_id")
+        .eq("clinic_id", (pipeline as any).clinic_id)
+        .neq("pipeline_id", pipeline.id);
+      const m = new Map<string, string>();
+      (others ?? []).forEach((r: any) => m.set(r.whatsapp_instance_id, r.pipeline_id));
+      setLinkedByOther(m);
+    })();
   }, [pipeline]);
 
   useEffect(() => {
@@ -58,23 +80,64 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
 
   if (!pipeline) return null;
 
-  // Bloqueia escolher instância já vinculada a outro funil
-  const usedInstances = new Set(
-    pipelines.filter((p) => p.id !== pipeline.id && p.whatsapp_instance_id).map((p) => p.whatsapp_instance_id as string)
-  );
-  const availableInstances = whatsappInstances.filter((i) => !usedInstances.has(i.id));
+  function toggleInstance(id: string) {
+    setSelectedInstances((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   async function save() {
     if (!name.trim()) { toast.error("Nome obrigatório"); return; }
     setSaving(true);
+
     const patch: any = {
       name: name.trim(),
       kind,
-      whatsapp_instance_id: kind === "sales" && instanceId !== "none" ? instanceId : null,
+      // Retro-compat: primeira instância vira a "primária" da coluna legada
+      whatsapp_instance_id: kind === "sales" && selectedInstances.size > 0
+        ? Array.from(selectedInstances)[0]
+        : null,
     };
     const { error } = await supabase.from("pipelines").update(patch).eq("id", pipeline!.id);
+    if (error) { setSaving(false); toast.error(error.message); return; }
+
+    if (kind === "sales") {
+      // Diff da junção
+      const { data: currentRows } = await supabase
+        .from("pipeline_whatsapp_instances")
+        .select("whatsapp_instance_id")
+        .eq("pipeline_id", pipeline!.id);
+      const current = new Set<string>((currentRows ?? []).map((r: any) => r.whatsapp_instance_id));
+      const desired = selectedInstances;
+
+      const toAdd = Array.from(desired).filter((id) => !current.has(id));
+      const toRemove = Array.from(current).filter((id) => !desired.has(id));
+
+      if (toRemove.length > 0) {
+        const { error: delErr } = await supabase
+          .from("pipeline_whatsapp_instances")
+          .delete()
+          .eq("pipeline_id", pipeline!.id)
+          .in("whatsapp_instance_id", toRemove);
+        if (delErr) { setSaving(false); toast.error(delErr.message); return; }
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((id) => ({
+          pipeline_id: pipeline!.id,
+          whatsapp_instance_id: id,
+          clinic_id: (pipeline as any).clinic_id,
+        }));
+        const { error: insErr } = await supabase.from("pipeline_whatsapp_instances").insert(rows);
+        if (insErr) { setSaving(false); toast.error(insErr.message); return; }
+      }
+    } else {
+      // Pipeline virou "internal" — limpa vínculos
+      await supabase.from("pipeline_whatsapp_instances").delete().eq("pipeline_id", pipeline!.id);
+    }
+
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
     toast.success("Funil atualizado");
     onChanged?.();
     onOpenChange(false);
@@ -123,24 +186,39 @@ export default function EditPipelineDialog({ pipeline, open, onOpenChange, pipel
             </div>
 
             {kind === "sales" && (
-              <div className="space-y-1.5">
-                <Label>Número de WhatsApp</Label>
-                <Select value={instanceId} onValueChange={setInstanceId}>
-                  <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum (não recebe leads automaticamente)</SelectItem>
-                    {availableInstances.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
-                    ))}
-                    {pipeline.whatsapp_instance_id && !availableInstances.some(i => i.id === pipeline.whatsapp_instance_id) && (
-                      <SelectItem value={pipeline.whatsapp_instance_id}>
-                        {whatsappInstances.find(i => i.id === pipeline.whatsapp_instance_id)?.name ?? "Atual"}
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label>Números de WhatsApp</Label>
+                <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {whatsappInstances.length === 0 && (
+                    <p className="p-2 text-xs text-muted-foreground">Nenhuma instância disponível.</p>
+                  )}
+                  {whatsappInstances.map((i) => {
+                    const isSelected = selectedInstances.has(i.id);
+                    const takenByOther = linkedByOther.has(i.id);
+                    const disabled = takenByOther && !isSelected;
+                    return (
+                      <label
+                        key={i.id}
+                        className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm transition ${
+                          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={disabled}
+                          onCheckedChange={() => !disabled && toggleInstance(i.id)}
+                        />
+                        <span className="flex-1 truncate">{i.name}</span>
+                        {takenByOther && !isSelected && (
+                          <span className="text-[10px] uppercase text-muted-foreground">em outro funil</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Apenas um funil por número. Instâncias já usadas em outros funis não aparecem.
+                  Todas as mensagens recebidas por esses números entrarão neste funil e serão atendidas
+                  pelo mesmo agente de IA. Cada número só pode pertencer a um funil.
                 </p>
               </div>
             )}
