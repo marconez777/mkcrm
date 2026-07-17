@@ -119,15 +119,16 @@ export type ClassificationV2 = {
 const CANON_SET = new Set<string>(CANON_NAMES);
 const INTENT_SET = new Set<string>(INTENT_VALUES);
 
-export function normalizeClassification(raw: ClassificationRaw): ClassificationV2 {
+export function normalizeClassification(raw: ClassificationRaw, allowedIntents?: string[]): ClassificationV2 {
   const stage: Canon = CANON_SET.has(raw.stage_suggestion)
     ? (raw.stage_suggestion as Canon)
     : "Qualificação";
-  const intent = INTENT_SET.has(raw.intent)
+  const validIntents = allowedIntents ? new Set(allowedIntents) : INTENT_SET;
+  const intent = validIntents.has(raw.intent)
     ? (raw.intent as (typeof INTENT_VALUES)[number])
     : "outro";
   const mentioned_intents = (raw.mentioned_intents ?? []).filter((i) =>
-    INTENT_SET.has(i),
+    validIntents.has(i),
   ) as Array<(typeof INTENT_VALUES)[number]>;
   const mentioned_dates = (raw.mentioned_dates ?? [])
     .filter((d) => d && typeof d.raw === "string" && d.raw.trim() && typeof d.anchor_iso === "string" && d.anchor_iso.trim())
@@ -224,6 +225,7 @@ export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
 export function mergeV6Outputs(
   s1: SummarizerOutput,
   s_maestro: MaestroOutput,
+  allowedIntents?: string[]
 ): ClassificationV2 {
   return normalizeClassification({
     mentioned_dates: s1.mentioned_dates,
@@ -235,6 +237,6 @@ export function mergeV6Outputs(
     tags_suggested: s_maestro.tags_suggested,
     custom_fields_patch: s_maestro.custom_fields_patch,
     reasons: s_maestro.reasons,
-  });
+  }, allowedIntents);
 }
 

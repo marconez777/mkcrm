@@ -90,3 +90,27 @@ Manter compatibilidade lendo também `pipelines.whatsapp_instance_id` como fallb
 ## Confirmações que preciso antes de mexer
 
 Nenhuma — plano segue exatamente o comportamento pedido. Aprovar para eu implementar Fases 1-4.
+
+---
+
+## Roadmap de Individualização (Tenant Classifiers) - Arquitetura Multi-tenant
+
+Atualmente, o classificador (`pipeline-classify`) é um "monolito" (Classifier V6 de 5 agentes). A Clínica ÓR e demais clínicas compartilham a mesma Edge Function, com regras muitas vezes hardcoded (como travas de agendamento humano, regras de 1ª consulta e comportamentos específicos de B2B/Nutrição inativa).
+
+Para ganhar escala e permitir que cada clínica tenha seu próprio modelo de IA, prompts e regras sem afetar as outras, o roadmap evoluirá para a arquitetura de **Tenant Classifiers**.
+
+### Fase 5 — Modelo de Dados (Tenant Registry)
+Nova tabela `public.pipeline_tenant_classifiers`:
+- `clinic_id uuid → clinics(id) PK`
+- `enabled boolean default true`
+- `classifier_version text` (ex: "v6-shared", "v7-tenant")
+- `override_prompts jsonb` (Prompts customizados para Resumidor, Agendador, Tipificador, Movimentador, Maestro)
+- `allowed_intents jsonb`
+- `locked_stages jsonb` (Quais estágios a IA não pode mover, ex: "Consulta agendada")
+- `active_agents jsonb` (Quais dos 5 sub-agentes rodam para este tenant)
+
+### Fase 6 — Desacoplamento da Edge Function
+- Refatorar `supabase/functions/pipeline-classify/agent-core.ts` para receber a configuração do tenant no momento da carga do contexto.
+- Em vez de ler schemas rígidos (como `INTENT_VALUES` ou regras rígidas de `apply.ts` / Lock D3), o classificador consultará o registro do tenant.
+- Permitir que a UI "AgentWizard" atualize os blocos de `override_prompts` na tabela `pipeline_tenant_classifiers`, isolando testes de IA de uma clínica para outra sem deploy.
+- **Rollout Clínica ÓR**: A Clínica ÓR será o "Tenant 0" desta nova estrutura, recebendo sua configuração exata equivalente ao V6 para garantir que nenhuma regressão ocorra.

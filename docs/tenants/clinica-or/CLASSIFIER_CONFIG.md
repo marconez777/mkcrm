@@ -68,3 +68,22 @@ A Clínica ÓR utiliza a tela de "Configurações de Automações" (`src/pages/A
 3. **Estágio Parado (Nurture Automático):**
    - **Gatilho:** `stage_idle`
    - **Como funciona:** Se o card ficar estagnado por X dias em "Qualificação", a ação `move_stage` o envia automaticamente para "Nutrição inativa".
+
+## Mapeamento de IDs (Pipeline ÓR)
+
+Como o sistema é Multi-Tenant, sempre utilize os IDs canônicos abaixo ao realizar alterações diretas no banco de dados para a Clínica ÓR (`cf038458-457d-4c1a-9ac4-c88c3c8353a1`).
+
+| Nome da Coluna | ID (`stage_id`) |
+| :--- | :--- |
+| Leads de entrada | `b1aa2fc9-d221-4d4f-b53a-7303ec4b75b0` |
+| Qualificação | `c6eb67f3-cba9-41e5-949c-aa12d34d962d` |
+| Sem resposta | `9f408ae6-649e-44b2-bc56-f93d138c87ed` |
+| Consulta agendada | `e12f004a-6445-4815-8d6b-22f928507a9a` |
+| Consulta finalizada | `7584241f-6e4b-4824-aaea-e271e865227d` |
+| Tratamento agendado | `98320189-6002-4f75-b99d-0b407189efe8` |
+| 1ª Sessão Finalizada | `2a352661-01e2-41f8-be10-032f803e2387` |
+| Paciente antigo | `7fea97d7-c2af-4e6f-8f39-af8375bb4468` |
+| Nutrição Antigos | `9de8e54e-7edb-47dd-b613-de22276d8ea1` |
+| Nutrição Inativa | `64356dbe-3889-4b49-9429-260501cdb3d8` |
+| B2B / Stakeholders | `23a7bfd7-2baf-4d0f-8ed1-2b59b719020d` |
+| Desqualificado / Fora de escopo | `35670cad-3f95-4e11-8f73-e8b27b865f89` |

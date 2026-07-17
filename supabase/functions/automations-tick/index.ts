@@ -24,7 +24,7 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
     .select("id")
     .eq("automation_id", automationId)
     .eq("lead_id", leadId)
-    .eq("status", "success")
+    .in("status", ["success", "error"])
     .gte("created_at", since)
     .limit(1);
   return (data?.length ?? 0) > 0;
@@ -109,7 +109,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
         .order("timestamp", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (lastMsg && lastMsg.from_me === false) out.push(l);
+      if (lastMsg && lastMsg.from_me === true) out.push(l);
     }
     return out;
   }

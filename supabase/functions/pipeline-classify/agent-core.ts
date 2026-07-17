@@ -276,7 +276,10 @@ export const AGENT_MODEL = "classifier"; // legado — não é mais um id único
 
 // ===== Agente 1: Resumidor =====
 
-function buildSummarizerSystem(): string {
+function buildSummarizerSystem(ctx: LeadContext): string {
+  if (ctx.tenant?.override_prompts?.['summarizer']) {
+    return ctx.tenant.override_prompts['summarizer'];
+  }
   return `Você é um extrator clínico para CRM médico.
 Tarefa: ler o histórico recente deste paciente e produzir um resumo factual
 de 3 a 4 linhas em PT-BR. Separe claramente PASSADO (tratamentos, pagamentos,
@@ -326,7 +329,7 @@ Produza o resumo agora.`;
       withTimeout(
         generateText({
           model: ai.model(modelId),
-          system: buildSummarizerSystem(),
+          system: buildSummarizerSystem(ctx),
           prompt,
           output: Output.object({ schema: SummarizerOutputSchema }),
         }),
@@ -351,7 +354,10 @@ Produza o resumo agora.`;
 
 // ===== Agente 2: Agendador =====
 
-function buildAgendadorSystem(): string {
+function buildAgendadorSystem(ctx: LeadContext): string {
+  if (ctx.tenant?.override_prompts?.['agendador']) {
+    return ctx.tenant.override_prompts['agendador'];
+  }
   return `Você é o Agendador do CRM médico. Baseie-se SOMENTE no resumo factual.
 Sua única função é descobrir se a mensagem trata de uma ação de agenda.
 Não tente deduzir data exata (o parser já fez isso). Foque na INTENÇÃO.
@@ -372,7 +378,7 @@ async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string)
     structured: () => withTimeout(
       generateText({
         model: ai.model(modelId),
-        system: buildAgendadorSystem(),
+        system: buildAgendadorSystem(ctx),
         prompt,
         output: Output.object({ schema: AgendadorOutputSchema }),
       }),
@@ -382,7 +388,7 @@ async function runAgendador(ai: ClassifierAi, ctx: LeadContext, summary: string)
     textFallback: () => withTimeout(
       generateText({
         model: ai.model(modelId),
-        system: `${buildAgendadorSystem()}\nResponda somente JSON compacto, sem markdown. Campos: is_scheduling_action boolean, scheduling_intent string, reasons array de strings.`,
+        system: `${buildAgendadorSystem(ctx)}\nResponda somente JSON compacto, sem markdown. Campos: is_scheduling_action boolean, scheduling_intent string, reasons array de strings.`,
         prompt,
       }),
       TIMEOUT_PARALLEL_MS,
@@ -445,7 +451,9 @@ function buildTypifierKeysBlock(schema: ClinicFieldDef[]): string {
     .join("\n");
 }
 
-function buildTypifierSystem(schema: ClinicFieldDef[], allowedTags: string[]): string {
+function buildTypifierSystem(ctx: LeadContext): string {
+  const schema = ctx.clinicFieldSchema;
+  const allowedTags = ctx.allowedTags;
   const keysBlock = buildTypifierKeysBlock(schema);
   // P7+P20: whitelist agora vem de app_settings.automation.v42.allowed_tags
   // (carregada em context.ts). Fallback para lista mínima quando o setting
@@ -457,14 +465,17 @@ function buildTypifierSystem(schema: ClinicFieldDef[], allowedTags: string[]): s
     "agendamento_sugerido", "judicializacao", "precisa_atencao_humana",
   ];
   const tagList = allowedTags.length ? allowedTags : FALLBACK_TAGS;
-  return `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
+
+  let basePrompt = ctx.tenant?.override_prompts?.['typifier'];
+  if (!basePrompt) {
+    basePrompt = `Você é o Preenchedor do CRM médico. Baseie-se SOMENTE no resumo + campos atuais do lead.
 
 Tarefa:
 - "tags_suggested": liste tags da whitelist abaixo que se aplicam ao lead (use o slug EXATO; tags fora desta lista serão descartadas):
-  [${tagList.join(", ")}]
+  [{{TAG_LIST}}]
 
 - "custom_fields_patch": objeto com chaves a atualizar. VOCÊ SÓ PODE PREENCHER AS SEGUINTES CHAVES (declaradas pela clínica). NÃO invente chaves fora desta lista — elas serão descartadas:
-${keysBlock}
+{{KEYS_BLOCK}}
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
@@ -475,11 +486,16 @@ ORIGEM (sticky humano): NUNCA sobrescreva "origem" se já houver valor preenchid
 Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
 
 IMPORTANTE: responda APENAS em JSON válido seguindo o schema.`;
+  }
+  
+  return basePrompt
+    .replace("{{TAG_LIST}}", tagList.join(", "))
+    .replace("{{KEYS_BLOCK}}", keysBlock);
 }
 
 async function runTypifier(ai: ClassifierAi, ctx: LeadContext, summary: string): Promise<{ output: TypifierOutput; usage?: unknown; fallbackUsed?: boolean }> {
   const modelId = pickModel(ai.provider, TYPIFIER_SPEC);
-  const system = buildTypifierSystem(ctx.clinicFieldSchema, ctx.allowedTags);
+  const system = buildTypifierSystem(ctx);
   const prompt = `${buildContextBlock(ctx)}
 
 RESUMO factual do lead:
@@ -513,10 +529,12 @@ ${summary}`;
 
 // ===== Agente 4: Movimentador =====
 
-function buildMovimentadorSystem(): string {
-  return `Você é o Movimentador de Funil do CRM médico. Define stage e intent baseando-se SOMENTE no resumo factual e sinais.
+function buildMovimentadorSystem(ctx: LeadContext): string {
+  let basePrompt = ctx.tenant?.override_prompts?.['movimentador'];
+  if (!basePrompt) {
+    basePrompt = `Você é o Movimentador de Funil do CRM médico. Define stage e intent baseando-se SOMENTE no resumo factual e sinais.
 Pipeline canônico (use EXATAMENTE estes nomes em stage_suggestion):
-${CANON_NAMES.map((n) => `- ${n}`).join("\n")}
+{{CANON_NAMES}}
 
 Diretrizes de stage:
 - "Novo": primeira interação.
@@ -539,9 +557,18 @@ Regras CRÍTICAS para is_b2b / "B2B / Stakeholders":
 - Em dúvida entre paciente e B2B: assuma PACIENTE.
 
 Intents (escolha UM em "intent"):
-${INTENT_VALUES.map((i) => `- ${i}`).join("\n")}
+{{INTENT_VALUES}}
 
 IMPORTANTE: responda APENAS com um objeto JSON válido seguindo o schema.`;
+  }
+  
+  const allowedIntents = ctx.tenant?.allowed_intents?.length 
+    ? ctx.tenant.allowed_intents 
+    : INTENT_VALUES;
+    
+  return basePrompt
+    .replace("{{CANON_NAMES}}", CANON_NAMES.map((n) => `- ${n}`).join("\n"))
+    .replace("{{INTENT_VALUES}}", allowedIntents.map((i) => `- ${i}`).join("\n"));
 }
 
 
@@ -559,7 +586,7 @@ async function runMovimentador(ai: ClassifierAi, ctx: LeadContext, summary: stri
   };
 
   const modelId = pickModel(ai.provider, MOVIMENTADOR_SPEC);
-  const system = buildMovimentadorSystem();
+  const system = buildMovimentadorSystem(ctx);
   const prompt = `Sinais determinísticos:
 ${JSON.stringify(signals, null, 2)}
 
@@ -595,7 +622,10 @@ ${summary}`;
 
 // ===== Agente 5: Maestro =====
 
-function buildMaestroSystem(): string {
+function buildMaestroSystem(ctx: LeadContext): string {
+  if (ctx.tenant?.override_prompts?.['maestro']) {
+    return ctx.tenant.override_prompts['maestro'];
+  }
   return `Você é o Maestro Validador Final (O Juiz) do CRM médico. Você recebe as opiniões de 3 agentes especialistas (Agendador, Preenchedor, Movimentador) + sinais determinísticos do lead.
 Sua tarefa é cruzar essas informações, resolver contradições e emitir a Classificação CANÔNICA perfeita.
 
@@ -629,6 +659,7 @@ Devolva todos os campos exigidos.`;
 
 async function runMaestro(
   ai: ClassifierAi,
+  ctx: LeadContext,
   summary: string,
   outAgendador: AgendadorOutput,
   outPreenchedor: TypifierOutput,
@@ -636,7 +667,7 @@ async function runMaestro(
   signals: Record<string, unknown>,
 ): Promise<{ output: MaestroOutput; usage?: unknown; fallbackUsed?: boolean }> {
   const modelId = pickModel(ai.provider, MAESTRO_SPEC);
-  const system = buildMaestroSystem();
+  const system = buildMaestroSystem(ctx);
   const prompt = `RESUMO Factual:
 ${summary}
 
@@ -943,7 +974,7 @@ async function runAgentOnce(
   };
 
   try {
-    const r3 = await runMaestro(ai, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
+    const r3 = await runMaestro(ai, ctx, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
     maestroOut = r3.output;
     usage3 = r3.usage;
     await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider, details: { json_fallback_used: r3.fallbackUsed === true } });
@@ -958,8 +989,12 @@ async function runAgentOnce(
 
   const summarizerOut: SummarizerOutput = { summary, mentioned_dates: mentionedDates };
 
+  const allowedIntents = ctx.tenant?.allowed_intents?.length 
+      ? ctx.tenant.allowed_intents 
+      : INTENT_VALUES as unknown as string[];
+
   return {
-    classification: mergeV6Outputs(summarizerOut, maestroOut),
+    classification: mergeV6Outputs(summarizerOut, maestroOut, allowedIntents),
     usage: { agent1: usage1, agent2_parallel: usage2, agent3: usage3 },
     mode: "full",
     agents: {

@@ -67,6 +67,16 @@ export type LeadContext = {
    *  `origem` pode ser extraída dela. Computado em loadLeadContext. */
   firstMessageIsTemplate: boolean;
   nowMs: number;
+  /** Configuração do Tenant (Fase 5/6) carregada da tabela pipeline_tenant_classifiers.
+   * Se null, o agent-core.ts aplicará o fallback monolítico (V6 hardcoded). */
+  tenant: {
+    enabled: boolean;
+    classifier_version: string;
+    override_prompts: Record<string, string>;
+    allowed_intents: string[];
+    locked_stages: string[];
+    active_agents: string[];
+  } | null;
 };
 
 // Heurística determinística: detecta mensagens "pré-fabricadas" que vêm
@@ -174,6 +184,7 @@ export async function loadLeadContext(
     { data: stageHistRaw },
     { data: clinicFieldsRaw },
     { data: allowedTagsRaw },
+    { data: tenantRaw },
   ] = await Promise.all([
     client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
     client
@@ -198,6 +209,11 @@ export async function loadLeadContext(
       .from("app_settings")
       .select("value")
       .eq("key", "automation.v42.allowed_tags")
+      .maybeSingle(),
+    client
+      .from("pipeline_tenant_classifiers")
+      .select("enabled, classifier_version, override_prompts, allowed_intents, locked_stages, active_agents")
+      .eq("clinic_id", leadRow.clinic_id as string)
       .maybeSingle(),
   ]);
 
@@ -276,6 +292,14 @@ export async function loadLeadContext(
       allowedTags,
       firstMessageIsTemplate: detectFirstMessageTemplate(messages),
       nowMs: Date.now(),
+      tenant: tenantRaw ? {
+        enabled: tenantRaw.enabled as boolean,
+        classifier_version: tenantRaw.classifier_version as string,
+        override_prompts: (tenantRaw.override_prompts ?? {}) as Record<string, string>,
+        allowed_intents: (tenantRaw.allowed_intents ?? []) as string[],
+        locked_stages: (tenantRaw.locked_stages ?? []) as string[],
+        active_agents: (tenantRaw.active_agents ?? []) as string[],
+      } : null,
     },
   };
 }
