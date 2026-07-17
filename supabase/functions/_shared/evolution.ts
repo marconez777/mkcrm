@@ -177,26 +177,34 @@ export function phoneFromContact(it: any): string | null {
 
 export function extractText(msg: any): { type: string; content: string | null; mime?: string | null; fileName?: string | null } {
   if (!msg) return { type: "unknown", content: null };
-  if (msg.conversation) return { type: "text", content: msg.conversation };
-  if (msg.extendedTextMessage?.text)
-    return { type: "text", content: msg.extendedTextMessage.text };
-  // NOTE: campos `url` em imageMessage/videoMessage/etc são URLs CRIPTOGRAFADAS do WhatsApp
-  // (mmg.whatsapp.net) e não podem ser baixadas diretamente — sempre passar por downloadAndStoreMedia.
-  if (msg.imageMessage)
-    return { type: "image", content: msg.imageMessage.caption || "[Imagem]", mime: msg.imageMessage.mimetype ?? "image/jpeg" };
-  if (msg.videoMessage)
-    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]", mime: msg.videoMessage.mimetype ?? "video/mp4" };
-  if (msg.audioMessage)
-    return { type: "audio", content: "[Áudio]", mime: msg.audioMessage.mimetype ?? "audio/ogg" };
-  if (msg.documentMessage)
+
+  // 1. Descascar envelopes especiais do WhatsApp (Mensagens temporárias e visualização única)
+  let coreMsg = msg;
+  if (coreMsg.ephemeralMessage?.message) coreMsg = coreMsg.ephemeralMessage.message;
+  if (coreMsg.viewOnceMessage?.message) coreMsg = coreMsg.viewOnceMessage.message;
+  if (coreMsg.viewOnceMessageV2?.message) coreMsg = coreMsg.viewOnceMessageV2.message;
+  if (coreMsg.documentWithCaptionMessage?.message) coreMsg = coreMsg.documentWithCaptionMessage.message;
+
+  // 2. Extrair o conteúdo real
+  if (coreMsg.conversation) return { type: "text", content: coreMsg.conversation };
+  if (coreMsg.extendedTextMessage?.text)
+    return { type: "text", content: coreMsg.extendedTextMessage.text };
+  if (coreMsg.imageMessage)
+    return { type: "image", content: coreMsg.imageMessage.caption || "[Imagem]", mime: coreMsg.imageMessage.mimetype ?? "image/jpeg" };
+  if (coreMsg.videoMessage)
+    return { type: "video", content: coreMsg.videoMessage.caption || "[Vídeo]", mime: coreMsg.videoMessage.mimetype ?? "video/mp4" };
+  if (coreMsg.audioMessage)
+    return { type: "audio", content: "[Áudio]", mime: coreMsg.audioMessage.mimetype ?? "audio/ogg" };
+  if (coreMsg.documentMessage)
     return {
       type: "document",
-      content: msg.documentMessage.fileName || "[Documento]",
-      mime: msg.documentMessage.mimetype ?? "application/octet-stream",
-      fileName: msg.documentMessage.fileName ?? null,
+      content: coreMsg.documentMessage.fileName || "[Documento]",
+      mime: coreMsg.documentMessage.mimetype ?? "application/octet-stream",
+      fileName: coreMsg.documentMessage.fileName ?? null,
     };
-  if (msg.stickerMessage)
-    return { type: "sticker", content: "[Figurinha]", mime: msg.stickerMessage.mimetype ?? "image/webp" };
+  if (coreMsg.stickerMessage)
+    return { type: "sticker", content: "[Figurinha]", mime: coreMsg.stickerMessage.mimetype ?? "image/webp" };
+  
   return { type: "unknown", content: null };
 }
 
