@@ -189,6 +189,10 @@ export function extractText(msg: any): { type: string; content: string | null; m
   if (coreMsg.conversation) return { type: "text", content: coreMsg.conversation };
   if (coreMsg.extendedTextMessage?.text)
     return { type: "text", content: coreMsg.extendedTextMessage.text };
+  if (coreMsg.reactionMessage?.text)
+    return { type: "reaction", content: `[Reagiu com: ${coreMsg.reactionMessage.text}]` };
+  if (coreMsg.templateMessage?.hydratedTemplate?.hydratedContentText)
+    return { type: "text", content: coreMsg.templateMessage.hydratedTemplate.hydratedContentText };
   if (coreMsg.imageMessage)
     return { type: "image", content: coreMsg.imageMessage.caption || "[Imagem]", mime: coreMsg.imageMessage.mimetype ?? "image/jpeg" };
   if (coreMsg.videoMessage)
