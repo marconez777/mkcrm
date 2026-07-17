@@ -70,9 +70,10 @@ related_docs:
    0 */3 * * *   classifier-daily-batch  ┘ tudo via net.http_post
                                           │
                                           ▼
-   pipeline-classify  (V6 — 5 Agentes, até 5 chamadas LLM / execução)
+   pipeline-classify  (V6 — 5 Agentes Multi-Tenant, até 5 chamadas LLM / execução)
      • lê fila: leads c/ needs_ai_review=true + reason 'pipeline-classifier'
      • monta LeadContext (idade, msgs, stage history, treated-before)
+     • carrega configs Multi-Tenant (pipeline_tenant_classifiers) para injetar prompts dinâmicos
      • Fase 1 (serial)  — Resumidor (gpt-4o, fallback gpt-5-mini):
          extrai datas (anchor_iso) + gera summary
      • Fase 2 (paralela, Promise.all) — 3 agentes concorrentes:
