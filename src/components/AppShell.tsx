@@ -273,111 +273,101 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Status WhatsApp */}
-        <div
-          className="mx-3 mb-2 flex items-center gap-1.5"
-          style={{ ["--accent" as string]: `var(${statusVar})` } as React.CSSProperties}
-        >
-          <NavLink
-            to={overall === "down" ? "/settings?qr=1" : "/settings"}
-            className="group flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 py-2 text-[11px] text-white/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-white/15"
-            title={overall === "down" ? "Clique para escanear o QR Code" : (health?.webhook_last_error ?? label)}
+        {/* Zona de conta: status + ações + perfil */}
+        <div className="mt-2 border-t border-white/10 px-3 pt-3 pb-3 space-y-2">
+          {/* Linha 1: status WhatsApp + ações auxiliares */}
+          <div
+            className="flex items-center gap-1.5"
+            style={{ ["--accent" as string]: `var(${statusVar})` } as React.CSSProperties}
           >
-            <span className="relative flex h-2 w-2 shrink-0">
-              {(overall === "warn" || overall === "down") && (
+            <NavLink
+              to={overall === "down" ? "/settings?qr=1" : "/settings"}
+              className="group flex h-8 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-[11px] text-white/80 transition-colors hover:border-[hsl(var(--accent)/0.5)] hover:bg-white/15"
+              title={overall === "down" ? "Clique para escanear o QR Code" : (health?.webhook_last_error ?? label)}
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                {(overall === "warn" || overall === "down") && (
+                  <span
+                    className="absolute inset-0 rounded-full motion-safe:animate-ping"
+                    style={{ background: `hsl(var(--accent) / 0.55)` }}
+                  />
+                )}
                 <span
-                  className="absolute inset-0 rounded-full motion-safe:animate-ping"
-                  style={{ background: `hsl(var(--accent) / 0.55)` }}
+                  className="relative h-2 w-2 rounded-full"
+                  style={{ background: `hsl(var(--accent))` }}
                 />
-              )}
-              <span
-                className="relative h-2 w-2 rounded-full"
-                style={{ background: `hsl(var(--accent))` }}
-              />
-            </span>
-            <Activity className="h-3 w-3 text-[hsl(var(--accent))]" />
-            <span className="flex-1 truncate font-medium">
-              {overall === "down" ? "Conectar WhatsApp" : label}
-            </span>
-          </NavLink>
-          <button
-            onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
-            className="rounded-lg border border-white/10 bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
-            title="Atalhos de teclado (?)"
-            aria-label="Atalhos de teclado"
-          >
-            <Keyboard className="h-3.5 w-3.5" />
-          </button>
-          <LanguageSwitcher variant="app" />
-        </div>
+              </span>
+              <Activity className="h-3 w-3 text-[hsl(var(--accent))]" />
+              <span className="flex-1 truncate font-medium">
+                {overall === "down" ? "Conectar WhatsApp" : label}
+              </span>
+            </NavLink>
+            <button
+              onClick={() => window.dispatchEvent(new Event("open-shortcuts"))}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+              title="Atalhos de teclado (?)"
+              aria-label="Atalhos de teclado"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+            </button>
+            <LanguageSwitcher variant="app" />
+          </div>
 
-        {/* Perfil */}
-        {user && (() => {
-          const displayName = profile?.full_name?.trim() || user.email?.split("@")[0] || "Usuário";
-          const initials = displayName
-            .split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("") || "U";
-          const presenceColor =
-            overall === "ok" ? "bg-emerald-500"
-            : overall === "warn" ? "bg-amber-500"
-            : overall === "down" ? "bg-destructive"
-            : "bg-muted-foreground";
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="mx-3 mb-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-left transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/20"
-                  title={user.email ?? "Conta"}
-                >
-                  <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9 ring-2 ring-white/20">
+          {/* Linha 2: perfil */}
+          {user && (() => {
+            const displayName = profile?.full_name?.trim() || user.email?.split("@")[0] || "Usuário";
+            const initials = displayName
+              .split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("") || "U";
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-left transition-colors hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/20"
+                    title={user.email ?? "Conta"}
+                  >
+                    <Avatar className="h-9 w-9 shrink-0 ring-1 ring-white/15">
                       {profile?.avatar_url && <AvatarImage src={profile.avatar_url} alt={displayName} />}
                       <AvatarFallback className="bg-white/10 text-white text-xs font-semibold">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
-                    <span
-                      className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-[3px] ring-black",
-                        presenceColor,
-                      )}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold text-white">
-                      {displayName}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold text-white">
+                        {displayName}
+                      </div>
+                      <div className="truncate text-[11px] text-white/55">
+                        {user.email}
+                      </div>
                     </div>
-                    <div className="truncate text-[11px] text-white/55">
-                      {user.email}
+                    <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-white/50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium truncate">{displayName}</span>
+                      <span className="text-[11px] text-muted-foreground truncate">{user.email}</span>
                     </div>
-                  </div>
-                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-white/50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="end" className="w-56">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium truncate">{displayName}</span>
-                    <span className="text-[11px] text-muted-foreground truncate">{user.email}</span>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/settings?tab=profile")}>
-                  <UserRound className="mr-2 h-4 w-4" /> Perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/settings")}>
-                  <Settings className="mr-2 h-4 w-4" /> Configurações
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => supabase.auth.signOut()}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" /> Sair
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        })()}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/settings?tab=profile")}>
+                    <UserRound className="mr-2 h-4 w-4" /> Perfil
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <Settings className="mr-2 h-4 w-4" /> Configurações
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => supabase.auth.signOut()}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" /> Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
+        </div>
       </aside>
       <main className="flex-1 overflow-hidden">{children}</main>
       <SupportChatFab />

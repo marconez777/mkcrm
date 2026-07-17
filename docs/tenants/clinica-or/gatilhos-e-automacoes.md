@@ -3,7 +3,7 @@ title: "Gatilhos e Automações (Rule Engine) — Clínica ÓR"
 topic: kanban
 kind: feature
 audience: agent
-updated: 2026-07-10
+updated: 2026-07-17
 summary: "Rule engine da Clínica ÓR: gatilhos determinísticos, geladeiras de inatividade, reator humano e relatório mensal Dia 1."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
@@ -33,10 +33,9 @@ As automações básicas rodam sem IA, geralmente disparadas por webhooks ou CRO
   - `cancelado`: Manda para "Qualificação" com a tag `reagendamento_pendente`.
 
 ## Automação de Inatividade (Geladeira)
-Baseada na lógica de *tiers*, orquestrada pelo CRON `pipeline-inactivity-tick`:
-- `auto:followup-24h`: 24h sem resposta do lead em Qualificação dispara o Follow-up #1.
-- `auto:followup-3d`: 48h adicionais (total 3 dias) dispara o Follow-up #2.
-- `auto:followup-7d-nutricao`: 7 dias no estágio Sem Resposta empurra o lead automaticamente para a "Nutrição inativa" (Geladeira de Leads).
+Baseada na lógica de *tiers*, orquestrada pela edge function `automations-tick`:
+- `no_reply_after` (48h): Após 48 horas sem resposta do lead na fase de Qualificação, o sistema o move automaticamente para a coluna "Sem Resposta".
+- `stage_idle` (7 dias): Se o lead permanecer intocado na coluna "Sem Resposta" por 168 horas (7 dias), a automação "Geladeira - 7 Dias sem resposta" o move automaticamente para a "Nutrição inativa" (Geladeira de Leads).
 
 ## Lembretes de Consulta
 Diferente da inatividade de pipeline, os avisos operacionais de consulta (ex: 24h e 1h antes) vivem isolados em **Automations UI** (`/automations`), rodando via `automations-tick`. O sistema é esperto o suficiente para suprimir lembretes redundantes para marcações de última hora.
@@ -47,5 +46,6 @@ Quando a secretária edita um estágio do card manualmente na UI, um *hook* (`pi
 - Se a secretária move para "Sem Resposta", a IA paralisa os follow-ups agendados por 24h para deixar o humano cuidar.
 - Se a secretária cancela uma consulta pelo card, o reator captura a intenção e repassa pro sistema de compromissos automaticamente, disparando toda a cadeia de `auto:appointment-cancelado`.
 
-## Relatório Mensal: Dia 1
+## Limpeza e Relatório Mensal: Dia 1
 A *edge function* `report-finalizados-mensal-or` (cron `0 6 1 * *`) contabiliza e processa os leads que alcançaram "Consulta Finalizada" e "1ª Sessão Finalizada" no mês. Registra no DB, envia por email o template `or-monthly-finalizados-report` para a gestão, e atualiza o painel Tracking do frontend.
+Em seguida, o gatilho `monthly_cleanup` (via `automations-tick`) atua movendo todos os cards destas colunas para "Paciente Antigo", esvaziando a seção de finalizados para o novo mês.

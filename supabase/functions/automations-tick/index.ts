@@ -128,6 +128,26 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     return data ?? [];
   }
 
+  if (a.trigger_type === "monthly_cleanup") {
+    const tz = a.trigger_config?.tz || (await getClinicTimezone(supabase, a.clinic_id));
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    // Dispara apenas no dia 1º de cada mês
+    if (day !== "01") return [];
+
+    let q = supabase
+      .from("leads")
+      .select("id, stage_id, clinic_id")
+      .eq("clinic_id", a.clinic_id)
+      .is("archived_at", null)
+      .limit(200);
+    if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
+    const { data } = await q;
+    return data ?? [];
+  }
+
   if (a.trigger_type === "before_appointment") {
     const cfg = a.trigger_config ?? {};
     const fieldKey: string = cfg.field_key;

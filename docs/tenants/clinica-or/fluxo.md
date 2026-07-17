@@ -3,8 +3,8 @@ title: "Clínica ÓR — Fluxo novo do pipeline"
 topic: kanban
 kind: flow
 audience: agent
-updated: 2026-06-21
-summary: "Fluxo novo do pipeline da Clínica ÓR: 2 follow-ups antes de Sem Resposta, ciclo mensal para Paciente Antigo, duas geladeiras de nutrição com tags/segmentos automáticos e relatório Dia 1."
+updated: 2026-07-17
+summary: "Fluxo novo do pipeline da Clínica ÓR: transição para Sem Resposta após 48h, ciclo mensal para Paciente Antigo, duas geladeiras de nutrição com tags/segmentos automáticos e relatório Dia 1."
 code_refs:
   - supabase/functions/automations-tick/
   - supabase/functions/pipeline-inactivity-tick/
@@ -28,9 +28,7 @@ Escopo: **somente** `clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`, pipeline
 ```mermaid
 flowchart TD
   LE[Leads de entrada] --> Q[Qualificação]
-  Q -- "+24h s/ resposta: IA #1" --> Q
-  Q -- "+48h s/ resposta: IA #2" --> Q
-  Q -- "após IA #2 ainda s/ resposta" --> SR[Sem Resposta]
+  Q -- "+48h sem resposta" --> SR[Sem Resposta]
   Q --> CA[Consulta agendada] --> CF[Consulta finalizada]
   CF --> TA[Tratamento agendado] --> T1[1ª Sessão Finalizada]
   T1 -- "Dia 1 do mês (cron)" --> PA[Paciente Antigo]
@@ -52,10 +50,8 @@ flowchart TD
 
 | Origem | Gatilho | Destino / Ação |
 |---|---|---|
-| Qualificação | +24h sem resposta | IA follow-up #1 (mantém stage) |
-| Qualificação | +48h sem resposta | IA follow-up #2 (mantém stage) |
-| Qualificação | após #2 ainda sem resposta | Move → Sem Resposta |
-| Sem Resposta | +7 dias parado | Move → Nutrição Inativa (Geladeira) |
+| Qualificação | +48h sem resposta (`no_reply_after`) | Move → Sem Resposta |
+| Sem Resposta | +7 dias parado (`stage_idle`) | Move → Nutrição Inativa (Geladeira) |
 | 1ª Sessão Finalizada | Dia 1 do mês (cron `pipeline-monthly-cycle-or`) | Move → Paciente Antigo |
 | Paciente Antigo | +60d sem inbound | Move → Nutrição Antigos (>60d) |
 | Qualquer geladeira | mensagem inbound | Move → Qualificação |

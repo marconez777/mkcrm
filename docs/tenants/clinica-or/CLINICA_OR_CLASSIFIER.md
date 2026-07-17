@@ -73,7 +73,7 @@ Ele define a fase oficial para onde o lead deve pular. As lógicas:
 - **Sem resposta:** Parou de responder durante a qualificação.
 - **Nutrição inativa:** Resfriou, achou caro, não fechou.
 - **Paciente Antigo:** Regra especial! Se o lead pedir **renovação de receita** ou citar que "o Dr. X já atendeu", ele vai direto para Paciente Antigo e NÃO para qualificação.
-- **B2B / Stakeholders:** Fornecedores, representantes comerciais, laboratórios. Médicos procurando tratamento para eles mesmos **não são B2B**, vão para o funil normal de paciente.
+- **B2B / Stakeholders:** Fornecedores, representantes comerciais, laboratórios. **Blindagem de Tokens:** Ao mover um lead para esta coluna, o gatilho `trg_set_b2b_on_stage_move` injeta `is_b2b: true`. Com isso, o interceptador `trg_lead_needs_extraction` passa a abortar a IA permanentemente, garantindo que o card fique trancado no B2B sem gastar tokens. Médicos procurando tratamento para eles mesmos **não são B2B**, vão para o funil normal de paciente.
 
 ### 3.5 Agente 5: Maestro (Juiz Final)
 Resolve conflitos entre os outros 4 robôs:
@@ -102,19 +102,24 @@ O sistema tem um motor em background que roda a cada 5 minutos (Edge Function `a
 
 ### 5.1 Sem Resposta (`no_reply_after`)
 **O que faz:** Monitora leads que a secretária tentou contato e o cliente sumiu.
-- **Tempo:** Aguarda 72 horas (configurável no Painel de Automações).
+- **Tempo:** Aguarda 48 horas (configurável no Painel de Automações).
 - **Como funciona:** O script olha para a última mensagem da conversa. Se a última mensagem for `from_me = true` (ou seja, foi enviada pela Clínica) e já passou o tempo sem o cliente responder, ele roda o robô.
 - **Ação:** O lead é movido da "Qualificação" para a coluna "Sem resposta".
-- *(Nota de Auditoria 17/07: Esta regra foi consertada. Antes rodava ao contrário, ignorando a clínica e prendendo leads)*.
+- *(Nota de Auditoria: Esta regra foi consertada em 17/07. Antes rodava ao contrário e possuía 72 horas de tempo)*.
 
 ### 5.2 Estágio Parado (`stage_idle`)
 **O que faz:** Varre o CRM inteiro procurando cards mofando na mesma coluna há muito tempo.
-- **Ação:** Se o lead fica parado na "Qualificação" (ou outra fase de entrada) por mais dias do que o SLA permite, ele sofre um `move_stage` automático. Para leads não-convertidos, geralmente vão para a Geladeira (Nutrição inativa).
+- **Ação (Geladeira):** Um gatilho estrito vigia a coluna "Sem Resposta". Se o lead permanecer intocado lá por 168 horas (7 dias), ele sofre um `move_stage` automático sendo transferido para a Geladeira ("Nutrição inativa").
 
 ### 5.3 Cooldown de Segurança
 Todas as automações acima operam debaixo de um sistema de segurança:
 - Quando o robô executa ação sobre um lead (com sucesso ou falha na tentativa), ele injeta um tempo de espera no banco de dados (`recentlyRan`). O lead não pode ser atacado novamente por robôs por várias horas.
-- *(Nota de Auditoria 17/07: Esta regra foi consertada. Antes ignorava erros, causando loop infinito)*.
+- *(Nota de Auditoria: Consertado em 17/07 para não gerar loop infinito em erros de move_stage)*.
+
+### 5.4 Virada de Mês (Limpeza Mensal)
+**O que faz:** Desafoga o Kanban limpando as colunas de sucesso do mês anterior.
+- **Ação:** Disparada todo dia 1º, a automação `monthly_cleanup` move todos os leads das fases "Consulta Finalizada" e "1ª Sessão Finalizada" silenciosamente para "Paciente Antigo".
+- **Integração:** Trabalha em conjunto com a edge function `report-finalizados-mensal-or` que contabiliza os ganhos do mês e envia o e-mail gerencial.
 
 ---
 

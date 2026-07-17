@@ -3,7 +3,7 @@ title: "Glossário de Funções e Mapeamento de Bugs — Clínica ÓR"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-07-10
+updated: 2026-07-17
 summary: "Glossário das edge functions do pipeline da Clínica ÓR e bugs conhecidos."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
@@ -31,6 +31,7 @@ related_docs:
 | `report-finalizados-mensal-or` | Gera os relatórios mensais "Dia 1" baseando-se em eventos passados. | `clinica-or-fluxo-novo.md` |
 | `_shared/pipeline-move.ts` | A camada bruta que efetua o Update de fase e injeta nos logs do `lead_stage_history`. Roda os 11 Gates de segurança. | `AUTOMATION_PLAN.md` |
 | `pipeline-position-auditor` | Agente Auditor 1 (A1). Acorda de madrugada para avaliar leads com estagnação e sugerir intervenções para a equipe. | `AUTOMATION_PLAN.md` |
+| `trg_set_b2b_on_stage_move` | Gatilho SQL que atua escutando mudanças de fase. "Carimba" leads movidos para estágios B2B com a chave `is_b2b=true`. | `CLINICA_OR_CLASSIFIER.md` |
 
 ## Mapeamento de Erros e Bugs Conhecidos (A serem avaliados/corrigidos)
 
@@ -47,9 +48,13 @@ Abaixo estão as inconsistências mapeadas que afetam direta ou indiretamente o 
    - **Status:** Necessário linkar a Trigger correta na base de produção.
 
 3. **Leads travados na Fila de IA (Dropping Silencioso)**
-   - **Descrição:** Por algum motivo os leads com `needs_ai_review=false` não estão sendo devidamente repassados via evolution-webhook para processamento posterior.
-   - **Ação Recomendada:** Averiguar por que a webhook layer está dropando os eventos silenciosamente sem atualizar a fila de re-classificação.
+   - **Descrição:** Os leads antigos não estavam ativando a fila da IA quando enviavam novas mensagens se estivessem em inatividade.
+   - **Status:** **[RESOLVIDO em 17/07/2026]** O culpado era o trigger legado `trg_lead_needs_extraction` que ignorava mensagens de leads que não contivessem palavras-chave. Ele foi atualizado para avisar a IA sempre que uma mensagem chega (`from_me = false`).
 
 4. **Tags sem verificação em Whitelist em UI vs DB**
    - **Descrição:** O `agent-core.ts` usa uma Whitelist JSON no painel do banco (`app_settings`), mas essa lista não aparece amigável na UI. Tags da IA rejeitadas somem da vista do lead, porém as aplicadas convivem juntas no array sem divisão rigorosa entre "Tags de Sistema" e "Tags Injetadas".
    - **Ação:** Recomenda-se normalizar para as instâncias atuais.
+
+5. **Loop Infinito em Automações (Cooldown Bypass)**
+   - **Descrição:** Quando uma automação de `move_stage` esbarrava num Gate de segurança e falhava, ela entrava num loop infinito de retentativas a cada 5 minutos.
+   - **Status:** **[RESOLVIDO em 17/07/2026]** A função `recentlyRan` da `automations-tick` foi atualizada para aplicar cooldown mesmo em caso de erro, matando o loop.
