@@ -52,6 +52,10 @@ Deno.serve(async (req) => {
         if (s.status !== "fulfilled") { console.error("ingest error", s.reason); continue; }
         const res: any = s.value;
         const it = items[i];
+        if (res.skipped) {
+          await supabase.from("webhook_events").update({ error: `SKIPPED: ${res.reason}` }).eq("id", auditId);
+          continue;
+        }
         if (!("lead_id" in res)) continue;
         leadIdForAudit = res.lead_id;
         // Background: fetch media binary if needed (also for existing rows missing media_url)
