@@ -13,6 +13,23 @@ related_docs:
 
 # Playbook — inbound "sumindo" antes de virar `messages`
 
+> ## ⚠️ REGRA DE OURO (2 incidentes já causados por isso — 2026-07-17 e 2026-07-18)
+>
+> **Todo trigger que dispara em `messages` — inclusive triggers específicos de um tenant** — DEVE:
+>
+> 1. Ter o corpo inteiro dentro de
+>    `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING '<nome> failed: %', SQLERRM; RETURN NEW; END;`.
+>    O caminho de recepção de mensagem **NÃO PODE** depender de trabalho auxiliar
+>    (classificador, extração, tags, movimentação de estágio) que possa falhar.
+> 2. Ser revisado contra o schema atual de qualquer tabela auxiliar que ele grava
+>    (`lead_stage_history`, `lead_events`, `pipeline_tenant_classifiers`, …).
+>    Colunas renomeadas silenciosamente derrubam a transação inteira do webhook —
+>    a mensagem inbound nunca chega em `messages` e o cliente vê "meu WhatsApp
+>    respondeu, mas sumiu do CRM".
+>
+> **Se você criar/alterar um trigger em `messages` sem cumprir os dois itens
+> acima, considere isso um bug de produção crítico.**
+
 Sintoma clássico: cliente **respondeu** no WhatsApp, mas nada aparece no CRM,
 mesmo com o número conectado (`connection_state = open`) e o envio outbound
 funcionando. Isso significa que a Evolution está entregando o webhook, porém o
