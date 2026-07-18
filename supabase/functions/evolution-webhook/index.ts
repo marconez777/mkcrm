@@ -47,15 +47,22 @@ Deno.serve(async (req) => {
 
     if (eventType === "MESSAGES_UPSERT") {
       const settled = await Promise.allSettled(items.map((it: any) => ingestMessage(it, "webhook", { instanceId: instance.id })));
+      const ingestErrors: string[] = [];
       for (let i = 0; i < settled.length; i++) {
         const s = settled[i];
-        if (s.status !== "fulfilled") { console.error("ingest error", s.reason); continue; }
+        if (s.status !== "fulfilled") {
+          const msg = s.reason instanceof Error ? `${s.reason.name}: ${s.reason.message}` : String(s.reason);
+          console.error("ingest error", s.reason);
+          ingestErrors.push(msg.slice(0, 300));
+          continue;
+        }
         const res: any = s.value;
         const it = items[i];
         if (res.skipped) {
           await supabase.from("webhook_events").update({ error: `SKIPPED: ${res.reason}` }).eq("id", auditId);
           continue;
         }
+
         if (!("lead_id" in res)) continue;
         leadIdForAudit = res.lead_id;
         // Background: fetch media binary if needed (also for existing rows missing media_url)
