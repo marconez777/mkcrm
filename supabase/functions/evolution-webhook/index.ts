@@ -44,10 +44,11 @@ Deno.serve(async (req) => {
     auditId = audit?.id ?? null;
 
     let leadIdForAudit: string | null = null;
+    const ingestErrors: string[] = [];
 
     if (eventType === "MESSAGES_UPSERT") {
       const settled = await Promise.allSettled(items.map((it: any) => ingestMessage(it, "webhook", { instanceId: instance.id })));
-      const ingestErrors: string[] = [];
+
       for (let i = 0; i < settled.length; i++) {
         const s = settled[i];
         if (s.status !== "fulfilled") {
