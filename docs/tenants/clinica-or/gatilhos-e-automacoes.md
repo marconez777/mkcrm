@@ -49,3 +49,8 @@ Quando a secretária edita um estágio do card manualmente na UI, um *hook* (`pi
 ## Limpeza e Relatório Mensal: Dia 1
 A *edge function* `report-finalizados-mensal-or` (cron `0 6 1 * *`) contabiliza e processa os leads que alcançaram "Consulta Finalizada" e "1ª Sessão Finalizada" no mês. Registra no DB, envia por email o template `or-monthly-finalizados-report` para a gestão, e atualiza o painel Tracking do frontend.
 Em seguida, o gatilho `monthly_cleanup` (via `automations-tick`) atua movendo todos os cards destas colunas para "Paciente Antigo", esvaziando a seção de finalizados para o novo mês.
+
+## Wakeup Inbound (Reativação automática de geladeira)
+Trigger `fn_clinica_or_wakeup_inbound` em `AFTER INSERT ON messages`: quando um lead da Clínica ÓR que está em `Sem resposta`, `Nutrição Inativa` ou `Nutrição Antigos` responde no WhatsApp, ele é automaticamente promovido para `Qualificação`, ganha a tag `reativacao` e o movimento é gravado em `lead_stage_history` (source `auto:wakeup-trigger`).
+
+> **Incidente 2026-07-18 — corrigido:** a versão anterior deste trigger referenciava colunas antigas de `lead_stage_history` (`pipeline_id`, `"from"`, `"to"`) que não existem mais no schema. Como o corpo não estava blindado com `EXCEPTION WHEN OTHERS`, o erro derrubava a transação inteira do webhook e a mensagem inbound do paciente nunca chegava em `messages` — foram 256 respostas perdidas em 4 dias na ÓR. Depois da correção o trigger usa `from_stage_id`/`to_stage_id` e o corpo está dentro de `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`. Detalhes e regra de ouro: `docs/evolution/INBOUND_MISSING_PLAYBOOK.md`.
