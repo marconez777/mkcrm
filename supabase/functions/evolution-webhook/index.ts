@@ -44,18 +44,26 @@ Deno.serve(async (req) => {
     auditId = audit?.id ?? null;
 
     let leadIdForAudit: string | null = null;
+    const ingestErrors: string[] = [];
 
     if (eventType === "MESSAGES_UPSERT") {
       const settled = await Promise.allSettled(items.map((it: any) => ingestMessage(it, "webhook", { instanceId: instance.id })));
+
       for (let i = 0; i < settled.length; i++) {
         const s = settled[i];
-        if (s.status !== "fulfilled") { console.error("ingest error", s.reason); continue; }
+        if (s.status !== "fulfilled") {
+          const msg = s.reason instanceof Error ? `${s.reason.name}: ${s.reason.message}` : String(s.reason);
+          console.error("ingest error", s.reason);
+          ingestErrors.push(msg.slice(0, 300));
+          continue;
+        }
         const res: any = s.value;
         const it = items[i];
         if (res.skipped) {
           await supabase.from("webhook_events").update({ error: `SKIPPED: ${res.reason}` }).eq("id", auditId);
           continue;
         }
+
         if (!("lead_id" in res)) continue;
         leadIdForAudit = res.lead_id;
         // Background: fetch media binary if needed (also for existing rows missing media_url)
@@ -249,11 +257,14 @@ Deno.serve(async (req) => {
       .eq("id", instance.id);
 
     if (auditId) {
-      await supabase
-        .from("webhook_events")
-        .update({ processed_at: new Date().toISOString(), lead_id: leadIdForAudit })
-        .eq("id", auditId);
+      const patch: any = { processed_at: new Date().toISOString(), lead_id: leadIdForAudit };
+      if (ingestErrors.length > 0) {
+        patch.error = `INGEST_ERROR: ${ingestErrors.join(" | ")}`.slice(0, 1000);
+      }
+      await supabase.from("webhook_events").update(patch).eq("id", auditId);
     }
+
+
 
     console.log(JSON.stringify({ event: eventType, ms: Date.now() - startedAt, ok: true }));
     return json({ ok: true });
