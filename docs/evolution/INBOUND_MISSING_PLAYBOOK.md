@@ -13,6 +13,23 @@ related_docs:
 
 # Playbook — inbound "sumindo" antes de virar `messages`
 
+> ## ⚠️ REGRA DE OURO (2 incidentes já causados por isso — 2026-07-17 e 2026-07-18)
+>
+> **Todo trigger que dispara em `messages` — inclusive triggers específicos de um tenant** — DEVE:
+>
+> 1. Ter o corpo inteiro dentro de
+>    `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING '<nome> failed: %', SQLERRM; RETURN NEW; END;`.
+>    O caminho de recepção de mensagem **NÃO PODE** depender de trabalho auxiliar
+>    (classificador, extração, tags, movimentação de estágio) que possa falhar.
+> 2. Ser revisado contra o schema atual de qualquer tabela auxiliar que ele grava
+>    (`lead_stage_history`, `lead_events`, `pipeline_tenant_classifiers`, …).
+>    Colunas renomeadas silenciosamente derrubam a transação inteira do webhook —
+>    a mensagem inbound nunca chega em `messages` e o cliente vê "meu WhatsApp
+>    respondeu, mas sumiu do CRM".
+>
+> **Se você criar/alterar um trigger em `messages` sem cumprir os dois itens
+> acima, considere isso um bug de produção crítico.**
+
 Sintoma clássico: cliente **respondeu** no WhatsApp, mas nada aparece no CRM,
 mesmo com o número conectado (`connection_state = open`) e o envio outbound
 funcionando. Isso significa que a Evolution está entregando o webhook, porém o
@@ -61,6 +78,7 @@ Nada em `webhook_events.error`? Cai para `postgres_logs` filtrando por
 | `column ptc.slug does not exist`                      | Trigger `tg_enqueue_classifier` fora do schema atual.                 | Ver migração `20260718` — o gatilho passou a usar `classifier_version` e ficou blindado com `EXCEPTION WHEN OTHERS`.  |
 | `permission denied for table pipeline_tenant_classifiers` | Faltando GRANT para `service_role` ou trigger rodando como INVOKER.  | Rodar `GRANT ALL ON public.pipeline_tenant_classifiers TO service_role;` e garantir `SECURITY DEFINER` no trigger.    |
 | `null value in column "clinic_id" of relation "messages"` | Lead foi criado sem `clinic_id` (bug de multi-instância).            | Ver `MULTI_INSTANCE_ROUTING.md` — geralmente `whatsapp_instances.clinic_id` está null.                                |
+| `column "pipeline_id" of relation "lead_stage_history" does not exist` (e `column "from"` / `column "to"`) | Trigger `fn_clinica_or_wakeup_inbound` (específico da Clínica ÓR) usava colunas antigas de `lead_stage_history`. Como não estava blindado, derrubava a transação — 256 mensagens inbound perdidas em 4 dias. | Migração `20260718`: colunas trocadas por `from_stage_id`/`to_stage_id`, `pipeline_id` removido e trigger envolvido em `EXCEPTION WHEN OTHERS`. Backfill feito via replay de `webhook_events` (POST do payload salvo de volta para `evolution-webhook`). |
 
 **Regra de ouro:** todo trigger novo que dispara em `messages` (ou em qualquer
 tabela do caminho crítico do webhook) precisa embrulhar o corpo em
