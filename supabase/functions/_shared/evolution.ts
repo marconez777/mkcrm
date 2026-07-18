@@ -49,6 +49,7 @@ export type Instance = {
   evolution_api_key: string;
   evolution_instance: string;
   webhook_token: string;
+  connection_state?: string | null;
   is_default?: boolean;
   clinic_id: string;
   last_inbound_webhook_at?: string | null;

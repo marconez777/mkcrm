@@ -29,6 +29,12 @@ Deno.serve(async (req) => {
     if (!instance) {
       return json({ error: "Nenhuma instância WhatsApp configurada" }, 400);
     }
+    if (instance.connection_state && instance.connection_state !== "open") {
+      return json({
+        error: "Instância WhatsApp não está conectada",
+        detail: `${instance.name} está com status ${instance.connection_state}`,
+      }, 409);
+    }
 
     const cid = client_message_id ?? crypto.randomUUID();
     const nowIso = new Date().toISOString();
@@ -146,6 +152,14 @@ Deno.serve(async (req) => {
 
     if (success) {
       const externalId = result?.key?.id ?? result?.messageId ?? null;
+      if (!externalId) {
+        lastErr = `Evolution 200 sem id de mensagem: ${JSON.stringify(result).slice(0, 300)}`;
+        await supabase
+          .from("messages")
+          .update({ status: "failed", last_error: lastErr, raw: result })
+          .eq("id", msgRow.id);
+        return json({ error: "Falha ao confirmar envio", detail: lastErr }, 502);
+      }
       await supabase
         .from("messages")
         .update({

@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
         if (u === "SERVER_ACK" || u === "PENDING") return "sent";
         if (u === "DELIVERY_ACK" || u === "DELIVERED") return "delivered";
         if (u === "READ" || u === "PLAYED") return "read";
+        if (u === "ERROR" || u === "FAILED" || u === "FAILURE" || u === "REJECTED") return "failed";
         return s.toLowerCase();
       };
       for (const it of items) {
@@ -158,7 +159,7 @@ Deno.serve(async (req) => {
         const newStatus = normalize(String(rawStatus));
         let { data: cur } = await supabase
           .from("messages")
-          .select("id, delivery_status, lead_id")
+          .select("id, status, delivery_status, lead_id, raw")
           .eq("external_id", externalId)
           .maybeSingle();
 
@@ -173,7 +174,7 @@ Deno.serve(async (req) => {
             if (lead) {
               const { data: orphan } = await supabase
                 .from("messages")
-                .select("id, delivery_status, lead_id")
+                .select("id, status, delivery_status, lead_id, raw")
                 .eq("lead_id", lead.id).eq("from_me", true).is("external_id", null)
                 .order("timestamp", { ascending: false }).limit(1).maybeSingle();
               if (orphan) {
@@ -184,12 +185,37 @@ Deno.serve(async (req) => {
           }
         }
         if (!cur) continue;
+        const rawPatch = {
+          ...((cur as any).raw ?? {}),
+          last_delivery_update: it,
+          last_delivery_update_received_at: new Date().toISOString(),
+        };
+        if (newStatus === "failed") {
+          const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
+          if (curRank === 0) {
+            await supabase
+              .from("messages")
+              .update({
+                status: "failed",
+                delivery_status: "failed",
+                last_error: `Evolution delivery update: ${String(rawStatus)}`,
+                raw: rawPatch,
+              })
+              .eq("id", cur.id);
+          } else {
+            await supabase
+              .from("messages")
+              .update({ raw: rawPatch })
+              .eq("id", cur.id);
+          }
+          continue;
+        }
         const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
         const newRank = RANK[newStatus] ?? 0;
         if (newRank > curRank) {
           await supabase
             .from("messages")
-            .update({ delivery_status: newStatus })
+            .update({ delivery_status: newStatus, raw: rawPatch })
             .eq("id", cur.id);
         }
       }

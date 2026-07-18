@@ -1,53 +1,66 @@
-# Roadmap — Inbound WhatsApp Clínica ÓR (cf038458…)
+# Plano: investigar envio pela ferramenta na Febracis / iPhone Laranja
 
-## Diagnóstico já confirmado (não é a Evolution)
+## Objetivo
+Encontrar, com evidência ponta-a-ponta, por que mensagens geradas/enviadas pela plataforma aparecem como enviadas mas não chegam ao contato quando saem pela instância **iPhone Laranja / +1 407 779 4061**, sem repetir testes manuais no app do WhatsApp.
 
-- **Instância `Recepção` (`or-770323a5`) está `open`** e o webhook está saudável (`webhook_ok=true`, sem `webhook_last_error`).
-- **Webhooks inbound estão chegando**: 189 eventos `MESSAGES_UPSERT` com `fromMe=false` desde 2026-07-16 23:00, todos com `processed_at` preenchido e `error` nulo.
-- **Nenhuma mensagem inbound é persistida desde 2026-07-16 22:55** (último `messages.from_me=false` para a clínica). Outbound continua sendo gravado normalmente.
-- **Causa real** (identificada em `postgres_logs`): erro repetido `column ptc.slug does not exist`, disparado pela função `tg_enqueue_classifier` (trigger `trg_messages_enqueue_classifier`, `AFTER INSERT ON public.messages`).
-  - A função faz `SELECT ptc.slug FROM public.pipeline_tenant_classifiers ptc …`, mas o schema real de `pipeline_tenant_classifiers` só tem `clinic_id, enabled, classifier_version, override_prompts, allowed_intents, locked_stages, active_agents, created_at, updated_at` — **não existe coluna `slug`**.
-  - Como o trigger é `AFTER INSERT` e faz `RAISE` implícito na consulta, a transação inteira do INSERT em `messages` é abortada. `ingestMessage` engole o erro (`Promise.allSettled` + `console.error`) e o webhook responde 200 sem gravar nada.
-  - O guard `IF NEW.from_me IS NOT TRUE` explica por que **só inbound** quebra — outbound passa sem tocar a query defeituosa.
-- Efeito colateral: a função `dispatch_pipeline_classifiers` (usada pelo cron do namespace pipeline-classifier) também referencia colunas inexistentes (`ptc.slug, ptc.edge_function_name, ptc.cron_enabled`) — está quebrada de forma silenciosa também.
+## Escopo
+- Clínica: `ab2f4484-886c-48f2-bfc6-0651d062c575`.
+- Instância alvo: iPhone Laranja / `+1 407 779 4061`.
+- Fluxo investigado: plataforma → função de envio → Evolution/Baileys → eventos de ACK/update → banco → UI.
+- Não mexer nas outras instâncias enquanto a causa não estiver comprovada.
 
-## Fase 1 — Estancar (destrava inbound imediatamente)
+## Fase 1 — Reconstruir a trilha real de uma mensagem
+1. Identificar a instância iPhone Laranja pelo schema real de `whatsapp_instances` (`evolution_instance`, `phone_number`, `name`).
+2. Pegar mensagens recentes da Febracis enviadas pela ferramenta nessa instância.
+3. Para cada mensagem, comparar:
+   - `messages.external_id` / id retornado pelo provedor;
+   - `messages.status` e `delivery_status`;
+   - metadados em `messages.raw`;
+   - lead/destinatário real;
+   - timestamp do envio;
+   - se existe evento posterior de `MESSAGES_UPDATE` / ACK correspondente.
+4. Resultado esperado: separar se o problema está em **envio não aceito**, **ACK não processado**, **mensagem enviada para JID errado**, **metadado de instância errado**, ou **resposta do provedor aceita mas sem entrega**.
 
-**Objetivo:** voltar a receber mensagens dos pacientes hoje, sem depender do namespace pipeline-classifier.
+## Fase 2 — Auditar o código de envio
+1. Revisar `evolution-send` e helpers compartilhados de Evolution.
+2. Confirmar qual campo é usado para escolher a instância ao enviar mensagens automáticas.
+3. Validar se o código está usando corretamente:
+   - `evolution_instance`;
+   - `clinic_id`;
+   - pipeline/lead binding;
+   - telefone/JID do contato;
+   - resposta do endpoint de envio.
+4. Procurar falhas silenciosas: respostas HTTP 200/201 sem `key.id`, erros escondidos em payload, retry incorreto, status salvo cedo demais como `sent`.
 
-1. Migration corrigindo `tg_enqueue_classifier` para usar o schema real de `pipeline_tenant_classifiers`:
-   - Trocar `SELECT ptc.slug` por uma checagem de existência do registro (`EXISTS … WHERE ptc.clinic_id = l.clinic_id AND ptc.enabled = true`).
-   - Derivar o `v_tag_ns` a partir de um slug estável (por ex. `classifier_version` ou hardcoded `'default'`) até o schema formal do registry existir.
-2. Adicionar `EXCEPTION WHEN OTHERS THEN … RETURN NEW` no trigger, para que **qualquer** erro futuro na enfileiragem não derrube mais o INSERT em `messages` (defesa em profundidade — mesma lição do webhook race).
-3. Backfill: rodar `evolution-backfill-all` (ou `evolution-sync-lead` para o handful de leads afetados) para importar os 189 inbounds perdidos desde 2026-07-16 22:55.
+## Fase 3 — Auditar o webhook de updates/ACK
+1. Revisar `evolution-webhook` para confirmar como ele processa `MESSAGES_UPDATE` e eventos relacionados.
+2. Verificar se o ACK recebido da Evolution está sendo associado ao `external_id` correto.
+3. Conferir se eventos de erro, delivery, read ou server ack estão sendo descartados por diferença de formato.
+4. Se necessário, planejar correção para salvar erro/ACK bruto no `messages.raw` ou em log auditável.
 
-**Critério de saída:** contagem de `messages.from_me=false` para a clínica cresce em tempo real após um teste manual, e os logs `postgres_logs` param de cuspir `ptc.slug does not exist`.
+## Fase 4 — Sondagem técnica controlada pela plataforma
+1. Fazer uma chamada controlada de envio pela própria função/fluxo da plataforma, usando apenas a iPhone Laranja.
+2. Registrar resposta completa segura do provedor, sem expor chaves.
+3. Acompanhar por alguns minutos se entram updates para o mesmo `external_id`.
+4. Comparar com uma mensagem que aparece como `sent` mas não chegou.
 
-## Fase 2 — Consertar o dispatcher do namespace pipeline-classifier
+## Fase 5 — Correção direcionada
+Aplicar somente a correção sustentada pelas evidências. Possíveis saídas:
 
-**Objetivo:** deixar `dispatch_pipeline_classifiers` alinhado ao schema real (ele hoje é cron-lixo silencioso).
+- Corrigir seleção de instância se a mensagem estiver saindo por identificador errado.
+- Corrigir montagem de JID se destino internacional/BR estiver sendo normalizado errado.
+- Corrigir parser de resposta se o `external_id` salvo não bate com o ACK.
+- Corrigir webhook se os ACKs chegam mas não atualizam `messages`.
+- Corrigir tratamento de erro se a Evolution retorna sucesso aparente com erro dentro do payload.
+- Adicionar telemetria mínima se hoje a plataforma não tem como diferenciar `sent API` de `delivered WhatsApp`.
 
-1. Auditar a função `dispatch_pipeline_classifiers` e comparar com a migration mais recente do roadmap G3/G17.
-2. Duas opções (a decidir com o usuário no fim da fase):
-   - **(A) Recolocar colunas ausentes** (`slug text`, `edge_function_name text`, `cron_enabled boolean`) em `pipeline_tenant_classifiers` via migration — se o design do roadmap PIPELINE_TENANT_ROADMAP.md prevê essas colunas.
-   - **(B) Reescrever a função** para consumir a estrutura atual (uma linha por clínica, sem multi-slug) — se o roadmap mudou de forma e essas colunas foram descontinuadas.
-3. Desligar o cron temporariamente até a função voltar a compilar sem erro, para parar o spam no `postgres_logs`.
+## Fase 6 — Validação
+1. Enviar uma mensagem controlada pela ferramenta na iPhone Laranja.
+2. Confirmar no banco a progressão correta de status/ACK.
+3. Confirmar que a UI passa a refletir o estado real, ou que o erro real fica visível quando a entrega falha.
+4. Documentar o diagnóstico e a correção no roadmap/playbook para não repetir a hipótese de teste manual.
 
-## Fase 3 — Blindagem para não repetir
-
-**Objetivo:** garantir que qualquer trigger novo em `messages` nunca mais engula silenciosamente a ingestão.
-
-1. Ajustar `ingestMessage` (`supabase/functions/_shared/evolution.ts`) para escrever o erro real na linha de `webhook_events.error` quando o `insert` em `messages` rejeitar — hoje ele só faz `console.error` e o audit fica vazio, o que atrasou este diagnóstico em ~30h.
-2. Adicionar teste smoke em `check_recent.py` / novo script que compara **eventos `MESSAGES_UPSERT` com `fromMe=false`** vs **linhas em `messages` com `from_me=false`** por clínica nas últimas 6h; alerta se a razão cair abaixo de X.
-3. Documentar em `docs/evolution/TROUBLESHOOTING.md` a assinatura do bug (webhook 200 + audit sem erro + zero inbound + `postgres_logs` com trigger error) para acelerar futuros incidentes.
-
-## Ordem de execução sugerida
-
-Fase 1 → validar em produção com o usuário → Fase 3.1 (patch de logging) → Fase 2 → Fase 3.2/3.3.
-
-## Detalhe técnico (referência)
-
-- Arquivo do trigger: função PL/pgSQL `tg_enqueue_classifier` (definição já lida via `pg_get_functiondef`).
-- Arquivo do ingest: `supabase/functions/_shared/evolution.ts` linhas 515–539 (insert em `messages`) e 528–538 (tratamento silencioso do erro).
-- Webhook handler: `supabase/functions/evolution-webhook/index.ts` linhas 48–58 (só grava `error` no audit quando `res.skipped`, não quando o `insert` explode).
-- Backfill/re-sync: `supabase/functions/evolution-backfill-all` e `evolution-sync-lead`.
+## Detalhes técnicos
+- Já confirmado agora que a tabela `whatsapp_instances` não tem `instance_name`; os campos reais incluem `name`, `evolution_instance`, `connection_state`, `phone_number`, `clinic_id` e health/webhook fields.
+- Já confirmado que a tabela `messages` tem `external_id`, `status`, `delivery_status`, `raw`, `clinic_id`, `bot_agent_id`, `is_automated` e `is_auto_reply`, que serão usados para rastrear a mensagem.
+- Logs recentes de edge function não retornaram hits diretos por `4077794061`/`14077794061`, então a investigação deve cruzar banco + payloads brutos em vez de depender só de logs textuais.
