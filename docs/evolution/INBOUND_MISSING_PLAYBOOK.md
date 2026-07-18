@@ -78,6 +78,7 @@ Nada em `webhook_events.error`? Cai para `postgres_logs` filtrando por
 | `column ptc.slug does not exist`                      | Trigger `tg_enqueue_classifier` fora do schema atual.                 | Ver migração `20260718` — o gatilho passou a usar `classifier_version` e ficou blindado com `EXCEPTION WHEN OTHERS`.  |
 | `permission denied for table pipeline_tenant_classifiers` | Faltando GRANT para `service_role` ou trigger rodando como INVOKER.  | Rodar `GRANT ALL ON public.pipeline_tenant_classifiers TO service_role;` e garantir `SECURITY DEFINER` no trigger.    |
 | `null value in column "clinic_id" of relation "messages"` | Lead foi criado sem `clinic_id` (bug de multi-instância).            | Ver `MULTI_INSTANCE_ROUTING.md` — geralmente `whatsapp_instances.clinic_id` está null.                                |
+| `column "pipeline_id" of relation "lead_stage_history" does not exist` (e `column "from"` / `column "to"`) | Trigger `fn_clinica_or_wakeup_inbound` (específico da Clínica ÓR) usava colunas antigas de `lead_stage_history`. Como não estava blindado, derrubava a transação — 256 mensagens inbound perdidas em 4 dias. | Migração `20260718`: colunas trocadas por `from_stage_id`/`to_stage_id`, `pipeline_id` removido e trigger envolvido em `EXCEPTION WHEN OTHERS`. Backfill feito via replay de `webhook_events` (POST do payload salvo de volta para `evolution-webhook`). |
 
 **Regra de ouro:** todo trigger novo que dispara em `messages` (ou em qualquer
 tabela do caminho crítico do webhook) precisa embrulhar o corpo em
