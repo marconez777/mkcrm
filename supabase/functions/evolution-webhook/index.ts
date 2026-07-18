@@ -258,12 +258,12 @@ Deno.serve(async (req) => {
 
     if (auditId) {
       const patch: any = { processed_at: new Date().toISOString(), lead_id: leadIdForAudit };
-      // Expose ingest failures on the audit row so we don't need postgres_logs to find them.
-      if (typeof ingestErrors !== "undefined" && ingestErrors.length > 0) {
+      if (ingestErrors.length > 0) {
         patch.error = `INGEST_ERROR: ${ingestErrors.join(" | ")}`.slice(0, 1000);
       }
       await supabase.from("webhook_events").update(patch).eq("id", auditId);
     }
+
 
 
     console.log(JSON.stringify({ event: eventType, ms: Date.now() - startedAt, ok: true }));
