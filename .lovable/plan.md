@@ -1,66 +1,73 @@
-# Plano: investigar envio pela ferramenta na Febracis / iPhone Laranja
+## Diagnóstico confirmado
 
-## Objetivo
-Encontrar, com evidência ponta-a-ponta, por que mensagens geradas/enviadas pela plataforma aparecem como enviadas mas não chegam ao contato quando saem pela instância **iPhone Laranja / +1 407 779 4061**, sem repetir testes manuais no app do WhatsApp.
+Encontrei o mesmo padrão do incidente de 17/07 — **inbound sendo abortado por trigger com schema desatualizado**, só que num gatilho diferente que escapou da blindagem anterior.
 
-## Escopo
-- Clínica: `ab2f4484-886c-48f2-bfc6-0651d062c575`.
-- Instância alvo: iPhone Laranja / `+1 407 779 4061`.
-- Fluxo investigado: plataforma → função de envio → Evolution/Baileys → eventos de ACK/update → banco → UI.
-- Não mexer nas outras instâncias enquanto a causa não estiver comprovada.
+### O bug
 
-## Fase 1 — Reconstruir a trilha real de uma mensagem
-1. Identificar a instância iPhone Laranja pelo schema real de `whatsapp_instances` (`evolution_instance`, `phone_number`, `name`).
-2. Pegar mensagens recentes da Febracis enviadas pela ferramenta nessa instância.
-3. Para cada mensagem, comparar:
-   - `messages.external_id` / id retornado pelo provedor;
-   - `messages.status` e `delivery_status`;
-   - metadados em `messages.raw`;
-   - lead/destinatário real;
-   - timestamp do envio;
-   - se existe evento posterior de `MESSAGES_UPDATE` / ACK correspondente.
-4. Resultado esperado: separar se o problema está em **envio não aceito**, **ACK não processado**, **mensagem enviada para JID errado**, **metadado de instância errado**, ou **resposta do provedor aceita mas sem entrega**.
+`fn_clinica_or_wakeup_inbound` (AFTER INSERT em `messages`) — trigger específico da Clínica ÓR que promove o lead de "geladeira" → Qualificação assim que o paciente responde. Ele faz `INSERT INTO lead_stage_history` referenciando três colunas que **não existem** na tabela:
 
-## Fase 2 — Auditar o código de envio
-1. Revisar `evolution-send` e helpers compartilhados de Evolution.
-2. Confirmar qual campo é usado para escolher a instância ao enviar mensagens automáticas.
-3. Validar se o código está usando corretamente:
-   - `evolution_instance`;
-   - `clinic_id`;
-   - pipeline/lead binding;
-   - telefone/JID do contato;
-   - resposta do endpoint de envio.
-4. Procurar falhas silenciosas: respostas HTTP 200/201 sem `key.id`, erros escondidos em payload, retry incorreto, status salvo cedo demais como `sent`.
+- `pipeline_id` (não existe — a tabela não tem essa coluna)
+- `"from"` (o correto é `from_stage_id`)
+- `"to"` (o correto é `to_stage_id`)
 
-## Fase 3 — Auditar o webhook de updates/ACK
-1. Revisar `evolution-webhook` para confirmar como ele processa `MESSAGES_UPDATE` e eventos relacionados.
-2. Verificar se o ACK recebido da Evolution está sendo associado ao `external_id` correto.
-3. Conferir se eventos de erro, delivery, read ou server ack estão sendo descartados por diferença de formato.
-4. Se necessário, planejar correção para salvar erro/ACK bruto no `messages.raw` ou em log auditável.
+Postgres logs confirmam: dezenas de `ERROR: column "pipeline_id" of relation "lead_stage_history" does not exist` nas últimas horas.
 
-## Fase 4 — Sondagem técnica controlada pela plataforma
-1. Fazer uma chamada controlada de envio pela própria função/fluxo da plataforma, usando apenas a iPhone Laranja.
-2. Registrar resposta completa segura do provedor, sem expor chaves.
-3. Acompanhar por alguns minutos se entram updates para o mesmo `external_id`.
-4. Comparar com uma mensagem que aparece como `sent` mas não chegou.
+Como o trigger não está blindado com `EXCEPTION WHEN OTHERS`, o erro derruba a transação inteira do webhook — a mensagem inbound nunca chega em `messages`, `webhook_events.error` fica vazio (porque o SELECT anterior no `webhook_events` já commitou), e o Sunamita/Denis/Mari ficam com só o lado outbound visível.
 
-## Fase 5 — Correção direcionada
-Aplicar somente a correção sustentada pelas evidências. Possíveis saídas:
+### Leads afetados agora (Clínica ÓR, últimos 4 dias)
 
-- Corrigir seleção de instância se a mensagem estiver saindo por identificador errado.
-- Corrigir montagem de JID se destino internacional/BR estiver sendo normalizado errado.
-- Corrigir parser de resposta se o `external_id` salvo não bate com o ACK.
-- Corrigir webhook se os ACKs chegam mas não atualizam `messages`.
-- Corrigir tratamento de erro se a Evolution retorna sucesso aparente com erro dentro do payload.
-- Adicionar telemetria mínima se hoje a plataforma não tem como diferenciar `sent API` de `delivered WhatsApp`.
+`Sunamita` (`f7574b5a…`), `Denis Zaneti` (`7cc14eee…`), `Mari` (`b536ee69…`) — todos com 5-9 outbound e 0 inbound, mas com webhooks `MESSAGES_UPSERT` `fromMe=false` presentes em `webhook_events` sem `error`. Todos estão hoje em Qualificação (foram gatilhados por esse fluxo).
 
-## Fase 6 — Validação
-1. Enviar uma mensagem controlada pela ferramenta na iPhone Laranja.
-2. Confirmar no banco a progressão correta de status/ACK.
-3. Confirmar que a UI passa a refletir o estado real, ou que o erro real fica visível quando a entrega falha.
-4. Documentar o diagnóstico e a correção no roadmap/playbook para não repetir a hipótese de teste manual.
+Provavelmente há outros leads históricos da ÓR afetados pelo mesmo trigger.
+
+---
+
+## Plano — 3 fases
+
+### Fase 1 — Corrigir + blindar o trigger (migração única)
+
+Migração que:
+
+1. Reescreve `fn_clinica_or_wakeup_inbound`:
+   - Troca `pipeline_id`/`"from"`/`"to"` por `from_stage_id`/`to_stage_id` (remove `pipeline_id` do INSERT).
+   - Envolve todo o corpo em `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING 'wakeup_inbound failed: %', SQLERRM; RETURN NEW; END;` — mesma regra de ouro do playbook, agora aplicada a este trigger.
+2. Faz uma varredura defensiva em outros triggers `AFTER INSERT ON messages` para confirmar que todos têm `EXCEPTION WHEN OTHERS` (auditar `tg_auto_reactivation_inbound`, `tg_auto_secretary_replied`, `stop_sequences_on_reply`, `bump_lead_last_human_activity_from_message`, `update_lead_last_inbound_at`; blindar os que estiverem sem).
+
+### Fase 2 — Backfill dos leads afetados
+
+- Rodar `evolution-sync-lead` (modo `full: true`) para Sunamita, Denis e Mari.
+- Rodar `evolution-backfill-all` na instância `8cafb677…` da Clínica ÓR com `limit: 2000` para cobrir qualquer outro lead da geladeira que tenha perdido mensagens desde que o trigger passou a falhar. É idempotente por `external_id`.
+- Query de verificação: contar leads da ÓR com outbound recente > 0 e inbound = 0 antes/depois.
+
+### Fase 3 — Documentação em destaque
+
+Atualizar `docs/evolution/INBOUND_MISSING_PLAYBOOK.md` com um bloco novo bem visível no topo:
+
+> **⚠️ Regra de ouro (2 incidentes já causados por isso, 17/07 e 18/07)**  
+> Qualquer trigger em `messages` — inclusive triggers específicos de um tenant — DEVE:
+> 1. Ter o corpo dentro de `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`.
+> 2. Ser revisado contra o schema atual de qualquer tabela auxiliar que ele alimenta (`lead_stage_history`, `lead_events`, `pipeline_tenant_classifiers`, etc.).
+
+Adicionar na tabela "Sintomas conhecidos" a nova linha:
+
+| `column "pipeline_id" of relation "lead_stage_history" does not exist` | Trigger `fn_clinica_or_wakeup_inbound` fora do schema atual (usava `pipeline_id`, `"from"`, `"to"`). | Migração 2026-07-18: colunas trocadas por `from_stage_id`/`to_stage_id` e trigger blindado. |
+
+Também: uma nota no `docs/tenants/clinica-or/gatilhos-e-automacoes.md` mencionando que o wakeup trigger foi refeito e agora é fail-safe.
+
+---
 
 ## Detalhes técnicos
-- Já confirmado agora que a tabela `whatsapp_instances` não tem `instance_name`; os campos reais incluem `name`, `evolution_instance`, `connection_state`, `phone_number`, `clinic_id` e health/webhook fields.
-- Já confirmado que a tabela `messages` tem `external_id`, `status`, `delivery_status`, `raw`, `clinic_id`, `bot_agent_id`, `is_automated` e `is_auto_reply`, que serão usados para rastrear a mensagem.
-- Logs recentes de edge function não retornaram hits diretos por `4077794061`/`14077794061`, então a investigação deve cruzar banco + payloads brutos em vez de depender só de logs textuais.
+
+- **Migração**: `CREATE OR REPLACE FUNCTION public.fn_clinica_or_wakeup_inbound()` com o INSERT novo:
+  ```sql
+  INSERT INTO public.lead_stage_history
+    (lead_id, clinic_id, from_stage_id, to_stage_id, reason, source, moved_at)
+  VALUES (v_lead.id, v_lead.clinic_id, v_old_stage, v_new_stage,
+          'Paciente voltou a responder (Reativação automática)',
+          'auto:wakeup-trigger', now());
+  ```
+  E envolver TUDO em `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`.
+
+- **Backfill**: chamar as edges via `curl` a partir do sandbox, com o service role (já disponível no ambiente do webhook). Nenhuma migração de dados manual.
+
+- **Nada muda no frontend.** Alteração fica isolada em `supabase/migrations/`, `docs/evolution/INBOUND_MISSING_PLAYBOOK.md` e `docs/tenants/clinica-or/gatilhos-e-automacoes.md`. Rodar `node scripts/docs-sync.mjs` no final para manter `docs/INDEX.json` em dia.
