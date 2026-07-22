@@ -319,8 +319,168 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const modelChain = buildModelFallbackChain(requestedModel);
 
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
-...
-    return { ok: false, status: r.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(r.status), choices: [] };
+  const contents: any[] = [];
+  for (const m of messages) {
+    if (m.role === "system") continue;
+    if (m.role === "tool") {
+      contents.push({
+        role: "user",
+        parts: [{ functionResponse: { name: m.name ?? "tool", response: { result: m.content ?? "" } } }],
+      });
+      continue;
+    }
+    if (m.role === "assistant" && m.tool_calls?.length) {
+      const parts: any[] = [];
+      if (m.content) parts.push({ text: m.content });
+      for (const tc of m.tool_calls) {
+        parts.push({ functionCall: { name: tc.function?.name, args: JSON.parse(tc.function?.arguments ?? "{}") } });
+      }
+      contents.push({ role: "model", parts });
+      continue;
+    }
+    contents.push({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content ?? "" }],
+    });
+  }
+
+  const gTools = tools?.length
+    ? [{ functionDeclarations: tools.map((t) => ({
+        name: t.function.name,
+        description: t.function.description,
+        parameters: sanitizeGeminiSchema(t.function.parameters),
+      })) }]
+    : undefined;
+
+  const SAFETY_SETTINGS = [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+  ];
+
+  const buildBody = (opts: { includeSystemInstruction: boolean }) => {
+    const contentsFinal = [...contents];
+    if (sys && !opts.includeSystemInstruction) {
+      contentsFinal.unshift({ role: "user", parts: [{ text: `[System]\n${sys}` }] });
+    }
+    return JSON.stringify({
+      contents: contentsFinal,
+      ...(opts.includeSystemInstruction && sys
+        ? { systemInstruction: { parts: [{ text: sys }] } }
+        : {}),
+      tools: gTools,
+      safetySettings: SAFETY_SETTINGS,
+      generationConfig: {
+        temperature: Number(agent.temperature) || 0.7,
+        maxOutputTokens: 2048,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+  };
+
+  const apiKey = requireGoogleKey(agent);
+  const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
+  const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
+
+  // Tenta cada modelo em ordem. Só passa pro próximo se o Google matou o modelo
+  // (404 "no longer available"/"not found"). Qualquer outro erro (401/403/429/500)
+  // é retornado imediatamente — não faz sentido tentar outro modelo.
+  const attempts: Array<{ model: string; status: number; error: string }> = [];
+  let r: Response | null = null;
+  let actualModel = modelChain[0];
+
+  for (const model of modelChain) {
+    actualModel = model;
+    const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
+    let resp = await fetch(url, {
+      method: "POST",
+      headers: gHeaders,
+      body: buildBody({ includeSystemInstruction: true }),
+    });
+
+    // Fallback v1beta -> v1 (systemInstruction quirk / model missing em v1beta).
+    if (!resp.ok && (resp.status === 404 || resp.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
+      const firstErrorText = await resp.text();
+      const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(model)}:generateContent`;
+      let retry = await fetch(v1Url, {
+        method: "POST",
+        headers: gHeaders,
+        body: buildBody({ includeSystemInstruction: true }),
+      });
+      if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
+        retry = await fetch(v1Url, {
+          method: "POST",
+          headers: gHeaders,
+          body: buildBody({ includeSystemInstruction: false }),
+        });
+      }
+      if (retry.ok) {
+        r = retry;
+        break;
+      }
+      const retryErrorText = await retry.text();
+      const combined = retryErrorText || firstErrorText;
+      attempts.push({ model, status: retry.status, error: compactErrorText(combined, 300) });
+      // Só tenta próximo modelo se o erro é "modelo sumiu".
+      if (isGoogleModelGoneError(retry.status, combined)) continue;
+      // Erro real (auth, quota, safety, invalid). Aborta a cadeia.
+      console.error("[googleChat] provider error", {
+        status: retry.status,
+        model,
+        error: compactErrorText(combined),
+        chain_attempts: attempts,
+        messages: messages.length,
+        tools: tools?.length ?? 0,
+      });
+      return { ok: false, status: retry.status, errorText: enrichGoogleError(combined), retryable: isRetryableStatus(retry.status), choices: [] };
+    }
+
+    if (resp.ok) {
+      r = resp;
+      break;
+    }
+
+    const errorText = await resp.text();
+    attempts.push({ model, status: resp.status, error: compactErrorText(errorText, 300) });
+    if (isGoogleModelGoneError(resp.status, errorText)) continue;
+    console.error("[googleChat] provider error", {
+      status: resp.status,
+      model,
+      error: compactErrorText(errorText),
+      chain_attempts: attempts,
+      messages: messages.length,
+      tools: tools?.length ?? 0,
+    });
+    return { ok: false, status: resp.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(resp.status), choices: [] };
+  }
+
+  if (!r) {
+    // Nenhum modelo da cadeia respondeu — todos deram "modelo sumiu".
+    const last = attempts[attempts.length - 1];
+    console.error("[googleChat] all models in fallback chain returned 'model gone'", {
+      requestedModel,
+      chain: modelChain,
+      attempts,
+    });
+    return {
+      ok: false,
+      status: last?.status ?? 404,
+      errorText: enrichGoogleError(
+        `Nenhum modelo Gemini disponível para esta chave. Testados: ${modelChain.join(", ")}. Último erro: ${last?.error ?? "unknown"}`,
+      ),
+      retryable: false,
+      choices: [],
+    };
+  }
+
+  if (attempts.length > 0) {
+    console.warn("[googleChat] fell back to alternate model", {
+      requested: requestedModel,
+      resolved: actualModel,
+      skipped: attempts,
+    });
   }
 
   const data = await r.json();
@@ -329,7 +489,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const tool_calls: any[] = [];
   let i = 0;
   for (const p of cand?.content?.parts ?? []) {
-    // Ignora "thinking parts" (p.thought === true) — não são resposta ao usuário.
     if (p.thought) continue;
     if (p.text) text += p.text;
     if (p.functionCall) {
@@ -341,7 +500,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     }
   }
   if (!text && !tool_calls.length) {
-    // Loga TUDO que dá pra usar no diagnóstico: finishReason, safety, parts crus, prompt feedback.
     console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
       model: actualModel,
       finishReason: cand?.finishReason,
@@ -351,8 +509,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       partsRaw: JSON.stringify(cand?.content?.parts ?? []).slice(0, 500),
       usage: data.usageMetadata,
     });
-    // Retorna erro retryable para o caller decidir (dispatcher tenta de novo, ai-chat devolve 502).
-    // Isso é MUITO melhor do que "sucesso com content vazio" — o agente ficava mudo silenciosamente.
     const reason = cand?.finishReason ?? "no_candidate";
     return {
       ok: false,
