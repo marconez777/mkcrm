@@ -56,6 +56,8 @@ const NAV: NavGroup[] = [
       { to: "/admin/plans", label: "Planos", icon: CreditCard },
       { to: "/admin/usage", label: "Uso & Limites", icon: Gauge },
       { to: "/admin/finance", label: "Financeiro", icon: DollarSign },
+      { to: "/admin/cloud-costs", label: "Custos de Cloud", icon: Activity },
+      { to: "/admin/ai-usage", label: "Consumo de IA", icon: Sparkles },
     ],
   },
   {

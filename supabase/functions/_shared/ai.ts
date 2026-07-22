@@ -453,6 +453,15 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     // Fallback v1beta -> v1 (systemInstruction quirk / model missing em v1beta).
     if (!resp.ok && (resp.status === 404 || resp.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
       const firstErrorText = await resp.text();
+      
+      // FAIL-FAST OTIMIZADO: Se for 404 "no longer available", pula imediatamente para o próximo modelo da cadeia
+      // sem tentar 2 requests inúteis na v1. Poupando tempo de execução (compute credits) da Edge Function.
+      if (isGoogleModelGoneError(resp.status, firstErrorText)) {
+        attempts.push({ model, status: resp.status, error: compactErrorText(firstErrorText, 300) });
+        blockModel(keyHash, model);
+        continue;
+      }
+
       const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(model)}:generateContent`;
       let retry = await fetch(v1Url, {
         method: "POST",

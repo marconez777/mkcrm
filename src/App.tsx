@@ -37,6 +37,8 @@ const AdminSupport = lazy(() => import("./pages/admin/AdminPanels").then((m) => 
 const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAudit })));
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
+const AdminCloudCosts = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminCloudCosts })));
+const AdminAiUsage = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAiUsage })));
 const AdminPipelineAutomations = lazy(() => import("./pages/admin/AdminPipelineAutomations"));
 const AdminPipelineHealth = lazy(() => import("./pages/admin/AdminPipelineHealth"));
 const PipelineRuns = lazy(() => import("./pages/PipelineRuns"));
@@ -125,6 +127,8 @@ const App = () => (
               <Route path="plans" element={<Suspense fallback={<AdminFallback />}><AdminPlans /></Suspense>} />
               <Route path="usage" element={<Suspense fallback={<AdminFallback />}><AdminUsage /></Suspense>} />
               <Route path="finance" element={<Suspense fallback={<AdminFallback />}><AdminFinance /></Suspense>} />
+              <Route path="cloud-costs" element={<Suspense fallback={<AdminFallback />}><AdminCloudCosts /></Suspense>} />
+              <Route path="ai-usage" element={<Suspense fallback={<AdminFallback />}><AdminAiUsage /></Suspense>} />
               <Route path="observability" element={<Suspense fallback={<AdminFallback />}><AdminObservability /></Suspense>} />
               <Route path="support" element={<Suspense fallback={<AdminFallback />}><AdminSupport /></Suspense>} />
               <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><AdminIntegrations /></Suspense>} />

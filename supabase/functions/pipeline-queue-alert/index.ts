@@ -14,6 +14,34 @@ const PENDING_THRESHOLD = 10;
 const ERROR_RATE_THRESHOLD = 0.05;
 const DEDUP_MINUTES = 30;
 
+async function notifyWhatsApp(sb: any, message: string) {
+  try {
+    const { data: inst } = await sb
+      .from("whatsapp_instances")
+      .select("evolution_url, evolution_api_key, evolution_instance")
+      .eq("connection_state", "open")
+      .limit(1)
+      .maybeSingle();
+      
+    if (!inst) return;
+
+    const base = inst.evolution_url.replace(/\/$/, "");
+    await fetch(`${base}/message/sendText/${encodeURIComponent(inst.evolution_instance)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": inst.evolution_api_key,
+      },
+      body: JSON.stringify({
+        number: "5511991795436", // Número do admin MK
+        text: `🚨 *MKCRM Alerta Cloud* 🚨\n\n${message}`,
+      }),
+    });
+  } catch (err) {
+    console.error("notifyWhatsApp erro:", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -58,10 +86,11 @@ Deno.serve(async (req) => {
         .gte("created_at", dedupSince);
 
       if ((recentCount ?? 0) === 0) {
+        const msg = `Pipeline saturado: pending=${pending}, error_rate=${(errorRate * 100).toFixed(1)}%`;
         await sb.from("error_events").insert({
           function_name: "pipeline-queue-alert",
           severity: "warning",
-          error_message: `Pipeline saturado: pending=${pending}, error_rate=${(errorRate * 100).toFixed(1)}%`,
+          error_message: msg,
           metadata: {
             pending_count: pending,
             error_rate: Number(errorRate.toFixed(4)),
@@ -71,6 +100,7 @@ Deno.serve(async (req) => {
           },
         });
         alerted = true;
+        await notifyWhatsApp(sb, msg);
       }
     }
 
@@ -91,10 +121,11 @@ Deno.serve(async (req) => {
         .gte("created_at", dedupQuotaSince)
         .contains("metadata", { signature: sig });
       if ((dup ?? 0) > 0) continue;
+      const msg = `Quota esgotada: clinic=${b.clinic_id} provider=${b.provider}`;
       await sb.from("error_events").insert({
         function_name: "pipeline-queue-alert",
         severity: "warning",
-        error_message: `Quota esgotada: clinic=${b.clinic_id} provider=${b.provider}`,
+        error_message: msg,
         metadata: {
           signature: sig,
           clinic_id: b.clinic_id,
@@ -104,6 +135,7 @@ Deno.serve(async (req) => {
         },
       });
       quotaAlerts++;
+      await notifyWhatsApp(sb, msg);
     }
 
     return new Response(
