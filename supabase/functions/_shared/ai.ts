@@ -287,137 +287,39 @@ async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[
   };
 }
 
+// Roadmap GEMINI_404_MODEL_DEPRECATION Fase 1:
+// não hard-code alias -> modelo antigo. Google removeu gemini-2.5-* para
+// contas novas (09/07/2026). Se um modelo pedido devolver 404 "no longer
+// available"/"not found", tentamos a próxima opção da cadeia.
+function isGoogleModelGoneError(status: number, body: string): boolean {
+  if (status !== 404) return false;
+  const s = body.toLowerCase();
+  return s.includes("no longer available") || s.includes("not found") || s.includes("not_found");
+}
+function buildModelFallbackChain(requested: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (m: string) => {
+    const v = m.trim();
+    if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+  };
+  push(requested);
+  // Se o pedido é um flash Gemini, adiciona rotas alternativas em ordem
+  // do mais novo para o mais antigo (o oposto do que a gente estava fazendo).
+  if (/gemini.*(flash|latest)/i.test(requested)) {
+    push("gemini-flash-latest");
+    push("gemini-3-flash-preview");
+    push("gemini-2.5-flash");
+  }
+  return out;
+}
+
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
-  // Normalize removed alias
-  const actualModel = agent.model.replace("google/", "") === "gemini-flash-latest" ? "gemini-2.5-flash" : agent.model.replace("google/", "");
+  const requestedModel = agent.model.replace("google/", "");
+  const modelChain = buildModelFallbackChain(requestedModel);
 
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
-  const contents: any[] = [];
-  for (const m of messages) {
-    if (m.role === "system") continue;
-    if (m.role === "tool") {
-      contents.push({
-        role: "user",
-        parts: [{ functionResponse: { name: m.name ?? "tool", response: { result: m.content ?? "" } } }],
-      });
-      continue;
-    }
-    if (m.role === "assistant" && m.tool_calls?.length) {
-      const parts: any[] = [];
-      if (m.content) parts.push({ text: m.content });
-      for (const tc of m.tool_calls) {
-        parts.push({ functionCall: { name: tc.function?.name, args: JSON.parse(tc.function?.arguments ?? "{}") } });
-      }
-      contents.push({ role: "model", parts });
-      continue;
-    }
-    contents.push({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content ?? "" }],
-    });
-  }
-
-  const gTools = tools?.length
-    ? [{ functionDeclarations: tools.map((t) => ({
-        name: t.function.name,
-        description: t.function.description,
-        parameters: sanitizeGeminiSchema(t.function.parameters),
-      })) }]
-    : undefined;
-
-  // Safety settings PERMISSIVAS — sem isso o Gemini bloqueia respostas de vendas/WhatsApp
-  // silenciosamente (finishReason=SAFETY, content vazio). Categorias oficiais Gemini API.
-  const SAFETY_SETTINGS = [
-    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
-  ];
-
-  const buildBody = (opts: { includeSystemInstruction: boolean }) => {
-    const contentsFinal = [...contents];
-    if (sys && !opts.includeSystemInstruction) {
-      // v1 endpoint (or retries) may not accept systemInstruction — prepend as user turn.
-      contentsFinal.unshift({ role: "user", parts: [{ text: `[System]\n${sys}` }] });
-    }
-    return JSON.stringify({
-      contents: contentsFinal,
-      ...(opts.includeSystemInstruction && sys
-        ? { systemInstruction: { parts: [{ text: sys }] } }
-        : {}),
-      tools: gTools,
-      safetySettings: SAFETY_SETTINGS,
-      generationConfig: {
-        temperature: Number(agent.temperature) || 0.7,
-        // Sem maxOutputTokens explícito o Gemini pode gastar TODO orçamento em
-        // thinking silencioso (mesmo com budget=0 alguns modelos ignoram) e
-        // devolver content vazio com finishReason=MAX_TOKENS. Fixamos um teto real.
-        maxOutputTokens: 2048,
-        // gemini-2.5-* / gemini-flash-latest ligam "thinking" por padrão, o que
-        // consome tokens em partes com { thought: true } SEM texto visível — o
-        // agente ficava mudo (output_tokens>0, content vazio). Desligamos aqui.
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    });
-  };
-  const apiKey = requireGoogleKey(agent);
-  const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(actualModel)}:generateContent`;
-  // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
-  // ?key= na URL falha silenciosamente com API_KEY_INVALID em chaves novas AQ..
-  const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
-  let r = await fetch(url, {
-    method: "POST",
-    headers: gHeaders,
-    body: buildBody({ includeSystemInstruction: true }),
-  });
-  // Fallback chain when v1beta rejects (e.g. 404 model, or 400 systemInstruction):
-  // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
-  if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
-    const firstErrorText = await r.text();
-    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(actualModel)}:generateContent`;
-    let retry = await fetch(v1Url, {
-      method: "POST",
-      headers: gHeaders,
-      body: buildBody({ includeSystemInstruction: true }),
-    });
-    let secondErrorText = "";
-    if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
-      secondErrorText = await retry.text();
-      retry = await fetch(v1Url, {
-        method: "POST",
-        headers: gHeaders,
-        body: buildBody({ includeSystemInstruction: false }),
-      });
-    }
-
-    if (retry.ok) {
-      r = retry;
-    } else {
-      const retryErrorText = await retry.text();
-      console.error("[googleChat] provider error", {
-        status: retry.status,
-        model: actualModel,
-        error: compactErrorText(retryErrorText),
-        fallback_from_v1beta: compactErrorText(firstErrorText, 240),
-        fallback_v1_with_sys: secondErrorText ? compactErrorText(secondErrorText, 240) : undefined,
-        messages: messages.length,
-        tools: tools?.length ?? 0,
-      });
-      return { ok: false, status: retry.status, errorText: enrichGoogleError(retryErrorText || secondErrorText || firstErrorText), retryable: isRetryableStatus(retry.status), choices: [] };
-    }
-  }
-
-  if (!r.ok) {
-    const errorText = await r.text();
-    console.error("[googleChat] provider error", {
-      status: r.status,
-      model: actualModel,
-      error: compactErrorText(errorText),
-      messages: messages.length,
-      tools: tools?.length ?? 0,
-    });
+...
     return { ok: false, status: r.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(r.status), choices: [] };
   }
 
