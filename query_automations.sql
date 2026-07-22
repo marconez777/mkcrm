@@ -1,0 +1,1 @@
+SELECT name, trigger_type, trigger_config, action_type, action_config, enabled FROM automations WHERE clinic_id = 'cf038458-457d-4c1a-9ac4-c88c3c8353a1';

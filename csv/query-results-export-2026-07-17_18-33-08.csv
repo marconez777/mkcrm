@@ -1,0 +1,19 @@
+nome_da_coluna;nome_do_pipeline;stage_id
+Paciente antigo;Clínica ÓR;7fea97d7-c2af-4e6f-8f39-af8375bb4468
+Consulta finalizada;Clínica ÓR;7584241f-6e4b-4824-aaea-e271e865227d
+Consulta agendada;Clínica ÓR;e12f004a-6445-4815-8d6b-22f928507a9a
+1ª Sessão Finalizada;Clínica ÓR;2a352661-01e2-41f8-be10-032f803e2387
+Desqualificado / Fora de escopo;Clínica ÓR;35670cad-3f95-4e11-8f73-e8b27b865f89
+Qualificação;Clínica ÓR;c6eb67f3-cba9-41e5-949c-aa12d34d962d
+B2B / Stakeholders;Clínica ÓR;23a7bfd7-2baf-4d0f-8ed1-2b59b719020d
+Tratamento agendado;Clínica ÓR;98320189-6002-4f75-b99d-0b407189efe8
+Leads de entrada;Clínica ÓR;b1aa2fc9-d221-4d4f-b53a-7303ec4b75b0
+Nutrição Inativa (Geladeira de Leads);Clínica ÓR;64356dbe-3889-4b49-9429-260501cdb3d8
+Sem resposta;Clínica ÓR;9f408ae6-649e-44b2-bc56-f93d138c87ed
+Nutrição Antigos;Clínica ÓR;9de8e54e-7edb-47dd-b613-de22276d8ea1
+Novo;Formulário Site;bd0bb77b-9ba0-4edc-be18-5c2c42687caf
+Não respondeu;Medicos Parceiros;ac43698b-d030-4a67-bacd-f02473c941d2
+Negou parceria;Medicos Parceiros;c62173c0-8c7d-42d6-80d0-fbfabf86ae56
+reuniao agendada;Medicos Parceiros;427e3697-8a32-4742-8d86-afb2dd0fbcd1
+Contato inicial;Medicos Parceiros;b6796bfd-4540-472a-a3bf-c1b4c6d6f6e0
+Respondeu;Medicos Parceiros;c72b28b7-c685-4569-b8df-f28d8b3d81fb

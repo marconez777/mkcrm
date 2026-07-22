@@ -1,0 +1,4 @@
+data_real_da_ultima_msg;last_message_at;paciente;tags;ultima_msg_foi_da_clinica
+2026-07-17 16:33:50+00;2026-07-17 16:33:50+00;Fernanda Andrade;"[""emt"",""modalidade_presencial"",""pagamento_pendente"",""segmento_nutricao_leads"",""reagendamento_solicitado"",""nutricao_inativa"",""reagendamento_pendente"",""agendamento_confirmado"",""precisa_atencao_humana""]";true
+2026-07-17 17:57:43+00;2026-07-17 17:57:43+00;Wanderson Milani;"[""segmento_nutricao_leads"",""nutricao_inativa""]";true
+2026-07-17 18:30:48+00;2026-07-17 18:30:48+00;Sandra Zirlis;"[""infusao_cetamina"",""aguardando_comparecimento"",""segmento_nutricao_leads"",""tratamento_em_andamento"",""precisa_atencao_humana"",""nutricao_inativa"",""agendamento_confirmado""]";true

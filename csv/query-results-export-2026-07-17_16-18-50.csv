@@ -1,0 +1,11 @@
+data_entrada;erro_automacao;nome_lead;status_automacao;ultima_msg;ultima_msg_foi_clinica
+2026-06-22 13:16:08.343417+00;missing agent_id;Felipe Moulin;error;2026-07-16 19:41:30+00;true
+2026-06-25 11:05:07.666562+00;;Isabela Terlizzi;;2026-07-16 12:31:53+00;true
+2026-06-25 18:24:29.107035+00;;Carla;;2026-07-16 14:49:17+00;true
+2026-07-01 13:44:04.911454+00;;Ana Clara Borelli;success;2026-07-16 18:31:55+00;false
+2026-07-01 16:40:29.712378+00;;Patrícia Enf.;success;2026-07-10 14:36:33+00;true
+2026-07-02 15:58:24.316333+00;;Distrimed;;2026-07-03 13:19:22+00;false
+2026-07-03 19:43:14.06308+00;;Psicologa Ana Maisa;success;2026-07-10 18:41:18+00;true
+2026-07-06 13:40:59.656509+00;;Lívìa;;2026-07-17 17:05:46+00;true
+2026-07-06 15:51:06.605147+00;;Mirelle Agostini Medrano;;2026-07-13 21:37:31+00;true
+2026-07-08 13:16:02.054+00;missing agent_id;Edilene Félix;error;2026-07-15 18:24:08+00;true
