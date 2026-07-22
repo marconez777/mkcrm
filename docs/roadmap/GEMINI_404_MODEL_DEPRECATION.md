@@ -50,9 +50,10 @@ Critério de aceite: uma request bem-sucedida no agente SDR 3.0 MK usando a chav
 
 **Objetivo:** o dispatcher precisa aprender qual modelo funciona por chave, não tentar 3 chamadas por request.
 
-- [ ] F2.1 Cache in-memory por `agent.id` (TTL 10 min) do modelo efetivo resolvido no último sucesso.
-- [ ] F2.2 Ao receber 404 "no longer available", marcar o modelo como bloqueado para aquela `google_api_key` (hash SHA-256 truncado como cache key) e pular direto para o próximo.
-- [ ] F2.3 Logar `resolved_model` no `agent_run_logs` para termos telemetria de qual modelo cada tenant está usando de fato.
+- [x] F2.1 Cache in-memory por `agent.id` (TTL 10 min) do modelo efetivo resolvido no último sucesso.
+- [x] F2.2 Ao receber 404 "no longer available", marcar o modelo como bloqueado para aquela `google_api_key` (hash SHA-256 truncado como cache key) e pular direto para o próximo (TTL 30 min).
+- [x] F2.3 Logar `resolved_model` (`agent_id`, requested, resolved, from_cache, fallbacks_skipped) no console da edge — telemetria de qual modelo cada tenant está usando de fato.
+
 
 ## Fase 3 — UI e catálogo (P1, hora)
 

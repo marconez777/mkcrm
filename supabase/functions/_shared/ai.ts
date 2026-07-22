@@ -314,6 +314,44 @@ function buildModelFallbackChain(requested: string): string[] {
   return out;
 }
 
+// ---- Fase 2: cache de modelo resolvido + bloqueio por chave ----
+// Estado in-memory por warm instance da edge. TTL curto para permitir que o
+// Google restaure modelos sem exigir redeploy.
+const RESOLVED_MODEL_TTL_MS = 10 * 60 * 1000; // 10 min
+const BLOCKED_MODEL_TTL_MS = 30 * 60 * 1000;  // 30 min
+type ResolvedEntry = { model: string; ts: number };
+const resolvedModelCache = new Map<string, ResolvedEntry>(); // key: agentId|keyHash
+const blockedModelCache = new Map<string, number>();          // key: keyHash|model -> expiresAt
+
+async function hashKey(apiKey: string): Promise<string> {
+  const data = new TextEncoder().encode(apiKey);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 16);
+}
+function getResolvedModel(agentId: string, keyHash: string): string | null {
+  const entry = resolvedModelCache.get(`${agentId}|${keyHash}`);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > RESOLVED_MODEL_TTL_MS) {
+    resolvedModelCache.delete(`${agentId}|${keyHash}`);
+    return null;
+  }
+  return entry.model;
+}
+function setResolvedModel(agentId: string, keyHash: string, model: string) {
+  resolvedModelCache.set(`${agentId}|${keyHash}`, { model, ts: Date.now() });
+}
+function isModelBlocked(keyHash: string, model: string): boolean {
+  const exp = blockedModelCache.get(`${keyHash}|${model}`);
+  if (!exp) return false;
+  if (Date.now() > exp) { blockedModelCache.delete(`${keyHash}|${model}`); return false; }
+  return true;
+}
+function blockModel(keyHash: string, model: string) {
+  blockedModelCache.set(`${keyHash}|${model}`, Date.now() + BLOCKED_MODEL_TTL_MS);
+}
+
+
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
   const requestedModel = agent.model.replace("google/", "");
   const modelChain = buildModelFallbackChain(requestedModel);
@@ -384,14 +422,26 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
   const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
 
+  // Fase 2: reorganiza a cadeia usando o cache de modelo resolvido para essa
+  // combinação agent+chave, e remove modelos bloqueados recentemente por 404.
+  const keyHash = await hashKey(apiKey);
+  const cachedResolved = getResolvedModel(agent.id, keyHash);
+  const orderedChain: string[] = [];
+  const seenOrdered = new Set<string>();
+  const pushOrdered = (m: string) => { if (m && !seenOrdered.has(m) && !isModelBlocked(keyHash, m)) { seenOrdered.add(m); orderedChain.push(m); } };
+  if (cachedResolved) pushOrdered(cachedResolved);
+  for (const m of modelChain) pushOrdered(m);
+  // Se tudo estava bloqueado, tenta a cadeia original mesmo assim (o bloqueio pode ter expirado no provider).
+  const effectiveChain = orderedChain.length ? orderedChain : modelChain;
+
   // Tenta cada modelo em ordem. Só passa pro próximo se o Google matou o modelo
   // (404 "no longer available"/"not found"). Qualquer outro erro (401/403/429/500)
   // é retornado imediatamente — não faz sentido tentar outro modelo.
   const attempts: Array<{ model: string; status: number; error: string }> = [];
   let r: Response | null = null;
-  let actualModel = modelChain[0];
+  let actualModel = effectiveChain[0];
 
-  for (const model of modelChain) {
+  for (const model of effectiveChain) {
     actualModel = model;
     const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
     let resp = await fetch(url, {
@@ -423,9 +473,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       const retryErrorText = await retry.text();
       const combined = retryErrorText || firstErrorText;
       attempts.push({ model, status: retry.status, error: compactErrorText(combined, 300) });
-      // Só tenta próximo modelo se o erro é "modelo sumiu".
-      if (isGoogleModelGoneError(retry.status, combined)) continue;
-      // Erro real (auth, quota, safety, invalid). Aborta a cadeia.
+      if (isGoogleModelGoneError(retry.status, combined)) { blockModel(keyHash, model); continue; }
       console.error("[googleChat] provider error", {
         status: retry.status,
         model,
@@ -444,7 +492,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
 
     const errorText = await resp.text();
     attempts.push({ model, status: resp.status, error: compactErrorText(errorText, 300) });
-    if (isGoogleModelGoneError(resp.status, errorText)) continue;
+    if (isGoogleModelGoneError(resp.status, errorText)) { blockModel(keyHash, model); continue; }
     console.error("[googleChat] provider error", {
       status: resp.status,
       model,
@@ -461,20 +509,29 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     const last = attempts[attempts.length - 1];
     console.error("[googleChat] all models in fallback chain returned 'model gone'", {
       requestedModel,
-      chain: modelChain,
+      chain: effectiveChain,
       attempts,
     });
     return {
       ok: false,
       status: last?.status ?? 404,
       errorText: enrichGoogleError(
-        `Nenhum modelo Gemini disponível para esta chave. Testados: ${modelChain.join(", ")}. Último erro: ${last?.error ?? "unknown"}`,
+        `Nenhum modelo Gemini disponível para esta chave. Testados: ${effectiveChain.join(", ")}. Último erro: ${last?.error ?? "unknown"}`,
       ),
       retryable: false,
       choices: [],
     };
   }
 
+  // Sucesso: memoriza o modelo efetivo para essa chave/agent.
+  setResolvedModel(agent.id, keyHash, actualModel);
+  console.log("[googleChat] resolved_model", {
+    agent_id: agent.id,
+    requested: requestedModel,
+    resolved: actualModel,
+    from_cache: cachedResolved === actualModel,
+    fallbacks_skipped: attempts.length,
+  });
   if (attempts.length > 0) {
     console.warn("[googleChat] fell back to alternate model", {
       requested: requestedModel,
@@ -482,6 +539,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       skipped: attempts,
     });
   }
+
 
   const data = await r.json();
   const cand = data.candidates?.[0];
