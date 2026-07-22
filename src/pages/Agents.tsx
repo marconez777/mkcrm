@@ -87,11 +87,35 @@ type Agent = {
 const PROVIDER_MODELS: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
   anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-  google: ["gemini-flash-latest", "gemini-pro-latest", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
+  // Fase 3 do roadmap GEMINI_404_MODEL_DEPRECATION:
+  // recomendados primeiro; 2.5-* ficam como legacy (só funcionam em contas antigas do GCP até 16/10/2026).
+  google: [
+    "gemini-flash-latest",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
+    "gemini-pro-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ],
   xai: ["grok-2-latest", "grok-2-mini", "grok-beta", "grok-vision-beta"],
   manus: [],
   lovable: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
 };
+
+/** Rótulos amigáveis exibidos no <option>. Fonte: docs/roadmap/GEMINI_404_MODEL_DEPRECATION.md */
+const MODEL_LABEL: Record<string, string> = {
+  "gemini-flash-latest": "gemini-flash-latest — recomendado (alias do Flash mais novo)",
+  "gemini-3-flash-preview": "gemini-3-flash-preview — substituto direto de 2.5-flash",
+  "gemini-3.1-flash-lite": "gemini-3.1-flash-lite — custo-eficiente",
+  "gemini-pro-latest": "gemini-pro-latest — alias do Pro mais novo",
+  "gemini-2.5-flash": "gemini-2.5-flash — legacy (só contas antigas, 404 em chaves novas)",
+  "gemini-2.5-pro": "gemini-2.5-pro — legacy (só contas antigas)",
+  "gemini-2.5-flash-lite": "gemini-2.5-flash-lite — legacy",
+  "gemini-2.0-flash": "gemini-2.0-flash — legacy",
+};
+
 const PROVIDER_LABEL: Record<Provider, string> = {
   openai: "OpenAI", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", xai: "xAI (Grok)", manus: "Manus",
   lovable: "Gemini Chat Funnel AI",
@@ -886,16 +910,25 @@ export default function Agents() {
                           </p>
                         </div>
                       ) : PROVIDER_MODELS[selected.provider].length > 0 ? (
-                        <select
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
-                          onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                        >
-                          <option value="" disabled>Selecione um modelo</option>
-                          {PROVIDER_MODELS[selected.provider].map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
+                        <>
+                          <select
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
+                            onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                          >
+                            <option value="" disabled>Selecione um modelo</option>
+                            {PROVIDER_MODELS[selected.provider].map((m) => (
+                              <option key={m} value={m}>{MODEL_LABEL[m] ?? m}</option>
+                            ))}
+                          </select>
+                          {selected.provider === "google" && (
+                            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                              Chave nova do Google AI Studio? Use <code>gemini-flash-latest</code> ou <code>gemini-3-flash-preview</code>.
+                              Modelos <code>gemini-2.5-*</code> retornam 404 para chaves criadas depois de 09/07/2026 (shutdown oficial em 16/10/2026).
+                            </p>
+                          )}
+                        </>
+
                       ) : (
                         <Input
                           placeholder="Nome do modelo (ex: manus-pro)"
