@@ -314,6 +314,44 @@ function buildModelFallbackChain(requested: string): string[] {
   return out;
 }
 
+// ---- Fase 2: cache de modelo resolvido + bloqueio por chave ----
+// Estado in-memory por warm instance da edge. TTL curto para permitir que o
+// Google restaure modelos sem exigir redeploy.
+const RESOLVED_MODEL_TTL_MS = 10 * 60 * 1000; // 10 min
+const BLOCKED_MODEL_TTL_MS = 30 * 60 * 1000;  // 30 min
+type ResolvedEntry = { model: string; ts: number };
+const resolvedModelCache = new Map<string, ResolvedEntry>(); // key: agentId|keyHash
+const blockedModelCache = new Map<string, number>();          // key: keyHash|model -> expiresAt
+
+async function hashKey(apiKey: string): Promise<string> {
+  const data = new TextEncoder().encode(apiKey);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 16);
+}
+function getResolvedModel(agentId: string, keyHash: string): string | null {
+  const entry = resolvedModelCache.get(`${agentId}|${keyHash}`);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > RESOLVED_MODEL_TTL_MS) {
+    resolvedModelCache.delete(`${agentId}|${keyHash}`);
+    return null;
+  }
+  return entry.model;
+}
+function setResolvedModel(agentId: string, keyHash: string, model: string) {
+  resolvedModelCache.set(`${agentId}|${keyHash}`, { model, ts: Date.now() });
+}
+function isModelBlocked(keyHash: string, model: string): boolean {
+  const exp = blockedModelCache.get(`${keyHash}|${model}`);
+  if (!exp) return false;
+  if (Date.now() > exp) { blockedModelCache.delete(`${keyHash}|${model}`); return false; }
+  return true;
+}
+function blockModel(keyHash: string, model: string) {
+  blockedModelCache.set(`${keyHash}|${model}`, Date.now() + BLOCKED_MODEL_TTL_MS);
+}
+
+
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
   const requestedModel = agent.model.replace("google/", "");
   const modelChain = buildModelFallbackChain(requestedModel);
