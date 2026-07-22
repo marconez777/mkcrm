@@ -288,6 +288,9 @@ async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[
 }
 
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
+  // Normalize removed alias
+  const actualModel = agent.model.replace("google/", "") === "gemini-flash-latest" ? "gemini-2.5-flash" : agent.model.replace("google/", "");
+
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents: any[] = [];
   for (const m of messages) {
@@ -360,7 +363,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   };
   const apiKey = requireGoogleKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent`;
+  const url = `${base}/models/${encodeURIComponent(actualModel)}:generateContent`;
   // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
   // ?key= na URL falha silenciosamente com API_KEY_INVALID em chaves novas AQ..
   const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
@@ -373,7 +376,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
   if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
     const firstErrorText = await r.text();
-    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(agent.model)}:generateContent`;
+    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(actualModel)}:generateContent`;
     let retry = await fetch(v1Url, {
       method: "POST",
       headers: gHeaders,
@@ -395,7 +398,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       const retryErrorText = await retry.text();
       console.error("[googleChat] provider error", {
         status: retry.status,
-        model: agent.model,
+        model: actualModel,
         error: compactErrorText(retryErrorText),
         fallback_from_v1beta: compactErrorText(firstErrorText, 240),
         fallback_v1_with_sys: secondErrorText ? compactErrorText(secondErrorText, 240) : undefined,
@@ -410,7 +413,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     const errorText = await r.text();
     console.error("[googleChat] provider error", {
       status: r.status,
-      model: agent.model,
+      model: actualModel,
       error: compactErrorText(errorText),
       messages: messages.length,
       tools: tools?.length ?? 0,
@@ -438,7 +441,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   if (!text && !tool_calls.length) {
     // Loga TUDO que dá pra usar no diagnóstico: finishReason, safety, parts crus, prompt feedback.
     console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
-      model: agent.model,
+      model: actualModel,
       finishReason: cand?.finishReason,
       safetyRatings: cand?.safetyRatings,
       promptFeedback: data.promptFeedback,
@@ -452,7 +455,7 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     return {
       ok: false,
       status: 502,
-      errorText: `empty response from ${agent.model} (finishReason=${reason})`,
+      errorText: `empty response from ${actualModel} (finishReason=${reason})`,
       retryable: reason === "MAX_TOKENS" || reason === "OTHER" || reason === "no_candidate",
       choices: [],
     };
