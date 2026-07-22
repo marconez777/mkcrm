@@ -287,9 +287,36 @@ async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[
   };
 }
 
+// Roadmap GEMINI_404_MODEL_DEPRECATION Fase 1:
+// não hard-code alias -> modelo antigo. Google removeu gemini-2.5-* para
+// contas novas (09/07/2026). Se um modelo pedido devolver 404 "no longer
+// available"/"not found", tentamos a próxima opção da cadeia.
+function isGoogleModelGoneError(status: number, body: string): boolean {
+  if (status !== 404) return false;
+  const s = body.toLowerCase();
+  return s.includes("no longer available") || s.includes("not found") || s.includes("not_found");
+}
+function buildModelFallbackChain(requested: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (m: string) => {
+    const v = m.trim();
+    if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+  };
+  push(requested);
+  // Se o pedido é um flash Gemini, adiciona rotas alternativas em ordem
+  // do mais novo para o mais antigo (o oposto do que a gente estava fazendo).
+  if (/gemini.*(flash|latest)/i.test(requested)) {
+    push("gemini-flash-latest");
+    push("gemini-3-flash-preview");
+    push("gemini-2.5-flash");
+  }
+  return out;
+}
+
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
-  // Normalize removed alias
-  const actualModel = agent.model.replace("google/", "") === "gemini-flash-latest" ? "gemini-2.5-flash" : agent.model.replace("google/", "");
+  const requestedModel = agent.model.replace("google/", "");
+  const modelChain = buildModelFallbackChain(requestedModel);
 
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents: any[] = [];
@@ -325,8 +352,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       })) }]
     : undefined;
 
-  // Safety settings PERMISSIVAS — sem isso o Gemini bloqueia respostas de vendas/WhatsApp
-  // silenciosamente (finishReason=SAFETY, content vazio). Categorias oficiais Gemini API.
   const SAFETY_SETTINGS = [
     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -338,7 +363,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const buildBody = (opts: { includeSystemInstruction: boolean }) => {
     const contentsFinal = [...contents];
     if (sys && !opts.includeSystemInstruction) {
-      // v1 endpoint (or retries) may not accept systemInstruction — prepend as user turn.
       contentsFinal.unshift({ role: "user", parts: [{ text: `[System]\n${sys}` }] });
     }
     return JSON.stringify({
@@ -350,75 +374,113 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       safetySettings: SAFETY_SETTINGS,
       generationConfig: {
         temperature: Number(agent.temperature) || 0.7,
-        // Sem maxOutputTokens explícito o Gemini pode gastar TODO orçamento em
-        // thinking silencioso (mesmo com budget=0 alguns modelos ignoram) e
-        // devolver content vazio com finishReason=MAX_TOKENS. Fixamos um teto real.
         maxOutputTokens: 2048,
-        // gemini-2.5-* / gemini-flash-latest ligam "thinking" por padrão, o que
-        // consome tokens em partes com { thought: true } SEM texto visível — o
-        // agente ficava mudo (output_tokens>0, content vazio). Desligamos aqui.
         thinkingConfig: { thinkingBudget: 0 },
       },
     });
   };
+
   const apiKey = requireGoogleKey(agent);
   const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(actualModel)}:generateContent`;
-  // Regra #9: chave via header x-goog-api-key (funciona pra AIza... e AQ....);
-  // ?key= na URL falha silenciosamente com API_KEY_INVALID em chaves novas AQ..
   const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
-  let r = await fetch(url, {
-    method: "POST",
-    headers: gHeaders,
-    body: buildBody({ includeSystemInstruction: true }),
-  });
-  // Fallback chain when v1beta rejects (e.g. 404 model, or 400 systemInstruction):
-  // try v1 with systemInstruction, then v1 without systemInstruction (prepended to contents).
-  if (!r.ok && (r.status === 404 || r.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
-    const firstErrorText = await r.text();
-    const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(actualModel)}:generateContent`;
-    let retry = await fetch(v1Url, {
+
+  // Tenta cada modelo em ordem. Só passa pro próximo se o Google matou o modelo
+  // (404 "no longer available"/"not found"). Qualquer outro erro (401/403/429/500)
+  // é retornado imediatamente — não faz sentido tentar outro modelo.
+  const attempts: Array<{ model: string; status: number; error: string }> = [];
+  let r: Response | null = null;
+  let actualModel = modelChain[0];
+
+  for (const model of modelChain) {
+    actualModel = model;
+    const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
+    let resp = await fetch(url, {
       method: "POST",
       headers: gHeaders,
       body: buildBody({ includeSystemInstruction: true }),
     });
-    let secondErrorText = "";
-    if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
-      secondErrorText = await retry.text();
-      retry = await fetch(v1Url, {
+
+    // Fallback v1beta -> v1 (systemInstruction quirk / model missing em v1beta).
+    if (!resp.ok && (resp.status === 404 || resp.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
+      const firstErrorText = await resp.text();
+      const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(model)}:generateContent`;
+      let retry = await fetch(v1Url, {
         method: "POST",
         headers: gHeaders,
-        body: buildBody({ includeSystemInstruction: false }),
+        body: buildBody({ includeSystemInstruction: true }),
       });
-    }
-
-    if (retry.ok) {
-      r = retry;
-    } else {
+      if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
+        retry = await fetch(v1Url, {
+          method: "POST",
+          headers: gHeaders,
+          body: buildBody({ includeSystemInstruction: false }),
+        });
+      }
+      if (retry.ok) {
+        r = retry;
+        break;
+      }
       const retryErrorText = await retry.text();
+      const combined = retryErrorText || firstErrorText;
+      attempts.push({ model, status: retry.status, error: compactErrorText(combined, 300) });
+      // Só tenta próximo modelo se o erro é "modelo sumiu".
+      if (isGoogleModelGoneError(retry.status, combined)) continue;
+      // Erro real (auth, quota, safety, invalid). Aborta a cadeia.
       console.error("[googleChat] provider error", {
         status: retry.status,
-        model: actualModel,
-        error: compactErrorText(retryErrorText),
-        fallback_from_v1beta: compactErrorText(firstErrorText, 240),
-        fallback_v1_with_sys: secondErrorText ? compactErrorText(secondErrorText, 240) : undefined,
+        model,
+        error: compactErrorText(combined),
+        chain_attempts: attempts,
         messages: messages.length,
         tools: tools?.length ?? 0,
       });
-      return { ok: false, status: retry.status, errorText: enrichGoogleError(retryErrorText || secondErrorText || firstErrorText), retryable: isRetryableStatus(retry.status), choices: [] };
+      return { ok: false, status: retry.status, errorText: enrichGoogleError(combined), retryable: isRetryableStatus(retry.status), choices: [] };
     }
-  }
 
-  if (!r.ok) {
-    const errorText = await r.text();
+    if (resp.ok) {
+      r = resp;
+      break;
+    }
+
+    const errorText = await resp.text();
+    attempts.push({ model, status: resp.status, error: compactErrorText(errorText, 300) });
+    if (isGoogleModelGoneError(resp.status, errorText)) continue;
     console.error("[googleChat] provider error", {
-      status: r.status,
-      model: actualModel,
+      status: resp.status,
+      model,
       error: compactErrorText(errorText),
+      chain_attempts: attempts,
       messages: messages.length,
       tools: tools?.length ?? 0,
     });
-    return { ok: false, status: r.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(r.status), choices: [] };
+    return { ok: false, status: resp.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(resp.status), choices: [] };
+  }
+
+  if (!r) {
+    // Nenhum modelo da cadeia respondeu — todos deram "modelo sumiu".
+    const last = attempts[attempts.length - 1];
+    console.error("[googleChat] all models in fallback chain returned 'model gone'", {
+      requestedModel,
+      chain: modelChain,
+      attempts,
+    });
+    return {
+      ok: false,
+      status: last?.status ?? 404,
+      errorText: enrichGoogleError(
+        `Nenhum modelo Gemini disponível para esta chave. Testados: ${modelChain.join(", ")}. Último erro: ${last?.error ?? "unknown"}`,
+      ),
+      retryable: false,
+      choices: [],
+    };
+  }
+
+  if (attempts.length > 0) {
+    console.warn("[googleChat] fell back to alternate model", {
+      requested: requestedModel,
+      resolved: actualModel,
+      skipped: attempts,
+    });
   }
 
   const data = await r.json();
@@ -427,7 +489,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   const tool_calls: any[] = [];
   let i = 0;
   for (const p of cand?.content?.parts ?? []) {
-    // Ignora "thinking parts" (p.thought === true) — não são resposta ao usuário.
     if (p.thought) continue;
     if (p.text) text += p.text;
     if (p.functionCall) {
@@ -439,7 +500,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     }
   }
   if (!text && !tool_calls.length) {
-    // Loga TUDO que dá pra usar no diagnóstico: finishReason, safety, parts crus, prompt feedback.
     console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
       model: actualModel,
       finishReason: cand?.finishReason,
@@ -449,8 +509,6 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       partsRaw: JSON.stringify(cand?.content?.parts ?? []).slice(0, 500),
       usage: data.usageMetadata,
     });
-    // Retorna erro retryable para o caller decidir (dispatcher tenta de novo, ai-chat devolve 502).
-    // Isso é MUITO melhor do que "sucesso com content vazio" — o agente ficava mudo silenciosamente.
     const reason = cand?.finishReason ?? "no_candidate";
     return {
       ok: false,

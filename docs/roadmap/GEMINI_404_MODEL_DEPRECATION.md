@@ -40,9 +40,9 @@ Observado apenas em chaves/projetos GCP que **nunca tinham chamado `gemini-2.5-f
 
 **Objetivo:** parar de mapear cegamente `flash-latest` → `2.5-flash`.
 
-- [ ] F1.1 Remover o remapeamento hard-coded em `_shared/ai.ts:292`. Enviar o modelo do agente como está (`gemini-flash-latest`, `gemini-2.5-flash`, `gemini-3-flash-preview` etc.) e deixar o Google decidir.
-- [ ] F1.2 Se `gemini-flash-latest` for chamado e retornar 404, cair em fallback ordenado: `gemini-flash-latest` → `gemini-3-flash-preview` → `gemini-2.5-flash`. Retornar erro apenas se todos falharem.
-- [ ] F1.3 Deploy `ai-chat` e validar em Febracis + MK.
+- [x] F1.1 Remover o remapeamento hard-coded em `_shared/ai.ts:292`. Enviar o modelo do agente como está (`gemini-flash-latest`, `gemini-2.5-flash`, `gemini-3-flash-preview` etc.) e deixar o Google decidir.
+- [x] F1.2 Se `gemini-flash-latest` for chamado e retornar 404, cair em fallback ordenado: `gemini-flash-latest` → `gemini-3-flash-preview` → `gemini-2.5-flash`. Retornar erro apenas se todos falharem.
+- [x] F1.3 Deploy `ai-chat` e validar em Febracis + MK.
 
 Critério de aceite: uma request bem-sucedida no agente SDR 3.0 MK usando a chave nova, sem 404.
 
