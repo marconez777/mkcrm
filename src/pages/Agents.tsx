@@ -910,16 +910,25 @@ export default function Agents() {
                           </p>
                         </div>
                       ) : PROVIDER_MODELS[selected.provider].length > 0 ? (
-                        <select
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
-                          onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                        >
-                          <option value="" disabled>Selecione um modelo</option>
-                          {PROVIDER_MODELS[selected.provider].map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
+                        <>
+                          <select
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
+                            onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                          >
+                            <option value="" disabled>Selecione um modelo</option>
+                            {PROVIDER_MODELS[selected.provider].map((m) => (
+                              <option key={m} value={m}>{MODEL_LABEL[m] ?? m}</option>
+                            ))}
+                          </select>
+                          {selected.provider === "google" && (
+                            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                              Chave nova do Google AI Studio? Use <code>gemini-flash-latest</code> ou <code>gemini-3-flash-preview</code>.
+                              Modelos <code>gemini-2.5-*</code> retornam 404 para chaves criadas depois de 09/07/2026 (shutdown oficial em 16/10/2026).
+                            </p>
+                          )}
+                        </>
+
                       ) : (
                         <Input
                           placeholder="Nome do modelo (ex: manus-pro)"
