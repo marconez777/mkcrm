@@ -59,11 +59,10 @@ Critério de aceite: uma request bem-sucedida no agente SDR 3.0 MK usando a chav
 
 **Objetivo:** parar de oferecer modelos que o Google já matou.
 
-- [ ] F3.1 Em `src/pages/Agents.tsx`, atualizar a lista de modelos Gemini:
-  - Manter: `gemini-flash-latest`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`, `gemini-2.5-pro` (quando disponível na conta).
-  - Remover das opções default: `gemini-2.5-flash` (marcar como "legacy — só funciona em contas antigas").
-- [ ] F3.2 Adicionar tooltip explicando: "Se sua chave é nova, use `gemini-flash-latest`. Contas antigas do GCP ainda conseguem usar 2.5-flash até 16/10/2026."
+- [x] F3.1 Em `src/pages/Agents.tsx`, atualizada a lista Gemini: adicionados `gemini-3-flash-preview` e `gemini-3.1-flash-lite`; `gemini-2.5-*` e `gemini-2.0-flash` marcados como legacy no rótulo do `<option>`.
+- [x] F3.2 Hint abaixo do select para provider `google`: recomenda `gemini-flash-latest` para chaves novas e explica o 404 do 2.5 desde 09/07/2026.
 - [ ] F3.3 Botão "Testar modelo" no formulário do agente — dispara uma chamada mínima e mostra qual modelo o Google aceitou.
+
 
 ## Fase 4 — Migração dos tenants em produção (P2)
 
