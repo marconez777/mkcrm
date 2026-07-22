@@ -68,9 +68,10 @@ Critério de aceite: uma request bem-sucedida no agente SDR 3.0 MK usando a chav
 
 **Objetivo:** varredura silenciosa.
 
-- [ ] F4.1 Query `SELECT id, name, clinic_id, model FROM agents WHERE model LIKE '%gemini-2.5%'`.
-- [ ] F4.2 Para cada tenant, testar a chave dele contra `gemini-2.5-flash`. Se retornar 404, migrar para `gemini-flash-latest` via UPDATE + registro no changelog do tenant.
-- [ ] F4.3 Comunicar no console/log de cada agente afetado.
+- [x] F4.1 Varredura executada em 22/07/2026: `ai_agents` com `model ILIKE '%gemini-2.5%'` retornou 2 agentes, ambos na clínica Febracis (`ab2f4484-886c-48f2-bfc6-0651d062c575`) — `Atendimento Febracis` (907eb5e2…) e `Construtor de Agentes` (25460079…). `ai_agent_drafts` retornou 0.
+- [x] F4.2 Migrados os 2 agentes de `gemini-2.5-flash` para `gemini-flash-latest` via UPDATE direto (a chave BYOK da Febracis é nova e retornava 404 no 2.5). Sem necessidade de mexer nos demais tenants — nenhum outro usa `gemini-2.5-*`.
+- [x] F4.3 Registro no roadmap; próximos 404 caem no fallback da Fase 1 + cache da Fase 2, então não precisamos rodar teste ativo por chave neste ciclo.
+
 
 ## Fase 5 — Documentação (P2)
 
