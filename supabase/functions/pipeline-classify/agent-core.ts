@@ -904,10 +904,20 @@ async function runAgentOnce(
       })
     : runTypifier(ai, ctx, summary).then((r) => ({ ...r, skipped: false }));
 
+  const isClinicaOr = ctx.lead.clinic_id === "cf038458-457d-4c1a-9ac4-c88c3c8353a1";
+
+  const agendadorTask = isClinicaOr
+    ? Promise.resolve({ output: { is_scheduling_action: false, scheduling_intent: "nenhum", reasons: ["skipped:clinica_or_deterministic"] } as AgendadorOutput, usage: {} })
+    : runAgendador(ai, ctx, summary);
+
+  const movimentadorTask = isClinicaOr
+    ? Promise.resolve({ output: { stage_suggestion: ctx.stageName, intent: "outro", mentioned_intents: [], is_b2b: false, reasons: ["skipped:clinica_or_deterministic"] } as MovimentadorOutput, usage: {} })
+    : runMovimentador(ai, ctx, summary);
+
   const [sAg, sPr, sMo] = await Promise.allSettled([
-    runAgendador(ai, ctx, summary),
+    agendadorTask,
     typifierTask,
-    runMovimentador(ai, ctx, summary),
+    movimentadorTask,
   ]);
   const stepLat = performance.now() - t2;
 
@@ -973,15 +983,30 @@ async function runAgentOnce(
     typifier_skipped: allKeysProtected,
   };
 
-  try {
-    const r3 = await runMaestro(ai, ctx, summary, outAgendador, outPreenchedor, outMovimentador, maestroSignals);
-    maestroOut = r3.output;
-    usage3 = r3.usage;
-    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider, details: { json_fallback_used: r3.fallbackUsed === true } });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "maestro", lead_requeued: true } });
-    return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
+  if (isClinicaOr) {
+    maestroOut = {
+      stage_suggestion: ctx.stageName,
+      intent: "outro",
+      mentioned_intents: [],
+      is_b2b: false,
+      confidence: 1.0,
+      tags_suggested: outPreenchedor?.tags_suggested ?? [],
+      custom_fields_patch: outPreenchedor?.custom_fields_patch ?? {},
+      reasons: ["skipped:clinica_or_deterministic"]
+    };
+    usage3 = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    await safeRecordStep({ ctx, model: "none", operation: "classifier:maestro_skipped", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider, details: { phase: "maestro_skipped" } });
+  } else {
+    try {
+      const r3 = await runMaestro(ai, ctx, summary, outAgendador!, outPreenchedor!, outMovimentador!, maestroSignals);
+      maestroOut = r3.output;
+      usage3 = r3.usage;
+      await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "success", latencyMs: performance.now() - t3, usage: usage3, provider: ai.provider, details: { json_fallback_used: r3.fallbackUsed === true } });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await safeRecordStep({ ctx, model: M_MAESTRO, operation: "classifier:maestro", status: "error", latencyMs: performance.now() - t3, error: msg.slice(0, 500), provider: ai.provider, details: { phase: "maestro", lead_requeued: true } });
+      return { error: `agent_step3_maestro_failed: ${msg.slice(0, 200)}` };
+    }
   }
 
 
@@ -1013,7 +1038,7 @@ async function runAgentOnce(
         movimentador: Math.round(lat2),
         maestro: Math.round(lat3)
       },
-      ran: { summarizer: true, agendador: true, typifier: !allKeysProtected, movimentador: true, maestro: true },
+      ran: { summarizer: true, agendador: !isClinicaOr, typifier: !allKeysProtected, movimentador: !isClinicaOr, maestro: !isClinicaOr },
     },
   };
 }

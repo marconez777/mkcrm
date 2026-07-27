@@ -1,56 +1,56 @@
 ---
-title: "Gatilhos e Automações (Rule Engine) — Clínica ÓR"
+title: "Gatilhos e Automações (Rule Engine V7) — Clínica ÓR"
 topic: kanban
 kind: feature
 audience: agent
-updated: 2026-07-17
-summary: "Rule engine da Clínica ÓR: gatilhos determinísticos, geladeiras de inatividade, reator humano e relatório mensal Dia 1."
+updated: 2026-07-27
+summary: "Rule engine estrito da Clínica ÓR: gatilhos determinísticos baseados em ação humana e inatividade. IA de movimentação depreciada para este tenant."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
-  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-deterministic/
   - supabase/functions/pipeline-inactivity-tick/
   - supabase/functions/pipeline-monthly-cycle-or/
   - supabase/functions/report-finalizados-mensal-or/
 related_docs:
   - docs/tenants/clinica-or/README.md
-  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+  - docs/tenants/clinica-or/agentes-e-modelos.md
 ---
 
-# Gatilhos e Automações (Rule Engine) — Clínica ÓR
+# Gatilhos e Automações (Rule Engine V7) — Clínica ÓR
 
-O "Rule Engine" processa regras determinísticas sem depender do LLM. Operam na camada do banco ou via *edge functions* engatilhadas por crons e Webhooks.
+> **⚠️ AVISO DE ISOLAMENTO (TENANT SPECIFIC):** 
+> As regras e o comportamento estrito documentados aqui se aplicam **EXCLUSIVAMENTE** ao tenant `clinica-or`. A inteligência artificial de movimentação foi desligada apenas para este tenant. Outras clínicas e tenants continuam utilizando suas próprias lógicas de agentes classificadores.
 
-## Regras Determinísticas (`auto:*`)
+O "Rule Engine V7" da Clínica ÓR aboliu a IA para mover cards. Agora, o pipeline opera 100% de forma determinística, engatilhado por ações da secretária no banco de dados ou por cron jobs avaliando inatividade.
 
-As automações básicas rodam sem IA, geralmente disparadas por webhooks ou CRONs.
-- `auto:novo-lead`: Disparado na inserção via `evolution-webhook`. Envia mensagem de boas-vindas da clínica e define `source='system'`.
-- `auto:secretary-replied`: Quando a secretária envia a primeira mensagem (direção outbound), o lead move de "Leads de Entrada" para "Qualificação".
-- `auto:appointment-*`: Um conjunto de triggers PostgreSQL associados ao status dos Agendamentos:
-  - `agendado`: Move o card para "Consulta agendada" ou "Tratamento agendado" (exceto se for Paciente Antigo, neste caso apenas anexa a tag e mantém a coluna).
-  - `realizado`: Move para "Consulta finalizada" ou incrementa o ciclo em "Em tratamento".
-  - `faltou`: Manda o lead para "Sem Resposta", aplica tag `no_show` e agenda task de reagendamento.
+## Regras Determinísticas de Ação Humana (`auto:human-action`)
+
+As automações básicas rodam sem IA e são disparadas por ações reais:
+
+- **Gatilho de Agendamento (Inserção de Horário):** 
+  - Quando a secretária preenche um horário de consulta ou tratamento no card (seja inserindo a data/hora via UI ou criando um compromisso no banco).
+  - **Ação:** O gatilho intercepta a atualização e move automaticamente o card para a coluna "Consulta Agendada" ou "Tratamento Agendado" correspondente, acionando também as automações de lembretes (se aplicável).
+- **Gatilho de Primeira Resposta (`auto:secretary-replied`):** 
+  - Quando a secretária envia a primeira mensagem ativa (direção outbound).
+  - **Ação:** O lead é movido de "Leads de Entrada" para "Qualificação".
+- **Gatilho de Atualização de Status da Consulta (`auto:appointment-*`):**
+  - Triggers no PostgreSQL espelham o status do compromisso no Kanban:
+  - `realizado`: Move para "Consulta finalizada" ou avança o ciclo de "Em tratamento".
+  - `faltou`: Manda o lead para "Sem Resposta", aplica tag `no_show`.
   - `cancelado`: Manda para "Qualificação" com a tag `reagendamento_pendente`.
 
-## Automação de Inatividade (Geladeira)
-Baseada na lógica de *tiers*, orquestrada pela edge function `automations-tick`:
-- `no_reply_after` (48h): Após 48 horas sem resposta do lead na fase de Qualificação, o sistema o move automaticamente para a coluna "Sem Resposta".
-- `stage_idle` (7 dias): Se o lead permanecer intocado na coluna "Sem Resposta" por 168 horas (7 dias), a automação "Geladeira - 7 Dias sem resposta" o move automaticamente para a "Nutrição inativa" (Geladeira de Leads).
+## Automação de Inatividade (Geladeira Temporal)
+Como a IA não julga mais o "desinteresse", usamos *Service Level Agreements* (SLAs) estritos de inatividade, rodando no cron:
 
-## Lembretes de Consulta
-Diferente da inatividade de pipeline, os avisos operacionais de consulta (ex: 24h e 1h antes) vivem isolados em **Automations UI** (`/automations`), rodando via `automations-tick`. O sistema é esperto o suficiente para suprimir lembretes redundantes para marcações de última hora.
+- **SLA 1 - Falta de Resposta (Ex: 48h):** Após X horas sem resposta do lead na fase de Qualificação, o sistema o move automaticamente para a coluna "Sem Resposta". (O prazo exato será parametrizado conforme a nova lógica em desenvolvimento).
+- **SLA 2 - Geladeira (Ex: 7 dias):** Se o lead permanecer intocado na coluna "Sem Resposta" por um número definido de dias, ele cai automaticamente para a "Nutrição Inativa" (Geladeira de Leads).
 
-## Reator Humano (Human Reactor)
-Quando a secretária edita um estágio do card manualmente na UI, um *hook* (`pipeline-human-reactor`) reage à ação:
-- O sistema bloqueia a IA de intervir ou sobrescrever aquele lead por 7 dias (`manual_lock_until = now() + 7d`).
-- Se a secretária move para "Sem Resposta", a IA paralisa os follow-ups agendados por 24h para deixar o humano cuidar.
-- Se a secretária cancela uma consulta pelo card, o reator captura a intenção e repassa pro sistema de compromissos automaticamente, disparando toda a cadeia de `auto:appointment-cancelado`.
+## Reator Humano Simplificado
+Quando a secretária edita um estágio do card manualmente na UI, o sistema apenas aceita o movimento. Não há mais necessidade de "bloquear a IA por 7 dias" (`manual_lock_until`), pois a IA de movimentação já não atua sobre a Clínica ÓR.
 
 ## Limpeza e Relatório Mensal: Dia 1
-A *edge function* `report-finalizados-mensal-or` (cron `0 6 1 * *`) contabiliza e processa os leads que alcançaram "Consulta Finalizada" e "1ª Sessão Finalizada" no mês. Registra no DB, envia por email o template `or-monthly-finalizados-report` para a gestão, e atualiza o painel Tracking do frontend.
-Em seguida, o gatilho `monthly_cleanup` (via `automations-tick`) atua movendo todos os cards destas colunas para "Paciente Antigo", esvaziando a seção de finalizados para o novo mês.
+A *edge function* `report-finalizados-mensal-or` (cron `0 6 1 * *`) continua operando normalmente. Contabiliza e processa os leads em "Consulta Finalizada", envia relatório e a `monthly_cleanup` varre as colunas enviando todos para "Paciente Antigo".
 
 ## Wakeup Inbound (Reativação automática de geladeira)
-Trigger `fn_clinica_or_wakeup_inbound` em `AFTER INSERT ON messages`: quando um lead da Clínica ÓR que está em `Sem resposta`, `Nutrição Inativa` ou `Nutrição Antigos` responde no WhatsApp, ele é automaticamente promovido para `Qualificação`, ganha a tag `reativacao` e o movimento é gravado em `lead_stage_history` (source `auto:wakeup-trigger`).
-
-> **Incidente 2026-07-18 — corrigido:** a versão anterior deste trigger referenciava colunas antigas de `lead_stage_history` (`pipeline_id`, `"from"`, `"to"`) que não existem mais no schema. Como o corpo não estava blindado com `EXCEPTION WHEN OTHERS`, o erro derrubava a transação inteira do webhook e a mensagem inbound do paciente nunca chegava em `messages` — foram 256 respostas perdidas em 4 dias na ÓR. Depois da correção o trigger usa `from_stage_id`/`to_stage_id` e o corpo está dentro de `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`. Detalhes e regra de ouro: `docs/evolution/INBOUND_MISSING_PLAYBOOK.md`.
+O trigger determinístico `fn_clinica_or_wakeup_inbound` se mantém: quando um lead da Clínica ÓR em `Sem resposta` ou `Nutrição` responde no WhatsApp, ele volta automaticamente para `Qualificação` e ganha a tag `reativacao`.

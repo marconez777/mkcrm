@@ -1,52 +1,42 @@
 ---
-title: "Agentes e Modelos de IA (V6) — Clínica ÓR"
+title: "Agentes e Modelos de IA (V7 Determinístico) — Clínica ÓR"
 topic: kanban
 kind: feature
 audience: agent
-updated: 2026-07-10
-summary: "Arquitetura V6 do classificador da Clínica ÓR: 5 micro-agentes (Resumidor, Agendador, Tipificador, Movimentador, Maestro) e auditores A1/A2/A3."
+updated: 2026-07-27
+summary: "Arquitetura V7 do classificador da Clínica ÓR: Motor estritamente determinístico focado apenas em Resumidor e Tipificador. Movimentação via IA depreciada."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
   - supabase/functions/pipeline-classify/
-  - supabase/functions/pipeline-inactivity-tick/
-  - supabase/functions/pipeline-monthly-cycle-or/
-  - supabase/functions/report-finalizados-mensal-or/
+  - supabase/functions/pipeline-deterministic/
 related_docs:
   - docs/tenants/clinica-or/README.md
-  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+  - docs/tenants/clinica-or/gatilhos-e-automacoes.md
 ---
 
-# Agentes e Modelos de IA (V6) — Clínica ÓR
+# Agentes e Modelos de IA (V7 Determinístico) — Clínica ÓR
 
-## O Classificador V6 (Linha de Montagem)
-O processamento de linguagem natural do pipeline ocorre na edge function `pipeline-classify`. A arquitetura V6 substituiu o LLM monolítico por uma esteira de **5 Agentes**, coordenados de forma paralela.
+> **Aviso Importante (2026-07-27):** A arquitetura V6 (composta por 5 agentes, incluindo Agendador, Movimentador e Maestro) foi DEPRECIADA para o tenant da Clínica ÓR.
+> O modelo atual (V7) é estritamente **determinístico**. A inteligência artificial não possui mais autorização para realizar ou sugerir movimentações de colunas no Kanban.
 
-O provedor padrão é o Lovable AI Gateway, utilizando os modelos Google Gemini (Flash / Flash-Lite), com o OpenAI BYOK (gpt-4o, gpt-5) como fallback.
+## O Classificador V7 (Apenas Contexto)
 
-### Arquitetura em 3 Etapas
+O processamento de linguagem natural do pipeline ocorre na edge function `pipeline-classify`, mas agora opera em modo reduzido, apenas para enriquecer o contexto visual para a secretária.
 
-1. **Agente 1 — Resumidor (Gemini 2.5 Flash / gpt-4o)**
-   - Extrai o resumo da conversa (até 800 caracteres).
-   - Identifica menções a datas brutas (`raw`) juntamente com o timestamp da mensagem que as cita (`anchor_iso`).
+O provedor padrão é o Lovable AI Gateway, utilizando os modelos Google Gemini (Flash / Flash-Lite).
+
+### Arquitetura Simplificada
+
+1. **Agente 1 — Resumidor (Gemini 2.5 Flash)**
+   - Lê a conversa e extrai um resumo conciso (até 800 caracteres) para exibir no card do lead.
    
-2. **Etapa Paralela (Promise.allSettled)**
-   - **Agente 2a — Agendador (Gemini Flash-Lite / gpt-5-nano):** Procura intenções de agendamento/reagendamento.
-   - **Agente 2b — Tipificador (Gemini Flash / gpt-5-mini):** Sugere tags permitidas e infere valores para campos customizados (ex: `interesse_consulta`).
-   - **Agente 2c — Movimentador (Gemini Flash-Lite / gpt-5-nano):** Avalia se o lead demonstrou mudança de intenção que justifique alterar o cartão de coluna (ex: mover para "B2B" ou sinalizar intenção genérica).
+2. **Agente 2 — Tipificador (Gemini Flash-Lite)**
+   - Infere valores para campos customizados e sugere tags informativas (`chips`). Não possui autonomia para alterar o status principal do lead.
 
-3. **Agente 3 — Maestro (Gemini 2.5 Flash / gpt-5)**
-   - Recebe o output do Resumidor e a resposta dos 3 agentes paralelos.
-   - Fornece o veredito final, resolvendo conflitos, emitindo `confidence`, intenção canônica e as listas de motivos e intents mencionados.
+## Auditores (Desativados/Reconfigurados)
+- **A1, A2 e A3** foram desativados ou reconfigurados para não dependerem de verificação de movimentação, visto que a movimentação agora é 100% baseada em regras estritas (Rule Engine).
 
-## Agentes Auditores (A1, A2, A3)
-Para garantir qualidade sem intervenção drástica, a V4.2 introduziu "auditores" que **nunca movem cards** (apenas sugerem via task + tag `precisa_atencao_humana`):
-
-- **A1 — Position Auditor (`pipeline-position-auditor`):** Roda de madrugada (03:00) verificando leads estagnados por >7 dias (que não estão em estágios finais). Se discordar da posição com `confidence ≥ 0.75`, cria uma tarefa de revisão humana.
-- **A2 — Post-Move Verifier:** Hook acoplado na função `pipeline-move`. Após qualquer automação mover um lead, dá uma "segunda opinião" barata e assíncrona. Se achar incorreta, tagueia o lead com `post_move_warning`.
-- **A3 — History Tool:** O classificador agora possui uma tool call `get_lead_history`. O LLM pode invocá-la para realizar *full-text search* no histórico do lead caso o resumo (`ai_summary`) não seja suficiente para a decisão.
-
-## Regras e Treinamento Específico (Prompting)
-- **Bloqueio de Agendamentos da IA:** O LLM não sugere e nem confirma movimentações para "Consulta agendada". Toda a marcação é estritamente humana. A IA age preenchendo a fila ou extraindo o fato.
-- **Parser de Datas Determinístico:** A IA **não converte datas**. Ela devolve a string original dita pelo paciente e o `anchor_iso`. O sistema (`date-parser.ts`) executa a conversão para UTC, resolvendo "quinta-feira", "amanhã", etc, e evitando alucinações de fusos horários.
-- **Regra "1ª Consulta":** A tag "1ª consulta" possui treinamento forte. O sistema rejeita e limpa a tag se o lead tiver mais de 90 dias, já tiver passado por tratamentos, possuir tag de paciente antigo, ou se o próprio `ai_summary` falar sobre retornos/sessões anteriores.
+## Regras de Movimentação (Rule Engine)
+Toda movimentação na Clínica ÓR agora é baseada em gatilhos humanos ou temporais (SLA). 
+A inteligência artificial foi isolada e serve apenas como "leitora" da conversa. Consulte o documento `gatilhos-e-automacoes.md` para ver o mapeamento exato de quais ações (ex: preencher um horário) disparam as movimentações.
