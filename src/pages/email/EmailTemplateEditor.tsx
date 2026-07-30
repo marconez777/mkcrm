@@ -223,13 +223,33 @@ export default function EmailTemplateEditor() {
     if (selectedId === blockId) setSelectedId(null);
   }
 
+  // Remetente efetivo: se o usuário digitou só a parte local, completa com o
+  // domínio exibido no seletor (evita salvar "nayara" sem @dominio).
+  function effectiveFromEmail(): string {
+    const raw = (tpl?.from_email || "").trim();
+    if (!raw) return "";
+    if (raw.includes("@")) {
+      const [local, dom] = raw.split("@");
+      const d = dom || domains[0]?.domain || "";
+      return d ? `${local}@${d}` : "";
+    }
+    const d = domains[0]?.domain || "";
+    return d ? `${raw}@${d}` : "";
+  }
+
   async function save() {
     if (!tpl || !clinicId) return;
     if (!tpl.name.trim()) { toast.error("Informe o nome"); return; }
     if (!tpl.subject.trim()) { toast.error("Informe o assunto"); return; }
     if (!tpl.slug || !SLUG_RE.test(tpl.slug)) { toast.error("Slug inválido (use letras, números e hífen, começando por letra)"); return; }
     if (blocks.length === 0) { toast.error("Adicione pelo menos um bloco"); return; }
-    // Remetente é opcional no save — bloqueio só acontece ao enviar teste/disparar campanha.
+    // Remetente é opcional no save, mas se preenchido precisa ficar completo.
+    const fromEmail = effectiveFromEmail();
+    if ((tpl.from_email || "").trim() && !fromEmail) {
+      toast.error("Selecione um domínio verificado para o remetente");
+      return;
+    }
+    if (fromEmail !== tpl.from_email) setTpl({ ...tpl, from_email: fromEmail });
 
     setSaving(true);
     try {
@@ -240,7 +260,7 @@ export default function EmailTemplateEditor() {
         subject: tpl.subject,
         preheader: tpl.preheader,
         from_name: tpl.from_name,
-        from_email: tpl.from_email,
+        from_email: fromEmail,
         reply_to: tpl.reply_to,
         category: tpl.category,
         html_body: renderedHtml,
