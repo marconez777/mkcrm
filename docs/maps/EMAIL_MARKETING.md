@@ -271,3 +271,23 @@ Cap `MAX_PER_COHORT=2000` por clínica.
 - `src/pages/Unsubscribe.tsx` — página pública de opt-out.
 - `supabase/functions/_shared/email.ts` (39 LOC) — `corsHeaders`,
   `jsonResponse`, `renderTemplate`, `sanitizeTagValue`, `isInternalContext`.
+
+## 8. Adicionar domínio no admin — erros
+
+Ao criar um domínio em `Admin → Integrações`, um "Edge Function returned a
+non-2xx status code" genérico significava, até 30/07/2026, que o motivo real
+estava escondido: `supabase.functions.invoke` sempre devolve essa mensagem.
+
+Correções aplicadas:
+
+- `src/lib/fn-error.ts` (`fnErrorMessage`) lê o corpo do `FunctionsHttpError`
+  e mostra a mensagem real no toast. **Use sempre esse helper** em `catch` de
+  `functions.invoke`.
+- `email-domain-manage` agora loga `console.error` com status + corpo da
+  Resend em `create`/`import`/`verify` e devolve mensagens específicas para:
+  chave sem permissão (401/403), limite de domínios do plano, e domínio já
+  existente na conta Resend — neste caso **importa automaticamente** em vez
+  de falhar.
+- Se a empresa não tem linha em `clinic_email_integrations`, a função usa a
+  `RESEND_API_KEY` global. Se o domínio pertence a outra conta Resend, é
+  preciso cadastrar a chave da empresa.
