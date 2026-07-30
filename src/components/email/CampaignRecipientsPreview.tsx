@@ -156,7 +156,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
 
       {!state.loading && !state.error && state.total === 0 && (
         <p className="text-xs text-muted-foreground">
-          Nenhum lead corresponde a este segmento.
+          Nenhum contato corresponde a este segmento.
         </p>
       )}
 
