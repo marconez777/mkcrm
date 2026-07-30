@@ -1,73 +1,40 @@
-## Diagnóstico confirmado
+## Parte 1 — Salvar o roadmap de redução de custos Cloud
 
-Encontrei o mesmo padrão do incidente de 17/07 — **inbound sendo abortado por trigger com schema desatualizado**, só que num gatilho diferente que escapou da blindagem anterior.
+Criar `docs/roadmap/CLOUD_COST_REDUCTION.md` com as 4 ações já levantadas (nenhuma executada agora):
 
-### O bug
+1. Consolidar as leituras do webhook Evolution em uma única RPC (corta ~5M queries/mês)
+2. Parar de gravar `payload jsonb` bruto em `webhook_events` / retenção agressiva
+3. Cache in-memory de `whatsapp_instances` no webhook (TTL 60s)
+4. Purge de `webhook_events` > 7 dias (cron)
 
-`fn_clinica_or_wakeup_inbound` (AFTER INSERT em `messages`) — trigger específico da Clínica ÓR que promove o lead de "geladeira" → Qualificação assim que o paciente responde. Ele faz `INSERT INTO lead_stage_history` referenciando três colunas que **não existem** na tabela:
+Cada item com: impacto estimado, risco, arquivos envolvidos e critério de "pronto".
 
-- `pipeline_id` (não existe — a tabela não tem essa coluna)
-- `"from"` (o correto é `from_stage_id`)
-- `"to"` (o correto é `to_stage_id`)
+## Parte 2 — Erro "Edge Function returned a non-2xx status code" ao adicionar domínio
 
-Postgres logs confirmam: dezenas de `ERROR: column "pipeline_id" of relation "lead_stage_history" does not exist` nas últimas horas.
+### O que já foi verificado
+- A empresa FXN Capital existe e **não tem** registro em `clinic_email_integrations`, então a função cai na chave global `RESEND_API_KEY` (que está marcada como configurada no painel).
+- A constraint `UNIQUE (clinic_id, domain)` usada no upsert existe — não é o problema.
+- Os logs da edge function só mostram `booted`, sem nenhuma linha de erro: a função retorna o erro em JSON mas **não loga** o motivo, então hoje é impossível saber a causa real.
+- No frontend (`IntegrationsDomainsTable.tsx`), o `catch` usa `e.message`, que no supabase-js vem sempre como a mensagem genérica "Edge Function returned a non-2xx status code" — o corpo JSON com o motivo real é descartado.
 
-Como o trigger não está blindado com `EXCEPTION WHEN OTHERS`, o erro derruba a transação inteira do webhook — a mensagem inbound nunca chega em `messages`, `webhook_events.error` fica vazio (porque o SELECT anterior no `webhook_events` já commitou), e o Sunamita/Denis/Mari ficam com só o lado outbound visível.
+Ou seja: **o diagnóstico está bloqueado pela falta de propagação de erro**, e a causa mais provável (a confirmar) é uma recusa da API da Resend (limite de domínios do plano, domínio já existente na conta, ou chave sem permissão de escrita).
 
-### Leads afetados agora (Clínica ÓR, últimos 4 dias)
+### Etapas
 
-`Sunamita` (`f7574b5a…`), `Denis Zaneti` (`7cc14eee…`), `Mari` (`b536ee69…`) — todos com 5-9 outbound e 0 inbound, mas com webhooks `MESSAGES_UPSERT` `fromMe=false` presentes em `webhook_events` sem `error`. Todos estão hoje em Qualificação (foram gatilhados por esse fluxo).
+**Etapa 1 — Tornar o erro visível (pré-requisito)**
+- `email-domain-manage`: adicionar `console.error` com status + corpo da resposta da Resend em todos os caminhos de falha (`create`, `import`, `verify`, `delete`), sem nunca logar a chave.
+- Frontend (`IntegrationsDomainsTable.tsx` e `DnsWizard.tsx`): criar um helper que lê o corpo da resposta em erros de função (`FunctionsHttpError.context.json()`) e mostra a mensagem real no toast, com fallback para a mensagem genérica.
 
-Provavelmente há outros leads históricos da ÓR afetados pelo mesmo trigger.
+**Etapa 2 — Reproduzir e identificar a causa**
+- Refazer a tentativa de criar `fxn.capital` e ler o motivo exato nos logs/toast.
 
----
+**Etapa 3 — Corrigir conforme a causa**
+- Limite de domínios do plano Resend → mensagem clara no admin e orientação de qual plano/chave usar.
+- Domínio já existente na conta Resend → oferecer o fluxo `import` (a função já suporta) direto no dialog, em vez de falhar.
+- Chave por empresa ausente/sem permissão → mensagem explícita indicando configurar `clinic_email_integrations` para aquela empresa.
 
-## Plano — 3 fases
+**Etapa 4 — Verificação**
+- Criar o domínio da FXN Capital com sucesso ou, se for limitação externa da Resend, deixar o admin exibindo exatamente o que precisa ser feito, e documentar em `docs/maps/EMAIL_MARKETING.md`.
 
-### Fase 1 — Corrigir + blindar o trigger (migração única)
-
-Migração que:
-
-1. Reescreve `fn_clinica_or_wakeup_inbound`:
-   - Troca `pipeline_id`/`"from"`/`"to"` por `from_stage_id`/`to_stage_id` (remove `pipeline_id` do INSERT).
-   - Envolve todo o corpo em `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING 'wakeup_inbound failed: %', SQLERRM; RETURN NEW; END;` — mesma regra de ouro do playbook, agora aplicada a este trigger.
-2. Faz uma varredura defensiva em outros triggers `AFTER INSERT ON messages` para confirmar que todos têm `EXCEPTION WHEN OTHERS` (auditar `tg_auto_reactivation_inbound`, `tg_auto_secretary_replied`, `stop_sequences_on_reply`, `bump_lead_last_human_activity_from_message`, `update_lead_last_inbound_at`; blindar os que estiverem sem).
-
-### Fase 2 — Backfill dos leads afetados
-
-- Rodar `evolution-sync-lead` (modo `full: true`) para Sunamita, Denis e Mari.
-- Rodar `evolution-backfill-all` na instância `8cafb677…` da Clínica ÓR com `limit: 2000` para cobrir qualquer outro lead da geladeira que tenha perdido mensagens desde que o trigger passou a falhar. É idempotente por `external_id`.
-- Query de verificação: contar leads da ÓR com outbound recente > 0 e inbound = 0 antes/depois.
-
-### Fase 3 — Documentação em destaque
-
-Atualizar `docs/evolution/INBOUND_MISSING_PLAYBOOK.md` com um bloco novo bem visível no topo:
-
-> **⚠️ Regra de ouro (2 incidentes já causados por isso, 17/07 e 18/07)**  
-> Qualquer trigger em `messages` — inclusive triggers específicos de um tenant — DEVE:
-> 1. Ter o corpo dentro de `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`.
-> 2. Ser revisado contra o schema atual de qualquer tabela auxiliar que ele alimenta (`lead_stage_history`, `lead_events`, `pipeline_tenant_classifiers`, etc.).
-
-Adicionar na tabela "Sintomas conhecidos" a nova linha:
-
-| `column "pipeline_id" of relation "lead_stage_history" does not exist` | Trigger `fn_clinica_or_wakeup_inbound` fora do schema atual (usava `pipeline_id`, `"from"`, `"to"`). | Migração 2026-07-18: colunas trocadas por `from_stage_id`/`to_stage_id` e trigger blindado. |
-
-Também: uma nota no `docs/tenants/clinica-or/gatilhos-e-automacoes.md` mencionando que o wakeup trigger foi refeito e agora é fail-safe.
-
----
-
-## Detalhes técnicos
-
-- **Migração**: `CREATE OR REPLACE FUNCTION public.fn_clinica_or_wakeup_inbound()` com o INSERT novo:
-  ```sql
-  INSERT INTO public.lead_stage_history
-    (lead_id, clinic_id, from_stage_id, to_stage_id, reason, source, moved_at)
-  VALUES (v_lead.id, v_lead.clinic_id, v_old_stage, v_new_stage,
-          'Paciente voltou a responder (Reativação automática)',
-          'auto:wakeup-trigger', now());
-  ```
-  E envolver TUDO em `BEGIN … EXCEPTION WHEN OTHERS THEN RAISE WARNING …; RETURN NEW; END;`.
-
-- **Backfill**: chamar as edges via `curl` a partir do sandbox, com o service role (já disponível no ambiente do webhook). Nenhuma migração de dados manual.
-
-- **Nada muda no frontend.** Alteração fica isolada em `supabase/migrations/`, `docs/evolution/INBOUND_MISSING_PLAYBOOK.md` e `docs/tenants/clinica-or/gatilhos-e-automacoes.md`. Rodar `node scripts/docs-sync.mjs` no final para manter `docs/INDEX.json` em dia.
+### Detalhes técnicos
+Nenhuma mudança de schema. Alterações em `supabase/functions/email-domain-manage/index.ts` (logs + mensagens), no componente admin de domínios e no wizard de DNS. Deploy da edge function após a alteração.
