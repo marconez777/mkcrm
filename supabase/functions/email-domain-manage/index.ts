@@ -211,7 +211,11 @@ Deno.serve(async (req) => {
         )
         .select()
         .single();
-      if (error) return jsonResponse({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error("email_domains upsert failed", cleanDomain, error.message);
+        return jsonResponse({ error: error.message }, { status: 500 });
+      }
+
       return jsonResponse({ ok: true, domain: row });
     }
 
@@ -234,8 +238,10 @@ Deno.serve(async (req) => {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        return jsonResponse({ error: json?.message || "Resend fetch failed", resend: json }, { status: 502 });
+        console.error("resend verify/fetch failed", resp.status, JSON.stringify(json));
+        return jsonResponse({ error: json?.message || `Resend fetch failed (${resp.status})`, resend: json }, { status: 502 });
       }
+
       const status = json.status ?? "pending";
       const dnsRecords = json.records ?? row.dns_records;
       const { data: updated } = await admin
