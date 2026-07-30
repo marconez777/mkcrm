@@ -12,18 +12,29 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const PENDING_THRESHOLD = 10;
 const ERROR_RATE_THRESHOLD = 0.05;
-const DEDUP_MINUTES = 30;
+const DEDUP_MINUTES = 360; // 6h — evita spam a cada tick de 10 min
+const QUOTA_DEDUP_MINUTES = 720; // 12h por clinic/provider
 
+// IMPORTANTE: NUNCA enviar alertas internos por uma instância de cliente.
+// Só envia se houver uma instância dedicada de alertas configurada via secret.
 async function notifyWhatsApp(sb: any, message: string) {
+  const alertInstance = Deno.env.get("ALERT_WHATSAPP_INSTANCE");
+  const alertNumber = Deno.env.get("ALERT_WHATSAPP_NUMBER");
+  if (!alertInstance || !alertNumber) {
+    console.log("[alert] WhatsApp desabilitado (ALERT_WHATSAPP_INSTANCE/NUMBER não configurados) —", message);
+    return;
+  }
   try {
     const { data: inst } = await sb
       .from("whatsapp_instances")
-      .select("evolution_url, evolution_api_key, evolution_instance")
-      .eq("connection_state", "open")
-      .limit(1)
+      .select("evolution_url, evolution_api_key, evolution_instance, connection_state")
+      .eq("evolution_instance", alertInstance)
       .maybeSingle();
-      
-    if (!inst) return;
+
+    if (!inst || inst.connection_state !== "open") {
+      console.warn("[alert] instância de alertas indisponível:", alertInstance);
+      return;
+    }
 
     const base = inst.evolution_url.replace(/\/$/, "");
     await fetch(`${base}/message/sendText/${encodeURIComponent(inst.evolution_instance)}`, {
@@ -33,7 +44,7 @@ async function notifyWhatsApp(sb: any, message: string) {
         "apikey": inst.evolution_api_key,
       },
       body: JSON.stringify({
-        number: "5511991795436", // Número do admin MK
+        number: alertNumber,
         text: `🚨 *MKCRM Alerta Cloud* 🚨\n\n${message}`,
       }),
     });
@@ -41,6 +52,7 @@ async function notifyWhatsApp(sb: any, message: string) {
     console.error("notifyWhatsApp erro:", err);
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
