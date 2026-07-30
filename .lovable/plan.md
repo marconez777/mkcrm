@@ -1,40 +1,21 @@
-## Parte 1 — Salvar o roadmap de redução de custos Cloud
+## O que está acontecendo
 
-Criar `docs/roadmap/CLOUD_COST_REDUCTION.md` com as 4 ações já levantadas (nenhuma executada agora):
+A função de monitoramento `pipeline-queue-alert` (roda a cada 10 min) envia os alertas "MKCRM Alerta Cloud" por WhatsApp. Ela pega **a primeira instância WhatsApp conectada que encontrar no banco** — sem filtrar por clínica — e usa esse número para mandar a mensagem para o seu número pessoal.
 
-1. Consolidar as leituras do webhook Evolution em uma única RPC (corta ~5M queries/mês)
-2. Parar de gravar `payload jsonb` bruto em `webhook_events` / retenção agressiva
-3. Cache in-memory de `whatsapp_instances` no webhook (TTL 60s)
-4. Purge de `webhook_events` > 7 dias (cron)
+Resultado: o alerta sai **do número do cliente** (no print, o número da Febracis +1 407 779-4061). Ou seja, ele aparece no WhatsApp do cliente como mensagem enviada por ele, expondo alertas internos de infraestrutura. Confirmado em `supabase/functions/pipeline-queue-alert/index.ts` (linhas 17-43: seleciona `whatsapp_instances` com `connection_state = 'open'`, `limit 1`, e envia para o número fixo do admin).
 
-Cada item com: impacto estimado, risco, arquivos envolvidos e critério de "pronto".
+## Correção
 
-## Parte 2 — Erro "Edge Function returned a non-2xx status code" ao adicionar domínio
+1. **Desligar imediatamente o envio por instância aleatória.** A função só poderá enviar WhatsApp se existir uma instância explicitamente marcada como instância de alertas internos.
+2. **Instância dedicada de alertas.** Ler o nome/ID da instância de um secret (`ALERT_WHATSAPP_INSTANCE`) e o destinatário de `ALERT_WHATSAPP_NUMBER`. Se qualquer um faltar, a função **não envia nada** — apenas registra em `error_events` e no log da função.
+3. **Anti-spam.** Os alertas de "Pipeline saturado" e "Quota esgotada" estão repetindo a cada 10 min; aumentar a janela de dedup (pipeline: 30 min → 6 h; quota: 1 h → 12 h por clínica/provider) para não inundar o canal.
+4. **Varredura.** Verificar se alguma outra edge function usa o mesmo padrão de "pegar qualquer instância aberta" para mandar mensagem administrativa e aplicar a mesma proteção.
 
-### O que já foi verificado
-- A empresa FXN Capital existe e **não tem** registro em `clinic_email_integrations`, então a função cai na chave global `RESEND_API_KEY` (que está marcada como configurada no painel).
-- A constraint `UNIQUE (clinic_id, domain)` usada no upsert existe — não é o problema.
-- Os logs da edge function só mostram `booted`, sem nenhuma linha de erro: a função retorna o erro em JSON mas **não loga** o motivo, então hoje é impossível saber a causa real.
-- No frontend (`IntegrationsDomainsTable.tsx`), o `catch` usa `e.message`, que no supabase-js vem sempre como a mensagem genérica "Edge Function returned a non-2xx status code" — o corpo JSON com o motivo real é descartado.
+## Detalhes técnicos
 
-Ou seja: **o diagnóstico está bloqueado pela falta de propagação de erro**, e a causa mais provável (a confirmar) é uma recusa da API da Resend (limite de domínios do plano, domínio já existente na conta, ou chave sem permissão de escrita).
+- Arquivo principal: `supabase/functions/pipeline-queue-alert/index.ts`.
+- `notifyWhatsApp` passa a resolver a instância por `evolution_instance = Deno.env.get("ALERT_WHATSAPP_INSTANCE")` em vez de `.eq("connection_state","open").limit(1)`.
+- Sem os secrets configurados, o comportamento padrão vira "somente log em `error_events`" — nenhum cliente recebe nada.
+- Deploy da função após a alteração.
 
-### Etapas
-
-**Etapa 1 — Tornar o erro visível (pré-requisito)**
-- `email-domain-manage`: adicionar `console.error` com status + corpo da resposta da Resend em todos os caminhos de falha (`create`, `import`, `verify`, `delete`), sem nunca logar a chave.
-- Frontend (`IntegrationsDomainsTable.tsx` e `DnsWizard.tsx`): criar um helper que lê o corpo da resposta em erros de função (`FunctionsHttpError.context.json()`) e mostra a mensagem real no toast, com fallback para a mensagem genérica.
-
-**Etapa 2 — Reproduzir e identificar a causa**
-- Refazer a tentativa de criar `fxn.capital` e ler o motivo exato nos logs/toast.
-
-**Etapa 3 — Corrigir conforme a causa**
-- Limite de domínios do plano Resend → mensagem clara no admin e orientação de qual plano/chave usar.
-- Domínio já existente na conta Resend → oferecer o fluxo `import` (a função já suporta) direto no dialog, em vez de falhar.
-- Chave por empresa ausente/sem permissão → mensagem explícita indicando configurar `clinic_email_integrations` para aquela empresa.
-
-**Etapa 4 — Verificação**
-- Criar o domínio da FXN Capital com sucesso ou, se for limitação externa da Resend, deixar o admin exibindo exatamente o que precisa ser feito, e documentar em `docs/maps/EMAIL_MARKETING.md`.
-
-### Detalhes técnicos
-Nenhuma mudança de schema. Alterações em `supabase/functions/email-domain-manage/index.ts` (logs + mensagens), no componente admin de domínios e no wizard de DNS. Deploy da edge function após a alteração.
+Se preferir, posso simplesmente **remover o envio por WhatsApp** e deixar os alertas só no painel/`error_events` — me diga qual dos dois você quer que eu implemente.
