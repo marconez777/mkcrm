@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       .gt("blocked_until", new Date().toISOString());
 
     let quotaAlerts = 0;
-    const dedupQuotaSince = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const dedupQuotaSince = new Date(Date.now() - QUOTA_DEDUP_MINUTES * 60 * 1000).toISOString();
     for (const b of blocked ?? []) {
       const sig = `quota:${b.clinic_id}:${b.provider}`;
       const { count: dup } = await sb
