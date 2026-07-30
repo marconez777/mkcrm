@@ -87,10 +87,14 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
       });
       const listJson = await listResp.json().catch(() => ({}));
-      if (!listResp.ok) return jsonResponse({ error: listJson?.message || "Resend list failed", resend: listJson }, { status: 502 });
+      if (!listResp.ok) {
+        console.error("resend list failed", listResp.status, JSON.stringify(listJson));
+        return jsonResponse({ error: listJson?.message || `Resend list failed (${listResp.status})`, resend: listJson }, { status: 502 });
+      }
       const items: any[] = Array.isArray(listJson?.data) ? listJson.data : Array.isArray(listJson) ? listJson : [];
       const found = items.find((x: any) => String(x?.name ?? "").toLowerCase() === cleanDomain);
       if (!found?.id) return jsonResponse({ error: `Domínio '${cleanDomain}' não encontrado no Resend desta clínica` }, { status: 404 });
+
 
       await fetch(`${RESEND_BASE}/domains/${found.id}/verify`, {
         method: "POST",
