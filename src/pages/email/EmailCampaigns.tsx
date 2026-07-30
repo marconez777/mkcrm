@@ -181,10 +181,26 @@ export default function EmailCampaigns() {
     if (!dest) { toast.error("Informe o email de teste"); return; }
     setBusy(true);
     try {
-      const { error } = await supabase.functions.invoke("dispatch-campaign", {
+      const { data, error } = await supabase.functions.invoke("dispatch-campaign", {
         body: { campaign_id: editing.id, test_only: true, test_email_override: dest },
       });
       if (error) throw error;
+      // O envio é assíncrono: confere o item na fila para reportar falha real
+      // em vez de anunciar sucesso quando ficou pendente com erro.
+      const qid = (data as any)?.queue_id;
+      if (qid) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const { data: q } = await supabase
+          .from("email_queue")
+          .select("status,error")
+          .eq("id", qid)
+          .maybeSingle();
+        if (q && q.status !== "sent" && q.error) {
+          toast.error(`Falha no envio de teste: ${q.error}`);
+          await load();
+          return;
+        }
+      }
       toast.success(`Teste enviado para ${dest}`);
       await load();
     } catch (e: any) {
