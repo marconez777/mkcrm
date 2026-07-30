@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
       });
       const detail = await detailResp.json().catch(() => ({}));
-      const status = detail?.status ?? found?.status ?? "pending";
+      const status = normalizeDomainStatus(detail?.status ?? found?.status);
       const dnsRecords = detail?.records ?? found?.records ?? [];
       const regionVal = detail?.region ?? found?.region ?? region;
 
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         }
       }
       const dnsRecords = json.records ?? [];
-      const status = json.status ?? "pending";
+      const status = normalizeDomainStatus(json.status);
 
 
       const { data: row, error } = await admin
@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: json?.message || `Resend fetch failed (${resp.status})`, resend: json }, { status: 502 });
       }
 
-      const status = json.status ?? "pending";
+      const status = normalizeDomainStatus(json.status);
       const dnsRecords = json.records ?? row.dns_records;
       const { data: updated } = await admin
         .from("email_domains")
