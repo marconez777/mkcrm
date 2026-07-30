@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fnErrorMessage } from "@/lib/fn-error";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
@@ -187,7 +188,7 @@ export default function EmailCampaigns() {
       toast.success(`Teste enviado para ${dest}`);
       await load();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(await fnErrorMessage(e, "Falha ao enviar teste"));
     } finally {
       setBusy(false);
     }
@@ -205,7 +206,7 @@ export default function EmailCampaigns() {
       setLiveId(c.id);
       await load();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(await fnErrorMessage(e, "Falha ao disparar campanha"));
     } finally {
       setBusy(false);
     }
