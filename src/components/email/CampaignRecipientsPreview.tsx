@@ -48,20 +48,29 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
             }
           }
         } else {
-          // Sem segmento = todos os leads da empresa com email (paginado)
-          const rows = await fetchAllPaged<any>(() =>
-            supabase
-              .from("leads")
-              .select("email,name")
-              .eq("clinic_id", clinicId)
-              .not("email", "is", null)
-              .neq("email", "")
-          );
-          recipients = rows.map((r: any) => ({
-            email: String(r.email).toLowerCase(),
+          // Sem segmento = todos os leads da empresa com email + contatos manuais/importados
+          const [leadRows, manualRows] = await Promise.all([
+            fetchAllPaged<any>(() =>
+              supabase
+                .from("leads")
+                .select("email,name")
+                .eq("clinic_id", clinicId)
+                .not("email", "is", null)
+                .neq("email", "")
+            ),
+            fetchAllPaged<any>(() =>
+              supabase
+                .from("email_segment_contacts")
+                .select("email,name")
+                .eq("clinic_id", clinicId)
+            ),
+          ]);
+          recipients = [...leadRows, ...manualRows].map((r: any) => ({
+            email: String(r.email ?? "").toLowerCase(),
             name: r.name,
           }));
         }
+
 
 
         // Dedupe por email
@@ -147,7 +156,7 @@ export function CampaignRecipientsPreview({ clinicId, segmentIds }: Props) {
 
       {!state.loading && !state.error && state.total === 0 && (
         <p className="text-xs text-muted-foreground">
-          Nenhum lead corresponde a este segmento.
+          Nenhum contato corresponde a este segmento.
         </p>
       )}
 
