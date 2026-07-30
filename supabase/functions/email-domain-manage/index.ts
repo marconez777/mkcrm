@@ -87,10 +87,14 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
       });
       const listJson = await listResp.json().catch(() => ({}));
-      if (!listResp.ok) return jsonResponse({ error: listJson?.message || "Resend list failed", resend: listJson }, { status: 502 });
+      if (!listResp.ok) {
+        console.error("resend list failed", listResp.status, JSON.stringify(listJson));
+        return jsonResponse({ error: listJson?.message || `Resend list failed (${listResp.status})`, resend: listJson }, { status: 502 });
+      }
       const items: any[] = Array.isArray(listJson?.data) ? listJson.data : Array.isArray(listJson) ? listJson : [];
       const found = items.find((x: any) => String(x?.name ?? "").toLowerCase() === cleanDomain);
       if (!found?.id) return jsonResponse({ error: `Domínio '${cleanDomain}' não encontrado no Resend desta clínica` }, { status: 404 });
+
 
       await fetch(`${RESEND_BASE}/domains/${found.id}/verify`, {
         method: "POST",
@@ -135,12 +139,61 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
         body: JSON.stringify({ name: cleanDomain, region }),
       });
-      const json = await resp.json().catch(() => ({}));
+      let json = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        return jsonResponse({ error: json?.message || "Resend create failed", resend: json }, { status: 502 });
+        console.error("resend create failed", resp.status, cleanDomain, JSON.stringify(json));
+        const msg = String(json?.message ?? "");
+        const alreadyExists = /already|exists/i.test(msg);
+        if (alreadyExists) {
+          // Domínio já existe na conta Resend → importa em vez de falhar.
+          const listResp = await fetch(`${RESEND_BASE}/domains`, {
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+          });
+          const listJson = await listResp.json().catch(() => ({}));
+          const items: any[] = Array.isArray(listJson?.data) ? listJson.data : Array.isArray(listJson) ? listJson : [];
+          const found = items.find((x: any) => String(x?.name ?? "").toLowerCase() === cleanDomain);
+          if (found?.id) {
+            const detailResp = await fetch(`${RESEND_BASE}/domains/${found.id}`, {
+              headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+            });
+            const detail = await detailResp.json().catch(() => ({}));
+            json = { ...found, ...detail };
+          } else {
+            return jsonResponse(
+              {
+                error:
+                  `A Resend recusou criar '${cleanDomain}': ${msg || `HTTP ${resp.status}`}. ` +
+                  `O domínio parece existir em outra conta Resend — use a chave da empresa correta.`,
+                resend: json,
+              },
+              { status: 502 },
+            );
+          }
+        } else if (resp.status === 403 || resp.status === 401) {
+          return jsonResponse(
+            {
+              error:
+                `Chave da Resend sem permissão para criar domínios (HTTP ${resp.status}${msg ? `: ${msg}` : ""}). ` +
+                `Configure uma chave full access para esta empresa em clinic_email_integrations.`,
+              resend: json,
+            },
+            { status: 502 },
+          );
+        } else if (/limit|plan|quota|upgrade/i.test(msg)) {
+          return jsonResponse(
+            { error: `Limite de domínios do plano Resend atingido: ${msg}`, resend: json },
+            { status: 502 },
+          );
+        } else {
+          return jsonResponse(
+            { error: msg || `Resend create failed (HTTP ${resp.status})`, resend: json },
+            { status: 502 },
+          );
+        }
       }
       const dnsRecords = json.records ?? [];
       const status = json.status ?? "pending";
+
 
       const { data: row, error } = await admin
         .from("email_domains")
@@ -158,7 +211,11 @@ Deno.serve(async (req) => {
         )
         .select()
         .single();
-      if (error) return jsonResponse({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error("email_domains upsert failed", cleanDomain, error.message);
+        return jsonResponse({ error: error.message }, { status: 500 });
+      }
+
       return jsonResponse({ ok: true, domain: row });
     }
 
@@ -181,8 +238,10 @@ Deno.serve(async (req) => {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        return jsonResponse({ error: json?.message || "Resend fetch failed", resend: json }, { status: 502 });
+        console.error("resend verify/fetch failed", resp.status, JSON.stringify(json));
+        return jsonResponse({ error: json?.message || `Resend fetch failed (${resp.status})`, resend: json }, { status: 502 });
       }
+
       const status = json.status ?? "pending";
       const dnsRecords = json.records ?? row.dns_records;
       const { data: updated } = await admin

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fnErrorMessage } from "@/lib/fn-error";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -186,7 +187,7 @@ export default function DnsWizard({
       }
       if (!silent) toast.success(`Status: ${next?.status ?? "atualizado"}`);
     } catch (e: any) {
-      if (!silent) toast.error(e.message ?? "Falha na verificação");
+      if (!silent) toast.error(await fnErrorMessage(e, "Falha na verificação"));
     } finally {
       setVerifying(false);
     }

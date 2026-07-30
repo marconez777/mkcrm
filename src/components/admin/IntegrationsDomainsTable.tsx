@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, Plus, RefreshCw, Trash2, Eye } from "lucide-react";
 import DnsWizard from "@/components/email/DnsWizard";
+import { fnErrorMessage } from "@/lib/fn-error";
 
 type Clinic = { id: string; name: string };
 type DnsRecord = {
@@ -95,7 +96,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       setNewRegion("us-east-1");
       await load();
     } catch (e: any) {
-      toast.error(e.message ?? "Falha ao criar");
+      toast.error(await fnErrorMessage(e, "Falha ao criar"));
     } finally {
       setBusy(false);
     }
@@ -115,7 +116,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         if (updated) setOpenDns({ ...updated, clinic: d.clinic });
       }
     } catch (e: any) {
-      toast.error(e.message ?? "Falha na verificação");
+      toast.error(await fnErrorMessage(e, "Falha na verificação"));
     } finally {
       setBusy(false);
     }
@@ -132,7 +133,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       toast.success("Domínio excluído");
       await load();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(await fnErrorMessage(e, "Falha ao excluir"));
     } finally {
       setBusy(false);
     }
