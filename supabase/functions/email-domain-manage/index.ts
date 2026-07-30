@@ -7,6 +7,17 @@ import { corsHeaders, jsonResponse } from "../_shared/email.ts";
 
 const RESEND_BASE = "https://api.resend.com";
 
+// A Resend reporta "partially_failed" quando parte dos registros DNS verificou
+// (no painel isso aparece como "Partially Verified" e o envio funciona).
+// Normalizamos para o status que o send-email aceita.
+function normalizeDomainStatus(status: unknown): string {
+  const s = String(status ?? "pending").toLowerCase();
+  if (s === "partially_failed" || s === "partially verified" || s === "partially_verified") {
+    return "partially_verified";
+  }
+  return s;
+}
+
 async function resolveResendKey(admin: any, clinicId?: string | null, domainId?: string | null): Promise<string | null> {
   let cid = clinicId ?? null;
   if (!cid && domainId) {
