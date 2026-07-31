@@ -322,7 +322,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
         </Chip>
       )}
       {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>{t("kanban.tag.scheduling")}</Chip>}
-      {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>{t("kanban.tag.aiQueued")}</Chip>}
+      
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
