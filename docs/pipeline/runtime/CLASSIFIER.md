@@ -164,4 +164,5 @@ A arquitetura monolítica V6 (focada na Clínica ÓR) evoluiu para um sistema di
 - **`context.ts`**: Consulta o banco e insere os dados da tabela em `LeadContext.tenant`.
 - **`agent-core.ts`**: Faz injeção dos dados do tenant usando substituições como `{{TAG_LIST}}`, `{{KEYS_BLOCK}}`, `{{CANON_NAMES}}` e `{{INTENT_VALUES}}`, com fallback para os prompts V6 originais.
 - **`schema.ts`**: As regras de normalização de intenções recebem dinamicamente os `allowedIntents` do tenant atual.
-A Clínica ÓR agora usa as configurações de backup salvas no banco (via Seed) como garantia de que o comportamento padrão de estabilidade (V6 original) seja respeitado.
+
+> **Exceção Clínica ÓR (V7):** Apesar deste documento descrever a arquitetura V6 de 5 agentes, a Clínica ÓR sofreu um hard-bypass no `agent-core.ts` em Julho/2026. Para ela, o sistema pula o Agendador, Movimentador e Maestro, operando exclusivamente com 2 agentes (Resumo e Tipificação) e delegando o movimento inteiramente a um Rule Engine. Detalhes específicos em `docs/tenants/clinica-or/CLINICA_OR_CLASSIFIER.md`.

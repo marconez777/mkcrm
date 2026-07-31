@@ -84,7 +84,9 @@ Esta pasta consolida **tudo o que é preciso para planejar e implementar a autom
 
 **1 Classifier (LLM) + 1 Summarizer (LLM incremental) + Rule Engine (código puro) + Reator humano (Postgres trigger + edge function).** Stages se movem por código determinístico via 11 gates de segurança. LLM só sugere; nunca decide movimento. Lembretes vivem em `/automations`.
 
-> ⚠️ **Estado real (2026-06-20)**: o "1 Classifier" do plano evoluiu, em produção, para uma **linha de montagem V6 de 5 agentes** — Resumidor (`gpt-4o`) → [Agendador ∥ Tipificador ∥ Movimentador] (3× `gpt-5-mini` paralelos) → Maestro (`gpt-5`). Os 11 gates continuam valendo. Detalhes em [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md).
+> ⚠️ **Estado real global (2026-06-20)**: o "1 Classifier" do plano evoluiu, em produção, para uma **linha de montagem V6 de 5 agentes** — Resumidor (`gpt-4o`) → [Agendador ∥ Tipificador ∥ Movimentador] (3× `gpt-5-mini` paralelos) → Maestro (`gpt-5`). Os 11 gates continuam valendo. Detalhes em [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md).
+
+> ⚠️ **Exceção Clínica ÓR (V7 - 2026-07-31)**: Para o tenant da Clínica ÓR (`clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`), a arquitetura V6 foi desativada cirurgicamente no código. A ÓR usa a **Arquitetura V7**, que é 100% baseada em *Rule Engine* determinístico, bypassando o Agendador, Movimentador e Maestro. Ver [`docs/tenants/clinica-or/CLINICA_OR_CLASSIFIER.md`](../tenants/clinica-or/CLINICA_OR_CLASSIFIER.md).
 
 ## Princípios
 
