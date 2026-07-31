@@ -12,6 +12,8 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { isAutoReplyMessage } from "../_shared/standard-messages.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -199,10 +201,14 @@ async function ruleSecretaryReplied(
   }
   const { data: msg } = await client
     .from("messages")
-    .select("id, lead_id, from_me, message_type")
+    .select("id, lead_id, from_me, message_type, content, is_automated")
     .eq("id", messageId)
     .single();
   if (!msg || !msg.from_me) return { skipped: "not_outbound" };
+  // Saudação automática do WhatsApp não conta como resposta da secretária.
+  if (msg.is_automated) return { skipped: "automated_message" };
+  if (isAutoReplyMessage(msg.content)) return { skipped: "auto_reply_greeting" };
+
 
   const { data: lead } = await client
     .from("leads")
