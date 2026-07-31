@@ -23,8 +23,8 @@ related_docs:
 
 | Edge Function / Arquivo Base | Propósito Principal | Onde encontrar nas Docs Originais |
 |---|---|---|
-| `pipeline-classify/index.ts` | O Dispatcher principal que gerencia as chamadas da fila para IA do pipeline (V6). | `CLASSIFIER.md` |
-| `pipeline-classify/agent-core.ts` | O Orquestrador da Linha de Montagem de 5 Agentes (Resumidor, Agendador, Tipificador, Movimentador, Maestro). | `CLASSIFIER.md` |
+| `pipeline-classify/index.ts` | O Dispatcher principal que gerencia as chamadas da fila para IA do pipeline (V7). | `CLASSIFIER.md` |
+| `pipeline-classify/agent-core.ts` | O Orquestrador da Linha de Montagem de Agentes (Resumidor e Tipificador apenas, para a Clínica ÓR). | `CLASSIFIER.md` |
 | `pipeline-classify/apply.ts` | Aplica as decisões do classificador ao banco de dados e valida os gates estruturais (como G10 e locks). | `CLASSIFIER.md`, `GATES.md` |
 | `automations-tick/index.ts` | CRON de um minuto que envia lembretes (ex: 24h/1h de consulta) predefinidos pelo frontend da Clínica ÓR. | `SCENARIOS.md` |
 | `pipeline-inactivity-tick` | Trata as camadas de follow-up (24h e 3 dias) e a inserção dos inativos na Geladeira (Sem Resposta -> Nutrição). | `AUTOMATION_PLAN.md`, `SCENARIOS.md` |

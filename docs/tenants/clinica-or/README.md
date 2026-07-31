@@ -4,7 +4,7 @@ topic: kanban
 kind: map
 audience: agent
 updated: 2026-07-10
-summary: "Visão geral do pipeline da Clínica ÓR: arquitetura de decisão, estágios, regras temporais e gates."
+summary: "Visão geral do pipeline da Clínica ÓR: arquitetura V7 determinística, estágios, regras temporais e gates."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
@@ -23,8 +23,8 @@ related_docs:
 O Pipeline da **Clínica ÓR** (`clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`, pipeline `17c27f4d-8256-4ea7-b5b9-ed706494f686`) é um fluxo de atendimento kanban altamente automatizado. Ele integra um **Motor de Regras Determinísticas** (Rule Engine) com um **Classificador LLM V6** (linha de montagem de agentes de IA) para orquestrar o lead desde a entrada até o pós-atendimento.
 
 ## Arquitetura de Decisão
-1. **Rule Engine (Código Puro):** Gerencia gatilhos de tempo, ações da secretária (Reator Humano), agendamentos de sistema e portões de segurança (Gates).
-2. **Classificador LLM:** Uma esteira de 5 agentes que extraem contexto (Resumidor), analisam intenções e datas em paralelo (Agendador, Tipificador, Movimentador), e emitem um veredito (Maestro).
+1. **Rule Engine (Determinístico):** Gerencia gatilhos de tempo, ações da secretária (Reator Humano), e agendamentos de sistema. É a **única** via de movimentação de cards.
+2. **Classificador LLM V7 (Apenas Leitura):** Uma esteira reduzida de 2 agentes que extraem contexto (Resumidor) e inferem tags passivas (Tipificador).
 
 ## Fases do Pipeline (Stages)
 O funil possui estágios renomeados e ajustados para o ciclo de vida do paciente psiquiátrico/terapêutico:
@@ -41,9 +41,7 @@ O funil possui estágios renomeados e ajustados para o ciclo de vida do paciente
 10. **Nutrição Antigos (>60d):** Geladeira para pacientes antigos sem contato há mais de 2 meses.
 
 ## Regras Temporais de Fluxo (Ciclo de Vida)
-- **Qualificação → IA Follow-up #1:** Disparado após 24h sem resposta.
-- **Qualificação → IA Follow-up #2:** Disparado após 48h sem resposta.
-- **Qualificação → Sem Resposta:** Se não houver retorno após o Follow-up #2.
+- **Qualificação → Sem Resposta:** Se não houver retorno do lead após X horas (ex: 48h) desde o último contato da clínica.
 - **Sem Resposta → Nutrição Inativa:** Após 7 dias estacionado.
 - **1ª Sessão Finalizada → Paciente Antigo:** Todo dia 1º do mês via cronjob (`pipeline-monthly-cycle-or`).
 - **Paciente Antigo → Nutrição Antigos (>60d):** Após 60 dias sem interações inbound.

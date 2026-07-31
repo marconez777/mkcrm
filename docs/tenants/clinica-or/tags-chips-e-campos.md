@@ -36,13 +36,13 @@ Quando o Rule Engine move um lead de coluna (estágio), a ação aplica de forma
 *(A trigger responsável mescla as tags sem duplicar no array de tags do lead).*
 
 ## Tags Sugeridas pela Inteligência Artificial
-O Agente Tipificador (dentro do classificador V6) é responsável por ler o contexto e sugerir tags extras e comportamentais.
+O Agente Tipificador (dentro do classificador V7, estritamente como leitor) é responsável por ler o contexto e sugerir tags extras e comportamentais.
 A aplicação dessas tags **depende estritamente de uma Whitelist** (`app_settings.automation.v42.allowed_tags`). Qualquer "alucinação" da IA que invente tags bizarras é silenciosamente descartada no filtro final do script `apply.ts`.
 
 Exemplos de tags operadas em runtime e inteligência:
 - `urgencia_clinica`: Extraído pela intenção de urgência. Sinaliza a necessidade iminente de intervenção.
 - `precisa_atencao_humana`: Emitida por falha de confiança no LLM, por Agentes Auditores (A1, A2) alertando discordância, ou quando um movimento escapa das regras mapeadas.
-- `b2b_auto`: Anexada quando a IA descobre que a conversa é de perfil B2B e move automaticamente.
+- `b2b`: Anexada quando a IA ou a secretária descobre que a conversa é de perfil B2B. A aplicação dessa tag dispara um gatilho de sistema (`Rule Engine`) que move o lead sumariamente.
 - `agendamento_sugerido`: Substitui a tentativa falha da IA de tentar marcar consultas. Apenas sugere e agenda uma tarefa.
 
 ## Campos Customizados
