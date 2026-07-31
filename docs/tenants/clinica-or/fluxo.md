@@ -27,15 +27,48 @@ Escopo: **somente** `clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`, pipeline
 
 ```mermaid
 flowchart TD
-  LE[Leads de entrada] --> Q[Qualificação]
-  Q -- "+48h sem resposta" --> SR[Sem Resposta]
-  Q --> CA[Consulta agendada] --> CF[Consulta finalizada]
-  CF --> TA[Tratamento agendado] --> T1[1ª Sessão Finalizada]
-  T1 -- "Dia 1 do mês (cron)" --> PA[Paciente Antigo]
-  SR -- "+7d" --> NL[Nutrição Inativa - Geladeira de Leads]
-  PA -- "+60d sem inbound" --> NA[Nutrição Antigos >60d]
-  NL -. inbound .-> Q
-  NA -. inbound .-> Q
+    %% ---------------- NÓS DO KANBAN ----------------
+    LE[Leads de Entrada]
+    Q[Qualificação]
+    B2B[Desqualificado / B2B]
+    
+    SR[Sem Resposta]
+    NI[Nutrição Inativa]
+    
+    CA[Consulta Agendada]
+    TA[Tratamento Agendado]
+    
+    CF[Consulta Finalizada]
+    TF[1ª Sessão Finalizada]
+    
+    PA[Paciente Antigo]
+    NA[Nutrição Antigos]
+
+    %% ---------------- FLUXOS PRINCIPAIS ----------------
+    LE -- Secretária responde --> Q
+    
+    LE -. Tag b2b/desqualificado .-> B2B
+    Q -. Tag b2b/desqualificado .-> B2B
+
+    Q -- Preenche data consulta --> CA
+    Q -- Preenche data tratamento --> TA
+    
+    CA -- Realizado --> CF
+    TA -- Realizado --> TF
+    
+    CF -- Cron 1º dia do mês --> PA
+    TF -- Cron 1º dia do mês --> PA
+
+    %% ---------------- FLUXOS TEMPORAIS (GELADEIRA) ----------------
+    Q -. 48h sem resposta .-> SR
+    SR -. 7 dias parado .-> NI
+    
+    PA -. 60 dias sem inbound .-> NA
+
+    %% ---------------- REATIVAÇÃO (WAKEUP TRIGGER) ----------------
+    SR == Inbound Wakeup ==> Q
+    NI == Inbound Wakeup ==> Q
+    NA == Inbound Wakeup ==> Q
 ```
 
 ## Stages (renome + nova)

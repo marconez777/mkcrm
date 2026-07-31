@@ -32,7 +32,8 @@ O provedor padrão é o Lovable AI Gateway, utilizando os modelos Google Gemini 
    - Lê a conversa e extrai um resumo conciso (até 800 caracteres) para exibir no card do lead.
    
 2. **Agente 2 — Tipificador (Gemini Flash-Lite)**
-   - Infere valores para campos customizados e sugere tags informativas (`chips`). Não possui autonomia para alterar o status principal do lead.
+   - Infere valores para campos customizados e sugere tags informativas (`chips`). Não possui autonomia para alterar o status principal do lead via comando de IA direto.
+   - **Exceção Determinística (Tag B2B):** Caso o Tipificador sugira a tag `b2b` ou `desqualificado`, o próprio banco de dados interceptará a inserção da tag e acionará um gatilho rígido (`Rule Engine`) movendo o lead para a coluna respectiva, sem depender de decisão cognitiva da IA.
 
 ## Auditores (Desativados/Reconfigurados)
 - **A1, A2 e A3** foram desativados ou reconfigurados para não dependerem de verificação de movimentação, visto que a movimentação agora é 100% baseada em regras estritas (Rule Engine).

@@ -39,12 +39,15 @@ As automações básicas rodam sem IA e são disparadas por ações reais:
   - `realizado`: Move para "Consulta finalizada" ou avança o ciclo de "Em tratamento".
   - `faltou`: Manda o lead para "Sem Resposta", aplica tag `no_show`.
   - `cancelado`: Manda para "Qualificação" com a tag `reagendamento_pendente`.
+- **Gatilho de Tag (Exceção B2B / Desqualificação):**
+  - Se a IA Tipificadora sugerir ou se a secretária adicionar a tag `b2b` ou `desqualificado`, um gatilho oculto transfere o lead imediatamente para a coluna "Desqualificado / B2B".
 
 ## Automação de Inatividade (Geladeira Temporal)
 Como a IA não julga mais o "desinteresse", usamos *Service Level Agreements* (SLAs) estritos de inatividade, rodando no cron:
 
 - **SLA 1 - Falta de Resposta (Ex: 48h):** Após X horas sem resposta do lead na fase de Qualificação, o sistema o move automaticamente para a coluna "Sem Resposta". (O prazo exato será parametrizado conforme a nova lógica em desenvolvimento).
 - **SLA 2 - Geladeira (Ex: 7 dias):** Se o lead permanecer intocado na coluna "Sem Resposta" por um número definido de dias, ele cai automaticamente para a "Nutrição Inativa" (Geladeira de Leads).
+- **SLA 3 - Geladeira Longa (Ex: 60 dias):** Cron job de SLA exclusivo para "Paciente Antigo". Se o paciente não tiver nenhuma interação (inbound) nos últimos 60 dias, ele é movido para "Nutrição Antigos" para receber campanhas de reengajamento.
 
 ## Reator Humano Simplificado
 Quando a secretária edita um estágio do card manualmente na UI, o sistema apenas aceita o movimento. Não há mais necessidade de "bloquear a IA por 7 dias" (`manual_lock_until`), pois a IA de movimentação já não atua sobre a Clínica ÓR.

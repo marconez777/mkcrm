@@ -2,6 +2,8 @@
 
 Este documento mapeia o fluxo completo de um lead dentro da Clínica ÓR, detalhando cada inteligência embutida, regras de movimentação, triggers de banco de dados e automações ativas.
 
+> **⚠️ IMPORTANTE (V7 Determinístico):** Este documento foi atualizado para refletir o **isolamento** da Clínica ÓR. A arquitetura anterior (V6) que usava IA para mover cards foi **depreciada** aqui. A movimentação é 100% determinística.
+
 ---
 
 ## 1. Mapeamento Oficial de IDs (Pipeline ÓR)
@@ -24,7 +26,7 @@ Este documento mapeia o fluxo completo de um lead dentro da Clínica ÓR, detalh
 
 ---
 
-## 2. Fluxo da Vida de um Lead (Mapa do Funil)
+## 2. Fluxo da Vida de um Lead (Mapa do Funil V7)
 
 ```mermaid
 graph TD
@@ -32,95 +34,68 @@ graph TD
     B -->|Grava mensagem| C(Marca needs_ai_review = true)
     C --> D[Edge Function: pipeline-classify]
     
-    subgraph Inteligência Artificial V6 (Maestro)
+    subgraph Inteligência Artificial V7 (Apenas Leitura)
         D --> D1(Agente 1: Summarizer)
-        D --> D2(Agente 2: Agendador)
-        D --> D3(Agente 3: Typifier)
-        D --> D4(Agente 4: Movimentador)
-        D1 & D2 & D3 & D4 --> D5{Agente 5: Maestro - Juiz Final}
+        D --> D2(Agente 2: Typifier)
     end
     
-    D5 -->|Ação| E{Sugestão de Estágio / Tag}
-    E --> F[Atualiza Lead no Kanban]
-    E --> G[Automações Tick Monitoram o Lead]
+    D1 & D2 --> E[Atualiza Resumo e Tags no Lead]
+    
+    subgraph Motor Determinístico (Rule Engine)
+        E -. Secretária lê e agenda .-> F(Move: Agendado)
+        E -. Inatividade Temporal .-> G(Move: Geladeira)
+        E -. Tag B2B Aplicada .-> H(Move: Desqualificado/B2B)
+    end
 ```
 
 ---
 
-## 3. Comportamento da Inteligência Artificial V6
+## 3. Comportamento da Inteligência Artificial V7
 
-O pipeline da Clínica ÓR conta com o **Classifier V6**. Quando uma mensagem chega, 5 Agentes Especializados atuam simultaneamente, guiados por *prompts* estritos. Abaixo as regras de negócio de cada um:
+O pipeline da Clínica ÓR teve seus agentes de tomada de decisão (Agendador, Movimentador e Maestro) desativados por hardcode (Bypass de `clinic_id` em `agent-core.ts`). 
+Hoje, apenas 2 Agentes atuam para acelerar a leitura humana:
 
 ### 3.1 Agente 1: Summarizer (Resumo Factual)
 - Lê o histórico recente e separa em PASSADO e PRESENTE.
-- **Regra de Ouro:** A palavra da secretária é a que vale. O robô só afirma que algo foi pago ou agendado se a secretária confirmar, ignorando falsas afirmações de pacientes.
-- Extrai as datas com precisão.
-- Se for a primeira mensagem pré-fabricada de botão de rede social, ele a ignora para intenção e pega apenas a "Origem".
+- **Regra de Ouro:** A palavra da secretária é a que vale. O robô só afirma que algo foi pago ou agendado se a secretária confirmar.
+- Não converte datas, apenas devolve a string crua e o ISO da mensagem.
 
-### 3.2 Agente 2: Agendador (Intenção de Agenda)
-Tenta extrair uma destas 5 intenções puras de agenda baseada no resumo:
-`novo_agendamento`, `reagendamento`, `cancelamento`, `duvida_agenda`, `nenhum`.
-
-### 3.3 Agente 3: Typifier (Preenchedor de Campos e Tags)
-Pega informações do lead e preenche campos do banco de dados (ex: `risco_clinico`, `procedimento_interesse`, etc).
-- **Proibição Exata:** Ele **NUNCA** preenche campos como `consulta_agendada_em`. Essa responsabilidade pertence unicamente à secretária humana.
-- Preserva o campo `Origem` se ele já tiver sido setado por um humano anteriormente.
-
-### 3.4 Agente 4: Movimentador (Intenção de Funil)
-Ele define a fase oficial para onde o lead deve pular. As lógicas:
-- **Novo:** Primeira interação.
-- **Qualificação:** Secretária em diálogo para converter.
-- **Sem resposta:** Parou de responder durante a qualificação.
-- **Nutrição inativa:** Resfriou, achou caro, não fechou.
-- **Paciente Antigo:** Regra especial! Se o lead pedir **renovação de receita** ou citar que "o Dr. X já atendeu", ele vai direto para Paciente Antigo e NÃO para qualificação.
-- **B2B / Stakeholders:** Fornecedores, representantes comerciais, laboratórios. **Blindagem de Tokens:** Ao mover um lead para esta coluna, o gatilho `trg_set_b2b_on_stage_move` injeta `is_b2b: true`. Com isso, o interceptador `trg_lead_needs_extraction` passa a abortar a IA permanentemente, garantindo que o card fique trancado no B2B sem gastar tokens. Médicos procurando tratamento para eles mesmos **não são B2B**, vão para o funil normal de paciente.
-
-### 3.5 Agente 5: Maestro (Juiz Final)
-Resolve conflitos entre os outros 4 robôs:
-- **Trava Estrita de Agendamento Humano:** A IA está **TERMINANTEMENTE PROIBIDA** de mover um lead sozinha para as colunas: `Consulta agendada`, `Tratamento agendado`, `Consulta finalizada` e `1ª Sessão Finalizada`. Se algum Agente tentar fazer isso, o Maestro barra o movimento e deixa em Qualificação.
-- Se a confiança for baixa (menor que 60%), ele não move o card.
-- Se houver `manual_lock_until` (alguém ativou a trava), ele não move o card.
+### 3.2 Agente 2: Typifier (Preenchedor de Campos e Tags)
+Pega informações do lead e sugere **Tags** (`tags_suggested`).
+- **Gatilho Indireto de B2B:** Embora a IA não mova o card, se ela identificar fornecedores/vendedores e sugerir a tag `b2b`, um gatilho de sistema joga o card imediatamente para a coluna "Desqualificado / B2B".
+- **Proibição Exata:** Ele **NUNCA** preenche campos de data de consulta. Isso é feito unicamente pela secretária.
 
 ---
 
 ## 4. Regras e Filtros de Banco de Dados (Gatilhos SQL)
 
-Abaixo do capô, os gatilhos no PostgreSQL atuam detectando *palavras de emergência* instantaneamente antes mesmo da IA analisar:
+Abaixo do capô, gatilhos no PostgreSQL atuam detectando palavras ou tags instantaneamente:
 
 - **Risco Clínico Absoluto:**
-Se o lead disser palavras como *"me matar", "suicídio", "não aguento mais viver", "vontade de morrer"*, o sistema tagueia **instantaneamente** `risco_clinico = true`.
-- **Desqualificação Automática (Procedimento Não Atendido):**
-A Clínica ÓR não atende pacientes buscando **EMDR** (Dessensibilização e Reprocessamento). Se citado, o lead recebe o selo `desqualificado` automaticamente, economizando tempo do humano e da IA.
+Se o lead disser palavras como *"me matar"*, o sistema tagueia **instantaneamente** `risco_clinico = true`.
+- **Desqualificação Automática (B2B/Procedimentos):**
+A Clínica ÓR não atende pacientes buscando **EMDR**. Se citado, o lead recebe o selo `desqualificado`. Se for vendedor, a tag `b2b` o envia para a coluna de desqualificados.
 - **Filtros Iniciais (Procedimentos):**
-Citações a "cetamina", "EMT", "psicoterapia", geram auto-preenchimento no campo `procedimento_interesse`.
+Citações a "cetamina", "EMT", geram auto-preenchimento no campo `procedimento_interesse`.
 
 ---
 
-## 5. Automações Ativas (`automations-tick`)
+## 5. Automações Ativas (`automations-tick` e SLAs Determinísticos)
 
-O sistema tem um motor em background que roda a cada 5 minutos (Edge Function `automations-tick`). Ele procura por leads caídos em "limbo" nas regras de Estágio Parado.
+O sistema tem um motor em background que roda a cada 5 minutos (Edge Function `automations-tick`). Tudo aqui é temporal e exato (Rule Engine).
 
 ### 5.1 Sem Resposta (`no_reply_after`)
-**O que faz:** Monitora leads que a secretária tentou contato e o cliente sumiu.
-- **Tempo:** Aguarda 48 horas (configurável no Painel de Automações).
-- **Como funciona:** O script olha para a última mensagem da conversa. Se a última mensagem for `from_me = true` (ou seja, foi enviada pela Clínica) e já passou o tempo sem o cliente responder, ele roda o robô.
-- **Ação:** O lead é movido da "Qualificação" para a coluna "Sem resposta".
-- *(Nota de Auditoria: Esta regra foi consertada em 17/07. Antes rodava ao contrário e possuía 72 horas de tempo)*.
+- **Tempo:** Aguarda 48 horas (configurável) na fase de Qualificação.
+- **Como funciona:** Se a última mensagem for da Clínica (`from_me = true`) e estourou o tempo, o robô atua.
+- **Ação:** O lead é movido da "Qualificação" para "Sem resposta".
 
-### 5.2 Estágio Parado (`stage_idle`)
-**O que faz:** Varre o CRM inteiro procurando cards mofando na mesma coluna há muito tempo.
-- **Ação (Geladeira):** Um gatilho estrito vigia a coluna "Sem Resposta". Se o lead permanecer intocado lá por 168 horas (7 dias), ele sofre um `move_stage` automático sendo transferido para a Geladeira ("Nutrição inativa").
+### 5.2 Estágio Parado (`stage_idle` - Geladeiras)
+Varre o CRM procurando cards inativos:
+- **Nutrição Inativa (Geladeira Curta):** Se o lead ficar 7 dias parado em "Sem Resposta", ele desce automaticamente para a "Nutrição inativa".
+- **Nutrição Antigos (Geladeira Longa):** Se um "Paciente Antigo" ficar mais de 60 dias sem interagir com a clínica, ele é movido para "Nutrição Antigos" para campanhas.
 
 ### 5.3 Cooldown de Segurança
-Todas as automações acima operam debaixo de um sistema de segurança:
-- Quando o robô executa ação sobre um lead (com sucesso ou falha na tentativa), ele injeta um tempo de espera no banco de dados (`recentlyRan`). O lead não pode ser atacado novamente por robôs por várias horas.
-- *(Nota de Auditoria: Consertado em 17/07 para não gerar loop infinito em erros de move_stage)*.
+- Ao atuar, a automação aplica um tempo de espera (`recentlyRan`). O lead não pode ser engatilhado repetidas vezes pela mesma automação em loop.
 
 ### 5.4 Virada de Mês (Limpeza Mensal)
-**O que faz:** Desafoga o Kanban limpando as colunas de sucesso do mês anterior.
-- **Ação:** Disparada todo dia 1º, a automação `monthly_cleanup` move todos os leads das fases "Consulta Finalizada" e "1ª Sessão Finalizada" silenciosamente para "Paciente Antigo".
-- **Integração:** Trabalha em conjunto com a edge function `report-finalizados-mensal-or` que contabiliza os ganhos do mês e envia o e-mail gerencial.
-
----
-
-Este ecossistema inteiro opera perfeitamente integrado no Lovable Cloud, requerendo apenas um deploy nas `Edge Functions` e atualizações de banco pelo `SQL Editor` (mantendo migrations `supabase/migrations/` seguras na base do projeto) toda vez que uma alteração crítica é feita.
+- **Ação:** Disparada todo dia 1º, o cron `pipeline-monthly-cycle-or` move todos os leads das fases "Consulta Finalizada" e "1ª Sessão Finalizada" silenciosamente para a gaveta de "Paciente Antigo".
