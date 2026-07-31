@@ -278,9 +278,6 @@ export default function EmailSegments() {
     if (kind === "dynamic" && rules.length === 0) {
       toast.error("Adicione pelo menos uma regra"); return;
     }
-    if (kind === "static" && selectedContactIds.size === 0) {
-      toast.error("Selecione ao menos um contato"); return;
-    }
 
     setSaving(true);
     try {

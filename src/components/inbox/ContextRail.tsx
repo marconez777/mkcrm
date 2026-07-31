@@ -97,7 +97,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
       const virtualFields = (apptKinds || []).map((k: any) => ({
         id: `virtual-appt-${k.id}`,
         label: k.label || `Data de ${k.kind_name}`,
-        field_key: `${k.kind_name}_agendado_em`,
+        field_key: k.kind_name === "consulta" ? "consulta_agendada_em" : `${k.kind_name}_agendado_em`,
         field_type: "datetime" as const,
         options: null,
         position: -1,
