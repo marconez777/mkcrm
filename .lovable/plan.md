@@ -1,64 +1,51 @@
-## Combinado
+## Objetivo
 
-Eu executo agora tudo o que é **banco de dados** (dado, não código) e deixo o resto escrito em `docs/roadmap/roadmap-automacao.md` para você rodar no Antigravity.
+Hoje "Origem" é um campo personalizado (`custom_fields.origem`) que só existe na Clínica ÓR, é preenchido na mão (383 de 1.882 leads) ou "chutado" pela IA a partir do texto da mensagem. Ao mesmo tempo o sistema já tem tracking completo e confiável (191 registros de atribuição só na ÓR: Google orgânico, Google Ads, YouTube, redes sociais, indicação/referral, direto).
 
----
+A proposta: transformar Origem em **campo nativo do lead, igual para todas as clínicas**, preenchido automaticamente a partir do tracking, e aposentar o campo personalizado.
 
-## Parte A — O que eu faço aqui (banco de dados)
+## Como a origem será decidida (regra única, no código)
 
-**A1. Cadastrar os 2 templates de pesquisa de satisfação**
+Ordem de prioridade, sempre que o lead ganha ou atualiza atribuição:
 
-- `ÓR — Pesquisa de Satisfação (Consulta)` → link `...1FAIpQLSeC_wBJEyM3WoNkVIf2T3UIuwd4JfbtxSNCk2sSLXoT6IvWPg`
-- `ÓR — Pesquisa de Satisfação (Procedimento)` → link `...1FAIpQLSeH7jJ6Xvwk_Ceq38lHKWqeCgy4c5fNe_v7PNySUCSkd6US-g`
+1. **Tracking (fonte da verdade)** — usa o toque de conversão já gravado em `tracking_lead_sources` (`channel_group` + `source` + `campaign`). É o que resolve o caso do `(ref=...)`: quando a mensagem chega com o código, o sistema já casa o lead com o visitante e sabe se ele veio de Google, Instagram, YouTube, e-mail, indicação, etc. O `ref` deixa de virar "origem WhatsApp" genérica — ele é só a ponte para a origem real.
+2. **Formulário do site** — se o lead nasceu de um formulário e não há tracking, origem = "Formulário do site" + nome do formulário.
+3. **E-mail marketing** — quando o toque de conversão tem meio "email" (ou o lead veio de segmento/campanha de e-mail), origem = "E-mail marketing" + campanha.
+4. **WhatsApp direto** — mensagem sem `ref`, sem visitante casado: "WhatsApp direto".
+5. **Teste / interno** — mensagens marcadas como teste ou instância de teste: "Teste".
+6. **Indeterminado** — nada disso.
 
-Texto exatamente como você mandou, só trocando a abertura por `Olá {{primeiro_nome}}! Tudo bem?` (variável que já funciona hoje). Sem nenhuma tag de data — não tem risco de sair `{{data}}` cru.
+Origem editada manualmente pela equipe nunca é sobrescrita pela automação (trava humana), igual ao comportamento atual.
 
-**A2. Corrigir templates com variáveis inválidas**
+## Fases
 
-O renderizador só entende `{{nome}}`, `{{primeiro_nome}}`, `{{telefone}}`, `{{email}}`, `{{empresa}}` e `{{campo.<chave>}}`. Qualquer outra coisa sai **literal** para o cliente — foi isso que você viu. Vou reescrever:
+**Fase 1 — Campo nativo + backfill**
+- Adicionar em `leads`: `origin_channel` (valor canônico: `google_organic`, `google_ads`, `meta_ads`, `instagram`, `facebook`, `youtube`, `email`, `referral`, `form`, `whatsapp_direct`, `test`, `other`, `unknown`), `origin_label` (texto exibido), `origin_detail` (campanha/formulário/fonte), `origin_source_type` (de onde veio a dedução), `origin_locked_by_user` e `origin_updated_at`.
+- Backfill: preencher todos os leads existentes a partir de `tracking_lead_sources`; onde não houver tracking, migrar o valor atual de `custom_fields.origem` (Google - Orgânico, Google - Ads, YouTube, Redes Sociais, Indicação de paciente/Médico/Psicóloga, Indeterminado) para o novo campo, marcando como travado (foi humano quem preencheu).
 
-| Template | Hoje (quebrado) | Vira |
-|---|---|---|
-| Lembrete consulta — 1 dia antes | `{{campo.data_horario}}` (chave inexistente) | `{{campo.consulta_agendada_em:data}}` às `{{campo.consulta_agendada_em:hora}}` |
-| Teleconsulta (Online) | `{{data}}`, `{{horario}}` | as duas acima |
-| Consulta Presencial | `{{data}}`, `{{horario}}`, `{{medico}}`, `{{endereco}}` | data/hora corretas; médico e endereço escritos fixos no texto |
-| Primeira Sessão | `{{data}}`, `{{horario}}`, `{{procedimento}}` | data/hora corretas + `{{campo.procedimentos}}` |
-| Lembrete — 1 hora antes | ok, não usa data | mantém |
+**Fase 2 — Preenchimento automático**
+- Criar `supabase/functions/_shared/lead-origin.ts` com o resolvedor único (regra acima) e a normalização de rótulos.
+- Chamar esse resolvedor em: `tracking-identify` (logo após gravar a atribuição — cobre o caso do `ref=`), `evolution-webhook` (fallback WhatsApp direto/teste), `forms-ingest` e `external-lead-capture`.
+- Tirar "origem" do escopo do classificador de IA (`pipeline-classify`): a IA para de adivinhar origem pelo texto.
 
-**A3. Corrigir a condição da automação "1 Dia antes Online"**
+**Fase 3 — Interface**
+- Mostrar a Origem como campo fixo na ficha do lead e como chip opcional no Kanban, com o detalhe (campanha/formulário) em tooltip.
+- Permitir edição manual (dropdown com os valores canônicos) — editar marca o lead como travado.
+- Adicionar filtro por origem na lista/Kanban e usar o campo nativo nos relatórios.
+- Remover o campo personalizado "Origem" da ÓR depois do backfill validado (o histórico já terá sido migrado).
 
-Está gravada com `{field_key: teleconsulta, value: sim}` **sem `op`**. O código só aplica a condição quando `op` existe — ou seja, hoje o texto de teleconsulta iria também para paciente presencial. Gravo `op: eq`, e confirmo `op: neq` na presencial.
+**Fase 4 — Cobertura de lacunas do tracking**
+- `forms-ingest` e `external-lead-capture` hoje não gravam UTMs nem vinculam visitante: passar a repassar `visitor_id`/`session_id`/UTMs do formulário para o tracking, para que formulário também produza atribuição real (Instagram → formulário → lead).
+- Marcar leads originados de campanha de e-mail com o toque de e-mail correspondente.
 
-**A4. Criar as automações de 1 hora antes**
+## Detalhes técnicos
 
-Não existe nenhuma automação com offset de 60 min — o template "1 hora antes" nunca dispara. Crio duas (presencial / online), `offset_minutes: 60`, sem `business_hours_only` (senão consulta cedo ou tarde perde o lembrete), **desligadas** até você validar.
+- Fonte primária: `tracking_lead_sources` (`source_type = 'conversion_touch'`, fallback `last_non_direct` e `first_touch`), com `channel_group` já normalizado por `traffic_source_rules`.
+- O código `(ref=xxxxxxxxxx)` continua sendo tratado como mensagem padrão (não gera intenção); ele serve apenas para casar `whatsapp_intents` → visitante → atribuição.
+- As colunas legadas `leads.utm_source/utm_medium/utm_campaign/gclid/fbclid/form_source` ficam como estão (sem writer hoje); o novo campo é a fonte oficial de exibição.
+- Nada de novo campo personalizado por clínica: a lista de origens é fixa no código e vale para todos os tenants.
 
-**A5. Criar as automações de pesquisa de satisfação**
+## Pontos a confirmar durante a implementação
 
-Gatilho: entrada em "Consulta finalizada". Duas regras, uma por tipo (consulta / procedimento), atraso de 2h após a mudança de coluna, uma vez por lead. Criadas **desligadas**.
-
-**A6. Excluir as automações sobressalentes**
-
-- `Nova automação` — vazia, sem configuração.
-- `Geladeira - 7 Dias sem resposta` — duplicata de `ÓR — Move Sem Resposta → Nutrição Inativa (7d)`.
-- `Limpeza Mensal - Virada de Mês` — já feita pelo cron `pipeline-monthly-cycle-or`.
-- `Antigo → Nutrição Antigos (60d)` — a regra já vive no motor determinístico; manter as duas gera disputa.
-
-**A7. Religar em ordem segura**
-
-Ligo apenas os lembretes D-1 (presencial e online) depois de conferir o texto renderizado com um lead real. Follow-ups de IA continuam desligados até a Parte B, porque hoje eles não produzem mensagem nenhuma.
-
----
-
-## Parte B — Roadmap para o Antigravity
-
-`docs/roadmap/roadmap-automacao.md`, com arquivo, linha e o que mudar:
-
-1. **Variáveis de agenda nativas** em `supabase/functions/_shared/template-vars.ts` + espelho `src/lib/template-vars.ts`: `{{data}}`, `{{horario}}`, `{{data_extenso}}`, `{{dia_semana}}` resolvidas a partir do agendamento do gatilho.
-2. **Nunca vazar tag crua**: variável desconhecida vira string vazia + aviso no log, em vez de sair `{{data}}` para o cliente.
-3. **Condição sem `op`**: em `automations-tick/index.ts` (~linha 243), assumir `eq` quando vier `field_key` sem `op`.
-4. **Vazamento entre clínicas**: em `send_template` (~linha 360) a busca em `lead_custom_fields` está sem filtro de `clinic_id`.
-5. **Validador de variáveis no editor de templates**: avisar ao salvar quando a variável não é reconhecida.
-6. **Follow-up IA mudo**: as duas regras de follow-up da Qualificação não geram mensagem — falta agente em `action_config`.
-7. **Guard do "Paciente antigo"**: `_shared/pipeline-move.ts` (~linha 186) só permite destino "Nutrição inativa", bloqueando 100% das mudas para "Nutrição Antigos".
-8. **Estado atual das 6 automações que sobraram**, com o `action_config` já corrigido por mim, para o Antigravity não desfazer o trabalho.
+- Rótulos exibidos em português para cada canal (ex.: "Google — Orgânico", "Google Ads", "Instagram", "Indicação", "E-mail marketing", "Formulário do site", "WhatsApp direto", "Teste", "Indeterminado").
+- Se "Indicação de paciente/médico/psicóloga" deve continuar como três opções manuais separadas ou uma só "Indicação" com detalhe.

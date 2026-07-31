@@ -1,5 +1,6 @@
 // Links an anonymous visitor_id to a lead_id and backfills past events with that lead_id.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { applyOriginFromTracking } from "../_shared/lead-origin.ts";
 
 function corsFor(req: Request) {
   const origin = req.headers.get("Origin") || "*";
@@ -277,6 +278,11 @@ Deno.serve(async (req) => {
         });
       if (lsErr) console.error("[tracking-identify] lead_sources_upsert_error", lsErr);
     }
+
+    // === Origem nativa do lead (campo padrão para todos os tenants) ===
+    const originRes = await applyOriginFromTracking(supabase as any, clinic.id, resolvedLeadId);
+    console.log("[tracking-identify] lead_origin", { lead_id: resolvedLeadId, ...originRes });
+
   } catch (e) {
     console.error("[tracking-identify] lead_sources_unexpected_error", e);
   }

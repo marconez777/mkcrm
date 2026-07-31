@@ -32,7 +32,8 @@ import { useStages, useLeads } from "@/hooks/useCrm";
 import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download } from "lucide-react";
+import { originLabelOf } from "@/lib/lead-origin";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download, Compass } from "lucide-react";
 import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -294,15 +295,20 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const visibleReasons = compact ? reasons.slice(0, 2) : reasons.slice(0, 4);
   const extra = reasons.length - visibleReasons.length;
 
+  const originLabel = originLabelOf(lead);
+
   if (
     !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
-    !pending && reasons.length === 0
+    !pending && reasons.length === 0 && !originLabel
   ) return null;
 
   const fmt = (d: Date) => d.toLocaleDateString(i18n.language, { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1">
+      {originLabel && (
+        <Chip tone="muted" icon={<Compass className="h-3 w-3" />}>{originLabel}</Chip>
+      )}
       {qualif === "desqualificado" && (
         <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>{t("kanban.tag.disqualified")}</Chip>
       )}

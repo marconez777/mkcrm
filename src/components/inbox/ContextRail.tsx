@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { deleteLead } from "@/lib/delete-lead";
 import CustomFieldsPanel from "./CustomFieldsPanel";
+import LeadOriginField from "./LeadOriginField";
 import LeadTasksPanel from "./LeadTasksPanel";
 import ScheduledMessagesPanel from "./ScheduledMessagesPanel";
 import { usePipelines } from "@/hooks/usePipelines";
@@ -233,11 +234,17 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
           )}
         </div>
 
+        <LeadOriginField
+          lead={lead as any}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        />
+
         <CustomFieldsPanel
           lead={lead}
           fields={customDefs}
           onChange={(next) => setForm((f) => ({ ...f, custom_fields: next }))}
         />
+
 
         <div className="space-y-3">
 
