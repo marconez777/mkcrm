@@ -1,6 +1,7 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
 import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken, downloadAndStoreMedia } from "../_shared/evolution.ts";
 import { isWebhookDuplicate } from "../_shared/utils.ts";
+import { applyLeadOrigin, originFor } from "../_shared/lead-origin.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -455,6 +456,13 @@ async function matchTrackingForInbound(opts: {
 
   if (!visitor_id) {
     console.log("[tracking-match] no visitor", { clinic_id, lead_id, code, ctwaClid });
+    // Sem visitante casado: origem padrão "WhatsApp direto" (prioridade baixa,
+    // será substituída se o tracking casar depois).
+    await applyLeadOrigin(
+      supabase as any,
+      lead_id,
+      originFor("whatsapp_direct", null, "whatsapp_direct"),
+    ).catch((e) => console.error("[tracking-match] origin_fallback_error", e));
     return;
   }
 

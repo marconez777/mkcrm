@@ -1,4 +1,5 @@
 // Edge Function: resend-webhook
+import { applyLeadOrigin, originFor } from "../_shared/lead-origin.ts";
 // Recebe eventos do Resend (delivered/opened/clicked/bounced/complained).
 // Valida assinatura Svix se RESEND_WEBHOOK_SECRET estiver setado.
 
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: log } = await supabase
       .from("email_logs")
-      .select("id, clinic_id, events, recipient_email")
+      .select("id, clinic_id, events, recipient_email, related_lead_id, related_lead_table, template_slug")
       .eq("resend_id", resendId)
       .maybeSingle();
     if (!log) return jsonResponse({ ok: true, ignored: "log not found" });
@@ -71,10 +72,20 @@ Deno.serve(async (req) => {
         update.opened_at = eventTs;
         update.status = "opened";
         break;
-      case "email.clicked":
+      case "email.clicked": {
         update.clicked_at = eventTs;
         update.status = "clicked";
+        // Origem nativa: clique em e-mail marketing atribui o lead ao canal
+        // "email" (prioridade menor que tracking web, nunca sobrescreve manual).
+        if (log.related_lead_id && (log.related_lead_table ?? "leads") === "leads") {
+          await applyLeadOrigin(
+            supabase as any,
+            log.related_lead_id,
+            originFor("email", log.template_slug ?? null, "email"),
+          ).catch((e) => console.error("resend-webhook origin error", e));
+        }
         break;
+      }
       case "email.bounced":
         update.status = "bounced";
         update.bounced_at = eventTs;

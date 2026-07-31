@@ -44,6 +44,11 @@ const STICKY_HUMAN_FIELDS = new Set<string>([
 ]);
 const STICKY_HUMAN_REJECT_REASON = "sticky_human_field_locked";
 
+// Campos que a IA NUNCA escreve: viraram campos nativos alimentados pelo
+// tracking (leads.origin_channel / origin_label / origin_detail).
+const AI_FORBIDDEN_FIELDS = new Set<string>(["origem"]);
+const AI_FORBIDDEN_REJECT_REASON = "field_owned_by_tracking";
+
 // Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
@@ -185,7 +190,15 @@ export async function applyClassification(
   const allowG10DateOverride = cls.confidence >= G10_DATE_OVERRIDE_CONF;
 
   function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
+    // Origem virou campo nativo do lead (leads.origin_*), derivado do tracking.
+    // A IA não escreve mais nesse campo em nenhuma hipótese.
+    if (AI_FORBIDDEN_FIELDS.has(k)) {
+      fieldsRejected.push({ key: k, raw_value: v, reason: AI_FORBIDDEN_REJECT_REASON });
+      return;
+    }
+
     const humanIso = lead.custom_fields_last_human_edit?.[k];
+
 
     // Sticky human lock: campos como `origem` nunca podem ser sobrescritos
     // pela IA depois de uma edição humana, independente da janela G10.

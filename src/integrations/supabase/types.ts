@@ -4135,6 +4135,12 @@ export type Database = {
           name: string | null
           needs_ai_review: boolean
           notes: string | null
+          origin_channel: string | null
+          origin_detail: string | null
+          origin_label: string | null
+          origin_locked_by_user: boolean
+          origin_source_type: string | null
+          origin_updated_at: string | null
           phone: string
           pinned_at: string | null
           pipeline_id: string | null
@@ -4186,6 +4192,12 @@ export type Database = {
           name?: string | null
           needs_ai_review?: boolean
           notes?: string | null
+          origin_channel?: string | null
+          origin_detail?: string | null
+          origin_label?: string | null
+          origin_locked_by_user?: boolean
+          origin_source_type?: string | null
+          origin_updated_at?: string | null
           phone: string
           pinned_at?: string | null
           pipeline_id?: string | null
@@ -4237,6 +4249,12 @@ export type Database = {
           name?: string | null
           needs_ai_review?: boolean
           notes?: string | null
+          origin_channel?: string | null
+          origin_detail?: string | null
+          origin_label?: string | null
+          origin_locked_by_user?: boolean
+          origin_source_type?: string | null
+          origin_updated_at?: string | null
           phone?: string
           pinned_at?: string | null
           pipeline_id?: string | null

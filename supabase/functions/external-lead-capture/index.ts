@@ -6,6 +6,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
+import { applyLeadOrigin, applyOriginFromTracking, originFor } from "../_shared/lead-origin.ts";
+import { callTrackingIdentify } from "../_shared/tracking-identify-call.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,7 +174,37 @@ Deno.serve(async (req) => {
         },
         { onConflict: "clinic_id,visitor_id,lead_id" }
       );
+
+    const { data: clinicRow } = await supabase
+      .from("clinics").select("slug").eq("id", data.clinic_id).maybeSingle();
+    if (clinicRow?.slug) {
+      await callTrackingIdentify({
+        clinicSlug: clinicRow.slug,
+        visitorId: data.visitor_id,
+        sessionId: data.session_id ?? null,
+        leadId: leadId!,
+        email,
+        phone,
+        sourceEvent: "form_partial",
+        properties: { form_kind: data.form_kind ?? null },
+      });
+    }
   }
+
+  // 2.5) Origem nativa: tracking manda; senão, formulário do site.
+  if (leadId) {
+    const fromTracking = await applyOriginFromTracking(supabase as any, data.clinic_id, leadId)
+      .catch(() => ({ applied: false }));
+    if (!fromTracking.applied) {
+      await applyLeadOrigin(
+        supabase as any,
+        leadId,
+        originFor("form", data.form_kind ?? data.source_page ?? null, "form"),
+      ).catch((e) => console.error("[external-lead-capture] origin_error", e));
+    }
+  }
+
+
 
   // 3) Log lead_event 'partial_form_capture' (dedupe last 60s for same form_kind)
   const fieldsPresent = [

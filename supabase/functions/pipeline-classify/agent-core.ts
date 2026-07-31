@@ -290,7 +290,7 @@ IMPORTANTÍSSIMO NO RESUMO:
 - **AUTORIDADE DA SECRETÁRIA**: A palavra da secretária vale mais que a do paciente. Se o paciente diz "já paguei", mas a secretária não confirmou nem enviou comprovante, você DEVE escrever: "Paciente alega ter pago, mas não há confirmação da clínica". SÓ AFIRME "pagamento recebido" ou "agendamento confirmado" se a *secretária* confirmar de forma clara.
 - Se o paciente mencionar a MODALIDADE de atendimento (ex: "presencial", "online", "teleconsulta"), você DEVE citar isso no resumo.
 - Se o paciente mencionar QUALQUER campo personalizado ou dado cadastral importante, inclua no resumo.
-- **REGRA DA PRIMEIRA MENSAGEM**: Se o Contexto trouxer "PRIMEIRA_MENSAGEM_TEMPLATE: true", trate a única mensagem do lead como texto pré-fabricado de botão/anúncio. NÃO use essa mensagem para inferir interesse real do paciente. Use-a SOMENTE para extrair "origem" quando houver rastreio explícito (Google/Instagram/Facebook/Indicação). O resumo do PRESENTE deve registrar apenas "Lead chegou via [origem se disponível] — ainda sem interação real" até que a 2ª mensagem do lead apareça.
+- **REGRA DA PRIMEIRA MENSAGEM**: Se o Contexto trouxer "PRIMEIRA_MENSAGEM_TEMPLATE: true", trate a única mensagem do lead como texto pré-fabricado de botão/anúncio. NÃO use essa mensagem para inferir interesse real do paciente. NÃO extraia "origem" (campo nativo alimentado pelo tracking). O resumo do PRESENTE deve registrar apenas "Lead chegou via [origem se disponível] — ainda sem interação real" até que a 2ª mensagem do lead apareça.
 
 Além do resumo, devolva "mentioned_dates" contendo as datas citadas pelo paciente ou pela secretária.
 NÃO converta datas — devolva a string crua exatamente como aparece ("amanhã às 15h", "quinta-feira", "dia 24/06") e "anchor_iso" = o
@@ -479,9 +479,9 @@ Tarefa:
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
 
-REGRA DA PRIMEIRA MENSAGEM: Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, NÃO preencha "interesse_consulta", "interesse_tratamento" nem qualquer campo relacionado a intenção/objetivo do paciente — a única mensagem dele é texto pré-fabricado de botão/anúncio. A ÚNICA chave que pode ser inferida nesse cenário é "origem" (se houver rastreio explícito como "vim do Google"). Demais campos devem ficar vazios até a 2ª mensagem real do lead.
+REGRA DA PRIMEIRA MENSAGEM: Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, NÃO preencha "interesse_consulta", "interesse_tratamento" nem qualquer campo relacionado a intenção/objetivo do paciente — a única mensagem dele é texto pré-fabricado de botão/anúncio. Nenhuma chave deve ser inferida nesse cenário — inclusive "origem", que é campo nativo do sistema. Todos os campos ficam vazios até a 2ª mensagem real do lead.
 
-ORIGEM (sticky humano): NUNCA sobrescreva "origem" se já houver valor preenchido e edição humana registrada — o executor protegerá, mas evite redundância: se "origem" já tem valor no Contexto, omita do patch.
+ORIGEM: NUNCA inclua "origem" no patch. A origem do lead é campo nativo preenchido pelo tracking (leads.origin_*) — o executor descarta qualquer tentativa da IA.
 
 Se incerto sobre qualquer chave ou tag, NÃO invente — \`custom_fields_patch: {}\` e \`tags_suggested: []\` são respostas válidas.
 
@@ -651,8 +651,8 @@ Regras de Autoridade:
 - Datas (consulta_agendada_em, procedimento_agendado_em) NÃO devem aparecer em custom_fields_patch — são preenchidas exclusivamente pela secretária.
 
 🚨 REGRA DA PRIMEIRA MENSAGEM:
-- Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, IGNORE qualquer "interesse_consulta", "interesse_tratamento" ou "scheduling_intent" sugerido pelos agentes — a única mensagem do lead é texto pré-fabricado de botão/anúncio. Mantenha o stage atual, zere intent (use "nenhum"/"none") e remova esses campos do custom_fields_patch. A ÚNICA chave aceita nesse cenário é "origem".
-- "origem" tem lock humano permanente: se já existir valor preenchido nesse campo no lead, NÃO inclua no patch (o executor descarta).
+- Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, IGNORE qualquer "interesse_consulta", "interesse_tratamento" ou "scheduling_intent" sugerido pelos agentes — a única mensagem do lead é texto pré-fabricado de botão/anúncio. Mantenha o stage atual, zere intent (use "nenhum"/"none") e remova esses campos do custom_fields_patch. Nenhuma chave é aceita nesse cenário.
+- "origem" NUNCA entra no patch: é campo nativo do sistema, derivado do tracking (o executor descarta).
 
 Devolva todos os campos exigidos.`;
 }
