@@ -12,6 +12,8 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { isAutoReplyMessage } from "../_shared/standard-messages.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
