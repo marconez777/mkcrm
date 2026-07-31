@@ -49,6 +49,27 @@ export default function Templates() {
 
   const save = async () => {
     if (!selected) return;
+
+    // B5: Validador de variáveis
+    const content = selected.content || "";
+    const matches = content.match(/\{\{[^}]+\}\}/g) || [];
+    const validGlobals = [...VARIABLES, "{{data}}", "{{horario}}", "{{data_extenso}}", "{{dia_semana}}"];
+    
+    for (const match of matches) {
+      if (validGlobals.includes(match)) continue;
+      if (match.startsWith("{{campo.")) {
+        const inner = match.replace("{{", "").replace("}}", "").trim();
+        const parts = inner.split(":");
+        const keyParts = parts[0].split(".");
+        if (keyParts.length >= 2) {
+          const fieldKey = keyParts.slice(1).join(".");
+          const exists = customDefs.some((f) => f.field_key === fieldKey);
+          if (exists) continue;
+        }
+      }
+      return toast.error(`Variável inválida encontrada: ${match}. Remova ou corrija antes de salvar.`);
+    }
+
     const { error } = await supabase
       .from("message_templates")
       .update({

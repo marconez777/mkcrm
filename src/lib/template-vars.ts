@@ -69,6 +69,7 @@ export function renderTemplate(
   lead: LeadLike,
   customFieldDefs: CustomFieldDefLite[] = [],
   tz: string = DEFAULT_TZ,
+  context?: { appointment_at?: string },
 ): string {
   if (!text) return text;
   const name = lead?.name || lead?.phone || "";
@@ -76,15 +77,33 @@ export function renderTemplate(
   const defByKey = new Map(customFieldDefs.map((d) => [d.field_key, d.field_type]));
   const cf = lead?.custom_fields || {};
 
-  return text
+  const apptRaw = context?.appointment_at || (cf as any).consulta_agendada_em || (cf as any).procedimento_agendado_em;
+  let dataStr = "", horaStr = "", dataExtensoStr = "", diaSemanaStr = "";
+  if (apptRaw) {
+    dataStr = formatCustom(apptRaw, "datetime", "data", tz);
+    horaStr = formatCustom(apptRaw, "datetime", "hora", tz);
+    dataExtensoStr = formatCustom(apptRaw, "datetime", "extenso", tz);
+    diaSemanaStr = formatCustom(apptRaw, "datetime", "dia_semana", tz);
+  }
+
+  const replaced = text
     .split("{{nome}}").join(name)
     .split("{{primeiro_nome}}").join(first)
     .split("{{telefone}}").join(lead?.phone ?? "")
     .split("{{email}}").join(lead?.email ?? "")
     .split("{{empresa}}").join(lead?.company ?? "")
+    .split("{{data}}").join(dataStr)
+    .split("{{horario}}").join(horaStr)
+    .split("{{data_extenso}}").join(dataExtensoStr)
+    .split("{{dia_semana}}").join(diaSemanaStr)
     .replace(/\{\{\s*campo\.([a-zA-Z0-9_]+)(?::([a-zA-Z_]+))?\s*\}\}/g, (_m, key: string, mod?: string) => {
       const val = (cf as any)[key];
       const ftype = defByKey.get(key) || "text";
       return formatCustom(val, ftype, mod ?? null, tz);
     });
+
+  return replaced.replace(/\{\{[^}]+\}\}/g, (match) => {
+    console.warn(`[renderTemplate] Unrecognized or empty token stripped: ${match}`);
+    return "";
+  });
 }

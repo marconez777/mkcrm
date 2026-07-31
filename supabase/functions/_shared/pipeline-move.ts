@@ -179,11 +179,12 @@ export async function pipelineMove(
   }
 
   // Guard D3 — paciente antigo não sai do stage por automação, EXCETO p/
-  // "Nutrição inativa" (única saída permitida, executada pelo cron de inatividade 60d).
+  // "Nutrição inativa" ou "Nutrição Antigos" (saídas executadas por cron de inatividade).
   if (
     isAutoSource &&
     fromStage?.name === PACIENTE_ANTIGO_NAME &&
-    toStage.name !== "Nutrição inativa"
+    toStage.name !== "Nutrição inativa" &&
+    toStage.name !== "Nutrição Antigos"
   ) {
     return { moved: false, reason: "guard_d3_paciente_antigo" };
   }

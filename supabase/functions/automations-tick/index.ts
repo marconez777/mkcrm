@@ -81,6 +81,27 @@ async function logRun(
   if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
 
+function matchesCondition(lead: any, cond: any): boolean {
+  if (!cond?.field_key) return true;
+  const op = cond.op ?? "eq";
+  const v = (lead.custom_fields as any)?.[cond.field_key];
+  const present = v !== null && v !== undefined && v !== "" &&
+    !(Array.isArray(v) && v.length === 0);
+  
+  const normBool = (val: any) => {
+    const s = String(val ?? "").trim().toLowerCase();
+    if (["true", "sim", "1", "yes", "y"].includes(s)) return "sim";
+    if (["false", "nao", "não", "0", "no", "n", ""].includes(s)) return "nao";
+    return s;
+  };
+
+  const eq = normBool(v) === normBool(cond.value);
+  return op === "eq" ? eq :
+         op === "neq" ? !eq :
+         op === "empty" ? !present :
+         op === "not_empty" ? present : true;
+}
+
 async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
   // Aceita stage_ids (array) ou stage_id (single, legado). stage_ids tem prioridade.
   const cfgStageIds: string[] | undefined = Array.isArray(a.trigger_config?.stage_ids) && a.trigger_config.stage_ids.length > 0
@@ -99,9 +120,9 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       .limit(50);
     if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
     const { data } = await q;
-    // Filter: last message must be inbound (from_me = false)
     const out: any[] = [];
     for (const l of data ?? []) {
+      if (!matchesCondition(l, a.trigger_config?.condition)) continue;
       const { data: lastMsg } = await supabase
         .from("messages")
         .select("from_me")
@@ -125,7 +146,12 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       .limit(50);
     if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
     const { data } = await q;
-    return data ?? [];
+    const out: any[] = [];
+    for (const l of data ?? []) {
+      if (!matchesCondition(l, a.trigger_config?.condition)) continue;
+      out.push(l);
+    }
+    return out;
   }
 
   if (a.trigger_type === "monthly_cleanup") {
@@ -240,22 +266,10 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       }
 
       // Filtro condicional por campo personalizado (ex.: teleconsulta=sim)
-      if (cond?.field_key && cond?.op) {
-        const v = (l.custom_fields as any)?.[cond.field_key];
-        const present = v !== null && v !== undefined && v !== "" &&
-          !(Array.isArray(v) && v.length === 0);
-        const eq = normBool(v) === normBool(cond.value);
-        const pass =
-          cond.op === "eq" ? eq :
-          cond.op === "neq" ? !eq :
-          cond.op === "empty" ? !present :
-          cond.op === "not_empty" ? present : true;
-        if (!pass) {
-          await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "condition_not_matched", appt.toISOString());
-          continue;
-        }
+      if (!matchesCondition(l, cond)) {
+        await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "condition_not_matched", appt.toISOString());
+        continue;
       }
-
 
       out.push({ ...l, appointment_at: appt.toISOString() });
     }
@@ -265,9 +279,13 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
   return [];
 }
 
-async function runAction(supabase: any, a: Automation, leadId: string): Promise<{ ok: boolean; detail?: string }> {
+async function runAction(supabase: any, a: Automation, leadId: string, appointmentAt?: string | null): Promise<{ ok: boolean; detail?: string }> {
   if (a.action_type === "ai_followup") {
-    const agentId = a.action_config?.agent_id;
+    let agentId = a.action_config?.agent_id;
+    if (!agentId) {
+      const { data: fallback } = await supabase.from("agents").select("id").eq("clinic_id", a.clinic_id).limit(1).maybeSingle();
+      agentId = fallback?.id;
+    }
     if (!agentId) return { ok: false, detail: "missing agent_id" };
     const prompt = a.action_config?.prompt
       ?? "Envie um follow-up educado e curto retomando a conversa, sem ser invasivo.";
@@ -357,10 +375,10 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
         .select("name, phone, email, company, custom_fields")
         .eq("id", leadId)
         .single(),
-      supabase.from("lead_custom_fields").select("field_key, field_type"),
+      supabase.from("lead_custom_fields").select("field_key, field_type").eq("clinic_id", a.clinic_id),
     ]);
     const clinicTz = await getClinicTimezone(supabase, a.clinic_id);
-    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz);
+    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz, { appointment_at: appointmentAt ?? undefined });
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
@@ -426,7 +444,7 @@ Deno.serve(async (req) => {
           skipped++;
           continue;
         }
-        const res = await runAction(supabase, a, lead.id);
+        const res = await runAction(supabase, a, lead.id, apptISO);
         await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail, apptISO);
         if (res.ok) fired++; else failed++;
       }
