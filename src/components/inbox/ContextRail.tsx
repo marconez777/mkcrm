@@ -103,7 +103,11 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
         position: -1,
       }));
       
-      setCustomDefs([...virtualFields, ...((defs ?? []) as any)]);
+      const virtualKeys = new Set(virtualFields.map((field) => field.field_key));
+      const customFields = ((defs ?? []) as CustomFieldDef[]).filter(
+        (field) => !virtualKeys.has(field.field_key),
+      );
+      setCustomDefs([...virtualFields, ...customFields]);
     })();
     // Realtime: append new events
     const ch = supabase
