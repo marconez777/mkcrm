@@ -72,7 +72,7 @@ function formatCustom(value: any, fieldType: string, modifier: string | null, tz
       case "weekday": return weekday;
       case "extenso": return `${Number(day)} de ${MONTHS_PT[monthIdx] ?? month} de ${year} às ${hour}:${minute}`;
       default:
-        return fieldType === "date" ? `${day}/${month}/${year}` : `${day}/${month}/${year} ${hour}:${minute}`;
+        return effectiveType === "date" ? `${day}/${month}/${year}` : `${day}/${month}/${year} ${hour}:${minute}`;
     }
   }
   if (Array.isArray(value)) return value.join(", ");
