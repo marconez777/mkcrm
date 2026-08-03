@@ -40,9 +40,20 @@ function partsInTZ(d: Date, tz: string) {
   return map;
 }
 
+const DATE_MODIFIERS = new Set(["data", "hora", "extenso", "dia_semana", "weekday"]);
+const ISO_LIKE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+
 function formatCustom(value: any, fieldType: string, modifier: string | null, tz: string): string {
   if (value == null || value === "") return "";
-  if (fieldType === "date" || fieldType === "datetime") {
+  let effectiveType = fieldType;
+  if (effectiveType !== "date" && effectiveType !== "datetime") {
+    const mod = (modifier || "").toLowerCase();
+    const isoLike = typeof value === "string" && ISO_LIKE_RE.test(value.trim());
+    if ((DATE_MODIFIERS.has(mod) && (isoLike || value instanceof Date)) || isoLike) {
+      effectiveType = /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim()) ? "date" : "datetime";
+    }
+  }
+  if (effectiveType === "date" || effectiveType === "datetime") {
     const d = parseDate(value);
     if (!d) return String(value);
     const p = partsInTZ(d, tz);
@@ -56,7 +67,7 @@ function formatCustom(value: any, fieldType: string, modifier: string | null, tz
       case "weekday": return weekday;
       case "extenso": return `${Number(day)} de ${MONTHS_PT[monthIdx] ?? month} de ${year} às ${hour}:${minute}`;
       default:
-        return fieldType === "date" ? `${day}/${month}/${year}` : `${day}/${month}/${year} ${hour}:${minute}`;
+        return effectiveType === "date" ? `${day}/${month}/${year}` : `${day}/${month}/${year} ${hour}:${minute}`;
     }
   }
   if (Array.isArray(value)) return value.join(", ");
