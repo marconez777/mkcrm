@@ -686,6 +686,33 @@ export default function KanbanPage() {
     toast.success(`${rows.length} lead(s) exportados`);
   }, [leadsByStage]);
 
+  const exportAllLeads = useCallback(() => {
+    const rows = leads.map((l) => {
+      const stage = allStages.find((s) => s.id === l.stage_id);
+      const last = l.last_message_at ? new Date(l.last_message_at) : null;
+      const days = last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null;
+      let detalhes = "";
+      if (l.custom_fields && typeof l.custom_fields === "object") {
+        detalhes = Object.entries(l.custom_fields)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" | ");
+      }
+      return {
+        nome: l.name ?? "",
+        telefone: l.phone ?? "",
+        etapa: stage?.name ?? "",
+        detalhes: detalhes,
+        ultima_mensagem: last ? last.toLocaleString("pt-BR") : "",
+        dias_sem_interagir: days ?? "",
+      };
+    });
+    if (rows.length === 0) { toast.info("Nenhum lead para exportar"); return; }
+    const date = new Date().toISOString().slice(0, 10);
+    const pipelineName = current?.name ? current.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase() : "pipeline";
+    downloadCsv(`todos-leads-${pipelineName}-${date}.csv`, rows, ["nome", "telefone", "etapa", "detalhes", "ultima_mensagem", "dias_sem_interagir"]);
+    toast.success(`${rows.length} lead(s) exportados`);
+  }, [leads, allStages, current]);
+
   useEffect(() => {
     saveUi({
       ...ui,
@@ -917,6 +944,9 @@ export default function KanbanPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
               <Pencil className="mr-1 h-4 w-4" />{t("common.edit")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportAllLeads} disabled={!currentId || leads.length === 0} title="Exportar todos os leads filtrados">
+              <Download className="mr-1 h-4 w-4" />Exportar Todos
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
               <Plus className="mr-1 h-4 w-4" />{t("kanban.column")}
