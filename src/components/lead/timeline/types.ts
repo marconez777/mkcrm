@@ -15,7 +15,7 @@ export const CATEGORY_LABEL: Record<TimelineCategory, string> = {
   stage: "Etapas",
   note: "Notas",
   task: "Tarefas",
-  crm: "CRM",
+  crm: "Sistema / Robô", // Renamed for better UX
 };
 
 export const CATEGORY_ORDER: TimelineCategory[] = ["site", "stage", "note", "task", "crm"];
@@ -68,6 +68,22 @@ const CRM_EVENT_PT: Record<string, string> = {
   treatment_started: "Tratamento iniciado",
   lead_lost: "Lead perdido",
   lead_won: "Lead ganho",
+  // Automations and AI mappings
+  "ai_review_queued": "Robô: Lendo nova mensagem...",
+  "auto:classifier": "Robô: Resumo da conversa atualizado",
+  "pipeline_move_attempted": "Robô: Tentativa de mover o lead",
+  "auto:human-reactor": "Robô: Alerta gerado para atendimento humano",
+  "auto:followup-7d": "Robô: Movido para inativos (7 dias sem resposta)",
+  "auto:followup-3d": "Robô: Verificação de inatividade (3 dias)",
+  "auto:followup-24h": "Robô: Verificação de inatividade (24 horas)",
+  "auto:field-changed-consulta": "Automação: Gatilho por alteração na Consulta",
+  "auto:field-changed-procedimento": "Automação: Gatilho por alteração no Tratamento",
+  "auto:secretary-replied": "Automação: Movido devido à 1ª resposta da equipe",
+  "auto:novo-lead": "Automação: Entrada como Novo Lead",
+  "auto:appointment-sync": "Automação: Sincronização de Agendamento",
+  "auto:reactivation-inbound": "Automação: Reativação Automática (Lead respondeu)",
+  "auto:paciente-antigo-canonical": "Automação: Definido como Paciente Antigo",
+  "auto:ciclo-concluido": "Automação: Ciclo de tratamento concluído",
 };
 
 export function crmEventTitle(type: string) {

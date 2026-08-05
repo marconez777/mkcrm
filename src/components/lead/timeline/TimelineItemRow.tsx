@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  Globe, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight,
+  Globe, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight, Bot
 } from "lucide-react";
 import type { TimelineCategory, TimelineItem } from "./types";
 
@@ -34,14 +34,84 @@ function relative(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+function EventDiagnosticPayload({ meta }: { meta: any }) {
+  if (!meta) return null;
+
+  if (meta.changes) {
+    return (
+      <div className="mt-1 flex flex-col gap-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+        {Object.entries(meta.changes).map(([key, diff]: [string, any]) => (
+          <div key={key} className="border-b border-border/50 pb-1 last:border-0 last:pb-0">
+            <span className="font-semibold">Campo alterado: {key}</span>
+            <div className="mt-0.5 whitespace-pre-wrap break-words text-muted-foreground">
+              <span className="line-through opacity-70">De: {String(diff?.from ?? "—")}</span>
+              <br />
+              <span className="text-foreground">Para: {String(diff?.to ?? "—")}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (meta.reasons || meta.message_id) {
+    return (
+      <div className="mt-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+        {meta.reasons && (
+          <div className="mb-1 whitespace-pre-wrap break-words">
+            <span className="font-semibold">Motivo: </span>
+            {Array.isArray(meta.reasons) ? meta.reasons.join(", ") : meta.reasons}
+          </div>
+        )}
+        {meta.message_id && (
+          <div className="text-muted-foreground">Msg ID: {meta.message_id}</div>
+        )}
+      </div>
+    );
+  }
+
+  if (meta.res) {
+    const res = meta.res as any;
+    return (
+      <div className="mt-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+        {res.moved !== undefined && (
+          <div className="whitespace-pre-wrap break-words">
+            <span className="font-semibold">Ação do Sistema: </span>
+            {res.moved ? "O lead foi movido automaticamente." : "Condição não atingida para mover."}
+          </div>
+        )}
+        {res.reason && (
+          <div className="mt-0.5 text-muted-foreground whitespace-pre-wrap break-words">
+            Detalhe: {res.reason}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1 whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 text-[10px]">
+      {JSON.stringify(meta, null, 2)}
+    </div>
+  );
+}
+
 export default function TimelineItemRow({ item }: { item: TimelineItem }) {
   const [open, setOpen] = useState(false);
-  const Icon = ICON[item.category];
+  
+  let Icon = ICON[item.category];
+  let dotColor = DOT_COLOR[item.category];
+  
+  if (item.actorName === "Sistema" || item.title.includes("Robô:") || item.title.includes("Automação:")) {
+    Icon = Bot;
+    dotColor = "bg-slate-400";
+  }
+
   const expandable = !!item.meta && Object.keys(item.meta).length > 0;
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center pt-1">
-        <div className={cn("flex h-6 w-6 items-center justify-center rounded-full text-white", DOT_COLOR[item.category])}>
+        <div className={cn("flex h-6 w-6 items-center justify-center rounded-full text-white", dotColor)}>
           <Icon className="h-3.5 w-3.5" />
         </div>
         <div className="mt-1 w-px flex-1 bg-border" />
@@ -71,7 +141,7 @@ export default function TimelineItemRow({ item }: { item: TimelineItem }) {
           </span>
         </button>
         {open && expandable && (
-          <pre className="mt-1 overflow-x-auto rounded bg-muted px-2 py-1 text-[10px]">{JSON.stringify(item.meta, null, 2)}</pre>
+          <EventDiagnosticPayload meta={item.meta} />
         )}
       </div>
     </div>
