@@ -322,33 +322,31 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
       merged.sort(compareItems);
       
       // Fase 3: Smart Summaries & Agrupamento
-      // Agrupar eventos consecutivos de alteração de campos pelo mesmo ator em até 5 minutos
       const grouped: TimelineItem[] = [];
       for (const item of merged) {
         const last = grouped[grouped.length - 1];
-        if (
-          last &&
-          last.category === "crm" &&
-          item.category === "crm" &&
-          (last.title === "Campos personalizados alterados" || last.title === "Robô atualizou classificação do lead") &&
-          last.title === item.title &&
-          last.actorName === item.actorName &&
-          Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime()) < 5 * 60 * 1000
-        ) {
+        if (!last) {
+          grouped.push(item);
+          continue;
+        }
+
+        const timeDiff = Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime());
+
+        // 1. Agrupar campos personalizados (mesmo que tenham títulos ligeiramente diferentes gerados pela IA vs Sistema)
+        const isLastFields = last.category === "crm" && (last.title.includes("Campos personalizados") || last.title.includes("Robô atualizou"));
+        const isItemFields = item.category === "crm" && (item.title.includes("Campos personalizados") || item.title.includes("Robô atualizou"));
+        
+        if (isLastFields && isItemFields && last.actorName === item.actorName && timeDiff < 5 * 60 * 1000) {
           const lastChanges = last.meta?.changes || {};
           const itemChanges = item.meta?.changes || {};
           const mergedChanges: Record<string, any> = { ...itemChanges, ...lastChanges };
           
           for (const key of Object.keys(itemChanges)) {
             if (lastChanges[key]) {
-              mergedChanges[key] = {
-                from: itemChanges[key].from,
-                to: lastChanges[key].to
-              };
+              mergedChanges[key] = { from: itemChanges[key].from, to: lastChanges[key].to };
             }
           }
 
-          // Remover mudanças nulas (from === to)
           for (const key of Object.keys(mergedChanges)) {
             if (fmtVal(mergedChanges[key]?.from) === fmtVal(mergedChanges[key]?.to)) {
               delete mergedChanges[key];
@@ -358,28 +356,50 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           last.meta = { ...last.meta, changes: mergedChanges };
           
           const parts: string[] = [];
+          let hasVisibleFields = false;
+          const aiHiddenFields = ["demonstrou_interesse", "is_b2b", "origem", "last_inbound_at", "last_human_activity_at", "tentou_agendar"];
+          
           for (const [k, diff] of Object.entries<any>(mergedChanges)) {
+            if (!aiHiddenFields.includes(k)) hasVisibleFields = true;
             const label = cfLabelMap.get(k) || k;
             parts.push(`${label}: ${fmtVal(diff?.from)} → ${fmtVal(diff?.to)}`);
           }
           last.subtitle = parts.join(" · ");
+          
+          last.title = (last.actorName === "Sistema" && !hasVisibleFields) 
+            ? "Robô atualizou classificação do lead" 
+            : "Campos personalizados alterados";
 
-          // Se ao final não sobrou nenhuma mudança real, removemos o evento inteiro
           if (Object.keys(mergedChanges).length === 0) {
             grouped.pop();
           }
-        } else if (
-          last &&
-          last.category === "stage" &&
-          item.category === "stage" &&
-          last.title === item.title &&
-          Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime()) < 2000
-        ) {
-          // Deduplicar eventos de etapa idênticos (bug de duplo trigger no banco)
           continue;
-        } else {
-          grouped.push(item);
         }
+
+        // 2. Deduplicar eventos de etapa idênticos (tolerância de até 2 minutos para retries de webhook)
+        if (last.category === "stage" && item.category === "stage" && last.title === item.title && timeDiff < 2 * 60 * 1000) {
+          continue;
+        }
+
+        // 3. Mesclar "Automação: Movido..." com a própria "Etapa alterada" para não poluir
+        const isItemAutoMove = item.category === "crm" && (item.title.includes("Movido devido") || item.title.includes("Movido para inativos"));
+        const isLastAutoMove = last.category === "crm" && (last.title.includes("Movido devido") || last.title.includes("Movido para inativos"));
+
+        if (last.category === "stage" && isItemAutoMove && timeDiff < 2 * 60 * 1000) {
+           last.subtitle = item.title;
+           continue;
+        }
+        
+        if (isLastAutoMove && item.category === "stage" && timeDiff < 2 * 60 * 1000) {
+           last.category = "stage";
+           last.subtitle = last.title;
+           last.title = item.title;
+           last.id = item.id;
+           last.meta = { ...item.meta, ...last.meta }; 
+           continue;
+        }
+
+        grouped.push(item);
       }
 
       setItems(grouped);
