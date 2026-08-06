@@ -106,7 +106,7 @@ export default function ContextRail({ lead, stages, attendants, onClose, onUpdat
       
       const virtualKeys = new Set(virtualFields.map((field) => field.field_key));
       const customFields = ((defs ?? []) as CustomFieldDef[]).filter(
-        (field) => !virtualKeys.has(field.field_key) && field.field_key !== "mensagem",
+        (field) => !virtualKeys.has(field.field_key),
       );
       setCustomDefs([...virtualFields, ...customFields]);
     })();
@@ -230,11 +230,11 @@ export default function ContextRail({ lead, stages, attendants, onClose, onUpdat
               <Sparkles className="h-3 w-3 text-primary" /> {t("inbox.context.aiSummary")}
             </Label>
             <Button variant="ghost" size="sm" onClick={generateSummary} disabled={summarizing} className="h-6 px-2 text-[11px]">
-              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary || (form.custom_fields as any)?.mensagem ? t("inbox.context.update") : t("inbox.context.generate"))}
+              {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : (summary ? t("inbox.context.update") : t("inbox.context.generate"))}
             </Button>
           </div>
-          {summary || (form.custom_fields as any)?.mensagem ? (
-            <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{summary || (form.custom_fields as any)?.mensagem}</p>
+          {summary ? (
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{summary}</p>
           ) : (
             <p className="text-[11px] text-muted-foreground">{t("inbox.context.summaryHint")}</p>
           )}
