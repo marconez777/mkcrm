@@ -39,12 +39,22 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
 
   if (meta.changes) {
     const formatVal = (v: any) => {
+      if (v === null || v === undefined || v === "") return "—";
+      if (typeof v === "string" && v.startsWith("[") && v.endsWith("]")) {
+        try {
+           const p = JSON.parse(v);
+           if (Array.isArray(p)) return p.join(", ");
+        } catch {}
+      }
       if (Array.isArray(v)) return v.join(", ");
-      if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
-        const d = new Date(v);
+      
+      let strVal = typeof v === "string" ? v : String(v);
+      const isoMatch = strVal.match(/^"?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)"?$/);
+      if (isoMatch) {
+        const d = new Date(isoMatch[1]);
         if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
       }
-      return String(v);
+      return strVal;
     };
 
     return (

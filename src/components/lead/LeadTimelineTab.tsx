@@ -177,16 +177,27 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       function fmtVal(v: any): string {
         if (v === null || v === undefined || v === "") return "—";
-        if (Array.isArray(v)) return v.join(", ");
-        if (typeof v === "string") {
-          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
-            const d = new Date(v);
-            if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-          }
-          return v.length > 40 ? v.slice(0, 40) + "…" : v;
+        
+        // Se for um array que virou string no JSON do webhook (ex: '["Consulta"]')
+        if (typeof v === "string" && v.startsWith("[") && v.endsWith("]")) {
+          try {
+             const p = JSON.parse(v);
+             if (Array.isArray(p)) return p.join(", ");
+          } catch {}
         }
-        if (typeof v === "object") return JSON.stringify(v);
-        return String(v);
+        
+        if (Array.isArray(v)) return v.join(", ");
+        
+        let strVal = typeof v === "string" ? v : (typeof v === "object" ? JSON.stringify(v) : String(v));
+
+        // Tentar formatar datas
+        const isoMatch = strVal.match(/^"?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)"?$/);
+        if (isoMatch) {
+          const d = new Date(isoMatch[1]);
+          if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+        }
+        
+        return strVal.length > 40 ? strVal.slice(0, 40) + "…" : strVal;
       }
 
       const merged: TimelineItem[] = [];
