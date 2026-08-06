@@ -16,7 +16,7 @@ import {
   type TimelineItem,
 } from "./timeline/types";
 
-const STORAGE_KEY = "timeline_filters_v2";
+const STORAGE_KEY = "timeline_filters_v3";
 
 function loadFilters(): Set<TimelineCategory> {
   try {
@@ -26,7 +26,7 @@ function loadFilters(): Set<TimelineCategory> {
       if (Array.isArray(arr) && arr.length) return new Set(arr);
     }
   } catch {/* noop */}
-  return new Set(["site", "stage", "note", "task"] as TimelineCategory[]);
+  return new Set(["site", "stage", "note", "task", "crm"] as TimelineCategory[]);
 }
 
 export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; clinicId?: string }) {
@@ -223,7 +223,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
               ? `movido por ${userName}`
               : s.moved_by_user_id ? "movido por usuário" : undefined,
           actorName: userName ?? null,
-          meta: null,
+          meta: { "Data da Movimentação": new Date(s.moved_at).toLocaleString("pt-BR") },
         });
       });
 
