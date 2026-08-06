@@ -57,7 +57,7 @@ export default function InboxPage() {
     } catch {}
   };
 
-  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated(instanceId);
+  const { leads, setLeads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated(instanceId);
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
@@ -285,7 +285,13 @@ export default function InboxPage() {
       {/* Context */}
       {selected && showContext && (
         <aside className="hidden w-80 shrink-0 flex-col border-l bg-card lg:flex">
-          <ContextRail lead={selected} stages={stages} attendants={attendants} onClose={() => setShowContext(false)} />
+          <ContextRail 
+            lead={selected} 
+            stages={stages} 
+            attendants={attendants} 
+            onClose={() => setShowContext(false)} 
+            onUpdate={(patch) => setLeads((prev) => prev.map((l) => l.id === selected.id ? { ...l, ...patch } : l))}
+          />
         </aside>
       )}
 

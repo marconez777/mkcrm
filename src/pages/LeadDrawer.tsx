@@ -19,7 +19,7 @@ import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
+export default function LeadDrawer({ lead, onClose, onLeadUpdate }: { lead: Lead | null; onClose: () => void; onLeadUpdate?: (patch: Partial<Lead>) => void }) {
   const { t } = useTranslation("translation", { keyPrefix: "leadDrawer" });
   const open = !!lead;
   const { stages } = useStages();
@@ -113,7 +113,7 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
           </TabsContent>
 
           <TabsContent value="details" className="m-0 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto data-[state=inactive]:hidden">
-            <ContextRail lead={lead} stages={stages} attendants={attendants} />
+            <ContextRail lead={lead} stages={stages} attendants={attendants} onUpdate={onLeadUpdate} />
             <div className="px-5 pb-5">
               <LeadAttributionCard leadId={lead.id} />
             </div>

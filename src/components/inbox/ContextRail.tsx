@@ -28,11 +28,12 @@ function timeAgo(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-export default function ContextRail({ lead, stages, attendants, onClose }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void }) {
+export default function ContextRail({ lead, stages, attendants, onClose, onUpdate }: { lead: Lead; stages: Stage[]; attendants: Attendant[]; onClose?: () => void; onUpdate?: (patch: Partial<Lead>) => void }) {
   const { t } = useTranslation();
   const nav = useNavigate();
   const confirm = useConfirm();
   const [form, setForm] = useState<Partial<Lead>>(lead);
+  const [stagedStageId, setStagedStageId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [userMap, setUserMap] = useState<Record<string, string>>({});
@@ -128,6 +129,7 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
   async function patch(p: Partial<Lead>) {
     setForm((f) => ({ ...f, ...p }));
+    onUpdate?.(p);
     await supabase.from("leads").update(p).eq("id", lead.id);
   }
 
@@ -283,15 +285,26 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
 
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.context.stage")}</Label>
-            <Select value={form.stage_id ?? undefined} onValueChange={(v) => patch({ stage_id: v })}>
-              <SelectTrigger className="h-9">
-                <SelectValue>
-                  {stage ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
-                      {stage.name}
-                    </span>
-                  ) : t("inbox.context.select")}
+            <div className="flex items-center gap-2">
+            <Select
+                value={stagedStageId ?? form.stage_id ?? undefined}
+                onValueChange={(v) => {
+                  if (v === form.stage_id) setStagedStageId(null);
+                  else setStagedStageId(v);
+                }}
+              >
+                <SelectTrigger className="h-9">
+                <SelectValue placeholder={t("inbox.context.select")}>
+                  {(() => {
+                    const currentId = stagedStageId ?? form.stage_id;
+                    const s = stages.find((x) => x.id === currentId);
+                    return s ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                        <span className="truncate">{s.name}</span>
+                      </span>
+                    ) : null;
+                  })()}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -305,6 +318,13 @@ export default function ContextRail({ lead, stages, attendants, onClose }: { lea
                 ))}
               </SelectContent>
             </Select>
+            {stagedStageId && stagedStageId !== form.stage_id && (
+              <Button size="sm" className="h-9 px-3 shrink-0" onClick={() => {
+                patch({ stage_id: stagedStageId });
+                setStagedStageId(null);
+              }}>OK</Button>
+            )}
+            </div>
           </div>
 
           <div className="space-y-1">

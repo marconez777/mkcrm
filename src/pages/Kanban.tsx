@@ -1011,7 +1011,14 @@ export default function KanbanPage() {
         )}
       </div>
 
-      <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
+      <LeadDrawer 
+        lead={openLead} 
+        onClose={() => setOpenLead(null)} 
+        onLeadUpdate={(patch) => {
+          setLeads((prev) => prev.map((l) => (l.id === openLead?.id ? { ...l, ...patch } : l)));
+          setOpenLead((prev) => (prev ? { ...prev, ...patch } : null));
+        }}
+      />
       <MoveLeadDialog
         open={!!movingLead}
         onOpenChange={(v) => !v && setMovingLead(null)}
