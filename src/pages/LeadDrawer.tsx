@@ -14,7 +14,10 @@ import { deleteLead } from "@/lib/delete-lead";
 import ContextRail from "@/components/inbox/ContextRail";
 import ChatPane from "@/components/inbox/ChatPane";
 import LeadTimelineTab from "@/components/lead/LeadTimelineTab";
+import LeadDebugTab from "@/components/lead/LeadDebugTab";
 import { LeadAttributionCard } from "@/components/leads/LeadAttributionCard";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const { t } = useTranslation("translation", { keyPrefix: "leadDrawer" });
@@ -22,8 +25,11 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const confirm = useConfirm();
+  const { membership, isSuperAdmin } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+
+  const isAdmin = isSuperAdmin || membership?.role === "owner" || membership?.role === "admin" || membership?.role === "developer";
 
   if (!lead) return null;
 
@@ -95,10 +101,11 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
         </header>
 
         <Tabs defaultValue="chat" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <TabsList className="mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0 grid-cols-3">
+          <TabsList className={cn("mx-5 mt-3 grid w-[calc(100%-2.5rem)] shrink-0", isAdmin ? "grid-cols-4" : "grid-cols-3")}>
             <TabsTrigger value="chat">{t("tabChat")}</TabsTrigger>
             <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
             <TabsTrigger value="journey">{t("tabJourney")}</TabsTrigger>
+            {isAdmin && <TabsTrigger value="debug">Logs</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="chat" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
@@ -115,6 +122,12 @@ export default function LeadDrawer({ lead, onClose }: { lead: Lead | null; onClo
           <TabsContent value="journey" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
             <LeadTimelineTab leadId={lead.id} />
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="debug" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
+              <LeadDebugTab leadId={lead.id} />
+            </TabsContent>
+          )}
         </Tabs>
       </SheetContent>
     </Sheet>

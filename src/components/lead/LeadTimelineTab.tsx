@@ -26,7 +26,7 @@ function loadFilters(): Set<TimelineCategory> {
       if (Array.isArray(arr) && arr.length) return new Set(arr);
     }
   } catch {/* noop */}
-  return new Set(CATEGORY_ORDER);
+  return new Set(["site", "stage", "note", "task"] as TimelineCategory[]);
 }
 
 export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; clinicId?: string }) {
@@ -241,13 +241,23 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       (crmRes.data || []).forEach((e: any) => {
         // Ocultar spam de inatividade e excesso de telemetria da IA que polui a visão da secretária
-        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed") return;
+        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed" || e.type === "pipeline_fallback_used") return;
 
         // Se não tem usuário, foi o sistema/robô
         const actorName = e.actor_user_id ? (userMap.get(e.actor_user_id) ?? null) : "Sistema";
         
+        let title = crmEventTitle(e.type);
         let subtitle: string | undefined;
+
         if (e.type === "custom_fields_changed" && e.payload?.changes) {
+          const keys = Object.keys(e.payload.changes);
+          const aiHiddenFields = ["demonstrou_interesse", "is_b2b", "origem", "last_inbound_at", "last_human_activity_at"];
+          const isOnlyHidden = keys.length > 0 && keys.every(k => aiHiddenFields.includes(k));
+          
+          if (isOnlyHidden) {
+            title = "Robô atualizou classificação do lead";
+          }
+
           const parts: string[] = [];
           for (const [k, diff] of Object.entries<any>(e.payload.changes)) {
             const label = cfLabelMap.get(k) || k;
@@ -255,11 +265,12 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           }
           subtitle = parts.join(" · ");
         }
+
         merged.push({
           id: `crm-${e.id}`,
           at: e.created_at,
           category: "crm",
-          title: crmEventTitle(e.type),
+          title,
           subtitle,
           actorName,
           meta: e.payload as Record<string, unknown> | null,
