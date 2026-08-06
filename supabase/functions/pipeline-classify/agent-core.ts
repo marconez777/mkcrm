@@ -478,7 +478,9 @@ Tarefa:
 {{KEYS_BLOCK}}
 
   CRÍTICO (GATE 11): NUNCA inclua as chaves "consulta_agendada_em", "procedimento_agendado_em" ou "sessions_requested" (preenchidas pelo parser de datas).
+  CRÍTICO: NUNCA preencha a chave "mensagem". Este campo é estritamente reservado para respostas de formulários externos e humanos. NUNCA coloque resumos neste campo.
 
+Se o lead expressar intenção de agendamento explícita, NÃO coloque a data em custom_fields_patch.
 REGRA DA PRIMEIRA MENSAGEM: Se o Contexto trouxer \`PRIMEIRA_MENSAGEM_TEMPLATE: true\`, NÃO preencha "interesse_consulta", "interesse_tratamento" nem qualquer campo relacionado a intenção/objetivo do paciente — a única mensagem dele é texto pré-fabricado de botão/anúncio. Nenhuma chave deve ser inferida nesse cenário — inclusive "origem", que é campo nativo do sistema. Todos os campos ficam vazios até a 2ª mensagem real do lead.
 
 ORIGEM: NUNCA inclua "origem" no patch. A origem do lead é campo nativo preenchido pelo tracking (leads.origin_*) — o executor descarta qualquer tentativa da IA.
