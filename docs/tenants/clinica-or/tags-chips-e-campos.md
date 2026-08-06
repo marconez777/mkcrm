@@ -1,53 +1,85 @@
 ---
-title: "Tags (Chips) e Campos Customizados — Clínica ÓR"
+title: "Tags e Campos Personalizados — Clínica ÓR (Detalhes do Lead)"
 topic: kanban
 kind: reference
 audience: agent
-updated: 2026-07-10
-summary: "Tags automáticas por estágio, whitelist da IA e campos customizados da Clínica ÓR."
+updated: 2026-08-06
+summary: "Mapeamento completo dos 23 campos customizados e tags da Clínica ÓR, detalhando a mecânica da UI (ContextRail) e governança da IA (Lovable Classifier)."
 tenant: clinica-or
 clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
 code_refs:
   - supabase/functions/pipeline-classify/
-  - supabase/functions/pipeline-inactivity-tick/
-  - supabase/functions/pipeline-monthly-cycle-or/
-  - supabase/functions/report-finalizados-mensal-or/
+  - src/components/inbox/CustomFieldsPanel.tsx
 related_docs:
   - docs/tenants/clinica-or/README.md
-  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+  - docs/pipeline/runtime/FIELDS_LIVE.md
+  - docs/features/LEAD_DETAILS.md
 ---
 
-# Tags (Chips) e Campos Customizados — Clínica ÓR
+# Tags e Campos Personalizados — Clínica ÓR (Detalhes do Lead)
 
-Na arquitetura MKCRM, "Chips" refere-se tipicamente às `tags` renderizadas no Kanban, além dos `custom_fields` (Campos Customizados) que guardam informações valiosas como datas, intenções de interesse e status financeiros.
+Este documento atua como o manual definitivo de como a Aba de Detalhes (`ContextRail`) se comporta especificamente para a **Clínica ÓR** (Tenant `cf038458-457d-4c1a-9ac4-c88c3c8353a1`). Ele amalgama a infraestrutura técnica detalhada no [LEAD_DETAILS.md](../../features/LEAD_DETAILS.md) com os 23 campos reais de produção da Clínica ÓR listados no [FIELDS_LIVE.md](../../pipeline/runtime/FIELDS_LIVE.md).
 
-## Tags Automáticas de Estágio
-Quando o Rule Engine move um lead de coluna (estágio), a ação aplica de forma automática e idempotente as tags relacionadas (configuradas no banco, via `pipeline_stages.auto_tag_on_enter`):
+---
 
-| Estágio (Stage) | Tags Aplicadas |
-|---|---|
-| Sem Resposta | `sem_resposta` |
-| Nutrição Inativa (Geladeira de Leads) | `nutricao_inativa`, `segmento_nutricao_leads` |
-| Nutrição Antigos (>60d) | `nutricao_antigos`, `segmento_nutricao_antigos` |
-| Paciente Antigo | `paciente_antigo`, `segmento_paciente_antigo` |
-| Consulta Finalizada | `consulta_finalizada_mes`, `segmento_relatorio_dia1` |
-| 1ª Sessão Finalizada | `tratamento_finalizado_mes`, `segmento_relatorio_dia1` |
+## 1. Mapeamento de Campos Personalizados (UI vs Backend)
 
-*(A trigger responsável mescla as tags sem duplicar no array de tags do lead).*
+Todos os campos abaixo são gerenciados atomicamente (anti Lost-Update) através da RPC `merge_lead_custom_fields`, evitando que IA e Humanos sobrescrevam dados um do outro. O Gate G10 (bloqueio de 7 dias) protege edições humanas.
 
-## Tags Sugeridas pela Inteligência Artificial
-O Agente Tipificador (dentro do classificador V7, estritamente como leitor) é responsável por ler o contexto e sugerir tags extras e comportamentais.
-A aplicação dessas tags **depende estritamente de uma Whitelist** (`app_settings.automation.v42.allowed_tags`). Qualquer "alucinação" da IA que invente tags bizarras é silenciosamente descartada no filtro final do script `apply.ts`.
+### A) Campos Virtuais de Agendamento (UI Injetada)
+A Clínica ÓR possui tipos ativos em `clinic_appointment_types` que geram estes campos "virtuais" no topo do painel:
+- **`consulta_agendada_em`** (Data da consulta):
+  - **Mecânica:** Renderizado como um DatePicker (`CalendarIcon`).
+  - **IA:** O classificador tem a intenção de preencher datas, mas o **Gate G11** proíbe o agendamento autônomo. Hoje, a IA cria apenas uma _tarefa_ com a tag de sugestão, aguardando aprovação humana.
+- **`procedimento_agendado_em`** (Data do procedimento): Mesmo comportamento da consulta.
 
-Exemplos de tags operadas em runtime e inteligência:
-- `urgencia_clinica`: Extraído pela intenção de urgência. Sinaliza a necessidade iminente de intervenção.
-- `precisa_atencao_humana`: Emitida por falha de confiança no LLM, por Agentes Auditores (A1, A2) alertando discordância, ou quando um movimento escapa das regras mapeadas.
-- `b2b`: Anexada quando a IA ou a secretária descobre que a conversa é de perfil B2B. A aplicação dessa tag dispara um gatilho de sistema (`Rule Engine`) que move o lead sumariamente.
-- `agendamento_sugerido`: Substitui a tentativa falha da IA de tentar marcar consultas. Apenas sugere e agenda uma tarefa.
+### B) Campos de Informação e Atendimento (Formulário/Humano)
+Preenchidos inicialmente via Lead Source (Formulários do Site) ou pela Secretária.
+- **`interesse`** (Select): Exibe dropdown com opções (Cetamina, EMT, Depressão, etc). 
+- **`procedimentos`** (Multiselect): Comporta seleção múltipla via Checkboxes na UI.
+- **`teleconsulta`** (Boolean): Aparece como um Switch liga/desliga (escala de 75% na UI).
+- **`link_consulta`** (URL): Se preenchido, a UI injeta um ícone `ExternalLink` clicável ao lado.
+- **`pagamento`** (Currency): O front-end injeta "R$" dependendo da região e impede digitação de letras.
+- **`mensagem`** (Textarea): Utiliza o `ResizableTextareaField`. Se a secretária aumentar o tamanho da caixa de texto, a UI memoriza a altura via `localStorage` e a mantém assim em futuros leads.
+- **`origem`** (Select): Select auxiliar para a campanha/utm.
+- **`modalidade_preferida`** (Select): Presencial, online, indiferente. Alterar para online pode disparar um alerta/tag de validação (modality-guard).
 
-## Campos Customizados
-Ao lado das tags, a IA atualiza campos via um formato de patch JSON (`custom_fields_patch`).
+### C) Campos Atualizados via Backend / Webhooks
+Estes campos constam no JSONB, mas a secretária não deve editá-los manualmente em fluxo normal, pois a automação os gerencia:
+- **`status_financeiro`** (Select: pendente, parcial, pago): Atualizado ativamente pelo `pipeline-payment-webhook` (ex: após baixa na Pagar.me/Stripe).
+- **`status_consulta`** (Select): O webhook `auto:appointment-sync` espelha o status do calendário aqui.
+- **`sessoes_realizadas`** (Number): Incrementado em +1 pela automação sempre que a consulta passa para "Realizada".
 
-- **Bloqueio de Agendamentos da IA (Gate G11):** Os campos de datas de consulta (`consulta_agendada_em`, `procedimento_agendado_em`) foram removidos do escopo de preenchimento autônomo. 
-- **Campos Típicos Sugeridos:** `interesse_consulta`, `interesse_tratamento`, `nome_responsavel_financeiro`, `possui_liminar_judicial`.
-- **Precedência (Gate G10):** Se a secretária editar qualquer campo customizado, a IA fica proibida de alterar o exato mesmo campo (a mesma chave JSON) pelos próximos 7 dias. Isto é gerenciado via trigger no DB que anota a data da edição humana em `custom_fields_last_human_edit`.
+### D) Campos Operados Estritamente pela IA (Lovable Classifier)
+Estes são os "olhos da IA" dentro do `lead_custom_fields`:
+- **`interesse_consulta`** e **`interesse_tratamento`** (Booleans): A IA usa a leitura de intenção (intent) para marcar `true` aqui e moldar a jornada.
+- **`nome_responsavel_financeiro`** (Text): A IA detecta se a pessoa no WhatsApp é a mãe/filho do paciente e anota aqui para não sujar o campo `leads.name` (que deve ser o nome da pessoa na linha telefônica).
+- **`pagamento_alegado_em`** (Datetime): A IA preenche se o lead disser "já paguei" no WhatsApp antes do Webhook confirmar.
+
+### E) Governança
+- **`ciclo_concluido`** (Boolean): Gatilho manual hiper-agressivo. Ao virar `true`, o Rule Engine move o lead para o funil/etapa de "Paciente Antigo".
+- Outros: `saldo_sessoes_pacote`, `motivo_cancelamento`, `possui_liminar_judicial`, `data_solicitacao_nf`.
+
+---
+
+## 2. Tags e Chips de Automação (A Mente da Clínica ÓR)
+
+Ao lado dos campos, a IA e o sistema gerenciam a array `lead.tags` através de um processo restrito de *Whitelist* configurado em `app_settings.automation.v42.allowed_tags`.
+
+### A) Tags Automáticas de Estágio (Rule Engine)
+Movimentações de colunas no Kanban injetam magicamente estas tags sem intervenção humana, graças à configuração `auto_tag_on_enter`:
+- **Sem Resposta:** `sem_resposta`
+- **Nutrição Inativa:** `nutricao_inativa`, `segmento_nutricao_leads`
+- **Paciente Antigo:** `paciente_antigo`, `segmento_paciente_antigo`
+- **Consulta/Tratamento Finalizado:** Injeta as tags `_mes` e `segmento_relatorio_dia1` para relatórios mensais.
+
+### B) Tags Sugeridas pela IA (Classificador)
+O robô só pode colocar tags se elas constarem na whitelist. Alucinações são descartadas em runtime.
+- **`urgencia_clinica`**: Detectou risco iminente no texto do WhatsApp.
+- **`precisa_atencao_humana`**: Emitida em 3 casos vitais: 
+   1. LLM com Confiança < 0.6.
+   2. Auditores A1/A2 discordam veementemente do próximo passo.
+   3. Fluxo (Gate) bloqueado por regra conflitante.
+   *A remoção desta tag pela secretária (clicando no X) instrui o sistema de que o lead foi destravado humanamente.*
+- **`b2b`**: IA detectou contato de parceiro/empresa, gerando movimento de limpeza para fora do funil padrão.
+- **`agendamento_sugerido`**: Injetado pela IA ao lado da criação da Tarefa na tela (`LeadTasksPanel`) para aprovação do agendamento.
