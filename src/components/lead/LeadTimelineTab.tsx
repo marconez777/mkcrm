@@ -16,7 +16,7 @@ import {
   type TimelineItem,
 } from "./timeline/types";
 
-const STORAGE_KEY = "lead_timeline_filters";
+const STORAGE_KEY = "timeline_filters_v2";
 
 function loadFilters(): Set<TimelineCategory> {
   try {
@@ -241,7 +241,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       (crmRes.data || []).forEach((e: any) => {
         // Ocultar spam de inatividade e excesso de telemetria da IA que polui a visão da secretária
-        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed" || e.type === "pipeline_fallback_used") return;
+        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed" || e.type === "pipeline_fallback_used" || e.type === "auto:classifier") return;
 
         // Se não tem usuário, foi o sistema/robô
         const actorName = e.actor_user_id ? (userMap.get(e.actor_user_id) ?? null) : "Sistema";
