@@ -320,7 +320,60 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       if (cancelled) return;
       merged.sort(compareItems);
-      setItems(merged);
+      
+      // Fase 3: Smart Summaries & Agrupamento
+      // Agrupar eventos consecutivos de alteração de campos pelo mesmo ator em até 5 minutos
+      const grouped: TimelineItem[] = [];
+      for (const item of merged) {
+        const last = grouped[grouped.length - 1];
+        if (
+          last &&
+          last.category === "crm" &&
+          item.category === "crm" &&
+          (last.title === "Campos personalizados alterados" || last.title === "Robô atualizou classificação do lead") &&
+          last.title === item.title &&
+          last.actorName === item.actorName &&
+          Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime()) < 5 * 60 * 1000
+        ) {
+          const lastChanges = last.meta?.changes || {};
+          const itemChanges = item.meta?.changes || {};
+          const mergedChanges: Record<string, any> = { ...itemChanges, ...lastChanges };
+          
+          for (const key of Object.keys(itemChanges)) {
+            if (lastChanges[key]) {
+              mergedChanges[key] = {
+                from: itemChanges[key].from,
+                to: lastChanges[key].to
+              };
+            }
+          }
+
+          // Remover mudanças nulas (from === to)
+          for (const key of Object.keys(mergedChanges)) {
+            if (fmtVal(mergedChanges[key]?.from) === fmtVal(mergedChanges[key]?.to)) {
+              delete mergedChanges[key];
+            }
+          }
+          
+          last.meta = { ...last.meta, changes: mergedChanges };
+          
+          const parts: string[] = [];
+          for (const [k, diff] of Object.entries<any>(mergedChanges)) {
+            const label = cfLabelMap.get(k) || k;
+            parts.push(`${label}: ${fmtVal(diff?.from)} → ${fmtVal(diff?.to)}`);
+          }
+          last.subtitle = parts.join(" · ");
+
+          // Se ao final não sobrou nenhuma mudança real, removemos o evento inteiro
+          if (Object.keys(mergedChanges).length === 0) {
+            grouped.pop();
+          }
+        } else {
+          grouped.push(item);
+        }
+      }
+
+      setItems(grouped);
       setSummary({
         visitorIds,
         firstSource: primary?.first_source || primary?.first_referrer || null,
