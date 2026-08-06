@@ -368,6 +368,15 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           if (Object.keys(mergedChanges).length === 0) {
             grouped.pop();
           }
+        } else if (
+          last &&
+          last.category === "stage" &&
+          item.category === "stage" &&
+          last.title === item.title &&
+          Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime()) < 2000
+        ) {
+          // Deduplicar eventos de etapa idênticos (bug de duplo trigger no banco)
+          continue;
         } else {
           grouped.push(item);
         }
