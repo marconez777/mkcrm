@@ -177,7 +177,14 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       function fmtVal(v: any): string {
         if (v === null || v === undefined || v === "") return "—";
-        if (typeof v === "string") return v.length > 40 ? v.slice(0, 40) + "…" : v;
+        if (Array.isArray(v)) return v.join(", ");
+        if (typeof v === "string") {
+          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
+            const d = new Date(v);
+            if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+          }
+          return v.length > 40 ? v.slice(0, 40) + "…" : v;
+        }
         if (typeof v === "object") return JSON.stringify(v);
         return String(v);
       }

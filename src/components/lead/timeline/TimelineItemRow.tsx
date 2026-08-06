@@ -38,6 +38,15 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
   if (!meta) return null;
 
   if (meta.changes) {
+    const formatVal = (v: any) => {
+      if (Array.isArray(v)) return v.join(", ");
+      if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
+        const d = new Date(v);
+        if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      }
+      return String(v);
+    };
+
     return (
       <div className="mt-1 flex flex-col gap-2 rounded bg-muted px-3 py-2 text-[10px]">
         {Object.entries(meta.changes).map(([key, diff]: [string, any]) => (
@@ -46,7 +55,7 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
             <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words">
               {diff?.to && (
                 <div className="rounded bg-background p-1.5 text-foreground shadow-sm border">
-                  {String(diff.to)}
+                  {formatVal(diff.to)}
                 </div>
               )}
             </div>
