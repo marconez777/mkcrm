@@ -62,7 +62,7 @@ UI /automations ─────► automations-tick (lembretes — SEM código n
 
 | # | Gate | Cobertura |
 |---|---|---|
-| G1 | `leads.manual_lock_until > now()` → não move stage (continua escrevendo tags/fields/summary) | E6 |
+| ~~G1~~ | ~~`leads.manual_lock_until > now()` → não move stage (continua escrevendo tags/fields/summary)~~ | **[DESCONTINUADO NA PR4]** |
 | G2 | `pipeline_stages.lock_auto_move` no destino → aborta movimentação | E10 (em v4.1 nenhum stage tem essa flag) |
 | G3 | `app_settings.automation.<rule>.enabled = true` → aborta se off | kill switch |
 | G4 | Idempotência via `lead_events` antes de agir | E2 |
@@ -71,7 +71,7 @@ UI /automations ─────► automations-tick (lembretes — SEM código n
 | G7 | `qualificacao='desqualificado'` exige `motivo_desqualificacao` no mesmo UPDATE | E8, R2 |
 | G8 | NUNCA escrever `leads.pipeline_id` direto (trigger deriva) | E9, R3 |
 | G9 | Custom fields enum-validados usam strings exatas do enum | R4 |
-| G10 | Para a mesma `custom_fields.<key>`, valor humano-escrito nos últimos 7 dias NÃO é sobrescrito por classifier | precedência humano>IA |
+| G10 | Para a mesma `custom_fields.<key>`, valor humano-escrito nos últimos 7 dias NÃO é sobrescrito por classifier. *Sticky fields* (ex: origem) recebem lock humano permanente (ignora 7 dias). | precedência humano>IA |
 | **G11** | **Classifier NUNCA cria/altera `appointments`**. Só sugere via task + tag `agendamento_sugerido`. Criação real é humano ou webhook externo. **v4.2: cobre também A1 e A2 — nenhum agente auditor cria/edita `appointments` nem move stage; apenas tag + task.** | E11 (v4.1) |
 
 **Stages excluídos de scans temporais** (`auto:followup-*`): `Paciente antigo`, `Nutrição inativa`, `B2B`, `Desqualificado`, **+ qualquer lead com `appointments.scheduled_at > now()`**.
@@ -223,7 +223,7 @@ Rule Engine consome e aplica G1–G11. Modelo: `google/gemini-3-flash-preview`. 
 | `auto:urgency-flag` | `urgency in ('alta','critica')` → tag `urgencia_clinica` + `urgency_flagged` + notificação realtime. Não move. |
 | `auto:field-patch` | Aplica `custom_fields_patch` respeitando G10. Inclui `interesse_consulta`, `interesse_tratamento`, `nome_responsavel_financeiro`, `possui_liminar_judicial`. |
 | `auto:tags-merge` | MERGE de `tags_to_add` (G6), filtrado por whitelist. |
-| `auto:agendamento-sugerido` | `intent='agendar'` → cria task "Confirmar e criar agendamento" + tag `agendamento_sugerido`. **G11**: nunca cria appointment. |
+| `auto:agendamento-sugerido` | `intent='agendar'` → cria task "Confirmar e criar agendamento" + tag `agendamento_sugerido`. **G11**: nunca cria appointment. *(Nota: BLOQUEADO DEVIDO A TRANSIÇÃO DE AGENDAMENTO HUMANO)* |
 
 **Custo**: limite via `ai_spend_limits`. Hard stop se exceder.
 
