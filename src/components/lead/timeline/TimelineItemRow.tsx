@@ -44,11 +44,6 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
           <div key={key} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
             <span className="font-semibold uppercase tracking-wider text-muted-foreground">{key}</span>
             <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words">
-              {diff?.from && (
-                <div className="rounded bg-background/50 p-1.5 text-muted-foreground line-through opacity-70">
-                  {String(diff.from)}
-                </div>
-              )}
               {diff?.to && (
                 <div className="rounded bg-background p-1.5 text-foreground shadow-sm border">
                   {String(diff.to)}
