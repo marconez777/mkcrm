@@ -39,14 +39,21 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
 
   if (meta.changes) {
     return (
-      <div className="mt-1 flex flex-col gap-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+      <div className="mt-1 flex flex-col gap-2 rounded bg-muted px-3 py-2 text-[10px]">
         {Object.entries(meta.changes).map(([key, diff]: [string, any]) => (
-          <div key={key} className="border-b border-border/50 pb-1 last:border-0 last:pb-0">
-            <span className="font-semibold">Campo alterado: {key}</span>
-            <div className="mt-0.5 whitespace-pre-wrap break-words text-muted-foreground">
-              <span className="line-through opacity-70">De: {String(diff?.from ?? "—")}</span>
-              <br />
-              <span className="text-foreground">Para: {String(diff?.to ?? "—")}</span>
+          <div key={key} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+            <span className="font-semibold uppercase tracking-wider text-muted-foreground">{key}</span>
+            <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words">
+              {diff?.from && (
+                <div className="rounded bg-background/50 p-1.5 text-muted-foreground line-through opacity-70">
+                  {String(diff.from)}
+                </div>
+              )}
+              {diff?.to && (
+                <div className="rounded bg-background p-1.5 text-foreground shadow-sm border">
+                  {String(diff.to)}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -89,9 +96,32 @@ function EventDiagnosticPayload({ meta }: { meta: any }) {
     );
   }
 
+  const renderValue = (val: any): React.ReactNode => {
+    if (val === null || val === undefined) return "—";
+    if (typeof val === "object") {
+      return (
+        <div className="ml-2 mt-0.5 flex flex-col gap-0.5 border-l-2 border-border/50 pl-2">
+          {Object.entries(val).map(([k, v]) => (
+            <div key={k}>
+              <span className="font-medium text-muted-foreground">{k}: </span>
+              <span className="text-foreground">{renderValue(v)}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return String(val);
+  };
+
   return (
-    <div className="mt-1 whitespace-pre-wrap break-words rounded bg-muted px-2 py-1 text-[10px]">
-      {JSON.stringify(meta, null, 2)}
+    <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words rounded bg-muted px-3 py-2 text-[10px]">
+      <span className="font-semibold text-muted-foreground mb-1 border-b border-border/50 pb-1">Detalhes Adicionais</span>
+      {Object.entries(meta).map(([key, val]) => (
+        <div key={key}>
+          <span className="font-medium capitalize">{key}: </span>
+          {renderValue(val)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -131,9 +161,9 @@ export default function TimelineItemRow({ item }: { item: TimelineItem }) {
               {expandable ? (open ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />) : null}
               <span className="truncate font-medium">{item.title}</span>
             </div>
-            {item.subtitle && <div className="mt-0.5 truncate text-muted-foreground">{item.subtitle}</div>}
+            {item.subtitle && <div className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-muted-foreground leading-relaxed">{item.subtitle}</div>}
             {item.actorName && !item.subtitle?.includes(item.actorName) && (
-              <div className="mt-0.5 text-[10px] text-muted-foreground">por {item.actorName}</div>
+              <div className="mt-1 text-[10px] text-muted-foreground font-medium">por {item.actorName}</div>
             )}
           </div>
           <span title={new Date(item.at).toLocaleString("pt-BR")} className="shrink-0 whitespace-nowrap text-muted-foreground">

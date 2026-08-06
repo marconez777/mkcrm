@@ -240,11 +240,11 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
       });
 
       (crmRes.data || []).forEach((e: any) => {
-        // Ocultar spam de inatividade repetitiva
-        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d") return;
+        // Ocultar spam de inatividade e excesso de telemetria da IA que polui a visão da secretária
+        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed") return;
 
-        const isRobotEvent = e.type.startsWith("auto:") || e.type.startsWith("ai_") || e.type.startsWith("pipeline_");
-        const actorName = e.actor_user_id ? (userMap.get(e.actor_user_id) ?? null) : (isRobotEvent ? "Sistema" : null);
+        // Se não tem usuário, foi o sistema/robô
+        const actorName = e.actor_user_id ? (userMap.get(e.actor_user_id) ?? null) : "Sistema";
         
         let subtitle: string | undefined;
         if (e.type === "custom_fields_changed" && e.payload?.changes) {
