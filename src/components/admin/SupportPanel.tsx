@@ -54,11 +54,11 @@ export default function SupportPanel() {
   async function loadAll() {
     setLoading(true);
     const [{ data: c }, { data: spent }, { data: d }] = await Promise.all([
-      supabase.from("support_agent_config").select("id, enabled, api_key, model, temperature, monthly_cap_usd, system_prompt, kb_synced_at").eq("singleton", true).maybeSingle(),
+      supabase.from("support_agent_config").select("id, enabled, api_key_set, model, temperature, monthly_cap_usd, system_prompt, kb_synced_at").eq("singleton", true).maybeSingle(),
       supabase.rpc("support_chat_spent_this_month_usd"),
       supabase.from("support_documents").select("path, updated_at"),
     ]);
-    const cfgRow = c ? { ...(c as any), api_key_set: !!(c as any).api_key } as Cfg : null;
+    const cfgRow = c ? { ...(c as any), api_key_set: !!(c as any).api_key_set } as Cfg : null;
     setCfg(cfgRow);
     setMonthSpend(Number(spent ?? 0));
     const grouped = new Map<string, { chunks: number; updated_at: string }>();

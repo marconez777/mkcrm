@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { Plus, Play, Pause, X, Trash2, Upload, Download, Snowflake, RotateCcw, Copy } from "lucide-react";
 import { downloadBroadcastTemplate, parseContactsFile } from "@/lib/broadcast-template";
 import { formatPhoneDisplay } from "@/lib/phone";
+import { useRegion } from "@/hooks/useRegion";
+import { useTranslation } from "react-i18next";
 
 type Broadcast = {
   id: string; name: string; status: string;
@@ -50,6 +52,7 @@ export default function Broadcasts() {
 
 function BroadcastList() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [items, setItems] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -68,7 +71,7 @@ function BroadcastList() {
     try {
       const { data: u } = await supabase.auth.getUser();
       const { data: m } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", u.user!.id).maybeSingle();
-      if (!m?.clinic_id) { toast.error("Sem clínica associada"); return; }
+      if (!m?.clinic_id) { toast.error("Sem empresa associada"); return; }
       const { data, error } = await supabase.from("broadcasts").insert({
         clinic_id: m.clinic_id, name: "Nova campanha", created_by: u.user!.id,
       }).select("id").single();
@@ -101,7 +104,7 @@ function BroadcastList() {
     try {
       const { data: u } = await supabase.auth.getUser();
       const { data: m } = await supabase.from("clinic_members").select("clinic_id").eq("user_id", u.user!.id).maybeSingle();
-      if (!m?.clinic_id) { toast.error("Sem clínica associada"); return; }
+      if (!m?.clinic_id) { toast.error("Sem empresa associada"); return; }
       // fetch full original
       const { data: orig, error: oe } = await supabase.from("broadcasts").select("*").eq("id", b.id).single();
       if (oe || !orig) throw oe || new Error("Campanha não encontrada");
@@ -141,30 +144,30 @@ function BroadcastList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Disparo em massa</h2>
-          <p className="text-sm text-muted-foreground">Campanhas de envio em massa via WhatsApp com rotação de grupos.</p>
+          <h2 className="text-lg font-semibold">{t("broadcasts.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("broadcasts.subtitle")}</p>
         </div>
-        <Button onClick={create} disabled={creating}><Plus className="size-4 mr-1" /> Nova campanha</Button>
+        <Button onClick={create} disabled={creating}><Plus className="size-4 mr-1" /> {t("broadcasts.newCampaign")}</Button>
       </div>
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Audiência</TableHead>
-                <TableHead>Enviados</TableHead>
-                <TableHead>Respostas</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{t("broadcasts.cols.name")}</TableHead>
+                <TableHead>{t("broadcasts.cols.status")}</TableHead>
+                <TableHead>{t("broadcasts.cols.audience")}</TableHead>
+                <TableHead>{t("broadcasts.cols.sent")}</TableHead>
+                <TableHead>{t("broadcasts.cols.replied")}</TableHead>
+                <TableHead>{t("broadcasts.cols.createdAt")}</TableHead>
+                <TableHead className="text-right">{t("broadcasts.cols.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{t("broadcasts.loading")}</TableCell></TableRow>
               ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhuma campanha. Crie a primeira.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{t("broadcasts.empty")}</TableCell></TableRow>
               ) : items.map((b) => (
                 <TableRow key={b.id} className="cursor-pointer" onClick={() => navigate(`/ai/broadcasts/${b.id}`)}>
                   <TableCell className="font-medium">{b.name}</TableCell>
@@ -204,22 +207,25 @@ function BroadcastList() {
 function BroadcastEditor({ id }: { id: string }) {
   const navigate = useNavigate();
   const [bc, setBc] = useState<Broadcast | null>(null);
-  const [groups, setGroups] = useState<Array<{ id: string; position: number; name: string; parts: Array<{ id: string; position: number; content: string }> }>>([]);
+  const [groups, setGroups] = useState<Array<{ id: string; position: number; name: string; parts: Array<{ id: string; position: number; content: string; preview_mode: string }> }>>([]);
   const [instances, setInstances] = useState<Array<{ id: string; name: string }>>([]);
   const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [stages, setStages] = useState<Array<{ id: string; name: string; pipeline_id: string }>>([]);
   const [recipients, setRecipients] = useState<Array<any>>([]);
   const [events, setEvents] = useState<Array<any>>([]);
   const [extraContacts, setExtraContacts] = useState<Array<{ phone: string; name?: string; custom?: any }>>([]);
+  const [metrics, setMetrics] = useState({ total: 0, sent: 0, failed: 0, replied: 0 });
+  const [recipientsPage, setRecipientsPage] = useState(0);
+  const pageSize = 50;
+  const region = useRegion();
 
   const load = async () => {
-    const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: r }, { data: e }] = await Promise.all([
+    const [{ data: b }, { data: g }, { data: ins }, { data: p }, { data: s }, { data: e }] = await Promise.all([
       supabase.from("broadcasts").select("*").eq("id", id).maybeSingle(),
-      supabase.from("broadcast_message_groups").select("id, position, name, broadcast_message_parts(id, position, content)").eq("broadcast_id", id).order("position"),
+      supabase.from("broadcast_message_groups").select("id, position, name, broadcast_message_parts(id, position, content, preview_mode)").eq("broadcast_id", id).order("position"),
       supabase.from("whatsapp_instances").select("id, name"),
       supabase.from("pipelines").select("id, name").order("position"),
       supabase.from("pipeline_stages").select("id, name, pipeline_id").order("position"),
-      supabase.from("broadcast_recipients").select("*").eq("broadcast_id", id).order("created_at"),
       supabase.from("broadcast_events").select("*").eq("broadcast_id", id).order("created_at", { ascending: false }).limit(100),
     ]);
     if (!b) { toast.error("Campanha não encontrada"); navigate("/ai/broadcasts"); return; }
@@ -228,24 +234,53 @@ function BroadcastEditor({ id }: { id: string }) {
     setInstances((ins ?? []) as any);
     setPipelines((p ?? []) as any);
     setStages((s ?? []) as any);
-    setRecipients(r ?? []);
     setEvents(e ?? []);
+    await loadMetricsAndRecipients();
+  };
+
+  const loadMetricsAndRecipients = async (page = recipientsPage) => {
+    const [
+      { count: total },
+      { count: sent },
+      { count: replied },
+      { count: failed },
+      { data: r }
+    ] = await Promise.all([
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).in("status", ["sent", "replied"]),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).eq("status", "replied"),
+      supabase.from("broadcast_recipients").select("id", { count: "exact", head: true }).eq("broadcast_id", id).eq("status", "failed"),
+      supabase.from("broadcast_recipients").select("*").eq("broadcast_id", id).order("created_at").range(page * pageSize, (page + 1) * pageSize - 1),
+    ]);
+    setMetrics({ total: total ?? 0, sent: sent ?? 0, replied: replied ?? 0, failed: failed ?? 0 });
+    setRecipients(r ?? []);
   };
 
   useEffect(() => { load(); }, [id]);
+  useEffect(() => { loadMetricsAndRecipients(recipientsPage); }, [recipientsPage]);
   useEffect(() => {
+    let timeout: any;
+    const debouncedReload = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => { loadMetricsAndRecipients(recipientsPage); }, 1500);
+    };
     const ch = supabase.channel(`bc-${id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_recipients", filter: `broadcast_id=eq.${id}` }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_recipients", filter: `broadcast_id=eq.${id}` }, debouncedReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "broadcast_events", filter: `broadcast_id=eq.${id}` }, () => load())
       .subscribe();
-    const t = setInterval(load, 10000);
-    return () => { supabase.removeChannel(ch); clearInterval(t); };
-  }, [id]);
+    const t = setInterval(() => loadMetricsAndRecipients(recipientsPage), 15000);
+    return () => { supabase.removeChannel(ch); clearInterval(t); clearTimeout(timeout); };
+  }, [id, recipientsPage]);
 
   const save = async (patch: Partial<Broadcast>) => {
     if (!bc) return;
+    const prev = bc;
     setBc({ ...bc, ...patch } as Broadcast);
-    await supabase.from("broadcasts").update(patch).eq("id", id);
+    const { error } = await supabase.from("broadcasts").update(patch).eq("id", id);
+    if (error) {
+      setBc(prev);
+      toast.error(`Não foi possível salvar: ${error.message}`);
+    }
   };
 
   const control = async (action: string, extra: Record<string, unknown> = {}) => {
@@ -269,10 +304,10 @@ function BroadcastEditor({ id }: { id: string }) {
 
   if (!bc) return <div className="p-6">Carregando…</div>;
 
-  const totalRecipients = recipients.length;
-  const sent = recipients.filter((r) => r.status === "sent" || r.status === "replied").length;
-  const failed = recipients.filter((r) => r.status === "failed").length;
-  const replied = recipients.filter((r) => r.status === "replied").length;
+  const totalRecipients = metrics.total;
+  const sent = metrics.sent;
+  const failed = metrics.failed;
+  const replied = metrics.replied;
 
   return (
     <div className="space-y-4">
@@ -430,13 +465,17 @@ function BroadcastEditor({ id }: { id: string }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Início da janela</Label>
-                <Input type="time" value={bc.send_window.start} onChange={(e) => save({ send_window: { ...bc.send_window, start: e.target.value } } as any)} />
+                <Input type="time" value={bc.send_window.start} onChange={(e) => save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, start: e.target.value } } as any)} />
               </div>
               <div>
                 <Label>Fim da janela</Label>
-                <Input type="time" value={bc.send_window.end} onChange={(e) => save({ send_window: { ...bc.send_window, end: e.target.value } } as any)} />
+                <Input type="time" value={bc.send_window.end} onChange={(e) => save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, end: e.target.value } } as any)} />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Fuso horário: <span className="font-mono">{bc.send_window.tz || region.timezone}</span>
+              {!bc.send_window.tz && " (padrão da empresa)"}
+            </p>
             <div>
               <Label>Dias da semana</Label>
               <div className="flex gap-2 mt-1">
@@ -448,7 +487,7 @@ function BroadcastEditor({ id }: { id: string }) {
                       onClick={() => {
                         const cur = new Set(bc.send_window.weekdays ?? []);
                         on ? cur.delete(d.v) : cur.add(d.v);
-                        save({ send_window: { ...bc.send_window, weekdays: Array.from(cur).sort() } } as any);
+                        save({ send_window: { ...bc.send_window, tz: bc.send_window.tz || region.timezone, weekdays: Array.from(cur).sort() } } as any);
                       }}>{d.label}</button>
                   );
                 })}
@@ -465,6 +504,7 @@ function BroadcastEditor({ id }: { id: string }) {
           <AudienceTab
             bc={bc} pipelines={pipelines} stages={stages}
             extraContacts={extraContacts} setExtraContacts={setExtraContacts}
+            totalRecipients={totalRecipients}
             onSave={save}
             onFreeze={async () => {
               const sourceType = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
@@ -496,7 +536,7 @@ function BroadcastEditor({ id }: { id: string }) {
               <TableBody>
                 {recipients.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum destinatário. Congele a audiência na aba "Audiência".</TableCell></TableRow>
-                ) : recipients.slice(0, 200).map((r) => (
+                ) : recipients.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">{formatPhoneDisplay(r.phone)}</TableCell>
                     <TableCell>{r.name ?? "—"}</TableCell>
@@ -507,7 +547,15 @@ function BroadcastEditor({ id }: { id: string }) {
                 ))}
               </TableBody>
             </Table>
-            {recipients.length > 200 && <div className="p-2 text-xs text-muted-foreground text-center">Mostrando 200 de {recipients.length}</div>}
+            {metrics.total > pageSize && (
+              <div className="flex items-center justify-between p-4 border-t">
+                <div className="text-sm text-muted-foreground">Mostrando {recipientsPage * pageSize + 1} a {Math.min((recipientsPage + 1) * pageSize, metrics.total)} de {metrics.total}</div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={recipientsPage === 0} onClick={() => setRecipientsPage(p => p - 1)}>Anterior</Button>
+                  <Button variant="outline" size="sm" disabled={(recipientsPage + 1) * pageSize >= metrics.total} onClick={() => setRecipientsPage(p => p + 1)}>Próxima</Button>
+                </div>
+              </div>
+            )}
           </CardContent></Card>
         </TabsContent>
 
@@ -545,19 +593,40 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; groups: any[]; reload: () => void }) {
   const addGroup = async () => {
-    const pos = (groups[groups.length - 1]?.position ?? 0) + 1;
-    await supabase.from("broadcast_message_groups").insert({
+    // Lê o max(position) do banco (evita position stale quando o state React ainda não recarregou)
+    const { data: existing } = await supabase
+      .from("broadcast_message_groups")
+      .select("position")
+      .eq("broadcast_id", broadcastId)
+      .order("position", { ascending: false })
+      .limit(1);
+    const pos = ((existing?.[0]?.position ?? 0)) + 1;
+    const { error } = await supabase.from("broadcast_message_groups").insert({
       broadcast_id: broadcastId, position: pos, name: `Grupo ${String.fromCharCode(64 + pos)}`,
     });
+    if (error) { toast.error(`Erro ao adicionar grupo: ${error.message}`); return; }
     reload();
   };
-  const addPart = async (groupId: string, currentParts: any[]) => {
-    const pos = (currentParts[currentParts.length - 1]?.position ?? 0) + 1;
-    await supabase.from("broadcast_message_parts").insert({ group_id: groupId, position: pos, content: "" });
+  const addPart = async (groupId: string, _currentParts: any[]) => {
+    // Sempre buscar do banco — evita UNIQUE(group_id, position) silenciosamente
+    // rejeitar cliques rápidos quando o state React ainda tem snapshot antigo.
+    const { data: existing } = await supabase
+      .from("broadcast_message_parts")
+      .select("position")
+      .eq("group_id", groupId)
+      .order("position", { ascending: false })
+      .limit(1);
+    const pos = ((existing?.[0]?.position ?? 0)) + 1;
+    const { error } = await supabase.from("broadcast_message_parts").insert({ group_id: groupId, position: pos, content: "" });
+    if (error) { toast.error(`Erro ao adicionar parte: ${error.message}`); return; }
     reload();
   };
   const updatePart = async (partId: string, content: string) => {
     await supabase.from("broadcast_message_parts").update({ content }).eq("id", partId);
+  };
+  const updatePreviewMode = async (partId: string, preview_mode: string) => {
+    await supabase.from("broadcast_message_parts").update({ preview_mode }).eq("id", partId);
+    reload();
   };
   const deletePart = async (partId: string) => { await supabase.from("broadcast_message_parts").delete().eq("id", partId); reload(); };
   const deleteGroup = async (gid: string) => {
@@ -571,6 +640,9 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
       <div className="text-sm text-muted-foreground bg-muted/40 rounded p-3">
         <strong>Rotação:</strong> contato 1 → Grupo A · contato 2 → Grupo B · contato 3 → Grupo C · contato 4 → Grupo A… Cada contato recebe todas as partes do seu grupo em sequência (~3s entre partes).
         Use <code className="bg-background px-1 rounded">{"{{nome}}"}</code> para personalizar.
+        <div className="mt-2 text-xs">
+          <strong>Preview de link:</strong> <em>Auto</em> detecta YouTube/Instagram e escolhe o melhor modo; <em>Card de vídeo</em> envia thumbnail grande + link (ideal para Reels/Shorts); <em>Preview simples</em> tenta preview nativo do WhatsApp; <em>Sem preview</em> manda link cru.
+        </div>
       </div>
       {groups.map((g) => (
         <Card key={g.id}>
@@ -579,13 +651,35 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
             <Button variant="ghost" size="icon" onClick={() => deleteGroup(g.id)}><Trash2 className="size-4" /></Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {g.parts.map((p: any, idx: number) => (
-              <div key={p.id} className="flex gap-2 items-start">
-                <div className="text-xs text-muted-foreground pt-2 w-12">parte {idx + 1}</div>
-                <Textarea className="flex-1" defaultValue={p.content} rows={3} onBlur={(e) => updatePart(p.id, e.target.value)} />
-                <Button variant="ghost" size="icon" onClick={() => deletePart(p.id)}><Trash2 className="size-4" /></Button>
-              </div>
-            ))}
+            {g.parts.map((p: any, idx: number) => {
+              const linkPreview = detectClientVideoLink(p.content);
+              return (
+                <div key={p.id} className="flex gap-2 items-start">
+                  <div className="text-xs text-muted-foreground pt-2 w-12">parte {idx + 1}</div>
+                  <div className="flex-1 space-y-1.5">
+                    <Textarea defaultValue={p.content} rows={3} onBlur={(e) => updatePart(p.id, e.target.value)} />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Select value={p.preview_mode ?? "auto"} onValueChange={(v) => updatePreviewMode(p.id, v)}>
+                        <SelectTrigger className="h-7 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto (recomendado)</SelectItem>
+                          <SelectItem value="video_card">Card de vídeo (thumb+link)</SelectItem>
+                          <SelectItem value="link_preview">Preview simples do WhatsApp</SelectItem>
+                          <SelectItem value="text_only">Sem preview (link cru)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {linkPreview && (
+                        <div className="flex items-center gap-1.5 rounded border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {linkPreview.thumb && <img src={linkPreview.thumb} alt="" className="h-6 w-10 rounded object-cover" />}
+                          <span>{linkPreview.label}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => deletePart(p.id)}><Trash2 className="size-4" /></Button>
+                </div>
+              );
+            })}
             <Button variant="outline" size="sm" onClick={() => addPart(g.id, g.parts)}><Plus className="size-3 mr-1" /> Adicionar parte</Button>
           </CardContent>
         </Card>
@@ -595,7 +689,22 @@ function MessagesTab({ broadcastId, groups, reload }: { broadcastId: string; gro
   );
 }
 
-function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, onSave, onFreeze, onFreezeAndStart }: any) {
+// Detecção client-side de link de vídeo para preview visual imediato.
+function detectClientVideoLink(text: string): { label: string; thumb: string | null } | null {
+  if (!text) return null;
+  const yt = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|embed\/|v\/)([\w-]{6,})|youtu\.be\/([\w-]{6,}))/i);
+  if (yt) {
+    const id = yt[1] ?? yt[2];
+    const isShorts = /\/shorts\//i.test(yt[0]);
+    return { label: isShorts ? "YouTube Shorts" : "YouTube", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+  }
+  const ig = text.match(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/([\w-]{5,})/i);
+  if (ig) return { label: "Instagram (thumb será buscada no envio)", thumb: null };
+  return null;
+}
+
+function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, totalRecipients, onSave, onFreeze, onFreezeAndStart }: any) {
+  const region = useRegion();
   const pipelineId = bc.source?.pipeline_id ?? "";
   const stageIds: string[] = bc.source?.stage_ids ?? [];
   const sourceType: "pipeline" | "list" = bc.source?.type ?? (extraContacts.length > 0 ? "list" : "pipeline");
@@ -614,9 +723,12 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
 
   const onUpload = async (f: File) => {
     try {
-      const list = await parseContactsFile(f);
-      setExtraContacts([...extraContacts, ...list]);
-      toast.success(`${list.length} contatos importados`);
+      const { ok, errors } = await parseContactsFile(f, region.region);
+      setExtraContacts([...extraContacts, ...ok]);
+      if (ok.length) toast.success(`${ok.length} contatos importados`);
+      if (errors.length) toast.warning(`${errors.length} linhas ignoradas`, {
+        description: errors.slice(0, 3).map((e) => `linha ${e.row}: ${e.reason}`).join(" • "),
+      });
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -692,7 +804,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
           <CardHeader><CardTitle className="text-base">Lista importada (Excel/CSV)</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={downloadBroadcastTemplate}><Download className="size-4 mr-1" /> Baixar template</Button>
+              <Button variant="outline" onClick={() => downloadBroadcastTemplate(region.region)}><Download className="size-4 mr-1" /> Baixar template</Button>
               <label className="inline-flex">
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ""; }} />
                 <span className="inline-flex items-center gap-1 border rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-muted"><Upload className="size-4" /> Importar arquivo</span>
@@ -707,7 +819,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
                   <TableHeader><TableRow><TableHead>Telefone</TableHead><TableHead>Nome</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {extraContacts.slice(0, 50).map((c, i) => (
-                      <TableRow key={i}><TableCell className="font-mono text-xs">{c.phone}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
+                      <TableRow key={i}><TableCell className="font-mono text-xs">{formatPhoneDisplay(c.phone)}</TableCell><TableCell>{c.name ?? "—"}</TableCell></TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -722,7 +834,7 @@ function AudienceTab({ bc, pipelines, stages, extraContacts, setExtraContacts, o
         <CardContent className="pt-6 flex items-center justify-between">
           <div>
             <div className="font-semibold">Congelar audiência</div>
-            <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")}` : "Ainda não congelada."}</p>
+            <p className="text-xs text-muted-foreground">Materializa a lista de destinatários e distribui entre os grupos via rotação. {bc.audience_frozen_at ? `Última: ${new Date(bc.audience_frozen_at).toLocaleString("pt-BR")} (${totalRecipients} contatos congelados no banco)` : "Ainda não congelada."}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onFreeze}><Snowflake className="size-4 mr-1" /> Congelar agora</Button>

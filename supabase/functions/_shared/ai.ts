@@ -1,7 +1,7 @@
 // Multi-provider AI helpers. Each agent carries provider + api_key + optional base_url.
 // Chat: OpenAI / Anthropic / Google. Returned shape is normalized to OpenAI-like:
 //   { ok, status, choices:[{message:{content, tool_calls?:[{id,function:{name,arguments}}]}}], usage:{prompt_tokens,completion_tokens,total_tokens} }
-// Embeddings: provider-native (openai or google). All embeddings forced to 768 dims to match ai_chunks.
+// Embeddings: all vectors are forced to 768 dims to match ai_chunks.
 //
 // All chat and embed calls auto-log to ai_usage when a `ctx` is provided.
 
@@ -16,7 +16,7 @@ export type LogCtx = {
   note?: string | null;
 };
 
-export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+export type Provider = "openai" | "anthropic" | "google" | "xai" | "manus" | "lovable";
 
 export type Agent = {
   id: string;
@@ -63,9 +63,50 @@ export function isRetryableStatus(s: number): boolean {
 }
 
 function requireKey(agent: Agent) {
-  if (!agent.api_key) throw new Error(`Agent ${agent.id} sem api_key configurada`);
-  return agent.api_key;
+  if (!agent.api_key?.trim()) throw new Error(`Agent ${agent.id} sem api_key configurada`);
+  return agent.api_key.trim();
 }
+
+function requireGoogleKey(agent: Pick<Agent, "id" | "api_key">): string {
+  const key = String(agent.api_key ?? "").trim();
+  if (!key) throw new Error(`Agent ${agent.id} sem api_key Gemini configurada`);
+  if (key.length < 30) {
+    throw new Error(`Agent ${agent.id} com api_key Gemini inválida: chave curta (${key.length} caracteres). Cole a chave completa do AI Studio.`);
+  }
+  return key;
+}
+
+function assertGoogleKeyLooksUsable(key: string): string {
+  const clean = String(key ?? "").trim();
+  if (!clean) throw new Error("Gemini api_key vazia");
+  if (clean.length < 30) throw new Error(`Gemini api_key inválida: chave curta (${clean.length} caracteres). Cole a chave completa do AI Studio.`);
+  return clean;
+}
+
+function compactErrorText(text: string, max = 500): string {
+  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+// Regra #10: transforma o JSON cru do Google em mensagem acionável no ai_usage.error.
+// API_KEY_INVALID quase nunca é a chave em si — é a Generative Language API
+// desabilitada no projeto GCP dono da chave, ou o projeto sem billing.
+function enrichGoogleError(errorText: string): string {
+  const raw = String(errorText ?? "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("api_key_invalid") || lower.includes("api key not valid")) {
+    return `Gemini API_KEY_INVALID — a chave foi rejeitada. Causas comuns: (1) Generative Language API não está habilitada no projeto GCP dono da chave — abra https://console.developers.google.com/apis/api/generativelanguage.googleapis.com e clique Enable; (2) chave apagada/regenerada no AI Studio — cole a nova em Agentes → editar. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("permission_denied") || lower.includes("permission denied")) {
+    return `Gemini PERMISSION_DENIED — chave existe mas não tem permissão pra esse modelo/endpoint. Verifique se a Generative Language API está Enabled no projeto GCP e se a chave não tem restrição por API. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  if (lower.includes("quota") && (lower.includes("exceeded") || lower.includes("free_tier"))) {
+    return `Gemini quota esgotada — o projeto GCP dessa chave está no free tier (20 req/dia por modelo) ou bateu no limite pago. Habilite billing no projeto ou espere reset diário. Erro cru: ${compactErrorText(raw, 240)}`;
+  }
+  return raw;
+}
+
+
 
 // ---------- CHAT ----------
 
@@ -76,10 +117,18 @@ export async function chatCompletion(
   ctx?: LogCtx,
 ): Promise<NormalizedResponse> {
   const startedAt = Date.now();
+  // Plano Supreme: quando provider === "lovable", usa a LOVABLE_API_KEY do ambiente.
+  if (agent.provider === "lovable") {
+    const envKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+    if (envKey) agent = { ...agent, api_key: envKey };
+  }
   let resp: NormalizedResponse;
   try {
     if (agent.provider === "openai") resp = await openaiChat(agent, messages, tools);
     else if (agent.provider === "xai") resp = await openaiCompatibleChat(agent, messages, tools, "https://api.x.ai/v1");
+    else if (agent.provider === "lovable") {
+      resp = await openaiCompatibleChat(agent, messages, tools, agent.base_url || "https://ai.gateway.lovable.dev/v1");
+    }
     else if (agent.provider === "manus") {
       if (!agent.base_url) throw new Error(`Agent ${agent.id} (Manus) requer Base URL configurada`);
       resp = await openaiCompatibleChat(agent, messages, tools, agent.base_url);
@@ -238,7 +287,75 @@ async function anthropicChat(agent: Agent, messages: ChatMessage[], tools?: any[
   };
 }
 
+// Roadmap GEMINI_404_MODEL_DEPRECATION Fase 1:
+// não hard-code alias -> modelo antigo. Google removeu gemini-2.5-* para
+// contas novas (09/07/2026). Se um modelo pedido devolver 404 "no longer
+// available"/"not found", tentamos a próxima opção da cadeia.
+function isGoogleModelGoneError(status: number, body: string): boolean {
+  if (status !== 404) return false;
+  const s = body.toLowerCase();
+  return s.includes("no longer available") || s.includes("not found") || s.includes("not_found");
+}
+function buildModelFallbackChain(requested: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (m: string) => {
+    const v = m.trim();
+    if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+  };
+  push(requested);
+  // Se o pedido é um flash Gemini, adiciona rotas alternativas em ordem
+  // do mais novo para o mais antigo (o oposto do que a gente estava fazendo).
+  if (/gemini.*(flash|latest)/i.test(requested)) {
+    push("gemini-flash-latest");
+    push("gemini-3-flash-preview");
+    push("gemini-2.5-flash");
+  }
+  return out;
+}
+
+// ---- Fase 2: cache de modelo resolvido + bloqueio por chave ----
+// Estado in-memory por warm instance da edge. TTL curto para permitir que o
+// Google restaure modelos sem exigir redeploy.
+const RESOLVED_MODEL_TTL_MS = 10 * 60 * 1000; // 10 min
+const BLOCKED_MODEL_TTL_MS = 30 * 60 * 1000;  // 30 min
+type ResolvedEntry = { model: string; ts: number };
+const resolvedModelCache = new Map<string, ResolvedEntry>(); // key: agentId|keyHash
+const blockedModelCache = new Map<string, number>();          // key: keyHash|model -> expiresAt
+
+async function hashKey(apiKey: string): Promise<string> {
+  const data = new TextEncoder().encode(apiKey);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, 16);
+}
+function getResolvedModel(agentId: string, keyHash: string): string | null {
+  const entry = resolvedModelCache.get(`${agentId}|${keyHash}`);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > RESOLVED_MODEL_TTL_MS) {
+    resolvedModelCache.delete(`${agentId}|${keyHash}`);
+    return null;
+  }
+  return entry.model;
+}
+function setResolvedModel(agentId: string, keyHash: string, model: string) {
+  resolvedModelCache.set(`${agentId}|${keyHash}`, { model, ts: Date.now() });
+}
+function isModelBlocked(keyHash: string, model: string): boolean {
+  const exp = blockedModelCache.get(`${keyHash}|${model}`);
+  if (!exp) return false;
+  if (Date.now() > exp) { blockedModelCache.delete(`${keyHash}|${model}`); return false; }
+  return true;
+}
+function blockModel(keyHash: string, model: string) {
+  blockedModelCache.set(`${keyHash}|${model}`, Date.now() + BLOCKED_MODEL_TTL_MS);
+}
+
+
 async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]): Promise<NormalizedResponse> {
+  const requestedModel = agent.model.replace("google/", "");
+  const modelChain = buildModelFallbackChain(requestedModel);
+
   const sys = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const contents: any[] = [];
   for (const m of messages) {
@@ -269,29 +386,177 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
     ? [{ functionDeclarations: tools.map((t) => ({
         name: t.function.name,
         description: t.function.description,
-        parameters: t.function.parameters,
+        parameters: sanitizeGeminiSchema(t.function.parameters),
       })) }]
     : undefined;
 
-  const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(agent.model)}:generateContent?key=${requireKey(agent)}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents,
-      systemInstruction: sys ? { parts: [{ text: sys }] } : undefined,
+  const SAFETY_SETTINGS = [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+  ];
+
+  const buildBody = (opts: { includeSystemInstruction: boolean }) => {
+    const contentsFinal = [...contents];
+    if (sys && !opts.includeSystemInstruction) {
+      contentsFinal.unshift({ role: "user", parts: [{ text: `[System]\n${sys}` }] });
+    }
+    return JSON.stringify({
+      contents: contentsFinal,
+      ...(opts.includeSystemInstruction && sys
+        ? { systemInstruction: { parts: [{ text: sys }] } }
+        : {}),
       tools: gTools,
-      generationConfig: { temperature: Number(agent.temperature) || 0.7 },
-    }),
+      safetySettings: SAFETY_SETTINGS,
+      generationConfig: {
+        temperature: Number(agent.temperature) || 0.7,
+        maxOutputTokens: 2048,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+  };
+
+  const apiKey = requireGoogleKey(agent);
+  const base = agent.base_url?.replace(/\/+$/, "") || "https://generativelanguage.googleapis.com/v1beta";
+  const gHeaders = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
+
+  // Fase 2: reorganiza a cadeia usando o cache de modelo resolvido para essa
+  // combinação agent+chave, e remove modelos bloqueados recentemente por 404.
+  const keyHash = await hashKey(apiKey);
+  const cachedResolved = getResolvedModel(agent.id, keyHash);
+  const orderedChain: string[] = [];
+  const seenOrdered = new Set<string>();
+  const pushOrdered = (m: string) => { if (m && !seenOrdered.has(m) && !isModelBlocked(keyHash, m)) { seenOrdered.add(m); orderedChain.push(m); } };
+  if (cachedResolved) pushOrdered(cachedResolved);
+  for (const m of modelChain) pushOrdered(m);
+  // Se tudo estava bloqueado, tenta a cadeia original mesmo assim (o bloqueio pode ter expirado no provider).
+  const effectiveChain = orderedChain.length ? orderedChain : modelChain;
+
+  // Tenta cada modelo em ordem. Só passa pro próximo se o Google matou o modelo
+  // (404 "no longer available"/"not found"). Qualquer outro erro (401/403/429/500)
+  // é retornado imediatamente — não faz sentido tentar outro modelo.
+  const attempts: Array<{ model: string; status: number; error: string }> = [];
+  let r: Response | null = null;
+  let actualModel = effectiveChain[0];
+
+  for (const model of effectiveChain) {
+    actualModel = model;
+    const url = `${base}/models/${encodeURIComponent(model)}:generateContent`;
+    let resp = await fetch(url, {
+      method: "POST",
+      headers: gHeaders,
+      body: buildBody({ includeSystemInstruction: true }),
+    });
+
+    // Fallback v1beta -> v1 (systemInstruction quirk / model missing em v1beta).
+    if (!resp.ok && (resp.status === 404 || resp.status === 400) && !agent.base_url && base.endsWith("/v1beta")) {
+      const firstErrorText = await resp.text();
+      
+      // FAIL-FAST OTIMIZADO: Se for 404 "no longer available", pula imediatamente para o próximo modelo da cadeia
+      // sem tentar 2 requests inúteis na v1. Poupando tempo de execução (compute credits) da Edge Function.
+      if (isGoogleModelGoneError(resp.status, firstErrorText)) {
+        attempts.push({ model, status: resp.status, error: compactErrorText(firstErrorText, 300) });
+        blockModel(keyHash, model);
+        continue;
+      }
+
+      const v1Url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(model)}:generateContent`;
+      let retry = await fetch(v1Url, {
+        method: "POST",
+        headers: gHeaders,
+        body: buildBody({ includeSystemInstruction: true }),
+      });
+      if (!retry.ok && (retry.status === 400 || retry.status === 404)) {
+        retry = await fetch(v1Url, {
+          method: "POST",
+          headers: gHeaders,
+          body: buildBody({ includeSystemInstruction: false }),
+        });
+      }
+      if (retry.ok) {
+        r = retry;
+        break;
+      }
+      const retryErrorText = await retry.text();
+      const combined = retryErrorText || firstErrorText;
+      attempts.push({ model, status: retry.status, error: compactErrorText(combined, 300) });
+      if (isGoogleModelGoneError(retry.status, combined)) { blockModel(keyHash, model); continue; }
+      console.error("[googleChat] provider error", {
+        status: retry.status,
+        model,
+        error: compactErrorText(combined),
+        chain_attempts: attempts,
+        messages: messages.length,
+        tools: tools?.length ?? 0,
+      });
+      return { ok: false, status: retry.status, errorText: enrichGoogleError(combined), retryable: isRetryableStatus(retry.status), choices: [] };
+    }
+
+    if (resp.ok) {
+      r = resp;
+      break;
+    }
+
+    const errorText = await resp.text();
+    attempts.push({ model, status: resp.status, error: compactErrorText(errorText, 300) });
+    if (isGoogleModelGoneError(resp.status, errorText)) { blockModel(keyHash, model); continue; }
+    console.error("[googleChat] provider error", {
+      status: resp.status,
+      model,
+      error: compactErrorText(errorText),
+      chain_attempts: attempts,
+      messages: messages.length,
+      tools: tools?.length ?? 0,
+    });
+    return { ok: false, status: resp.status, errorText: enrichGoogleError(errorText), retryable: isRetryableStatus(resp.status), choices: [] };
+  }
+
+  if (!r) {
+    // Nenhum modelo da cadeia respondeu — todos deram "modelo sumiu".
+    const last = attempts[attempts.length - 1];
+    console.error("[googleChat] all models in fallback chain returned 'model gone'", {
+      requestedModel,
+      chain: effectiveChain,
+      attempts,
+    });
+    return {
+      ok: false,
+      status: last?.status ?? 404,
+      errorText: enrichGoogleError(
+        `Nenhum modelo Gemini disponível para esta chave. Testados: ${effectiveChain.join(", ")}. Último erro: ${last?.error ?? "unknown"}`,
+      ),
+      retryable: false,
+      choices: [],
+    };
+  }
+
+  // Sucesso: memoriza o modelo efetivo para essa chave/agent.
+  setResolvedModel(agent.id, keyHash, actualModel);
+  console.log("[googleChat] resolved_model", {
+    agent_id: agent.id,
+    requested: requestedModel,
+    resolved: actualModel,
+    from_cache: cachedResolved === actualModel,
+    fallbacks_skipped: attempts.length,
   });
-  if (!r.ok) return { ok: false, status: r.status, errorText: await r.text(), retryable: isRetryableStatus(r.status), choices: [] };
+  if (attempts.length > 0) {
+    console.warn("[googleChat] fell back to alternate model", {
+      requested: requestedModel,
+      resolved: actualModel,
+      skipped: attempts,
+    });
+  }
+
+
   const data = await r.json();
   const cand = data.candidates?.[0];
   let text = "";
   const tool_calls: any[] = [];
   let i = 0;
   for (const p of cand?.content?.parts ?? []) {
+    if (p.thought) continue;
     if (p.text) text += p.text;
     if (p.functionCall) {
       tool_calls.push({
@@ -301,6 +566,26 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
       });
     }
   }
+  if (!text && !tool_calls.length) {
+    console.warn("[googleChat] empty response — DIAGNOSTIC DUMP", {
+      model: actualModel,
+      finishReason: cand?.finishReason,
+      safetyRatings: cand?.safetyRatings,
+      promptFeedback: data.promptFeedback,
+      partsCount: cand?.content?.parts?.length ?? 0,
+      partsRaw: JSON.stringify(cand?.content?.parts ?? []).slice(0, 500),
+      usage: data.usageMetadata,
+    });
+    const reason = cand?.finishReason ?? "no_candidate";
+    return {
+      ok: false,
+      status: 502,
+      errorText: `empty response from ${actualModel} (finishReason=${reason})`,
+      retryable: reason === "MAX_TOKENS" || reason === "OTHER" || reason === "no_candidate",
+      choices: [],
+    };
+  }
+
   return {
     ok: true,
     status: 200,
@@ -313,6 +598,89 @@ async function googleChat(agent: Agent, messages: ChatMessage[], tools?: any[]):
   };
 }
 
+function sanitizeGeminiSchema(schema: any): any | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+
+  const clone = JSON.parse(JSON.stringify(schema));
+  const unsupported = new Set([
+    "$schema",
+    "$id",
+    "$defs",
+    "definitions",
+    "$ref",
+    "default",
+    "additionalProperties",
+    "nullable",
+    "strict",
+    "oneOf",
+    "anyOf",
+    "allOf",
+    "not",
+    "format",
+    "pattern",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "minItems",
+    "maxItems",
+  ]);
+
+  const clean = (node: any): any | undefined => {
+    if (!node || typeof node !== "object") return undefined;
+    if (Array.isArray(node)) return node.map(clean).filter(Boolean);
+
+    for (const key of Object.keys(node)) {
+      if (unsupported.has(key)) delete node[key];
+    }
+
+    if (Array.isArray(node.type)) {
+      node.type = node.type.find((t: unknown) => t !== "null") ?? "string";
+    }
+
+    if (node.properties && typeof node.properties === "object") {
+      for (const key of Object.keys(node.properties)) {
+        const child = clean(node.properties[key]);
+        if (child) node.properties[key] = child;
+        else delete node.properties[key];
+      }
+      if (node.type === "object" && Object.keys(node.properties).length === 0) {
+        delete node.properties;
+        delete node.required;
+      }
+    }
+
+    if (node.items) {
+      const items = clean(node.items);
+      if (items) node.items = items;
+      else delete node.items;
+    }
+
+    if (Array.isArray(node.required) && node.properties) {
+      const props = new Set(Object.keys(node.properties));
+      node.required = node.required.filter((key: unknown) => typeof key === "string" && props.has(key));
+      if (node.required.length === 0) delete node.required;
+    }
+
+    if (!node.type) {
+      if (node.properties) node.type = "object";
+      else if (node.items) node.type = "array";
+      else node.type = "string";
+    }
+
+    if (node.type === "array" && !node.items) {
+      node.items = { type: "string" };
+    }
+
+    return node;
+  };
+
+  const result = clean(clone);
+  if (!result) return undefined;
+  if (result.type === "object" && result.properties && Object.keys(result.properties).length === 0) return undefined;
+  return result;
+}
+
 // ---------- EMBEDDINGS (always 768 dims to match ai_chunks) ----------
 
 export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promise<number[][]> {
@@ -320,20 +688,27 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
   let model = "unknown";
   try {
     let vectors: number[][];
-    // Pick embedding provider: explicit embedding_api_key (OpenAI-compatible) wins,
-    // else use the same provider's native embedding endpoint.
+    // Pick embedding provider based on the agent's configured provider/key.
     if (agent.embedding_api_key) {
-      model = agent.embedding_model || "text-embedding-3-small";
+      model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(agent.embedding_api_key, model, texts, agent.base_url);
     } else if (agent.provider === "openai") {
-      model = agent.embedding_model || "text-embedding-3-small";
+      model = normalizeOpenAIEmbeddingModel(agent.embedding_model || "text-embedding-3-small");
       vectors = await openaiEmbed(requireKey(agent), model, texts, agent.base_url);
     } else if (agent.provider === "google") {
-      model = agent.embedding_model || "text-embedding-004";
+      // Uses the agent's own Gemini API key. Default to gemini-embedding-001
+      // (v1beta) which supports outputDimensionality=768 to match ai_chunks.
+      model = agent.embedding_model || "gemini-embedding-001";
       vectors = await googleEmbed(requireKey(agent), model, texts);
+    } else if (agent.provider === "lovable") {
+      const key = Deno.env.get("LOVABLE_API_KEY");
+      if (!key) throw new Error("LOVABLE_API_KEY não configurada no servidor");
+      model = normalizeLovableEmbeddingModel(agent.embedding_model);
+      vectors = await lovableEmbed(key, model, texts);
     } else {
       throw new Error(`Provider ${agent.provider} não suporta embeddings nativamente. Configure embedding_api_key (OpenAI).`);
     }
+
     if (ctx) {
       // OpenAI/Google embedding APIs return token counts only on OpenAI; we estimate via char/4 fallback.
       const approxIn = texts.reduce((s, t) => s + Math.ceil((t?.length ?? 0) / 4), 0);
@@ -356,6 +731,21 @@ export async function embed(agent: Agent, texts: string[], ctx?: LogCtx): Promis
   }
 }
 
+function normalizeOpenAIEmbeddingModel(model: string): string {
+  if (model.startsWith("openai/")) return model.replace(/^openai\//, "");
+  return model;
+}
+
+function normalizeLovableEmbeddingModel(model?: string | null): string {
+  if (!model || model === "text-embedding-004" || model === "text-embedding-3-small") {
+    return "openai/text-embedding-3-small";
+  }
+  if (model === "text-embedding-3-large") return "openai/text-embedding-3-large";
+  if (model.startsWith("openai/")) return model;
+  if (model.startsWith("google/")) return "openai/text-embedding-3-small";
+  return "openai/text-embedding-3-small";
+}
+
 async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?: string | null): Promise<number[][]> {
   const url = (baseUrl?.replace(/\/+$/, "") || "https://api.openai.com/v1") + "/embeddings";
   const r = await fetch(url, {
@@ -369,22 +759,55 @@ async function openaiEmbed(key: string, model: string, texts: string[], baseUrl?
 }
 
 async function googleEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
-  const base = "https://generativelanguage.googleapis.com/v1beta";
-  const url = `${base}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${key}`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      requests: texts.map((t) => ({
-        model: `models/${model}`,
-        content: { parts: [{ text: t }] },
-        outputDimensionality: 768,
-      })),
-    }),
+  const apiKey = assertGoogleKeyLooksUsable(key);
+  const body = JSON.stringify({
+    requests: texts.map((t) => ({
+      model: `models/${model}`,
+      content: { parts: [{ text: t }] },
+      outputDimensionality: 768,
+    })),
   });
-  if (!r.ok) throw new Error(`google embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  // Try v1beta first (supports gemini-embedding-001 and text-embedding-004),
+  // fall back to v1 if the key/model isn't enabled on v1beta.
+  const call = async (apiVersion: "v1beta" | "v1") => {
+    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(model)}:batchEmbedContents`;
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body,
+    });
+  };
+  let r = await call("v1beta");
+  if (r.status === 404) {
+    const fallback = await call("v1");
+    if (fallback.ok) r = fallback;
+
+    else {
+      const t1 = await r.text().catch(() => "");
+      const t2 = await fallback.text().catch(() => "");
+      throw new Error(`google embed 404 v1beta+v1 model=${model}: ${t1.slice(0,200)} | ${t2.slice(0,200)}`);
+    }
+  }
+  if (!r.ok) throw new Error(`google embed ${r.status} model=${model}: ${(await r.text()).slice(0, 300)}`);
   const data = await r.json();
   return (data.embeddings ?? []).map((e: any) => e.values as number[]);
+}
+
+
+
+async function lovableEmbed(key: string, model: string, texts: string[]): Promise<number[][]> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Lovable-API-Key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, input: texts, dimensions: 768 }),
+  });
+  if (!r.ok) throw new Error(`lovable embed ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const data = await r.json();
+  return (data.data ?? []).map((d: any) => d.embedding as number[]);
 }
 
 /** Naive char-based chunker with overlap. */

@@ -1,0 +1,1 @@
+UPDATE public.ai_agents SET model = 'gemini-flash-latest', updated_at = now() WHERE id = 'a75fcb1a-7597-47d2-af23-18f1636b3564' AND model = 'gemini-2.5-flash';

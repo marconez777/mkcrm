@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, Plus, RefreshCw, Trash2, Eye } from "lucide-react";
 import DnsWizard from "@/components/email/DnsWizard";
+import { fnErrorMessage } from "@/lib/fn-error";
 
 type Clinic = { id: string; name: string };
 type DnsRecord = {
@@ -88,14 +89,14 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         body: { action: "create", clinic_id: newClinicId, domain: newDomain, region: newRegion },
       });
       if (error) throw error;
-      toast.success("Domínio criado. Configure o DNS na clínica.");
+      toast.success("Domínio criado. Configure o DNS na empresa.");
       setOpenAdd(false);
       setNewClinicId("");
       setNewDomain("");
       setNewRegion("us-east-1");
       await load();
     } catch (e: any) {
-      toast.error(e.message ?? "Falha ao criar");
+      toast.error(await fnErrorMessage(e, "Falha ao criar"));
     } finally {
       setBusy(false);
     }
@@ -115,7 +116,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         if (updated) setOpenDns({ ...updated, clinic: d.clinic });
       }
     } catch (e: any) {
-      toast.error(e.message ?? "Falha na verificação");
+      toast.error(await fnErrorMessage(e, "Falha na verificação"));
     } finally {
       setBusy(false);
     }
@@ -132,7 +133,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       toast.success("Domínio excluído");
       await load();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(await fnErrorMessage(e, "Falha ao excluir"));
     } finally {
       setBusy(false);
     }
@@ -153,7 +154,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
         <div>
           <h2 className="text-sm font-semibold">Domínios de email</h2>
           <p className="text-xs text-muted-foreground">
-            Um domínio por clínica. Os clientes apenas informam o domínio deles — você gerencia tudo aqui.
+            Um domínio por empresa. Os clientes apenas informam o domínio deles — você gerencia tudo aqui.
           </p>
         </div>
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
@@ -169,7 +170,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
             </DialogHeader>
             <form onSubmit={createDomain} className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Clínica</Label>
+                <Label>Empresa</Label>
                 <select
                   required
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -187,7 +188,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
               <div className="space-y-1.5">
                 <Label>Domínio</Label>
                 <Input
-                  placeholder="mail.clinica.com.br"
+                  placeholder="mail.empresa.com.br"
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
                   required
@@ -223,7 +224,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Clínica</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead>Domínio</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Região</TableHead>
@@ -272,7 +273,7 @@ export default function IntegrationsDomainsTable({ clinics }: { clinics: Clinic[
             <DialogTitle>DNS — {openDns?.domain}</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Peça à clínica para cadastrar estes registros no provedor de DNS dela. A verificação
+            Peça à empresa para cadastrar estes registros no provedor de DNS dela. A verificação
             roda automaticamente a cada 20 segundos enquanto este diálogo estiver aberto.
           </p>
           {openDns && (

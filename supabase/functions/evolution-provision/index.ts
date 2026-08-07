@@ -90,6 +90,12 @@ Deno.serve(async (req) => {
     });
     if (!evoRes.ok) {
       const t = await evoRes.text().catch(() => "");
+      await admin.from("error_events").insert({
+        clinic_id: clinicId, user_id: userId, surface: "evolution",
+        function_name: "evolution-provision", severity: "error",
+        error_message: `Evolution create failed: ${evoRes.status}`,
+        metadata: { instanceName, status: evoRes.status, response: t.slice(0, 1000) },
+      }).catch(() => {});
       return json({ error: `Evolution create failed: ${evoRes.status} ${t.slice(0, 300)}` }, 502);
     }
 
@@ -119,6 +125,12 @@ Deno.serve(async (req) => {
       await fetch(`${EVO_URL}/instance/delete/${encodeURIComponent(instanceName)}`, {
         method: "DELETE",
         headers: { apikey: EVO_KEY },
+      }).catch(() => {});
+      await admin.from("error_events").insert({
+        clinic_id: clinicId, user_id: userId, surface: "evolution",
+        function_name: "evolution-provision", severity: "error",
+        error_message: `DB insert failed: ${insErr.message}`,
+        metadata: { instanceName },
       }).catch(() => {});
       return json({ error: `DB insert failed: ${insErr.message}` }, 500);
     }

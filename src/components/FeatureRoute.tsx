@@ -12,7 +12,7 @@ export default function FeatureRoute({ feature, children }: { feature: FeatureKe
   useEffect(() => {
     if (!loading && membership && !allowed && !warned.current) {
       warned.current = true;
-      toast.error("Recurso indisponível para esta clínica.");
+      toast.error("Recurso indisponível para esta empresa.");
     }
   }, [loading, membership, allowed]);
 

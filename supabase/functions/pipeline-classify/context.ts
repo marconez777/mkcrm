@@ -15,6 +15,25 @@ export type Msg = {
   created_at: string;
 };
 
+// Tipos de campo que o Preenchedor (LLM) pode escrever a partir do conteúdo
+// das mensagens. Outros tipos (datetime/date/url/currency) são preenchidos
+// determinísticamente por outros agentes/regras e NÃO devem ir no prompt.
+const AI_FILLABLE_TYPES = new Set<string>([
+  "text",
+  "textarea",
+  "select",
+  "multiselect",
+  "boolean",
+  "number",
+]);
+
+export type ClinicFieldDef = {
+  field_key: string;
+  label: string;
+  field_type: string;
+  options: string[]; // [] quando não-enum
+};
+
 export type LeadContext = {
   lead: {
     id: string;
@@ -27,6 +46,7 @@ export type LeadContext = {
     last_processed_message_id_classifier: string | null;
     created_at: string | null;
     ai_summary: string | null;
+    manual_lock_until: string | null;
   };
   stageName: string;
   messages: Msg[];
@@ -35,8 +55,56 @@ export type LeadContext = {
   firstMessageAt: string | null;
   recentStageHistory: Array<{ at: string; from: string | null; to: string | null }>;
   hasBeenTreatedBefore: boolean;
+  /** Schema de custom_fields declarado pela clínica (lead_custom_fields).
+   *  Filtrado a tipos preenchíveis por IA. Vazio → fallback hardcoded. */
+  clinicFieldSchema: ClinicFieldDef[];
+  /** Whitelist de tags lida de app_settings.automation.v42.allowed_tags.
+   *  Usada tanto no prompt do Tipificador quanto na validação em apply.ts. */
+  allowedTags: string[];
+  /** True quando o lead só tem 1 mensagem inbound e ela parece template
+   *  pré-fabricado (botão de WhatsApp/ad/form). A IA deve IGNORAR essa
+   *  mensagem para fins de `interesse_*` e `scheduling_intent` — apenas
+   *  `origem` pode ser extraída dela. Computado em loadLeadContext. */
+  firstMessageIsTemplate: boolean;
   nowMs: number;
+  /** Configuração do Tenant (Fase 5/6) carregada da tabela pipeline_tenant_classifiers.
+   * Se null, o agent-core.ts aplicará o fallback monolítico (V6 hardcoded). */
+  tenant: {
+    enabled: boolean;
+    classifier_version: string;
+    override_prompts: Record<string, string>;
+    allowed_intents: string[];
+    locked_stages: string[];
+    active_agents: string[];
+  } | null;
 };
+
+// Heurística determinística: detecta mensagens "pré-fabricadas" que vêm
+// de botões de WhatsApp, anúncios ou formulários. Mantenha enxuta — falsos
+// positivos só atrasam 1 ciclo de classificação (na 2ª msg real do lead
+// a flag já será false).
+const TEMPLATE_FIRST_MSG_PATTERNS: RegExp[] = [
+  /\bquero\s+(agendar|saber|marcar|conhecer|informa\w*)/i,
+  /\bgostaria\s+de\s+(agendar|saber|marcar|informa\w*)/i,
+  /\bpreciso\s+(agendar|de\s+informa\w*)/i,
+  /\bvim\s+(pelo|pela|do|da)\s+(google|instagram|facebook|site|an[úu]ncio)/i,
+  /\bvi\s+(o\s+an[úu]ncio|no\s+(google|instagram|facebook))/i,
+  /\bmensagem\s+autom[áa]tica\s+do\s+site/i,
+];
+
+export function detectFirstMessageTemplate(messages: Msg[]): boolean {
+  const inbound = messages.filter((m) => !m.from_me);
+  if (inbound.length !== 1) return false;
+  const text = String(inbound[0].content ?? "").trim();
+  if (!text) return false;
+  if (text.length < 8 || text.length > 240) {
+    // textos muito longos raramente são template; muito curtos são ambíguos
+    if (text.length > 240) return false;
+  }
+  return TEMPLATE_FIRST_MSG_PATTERNS.some((re) => re.test(text));
+}
+
+
 
 export type LoadResult =
   | { kind: "ok"; ctx: LeadContext }
@@ -76,7 +144,7 @@ export async function loadLeadContext(
   const { data: leadRow } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary",
+      "id, clinic_id, pipeline_id, stage_id, custom_fields, custom_fields_last_human_edit, tags, last_processed_message_id_classifier, created_at, ai_summary, manual_lock_until",
     )
     .eq("id", leadId)
     .single();
@@ -110,23 +178,45 @@ export async function loadLeadContext(
     .eq("id", leadRow.stage_id ?? "00000000-0000-0000-0000-000000000000")
     .maybeSingle();
 
-  const [{ count: totalMessages }, { data: firstMsg }, { data: stageHistRaw }] =
-    await Promise.all([
-      client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
-      client
-        .from("messages")
-        .select("created_at")
-        .eq("lead_id", leadId)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      client
-        .from("lead_stage_history")
-        .select("moved_at, from_stage_id, to_stage_id")
-        .eq("lead_id", leadId)
-        .order("moved_at", { ascending: false })
-        .limit(8),
-    ]);
+  const [
+    { count: totalMessages },
+    { data: firstMsg },
+    { data: stageHistRaw },
+    { data: clinicFieldsRaw },
+    { data: allowedTagsRaw },
+    { data: tenantRaw },
+  ] = await Promise.all([
+    client.from("messages").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
+    client
+      .from("messages")
+      .select("created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    client
+      .from("lead_stage_history")
+      .select("moved_at, from_stage_id, to_stage_id")
+      .eq("lead_id", leadId)
+      .order("moved_at", { ascending: false })
+      .limit(8),
+    client
+      .from("lead_custom_fields")
+      .select("field_key, label, field_type, options, position")
+      .eq("clinic_id", leadRow.clinic_id as string)
+      .order("position", { ascending: true }),
+    client
+      .from("app_settings")
+      .select("value")
+      .eq("key", "automation.v42.allowed_tags")
+      .maybeSingle(),
+    client
+      .from("pipeline_tenant_classifiers")
+      .select("enabled, classifier_version, override_prompts, allowed_intents, locked_stages, active_agents")
+      .eq("clinic_id", leadRow.clinic_id as string)
+      .maybeSingle(),
+  ]);
+
 
   const stageIds = new Set<string>();
   for (const h of stageHistRaw ?? []) {
@@ -152,6 +242,28 @@ export async function loadLeadContext(
       (h) => (h.to && TREATED_STAGES.has(h.to)) || (h.from && TREATED_STAGES.has(h.from)),
     ) || tags.includes("paciente_antigo");
 
+  const clinicFieldSchema: ClinicFieldDef[] = (clinicFieldsRaw ?? [])
+    .filter((r: { field_type: string }) => AI_FILLABLE_TYPES.has(r.field_type))
+    .map((r: { field_key: string; label: string; field_type: string; options: unknown }) => ({
+      field_key: String(r.field_key),
+      label: String(r.label ?? r.field_key),
+      field_type: String(r.field_type),
+      options: Array.isArray(r.options)
+        ? (r.options as unknown[]).map((o) => String(o))
+        : [],
+    }));
+
+  // Whitelist de tags — lida de app_settings.automation.v42.allowed_tags.
+  // Fallback para [] (apply.ts dropa tudo se vazio, comportamento atual seguro).
+  let allowedTags: string[] = [];
+  try {
+    const raw = allowedTagsRaw?.value;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) allowedTags = parsed.map((s) => String(s));
+  } catch {
+    /* ignore — mantém [] */
+  }
+
   return {
     kind: "ok",
     ctx: {
@@ -166,6 +278,8 @@ export async function loadLeadContext(
         last_processed_message_id_classifier: watermark,
         created_at: (leadRow.created_at as string | null) ?? null,
         ai_summary: (leadRow.ai_summary as string | null) ?? null,
+        manual_lock_until: (leadRow.manual_lock_until as string | null) ?? null,
+
       },
       stageName: stage?.name ?? "?",
       messages,
@@ -174,10 +288,22 @@ export async function loadLeadContext(
       firstMessageAt: firstMsg?.created_at ?? null,
       recentStageHistory,
       hasBeenTreatedBefore,
+      clinicFieldSchema,
+      allowedTags,
+      firstMessageIsTemplate: detectFirstMessageTemplate(messages),
       nowMs: Date.now(),
+      tenant: tenantRaw ? {
+        enabled: tenantRaw.enabled as boolean,
+        classifier_version: tenantRaw.classifier_version as string,
+        override_prompts: (tenantRaw.override_prompts ?? {}) as Record<string, string>,
+        allowed_intents: (tenantRaw.allowed_intents ?? []) as string[],
+        locked_stages: (tenantRaw.locked_stages ?? []) as string[],
+        active_agents: (tenantRaw.active_agents ?? []) as string[],
+      } : null,
     },
   };
 }
+
 
 export function buildContextBlock(ctx: LeadContext): string {
   const nowIso = new Date(ctx.nowMs).toISOString();
@@ -204,6 +330,7 @@ Contexto do lead:
 - Lead criado: ${ctx.lead.created_at ? `${fmtBR(ctx.lead.created_at)} (há ${ageHuman(ctx.lead.created_at, ctx.nowMs)})` : "?"}
 - Total de mensagens: ${ctx.totalMessages}${ctx.firstMessageAt ? ` (primeira em ${fmtBR(ctx.firstMessageAt)})` : ""}
 - Já passou por tratamento/alta antes? ${ctx.hasBeenTreatedBefore ? "SIM" : "não detectado"}
+- PRIMEIRA_MENSAGEM_TEMPLATE: ${ctx.firstMessageIsTemplate ? "true (ignore completamente para inferência de campos)" : "false"}
 - Últimos stage moves:
 ${history}
 - Resumo de atendimento (ai_summary):

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllByIn, fetchAllPaged } from "@/lib/fetch-all";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,7 @@ import { calcCost, fmtUSD, isModelKnown } from "@/lib/ai-pricing";
 import { AiSpendLimitCard } from "@/components/admin/AiSpendLimitCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PipelineOverview } from "@/components/ai/usage/PipelineOverview";
+import { AgentRuntimeOverview } from "@/components/ai/usage/AgentRuntimeOverview";
 
 
 type Row = {
@@ -31,6 +33,11 @@ type Row = {
   tools_called: number;
   replied: boolean;
   error: string | null;
+  source: string | null;
+  provider: string | null;
+  agent_step: string | null;
+  error_category: string | null;
+  error_details: Record<string, any> | null;
   created_at: string;
 };
 
@@ -44,6 +51,8 @@ function toDateInput(d: Date) {
 }
 
 export default function MetricsAiUsage() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const { isSuperAdmin, membership, loading } = useAuth();
   const isClinicAdmin = membership?.role === "owner" || membership?.role === "admin";
   const allowed = isSuperAdmin || isClinicAdmin;
@@ -57,6 +66,8 @@ export default function MetricsAiUsage() {
   const [filterModel, setFilterModel] = useState<string>("");
   const [filterAgent, setFilterAgent] = useState<string>("");
   const [filterOp, setFilterOp] = useState<string>("");
+  const [filterSource, setFilterSource] = useState<string>("");
+  const [filterErrorCategory, setFilterErrorCategory] = useState<string>("");
   const [onlyErrors, setOnlyErrors] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -101,17 +112,19 @@ export default function MetricsAiUsage() {
       if (filterModel && r.model !== filterModel) return false;
       if (filterAgent && r.agent_id !== filterAgent) return false;
       if (filterOp && r.operation !== filterOp) return false;
+      if (filterSource && (r.source ?? "unknown") !== filterSource) return false;
+      if (filterErrorCategory && (r.error_category ?? "uncategorized") !== filterErrorCategory) return false;
       if (onlyErrors && r.status === "success") return false;
       if (search) {
         const q = search.toLowerCase();
         const lead = r.lead_id ? leads[r.lead_id] : null;
         const agentName = r.agent_id ? agents[r.agent_id] ?? "" : "";
-        const hay = `${r.model} ${r.operation} ${r.status} ${r.error ?? ""} ${agentName} ${lead?.name ?? ""} ${lead?.phone ?? ""}`.toLowerCase();
+        const hay = `${r.model} ${r.operation} ${r.status} ${r.source ?? ""} ${r.provider ?? ""} ${r.agent_step ?? ""} ${r.error_category ?? ""} ${r.error ?? ""} ${agentName} ${lead?.name ?? ""} ${lead?.phone ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, filterModel, filterAgent, filterOp, onlyErrors, search, agents, leads]);
+  }, [rows, filterModel, filterAgent, filterOp, filterSource, filterErrorCategory, onlyErrors, search, agents, leads]);
 
   const stats = useMemo(() => {
     let totalCost = 0;
@@ -165,7 +178,7 @@ export default function MetricsAiUsage() {
       m.set(k, cur);
     }
     return Array.from(m.entries())
-      .map(([id, v]) => ({ id, name: id === "__none" ? "(sem agente)" : agents[id] ?? id.slice(0, 8), ...v }))
+      .map(([id, v]) => ({ id, name: id === "__none" ? t("metricsAiUsage.noAgent") : agents[id] ?? id.slice(0, 8), ...v }))
       .sort((a, b) => b.cost - a.cost);
   }, [filtered, agents]);
 
@@ -193,6 +206,23 @@ export default function MetricsAiUsage() {
       m.set(r.operation, cur);
     }
     return Array.from(m.entries()).map(([op, v]) => ({ op, ...v })).sort((a, b) => b.cost - a.cost);
+  }, [filtered]);
+
+  const byErrorCategory = useMemo(() => {
+    const m = new Map<string, { calls: number; leads: Set<string>; last: string | null; sample: string | null }>();
+    for (const r of filtered) {
+      if (r.status === "success") continue;
+      const key = r.error_category ?? "uncategorized";
+      const cur = m.get(key) ?? { calls: 0, leads: new Set<string>(), last: null, sample: null };
+      cur.calls++;
+      if (r.lead_id) cur.leads.add(r.lead_id);
+      if (!cur.last || r.created_at > cur.last) cur.last = r.created_at;
+      if (!cur.sample && r.error) cur.sample = r.error;
+      m.set(key, cur);
+    }
+    return Array.from(m.entries())
+      .map(([category, v]) => ({ category, calls: v.calls, leads: v.leads.size, last: v.last, sample: v.sample }))
+      .sort((a, b) => b.calls - a.calls);
   }, [filtered]);
 
   // gráfico custo/dia × modelo
@@ -227,18 +257,27 @@ export default function MetricsAiUsage() {
   const uniqueModels = useMemo(() => Array.from(new Set(rows.map((r) => r.model))).sort(), [rows]);
   const uniqueAgents = useMemo(() => Array.from(new Set(rows.map((r) => r.agent_id).filter(Boolean))) as string[], [rows]);
   const uniqueOps = useMemo(() => Array.from(new Set(rows.map((r) => r.operation))).sort(), [rows]);
+  const uniqueSources = useMemo(() => Array.from(new Set(rows.map((r) => r.source ?? "unknown"))).sort(), [rows]);
+  const uniqueErrorCategories = useMemo(
+    () => Array.from(new Set(rows.filter((r) => r.status !== "success").map((r) => r.error_category ?? "uncategorized"))).sort(),
+    [rows],
+  );
 
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   const exportCsv = () => {
     const lines = [
-      ["data", "modelo", "operacao", "status", "agente", "lead", "input", "output", "total", "latencia_ms", "custo_usd", "erro"].join(","),
+      ["data", "origem", "provider", "etapa", "categoria_erro", "modelo", "operacao", "status", "agente", "lead", "input", "output", "total", "latencia_ms", "custo_usd", "erro"].join(","),
       ...filtered.map((r) => {
         const lead = r.lead_id ? leads[r.lead_id] : null;
         const cost = calcCost(r.model, r.input_tokens, r.output_tokens);
         return [
           r.created_at,
+            r.source ?? "",
+            r.provider ?? "",
+            r.agent_step ?? "",
+            r.error_category ?? "",
           r.model,
           r.operation,
           r.status,
@@ -262,7 +301,7 @@ export default function MetricsAiUsage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>;
   if (!allowed) return <Navigate to="/" replace />;
 
   return (
@@ -271,18 +310,22 @@ export default function MetricsAiUsage() {
         {membership?.clinic_id && <AiSpendLimitCard clinicId={membership.clinic_id} />}
         <Tabs defaultValue="overview">
           <TabsList>
-            <TabsTrigger value="overview">Visão geral</TabsTrigger>
-            <TabsTrigger value="advanced">Avançado</TabsTrigger>
+            <TabsTrigger value="overview">{t("metricsAiUsage.tabs.overview")}</TabsTrigger>
+            <TabsTrigger value="agents">{t("metricsAiUsage.tabs.agents")}</TabsTrigger>
+            <TabsTrigger value="advanced">{t("metricsAiUsage.tabs.advanced")}</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-4">
             <PipelineOverview clinicId={membership?.clinic_id ?? null} />
+          </TabsContent>
+          <TabsContent value="agents" className="mt-4">
+            <AgentRuntimeOverview clinicId={membership?.clinic_id ?? null} />
           </TabsContent>
           <TabsContent value="advanced" className="mt-4 space-y-5">
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold">Custos de IA</h1>
-            <p className="text-xs text-muted-foreground">Histórico detalhado de chamadas para a API de IA. Visível somente para administradores.</p>
+            <h1 className="text-lg font-semibold">{t("metricsAiUsage.title")}</h1>
+            <p className="text-xs text-muted-foreground">{t("metricsAiUsage.desc")}</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-xs">
@@ -293,7 +336,7 @@ export default function MetricsAiUsage() {
                 max={toDate}
                 onChange={(e) => setFromDate(e.target.value)}
               />
-              <span className="text-muted-foreground">até</span>
+              <span className="text-muted-foreground">{t("metricsAiUsage.dateUntil")}</span>
               <Input
                 type="date"
                 className="h-8 w-[140px]"
@@ -316,21 +359,39 @@ export default function MetricsAiUsage() {
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-amber-600" />
             <div>
-              <strong>{stats.unknown}</strong> chamadas usam modelos sem preço cadastrado — o custo dessas linhas aparece como $0. Atualize <code>src/lib/ai-pricing.ts</code>.
+              <strong>{stats.unknown}</strong> {t("metricsAiUsage.unknownAlertPrefix")} <code>src/lib/ai-pricing.ts</code>.
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Custo total" value={fmtUSD(stats.totalCost)} />
-          <StatCard icon={<Activity className="h-4 w-4" />} label="Chamadas" value={stats.calls.toLocaleString()} />
-          <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Tokens (in/out)" value={`${(stats.totalIn / 1000).toFixed(1)}k / ${(stats.totalOut / 1000).toFixed(1)}k`} />
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Custo médio" value={fmtUSD(stats.avgCost)} />
-          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Erros" value={String(stats.errors)} />
+          <StatCard icon={<Coins className="h-4 w-4" />} label={t("metricsAiUsage.stat.totalCost")} value={fmtUSD(stats.totalCost)} />
+          <StatCard icon={<Activity className="h-4 w-4" />} label={t("metricsAiUsage.stat.calls")} value={stats.calls.toLocaleString(lang)} />
+          <StatCard icon={<MessageSquare className="h-4 w-4" />} label={t("metricsAiUsage.stat.tokens")} value={`${(stats.totalIn / 1000).toFixed(1)}k / ${(stats.totalOut / 1000).toFixed(1)}k`} />
+          <StatCard icon={<Coins className="h-4 w-4" />} label={t("metricsAiUsage.stat.avgCost")} value={fmtUSD(stats.avgCost)} />
+          <StatCard icon={<AlertTriangle className="h-4 w-4" />} label={t("metricsAiUsage.stat.errors")} value={String(stats.errors)} />
         </div>
 
+        {byErrorCategory.length > 0 && (
+          <Card className="p-4">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-3.5 w-3.5" /> {t("metricsAiUsage.diagnosticTitle")}</h2>
+            <div className="grid gap-2 md:grid-cols-2">
+              {byErrorCategory.map((e) => (
+                <div key={e.category} className="rounded border bg-muted/20 p-3 text-xs">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Badge variant="destructive" className="text-[10px]">{t(`metricsAiUsage.errCat.${e.category}`, { defaultValue: e.category })}</Badge>
+                    <span className="text-muted-foreground">{e.calls} {t("metricsAiUsage.callsWord")} · {e.leads} {t("metricsAiUsage.leadWord", { count: e.leads })}</span>
+                  </div>
+                  <p className="text-muted-foreground">{t(`metricsAiUsage.errExp.${e.category}`, { defaultValue: t("metricsAiUsage.errExp.fallback") })}</p>
+                  {e.sample && <p className="mt-1 truncate font-mono text-[10px]">{e.sample}</p>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Custo por dia (top 6 modelos)</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.dailyCostTitle")}</h2>
           <div className="flex h-44 items-stretch gap-1">
             {dailyByModel.buckets.map((b: any) => {
               const total = dailyByModel.models.reduce((s, m) => s + (b[m] || 0), 0);
@@ -361,44 +422,52 @@ export default function MetricsAiUsage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Por modelo</h2>
-            <RankList rows={byModel.map((m) => ({ key: m.model, label: m.model, sub: `${m.calls} chamadas · ${(m.in / 1000).toFixed(1)}k in / ${(m.out / 1000).toFixed(1)}k out`, value: fmtUSD(m.cost) }))} />
+            <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.sections.byModel")}</h2>
+            <RankList rows={byModel.map((m) => ({ key: m.model, label: m.model, sub: `${m.calls} ${t("metricsAiUsage.callsWord")} · ${(m.in / 1000).toFixed(1)}k in / ${(m.out / 1000).toFixed(1)}k out`, value: fmtUSD(m.cost) }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Bot className="h-3.5 w-3.5" /> Por agente</h2>
-            <RankList rows={byAgent.map((a) => ({ key: a.id, label: a.name, sub: `${a.calls} chamadas · ${(a.tokens / 1000).toFixed(1)}k tokens`, value: fmtUSD(a.cost) }))} />
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Bot className="h-3.5 w-3.5" /> {t("metricsAiUsage.sections.byAgent")}</h2>
+            <RankList rows={byAgent.map((a) => ({ key: a.id, label: a.name, sub: `${a.calls} ${t("metricsAiUsage.callsWord")} · ${(a.tokens / 1000).toFixed(1)}k ${t("metricsAiUsage.tokensWord")}`, value: fmtUSD(a.cost) }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-3.5 w-3.5" /> Top 20 leads</h2>
-            <RankList rows={byLead.map((l) => ({ key: l.id, label: l.lead?.name ?? l.lead?.phone ?? l.id.slice(0, 8), sub: `${l.calls} chamadas · ${l.lead?.phone ?? ""}`, value: fmtUSD(l.cost), href: `/inbox/${l.id}` }))} />
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-3.5 w-3.5" /> {t("metricsAiUsage.sections.topLeads")}</h2>
+            <RankList rows={byLead.map((l) => ({ key: l.id, label: l.lead?.name ?? l.lead?.phone ?? l.id.slice(0, 8), sub: `${l.calls} ${t("metricsAiUsage.callsWord")} · ${l.lead?.phone ?? ""}`, value: fmtUSD(l.cost), href: `/inbox/${l.id}` }))} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Por operação</h2>
-            <RankList rows={byOp.map((o) => ({ key: o.op, label: o.op, sub: `${o.calls} chamadas`, value: fmtUSD(o.cost) }))} />
+            <h2 className="mb-3 text-sm font-semibold">{t("metricsAiUsage.sections.byOp")}</h2>
+            <RankList rows={byOp.map((o) => ({ key: o.op, label: o.op, sub: `${o.calls} ${t("metricsAiUsage.callsWord")}`, value: fmtUSD(o.cost) }))} />
           </Card>
         </div>
 
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold">Detalhe de chamadas</h2>
-            <span className="text-xs text-muted-foreground">{filtered.length} de {rows.length}</span>
+            <h2 className="text-sm font-semibold">{t("metricsAiUsage.details.title")}</h2>
+            <span className="text-xs text-muted-foreground">{filtered.length} {t("metricsAiUsage.details.ofWord")} {rows.length}</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Input className="h-8 w-44" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input className="h-8 w-44" placeholder={t("metricsAiUsage.details.searchPh")} value={search} onChange={(e) => setSearch(e.target.value)} />
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterModel} onChange={(e) => setFilterModel(e.target.value)}>
-                <option value="">Todos modelos</option>
+                <option value="">{t("metricsAiUsage.details.allModels")}</option>
                 {uniqueModels.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)}>
-                <option value="">Todos agentes</option>
+                <option value="">{t("metricsAiUsage.details.allAgents")}</option>
                 {uniqueAgents.map((id) => <option key={id} value={id}>{agents[id] ?? id.slice(0, 8)}</option>)}
               </select>
               <select className="h-8 rounded border bg-background px-2 text-xs" value={filterOp} onChange={(e) => setFilterOp(e.target.value)}>
-                <option value="">Todas operações</option>
+                <option value="">{t("metricsAiUsage.details.allOps")}</option>
                 {uniqueOps.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select className="h-8 rounded border bg-background px-2 text-xs" value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
+                <option value="">{t("metricsAiUsage.details.allSources")}</option>
+                {uniqueSources.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select className="h-8 rounded border bg-background px-2 text-xs" value={filterErrorCategory} onChange={(e) => setFilterErrorCategory(e.target.value)}>
+                <option value="">{t("metricsAiUsage.details.allCategories")}</option>
+                {uniqueErrorCategories.map((c) => <option key={c} value={c}>{t(`metricsAiUsage.errCat.${c}`, { defaultValue: c })}</option>)}
               </select>
               <label className="flex items-center gap-1 text-xs">
                 <input type="checkbox" checked={onlyErrors} onChange={(e) => setOnlyErrors(e.target.checked)} />
-                Só erros
+                {t("metricsAiUsage.details.onlyErrors")}
               </label>
             </div>
           </div>
@@ -407,16 +476,18 @@ export default function MetricsAiUsage() {
             <table className="w-full text-xs">
               <thead className="border-b text-muted-foreground">
                 <tr>
-                  <th className="py-2 text-left font-medium">Quando</th>
-                  <th className="py-2 text-left font-medium">Modelo</th>
-                  <th className="py-2 text-left font-medium">Op.</th>
-                  <th className="py-2 text-left font-medium">Agente</th>
-                  <th className="py-2 text-left font-medium">Lead</th>
-                  <th className="py-2 text-right font-medium">In</th>
-                  <th className="py-2 text-right font-medium">Out</th>
-                  <th className="py-2 text-right font-medium">Lat.</th>
-                  <th className="py-2 text-right font-medium">Custo</th>
-                  <th className="py-2 text-left font-medium">Status</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.when")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.model")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.op")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.source")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.error")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.agent")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.lead")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.in")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.out")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.lat")}</th>
+                  <th className="py-2 text-right font-medium">{t("metricsAiUsage.table.cost")}</th>
+                  <th className="py-2 text-left font-medium">{t("metricsAiUsage.table.status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -425,9 +496,11 @@ export default function MetricsAiUsage() {
                   const lead = r.lead_id ? leads[r.lead_id] : null;
                   return (
                     <tr key={r.id} className="cursor-pointer border-b hover:bg-accent/40" onClick={() => setDetail(r)}>
-                      <td className="py-1.5">{new Date(r.created_at).toLocaleString()}</td>
+                      <td className="py-1.5">{new Date(r.created_at).toLocaleString(lang)}</td>
                       <td className="py-1.5 font-mono text-[11px]">{r.model}</td>
                       <td className="py-1.5">{r.operation}</td>
+                      <td className="py-1.5">{r.source ?? "unknown"}</td>
+                      <td className="py-1.5">{r.error_category ? <Badge variant="outline" className="text-[10px]">{t(`metricsAiUsage.errCat.${r.error_category}`, { defaultValue: r.error_category })}</Badge> : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{r.agent_id ? agents[r.agent_id] ?? "—" : "—"}</td>
                       <td className="py-1.5 max-w-32 truncate">{lead?.name ?? lead?.phone ?? "—"}</td>
                       <td className="py-1.5 text-right tabular-nums">{r.input_tokens ?? "—"}</td>
@@ -441,7 +514,7 @@ export default function MetricsAiUsage() {
                   );
                 })}
                 {pageRows.length === 0 && (
-                  <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">Sem chamadas no período / filtro.</td></tr>
+                  <tr><td colSpan={12} className="py-6 text-center text-muted-foreground">{t("metricsAiUsage.details.empty")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -449,10 +522,10 @@ export default function MetricsAiUsage() {
 
           {totalPages > 1 && (
             <div className="mt-3 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Página {page + 1} de {totalPages}</span>
+              <span className="text-muted-foreground">{t("metricsAiUsage.pagination.pageOf", { page: page + 1, total: totalPages })}</span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>{t("metricsAiUsage.pagination.prev")}</Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>{t("metricsAiUsage.pagination.next")}</Button>
               </div>
             </div>
           )}
@@ -465,27 +538,40 @@ export default function MetricsAiUsage() {
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <SheetContent className="w-[480px] sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Detalhes da chamada</SheetTitle>
+            <SheetTitle>{t("metricsAiUsage.sheet.title")}</SheetTitle>
           </SheetHeader>
           {detail && (
             <div className="mt-4 space-y-2 text-xs">
-              <KV k="ID" v={detail.id} />
-              <KV k="Quando" v={new Date(detail.created_at).toLocaleString()} />
-              <KV k="Modelo" v={detail.model} />
-              <KV k="Operação" v={detail.operation} />
-              <KV k="Status" v={detail.status} />
-              <KV k="Agente" v={detail.agent_id ? `${agents[detail.agent_id] ?? "—"} (${detail.agent_id})` : "—"} />
-              <KV k="Lead" v={detail.lead_id ? `${leads[detail.lead_id]?.name ?? leads[detail.lead_id]?.phone ?? "—"} (${detail.lead_id})` : "—"} />
-              <KV k="Thread" v={detail.thread_id ?? "—"} />
-              <KV k="Automação" v={detail.automation_id ?? "—"} />
-              <KV k="Tokens" v={`in ${detail.input_tokens ?? "—"} / out ${detail.output_tokens ?? "—"} / total ${detail.total_tokens ?? "—"}`} />
-              <KV k="Latência" v={detail.latency_ms ? `${detail.latency_ms} ms` : "—"} />
-              <KV k="Tools chamadas" v={String(detail.tools_called)} />
-              <KV k="Respondeu" v={detail.replied ? "sim" : "não"} />
-              <KV k="Custo" v={fmtUSD(calcCost(detail.model, detail.input_tokens, detail.output_tokens))} />
+              <KV k={t("metricsAiUsage.sheet.id")} v={detail.id} />
+              <KV k={t("metricsAiUsage.sheet.when")} v={new Date(detail.created_at).toLocaleString(lang)} />
+              <KV k={t("metricsAiUsage.sheet.model")} v={detail.model} />
+              <KV k={t("metricsAiUsage.sheet.operation")} v={detail.operation} />
+              <KV k={t("metricsAiUsage.sheet.source")} v={detail.source ?? "unknown"} />
+              <KV k={t("metricsAiUsage.sheet.provider")} v={detail.provider ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.step")} v={detail.agent_step ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.status")} v={detail.status} />
+              <KV k={t("metricsAiUsage.sheet.agent")} v={detail.agent_id ? `${agents[detail.agent_id] ?? "—"} (${detail.agent_id})` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.lead")} v={detail.lead_id ? `${leads[detail.lead_id]?.name ?? leads[detail.lead_id]?.phone ?? "—"} (${detail.lead_id})` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.thread")} v={detail.thread_id ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.automation")} v={detail.automation_id ?? "—"} />
+              <KV k={t("metricsAiUsage.sheet.tokens")} v={t("metricsAiUsage.sheet.tokensValue", { in: detail.input_tokens ?? "—", out: detail.output_tokens ?? "—", total: detail.total_tokens ?? "—" })} />
+              <KV k={t("metricsAiUsage.sheet.latency")} v={detail.latency_ms ? `${detail.latency_ms} ms` : "—"} />
+              <KV k={t("metricsAiUsage.sheet.tools")} v={String(detail.tools_called)} />
+              <KV k={t("metricsAiUsage.sheet.replied")} v={detail.replied ? t("metricsAiUsage.sheet.yes") : t("metricsAiUsage.sheet.no")} />
+              <KV k={t("metricsAiUsage.sheet.cost")} v={fmtUSD(calcCost(detail.model, detail.input_tokens, detail.output_tokens))} />
+              {detail.error_category && <KV k={t("metricsAiUsage.sheet.category")} v={t(`metricsAiUsage.errCat.${detail.error_category}`, { defaultValue: detail.error_category })} />}
+              {detail.error_category && (
+                <div className="rounded border bg-muted/20 p-2">
+                  <div className="mb-1 text-muted-foreground">{t("metricsAiUsage.sheet.diagnosticRead")}</div>
+                  <p>{t(`metricsAiUsage.errExp.${detail.error_category}`, { defaultValue: t("metricsAiUsage.errExp.fallback") })}</p>
+                  {detail.error_details && Object.keys(detail.error_details).length > 0 && (
+                    <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-[11px]">{JSON.stringify(detail.error_details, null, 2)}</pre>
+                  )}
+                </div>
+              )}
               {detail.error && (
                 <div className="mt-2">
-                  <div className="mb-1 text-muted-foreground">Erro:</div>
+                  <div className="mb-1 text-muted-foreground">{t("metricsAiUsage.sheet.error")}</div>
                   <pre className="overflow-x-auto rounded bg-muted p-2 text-[11px]">{detail.error}</pre>
                 </div>
               )}
@@ -515,8 +601,11 @@ function KV({ k, v }: { k: string; v: string }) {
   );
 }
 
+
+
 function RankList({ rows }: { rows: { key: string; label: string; sub?: string; value: string; href?: string }[] }) {
-  if (rows.length === 0) return <p className="text-sm text-muted-foreground">Sem dados.</p>;
+  const { t } = useTranslation();
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">{t("metricsAiUsage.noData")}</p>;
   const max = Math.max(...rows.map((r) => parseFloat(r.value.replace(/[^0-9.]/g, "")) || 0));
   return (
     <div className="space-y-2">

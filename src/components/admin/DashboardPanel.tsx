@@ -239,7 +239,7 @@ export default function DashboardPanel() {
           to="/admin/finance"
         />
         <KpiCard
-          icon={Building2} label="Clínicas" accent="primary"
+          icon={Building2} label="Empresas" accent="primary"
           value={fmt(data.clinics.total)}
           hint={`${data.clinics.active} ativas · ${data.clinics.suspended} suspensas · +${data.clinics.new_30d} em 30d`}
           to="/admin/clinics"
@@ -354,7 +354,7 @@ export default function DashboardPanel() {
       {/* Top clinics + system health */}
       <div className="grid gap-3 lg:grid-cols-3">
         <SectionCard
-          title="Top clínicas por mensagens (30d)"
+          title="Top empresas por mensagens (30d)"
           className="lg:col-span-2"
           action={<Link to="/admin/clinics" className="text-[11px] text-admin-primary hover:underline inline-flex items-center gap-0.5">Ver todas <ArrowUpRight className="h-3 w-3" /></Link>}
         >
@@ -403,7 +403,7 @@ export default function DashboardPanel() {
                 <AlertLine tone="warning" text={`Custo IA próximo do limite mensal (${usd(data.ai_30d.cost_usd)})`} to="/admin/usage" />
               )}
               {data.clinics.suspended > 0 && (
-                <AlertLine tone="warning" text={`${data.clinics.suspended} clínica(s) suspensa(s)`} to="/admin/clinics" />
+                <AlertLine tone="warning" text={`${data.clinics.suspended} empresa(s) suspensa(s)`} to="/admin/clinics" />
               )}
               {bounceRate > 5 && (
                 <AlertLine tone="negative" text={`Taxa de bounce alta (${bounceRate.toFixed(1)}%)`} to="/admin/observability" />

@@ -3,11 +3,13 @@
 import { corsHeaders, json, sb } from "../_shared/evolution.ts";
 import { renderTemplate } from "../_shared/template-vars.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { getClinicTimezone } from "../_shared/region.ts";
 
 type Automation = {
   id: string;
   name: string;
   enabled: boolean;
+  clinic_id: string;
   trigger_type: string;
   trigger_config: any;
   action_type: string;
@@ -22,7 +24,7 @@ async function recentlyRan(supabase: any, automationId: string, leadId: string, 
     .select("id")
     .eq("automation_id", automationId)
     .eq("lead_id", leadId)
-    .eq("status", "success")
+    .in("status", ["success", "error"])
     .gte("created_at", since)
     .limit(1);
   return (data?.length ?? 0) > 0;
@@ -79,6 +81,27 @@ async function logRun(
   if (error) console.error("[automations-tick] logRun failed", { automationId, leadId, error: error.message });
 }
 
+function matchesCondition(lead: any, cond: any): boolean {
+  if (!cond?.field_key) return true;
+  const op = cond.op ?? "eq";
+  const v = (lead.custom_fields as any)?.[cond.field_key];
+  const present = v !== null && v !== undefined && v !== "" &&
+    !(Array.isArray(v) && v.length === 0);
+  
+  const normBool = (val: any) => {
+    const s = String(val ?? "").trim().toLowerCase();
+    if (["true", "sim", "1", "yes", "y"].includes(s)) return "sim";
+    if (["false", "nao", "não", "0", "no", "n", ""].includes(s)) return "nao";
+    return s;
+  };
+
+  const eq = normBool(v) === normBool(cond.value);
+  return op === "eq" ? eq :
+         op === "neq" ? !eq :
+         op === "empty" ? !present :
+         op === "not_empty" ? present : true;
+}
+
 async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
   // Aceita stage_ids (array) ou stage_id (single, legado). stage_ids tem prioridade.
   const cfgStageIds: string[] | undefined = Array.isArray(a.trigger_config?.stage_ids) && a.trigger_config.stage_ids.length > 0
@@ -90,15 +113,16 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
     let q = supabase
       .from("leads")
-      .select("id, stage_id, last_message_at")
+      .select("id, stage_id, last_message_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .lte("last_message_at", cutoff)
       .is("archived_at", null)
       .limit(50);
     if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
     const { data } = await q;
-    // Filter: last message must be inbound (from_me = false)
     const out: any[] = [];
     for (const l of data ?? []) {
+      if (!matchesCondition(l, a.trigger_config?.condition)) continue;
       const { data: lastMsg } = await supabase
         .from("messages")
         .select("from_me")
@@ -106,7 +130,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
         .order("timestamp", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (lastMsg && lastMsg.from_me === false) out.push(l);
+      if (lastMsg && lastMsg.from_me === true) out.push(l);
     }
     return out;
   }
@@ -115,10 +139,36 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
     let q = supabase
       .from("leads")
-      .select("id, stage_id, stage_changed_at")
+      .select("id, stage_id, stage_changed_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .lte("stage_changed_at", cutoff)
       .is("archived_at", null)
       .limit(50);
+    if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
+    const { data } = await q;
+    const out: any[] = [];
+    for (const l of data ?? []) {
+      if (!matchesCondition(l, a.trigger_config?.condition)) continue;
+      out.push(l);
+    }
+    return out;
+  }
+
+  if (a.trigger_type === "monthly_cleanup") {
+    const tz = a.trigger_config?.tz || (await getClinicTimezone(supabase, a.clinic_id));
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    // Dispara apenas no dia 1º de cada mês
+    if (day !== "01") return [];
+
+    let q = supabase
+      .from("leads")
+      .select("id, stage_id, clinic_id")
+      .eq("clinic_id", a.clinic_id)
+      .is("archived_at", null)
+      .limit(200);
     if (cfgStageIds) q = q.in("stage_id", cfgStageIds);
     const { data } = await q;
     return data ?? [];
@@ -128,7 +178,7 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
     const cfg = a.trigger_config ?? {};
     const fieldKey: string = cfg.field_key;
     const offsetMin = Number(cfg.offset_minutes ?? 60);
-    const tz: string = cfg.tz || "America/Sao_Paulo";
+    const tz: string = cfg.tz || (await getClinicTimezone(supabase, a.clinic_id));
     const preferred: string | undefined = cfg.preferred_time; // "HH:MM"
     const businessOnly: boolean = !!cfg.business_hours_only;
     const businessStart = Number(cfg.business_hours_start ?? 10);
@@ -142,7 +192,8 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
 
     let q = supabase
       .from("leads")
-      .select("id, stage_id, custom_fields, updated_at")
+      .select("id, stage_id, custom_fields, updated_at, clinic_id")
+      .eq("clinic_id", a.clinic_id)
       .not("custom_fields->>" + fieldKey, "is", null)
       .is("archived_at", null)
       .limit(200);
@@ -173,6 +224,14 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
       return `${g("year")}-${g("month")}-${g("day")}`;
     };
     const nowDay = `${get("year")}-${get("month")}-${get("day")}`;
+
+    const cond = cfg.condition;
+    const normBool = (v: any) => {
+      const s = String(v ?? "").trim().toLowerCase();
+      if (["true", "sim", "1", "yes", "y"].includes(s)) return "sim";
+      if (["false", "nao", "não", "0", "no", "n", ""].includes(s)) return "nao";
+      return s;
+    };
 
     const out: any[] = [];
     for (const l of data ?? []) {
@@ -206,16 +265,27 @@ async function findCandidates(supabase: any, a: Automation): Promise<any[]> {
         }
       }
 
+      // Filtro condicional por campo personalizado (ex.: teleconsulta=sim)
+      if (!matchesCondition(l, cond)) {
+        await logRun(supabase, a.id, l.id, a.clinic_id, "skipped", "condition_not_matched", appt.toISOString());
+        continue;
+      }
+
       out.push({ ...l, appointment_at: appt.toISOString() });
     }
     return out;
+
   }
   return [];
 }
 
-async function runAction(supabase: any, a: Automation, leadId: string): Promise<{ ok: boolean; detail?: string }> {
+async function runAction(supabase: any, a: Automation, leadId: string, appointmentAt?: string | null): Promise<{ ok: boolean; detail?: string }> {
   if (a.action_type === "ai_followup") {
-    const agentId = a.action_config?.agent_id;
+    let agentId = a.action_config?.agent_id;
+    if (!agentId) {
+      const { data: fallback } = await supabase.from("agents").select("id").eq("clinic_id", a.clinic_id).limit(1).maybeSingle();
+      agentId = fallback?.id;
+    }
     if (!agentId) return { ok: false, detail: "missing agent_id" };
     const prompt = a.action_config?.prompt
       ?? "Envie um follow-up educado e curto retomando a conversa, sem ser invasivo.";
@@ -305,9 +375,10 @@ async function runAction(supabase: any, a: Automation, leadId: string): Promise<
         .select("name, phone, email, company, custom_fields")
         .eq("id", leadId)
         .single(),
-      supabase.from("lead_custom_fields").select("field_key, field_type"),
+      supabase.from("lead_custom_fields").select("field_key, field_type").eq("clinic_id", a.clinic_id),
     ]);
-    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any);
+    const clinicTz = await getClinicTimezone(supabase, a.clinic_id);
+    const text = renderTemplate(tpl.content as string, lead ?? {}, (defs ?? []) as any, clinicTz, { appointment_at: appointmentAt ?? undefined });
 
     const sendResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evolution-send`, {
       method: "POST",
@@ -354,6 +425,17 @@ Deno.serve(async (req) => {
         ? Math.max(a.cooldown_hours ?? 0, Math.ceil((offsetMin / 60) * 1.5), 1)
         : Math.max(a.cooldown_hours ?? 0, 1);
       for (const lead of candidates) {
+        // Defesa: nunca execute uma automação contra lead de outra clínica.
+        if (lead.clinic_id && lead.clinic_id !== a.clinic_id) {
+          console.warn("[automations-tick] skipped cross-clinic", {
+            automation_id: a.id,
+            automation_clinic: a.clinic_id,
+            lead_id: lead.id,
+            lead_clinic: lead.clinic_id,
+          });
+          skipped++;
+          continue;
+        }
         const apptISO: string | null = lead.appointment_at ?? null;
         const skip = isAppt && apptISO
           ? await shouldSkipForAppointment(supabase, a.id, lead.id, effectiveCooldownH, apptISO)
@@ -362,7 +444,7 @@ Deno.serve(async (req) => {
           skipped++;
           continue;
         }
-        const res = await runAction(supabase, a, lead.id);
+        const res = await runAction(supabase, a, lead.id, apptISO);
         await logRun(supabase, a.id, lead.id, a.clinic_id, res.ok ? "success" : "error", res.detail, apptISO);
         if (res.ok) fired++; else failed++;
       }

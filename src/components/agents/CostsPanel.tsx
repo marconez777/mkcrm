@@ -62,7 +62,7 @@ export function CostsPanel({ agentId, clinicId }: { agentId: string; clinicId: s
     <div className="space-y-3">
       {limits?.blocked && (
         <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-xs">
-          <Badge variant="destructive" className="mb-1">Clínica bloqueada</Badge>
+          <Badge variant="destructive" className="mb-1">Empresa bloqueada</Badge>
           <p>{limits.blocked_reason ?? "Limite atingido. Reative em Configurações → Gastos de IA."}</p>
         </div>
       )}
@@ -77,7 +77,7 @@ export function CostsPanel({ agentId, clinicId }: { agentId: string; clinicId: s
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
-              Cota diária da clínica (compartilhada): US$ {dailyLimit.toFixed(2)}
+              Cota diária da empresa (compartilhada): US$ {dailyLimit.toFixed(2)}
             </span>
             <Badge variant={overLimit ? "destructive" : pct > 80 ? "secondary" : "outline"} className="text-[10px]">
               {pct.toFixed(0)}%
@@ -88,7 +88,7 @@ export function CostsPanel({ agentId, clinicId }: { agentId: string; clinicId: s
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        Custos são somados a partir de chamadas reais ao provedor. O limite é por clínica e bloqueia
+        Custos são somados a partir de chamadas reais ao provedor. O limite é por empresa e bloqueia
         automaticamente quando atingido (se ativado em Configurações).
       </p>
     </div>

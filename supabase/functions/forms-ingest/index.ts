@@ -2,6 +2,8 @@
 // Validates integration token, auto-discovers form_definition on first sight, upserts lead, logs submission.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
+import { applyLeadOrigin, applyOriginFromTracking, originFor } from "../_shared/lead-origin.ts";
+import { callTrackingIdentify } from "../_shared/tracking-identify-call.ts";
 
 // CORS: echo Origin instead of "*" because the snippet uses sendBeacon /
 // fetch with credentials, and the spec forbids wildcard ACAO with credentials.
@@ -273,7 +275,42 @@ Deno.serve(async (req) => {
           lead_id: leadId,
           link_source: "form_submission",
         }, { onConflict: "clinic_id,visitor_id,lead_id" });
+
+        // Congela a atribuição do visitante (tracking_lead_sources) para que
+        // formulário também produza origem real (ex.: Instagram → formulário).
+        const { data: clinicRow } = await supabase
+          .from("clinics").select("slug").eq("id", integration.clinic_id).maybeSingle();
+        if (clinicRow?.slug) {
+          await callTrackingIdentify({
+            clinicSlug: clinicRow.slug,
+            visitorId: data.visitor_id,
+            sessionId: data.session_id ?? null,
+            leadId: leadId!,
+            email,
+            phone,
+            sourceEvent: "form_submission",
+            properties: { form_key: data.form_key },
+          });
+        }
       }
+
+      // Origem nativa: tracking manda; senão, formulário do site.
+      if (leadId) {
+        const fromTracking = await applyOriginFromTracking(
+          supabase as any,
+          integration.clinic_id,
+          leadId,
+        ).catch(() => ({ applied: false }));
+        if (!fromTracking.applied) {
+          await applyLeadOrigin(
+            supabase as any,
+            leadId,
+            originFor("form", def?.name || data.form_name || data.form_key || null, "form"),
+          ).catch((e) => console.error("[forms-ingest] origin_error", e));
+        }
+      }
+
+
 
       // Log timeline event
       await supabase.from("lead_events").insert({

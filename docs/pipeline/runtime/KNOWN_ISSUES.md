@@ -3,19 +3,208 @@ title: "Bugs conhecidos do pipeline"
 topic: kanban
 kind: troubleshooting
 audience: agent
-updated: 2026-06-19
-summary: "Bugs reportados e seu status: tag 1ª consulta em paciente antigo (CORRIGIDO), data 19/06 vs 18/06 (CORRIGIDO via fmtBR + sanitizeDateField), lock manual sem botão Destravar (CORRIGIDO), gaps estruturais (G10 ausente, whitelist de tags não enforced)."
+updated: 2026-06-22
+summary: "Bugs reportados e seu status. Resolvidos nas Fases A-D (2026-06-22): AI SDK structured outputs, whitelist dinâmica, advisory lock + backoff escalonado, cleanup G10. Aberto: stage_sequence_bindings dormente."
 code_refs:
   - supabase/functions/pipeline-classify/index.ts
+  - supabase/functions/pipeline-classify/agent-core.ts
+  - supabase/functions/pipeline-classify/apply.ts
+  - supabase/functions/pipeline-run-executor/index.ts
+  - supabase/functions/automations-tick/index.ts
   - src/lib/manual-stage-move.ts
   - src/pages/Kanban.tsx
 related_docs:
   - docs/pipeline/runtime/CLASSIFIER.md
   - docs/pipeline/runtime/HUMAN_REACTOR.md
   - docs/pipeline/runtime/TAGS_LIVE.md
+  - docs/pipeline/runtime/TRIGGERS_AUDIT.md
+  - docs/pipeline/runtime/plan-correcoes.md
 ---
 
+## 2026-06-23 — `classify_timeout_*` e `No object generated`
+
+Auditoria completa em `dry-run-pr2/AUDIT_PIPELINE_FULL.md`.
+
+**Fase 4 (commitada):**
+- Timeout por subagente em `agent-core.ts`: Resumidor 30s, paralelos 25s, Maestro 40s — worst-case ~95s, abaixo do `CLASSIFY_TIMEOUT_MS=120s` do executor.
+- `withSchemaRetry` endurecido: 2ª tentativa em try/catch, relança como `<agente>_schema_retry_failed` com `modelText` e `cause` logados.
+- Índice parcial `idx_pri_retry_pending` em `pipeline_run_items`.
+
+**Fase 5 (commitada):**
+- **Fallback de provider** em `runAgent`: se a execução cair em erro terminal (`schema_retry_failed`, `No object generated`, `timeout`, 5xx, `fetch failed`), refaz uma única vez no provider alternativo (Lovable↔OpenAI BYOK). `getClassifierAi(..., { forceProvider })`.
+- **`MaestroOutputSchema.custom_fields_patch`** relaxado de `union(...)` para `z.record(z.any())` — elimina "too many states" do Gemini; validação por chave permanece em `apply.ts`.
+- **Backoff 429 com jitter** ±20% para evitar thundering herd.
+- **Telemetria** em `pipeline-classify/index.ts`: retorno agora inclui `agents.{provider,models,latency_ms,ran,summary_chars}`, persistido em `pipeline_run_items.result` pelo executor.
+
+**Fase 6 (commitada):**
+- **Auto-retry de transientes**: colunas `pipeline_run_items.auto_retry_count` + `auto_retry_pending`. Executor marca quando `error` casa `/classify_timeout|No object generated|schema_retry_failed|fetch failed|quota|429|5\d\d|ECONNRESET|timeout/i`.
+- **Cron `pipeline-auto-retry`** (1/min): lê itens pendentes com `auto_retry_count<2`, respeita backoff 30s→2min, dedup por lead, cria runs com `scope.source='auto_retry'`.
+
+**Fase 7 (commitada):**
+- **Quota guard** em `agent-core.runAgent`: detecta `/quota|insufficient_quota|billing|402|exceeded your current/` → upsert em `pipeline_provider_health (clinic_id, provider, blocked_until=+30min)`. Próximas chamadas pulam o provider bloqueado e usam direto o alternativo.
+- **Auto-retry consulta `pipeline_provider_health`**: quando ambos providers (lovable+openai) estão bloqueados, adia sem consumir attempt (`skipped_by_quota`).
+- **`pipeline-queue-alert` estendido**: emite `error_events` com `signature=quota:<clinic>:<provider>` (dedup 60min) quando um provider está bloqueado.
+
+**Fase 8 (commitada):**
+- **RPC `admin_pipeline_errors_paginated`** agora retorna `auto_retry_count`, `auto_retry_pending`, `provider_blocked[]`, `last_provider` por linha.
+- **`PipelineErrorsCard`** ganhou colunas "Tent." (`n/2` + ⛔/⏳) e "Provider" (com ⚠️ quando há bloqueio ativo).
+- **`ProviderHealthCard`** lista clínicas com providers bloqueados por quota com botão "Desbloquear".
+
+**Fase 9 (commitada):**
+- **View `v_pipeline_auto_retry_daily`** (security_invoker=true): KPI permanente de recovery (`retried_total`, `retried_ok`, `exhausted`, `recovery_pct`) por dia.
+- **`AutoRetryRecoveryCard`** no painel: gráfico 14d (recuperados vs esgotados) + KPI 7d.
+- **Script `scripts/pipeline-replay.ts`** + `dry-run-pr2/AUDIT_REPLAY_FASE9.md`: replay E2E contra leads-controle, gera tabela markdown com status/provider/fallback/latency.
+
+**Fase 10 (commitada — limpeza estrutural):**
+- **Item #4 (whitelist de tags)** verificado já implementado em `pipeline-classify/apply.ts` (`getAllowedTags` + `tagsDropped` logado em `lead_events.payload.applied.dropped_by_whitelist`). Sem código novo. Status: ✅.
+- **Item #6 (auto:* events com 0 ocorrências)** investigado em 2026-06-23. Causa raiz: a função `public.notify_pipeline_deterministic` existe no banco mas **não está atrelada a nenhum trigger** (`pg_trigger` vazio para essa função). As invocações periódicas vistas em log (`secretary-replied → skipped: not_in_novo`) vêm de `automations-tick`/`pipeline-classify-tick`, que entram pelo caminho que pula `lead_events`. Não é falha de `pg_net` (24h: 4996/5735 = 87% 200 OK; erros são 404/timeouts DNS de outros endpoints). Status: DOCUMENTADO — wiring do trigger fica como pendência separada (não-bloqueante).
+- **Item #7 (`consulta_agendada_em`)** verificado: já existe linha em `lead_custom_fields` (1 row) e apenas 1 clínica usa o campo. Cobertura suficiente. Status: ✅.
+- **Item #-10 (`stage_sequence_bindings`)** critério de revisão documentado em `USER_AUTOMATIONS.md §Critério de revisão`. Reavaliar 2026-07-22. Status: AGENDADO.
+
+**Fases 11-14 (commitadas 2026-06-23 — inconsistência custos IA × pipeline + leads travados):**
+
+Diagnóstico: `pipeline_runs` em 24h = 0 (executor parado), mas `ai_usage` registrou 226 chamadas/178 erros (79%) vindas do **caminho do tick** (`pipeline-classify-tick`). Tela "Custos da IA" lê `ai_usage` → mostra alta taxa de erro. Tela "Pipeline Health" lê `pipeline_run_items` → mostra IA saudável. Não é bug de UI — são duas fontes de verdade desacopladas.
+
+Causa raiz dos erros: `Promise.all` no passo paralelo (Agendador + Typifier + Movimentador). Quando UM agente falhava com `No object generated` no Gemini, o `Promise.all` rejeitava o lote inteiro e o catch marcava os **3** agentes como erro em `ai_usage`, multiplicando por 3 a contagem de falhas e abortando a execução do lead.
+
+- **Fase 13 (P0)** — `pipeline-classify/agent-core.ts`: troca de `Promise.all` por `Promise.allSettled` no passo paralelo. Cada agente é registrado individualmente; falha de 1 não derruba os outros. Defaults seguros aplicados quando um agente falha (Agendador → `nenhum`, Typifier → vazio, Movimentador → mantém stage atual). Maestro continua com o que tiver. Só aborta se os 3 falharem.
+- **Fase 14 (P0)** — destravados manualmente via UPDATE: Anna Carolina + André Lopez (`needs_ai_review=false` por dropping silencioso) → reenfileirados; Maju Kersevan (`fail_count=3`, backoff 30min) → zerado para retentar após Fase 13.
+- **Fase 12** — quota guard (`pipeline_provider_health`) verificado já implementado em `agent-core.ts:549-562` e respeitado em `pipeline-auto-retry`. Última quota error em `gpt-4o` foi 16:59 antes do block, depois 0 chamadas — guard funcionando. Sem mudança de código.
+- **Fase 11** — coluna `ai_usage.source text DEFAULT 'unknown'` + backfill (`classifier:*` → `'classifier-runtime'`) + índice `(source, created_at DESC)`. Permite separar telemetria por origem em telas futuras.
+
+**Pendência conhecida**: tick não enfileira leads quando `needs_ai_review=false` por dropping (eg. Anna/André). Investigar por que `evolution-webhook` / trigger inbound não setou o flag em 2026-06-22 22:07 (Anna) — fica como Fase 15.
+
+**Fase 15-20 (commitadas 2026-06-23 — raiz da inconsistência em custos do agente):**
+
+- Causa raiz confirmada em produção: novos registros ainda mostravam `source='unknown'` e o padrão antigo de erro triplicado (`agendador`/`typifier` recebendo mensagem de erro do `movimentador`), indicando versão antiga/sem rastreabilidade efetiva no Cloud. A função `pipeline-classify` foi redeployada e passou a logar `rev='phase15-allsettled-source-v1'` nos eventos; depois recebeu `rev='phase15-allsettled-source-jsonfallback-v2'` com fallback JSON.
+- Migração `ai_usage`: adicionados `source`, `provider`, `agent_step`, `error_category`, `error_details`; backfill de `classifier:*` para `classifier-runtime`; índices por origem e categoria.
+- `_shared/metrics.ts` e `agent-core.ts`: novas linhas de `ai_usage` passam a gravar origem, provider, etapa, categoria e detalhes estruturados do erro. Isso elimina a ambiguidade visual da tela de custos.
+- `classifier-ai.ts`: erros de schema (`No object generated`, `schema_retry_failed`, `did not match schema`) agora são transientes para manter o lead em retry/backoff em vez de limpar a fila.
+- Reparo operacional: leads com erro recente, `needs_ai_review=false` e mensagem nova/sem classificação foram refileirados para `pipeline-classifier` (37 leads no snapshot).
+- UI `MetricsAiUsage` e `PipelineOverview`: adicionados diagnóstico por categoria, filtros por origem/categoria, e detalhes por etapa/provider para explicar o que falhou e impacto operacional.
+- `agent-core.ts`: Movimentador, Maestro, Agendador e Tipificador agora tentam fallback JSON textual compacto quando structured output falha por schema. A intenção é reduzir `No object generated` na origem, não apenas categorizar o erro.
+
+
+
+
+
+
+
+
+
+
+
 # Bugs conhecidos e limitações
+
+## -10. `stage_sequence_bindings` dormente (ABERTO — 2026-06-22)
+
+`SELECT count(*) FROM stage_sequence_bindings` = **3** em todo o projeto. O trigger `trg_enroll_on_stage_change` continua rodando em todo move de stage para olhar uma tabela praticamente vazia.
+
+**Não é bug**, é dívida operacional. Custo agregado pequeno mas presente em ~100 moves/dia.
+
+**Recomendação**: revisar em 30 dias (2026-07-22). Se ainda <10 bindings, desligar o trigger e arquivar a UI `message_sequences`. Ver `docs/pipeline/runtime/USER_AUTOMATIONS.md §Gap conhecido`.
+
+## -9. Cleanup periódico do G10 (CORRIGIDO 2026-06-22 — Fase D/P28)
+
+Coluna `leads.custom_fields_last_human_edit jsonb` acumulava timestamps indefinidamente; após 7d (janela do G10) as entradas eram lidas em todo classify mas sem efeito útil.
+
+**Fix**: função `public.cleanup_g10_expired()` (SECURITY DEFINER) + cron `cleanup-g10-expired-daily` (`0 4 * * *` UTC). Drop de qualquer entrada com timestamp > 14d (margem dupla).
+
+## -8. Advisory lock + backoff escalonado (CORRIGIDO 2026-06-22 — Fase B/P8+P9)
+
+Fila `needs_ai_review` podia ter o mesmo lead processado por 2 workers concorrentes; falhas usavam backoff flat de 10 min (sem distinção transient vs persistente).
+
+**Fix**:
+- RPC `try_classify_lock(_lead_id)` via `pg_try_advisory_xact_lock` — `classifyOneV2` aborta com `skipped: 'locked_by_other_worker'` se já houver lock.
+- `backoffMsForFail()` agora escalona 2 → 5 → 30 min conforme `leads.ai_review_fail_count` (coluna nova).
+- `tickQueueV2` faz `.in("clinic_id", allowedClinicIds)` no SELECT (evita SELECT no universo de todas as clínicas).
+
+## -7. Whitelist de tags dinâmica (CORRIGIDO 2026-06-22 — Fase A/P7+P20)
+
+Whitelist hardcoded em `apply.ts` descartava 99% das tags sugeridas (278 descartadas / 6 aplicadas em 24h).
+
+**Fix**: `app_settings.automation.v42.allowed_tags` (jsonb array). `agent-core.ts` injeta no system do Tipificador; `apply.ts` filtra contra ela. Adicionar tag = `UPDATE app_settings` (sem deploy). Ver `TAGS_LIVE.md §Whitelist`.
+
+## -6. AI SDK structured outputs (CORRIGIDO 2026-06-22 — Fase A/P0)
+
+12 erros `No object generated` em 48h (todos agentes) causados por uso de `@ai-sdk/openai-compatible` sem suporte a structured outputs.
+
+**Fix**: `_shared/clinic-openai.ts` migrado para `createOpenAI` do `@ai-sdk/openai`. Schemas dos agentes (`schema.ts`) reativados como `z.object(...)` tipado em vez de `z.any()`. Erros zerados.
+
+## -5. Leads MKart vazando no funil ÓR (CORRIGIDO 2026-06-21)
+
+**Sintoma**: a coluna "Leads de entrada" do Kanban da ÓR mostrava 27 leads, mas 19 eram da clínica MKart (`clinic_id='d0a57fa2-10f2-4d86-888f-39f5d977705d'`) com `pipeline_id` apontando para o pipeline da ÓR (`17c27f4d-8256-4ea7-b5b9-ed706494f686`).
+
+**Causa-raiz**: `leads.pipeline_id` / `leads.stage_id` não tinham FK composta `(clinic_id, *)`. Migração antiga ou import manual cruzou os IDs.
+
+**Fix aplicado**:
+- 1ª onda (20 leads): `UPDATE leads SET pipeline_id='7ee3b834-…', stage_id='f2ab32fd-de68-…'` filtrando `clinic_id` MKart + `pipeline_id` ÓR. Histórico em `lead_stage_history` com `reason='correcao_cross_clinic_or_to_mkart'`.
+- 2ª onda (2 leads residuais, 2026-06-21): mesmo `UPDATE`, `reason='correcao_cross_clinic_or_to_mkart_residual'`.
+- Trigger `trg_leads_enforce_coherence` (`BEFORE INS/UPD` de `clinic_id, pipeline_id, stage_id`) valida que `pipeline.clinic_id = lead.clinic_id` e `stage.pipeline_id = lead.pipeline_id`. Vide `TRIGGERS_AUDIT.md §2.3`.
+
+**Como verificar regressão**:
+```sql
+SELECT count(*) FROM leads l
+  JOIN pipelines p ON p.id = l.pipeline_id
+ WHERE p.clinic_id <> l.clinic_id;
+-- deve ser sempre 0
+```
+
+**Invariante**: nunca mover lead entre pipelines de clínicas diferentes. Toda edge function que faz `UPDATE leads SET pipeline_id/stage_id` deve buscar o destino dentro da mesma `clinic_id`.
+
+## -4. `automations-tick` rodando cross-clinic (CORRIGIDO 2026-06-21)
+
+**Sintoma**: 7.891 linhas em `automation_runs` onde `automation.clinic_id <> lead.clinic_id`. Risco de envio de WhatsApp/templates de uma clínica para leads de outra.
+
+**Causa-raiz**: em `supabase/functions/automations-tick/index.ts`, a função `findCandidates()` consultava `leads` sem filtrar por `clinic_id`. Cada automação habilitada iterava o universo completo de leads do projeto, filtrando só por `stage_id`/`last_message_at` — sem isolamento de tenant.
+
+**Fix aplicado**:
+- 3 queries de `leads` em `findCandidates()` ganharam `.eq("clinic_id", a.clinic_id)` (branches `no_reply_after`, `stage_idle`, `before_appointment`).
+- Guard defensivo no loop principal de `Deno.serve`: `if (lead.clinic_id !== a.clinic_id) { skipped++; console.warn(...); continue; }`.
+- `UPDATE automation_runs SET status='failed_cross_clinic'` em 7.891 linhas históricas (preserva registro, exclui das métricas).
+- Trigger `trg_automation_runs_clinic_coherence` (`BEFORE INS/UPD OF automation_id, lead_id`) bloqueia futuras gravações cross-clinic com `EXCEPTION` (errcode `check_violation`). Vide `TRIGGERS_AUDIT.md §2.3`.
+- Snapshot pré-fix: `/mnt/documents/snapshot-automation-runs-cross-clinic-pre-fix.csv` (7.891 linhas).
+
+**Como verificar regressão**:
+```sql
+SELECT count(*) FROM automation_runs ar
+  JOIN automations a ON a.id = ar.automation_id
+  JOIN leads       l ON l.id = ar.lead_id
+ WHERE a.clinic_id <> l.clinic_id
+   AND ar.status <> 'failed_cross_clinic';
+-- deve ser sempre 0
+```
+
+**Invariante**: qualquer edge function que itere `automations × leads` (ou `sequences × leads`, `email_automations × leads`, etc.) **DEVE** filtrar `leads.clinic_id = parent.clinic_id` na própria query do Postgres. O trigger é a última linha de defesa, mas falha o run inteiro — não confiar nele para correção silenciosa. Auditoria completa em `/mnt/documents/auditoria-cross-clinic.md`.
+
+
+
+## -3. Dispatcher do `pipeline-run-executor` aceita `only_agent='parallel'` (CORRIGIDO 2026-06-22 — Fase D/P13)
+
+**Sintoma anterior**: a UI `/pipeline-runs` oferece o botão "Só Paralelos" (Agendador + Tipificador + Movimentador), mas ao clicar nenhum dos três rodava isoladamente — a request era descartada.
+
+**Fix aplicado**:
+- `pipeline-run-executor/index.ts`: union `OnlyAgent` estendido para `"summarizer" | "typifier" | "maestro" | "parallel" | "agendador" | "movimentador"`. Constante `ONLY_AGENT_VALUES` centraliza a whitelist.
+- `pipeline-classify/index.ts`: validador aceita os mesmos 6 valores.
+
+**Limitação remanescente**: a semântica de execução por agente individual (rodar **só** o `agendador` e pular os demais) ainda não está plumbada em `agent-core.ts` — runAgent sempre roda o pipeline V6 completo. O `only_agent` hoje apenas filtra os *side-effects* aplicados em `apply.ts` (via `ApplyMode`). Isto será endereçado em refactor futuro se houver demanda.
+
+
+
+## -2. Telemetria do classifier agrupada sob um único `operation` (CORRIGIDO 2026-06-20 — V6)
+
+**Sintoma**: o painel `/metrics/ai-usage` mostrava o classifier como uma única linha (`classifier`), impossibilitando comparar custo/latência por agente quando a linha de montagem rodava de fato 3+ chamadas LLM em sequência.
+
+**Causa-raiz**: ao paralelizar Agendador/Tipificador/Movimentador no `agent-core.ts`, todos os `recordStep()` da fase paralela gravavam sob a mesma `operation`, e o Resumidor/Maestro caíam em rótulos genéricos.
+
+**Fix** (refator V6, `supabase/functions/pipeline-classify/agent-core.ts:350,378-380,403`):
+- Cada agente grava **uma linha própria** em `ai_usage`:
+  `classifier:summarizer` · `classifier:agendador` · `classifier:typifier` · `classifier:movimentador` · `classifier:maestro`.
+- `lead_events.payload.agents` ganha modelo + latência + flag `ran` por agente (ver `EVENTS_TELEMETRY.md`).
+- UI `/pipeline-runs` e card de Custos passaram a renderizar Resumidor → bloco "Execução Paralela" (3 cards) → Maestro.
+
+**Status**: ✅ Corrigido (frontend + backend deployados 2026-06-20).
+
 
 ## -1. Triggers e crons silenciosamente quebrados por `extensions.http_post` (CORRIGIDO 2026-06-19)
 
@@ -160,3 +349,28 @@ Classifier escreve essa chave no JSONB de `leads.custom_fields`, mas a UI de cam
 CHECK aceita `'on_enter'|'on_exit'` (migration `20260618021516`). Código em `applyStageBindings` estava filtrando por `trigger='stage_enter'`. 
 
 **Status**: ✅ Corrigido. A função `applyStageBindings` em `supabase/functions/_shared/stage-bindings.ts` foi atualizada para filtrar por `trigger='on_enter'`, alinhando-se com a constraint do banco de dados. Os bindings criados agora funcionarão corretamente em produção.
+
+## Diagnóstico: "Lead não moveu para Consulta/Tratamento agendado após preencher data"
+
+Sintoma: a secretária preenche `consulta_agendada_em` (ou `procedimento_agendado_em`) no Kanban, salva, e o card não migra automaticamente.
+
+Sequência de checagem:
+
+1. **Toggle ligado?**
+   ```sql
+   SELECT key, value FROM app_settings
+   WHERE key IN ('automation.appointment_sync.enabled','automation.consulta_passou_finaliza.enabled');
+   ```
+   Esperado: `appointment_sync = true`, `consulta_passou_finaliza = false`.
+2. **`lead_events` registrou o gatilho?**
+   ```sql
+   SELECT type, payload, created_at FROM lead_events
+   WHERE lead_id = '<LEAD_ID>' AND type LIKE 'auto:field-changed%'
+   ORDER BY created_at DESC;
+   ```
+   Se não há linha: o frontend não chamou `pipeline-deterministic` (ver mutation `update_lead` / trigger do DB que chama `processLeadEvent` via `pg_net`).
+3. **Triggers HTTP da DB acumulando?**
+   ```sql
+   SELECT * FROM net.http_request_queue ORDER BY id DESC LIMIT 20;
+   ```
+4. **Alias do estágio mapeado?** Verifique em `stage_canonical_aliases` que existe linha para `canonical_name = 'Consulta agendada'` / `'Tratamento agendado'` no `pipeline_id` da clínica.

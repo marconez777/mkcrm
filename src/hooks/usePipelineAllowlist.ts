@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 /**
- * Indica se a clínica ativa está autorizada a executar o agente de pipeline
- * (Marcos 1-4). Enquanto não validamos com mais clínicas, só a Clínica ÓR.
+ * Indica se a empresa ativa está autorizada a executar o agente de pipeline
+ * (Marcos 1-4). Enquanto não validamos com mais empresas, só a Empresa ÓR.
  */
 export function usePipelineAllowlist(): { enabled: boolean; loading: boolean; clinicId: string | null } {
   const { membership } = useAuth();

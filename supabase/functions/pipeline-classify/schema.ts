@@ -11,7 +11,7 @@ export type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
+  | "1ª Sessão Finalizada"
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
@@ -24,7 +24,7 @@ export const CANON_NAMES: Canon[] = [
   "Consulta agendada",
   "Tratamento agendado",
   "Consulta finalizada",
-  "Em tratamento",
+  "1ª Sessão Finalizada",
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
@@ -49,7 +49,8 @@ export const INTENT_VALUES = [
 
 
 export const TREATED_STAGES = new Set<string>([
-  "Em tratamento",
+  "1ª Sessão Finalizada",
+  "Em tratamento", // alias antigo, mantido para compat com históricos
   "Consulta finalizada",
   "Paciente antigo",
 ]);
@@ -118,15 +119,16 @@ export type ClassificationV2 = {
 const CANON_SET = new Set<string>(CANON_NAMES);
 const INTENT_SET = new Set<string>(INTENT_VALUES);
 
-export function normalizeClassification(raw: ClassificationRaw): ClassificationV2 {
+export function normalizeClassification(raw: ClassificationRaw, allowedIntents?: string[]): ClassificationV2 {
   const stage: Canon = CANON_SET.has(raw.stage_suggestion)
     ? (raw.stage_suggestion as Canon)
     : "Qualificação";
-  const intent = INTENT_SET.has(raw.intent)
+  const validIntents = allowedIntents ? new Set(allowedIntents) : INTENT_SET;
+  const intent = validIntents.has(raw.intent)
     ? (raw.intent as (typeof INTENT_VALUES)[number])
     : "outro";
   const mentioned_intents = (raw.mentioned_intents ?? []).filter((i) =>
-    INTENT_SET.has(i),
+    validIntents.has(i),
   ) as Array<(typeof INTENT_VALUES)[number]>;
   const mentioned_dates = (raw.mentioned_dates ?? [])
     .filter((d) => d && typeof d.raw === "string" && d.raw.trim() && typeof d.anchor_iso === "string" && d.anchor_iso.trim())
@@ -175,51 +177,55 @@ export type SummarizerOutput = z.infer<typeof SummarizerOutputSchema>;
 export const AgendadorOutputSchema = z.object({
   is_scheduling_action: z.boolean(),
   scheduling_intent: z.enum(["novo_agendamento", "reagendamento", "cancelamento", "duvida_agenda", "nenhum"]).default("nenhum"),
-  reasons: z.array(z.string()).min(1).max(3),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type AgendadorOutput = z.infer<typeof AgendadorOutputSchema>;
 
 export const TypifierOutputSchema = z.object({
-  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
-  custom_fields_patch: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
-    )
-    .default({}),
+  tags_suggested: z.array(z.string().max(40)).default([]),
+
+  // Schema relaxado: gpt-5-mini ocasionalmente devolve valores fora do union
+  // (objeto aninhado, número-como-string, array misto) e o SDK retornava
+  // "No object generated: response did not match schema". A validação de
+  // tipo por chave acontece em apply.ts::tryApplyField contra o clinicFieldSchema
+  // declarado pela clínica — chaves inválidas são descartadas com segurança.
+  custom_fields_patch: z.record(z.string(), z.any()).default({}),
 });
 export type TypifierOutput = z.infer<typeof TypifierOutputSchema>;
+
 
 export const MovimentadorOutputSchema = z.object({
   stage_suggestion: z.string(),
   intent: z.string().default("outro"),
-  mentioned_intents: z.array(z.string()).max(3).default([]),
+  mentioned_intents: z.array(z.string()).default([]),
   is_b2b: z.boolean(),
-  reasons: z.array(z.string()).min(1).max(3),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type MovimentadorOutput = z.infer<typeof MovimentadorOutputSchema>;
 
 export const MaestroOutputSchema = z.object({
   stage_suggestion: z.string(),
   intent: z.string().default("outro"),
-  mentioned_intents: z.array(z.string()).max(3).default([]),
+  mentioned_intents: z.array(z.string()).default([]),
   is_b2b: z.boolean(),
   confidence: z.number().min(0).max(1),
-  tags_suggested: z.array(z.string().max(40)).max(8).default([]),
-  custom_fields_patch: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
-    )
-    .default({}),
-  reasons: z.array(z.string()).min(1).max(5),
+  tags_suggested: z.array(z.string().max(40)).default([]),
+  // P5-2: relaxado para reduzir "No object generated" no Gemini — validação
+  // por chave acontece em apply.ts contra o clinicFieldSchema da clínica.
+  custom_fields_patch: z.record(z.string(), z.any()).default({}),
+  reasons: z.array(z.string()).optional().default([]),
+
 });
 export type MaestroOutput = z.infer<typeof MaestroOutputSchema>;
+
 
 /** Combina as saídas dos 5 agentes V6 em um ClassificationV2 normalizado. */
 export function mergeV6Outputs(
   s1: SummarizerOutput,
   s_maestro: MaestroOutput,
+  allowedIntents?: string[]
 ): ClassificationV2 {
   return normalizeClassification({
     mentioned_dates: s1.mentioned_dates,
@@ -231,6 +237,6 @@ export function mergeV6Outputs(
     tags_suggested: s_maestro.tags_suggested,
     custom_fields_patch: s_maestro.custom_fields_patch,
     reasons: s_maestro.reasons,
-  });
+  }, allowedIntents);
 }
 

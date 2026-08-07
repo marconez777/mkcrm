@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +47,7 @@ import { filterKnownTools } from "@/lib/agent-tools";
 // ---------- Tipos / constantes ----------
 
 type Step = 1 | 2 | 3 | 4 | 5;
-type Provider = "openai" | "anthropic" | "google" | "xai";
+type Provider = "openai" | "anthropic" | "google" | "xai" | "lovable";
 
 export interface InterviewQuestion {
   id: string;
@@ -75,7 +76,7 @@ interface NicheOption {
 }
 
 const NICHES: NicheOption[] = [
-  { id: "clinic", label: "Clínica / Saúde", example: "Consultórios, dermato, odonto", emoji: "🩺" },
+  { id: "clinic", label: "Empresa / Saúde", example: "Consultórios, dermato, odonto", emoji: "🩺" },
   { id: "real_estate", label: "Imobiliária", example: "Locação e venda de imóveis", emoji: "🏠" },
   { id: "restaurant", label: "Restaurante / Food", example: "Reservas e delivery", emoji: "🍽️" },
   { id: "ecommerce", label: "E-commerce", example: "Loja online de produtos", emoji: "🛒" },
@@ -152,6 +153,13 @@ const PROVIDERS: { id: Provider; label: string; defaultModel: string; placeholde
     placeholder: "xai-...",
     baseExample: "https://api.x.ai/v1",
   },
+  {
+    id: "lovable",
+    label: "Gemini Chat Funnel AI",
+    defaultModel: "google/gemini-2.5-flash",
+    placeholder: "(gerenciado pela Chat Funnel AI)",
+    baseExample: "https://ai.gateway.lovable.dev/v1",
+  },
 ];
 
 const MODELS_BY_PROVIDER: Record<Provider, { value: string; label: string; hint?: string }[]> = {
@@ -180,6 +188,11 @@ const MODELS_BY_PROVIDER: Record<Provider, { value: string; label: string; hint?
     { value: "grok-2-mini", label: "grok-2-mini", hint: "Rápido" },
     { value: "grok-2-latest", label: "grok-2-latest", hint: "Qualidade" },
   ],
+  lovable: [
+    { value: "google/gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite", hint: "Rápido" },
+    { value: "google/gemini-2.5-flash", label: "gemini-2.5-flash", hint: "Equilíbrio" },
+    { value: "google/gemini-2.5-pro", label: "gemini-2.5-pro", hint: "Qualidade" },
+  ],
 };
 
 const CUSTOM_MODEL = "__custom__";
@@ -194,7 +207,7 @@ interface DraftRow {
   goal: string | null;
   goal_other: string | null;
   provider: string | null;
-  api_key: string | null;
+  api_key?: string | null;
   base_url: string | null;
   model: string | null;
   provider_verified_at: string | null;
@@ -208,6 +221,8 @@ interface DraftRow {
 export default function AgentWizard() {
   const nav = useNavigate();
   const { membership, user, loading } = useAuth();
+  const { subscription } = useSubscription(user?.id ?? null);
+  const isSupreme = ((subscription?.price_id ?? "").split("_")[0] ?? "") === "supreme";
   const [draft, setDraft] = useState<DraftRow | null>(null);
   const [hydrating, setHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -249,7 +264,7 @@ export default function AgentWizard() {
     provider: string;
     model: string;
     base_url: string | null;
-    api_key: string | null;
+    api_key_set: boolean;
   } | null>(null);
 
   // Origem da chave no passo 3: reusar Builder ou usar chave própria
@@ -273,10 +288,10 @@ export default function AgentWizard() {
 
   // Hidrata draft
   useEffect(() => {
-    document.title = "Construtor de Agentes — MK CRM";
+    document.title = "Construtor de Agentes — Chat Funnel AI";
   }, []);
 
-  // Verifica se Builder está configurado para a clínica antes de renderizar o wizard
+  // Verifica se Builder está configurado para a empresa antes de renderizar o wizard
   useEffect(() => {
     if (loading || !clinicId) return;
     let cancelled = false;
@@ -291,7 +306,7 @@ export default function AgentWizard() {
           return;
         }
         const data = Array.isArray(rows) ? (rows[0] as any) : (rows as any);
-        const ok = !!(data && data.builder_verified_at && data.api_key);
+        const ok = !!(data && data.builder_verified_at && data.api_key_set);
         setBuilderStatus(ok ? "ok" : "missing");
         if (data) {
           setBuilderInfo({
@@ -299,7 +314,7 @@ export default function AgentWizard() {
             provider: (data.provider as string) ?? "openai",
             model: (data.model as string) ?? "",
             base_url: (data.base_url as string | null) ?? null,
-            api_key: (data.api_key as string | null) ?? null,
+            api_key_set: !!(data.api_key_set ?? false),
           });
         }
         if (!ok) setKeySource("own");
@@ -320,7 +335,7 @@ export default function AgentWizard() {
     (async () => {
       const { data } = await supabase
         .from("ai_agent_drafts")
-        .select("*")
+        .select("id, clinic_id, user_id, step, niche, niche_other, goal, goal_other, provider, base_url, model, provider_verified_at, interview_answers, generated_prompt, settings, created_at, updated_at")
         .eq("clinic_id", clinicId)
         .eq("user_id", userId)
         .maybeSingle();
@@ -428,7 +443,7 @@ export default function AgentWizard() {
         goal: goal || null,
         goal_other: goalOther || null,
         provider,
-        api_key: apiKey || null,
+        api_key: apiKey?.trim() || null,
         base_url: baseUrl || null,
         model: model || null,
         provider_verified_at: verifiedAt,
@@ -437,7 +452,7 @@ export default function AgentWizard() {
       const { data, error } = await supabase
         .from("ai_agent_drafts")
         .upsert(payload as never, { onConflict: "clinic_id,user_id" })
-        .select()
+        .select("id, clinic_id, user_id, step, niche, niche_other, goal, goal_other, provider, base_url, model, provider_verified_at, interview_answers, generated_prompt, settings, created_at, updated_at")
         .maybeSingle();
       if (error) throw error;
       if (data) setDraft(data as DraftRow);
@@ -458,8 +473,8 @@ export default function AgentWizard() {
   const isVerified = !!verifiedAt && !testError;
   const canNextFromStep3 =
     keySource === "builder"
-      ? builderStatus === "ok" && !!(builderInfo?.api_key)
-      : !!apiKey && !!model && isVerified;
+      ? builderStatus === "ok" && !!(builderInfo?.api_key_set)
+      : (provider === "lovable" ? !!model && isVerified : !!apiKey && !!model && isVerified);
 
 
   const canNextFromStep4 = questions
@@ -655,7 +670,7 @@ export default function AgentWizard() {
         : {
             clinic_id: clinicId,
             provider,
-            api_key: apiKey,
+            api_key: provider === "lovable" ? undefined : apiKey,
             base_url: baseUrl || null,
             model,
           };
@@ -720,11 +735,11 @@ export default function AgentWizard() {
       return;
     }
     const useBuilder = keySource === "builder";
-    const effectiveProvider = useBuilder ? (builderInfo?.provider as Provider) ?? provider : provider;
-    const effectiveApiKey = useBuilder ? builderInfo?.api_key ?? "" : apiKey;
-    const effectiveBaseUrl = useBuilder ? builderInfo?.base_url ?? null : baseUrl || null;
     const effectiveModel = model || (useBuilder ? builderInfo?.model ?? "" : "");
-    if (!effectiveApiKey || !effectiveModel) {
+    const hasKey = useBuilder
+      ? !!builderInfo?.api_key_set
+      : (provider === "lovable" ? true : !!apiKey);
+    if (!hasKey || !effectiveModel) {
       toast.error("Conexão com o provedor está incompleta.");
       return;
     }
@@ -754,31 +769,27 @@ export default function AgentWizard() {
       const description = [goalLabel, nicheLabel].filter(Boolean).join(" · ");
       const tools = filterKnownTools(bundle.suggested_tools);
 
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .insert({
-          clinic_id: clinicId,
+      // Criação via edge function: a "builder shared key" nunca trafega pelo client.
+      const { data, error } = await supabase.functions.invoke("agent-create", {
+        body: {
           name,
           description: description || null,
           role: goal || null,
           niche: niche || null,
           niche_other: nicheOther || null,
-          provider: effectiveProvider,
-          api_key: effectiveApiKey,
-          base_url: effectiveBaseUrl,
-          model: effectiveModel,
+          key_source: useBuilder ? "builder" : "own",
+          own_provider: useBuilder ? undefined : provider,
+          own_api_key: useBuilder ? undefined : (provider === "lovable" ? "__lovable_managed__" : apiKey),
+          own_base_url: useBuilder ? undefined : (baseUrl || null),
+          own_model: useBuilder ? undefined : effectiveModel,
           system_prompt: bundle.system_prompt,
           temperature: bundle.suggested_temperature,
           max_iterations: bundle.suggested_max_iterations,
           rag_top_k: bundle.suggested_top_k,
           tools,
-          enabled: false,
-          draft_mode: true,
-          builder_verified_at: useBuilder ? new Date().toISOString() : verifiedAt,
-        } as never)
-
-        .select("id")
-        .single();
+          verified_at: verifiedAt,
+        },
+      });
 
       if (error) throw error;
       const newId = (data as { id: string }).id;
@@ -894,7 +905,7 @@ export default function AgentWizard() {
                   });
                   if (s === "builder") setTestError(null);
                 }}
-                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key}
+                builderAvailable={builderStatus === "ok" && !!builderInfo?.api_key_set}
                 builderInfo={builderInfo}
                 provider={provider}
                 setProvider={setProvider}
@@ -909,6 +920,7 @@ export default function AgentWizard() {
                 testing={testing}
                 testError={testError}
                 onTest={testConnection}
+                isSupreme={isSupreme}
               />
             )}
 
@@ -1351,11 +1363,12 @@ function Step3({
   testing,
   testError,
   onTest,
+  isSupreme,
 }: {
   keySource: "builder" | "own";
   setKeySource: (s: "builder" | "own") => void;
   builderAvailable: boolean;
-  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key: string | null } | null;
+  builderInfo: { id: string; provider: string; model: string; base_url: string | null; api_key_set: boolean } | null;
   provider: Provider;
   setProvider: (p: Provider) => void;
   apiKey: string;
@@ -1369,6 +1382,7 @@ function Step3({
   testing: boolean;
   testError: ProviderError | null;
   onTest: () => void;
+  isSupreme: boolean;
 }) {
   const [advanced, setAdvanced] = useState(!!baseUrl);
   const useBuilder = keySource === "builder";
@@ -1407,7 +1421,7 @@ function Step3({
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {builderAvailable
-              ? "Reaproveita o provedor e a chave já validados na clínica."
+              ? "Reaproveita o provedor e a chave já validados na empresa."
               : "Configure o Construtor primeiro para liberar esta opção."}
           </p>
         </button>
@@ -1437,7 +1451,7 @@ function Step3({
               <Badge className="gap-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-3 w-3" /> Já validada
               </Badge>
-              <span className="text-muted-foreground">Construtor da clínica</span>
+              <span className="text-muted-foreground">Construtor da empresa</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -1503,7 +1517,7 @@ function Step3({
               Provedor <WhyTooltip tip="provider" />
             </Label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {PROVIDERS.map((p) => {
+              {PROVIDERS.filter((p) => p.id !== "lovable" || isSupreme).map((p) => {
                 const active = provider === p.id;
                 return (
                   <button
@@ -1512,6 +1526,10 @@ function Step3({
                     onClick={() => {
                       setProvider(p.id);
                       setModel(p.defaultModel);
+                      if (p.id === "lovable") {
+                        setApiKey("");
+                        setBaseUrl("");
+                      }
                     }}
                     className={`rounded-md border px-3 py-2 text-xs font-medium transition ${
                       active
@@ -1524,20 +1542,27 @@ function Step3({
                 );
               })}
             </div>
+            {isSupreme && (
+              <p className="text-[11px] text-muted-foreground">
+                Plano Supreme: você pode usar <strong>Gemini Chat Funnel AI</strong> sem precisar de chave própria.
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="flex items-center">
-              Chave de API <WhyTooltip tip="api_key" />
-            </Label>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={providerInfo.placeholder}
-              autoComplete="off"
-            />
-          </div>
+          {provider !== "lovable" && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center">
+                Chave de API <WhyTooltip tip="api_key" />
+              </Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={providerInfo.placeholder}
+                autoComplete="off"
+              />
+            </div>
+          )}
 
           {(() => {
             const opts = MODELS_BY_PROVIDER[provider] ?? [];
@@ -1620,7 +1645,7 @@ function Step3({
                 size="sm"
                 variant={isVerified ? "outline" : "default"}
                 onClick={onTest}
-                disabled={testing || !apiKey || !model}
+                disabled={testing || (provider !== "lovable" && !apiKey) || !model}
               >
                 {testing ? (
                   <>
@@ -1918,7 +1943,7 @@ function Step5({
             <Input
               value={agentName}
               onChange={(e) => setAgentName(e.target.value.slice(0, 80))}
-              placeholder="Ex.: SDR — Clínica do Dr. Ivan"
+              placeholder="Ex.: SDR — Empresa do Dr. Ivan"
               maxLength={80}
             />
             <p className="text-[11px] text-muted-foreground">

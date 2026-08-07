@@ -1,0 +1,179 @@
+---
+title: "Quirks da Gemini API (chat + embeddings) — o que NÃO fazer"
+topic: ai
+kind: troubleshooting
+audience: agent
+updated: 2026-07-10
+
+summary: "Regras práticas para chamar a Gemini API direta (BYOK): endpoint v1beta vs v1, systemInstruction, modelos disponíveis, embeddings. Existe para não cair de novo no erro `Unknown name systemInstruction` e no 404 de `gemini-2.5-flash`."
+code_refs:
+  - supabase/functions/_shared/ai.ts
+  - supabase/functions/_shared/rag.ts
+  - supabase/functions/_shared/clinic-gemini.ts
+related_docs:
+  - docs/roadmap/FEBRACIS_SDR_GEMINI_INVESTIGATION.md
+  - docs/pipeline/runtime/AGENT_MODELS.md
+---
+
+# Gemini API — pegadinhas que já derrubaram produção
+
+Este doc existe porque o mesmo erro voltou várias vezes:
+
+```
+ai-chat 502: google error 400 — Invalid JSON payload received.
+Unknown name "systemInstruction": Cannot find field.
+```
+
+e antes disso:
+
+```
+ai-chat 502: google error 404 — This model models/gemini-2.5-flash
+is no longer available to new users.
+```
+
+Se você for tocar em `supabase/functions/_shared/ai.ts` (função `googleChat` ou `googleEmbed`), **leia isto antes**.
+
+## Contexto
+
+Os agentes do tenant Febracis (e outros com BYOK) chamam a Gemini API **direto**, com a chave da clínica em `clinic_secrets.gemini_api_key`. Não passam pelo Lovable AI Gateway. Portanto o payload precisa ser aceito pelo endpoint público do Google — e ele muda entre `v1beta` e `v1`.
+
+## Regra #1 — `systemInstruction` só existe no `v1beta`
+
+- Endpoint `https://generativelanguage.googleapis.com/v1beta/...:generateContent` → aceita `systemInstruction: { parts: [{ text }] }`.
+- Endpoint `https://generativelanguage.googleapis.com/v1/...:generateContent` → **rejeita** com `400 Unknown name "systemInstruction"`.
+
+Consequência: se o fallback do chat cair no `v1` porque o `v1beta` retornou 404, **não pode mandar `systemInstruction`** no retry. Precisa prependar o system prompt como primeira mensagem `role:"user"` (ex: `"[System]\n<sys>"`).
+
+O `googleChat` em `ai.ts` implementa a cadeia:
+1. `v1beta` com `systemInstruction`.
+2. Se 404/400 → `v1` com `systemInstruction`.
+3. Se ainda 400/404 → `v1` **sem** `systemInstruction`, com o sys embutido no primeiro `user`.
+
+Nunca simplifique isso pra "só mandar `systemInstruction` sempre" — quebra o Febracis.
+
+## Regra #2 — `gemini-2.5-flash` só existe no `v1beta`
+
+Chaves novas do Google retornam 404 em `v1beta/models/gemini-2.5-flash` com a mensagem "no longer available to new users", e o `v1` **não tem** esse alias. Alternativas quando o modelo do agente vier assim:
+
+- `gemini-flash-latest` (v1 e v1beta).
+- `gemini-2.5-flash-002` (v1beta em algumas chaves).
+- Deixar o operador escolher em `ai_agents.model` — não hardcodar.
+
+O fallback já cobre 404 tentando `v1` com o mesmo id; se o id não existir em nenhum dos dois, o erro real do Google fica no log `[googleChat] provider error` com `fallback_from_v1beta` preenchido.
+
+## Regra #3 — embeddings usam a chave do agente, nunca o Lovable AI
+
+Tentamos uma vez rotear embeddings do provider `google` pelo Lovable AI (`openai/text-embedding-3-small`). Deu problema duplo:
+
+1. Dimensões diferentes: `text-embedding-3-small` = 1536, `ai_chunks` está em **768**. Quebra as buscas por similaridade.
+2. Consome créditos do Lovable silenciosamente em vez da chave BYOK que a clínica pagou.
+
+Portanto, no branch `provider === "google"` do `embed()`:
+
+- Sempre chamar `googleEmbed(requireKey(agent), model, texts)`.
+- Modelo padrão: `gemini-embedding-001` com `outputDimensionality: 768` (compatível com `ai_chunks`).
+- Só usar `text-embedding-004` se o agente pedir explicitamente em `embedding_model`.
+
+## Regra #4 — `googleEmbed` também precisa do fallback v1beta→v1
+
+`gemini-embedding-001` costuma estar em `v1beta`; `text-embedding-004` às vezes só em `v1`. Ordem correta:
+
+1. Tenta `v1beta`.
+2. Em 404, tenta `v1`.
+3. Erro final inclui `model=`, corpo do `v1beta` E do `v1` — sem isso a gente perde tempo adivinhando qual endpoint reclamou.
+
+## Regra #5 — logs de erro têm que expor o corpo do Google
+
+Nunca reduzir o log de erro pra `google error 400` sem o `message`/`status` original. O dispatcher (`scheduled-dispatcher/index.ts`) propaga o `detail` do `ai-chat` pra `ai_usage.error` justamente pra debug post-mortem. Não corta esse pipeline.
+
+## Checklist antes de mexer em `googleChat` / `googleEmbed`
+
+- [ ] Mantive os 3 estágios do fallback (`v1beta` → `v1 c/ sys` → `v1 s/ sys`)?
+- [ ] Se removi `systemInstruction`, prependei o sys ao primeiro `user`?
+- [ ] Embeddings continuam usando `requireKey(agent)` e `outputDimensionality: 768`?
+- [ ] `[googleChat] provider error` ainda loga `status`, `model`, `error`, `fallback_from_v1beta`, `messages`, `tools`?
+- [ ] `sanitizeGeminiSchema` continua removendo `default`, `$ref`, `additionalProperties`, `nullable`, `oneOf`, `anyOf`, `format`, limites?
+
+Se qualquer um for "não", **pare e leia este doc de novo**.
+
+## Histórico de incidentes
+
+- 2026-07-10 — 400 `Unknown systemInstruction` no fallback `v1` do SDR Febracis. Fix: 3º estágio do fallback prependa sys como `user`. Ver `docs/roadmap/FEBRACIS_SDR_GEMINI_INVESTIGATION.md`.
+- 2026-07-10 — 404 `text-embedding-004` no RAG. Fix inicial (rotear pra Lovable AI) foi revertido; correção final = `gemini-embedding-001` + `outputDimensionality: 768` na chave BYOK.
+- 2026-07-10 — 404 `gemini-2.5-flash` "no longer available to new users" em chaves novas. Fix: fallback automático `v1beta`→`v1` em `googleChat`.
+- 2026-07-10 — Agente "mudo" com `gemini-flash-latest`: `output_tokens>0` (ex.: 18–21) mas `content` vazio (`replied:false`, `error:turn:summary`). Causa: os modelos `gemini-2.5-*` / `gemini-flash-latest` ligam **thinking** por padrão e retornam apenas partes com `{ thought: true }`, sem `text`. Fix: enviar `generationConfig.thinkingConfig.thinkingBudget = 0` em `googleChat`, e ignorar `parts[i].thought === true` ao montar o texto. Se precisar de raciocínio, aumentar o budget explicitamente — NUNCA remover o campo.
+
+## Regra #6 — Desligar "thinking" no chat do agente
+
+Modelos `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-flash-latest` e variantes lite têm **thinking on por padrão**. Isso quebra chat porque:
+- O modelo devolve `candidates[0].content.parts = [{ thought: true }]` sem `text`.
+- `usageMetadata.candidatesTokenCount` marca 15–30 tokens.
+- Nosso pipeline enxerga isso como sucesso e loga `replied:false / turn:summary`.
+
+Em `googleChat` (`supabase/functions/_shared/ai.ts`):
+```ts
+generationConfig: {
+  temperature: ...,
+  maxOutputTokens: 2048,               // OBRIGATÓRIO
+  thinkingConfig: { thinkingBudget: 0 }, // OBRIGATÓRIO — não remover
+}
+// ... e no parser:
+if (p.thought) continue;
+```
+
+## Regra #7 — Sempre mandar `safetySettings`, `maxOutputTokens` e falhar em resposta vazia
+
+Sem `safetySettings` explícito, o Gemini bloqueia respostas de vendas/WhatsApp em silêncio (`finishReason=SAFETY`, `content` vazio, `usageMetadata` normal). Isso é indistinguível de sucesso pro pipeline. Sempre mandar:
+
+```ts
+safetySettings: [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+]
+```
+
+Sem `maxOutputTokens`, alguns modelos gastam TODO orçamento em thinking (mesmo com `thinkingBudget=0` ignorado) e devolvem vazio com `finishReason=MAX_TOKENS`. Fixar em 2048.
+
+E — quando ainda assim vier vazio — **NÃO devolver `{ ok: true, content: "" }`**. Devolver `{ ok:false, status:502, errorText: "empty response ... finishReason=X", retryable:true }` para que:
+- o `ai-chat` propague 502 pro dispatcher em vez de mandar mensagem em branco;
+- `ai_usage` mostre o erro real (não `turn:summary`);
+- o log `[googleChat] empty response — DIAGNOSTIC DUMP` traga `finishReason`, `safetyRatings`, `promptFeedback` e as partes cruas.
+
+Histórico: 2026-07-10 — SDR Febracis ficou mudo depois do fix de thinking. Causa: modelo devolvia `finishReason=MAX_TOKENS` gastando o budget default em thinking silencioso, e sem `safetySettings` uma parte também caía em block. Fix combinado: safety BLOCK_NONE + maxOutputTokens=2048 + erro real quando vazio.
+
+## Regra #8 — Chaves Gemini têm DOIS formatos válidos hoje (não recuse `AQ.`)
+
+O Google introduziu um segundo formato de API key no AI Studio. Ambos são legítimos:
+
+- **`AIzaSy...`** (39 chars) — formato clássico. Ampla escopo, sem projeto GCP explícito.
+- **`AQ.Ab8...`** (variável) — formato novo "auth keys". Escopado a um projeto GCP (mostrado como `projects/<number>` no modal). Exige que a **Generative Language API esteja habilitada nesse projeto**.
+
+Não bloquear/validar por prefixo. Uma versão passada desta doc dizia "chave só é válida se começar com AIzaSy" — errado. Ambos são aceitos pela API; a diferença está em qual projeto GCP eles falam.
+
+## Regra #9 — Mandar a chave via header, não `?key=` na URL
+
+Sempre usar:
+```ts
+headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" }
+```
+
+`?key=<chave>` na URL funciona pra chaves antigas `AIza`, mas as chaves novas `AQ.` frequentemente devolvem `API_KEY_INVALID` quando passadas por query string em endpoints `v1`/`v1beta`. O header é o padrão canônico atual do Google (é o que o próprio botão "Copy cURL quickstart" do AI Studio gera).
+
+Aplicado em `googleChat` E `googleEmbed` em `supabase/functions/_shared/ai.ts`. Se abrir mais um endpoint Google, use header.
+
+## Regra #10 — `API_KEY_INVALID` quase nunca é a chave em si
+
+Em 90% dos casos com chaves `AQ.` (e boa parte das `AIza`), o erro `API_KEY_INVALID` significa uma dessas três coisas — nesta ordem de probabilidade:
+
+1. **Generative Language API não está habilitada** no projeto GCP dono da chave. Fix: abrir `https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=<PROJECT_NUMBER>` e clicar **Enable**. Espera 1-2 min.
+2. **Billing não está habilitado** no projeto GCP (chaves free tier caem no `PERMISSION_DENIED` ou `QUOTA_EXCEEDED`, mas às vezes vem como `API_KEY_INVALID`).
+3. A chave foi mesmo apagada/regenerada no AI Studio — user precisa colar a nova.
+
+**Nunca** pedir pra usuário "gerar outra chave" antes de verificar (1) e (2). A função `enrichGoogleError` em `ai.ts` transforma o JSON cru do Google numa mensagem acionável no `ai_usage.error` com essas três hipóteses e o link direto do console.
+
+Histórico: 2026-07-10 — Cliente colou chave `AQ.Ab8RN6...` legítima do AI Studio, agente devolvia `API_KEY_INVALID` toda hora. Diagnóstico errado inicial: "chave inválida por prefixo". Diagnóstico correto: Generative Language API não habilitada no projeto GCP `124528952777` + `?key=` na URL em vez de header.
+
+

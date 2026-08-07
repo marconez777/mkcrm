@@ -1,0 +1,2 @@
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS custom_fields_legacy jsonb NOT NULL DEFAULT '{}'::jsonb;
+COMMENT ON COLUMN public.leads.custom_fields_legacy IS 'Chaves de custom_fields que não pertencem ao schema lead_custom_fields da clinica, preservadas durante migracoes.';

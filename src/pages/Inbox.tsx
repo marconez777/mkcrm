@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useStages } from "@/hooks/useCrm";
 import { useLeadsPaginated } from "@/hooks/useLeadsPaginated";
@@ -20,6 +21,7 @@ export type SortKey = "recent" | "unread" | "oldest";
 const INSTANCE_LS_KEY = "inbox:instanceId";
 
 export default function InboxPage() {
+  const { t } = useTranslation();
   const { instances, defaultInstance } = useWhatsappInstances();
   const [searchParams, setSearchParams] = useSearchParams();
   const [instanceId, setInstanceIdState] = useState<string | null>(() => {
@@ -29,19 +31,22 @@ export default function InboxPage() {
     return fromLs;
   });
 
-  // Once instances load, validate selection (drop stale ids, default to is_default)
+  // Once instances load, validate selection. We always keep exactly one instance selected
+  // (never "all"): drop stale ids and fall back to default/first available.
   useEffect(() => {
     if (instances.length === 0) return;
+    const fallback = defaultInstance?.id ?? instances[0]?.id ?? null;
     if (instanceId && !instances.some((i) => i.id === instanceId)) {
-      setInstanceIdState(null);
-    } else if (instanceId === null && searchParams.get("inst") == null && !localStorage.getItem(INSTANCE_LS_KEY) && defaultInstance) {
-      // First-time pick the default instance only when nothing was previously chosen
-      setInstanceIdState(defaultInstance.id);
+      setInstanceIdState(fallback);
+    } else if (instanceId === null && fallback) {
+      setInstanceIdState(fallback);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instances.length]);
 
   const setInstanceId = (v: string | null) => {
+    // Never allow clearing to "all" while instances exist — keep current selection.
+    if (v === null && instances.length > 0) return;
     setInstanceIdState(v);
     const next = new URLSearchParams(searchParams);
     if (v) next.set("inst", v); else next.delete("inst");
@@ -52,7 +57,7 @@ export default function InboxPage() {
     } catch {}
   };
 
-  const { leads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated(instanceId);
+  const { leads, setLeads, loaded: leadsLoaded, hasMore, loadingMore, loadMore, refresh, refreshing } = useLeadsPaginated(instanceId);
   const { stages } = useStages();
   const { attendants } = useAttendants();
   const nav = useNavigate();
@@ -63,6 +68,15 @@ export default function InboxPage() {
   const [sort, setSort] = useState<SortKey>("recent");
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [hiddenStageIds, setHiddenStageIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("inbox:hiddenStageIds") || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("inbox:hiddenStageIds", JSON.stringify(hiddenStageIds)); } catch {}
+  }, [hiddenStageIds]);
+  const toggleHiddenStage = (id: string) => {
+    setHiddenStageIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
   const [showContext, setShowContext] = useState(true);
   const [showList, setShowList] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
@@ -111,6 +125,7 @@ export default function InboxPage() {
       if (filter === "unread" && (l.unread_count ?? 0) <= 0 && !l.marked_unread) return false;
       if (filter === "unassigned" && l.attendant_id) return false;
       if (stageFilter && l.stage_id !== stageFilter) return false;
+      if (hiddenStageIds.length > 0 && l.stage_id && hiddenStageIds.includes(l.stage_id)) return false;
       if (tagFilter && !(l.tags ?? []).includes(tagFilter)) return false;
       if (ql) {
         const hay = `${l.name ?? ""} ${l.phone} ${l.last_message_preview ?? ""}`.toLowerCase();
@@ -136,12 +151,24 @@ export default function InboxPage() {
       return 0;
     });
     return arr;
-  }, [leads, q, filter, stageFilter, tagFilter, sort]);
+  }, [leads, q, filter, stageFilter, tagFilter, sort, hiddenStageIds]);
 
-  const selected: Lead | null = useMemo(
-    () => leads.find((l) => l.id === leadId) ?? null,
-    [leads, leadId],
-  );
+  const [extraLead, setExtraLead] = useState<Lead | null>(null);
+
+  useEffect(() => {
+    if (leadId && !leads.some((l) => l.id === leadId)) {
+      supabase.from("leads").select("*").eq("id", leadId).maybeSingle().then(({ data }) => {
+        if (data) setExtraLead(data as Lead);
+      });
+    } else {
+      setExtraLead(null);
+    }
+  }, [leadId, leads]);
+
+  const selected: Lead | null = useMemo(() => {
+    if (!leadId) return null;
+    return leads.find((l) => l.id === leadId) || (extraLead?.id === leadId ? extraLead : null);
+  }, [leads, leadId, extraLead]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -187,6 +214,9 @@ export default function InboxPage() {
             setStageFilter={setStageFilter}
             tagFilter={tagFilter}
             setTagFilter={setTagFilter}
+            hiddenStageIds={hiddenStageIds}
+            onToggleHiddenStage={toggleHiddenStage}
+            onClearHiddenStages={() => setHiddenStageIds([])}
             instances={instances}
             instanceId={instanceId}
             setInstanceId={setInstanceId}
@@ -210,13 +240,13 @@ export default function InboxPage() {
             <div className="flex items-center justify-between border-b bg-card px-3 py-2">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => nav("/inbox")} className="lg:hidden">
-                  <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+                  <ArrowLeft className="mr-1 h-4 w-4" /> {t("common.back")}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowList((v) => !v)}
-                  title={showList ? "Ocultar lista" : "Mostrar lista"}
+                  title={showList ? t("inbox.hideList") : t("inbox.showList")}
                   className="hidden lg:inline-flex"
                 >
                   {showList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -227,7 +257,7 @@ export default function InboxPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowContext((v) => !v)}
-                title={showContext ? "Ocultar contexto" : "Mostrar contexto"}
+                title={showContext ? t("inbox.hideContext") : t("inbox.showContext")}
                 className="hidden lg:inline-flex"
               >
                 {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
@@ -241,10 +271,10 @@ export default function InboxPage() {
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <Plus className="h-6 w-6 opacity-40" />
               </div>
-              Selecione uma conversa à esquerda
+              {t("inbox.selectConversation")}
               <div className="mt-3">
                 <Button size="sm" variant="outline" onClick={() => setNewOpen(true)}>
-                  <Plus className="mr-1 h-4 w-4" /> Nova conversa
+                  <Plus className="mr-1 h-4 w-4" /> {t("inbox.newConversation")}
                 </Button>
               </div>
             </div>
@@ -255,7 +285,13 @@ export default function InboxPage() {
       {/* Context */}
       {selected && showContext && (
         <aside className="hidden w-80 shrink-0 flex-col border-l bg-card lg:flex">
-          <ContextRail lead={selected} stages={stages} attendants={attendants} onClose={() => setShowContext(false)} />
+          <ContextRail 
+            lead={selected} 
+            stages={stages} 
+            attendants={attendants} 
+            onClose={() => setShowContext(false)} 
+            onUpdate={(patch) => setLeads((prev) => prev.map((l) => l.id === selected.id ? { ...l, ...patch } : l))}
+          />
         </aside>
       )}
 

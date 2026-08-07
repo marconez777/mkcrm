@@ -22,6 +22,11 @@ export type UsageRecord = {
   tools_called?: number;
   replied?: boolean;
   error?: string | null;
+  source?: string | null;
+  provider?: string | null;
+  agent_step?: string | null;
+  error_category?: string | null;
+  error_details?: Record<string, unknown> | null;
 };
 
 export async function logUsage(rec: UsageRecord) {
@@ -41,11 +46,27 @@ export async function logUsage(rec: UsageRecord) {
       return;
     }
     const cost_usd = calcCostUsd(rec.model, rec.input_tokens, rec.output_tokens);
+    // Derive a stable `source` tag so the Custos UI can split surfaces:
+    //   classifier:*  → classifier-runtime (pipeline IA)
+    //   embed         → embeddings (ingest/RAG)
+    //   chat          → agent-runtime (atendimento ao lead)
+    //   tool          → agent-tool (chamadas internas do agente)
+    const op = rec.operation;
+    const derivedSource = op?.startsWith("classifier:")
+      ? "classifier-runtime"
+      : op === "embed"
+        ? "embeddings"
+        : op === "tool"
+          ? "agent-tool"
+          : op === "chat" || !op
+            ? "agent-runtime"
+            : "unknown";
     await supabase.from("ai_usage").insert({
       operation: "chat",
       status: "success",
       tools_called: 0,
       replied: false,
+      source: derivedSource,
       ...rec,
       clinic_id,
       cost_usd,

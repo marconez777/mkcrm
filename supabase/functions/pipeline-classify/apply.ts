@@ -17,17 +17,44 @@ import { evaluateFirstConsult } from "./rules/first-consult.ts";
 import { runIntentEffects } from "./rules/intent-effects.ts";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
 import { runSummarize } from "../_shared/pipeline-summarize-core.ts";
+import { getToggle } from "../_shared/app-settings.ts";
 
 const TELEMETRY_VERSION = 3;
 
+// === Transição Agendamento Humano (Junho/2026) ===
+// A IA NÃO pode mais preencher datas de agendamento nem mover cards para
+// estágios de agendamento/finalização. Esses campos/estágios são 100% manuais.
+const HUMAN_SCHEDULING_FIELDS = new Set<string>([
+  "consulta_agendada_em",
+  "procedimento_agendado_em",
+]);
+const HUMAN_SCHEDULING_STAGES = new Set<string>([
+  "Consulta agendada",
+  "Tratamento agendado",
+  "Consulta finalizada",
+  "1ª Sessão Finalizada",
+]);
+const HUMAN_TRANSITION_REJECT_REASON = "ai_scheduling_disabled_by_human_transition";
+
+// Campos com LOCK HUMANO PERMANENTE (sem janela G10): uma vez editados
+// pela secretária, a IA nunca mais sobrescreve. Hoje cobre `origem` —
+// rastreio do funil deve respeitar a verdade humana indefinidamente.
+const STICKY_HUMAN_FIELDS = new Set<string>([
+  "origem",
+]);
+const STICKY_HUMAN_REJECT_REASON = "sticky_human_field_locked";
+
+// Campos que a IA NUNCA escreve: viraram campos nativos alimentados pelo
+// tracking (leads.origin_channel / origin_label / origin_detail).
+const AI_FORBIDDEN_FIELDS = new Set<string>(["origem"]);
+const AI_FORBIDDEN_REJECT_REASON = "field_owned_by_tracking";
+
+// Wrapper retrocompatível: usa helper unificado de app-settings.
 async function isEnabled(
   client: SupabaseClient,
   key: string,
 ): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
+  return getToggle(client, key);
 }
 
 async function getAllowedTags(client: SupabaseClient): Promise<Set<string> | null> {
@@ -163,7 +190,27 @@ export async function applyClassification(
   const allowG10DateOverride = cls.confidence >= G10_DATE_OVERRIDE_CONF;
 
   function tryApplyField(k: string, v: unknown, isDateFromParser = false) {
+    // Origem virou campo nativo do lead (leads.origin_*), derivado do tracking.
+    // A IA não escreve mais nesse campo em nenhuma hipótese.
+    if (AI_FORBIDDEN_FIELDS.has(k)) {
+      fieldsRejected.push({ key: k, raw_value: v, reason: AI_FORBIDDEN_REJECT_REASON });
+      return;
+    }
+
     const humanIso = lead.custom_fields_last_human_edit?.[k];
+
+
+    // Sticky human lock: campos como `origem` nunca podem ser sobrescritos
+    // pela IA depois de uma edição humana, independente da janela G10.
+    if (humanIso && STICKY_HUMAN_FIELDS.has(k)) {
+      fieldsRejected.push({
+        key: k,
+        raw_value: v,
+        reason: STICKY_HUMAN_REJECT_REASON,
+      });
+      return;
+    }
+
     if (humanIso) {
       const humanMs = Date.parse(humanIso);
       const insideWindow =
@@ -198,30 +245,62 @@ export async function applyClassification(
 
   // 4a) Datas resolvidas
   for (const d of dateParser) {
+    const key = fieldKeyFor(d.kind);
     if (d.rejected_reason) {
       fieldsRejected.push({
-        key: fieldKeyFor(d.kind),
+        key,
         raw_value: d.raw,
         reason: d.rejected_reason,
       });
       continue;
     }
-    tryApplyField(fieldKeyFor(d.kind), d.resolved, true); // true = isDateFromParser (bypass G10)
+    // Transição agendamento humano: IA detecta a data mas NÃO aplica.
+    if (HUMAN_SCHEDULING_FIELDS.has(key)) {
+      fieldsRejected.push({
+        key,
+        raw_value: d.resolved,
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      });
+      continue;
+    }
+    tryApplyField(key, d.resolved, true); // true = isDateFromParser (bypass G10)
   }
 
   // 4b) Demais chaves (ignora chaves de data — já tratadas via mentioned_dates)
+  // P10: sanitiza enums contra clinicFieldSchema antes do RPC. Sem isso, 1
+  // valor inválido (ex.: qualificacao='talvez') faz o trigger
+  // trg_validate_lead_custom_fields_enums abortar a RPC inteira — perdendo
+  // tags válidas e custom_fields legítimos.
+  const schemaByKey = new Map(
+    ctx.clinicFieldSchema.map((f) => [f.field_key, f]),
+  );
   for (const [k, v] of Object.entries(cls.custom_fields_patch ?? {})) {
     if (DATE_FIELD_KEYS.has(k)) {
       // Se o LLM mandou data direta, rejeita — datas SÓ via mentioned_dates
       fieldsRejected.push({ key: k, raw_value: v, reason: "use_mentioned_dates_instead" });
       continue;
     }
+    const def = schemaByKey.get(k);
+    if (def && def.options.length > 0 && v !== null && v !== undefined) {
+      // Enum (select/multiselect): valida contra options declaradas pela clínica.
+      const values = Array.isArray(v) ? v : [v];
+      const invalid = values.find((x) => !def.options.includes(String(x)));
+      if (invalid !== undefined) {
+        fieldsRejected.push({ key: k, raw_value: v, reason: "invalid_enum" });
+        continue;
+      }
+    }
     tryApplyField(k, v);
   }
 
+
   // ===== 5) UPDATE atômico via RPC (não dispara G10) =====
   // Em modo maestro-only, NÃO aplica tags/custom_fields (são reaproveitados).
-  if (applyTypifier && (tagsChanged || fieldsChanged)) {
+  // Guard D3 (PR10.2): se o lead está travado em "Paciente antigo", NÃO grava
+  // tags/campos — antes da correção a escrita acontecia mesmo com o move
+  // bloqueado, deixando status/tag órfãos.
+  const lockedInPacienteAntigo = applyMaestro && ctx.stageName === "Paciente antigo";
+  if (applyTypifier && !lockedInPacienteAntigo && (tagsChanged || fieldsChanged)) {
     const { error: rpcErr } = await client.rpc("apply_lead_automation_patch", {
       p_lead_id: lead.id,
       p_custom_fields: fieldsChanged ? nextFields : null,
@@ -383,7 +462,18 @@ export async function applyClassification(
     }
 
     // ----- 6c) General Move (Maestro) -----
-    if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
+    // Transição agendamento humano: bloqueia mover IA para estágios de agendamento/finalização.
+    if (
+      !stageOutcome.would_move &&
+      stageSuggestion !== ctx.stageName &&
+      HUMAN_SCHEDULING_STAGES.has(stageSuggestion)
+    ) {
+      stageOutcome = {
+        ...stageOutcome,
+        path: "general",
+        reason: HUMAN_TRANSITION_REJECT_REASON,
+      };
+    } else if (!stageOutcome.would_move && stageSuggestion !== ctx.stageName) {
       // General move allows the AI to move the lead to normal stages (e.g. Consulta agendada)
       const confOk = cls.confidence >= 0.8;
       
@@ -463,9 +553,30 @@ export async function applyClassification(
     : { skipped: "partial_mode" as const };
 
   // ===== 9) Telemetria =====
+  // P6: outcome do Maestro consolidado para filtros em pipeline_runs sem grep no payload.
+  let maestroOutcome: "applied" | "strict_blocked" | "no_signal" | "low_confidence" | "skipped_partial_mode" | "error";
+  if (!applyMaestro) {
+    maestroOutcome = "skipped_partial_mode";
+  } else if (!cls.stage_suggestion) {
+    maestroOutcome = "no_signal";
+  } else if (cls.confidence < 0.6) {
+    maestroOutcome = "low_confidence";
+  } else if (stageOutcome.would_move === true) {
+    maestroOutcome = "applied";
+  } else if (typeof stageOutcome.reason === "string" && (stageOutcome.reason as string).startsWith("strict_no_move")) {
+    maestroOutcome = "strict_blocked";
+  } else {
+    maestroOutcome = "no_signal";
+  }
+
+  const enrichedAgents = agents
+    ? { ...(agents as Record<string, unknown>), maestro_outcome: maestroOutcome }
+    : null;
+
   const telemetry = {
     version: TELEMETRY_VERSION,
     mode,
+    maestro_outcome: maestroOutcome,
     classification: {
       stage_suggestion: cls.stage_suggestion,
       intent: cls.intent,
@@ -500,7 +611,7 @@ export async function applyClassification(
       summarize: summarizeResult,
     },
     cost: { model: agents?.maestro_model ?? "gpt-5-mini", usage: usage ?? null },
-    agents: agents ?? null,
+    agents: enrichedAgents,
   };
 
   return { telemetry, lastMessageId };
@@ -542,15 +653,53 @@ export async function updateWatermark(
     .select("ai_review_reasons")
     .eq("id", leadId)
     .single();
+
   const nextReasons =
     (row?.ai_review_reasons as string[] | null)?.filter((r) => r !== "pipeline-classifier") ?? [];
-  await client
-    .from("leads")
-    .update({
-      last_processed_message_id_classifier: lastMessageId,
-      needs_ai_review: false,
-      last_classified_at: new Date().toISOString(),
-      ai_review_reasons: nextReasons,
-    })
-    .eq("id", leadId);
+
+  // Pega a data da última mensagem processada
+  const { data: lastMsg } = await client
+    .from("messages")
+    .select("created_at")
+    .eq("id", lastMessageId)
+    .maybeSingle();
+
+  let hasNewer = false;
+  if (lastMsg?.created_at) {
+    const { count } = await client
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("lead_id", leadId)
+      .eq("from_me", false)
+      .gt("created_at", lastMsg.created_at);
+    hasNewer = (count ?? 0) > 0;
+  }
+
+  if (hasNewer) {
+    // Nova mensagem do lead chegou durante o processamento.
+    // Devolve a flag para a fila e libera o lock.
+    if (!nextReasons.includes("pipeline-classifier")) nextReasons.push("pipeline-classifier");
+    await client
+      .from("leads")
+      .update({
+        last_processed_message_id_classifier: lastMessageId,
+        ai_review_queued_at: null,
+        ai_review_fail_count: 0,
+        ai_review_reasons: nextReasons,
+      })
+      .eq("id", leadId);
+  } else {
+    // Nenhuma mensagem nova, fluxo normal.
+    await client
+      .from("leads")
+      .update({
+        last_processed_message_id_classifier: lastMessageId,
+        needs_ai_review: false,
+        ai_review_queued_at: null,
+        ai_review_fail_count: 0,
+        last_classified_at: new Date().toISOString(),
+        ai_review_reasons: nextReasons,
+      })
+      .eq("id", leadId);
+  }
 }

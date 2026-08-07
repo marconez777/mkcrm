@@ -3,7 +3,7 @@ title: "Arquitetura runtime do pipeline"
 topic: kanban
 kind: flow
 audience: agent
-updated: 2026-06-19
+updated: 2026-06-20
 summary: "Diagrama end-to-end do pipeline da Clínica ÓR mostrando quem dispara quem: triggers Postgres, pg_net, crons, edge functions, helper pipelineMove e hook A2."
 code_refs:
   - supabase/functions/pipeline-deterministic/
@@ -23,7 +23,6 @@ related_docs:
 ```text
                                 ┌────────────────────────────────────┐
    Whatsapp inbound  ─────────► │ evolution-webhook                  │
-                                │ • mitigação de race cond (23505)   │
                                 │ • cria/atualiza lead+messages      │
                                 │ • seta needs_ai_review=true        │
                                 └─────────────┬──────────────────────┘
@@ -71,21 +70,29 @@ related_docs:
    0 */3 * * *   classifier-daily-batch  ┘ tudo via net.http_post
                                           │
                                           ▼
-   pipeline-classify  (V6 - 5 Agentes)
+   pipeline-classify  (V6 — 5 Agentes Multi-Tenant, até 5 chamadas LLM / execução)
      • lê fila: leads c/ needs_ai_review=true + reason 'pipeline-classifier'
      • monta LeadContext (idade, msgs, stage history, treated-before)
-     • Agente 1 (Resumidor - gpt-4o): Extrai datas + gera summary factual.
-     • PARALELISMO (3 especialistas juntos via Promise.all):
-         - Agente 2 (Agendador - gpt-5-mini): Analisa intenção de agenda.
-         - Agente 3 (Preenchedor - gpt-5-mini): Sugere tags + custom_fields_patch (Respeitando Autoridade da Secretária).
-         - Agente 4 (Movimentador - gpt-5-mini): Define intent + stage_suggestion (Move lógico).
-     • Agente 5 (Maestro - gpt-5): Analisa outputs dos especialistas e bate o martelo final.
-     • valida datas (date-parser) com bypass do G10 se alta confiança.
-     • aplica tags (whitelist + protegidas) e custom_fields_patch.
-     • intent → dispara hooks (runNfTask, etc).
-     • Move por 2 caminhos (General Move ou B2B Path).
+     • carrega configs Multi-Tenant (pipeline_tenant_classifiers) para injetar prompts dinâmicos
+     • Fase 1 (serial)  — Resumidor (gpt-4o, fallback gpt-5-mini):
+         extrai datas (anchor_iso) + gera summary
+     • Fase 2 (paralela, Promise.all) — 3 agentes concorrentes:
+         ├─ Agendador (gpt-5-nano)     → sinais de agendamento/reagendamento + datas cruas
+         ├─ Tipificador (gpt-5-mini)   → tags_suggested + custom_fields_patch
+         └─ Movimentador (gpt-5-nano)  → candidato a stage_suggestion (baseado no summary)
+
+     • Fase 3 (serial)  — Maestro (gpt-5):
+         recebe summary + 3 outputs paralelos → veredicto final
+         { stage_suggestion, intent, confidence, is_b2b, reasons }
+     • valida datas (date-parser) com bypass do G10 se alta confiança
+     • aplica tags (whitelist + protegidas) e custom_fields_patch
+     • intent → dispara hooks (runNfTask, etc)
+     • Move por 2 caminhos:
+         - B2B path (is_b2b + conf ≥ 0.95) → auto:classifier-b2b
+         - Generic path (General Move) → auto:classifier-stage (lock em Paciente antigo)
      • Confidence < 0.6 → tag precisa_atencao_humana
-     • Grava lead_events 'auto:classifier' com payload 5 agentes + applied{}
+     • Telemetria: 5 linhas em ai_usage (1 por agente) +
+       1 lead_events 'auto:classifier' com payload.agents{...} + applied{}
 
    pipeline-position-auditor (A1, gpt-5-mini, cron diário 03h BRT)
      • Seleciona leads parados ≥7d, stage não excluído, sem appt futuro
@@ -124,9 +131,10 @@ related_docs:
 
 ## Camadas (resumo)
 
-1. **Captura** — `evolution-webhook` (whatsapp) populam `leads` e `messages`. Form submissions também chegam por webhooks específicos.
+1. **Captura** — `evolution-webhook` (whatsapp) e form submissions populam `leads` e `messages`.
 2. **Roteamento determinístico** — triggers Postgres invocam `pipeline-deterministic` via `pg_net`. Decisões binárias (regras `auto:*`).
-3. **Move centralizado** — toda regra que move card passa por `_shared/pipeline-move.ts`, que aplica os gates síncronos + 2 hooks async (A2 verifier + stage bindings).
-4. **Classificação LLM** — `pipeline-classify` consome a fila `needs_ai_review` e roda a linha de montagem de 5 Agentes paralelos. NUNCA toca em tabela de `appointments`.
-5. **Auditoria** — A1 (cron) e A2 (hook) sinalizam divergências via tag `precisa_atencao_humana`, mas nunca alteram stage.
-6. **Reator humano** — cron diário cria task "Revisar lead travado" para leads com a tag `precisa_atencao_humana` parados ≥7d.
+3. **Move centralizado** — toda regra que move card passa por `_shared/pipeline-move.ts`, que aplica os 7 gates síncronos + 2 hooks async (A2 verifier + stage bindings).
+4. **Classificação LLM** — `pipeline-classify` consome a fila `needs_ai_review`, roda a linha de montagem **V6 de 5 Agentes** (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro) e devolve JSON estruturado, aplicando tags/fields/move-de-B2B/move-genérico. NUNCA toca `appointments`. Cada agente grava sua própria linha em `ai_usage` (operations `classifier:summarizer|agendador|typifier|movimentador|maestro`).
+5. **Resumo** — O Agente 1 (Resumidor) é nativo ao processo de classificação, garantindo que o histórico e o momento atual estejam sempre sintetizados antes da fase paralela.
+6. **Auditoria** — A1 (cron) e A2 (hook) sinalizam via tag, nunca alteram stage.
+7. **Reator humano** — cron diário cria task "Revisar lead travado" para leads com tag `precisa_atencao_humana` parados ≥7d.

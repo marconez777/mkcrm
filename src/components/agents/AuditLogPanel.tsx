@@ -63,7 +63,7 @@ export function AuditLogPanel({ agentId }: { agentId: string }) {
 
   if (loading) return <Loader2 className="h-4 w-4 animate-spin" />;
   if (!allowed) {
-    return <p className="text-sm text-muted-foreground">Apenas administradores da clínica podem ver a auditoria.</p>;
+    return <p className="text-sm text-muted-foreground">Apenas administradores da empresa podem ver a auditoria.</p>;
   }
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhuma alteração registrada ainda.</p>;

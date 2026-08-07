@@ -296,7 +296,8 @@ async function createClinicForNewUser(
 ): Promise<{ ok: true; user_id: string; clinic_id: string } | { ok: false; error: string }> {
   // 1) Create auth user (sends magic link / invite-style email)
   const fullName = args.name ?? args.email.split("@")[0];
-  const redirectTo = `${Deno.env.get("SUPABASE_URL")!.replace(".supabase.co", ".lovable.app")}/auth`;
+  const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
+  const redirectTo = `${siteUrl}/auth`;
 
   // Use generateLink so user gets an email to set password
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(args.email, {

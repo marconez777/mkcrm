@@ -26,6 +26,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "./ai-pipeline-filter.ts";
 
 export type PipelineMoveSource =
   | `auto:${string}`
@@ -70,11 +71,12 @@ const PACIENTE_ANTIGO_NAME = "Paciente antigo";
  * Gates aplicados nesta ordem:
  *  G3 — toggle off em app_settings → abort.
  *  G4 — `lead_events` já tem a `idempotencyKey` → abort idempotente.
- *  G1 — `leads.manual_lock_until > now()` e source começa com `auto:` → abort (lock manual).
  *  G2 — `pipeline_stages.lock_auto_move` no destino é true e source começa com `auto:` → abort.
  *  D3 — current_stage = "Paciente antigo" e source começa com `auto:` → abort (guard D3).
  *  G8 — UPDATE só toca em `stage_id` e `stage_changed_at` (nunca em `pipeline_id`).
  *  G5 — INSERT em `lead_stage_history` com `source` preenchido.
+ *
+ * PR4 — gate G1 (manual_lock_until) removido. A feature foi descontinuada.
  */
 export async function pipelineMove(
   client: SupabaseClient,
@@ -128,7 +130,7 @@ export async function pipelineMove(
   // Carrega lead + stage atual + stage destino (1 select cada para clareza).
   const { data: lead, error: leadErr } = await client
     .from("leads")
-    .select("id, clinic_id, stage_id, manual_lock_until")
+    .select("id, clinic_id, stage_id, pipeline_id")
     .eq("id", leadId)
     .maybeSingle();
   if (leadErr || !lead) {
@@ -140,13 +142,16 @@ export async function pipelineMove(
     return { moved: false, reason: "clinic_not_allowlisted" };
   }
 
-  // G1 — lock manual.
-  if (isAutoSource && lead.manual_lock_until) {
-    const lockedUntil = new Date(lead.manual_lock_until).getTime();
-    if (lockedUntil > Date.now()) {
-      return { moved: false, reason: `gate_g1_manual_lock_until:${lead.manual_lock_until}` };
-    }
+  // Filtro de pipelines da IA (clinics.settings.ai_target_pipeline_ids).
+  // Lista vazia/ausente = todos os pipelines. Só gateia fontes automáticas.
+  if (
+    isAutoSource &&
+    !(await isAiAllowedForPipeline(client, lead.clinic_id, (lead as { pipeline_id?: string }).pipeline_id))
+  ) {
+    return { moved: false, reason: "pipeline_not_in_ai_targets" };
   }
+
+  // PR4 — gate G1 (manual_lock_until) removido.
 
 
   // No-op se já está no destino.
@@ -174,11 +179,12 @@ export async function pipelineMove(
   }
 
   // Guard D3 — paciente antigo não sai do stage por automação, EXCETO p/
-  // "Nutrição inativa" (única saída permitida, executada pelo cron de inatividade 60d).
+  // "Nutrição inativa" ou "Nutrição Antigos" (saídas executadas por cron de inatividade).
   if (
     isAutoSource &&
     fromStage?.name === PACIENTE_ANTIGO_NAME &&
-    toStage.name !== "Nutrição inativa"
+    toStage.name !== "Nutrição inativa" &&
+    toStage.name !== "Nutrição Antigos"
   ) {
     return { moved: false, reason: "guard_d3_paciente_antigo" };
   }

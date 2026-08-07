@@ -104,7 +104,7 @@ export default function UsageLimitsPanel() {
 
   function exportCsv() {
     const rows = filteredClinics.map((c) => {
-      const row: Record<string, any> = { clinica: c.name, plano: c.plan };
+      const row: Record<string, any> = { empresa: c.name, plano: c.plan };
       for (const l of LIMIT_DEFS) {
         const u = Number(usage[c.id]?.[USAGE_KEY_MAP[l.key]] ?? 0);
         const lim = effectiveLimit(c, l.key);
@@ -129,7 +129,7 @@ export default function UsageLimitsPanel() {
     <div className="space-y-5">
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={Building2} tone="primary" label="Clínicas monitoradas" value={clinics.length} />
+        <Kpi icon={Building2} tone="primary" label="Empresas monitoradas" value={clinics.length} />
         <Kpi icon={AlertOctagon} tone="negative" label="Excedendo limite" value={counts.over} />
         <Kpi icon={AlertTriangle} tone="warning" label="Próximas (≥80%)" value={counts.near} />
         <Kpi icon={Activity} tone="accent" label="Métricas rastreadas" value={LIMIT_DEFS.length} />
@@ -139,7 +139,7 @@ export default function UsageLimitsPanel() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-admin-text-subtle" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar clínica…" className="pl-8 h-9 bg-admin-surface border-admin-border" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar empresa…" className="pl-8 h-9 bg-admin-surface border-admin-border" />
         </div>
         <Select value={planFilter} onValueChange={setPlanFilter}>
           <SelectTrigger className="w-[160px] h-9 bg-admin-surface border-admin-border"><SelectValue /></SelectTrigger>
@@ -162,7 +162,7 @@ export default function UsageLimitsPanel() {
       </div>
 
       <p className="text-xs text-admin-text-muted">
-        Limites efetivos vêm do plano da clínica; <code className="text-admin-text">clinics.settings.limits</code> sobrepõe por clínica.
+        Limites efetivos vêm do plano da empresa; <code className="text-admin-text">clinics.settings.limits</code> sobrepõe por empresa.
         Esta tela é apenas informativa — o enforcement em runtime entra em fase 2.
       </p>
 
@@ -172,7 +172,7 @@ export default function UsageLimitsPanel() {
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="border-b border-admin-border bg-admin-surface-2/50">
-                <th className="sticky left-0 z-10 bg-admin-surface-2/95 backdrop-blur text-left px-3 py-2.5 font-semibold text-admin-text-muted whitespace-nowrap min-w-[220px]">Clínica</th>
+                <th className="sticky left-0 z-10 bg-admin-surface-2/95 backdrop-blur text-left px-3 py-2.5 font-semibold text-admin-text-muted whitespace-nowrap min-w-[220px]">Empresa</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-admin-text-muted whitespace-nowrap">Plano</th>
                 {LIMIT_DEFS.map((l) => (
                   <th key={l.key} className="text-right px-2 py-2.5 font-semibold text-admin-text-muted whitespace-nowrap" title={`${l.key} · ${l.unit}`}>
@@ -206,7 +206,7 @@ export default function UsageLimitsPanel() {
               {filteredClinics.length === 0 && (
                 <tr>
                   <td colSpan={LIMIT_DEFS.length + 2} className="text-center py-12 text-xs text-admin-text-muted">
-                    Nenhuma clínica corresponde aos filtros.
+                    Nenhuma empresa corresponde aos filtros.
                   </td>
                 </tr>
               )}

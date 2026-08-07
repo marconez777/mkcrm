@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import ScheduleMessageDialog from "./ScheduleMessageDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { getDraft, setDraft } from "@/lib/drafts";
 
@@ -32,7 +33,8 @@ function fmtTime(s: number) {
   return `${m}:${ss}`;
 }
 
-export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (text: string, opts?: { previewMode?: "auto" | "text_only" | "link_preview" | "video_card" }) => Promise<void> | void; seed?: { text: string; n: number } | null }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(() => getDraft(lead.id));
   const [sending, setSending] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
@@ -40,6 +42,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [videoCard, setVideoCard] = useState<boolean>(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { items: quickReplies } = useQuickReplies();
@@ -184,7 +187,9 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
         }
         if (files.length > 1) toast.success(`${files.length} arquivos enviados`);
       } else {
-        await onSend(v);
+        const link = detectComposerVideoLink(v);
+        const previewMode = link ? (videoCard ? "video_card" : "text_only") : "auto";
+        await onSend(v, { previewMode });
       }
     } catch (e: any) {
       toast.error("Falha: " + (e?.message ?? String(e)));
@@ -271,7 +276,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
     <div className="relative border-t bg-card p-2">
       {showQuick && (
         <div className="absolute bottom-full left-2 right-2 mb-2 max-h-64 overflow-y-auto rounded-lg border bg-popover shadow-lg">
-          <div className="border-b px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">Respostas rápidas</div>
+          <div className="border-b px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{t("inbox.composer.quickReplies")}</div>
           {filteredQuick.map((q, i) => (
             <button
               key={q.id}
@@ -309,7 +314,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
                   type="button"
                   onClick={() => removeAttachment(idx)}
                   className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 opacity-0 shadow-sm transition group-hover:opacity-100"
-                  title="Remover"
+                  title={t("inbox.composer.remove")}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -318,12 +323,38 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           })}
           {attachments.length > 1 && (
             <div className="flex w-full items-center justify-between px-1 pt-1 text-[10px] text-muted-foreground">
-              <span>{attachments.length}/{MAX_FILES} arquivos · legenda vai no primeiro</span>
-              <button onClick={() => setAttachments([])} className="hover:text-foreground">Limpar todos</button>
+              <span>{t("inbox.composer.filesInfo", { count: attachments.length, max: MAX_FILES })}</span>
+              <button onClick={() => setAttachments([])} className="hover:text-foreground">{t("inbox.composer.clearAll")}</button>
             </div>
           )}
         </div>
       )}
+
+      {(() => {
+        const link = attachments.length === 0 ? detectComposerVideoLink(text) : null;
+        if (!link) return null;
+        return (
+          <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-xs">
+            {link.thumb ? (
+              <img src={link.thumb} alt="" className="h-8 w-14 rounded object-cover" />
+            ) : (
+              <div className="h-8 w-14 rounded bg-muted" />
+            )}
+            <div className="flex-1">
+              <div className="font-medium">{link.label} detectado</div>
+              <div className="text-[10px] text-muted-foreground">
+                {videoCard ? "Enviando como card de vídeo (thumb + link)" : "Enviando como link cru"}
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" checked={videoCard} onChange={(e) => setVideoCard(e.target.checked)} className="h-3.5 w-3.5" />
+              <span>Card de vídeo</span>
+            </label>
+          </div>
+        );
+      })()}
+
+
 
       <input
         ref={fileRef}
@@ -340,14 +371,14 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
           </span>
-          <span className="text-sm font-medium">Gravando… {fmtTime(recordSec)}</span>
-          <span className="text-[10px] text-muted-foreground">(máx 5min)</span>
+          <span className="text-sm font-medium">{t("inbox.composer.recording")} {fmtTime(recordSec)}</span>
+          <span className="text-[10px] text-muted-foreground">{t("inbox.composer.maxDuration")}</span>
           <div className="ml-auto flex gap-1">
             <Button type="button" variant="ghost" size="sm" onClick={() => stopRecording(true)}>
-              <Trash2 className="mr-1 h-4 w-4" /> Cancelar
+              <Trash2 className="mr-1 h-4 w-4" /> {t("inbox.composer.cancel")}
             </Button>
             <Button type="button" size="sm" onClick={() => stopRecording(false)}>
-              <Square className="mr-1 h-4 w-4" /> Parar
+              <Square className="mr-1 h-4 w-4" /> {t("inbox.composer.stop")}
             </Button>
           </div>
         </div>
@@ -356,7 +387,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           <div className="flex flex-col gap-0.5 self-end">
             <Popover>
               <PopoverTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" title="Emoji"><Smile className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" title={t("inbox.composer.emoji")}><Smile className="h-4 w-4" /></Button>
               </PopoverTrigger>
               <PopoverContent side="top" align="start" className="w-64 p-2">
                 <div className="grid grid-cols-8 gap-1">
@@ -369,20 +400,20 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => fileRef.current?.click()} title="Anexar arquivos">
+                <Button type="button" variant="ghost" size="icon" onClick={() => fileRef.current?.click()} title={t("inbox.composer.attach")}>
                   <Paperclip className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Anexar arquivos (até {MAX_FILES} · 16MB cada)</TooltipContent>
+              <TooltipContent>{t("inbox.composer.attachTooltip", { max: MAX_FILES })}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title="Respostas rápidas">
+                <Button type="button" variant="ghost" size="icon" onClick={() => { setText("/"); requestAnimationFrame(() => taRef.current?.focus()); }} title={t("inbox.composer.quickReplies")}>
                   <Zap className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Digite "/" para respostas rápidas</TooltipContent>
+              <TooltipContent>{t("inbox.composer.quickRepliesTooltip")}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -392,7 +423,7 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
             onPaste={onPaste}
-            placeholder={attachments.length ? "Adicione uma legenda (opcional)…" : "Mensagem... (Enter envia, Shift+Enter quebra linha)"}
+            placeholder={attachments.length ? t("inbox.composer.captionPlaceholder") : t("inbox.composer.messagePlaceholder")}
             rows={1}
             className="max-h-40 min-h-[120px] flex-1 resize-none self-stretch"
           />
@@ -400,24 +431,24 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
           <div className="flex flex-col gap-0.5 self-end">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title="Agendar mensagem" disabled={attachments.length > 0}>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setScheduleOpen(true)} title={t("inbox.composer.schedule")} disabled={attachments.length > 0}>
                   <Clock className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Agendar envio</TooltipContent>
+              <TooltipContent>{t("inbox.composer.scheduleTooltip")}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" onClick={startRecording} title="Gravar áudio">
+                <Button type="button" variant="ghost" size="icon" onClick={startRecording} title={t("inbox.composer.record")}>
                   <Mic className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Gravar áudio</TooltipContent>
+              <TooltipContent>{t("inbox.composer.record")}</TooltipContent>
             </Tooltip>
           </div>
 
-          <Button onClick={send} disabled={sending || (!text.trim() && attachments.length === 0)} size="icon" title="Enviar" className="self-end">
+          <Button onClick={send} disabled={sending || (!text.trim() && attachments.length === 0)} size="icon" title={t("inbox.composer.send")} className="self-end">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
@@ -434,4 +465,17 @@ export default function Composer({ lead, onSend, seed }: { lead: Lead; onSend: (
       />
     </div>
   );
+}
+
+function detectComposerVideoLink(text: string): { kind: "youtube" | "shorts" | "instagram"; thumb: string | null; label: string } | null {
+  if (!text) return null;
+  const yt = text.match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|embed\/|v\/)([\w-]{6,})|youtu\.be\/([\w-]{6,}))/i);
+  if (yt) {
+    const id = yt[1] ?? yt[2];
+    const isShorts = /\/shorts\//i.test(yt[0]);
+    return { kind: isShorts ? "shorts" : "youtube", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, label: isShorts ? "YouTube Shorts" : "YouTube" };
+  }
+  const ig = text.match(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/([\w-]{5,})/i);
+  if (ig) return { kind: "instagram", thumb: null, label: "Instagram Reel" };
+  return null;
 }

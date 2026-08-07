@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Lead, Pipeline, Stage } from "@/types/crm";
-import { manualLockUntilIso, customFieldsPatchForStage } from "@/lib/manual-stage-move";
+import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 
 interface Props {
   open: boolean;
@@ -44,10 +44,9 @@ export default function MoveLeadDialog({ open, onOpenChange, lead, pipelines, st
   async function handleMove() {
     if (!lead || !pipelineId || !stageId) return;
     setSaving(true);
-    const manualLockUntil = manualLockUntilIso();
     const targetStage = stages.find((s) => s.id === stageId);
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; pipeline_id: string; position: number; manual_lock_until: string; custom_fields?: any } = { stage_id: stageId, pipeline_id: pipelineId, position: 0, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; pipeline_id: string; position: number; custom_fields?: any } = { stage_id: stageId, pipeline_id: pipelineId, position: 0 };
     if (cfPatch) patch.custom_fields = cfPatch;
     const { error } = await supabase
       .from("leads")

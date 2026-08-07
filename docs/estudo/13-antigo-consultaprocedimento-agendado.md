@@ -11,6 +11,8 @@ summary: "Análise da coluna 'Antigo Consulta/procedimento agendado' do funil Ag
 
 **Coluna:** `Antigo Consulta/procedimento agendado` (posição 13) — **6 leads** analisados.
 
+> [!IMPORTANT]
+> **Transição Agendamento Humano:** A IA está proibida de mover cards para esta coluna ou preencher campos de data correspondentes. A movimentação para estágios de agendamento ocorre exclusivamente pela ação manual da secretária (gatilhos `auto:field-changed`).
 
 ## 1. Perfil típico
 

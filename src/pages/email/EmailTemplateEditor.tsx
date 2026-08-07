@@ -6,6 +6,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { supabase } from "@/integrations/supabase/client";
+import { fnErrorMessage } from "@/lib/fn-error";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -223,13 +224,33 @@ export default function EmailTemplateEditor() {
     if (selectedId === blockId) setSelectedId(null);
   }
 
+  // Remetente efetivo: se o usuário digitou só a parte local, completa com o
+  // domínio exibido no seletor (evita salvar "nayara" sem @dominio).
+  function effectiveFromEmail(): string {
+    const raw = (tpl?.from_email || "").trim();
+    if (!raw) return "";
+    if (raw.includes("@")) {
+      const [local, dom] = raw.split("@");
+      const d = dom || domains[0]?.domain || "";
+      return d ? `${local}@${d}` : "";
+    }
+    const d = domains[0]?.domain || "";
+    return d ? `${raw}@${d}` : "";
+  }
+
   async function save() {
     if (!tpl || !clinicId) return;
     if (!tpl.name.trim()) { toast.error("Informe o nome"); return; }
     if (!tpl.subject.trim()) { toast.error("Informe o assunto"); return; }
     if (!tpl.slug || !SLUG_RE.test(tpl.slug)) { toast.error("Slug inválido (use letras, números e hífen, começando por letra)"); return; }
     if (blocks.length === 0) { toast.error("Adicione pelo menos um bloco"); return; }
-    // Remetente é opcional no save — bloqueio só acontece ao enviar teste/disparar campanha.
+    // Remetente é opcional no save, mas se preenchido precisa ficar completo.
+    const fromEmail = effectiveFromEmail();
+    if ((tpl.from_email || "").trim() && !fromEmail) {
+      toast.error("Selecione um domínio verificado para o remetente");
+      return;
+    }
+    if (fromEmail !== tpl.from_email) setTpl({ ...tpl, from_email: fromEmail });
 
     setSaving(true);
     try {
@@ -240,7 +261,7 @@ export default function EmailTemplateEditor() {
         subject: tpl.subject,
         preheader: tpl.preheader,
         from_name: tpl.from_name,
-        from_email: tpl.from_email,
+        from_email: fromEmail,
         reply_to: tpl.reply_to,
         category: tpl.category,
         html_body: renderedHtml,
@@ -271,7 +292,7 @@ export default function EmailTemplateEditor() {
 
   async function sendTest() {
     if (!tpl?.id) { toast.error("Salve o template primeiro"); return; }
-    if (!tpl.from_email || !tpl.from_email.includes("@")) { toast.error("Configure um remetente antes de enviar"); return; }
+    if (!effectiveFromEmail()) { toast.error("Configure um remetente antes de enviar"); return; }
     if (!testEmail.includes("@")) { toast.error("Informe um email válido"); return; }
     setSendingTest(true);
     try {
@@ -289,7 +310,7 @@ export default function EmailTemplateEditor() {
       toast.success("Email de teste enviado");
       setTestOpen(false);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(await fnErrorMessage(e, "Falha ao enviar teste"));
     } finally {
       setSendingTest(false);
     }
@@ -345,13 +366,13 @@ export default function EmailTemplateEditor() {
             className="h-7 mt-1"
             value={tpl.from_name}
             onChange={(e) => setTpl({ ...tpl, from_name: e.target.value })}
-            placeholder="Ex: Clínica Ór"
+            placeholder="Ex: Empresa Ór"
           />
         </div>
         <div>
           <div className="flex items-center gap-2">
             <Label className="text-[10px] uppercase">Remetente</Label>
-            {(!tpl.from_email || !tpl.from_email.includes("@")) && (
+            {!effectiveFromEmail() && (
               <span className="text-[9px] uppercase font-medium rounded px-1.5 py-0.5 bg-yellow-500/15 text-yellow-700 dark:text-yellow-400">
                 Configurar antes de enviar
               </span>
@@ -362,18 +383,18 @@ export default function EmailTemplateEditor() {
               className="h-7 flex-1"
               value={(tpl.from_email || "").split("@")[0] ?? ""}
               onChange={(e) => {
-                const dom = (tpl.from_email || "").split("@")[1] ?? domains[0]?.domain ?? "";
+                const dom = (tpl.from_email || "").split("@")[1] || domains[0]?.domain || "";
                 setTpl({ ...tpl, from_email: dom ? `${e.target.value}@${dom}` : e.target.value });
               }}
               placeholder="contato"
             />
             <Select
-              value={(tpl.from_email || "").split("@")[1] ?? domains[0]?.domain ?? ""}
+              value={(tpl.from_email || "").split("@")[1] || domains[0]?.domain || ""}
               onValueChange={(v) => setTpl({ ...tpl, from_email: `${(tpl.from_email || "").split("@")[0] || "contato"}@${v}` })}
             >
               <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="@domínio" /></SelectTrigger>
               <SelectContent>
-                {domains.map((d) => <SelectItem key={d.id} value={d.domain}>@{d.domain}{d.status !== "verified" && " ⚠"}</SelectItem>)}
+                {domains.map((d) => <SelectItem key={d.id} value={d.domain}>@{d.domain}{d.status !== "verified" && d.status !== "partially_verified" && " ⚠"}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

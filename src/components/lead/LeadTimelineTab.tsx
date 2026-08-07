@@ -16,7 +16,7 @@ import {
   type TimelineItem,
 } from "./timeline/types";
 
-const STORAGE_KEY = "lead_timeline_filters";
+const STORAGE_KEY = "timeline_filters_v3";
 
 function loadFilters(): Set<TimelineCategory> {
   try {
@@ -26,7 +26,7 @@ function loadFilters(): Set<TimelineCategory> {
       if (Array.isArray(arr) && arr.length) return new Set(arr);
     }
   } catch {/* noop */}
-  return new Set(CATEGORY_ORDER);
+  return new Set(["site", "stage", "note", "task", "crm"] as TimelineCategory[]);
 }
 
 export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; clinicId?: string }) {
@@ -177,9 +177,27 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       function fmtVal(v: any): string {
         if (v === null || v === undefined || v === "") return "—";
-        if (typeof v === "string") return v.length > 40 ? v.slice(0, 40) + "…" : v;
-        if (typeof v === "object") return JSON.stringify(v);
-        return String(v);
+        
+        // Se for um array que virou string no JSON do webhook (ex: '["Consulta"]')
+        if (typeof v === "string" && v.startsWith("[") && v.endsWith("]")) {
+          try {
+             const p = JSON.parse(v);
+             if (Array.isArray(p)) return p.join(", ");
+          } catch {}
+        }
+        
+        if (Array.isArray(v)) return v.join(", ");
+        
+        let strVal = typeof v === "string" ? v : (typeof v === "object" ? JSON.stringify(v) : String(v));
+
+        // Tentar formatar datas
+        const isoMatch = strVal.match(/^"?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)"?$/);
+        if (isoMatch) {
+          const d = new Date(isoMatch[1]);
+          if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+        }
+        
+        return strVal.length > 40 ? strVal.slice(0, 40) + "…" : strVal;
       }
 
       const merged: TimelineItem[] = [];
@@ -203,7 +221,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           id: `first-contact-${firstMsg.id}`,
           at: firstMsg.timestamp,
           category: "site",
-          title: firstMsg.from_me ? "Primeiro contato (enviado pela clínica)" : "Primeiro contato no WhatsApp",
+          title: firstMsg.from_me ? "Primeiro contato (enviado pela empresa)" : "Primeiro contato no WhatsApp",
           meta: null,
         });
       }
@@ -223,7 +241,7 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
               ? `movido por ${userName}`
               : s.moved_by_user_id ? "movido por usuário" : undefined,
           actorName: userName ?? null,
-          meta: null,
+          meta: { "Data da Movimentação": new Date(s.moved_at).toLocaleString("pt-BR") },
         });
       });
 
@@ -240,9 +258,24 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
       });
 
       (crmRes.data || []).forEach((e: any) => {
-        const actorName = e.actor_user_id ? userMap.get(e.actor_user_id) ?? null : null;
+        // Ocultar spam de inatividade e excesso de telemetria da IA que polui a visão da secretária
+        if (e.type === "auto:followup-24h" || e.type === "auto:followup-3d" || e.type === "ai_review_queued" || e.type === "pipeline_move_attempted" || e.type === "stage_changed" || e.type === "pipeline_fallback_used" || e.type === "auto:classifier") return;
+
+        // Se não tem usuário, foi o sistema/robô
+        const actorName = e.actor_user_id ? (userMap.get(e.actor_user_id) ?? null) : "Sistema";
+        
+        let title = crmEventTitle(e.type);
         let subtitle: string | undefined;
+
         if (e.type === "custom_fields_changed" && e.payload?.changes) {
+          const keys = Object.keys(e.payload.changes);
+          const aiHiddenFields = ["demonstrou_interesse", "is_b2b", "origem", "last_inbound_at", "last_human_activity_at"];
+          const isOnlyHidden = keys.length > 0 && keys.every(k => aiHiddenFields.includes(k));
+          
+          if (isOnlyHidden) {
+            title = "Robô atualizou classificação do lead";
+          }
+
           const parts: string[] = [];
           for (const [k, diff] of Object.entries<any>(e.payload.changes)) {
             const label = cfLabelMap.get(k) || k;
@@ -250,11 +283,12 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
           }
           subtitle = parts.join(" · ");
         }
+
         merged.push({
           id: `crm-${e.id}`,
           at: e.created_at,
           category: "crm",
-          title: crmEventTitle(e.type),
+          title,
           subtitle,
           actorName,
           meta: e.payload as Record<string, unknown> | null,
@@ -286,7 +320,89 @@ export default function LeadTimelineTab({ leadId, clinicId }: { leadId: string; 
 
       if (cancelled) return;
       merged.sort(compareItems);
-      setItems(merged);
+      
+      // Fase 3: Smart Summaries & Agrupamento
+      const grouped: TimelineItem[] = [];
+      for (const item of merged) {
+        const last = grouped[grouped.length - 1];
+        if (!last) {
+          grouped.push(item);
+          continue;
+        }
+
+        const timeDiff = Math.abs(new Date(last.at).getTime() - new Date(item.at).getTime());
+
+        // 1. Agrupar campos personalizados (mesmo que tenham títulos ligeiramente diferentes gerados pela IA vs Sistema)
+        const isLastFields = last.category === "crm" && (last.title.includes("Campos personalizados") || last.title.includes("Robô atualizou"));
+        const isItemFields = item.category === "crm" && (item.title.includes("Campos personalizados") || item.title.includes("Robô atualizou"));
+        
+        if (isLastFields && isItemFields && last.actorName === item.actorName && timeDiff < 5 * 60 * 1000) {
+          const lastChanges = last.meta?.changes || {};
+          const itemChanges = item.meta?.changes || {};
+          const mergedChanges: Record<string, any> = { ...itemChanges, ...lastChanges };
+          
+          for (const key of Object.keys(itemChanges)) {
+            if (lastChanges[key]) {
+              mergedChanges[key] = { from: itemChanges[key].from, to: lastChanges[key].to };
+            }
+          }
+
+          for (const key of Object.keys(mergedChanges)) {
+            if (fmtVal(mergedChanges[key]?.from) === fmtVal(mergedChanges[key]?.to)) {
+              delete mergedChanges[key];
+            }
+          }
+          
+          last.meta = { ...last.meta, changes: mergedChanges };
+          
+          const parts: string[] = [];
+          let hasVisibleFields = false;
+          const aiHiddenFields = ["demonstrou_interesse", "is_b2b", "origem", "last_inbound_at", "last_human_activity_at", "tentou_agendar"];
+          
+          for (const [k, diff] of Object.entries<any>(mergedChanges)) {
+            if (!aiHiddenFields.includes(k)) hasVisibleFields = true;
+            const label = cfLabelMap.get(k) || k;
+            parts.push(`${label}: ${fmtVal(diff?.from)} → ${fmtVal(diff?.to)}`);
+          }
+          last.subtitle = parts.join(" · ");
+          
+          last.title = (last.actorName === "Sistema" && !hasVisibleFields) 
+            ? "Robô atualizou classificação do lead" 
+            : "Campos personalizados alterados";
+
+          if (Object.keys(mergedChanges).length === 0) {
+            grouped.pop();
+          }
+          continue;
+        }
+
+        // 2. Deduplicar eventos de etapa idênticos (tolerância de até 2 minutos para retries de webhook)
+        if (last.category === "stage" && item.category === "stage" && last.title === item.title && timeDiff < 2 * 60 * 1000) {
+          continue;
+        }
+
+        // 3. Mesclar "Automação: Movido..." com a própria "Etapa alterada" para não poluir
+        const isItemAutoMove = item.category === "crm" && (item.title.includes("Movido devido") || item.title.includes("Movido para inativos"));
+        const isLastAutoMove = last.category === "crm" && (last.title.includes("Movido devido") || last.title.includes("Movido para inativos"));
+
+        if (last.category === "stage" && isItemAutoMove && timeDiff < 2 * 60 * 1000) {
+           last.subtitle = item.title;
+           continue;
+        }
+        
+        if (isLastAutoMove && item.category === "stage" && timeDiff < 2 * 60 * 1000) {
+           last.category = "stage";
+           last.subtitle = last.title;
+           last.title = item.title;
+           last.id = item.id;
+           last.meta = { ...item.meta, ...last.meta }; 
+           continue;
+        }
+
+        grouped.push(item);
+      }
+
+      setItems(grouped);
       setSummary({
         visitorIds,
         firstSource: primary?.first_source || primary?.first_referrer || null,

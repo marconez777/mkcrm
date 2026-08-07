@@ -113,7 +113,7 @@ export default function ClinicDetailsDialog({
       const payload: any = data ?? {};
       if (payload.error) throw new Error(payload.error);
       if (typeof payload.applied === "number" && payload.applied === 0) {
-        throw new Error(payload.details?.[0]?.message ?? "Nenhuma clínica foi atualizada");
+        throw new Error(payload.details?.[0]?.message ?? "Nenhuma empresa foi atualizada");
       }
       if (!payload.ok) throw new Error("Resposta inesperada do servidor");
 

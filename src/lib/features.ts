@@ -1,4 +1,4 @@
-// Catálogo de features que o super admin pode habilitar/desabilitar por clínica.
+// Catálogo de features que o super admin pode habilitar/desabilitar por empresa.
 // Convenção: chave ausente em clinics.settings.features = liberada (default-on).
 
 export type FeatureKey =

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
@@ -32,10 +33,10 @@ import { AuditLogPanel } from "@/components/agents/AuditLogPanel";
 import { Slider } from "@/components/ui/slider";
 import { QUALITY_LADDER, QUALITY_LABELS, modelForQuality, qualityForModel } from "@/lib/quality-ladder";
 
-type Provider = "openai" | "anthropic" | "google" | "xai" | "manus";
+type Provider = "openai" | "anthropic" | "google" | "xai" | "manus" | "lovable";
 
 const NICHE_OPTS: { v: string; l: string }[] = [
-  { v: "clinic", l: "Clínica / Saúde" },
+  { v: "clinic", l: "Empresa / Saúde" },
   { v: "dental", l: "Odontologia" },
   { v: "real_estate", l: "Imobiliária" },
   { v: "restaurant", l: "Restaurante / Food" },
@@ -55,16 +56,19 @@ type Agent = {
   description: string | null;
   system_prompt: string;
   provider: Provider;
-  api_key: string | null;
+  api_key?: string | null; // write-only via update payload; never returned by reads
+  api_key_set?: boolean;
   base_url: string | null;
   model: string;
   temperature: number;
   enabled: boolean;
   tools: string[];
   embedding_model: string | null;
-  embedding_api_key: string | null;
+  embedding_api_key?: string | null; // write-only
+  embedding_api_key_set?: boolean;
   reranker_provider?: string | null;
-  reranker_api_key?: string | null;
+  reranker_api_key?: string | null; // write-only
+  reranker_api_key_set?: boolean;
   max_iterations?: number;
   use_hyde?: boolean;
   use_hybrid_search?: boolean;
@@ -83,15 +87,42 @@ type Agent = {
 const PROVIDER_MODELS: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
   anthropic: ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-  google: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+  // Fase 3 do roadmap GEMINI_404_MODEL_DEPRECATION:
+  // recomendados primeiro; 2.5-* ficam como legacy (só funcionam em contas antigas do GCP até 16/10/2026).
+  google: [
+    "gemini-flash-latest",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
+    "gemini-pro-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+  ],
   xai: ["grok-2-latest", "grok-2-mini", "grok-beta", "grok-vision-beta"],
   manus: [],
+  lovable: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
 };
+
+/** Rótulos amigáveis exibidos no <option>. Fonte: docs/roadmap/GEMINI_404_MODEL_DEPRECATION.md */
+const MODEL_LABEL: Record<string, string> = {
+  "gemini-flash-latest": "gemini-flash-latest — recomendado (alias do Flash mais novo)",
+  "gemini-3-flash-preview": "gemini-3-flash-preview — substituto direto de 2.5-flash",
+  "gemini-3.1-flash-lite": "gemini-3.1-flash-lite — custo-eficiente",
+  "gemini-pro-latest": "gemini-pro-latest — alias do Pro mais novo",
+  "gemini-2.5-flash": "gemini-2.5-flash — legacy (só contas antigas, 404 em chaves novas)",
+  "gemini-2.5-pro": "gemini-2.5-pro — legacy (só contas antigas)",
+  "gemini-2.5-flash-lite": "gemini-2.5-flash-lite — legacy",
+  "gemini-2.0-flash": "gemini-2.0-flash — legacy",
+};
+
 const PROVIDER_LABEL: Record<Provider, string> = {
   openai: "OpenAI", anthropic: "Anthropic (Claude)", google: "Google (Gemini)", xai: "xAI (Grok)", manus: "Manus",
+  lovable: "Gemini Chat Funnel AI",
 };
 const PROVIDER_KEY_PLACEHOLDER: Record<Provider, string> = {
-  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza...", xai: "xai-...", manus: "API key Manus",
+  openai: "sk-...", anthropic: "sk-ant-...", google: "AIza... ou AQ....", xai: "xai-...", manus: "API key Manus",
+  lovable: "(gerenciado pela Chat Funnel AI)",
 };
 const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
   openai: "https://api.openai.com/v1",
@@ -99,9 +130,25 @@ const PROVIDER_BASE_PLACEHOLDER: Record<Provider, string> = {
   google: "https://generativelanguage.googleapis.com/v1beta",
   xai: "https://api.x.ai/v1",
   manus: "https://api.manus.example/v1 (obrigatório)",
+  lovable: "https://ai.gateway.lovable.dev/v1",
 };
 /** Providers that don't have native embeddings — user must supply an OpenAI/Google embedding key. */
-const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus"];
+const PROVIDERS_NEEDING_EMBEDDING_KEY: Provider[] = ["anthropic", "xai", "manus", "lovable"];
+
+function isLikelyProviderKey(provider: Provider, key: string): boolean {
+  const clean = key.trim();
+  if (!clean) return true;
+  if (provider === "google") return clean.length >= 30 && (clean.startsWith("AIza") || clean.startsWith("AQ."));
+  if (provider === "openai") return clean.startsWith("sk-") && clean.length >= 30;
+  if (provider === "anthropic") return clean.startsWith("sk-ant-") && clean.length >= 30;
+  if (provider === "xai") return clean.startsWith("xai-") && clean.length >= 20;
+  return clean.length >= 20;
+}
+
+function providerKeyHelp(provider: Provider): string {
+  if (provider === "google") return "Chave Gemini inválida. Cole a chave completa do AI Studio (começa com AIza... ou AQ... e tem bem mais de 30 caracteres).";
+  return "API key parece incompleta. Cole a chave completa do provedor.";
+}
 
 const TOOL_GROUPS: { group: string; tools: { id: string; label: string; hint?: string }[] }[] = [
   {
@@ -216,6 +263,7 @@ function EvalsPanel({ agentId }: { agentId: string }) {
 }
 
 export default function Agents() {
+  const { t: tr } = useTranslation();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Agent | null>(null);
   const confirm = useConfirm();
@@ -327,10 +375,8 @@ export default function Agents() {
     setDocs(docs);
   };
 
-  const AGENT_COLS = "id, name, description, system_prompt, provider, base_url, model, temperature, enabled, tools, api_key, embedding_model, embedding_api_key, reranker_provider, reranker_api_key, max_iterations, use_hyde, use_hybrid_search, use_memory, planning_mode, rag_top_k, debounce_seconds, is_system, system_key, draft_mode, niche, niche_other";
-
   const load = async () => {
-    // RPC admin-only: retorna inclusive as colunas sensíveis (api_key, embedding_api_key, reranker_api_key).
+    // RPC admin-only: retorna apenas indicadores *_set (api_key_set etc) — chaves nunca trafegam para o client.
     const { data, error } = await supabase.rpc("admin_list_ai_agents");
     if (error) { toast.error(error.message); return; }
     setAgents((data as any) ?? []);
@@ -420,7 +466,10 @@ export default function Agents() {
       niche_other: selected.niche_other ?? null,
     };
     // Only update credentials if user typed something (avoids wiping existing keys)
-    if (typeof selected.api_key === "string" && selected.api_key.length > 0) payload.api_key = selected.api_key;
+    if (typeof selected.api_key === "string" && selected.api_key.trim().length > 0) {
+      if (!isLikelyProviderKey(selected.provider, selected.api_key)) return toast.error(providerKeyHelp(selected.provider));
+      payload.api_key = selected.api_key.trim();
+    }
     if (typeof selected.embedding_api_key === "string" && selected.embedding_api_key.length > 0) payload.embedding_api_key = selected.embedding_api_key;
     if (typeof selected.reranker_api_key === "string" && selected.reranker_api_key.length > 0) payload.reranker_api_key = selected.reranker_api_key;
     const { error } = await supabase
@@ -563,51 +612,95 @@ export default function Agents() {
 
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
-      <aside className="w-72 shrink-0 border-r bg-muted/20">
+      <aside className="w-72 shrink-0 border-r bg-muted/10">
         {canManage && (
           <BuilderSetupCard
-            builder={builder}
+            builder={builder ? { ...builder, api_key_set: !!builder.api_key_set } : null}
             clinicId={clinicId}
             selected={selected?.id === builder?.id}
             onSelect={() => builder && setSelected(builder)}
             onVerified={() => load()}
           />
         )}
-        <div className="flex items-center justify-between p-4 pt-2">
-          <h2 className="text-sm font-semibold">Agentes</h2>
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {tr("agents.sidebarTitle")} <span className="ml-1 text-foreground/60">· {regularAgents.length}</span>
+          </h2>
           {canManage && (
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => navigate("/ai/agents/new")}
-                title="Criar com assistente"
-              >
-                <Sparkles className="mr-1 h-3.5 w-3.5" /> Assistente
-              </Button>
-              <Button size="sm" variant="ghost" onClick={create} title="Criar em branco">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 px-2.5 text-xs"
+              onClick={() => navigate("/ai/agents/new")}
+              title={tr("agents.wizard")}
+            >
+              <Sparkles className="mr-1 h-3 w-3" /> {tr("agents.wizard")}
+            </Button>
           )}
         </div>
-        <div className="px-2">
-          {regularAgents.map((a) => (
+        <div className="px-2 pb-3">
+          {regularAgents.map((a) => {
+            const isActive = selected?.id === a.id;
+            const initials = a.name
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((s) => s[0]?.toUpperCase() ?? "")
+              .join("") || "A";
+            // hash name → hsl hue for stable avatar color
+            let hash = 0;
+            for (let i = 0; i < a.name.length; i++) hash = (hash * 31 + a.name.charCodeAt(i)) | 0;
+            const hue = Math.abs(hash) % 360;
+            const avatarStyle = {
+              backgroundColor: `hsl(${hue} 55% 28%)`,
+              color: `hsl(${hue} 70% 88%)`,
+            };
+            return (
+              <button
+                key={a.id}
+                onClick={() => setSelected(a)}
+                className={`relative mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                  isActive ? "bg-muted" : "hover:bg-muted/40"
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />
+                )}
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                  style={avatarStyle}
+                >
+                  {initials}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
+                  <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"
+                      }`}
+                    />
+                    {a.model || a.provider}
+                    {a.is_system && <span className="ml-1 text-muted-foreground/60">· padrão</span>}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          {canManage && (
             <button
-              key={a.id}
-              onClick={() => setSelected(a)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
-                selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"
-              }`}
+              onClick={create}
+              className="mt-1 flex w-full items-center gap-2.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+              title="Criar em branco"
             >
-              <Bot className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{a.name}</span>
-              {a.is_system && <Badge variant="secondary" className="text-[10px]" title="Agente padrão do sistema">padrão</Badge>}
-              {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+                <Plus className="h-3.5 w-3.5" />
+              </span>
+              <span>{tr("agents.newAgent")}</span>
             </button>
-          ))}
+          )}
           {regularAgents.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhum agente. Crie o primeiro.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{tr("agents.empty")}</p>
           )}
         </div>
       </aside>
@@ -615,7 +708,7 @@ export default function Agents() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie um agente.
+            {tr("agents.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
@@ -817,16 +910,25 @@ export default function Agents() {
                           </p>
                         </div>
                       ) : PROVIDER_MODELS[selected.provider].length > 0 ? (
-                        <select
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
-                          onChange={(e) => setSelected({ ...selected, model: e.target.value })}
-                        >
-                          <option value="" disabled>Selecione um modelo</option>
-                          {PROVIDER_MODELS[selected.provider].map((m) => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
+                        <>
+                          <select
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            value={PROVIDER_MODELS[selected.provider].includes(selected.model) ? selected.model : ""}
+                            onChange={(e) => setSelected({ ...selected, model: e.target.value })}
+                          >
+                            <option value="" disabled>Selecione um modelo</option>
+                            {PROVIDER_MODELS[selected.provider].map((m) => (
+                              <option key={m} value={m}>{MODEL_LABEL[m] ?? m}</option>
+                            ))}
+                          </select>
+                          {selected.provider === "google" && (
+                            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                              Chave nova do Google AI Studio? Use <code>gemini-flash-latest</code> ou <code>gemini-3-flash-preview</code>.
+                              Modelos <code>gemini-2.5-*</code> retornam 404 para chaves criadas depois de 09/07/2026 (shutdown oficial em 16/10/2026).
+                            </p>
+                          )}
+                        </>
+
                       ) : (
                         <Input
                           placeholder="Nome do modelo (ex: manus-pro)"
@@ -840,12 +942,12 @@ export default function Agents() {
                     <Label>API Key</Label>
                     <Input
                       type="password"
-                      placeholder={PROVIDER_KEY_PLACEHOLDER[selected.provider]}
+                      placeholder={selected.api_key_set ? "•••••• (configurada — deixe vazio para manter)" : PROVIDER_KEY_PLACEHOLDER[selected.provider]}
                       value={selected.api_key ?? ""}
                       onChange={(e) => setSelected({ ...selected, api_key: e.target.value })}
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Armazenada no banco. Cada agente usa a key configurada aqui — nenhum provedor padrão é assumido.
+                      Armazenada no banco e nunca devolvida em leituras. Para trocar, digite a nova chave; para manter, deixe em branco.
                     </p>
                   </div>
                   {uiMode === "advanced" && (
@@ -875,7 +977,7 @@ export default function Agents() {
                       </Label>
                       <Input
                         type="password"
-                        placeholder="API key para embeddings (sk-... ou AIza...)"
+                        placeholder={selected.embedding_api_key_set ? "•••••• (configurada — deixe vazio para manter)" : "API key para embeddings (sk-... ou AIza...)"}
                         value={selected.embedding_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, embedding_api_key: e.target.value })}
                       />
@@ -929,7 +1031,7 @@ export default function Agents() {
                         <option value="voyage">Voyage</option>
                       </select></div>
                     <div><Label className="text-xs">API key reranker</Label>
-                      <Input type="password" value={selected.reranker_api_key ?? ""}
+                      <Input type="password" placeholder={selected.reranker_api_key_set ? "•••••• (configurada)" : ""} value={selected.reranker_api_key ?? ""}
                         onChange={(e) => setSelected({ ...selected, reranker_api_key: e.target.value })} /></div>
                   </div>
                   <p className="text-xs text-muted-foreground">

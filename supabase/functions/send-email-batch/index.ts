@@ -13,7 +13,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse, renderTemplate, sanitizeTagValue, isInternalContext } from "../_shared/email.ts";
 
-const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://mkcrm.lovable.app";
+const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://chatfunnelai.com";
 const RESEND_BATCH_MAX = 100;
 
 Deno.serve(async (req) => {

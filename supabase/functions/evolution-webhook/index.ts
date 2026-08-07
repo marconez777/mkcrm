@@ -1,6 +1,7 @@
 // Receives events from Evolution API. Logs every event for audit, then ingests.
 import { corsHeaders, json, sb, ingestMessage, phoneFromContact, loadInstanceByToken, downloadAndStoreMedia } from "../_shared/evolution.ts";
 import { isWebhookDuplicate } from "../_shared/utils.ts";
+import { applyLeadOrigin, originFor } from "../_shared/lead-origin.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -44,14 +45,26 @@ Deno.serve(async (req) => {
     auditId = audit?.id ?? null;
 
     let leadIdForAudit: string | null = null;
+    const ingestErrors: string[] = [];
 
     if (eventType === "MESSAGES_UPSERT") {
       const settled = await Promise.allSettled(items.map((it: any) => ingestMessage(it, "webhook", { instanceId: instance.id })));
+
       for (let i = 0; i < settled.length; i++) {
         const s = settled[i];
-        if (s.status !== "fulfilled") { console.error("ingest error", s.reason); continue; }
+        if (s.status !== "fulfilled") {
+          const msg = s.reason instanceof Error ? `${s.reason.name}: ${s.reason.message}` : String(s.reason);
+          console.error("ingest error", s.reason);
+          ingestErrors.push(msg.slice(0, 300));
+          continue;
+        }
         const res: any = s.value;
         const it = items[i];
+        if (res.skipped) {
+          await supabase.from("webhook_events").update({ error: `SKIPPED: ${res.reason}` }).eq("id", auditId);
+          continue;
+        }
+
         if (!("lead_id" in res)) continue;
         leadIdForAudit = res.lead_id;
         // Background: fetch media binary if needed (also for existing rows missing media_url)
@@ -137,6 +150,7 @@ Deno.serve(async (req) => {
         if (u === "SERVER_ACK" || u === "PENDING") return "sent";
         if (u === "DELIVERY_ACK" || u === "DELIVERED") return "delivered";
         if (u === "READ" || u === "PLAYED") return "read";
+        if (u === "ERROR" || u === "FAILED" || u === "FAILURE" || u === "REJECTED") return "failed";
         return s.toLowerCase();
       };
       for (const it of items) {
@@ -146,7 +160,7 @@ Deno.serve(async (req) => {
         const newStatus = normalize(String(rawStatus));
         let { data: cur } = await supabase
           .from("messages")
-          .select("id, delivery_status, lead_id")
+          .select("id, status, delivery_status, lead_id, raw")
           .eq("external_id", externalId)
           .maybeSingle();
 
@@ -161,7 +175,7 @@ Deno.serve(async (req) => {
             if (lead) {
               const { data: orphan } = await supabase
                 .from("messages")
-                .select("id, delivery_status, lead_id")
+                .select("id, status, delivery_status, lead_id, raw")
                 .eq("lead_id", lead.id).eq("from_me", true).is("external_id", null)
                 .order("timestamp", { ascending: false }).limit(1).maybeSingle();
               if (orphan) {
@@ -172,12 +186,37 @@ Deno.serve(async (req) => {
           }
         }
         if (!cur) continue;
+        const rawPatch = {
+          ...((cur as any).raw ?? {}),
+          last_delivery_update: it,
+          last_delivery_update_received_at: new Date().toISOString(),
+        };
+        if (newStatus === "failed") {
+          const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
+          if (curRank === 0) {
+            await supabase
+              .from("messages")
+              .update({
+                status: "failed",
+                delivery_status: "failed",
+                last_error: `Evolution delivery update: ${String(rawStatus)}`,
+                raw: rawPatch,
+              })
+              .eq("id", cur.id);
+          } else {
+            await supabase
+              .from("messages")
+              .update({ raw: rawPatch })
+              .eq("id", cur.id);
+          }
+          continue;
+        }
         const curRank = RANK[(cur.delivery_status ?? "").toLowerCase()] ?? 0;
         const newRank = RANK[newStatus] ?? 0;
         if (newRank > curRank) {
           await supabase
             .from("messages")
-            .update({ delivery_status: newStatus })
+            .update({ delivery_status: newStatus, raw: rawPatch })
             .eq("id", cur.id);
         }
       }
@@ -234,17 +273,25 @@ Deno.serve(async (req) => {
     // Antes filtrávamos só por MESSAGES_*, mas isso gerava falso positivo
     // quando ninguém escrevia por >15min. Qualquer evento (presence, chats,
     // connection update) prova que a Evolution está conversando conosco.
+    const updatePayload: any = { last_inbound_webhook_at: new Date().toISOString() };
+    if (instance.connection_state !== "open" && eventType !== "CONNECTION_UPDATE") {
+      updatePayload.connection_state = "open";
+    }
+
     await supabase
       .from("whatsapp_instances")
-      .update({ last_inbound_webhook_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", instance.id);
 
     if (auditId) {
-      await supabase
-        .from("webhook_events")
-        .update({ processed_at: new Date().toISOString(), lead_id: leadIdForAudit })
-        .eq("id", auditId);
+      const patch: any = { processed_at: new Date().toISOString(), lead_id: leadIdForAudit };
+      if (ingestErrors.length > 0) {
+        patch.error = `INGEST_ERROR: ${ingestErrors.join(" | ")}`.slice(0, 1000);
+      }
+      await supabase.from("webhook_events").update(patch).eq("id", auditId);
     }
+
+
 
     console.log(JSON.stringify({ event: eventType, ms: Date.now() - startedAt, ok: true }));
     return json({ ok: true });
@@ -409,6 +456,13 @@ async function matchTrackingForInbound(opts: {
 
   if (!visitor_id) {
     console.log("[tracking-match] no visitor", { clinic_id, lead_id, code, ctwaClid });
+    // Sem visitante casado: origem padrão "WhatsApp direto" (prioridade baixa,
+    // será substituída se o tracking casar depois).
+    await applyLeadOrigin(
+      supabase as any,
+      lead_id,
+      originFor("whatsapp_direct", null, "whatsapp_direct"),
+    ).catch((e) => console.error("[tracking-match] origin_fallback_error", e));
     return;
   }
 

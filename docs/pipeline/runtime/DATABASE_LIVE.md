@@ -180,9 +180,27 @@ Triggers criados:
 | `trg_appointments_auto_sync` | AFTER INSERT OR UPDATE OF status em `appointments` | `appointment-sync` |
 | `trg_leads_auto_field_changed` | AFTER UPDATE OF custom_fields em `leads` | `field-changed` (envia old + new) |
 
-> O Authorization usa o **anon key**. As regras em `pipeline-deterministic` rodam com service_role internamente.
+### Triggers que alimentam a V6 e a operação (não chamam `pipeline-deterministic`)
+
+| Trigger | Tabela | Efeito |
+|---|---|---|
+| `trg_messages_enqueue_classifier` | `messages` | Enfileira lead para `pipeline-classify` (entrada principal da V6 vindo do WhatsApp) |
+| `trg_stop_sequences_on_reply` | `messages` | Cancela `message_sequence_enrollments` ativos ao receber resposta |
+| `messages_lead_needs_extraction` | `messages` | Seta `needs_ai_review=true` para forçar nova passada |
+| `trg_bump_human_activity_from_msg` / `_from_note` | `messages` / `lead_internal_notes` | Atualiza `last_human_activity_at` (lock manual + reator humano) |
+| `trg_appointments_recompute` | `appointments` | Recalcula `status_consulta` / `status_procedimento` |
+| `leads_stage_changed`, `trg_lead_stage_history`, `trg_enroll_on_stage_change` | `leads` | Histórico de stage + dispara `stage_sequence_bindings` |
+| `trg_leads_sync_pipeline` | `leads` | Mantém `pipeline_id` derivado de `stage_id` |
+| `trg_sync_lead_ai_settings_stage` | `leads` | Sincroniza `lead_ai_settings.current_stage` |
+| `trg_lead_risk_handler` | `leads` | Tags de risco (objeção / atenção humana) |
+| `trg_validate_lead_custom_fields_enums` | `leads` | Valida enums do `custom_fields` |
+| `trg_track_custom_fields_human_edits` | `leads` | Marca edição humana p/ a IA não sobrescrever |
+
+> O Authorization dos triggers `notify_pipeline_deterministic` usa o **anon key**. As regras em `pipeline-deterministic` rodam com service_role internamente.
 
 ## Crons `pg_cron`
+
+> Snapshot vivo completo em [`TRIGGERS_AUDIT.md`](./TRIGGERS_AUDIT.md). Tabela abaixo lista apenas os jobs do pipeline.
 
 | Job | Schedule | Endpoint |
 |---|---|---|
@@ -193,7 +211,11 @@ Triggers criados:
 | `pipeline-position-auditor-daily` | `0 6 * * *` (03h BRT) | `pipeline-position-auditor` `{action:'tick'}` |
 | `classifier-daily-batch` | `0 */3 * * *` | `pipeline-run-executor` (batch admin) |
 | `dedup-leads-tick-daily` | `30 7 * * *` | `dedup-leads-tick` |
-| `watch-stale-leads-daily` | `0 6 * * *` | (não auditado aqui) |
+| `watch-stale-leads-daily` | `0 6 * * *` | `watch-stale-leads` |
+| `outreach-recovery-tick-daily` | `0 7 * * *` | `outreach-recovery-tick` |
+
+Crons das **automações da ferramenta** (UI `/automations`, sequências, follow-ups de agente): `automations-tick-every-5-min` `*/5 * * * *`, `sequence-tick-every-minute` `* * * * *`, `agent_followups_tick` `*/5 * * * *`. Detalhes em `TRIGGERS_AUDIT.md §1.2`.
+
 
 ## Função utilitária `reset_ai_classifications(clinic_id)` (migration `20260618034546`)
 

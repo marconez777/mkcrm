@@ -11,6 +11,8 @@ summary: "Análise da coluna 'Consulta finalizada' do funil Agendamentos Novo (C
 
 **Coluna:** `Consulta finalizada` (posição 5) — **17 leads** analisados.
 
+> [!IMPORTANT]
+> **Transição Agendamento Humano:** A IA e o cron `ruleConsultaPassou` estão proibidos de mover cards para esta coluna. A entrada neste estágio ocorre exclusivamente pela ação manual da secretária arrastando o card para "Consulta finalizada" (lidando com múltiplos procedimentos simultâneos).
 
 ## 1. Perfil típico
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllPaged } from "@/lib/fetch-all";
 import { Card } from "@/components/ui/card";
@@ -7,14 +8,15 @@ import { Activity, Clock, Users, TrendingUp, Inbox, MessageSquare } from "lucide
 type MsgRow = { lead_id: string; from_me: boolean; timestamp: string };
 type LeadRow = { id: string; created_at: string; attendant_id: string | null; stage_id: string | null; archived_at: string | null; unread_count: number; last_message_at: string | null };
 
-const RANGES = [
-  { id: "24h", label: "24h", hours: 24 },
-  { id: "7d", label: "7 dias", hours: 24 * 7 },
-  { id: "30d", label: "30 dias", hours: 24 * 30 },
-];
-
 export default function MetricsOps() {
+  const { t } = useTranslation();
+  const RANGES = [
+    { id: "24h", label: t("metricsOps.h24"), hours: 24 },
+    { id: "7d", label: t("metricsOps.d7"), hours: 24 * 7 },
+    { id: "30d", label: t("metricsOps.d30"), hours: 24 * 30 },
+  ];
   const [range, setRange] = useState(RANGES[1]);
+
   const [msgs, setMsgs] = useState<MsgRow[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [attendants, setAttendants] = useState<{ id: string; name: string; color: string }[]>([]);
@@ -111,8 +113,9 @@ export default function MetricsOps() {
     });
     return Array.from(map.entries()).map(([id, v]) => ({
       id,
-      name: id === "__none" ? "Não atribuído" : (attendants.find((a) => a.id === id)?.name ?? "—"),
+      name: id === "__none" ? t("metricsOps.unassigned") : (attendants.find((a) => a.id === id)?.name ?? "—"),
       color: id === "__none" ? "#888" : (attendants.find((a) => a.id === id)?.color ?? "#888"),
+
       sent: v.sent,
       leads: v.leads.size,
     })).sort((a, b) => b.sent - a.sent);
@@ -130,7 +133,7 @@ export default function MetricsOps() {
     <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Métricas operacionais</h1>
+          <h1 className="text-lg font-semibold">{t("metricsOps.title")}</h1>
           <div className="flex gap-1 rounded-md border p-1 text-xs">
             {RANGES.map((r) => (
               <button
@@ -145,16 +148,16 @@ export default function MetricsOps() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Recebidas" value={String(stats.inbound)} />
-          <StatCard icon={<MessageSquare className="h-4 w-4" />} label="Enviadas" value={String(stats.outbound)} />
-          <StatCard icon={<Inbox className="h-4 w-4" />} label="Conversas ativas" value={String(stats.activeLeads)} />
-          <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Novos leads" value={String(stats.newLeads)} />
-          <StatCard icon={<Clock className="h-4 w-4" />} label="1ª resposta (média)" value={`${stats.avgRespMin} min`} />
-          <StatCard icon={<Activity className="h-4 w-4" />} label="SLA estourado (>1h)" value={String(stats.slaBreached)} />
+          <StatCard icon={<MessageSquare className="h-4 w-4" />} label={t("metricsOps.received")} value={String(stats.inbound)} />
+          <StatCard icon={<MessageSquare className="h-4 w-4" />} label={t("metricsOps.sent")} value={String(stats.outbound)} />
+          <StatCard icon={<Inbox className="h-4 w-4" />} label={t("metricsOps.activeConvs")} value={String(stats.activeLeads)} />
+          <StatCard icon={<TrendingUp className="h-4 w-4" />} label={t("metricsOps.newLeads")} value={String(stats.newLeads)} />
+          <StatCard icon={<Clock className="h-4 w-4" />} label={t("metricsOps.firstResp")} value={`${stats.avgRespMin} min`} />
+          <StatCard icon={<Activity className="h-4 w-4" />} label={t("metricsOps.slaBreached")} value={String(stats.slaBreached)} />
         </div>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Volume por dia</h2>
+          <h2 className="mb-3 text-sm font-semibold">{t("metricsOps.volumePerDay")}</h2>
           <div className="flex h-40 items-end gap-1">
             {dailyVolume.buckets.map((b) => {
               const total = b.in + b.out;
@@ -162,7 +165,7 @@ export default function MetricsOps() {
               const inPct = total ? (b.in / total) * pct : 0;
               const outPct = total ? (b.out / total) * pct : 0;
               return (
-                <div key={b.day} className="flex flex-1 flex-col items-center gap-1" title={`${b.day}: ${b.in} recebidas / ${b.out} enviadas`}>
+                <div key={b.day} className="flex flex-1 flex-col items-center gap-1" title={`${b.day}: ${b.in} / ${b.out}`}>
                   <div className="flex w-full flex-1 flex-col-reverse">
                     <div style={{ height: `${inPct}%` }} className="bg-primary" />
                     <div style={{ height: `${outPct}%` }} className="bg-emerald-500" />
@@ -173,23 +176,23 @@ export default function MetricsOps() {
             })}
           </div>
           <div className="mt-2 flex gap-3 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary" />Recebidas</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />Enviadas</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary" />{t("metricsOps.legendReceived")}</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />{t("metricsOps.legendSent")}</span>
           </div>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4" /> Por atendente</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4" /> {t("metricsOps.byAttendant")}</h2>
             {byAttendant.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem dados.</p>
+              <p className="text-sm text-muted-foreground">{t("metricsOps.noData")}</p>
             ) : (
               <div className="space-y-2 text-sm">
                 {byAttendant.map((a) => (
                   <div key={a.id} className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full" style={{ background: a.color }} />
                     <span className="flex-1 truncate">{a.name}</span>
-                    <span className="text-xs text-muted-foreground">{a.leads} leads</span>
+                    <span className="text-xs text-muted-foreground">{a.leads} {t("metricsOps.leadsBucket")}</span>
                     <span className="w-12 text-right tabular-nums">{a.sent}</span>
                   </div>
                 ))}
@@ -198,9 +201,10 @@ export default function MetricsOps() {
           </Card>
 
           <Card className="p-4">
-            <h2 className="mb-3 text-sm font-semibold">Leads por etapa</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("metricsOps.leadsByStage")}</h2>
             {byStage.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem etapas.</p>
+              <p className="text-sm text-muted-foreground">{t("metricsOps.noStages")}</p>
+
             ) : (
               <div className="space-y-2 text-sm">
                 {byStage.map((s) => {

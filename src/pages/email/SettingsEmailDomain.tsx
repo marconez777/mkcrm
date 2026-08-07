@@ -72,7 +72,7 @@ export default function SettingsEmailDomain() {
           <Link to="/settings" className="text-xs text-muted-foreground inline-flex items-center gap-1"><ArrowLeft className="h-3 w-3" />Voltar</Link>
           <Card className="p-6 text-center text-muted-foreground">
             <Mail className="mx-auto mb-2 h-8 w-8 opacity-50" />
-            O recurso de Email Marketing não está ativo para esta clínica. Peça ao suporte para liberar.
+            O recurso de Email Marketing não está ativo para esta empresa. Peça ao suporte para liberar.
           </Card>
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function SettingsEmailDomain() {
           <h2 className="text-base font-semibold">Nenhum domínio configurado</h2>
           <p className="text-sm text-muted-foreground">
             A criação do domínio é feita pelo nosso suporte. Entre em contato informando o domínio
-            que deseja usar (ex.: <code>mail.suaclinica.com.br</code>) e nós abrimos para você.
+            que deseja usar (ex.: <code>mail.suaempresa.com.br</code>) e nós abrimos para você.
           </p>
         </Card>
       ) : (
@@ -128,11 +128,11 @@ export default function SettingsEmailDomain() {
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Nome do remetente</Label>
-                <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Clínica X" />
+                <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Empresa X" />
               </div>
               <div className="space-y-1.5">
                 <Label>Reply-to</Label>
-                <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="contato@suaclinica.com.br" />
+                <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="contato@suaempresa.com.br" />
               </div>
             </div>
             <div className="flex justify-end">

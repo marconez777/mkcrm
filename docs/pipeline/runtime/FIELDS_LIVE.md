@@ -32,13 +32,12 @@ ORDER BY position, field_key;
 |---|---|---|---|---|
 | `interesse` | Interesse | select | Infusão de Cetamina, EMT, Tratamento Alcoolismo, Hipnoterapia, EMDR, Tratamento para Depressão, Psicoterapia, Consulta com psiquiatria, Outro | form submission, manual |
 | `procedimentos` | Procedimentos | multiselect | Infusão de cetamina, EMT, Primeira Consulta, Consulta de seguimento, Retorno, Sessão de terapia | manual |
-| `data_horario` | Data e horário | datetime | — | manual |
+| `consulta_agendada_em` | Data da consulta | datetime | — | **classifier** (via `custom_fields_patch`, validado por `sanitizeDateField`), manual |
 | `teleconsulta` | Teleconsulta? | boolean | — | manual |
 | `link_consulta` | Link de Consulta | url | — | manual |
 | `pagamento` | Pagamento | currency | — | manual |
 | `origem` | Origem | select | Google - Orgânico, Google - Ads, Youtube, Redes Sociais, Indicação de paciente, Indicação de Médico, Indicação de Psicóloga, Indeterminado | form submission, manual |
 | `mensagem` | Mensagem | textarea | — | form submission |
-| `enviar_dia` | Enviar Dia | date | — | manual |
 | `procedimento_agendado_em` | Data do procedimento | datetime | — | **classifier** (via `custom_fields_patch`, validado por `sanitizeDateField`) |
 | `status_financeiro` | Status Financeiro | select | pago, pendente, parcial, atrasado, nao_aplicavel | webhook `pipeline-payment-webhook` → `runPaymentConfirmed` (seta `pago`); migration D1 setou `pago` em 9 leads vindos da extinta "Procedimento pago" |
 | `status_consulta` | Status da Consulta | select | agendada, realizada, faltou, cancelada | `auto:appointment-sync` (mapeia status do appointment) |
@@ -60,7 +59,6 @@ Encontrados em `pipeline-classify`, `pipeline-tasks`, `pipeline-fase4`:
 
 | Key escrita por código | Onde | Status |
 |---|---|---|
-| `consulta_agendada_em` | classifier `DATE_FIELD_KEYS` | **NÃO existe** em `lead_custom_fields` da clínica. Patch ainda é gravado no JSONB de `leads.custom_fields`, mas não aparece na UI de campos. Provável esquecimento — só `procedimento_agendado_em` foi cadastrado. |
 | `qualificacao` | trigger I6 + `customFieldsPatchForStage` | sem def — JSONB livre |
 | `motivo_desqualificacao` | trigger I6 (`enforce_motivo_desqualificacao`) | sem def — JSONB livre. Enum gerenciado por `automation.v42.motivo_desqualificacao_enum` em `app_settings` |
 | `judicializacao_em` | `runJudicializacao` | sem def |
@@ -88,6 +86,6 @@ Triggers de validação (`trg_validate_lead_custom_fields_enums`) podem estar de
 
 ## Custom fields que merecem atenção
 
-- **`consulta_agendada_em` sem def**: chave usada pelo classifier e pelo prompt mas inexistente como def → patches gravam silenciosamente em `leads.custom_fields` JSONB. UI provavelmente não mostra.
+- **`qualificacao`** e **`motivo_desqualificacao`**: usados ativamente pelos triggers de funil e app_settings, mas continuam como campos "invisíveis" (não registrados em `lead_custom_fields` da UI).
 - **Drift v3→v4.2**: chaves antigas `procedimento_interesse`, `profissional_preferencia` citadas em `docs/pipeline/CUSTOM_FIELDS_E_TAGS.md` foram **substituídas** mas a doc de planejamento ainda referencia.
 - **`status_financeiro`**: independente do stage (decisão D1). 4 leads hoje têm tag `pagamento_alegado` e provavelmente `status_financeiro != 'pago'`.

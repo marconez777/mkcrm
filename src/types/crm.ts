@@ -31,6 +31,7 @@ export type Pipeline = {
   is_system?: boolean;
   system_key?: string | null;
   whatsapp_instance_id: string | null;
+  clinic_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -67,6 +68,12 @@ export type Lead = {
   ai_review_queued_at?: string | null;
   manual_lock_until?: string | null;
   is_internal_contact?: boolean;
+  origin_channel?: string | null;
+  origin_label?: string | null;
+  origin_detail?: string | null;
+  origin_source_type?: string | null;
+  origin_locked_by_user?: boolean | null;
+  origin_updated_at?: string | null;
 };
 
 

@@ -96,13 +96,13 @@ export default function IntegrationsQuotaTable() {
       <div className="border-b px-4 py-3">
         <h2 className="text-sm font-semibold">Cota diária de email</h2>
         <p className="text-xs text-muted-foreground">
-          Limite de envios por dia para cada clínica. Contador zera diariamente.
+          Limite de envios por dia para cada empresa. Contador zera diariamente.
         </p>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Clínica</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead>Email marketing</TableHead>
             <TableHead className="text-right">Cota diária</TableHead>
             <TableHead className="text-right">Enviados hoje</TableHead>
@@ -113,7 +113,7 @@ export default function IntegrationsQuotaTable() {
           {clinics.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                Nenhuma clínica
+                Nenhuma empresa
               </TableCell>
             </TableRow>
           )}

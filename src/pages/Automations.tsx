@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Zap, Plus, Trash2, Play, Loader2 } from "lucide-react";
 import { useConfirm } from "@/hooks/useDialogs";
+import { useTranslation } from "react-i18next";
 
 type Automation = {
   id: string;
@@ -37,6 +38,7 @@ const ACTIONS = [
 ];
 
 export default function Automations() {
+  const { t } = useTranslation();
   const [list, setList] = useState<Automation[]>([]);
   const [selected, setSelected] = useState<Automation | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
@@ -45,6 +47,7 @@ export default function Automations() {
   const [runs, setRuns] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [dateFields, setDateFields] = useState<any[]>([]);
+  const [allFields, setAllFields] = useState<any[]>([]);
   const confirm = useConfirm();
 
   const load = async () => {
@@ -53,14 +56,16 @@ export default function Automations() {
       supabase.from("ai_agents").select("id, name").eq("enabled", true),
       supabase.from("pipeline_stages").select("id, name, pipelines!inner(is_default, kind)").eq("pipelines.is_default", true).eq("pipelines.kind", "sales").order("position"),
       supabase.from("message_templates").select("id, name").order("name"),
-      supabase.from("lead_custom_fields").select("field_key, label, field_type").in("field_type", ["date", "datetime"]).order("position"),
+      supabase.from("lead_custom_fields").select("field_key, label, field_type, options").order("position"),
     ]);
     setList(a as any);
     setAgents(ag ?? []);
     setStages(st ?? []);
     setTemplates(tp ?? []);
-    setDateFields(cf ?? []);
+    setAllFields(cf ?? []);
+    setDateFields((cf ?? []).filter((f: any) => f.field_type === "date" || f.field_type === "datetime"));
   };
+
   useEffect(() => { load(); }, []);
 
   const loadRuns = async (automationId: string) => {
@@ -161,32 +166,65 @@ export default function Automations() {
 
   return (
     <div className="flex h-full min-h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
-      <aside className="w-72 shrink-0 border-r bg-muted/20">
-        <div className="flex items-center justify-between p-4">
-          <h2 className="text-sm font-semibold">Automações</h2>
-          <div className="flex gap-1">
-            <Button size="sm" variant="ghost" onClick={runNow} disabled={running} title="Executar agora">
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+      <aside className="w-72 shrink-0 border-r bg-muted/10">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <h2 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            {t("automations.sidebarTitle")} <span className="ml-1 text-foreground/60">· {list.length}</span>
+          </h2>
+          <div className="flex gap-0.5">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={runNow} disabled={running} title={t("automations.runNow")}>
+              {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             </Button>
-            <Button size="sm" variant="ghost" onClick={create}><Plus className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={create} title={t("automations.newAutomation")}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
-        <div className="px-2">
-          {list.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setSelected(a)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
-                selected?.id === a.id ? "bg-accent" : "hover:bg-accent/50"
-              }`}
-            >
-              <Zap className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{a.name}</span>
-              {!a.enabled && <Badge variant="outline" className="text-[10px]">off</Badge>}
-            </button>
-          ))}
+        <div className="px-2 pb-3">
+          {list.map((a) => {
+            const isActive = selected?.id === a.id;
+            const initials = (a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("")) || "A";
+            let hash = 0;
+            for (let i = 0; i < a.name.length; i++) hash = (hash * 31 + a.name.charCodeAt(i)) | 0;
+            const hue = Math.abs(hash) % 360;
+            const avatarStyle = { backgroundColor: `hsl(${hue} 55% 28%)`, color: `hsl(${hue} 70% 88%)` };
+            const trigLabel = a.trigger_type === "no_reply_after" ? "Sem resposta"
+              : a.trigger_type === "stage_idle" ? "Estágio parado"
+              : a.trigger_type === "before_appointment" ? "Antes da consulta"
+              : a.trigger_type;
+            return (
+              <button
+                key={a.id}
+                onClick={() => setSelected(a)}
+                className={`relative mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                  isActive ? "bg-muted" : "hover:bg-muted/40"
+                }`}
+              >
+                {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-primary" />}
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={avatarStyle}>
+                  {initials}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
+                  <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                    {trigLabel}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          <button
+            onClick={create}
+            className="mt-1 flex w-full items-center gap-2.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+            <span>{t("automations.newAutomation")}</span>
+          </button>
           {list.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">Nenhuma automação. Crie a primeira.</p>
+            <p className="px-3 py-4 text-xs text-muted-foreground">{t("automations.empty")}</p>
           )}
         </div>
       </aside>
@@ -194,7 +232,7 @@ export default function Automations() {
       <main className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Selecione ou crie uma automação. Elas rodam a cada 5 minutos.
+            {t("automations.selectOrCreate")}
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
@@ -350,10 +388,74 @@ export default function Automations() {
                           />
                         </div>
                       </div>
+                      {(() => {
+                        const cond = selected.trigger_config?.condition ?? {};
+                        const fld = allFields.find((f) => f.field_key === cond.field_key);
+                        const op = cond.op ?? "eq";
+                        const setCond = (patch: any) => {
+                          const next = { ...cond, ...patch };
+                          if (!next.field_key) updTrigger({ condition: undefined });
+                          else updTrigger({ condition: next });
+                        };
+                        return (
+                          <div className="rounded-md border border-dashed p-3 space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Condição (opcional) — campo personalizado
+                            </Label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Use para diferenciar, por exemplo, teleconsulta vs. presencial. Crie uma automação para cada caso.
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                value={cond.field_key ?? ""}
+                                onChange={(e) => setCond({ field_key: e.target.value || undefined, value: undefined })}>
+                                <option value="">— sem condição —</option>
+                                {allFields.map((f) => (
+                                  <option key={f.field_key} value={f.field_key}>{f.label}</option>
+                                ))}
+                              </select>
+                              <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                value={op}
+                                disabled={!cond.field_key}
+                                onChange={(e) => setCond({ op: e.target.value })}>
+                                <option value="eq">igual a</option>
+                                <option value="neq">diferente de</option>
+                                <option value="empty">está vazio</option>
+                                <option value="not_empty">não está vazio</option>
+                              </select>
+                              {cond.field_key && (op === "eq" || op === "neq") && (
+                                fld?.field_type === "boolean" ? (
+                                  <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })}>
+                                    <option value="">— valor —</option>
+                                    <option value="sim">Sim</option>
+                                    <option value="nao">Não</option>
+                                  </select>
+                                ) : fld?.field_type === "select" && Array.isArray(fld?.options) ? (
+                                  <select className="h-9 rounded-md border bg-background px-2 text-sm"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })}>
+                                    <option value="">— valor —</option>
+                                    {fld.options.map((o: string) => (
+                                      <option key={o} value={o}>{o}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input className="h-9" placeholder="valor"
+                                    value={cond.value ?? ""}
+                                    onChange={(e) => setCond({ value: e.target.value })} />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
               )}
+
             </Card>
 
             <Card className="space-y-3 p-4">

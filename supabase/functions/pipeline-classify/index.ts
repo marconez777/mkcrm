@@ -5,6 +5,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { handleV1 } from "./index.v1.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
+import { isAiAllowedForPipeline } from "../_shared/ai-pipeline-filter.ts";
 import { loadLeadContext } from "./context.ts";
 import { runAgent } from "./agent-core.ts";
 import {
@@ -13,6 +14,7 @@ import {
   writeSkipTelemetry,
   updateWatermark,
 } from "./apply.ts";
+import { isTransientAgentError } from "../_shared/classifier-ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,20 +26,37 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BATCH_LIMIT = 50;
 
-async function getSettingString(
-  client: SupabaseClient,
-  key: string,
-): Promise<string | null> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return null;
-  return String(data.value).replace(/^"|"$/g, "");
+// Cache da allowlist (mesma TTL do pipeline-allowlist.ts).
+let allowedClinicsCache: { ids: string[]; ts: number } | null = null;
+const ALLOWLIST_TTL_MS = 30_000;
+async function loadAllowedClinicIds(client: SupabaseClient): Promise<string[]> {
+  const now = Date.now();
+  if (allowedClinicsCache && now - allowedClinicsCache.ts < ALLOWLIST_TTL_MS) {
+    return allowedClinicsCache.ids;
+  }
+  const { data } = await client
+    .from("pipeline_automation_allowlist")
+    .select("clinic_id")
+    .eq("enabled", true);
+  const ids = (data ?? []).map((r) => r.clinic_id as string);
+  allowedClinicsCache = { ids, ts: now };
+  return ids;
 }
 
+/** Backoff escalonado por falhas consecutivas (Fase B P8).
+ *  1ª falha = 2 min; 2ª = 5 min; ≥3ª = 30 min. */
+function backoffMsForFail(fails: number): number {
+  if (fails <= 1) return 2 * 60_000;
+  if (fails === 2) return 5 * 60_000;
+  return 30 * 60_000;
+}
+
+
+import { getSettingString, getToggle } from "../_shared/app-settings.ts";
+
+// Wrapper retrocompatível — helpers reais vivem em _shared/app-settings.ts.
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const v = await getSettingString(client, key);
-  if (!v) return false;
-  const s = v.toLowerCase();
-  return s === "true" || s === "1";
+  return getToggle(client, key);
 }
 
 async function clearQueueFlag(client: SupabaseClient, leadId: string) {
@@ -47,6 +66,7 @@ async function clearQueueFlag(client: SupabaseClient, leadId: string) {
       needs_ai_review: false,
       ai_review_reasons: [],
       ai_review_queued_at: null,
+      ai_review_fail_count: 0,
     })
     .eq("id", leadId);
 }
@@ -57,7 +77,17 @@ async function classifyOneV2(
   onlyAgent?: "summarizer" | "typifier" | "maestro",
   force?: boolean,
 ) {
+  // Advisory lock: evita que dois ticks paralelos processem o mesmo lead
+  // quando um deles ultrapassa o intervalo de 60s do cron.
+  const { data: locked, error: lockErr } = await client.rpc("try_classify_lock", { _lead_id: leadId });
+  if (lockErr) {
+    console.warn("try_classify_lock failed:", lockErr.message);
+  } else if (locked === false) {
+    return { skipped: "locked_by_other_worker" };
+  }
+
   const loaded = await loadLeadContext(client, leadId, { bypassWatermark: !!force });
+
   if (loaded.kind === "skip") {
     if (loaded.reason === "no_new_messages") {
       const { data: lead } = await client
@@ -83,6 +113,10 @@ async function classifyOneV2(
   }
   const ctx = loaded.ctx;
 
+  // Tenant-specific classifier dispatch was removed 2026-07-10 — future tenants
+  // are routed via the `pipeline_tenant_classifiers` registry (see .lovable/plan.md, Fases 1-6).
+
+
   if (!(await isClinicPipelineAllowed(client, ctx.lead.clinic_id))) {
     await writeSkipTelemetry(
       client,
@@ -98,6 +132,22 @@ async function classifyOneV2(
     return { skipped: "clinic_not_allowlisted" };
   }
 
+  if (!(await isAiAllowedForPipeline(client, ctx.lead.clinic_id, ctx.lead.pipeline_id))) {
+    await writeSkipTelemetry(
+      client,
+      { clinic_id: ctx.lead.clinic_id, lead_id: leadId },
+      "pipeline_not_in_ai_targets",
+    );
+    await updateWatermark(
+      client,
+      leadId,
+      ctx.lead.last_processed_message_id_classifier ?? "",
+    );
+    await clearQueueFlag(client, leadId);
+    return { skipped: "pipeline_not_in_ai_targets" };
+  }
+
+
   const historyToolEnabled = await isEnabled(
     client,
     "automation.classifier.history_tool_enabled",
@@ -109,6 +159,12 @@ async function classifyOneV2(
       { clinic_id: ctx.lead.clinic_id, lead_id: ctx.lead.id },
       `agent_error:${agentOut.error}`,
     );
+    // Transient (quota/rate-limit/timeout/rede): NÃO limpa a fila — joga para
+    // o catch do worker que aplica backoff (2/5/30 min) e mantém o lead em
+    // needs_ai_review para o próximo tick reprocessar (já no Gemini/Lovable).
+    if (isTransientAgentError(agentOut.error)) {
+      throw new Error(`agent_error_transient:${agentOut.error}`);
+    }
     await clearQueueFlag(client, ctx.lead.id);
     return { skipped: `agent_error:${agentOut.error}` };
   }
@@ -130,7 +186,29 @@ async function classifyOneV2(
     await clearQueueFlag(client, ctx.lead.id);
   }
 
-  return { version: 3, mode: agentOut.mode, classification: agentOut.classification, telemetry };
+  // P5-3: devolve `agents` (modelos + latência por subagente) para que o
+  // executor consiga persistir telemetria em `pipeline_run_items.result`.
+  return {
+    version: 3,
+    mode: agentOut.mode,
+    classification: agentOut.classification,
+    telemetry,
+    agents: agentOut.agents
+      ? {
+          provider: (agentOut.agents as any).provider ?? (agentOut.agents.summarizer_model.includes("gemini") ? "lovable" : "openai"),
+          models: {
+            summarizer: agentOut.agents.summarizer_model,
+            agendador: agentOut.agents.agendador_model,
+            typifier: agentOut.agents.typifier_model,
+            movimentador: agentOut.agents.movimentador_model,
+            maestro: agentOut.agents.maestro_model,
+          },
+          latency_ms: agentOut.agents.latency_ms,
+          ran: agentOut.agents.ran,
+          summary_chars: agentOut.agents.summary_chars,
+        }
+      : null,
+  };
 }
 
 
@@ -138,10 +216,16 @@ async function tickQueueV2(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.classifier.enabled"))) {
     return { skipped: "toggle_off" };
   }
+  // P9: filtra clínicas allowlistadas no SELECT em vez de descartar lead-a-lead
+  // dentro de classifyOneV2 — economiza slots de concorrência e tokens.
+  const allowedClinicIds = await loadAllowedClinicIds(client);
+  if (allowedClinicIds.length === 0) return { skipped: "no_allowlisted_clinics" };
+
   const { data: leads } = await client
     .from("leads")
-    .select("id")
+    .select("id, ai_review_fail_count")
     .eq("needs_ai_review", true)
+    .in("clinic_id", allowedClinicIds)
     .lte("ai_review_queued_at", new Date().toISOString())
     .contains("ai_review_reasons", ["pipeline-classifier"])
     .order("ai_review_queued_at", { ascending: true, nullsFirst: true })
@@ -156,6 +240,7 @@ async function tickQueueV2(client: SupabaseClient) {
     while (queue.length) {
       const l = queue.shift();
       if (!l) break;
+      const currentFails = (l.ai_review_fail_count as number | null) ?? 0;
       try {
         const r = await classifyOneV2(client, l.id as string);
         results.push({ lead_id: l.id, ok: true, ...r });
@@ -163,9 +248,14 @@ async function tickQueueV2(client: SupabaseClient) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("classify v2 failed", l.id, msg);
         results.push({ lead_id: l.id, ok: false, error: msg });
+        // P8: backoff escalonado por falhas consecutivas (2/5/30 min).
+        const nextFails = currentFails + 1;
         await client
           .from("leads")
-          .update({ ai_review_queued_at: new Date(Date.now() + 10 * 60_000).toISOString() })
+          .update({
+            ai_review_queued_at: new Date(Date.now() + backoffMsForFail(nextFails)).toISOString(),
+            ai_review_fail_count: nextFails,
+          })
           .eq("id", l.id);
       }
     }
@@ -174,6 +264,7 @@ async function tickQueueV2(client: SupabaseClient) {
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
   return { processed: results.length, results };
 }
+
 
 async function handleV2(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -185,7 +276,7 @@ async function handleV2(req: Request): Promise<Response> {
       result = await tickQueueV2(client);
     } else if (body.action === "lead") {
       if (!body.lead_id) throw new Error("lead_id required");
-      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro"].includes(body.only_agent)
+      const onlyAgent = body.only_agent && ["summarizer", "typifier", "maestro", "parallel", "agendador", "movimentador"].includes(body.only_agent)
         ? body.only_agent as "summarizer" | "typifier" | "maestro"
         : undefined;
       const force = body.force === true;

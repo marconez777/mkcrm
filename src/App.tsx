@@ -16,6 +16,8 @@ import AgentWizard from "./pages/ai/AgentWizard";
 import Settings from "./pages/Settings";
 import SettingsCustomFields from "./pages/SettingsCustomFields";
 import SettingsForms from "./pages/SettingsForms";
+import SettingsAppointmentTypes from "./pages/SettingsAppointmentTypes";
+import SettingsAppointmentKinds from "./pages/SettingsAppointmentKinds";
 
 import { lazy, Suspense } from "react";
 import Tasks from "./pages/Tasks";
@@ -35,7 +37,10 @@ const AdminSupport = lazy(() => import("./pages/admin/AdminPanels").then((m) => 
 const AdminAudit = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAudit })));
 const AdminBuilderManual = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminBuilderManual })));
 const AdminIntegrations = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminIntegrations })));
+const AdminCloudCosts = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminCloudCosts })));
+const AdminAiUsage = lazy(() => import("./pages/admin/AdminPanels").then((m) => ({ default: m.AdminAiUsage })));
 const AdminPipelineAutomations = lazy(() => import("./pages/admin/AdminPipelineAutomations"));
+const AdminPipelineHealth = lazy(() => import("./pages/admin/AdminPipelineHealth"));
 const PipelineRuns = lazy(() => import("./pages/PipelineRuns"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 
@@ -52,6 +57,10 @@ import Broadcasts from "./pages/Broadcasts";
 import TrackingDebug from "./pages/TrackingDebug";
 import Tracking from "./pages/Tracking";
 import MarketingSite from "./pages/site/MarketingSite";
+import Apn from "./pages/Apn";
+import Billing from "./pages/Billing";
+import Checkout from "./pages/Checkout";
+import CheckoutReturn from "./pages/CheckoutReturn";
 import RootGate from "./components/RootGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -102,6 +111,9 @@ const App = () => (
           <CommandPalette />
           <Routes>
             <Route path="/site" element={<MarketingSite />} />
+            <Route path="/apn" element={<Apn />} />
+            <Route path="/checkout/:priceId" element={<Checkout />} />
+            <Route path="/checkout/return" element={<CheckoutReturn />} />
             <Route path="/" element={<RootGate />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -115,6 +127,8 @@ const App = () => (
               <Route path="plans" element={<Suspense fallback={<AdminFallback />}><AdminPlans /></Suspense>} />
               <Route path="usage" element={<Suspense fallback={<AdminFallback />}><AdminUsage /></Suspense>} />
               <Route path="finance" element={<Suspense fallback={<AdminFallback />}><AdminFinance /></Suspense>} />
+              <Route path="cloud-costs" element={<Suspense fallback={<AdminFallback />}><AdminCloudCosts /></Suspense>} />
+              <Route path="ai-usage" element={<Suspense fallback={<AdminFallback />}><AdminAiUsage /></Suspense>} />
               <Route path="observability" element={<Suspense fallback={<AdminFallback />}><AdminObservability /></Suspense>} />
               <Route path="support" element={<Suspense fallback={<AdminFallback />}><AdminSupport /></Suspense>} />
               <Route path="integrations" element={<Suspense fallback={<AdminFallback />}><AdminIntegrations /></Suspense>} />
@@ -123,6 +137,7 @@ const App = () => (
               <Route path="branding" element={<Suspense fallback={<AdminFallback />}><AdminBranding /></Suspense>} />
               <Route path="integrations/eduzz" element={<Suspense fallback={<AdminFallback />}><AdminEduzz /></Suspense>} />
               <Route path="pipeline-automations" element={<Suspense fallback={<AdminFallback />}><AdminPipelineAutomations /></Suspense>} />
+              <Route path="pipeline-health" element={<Suspense fallback={<AdminFallback />}><AdminPipelineHealth /></Suspense>} />
             </Route>
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route
@@ -164,10 +179,13 @@ const App = () => (
                       <Route path="/metrics/engagement" element={<AiHub />} />
                       <Route path="/metrics" element={<AiHub />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/billing" element={<Billing />} />
                       <Route path="/settings/fields" element={<FeatureRoute feature="custom_fields"><SettingsCustomFields /></FeatureRoute>} />
                       <Route path="/settings/forms" element={<SettingsForms />} />
                       <Route path="/settings/integration" element={<SettingsForms />} />
                       <Route path="/settings/email" element={<SettingsEmailDomain />} />
+                      <Route path="/settings/appointment-types" element={<SettingsAppointmentTypes />} />
+                      <Route path="/settings/appointment-kinds" element={<SettingsAppointmentKinds />} />
                       <Route path="/email" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates" element={<FeatureRoute feature="email_marketing"><EmailHub /></FeatureRoute>} />
                       <Route path="/email/templates/:id" element={<FeatureRoute feature="email_marketing"><EmailTemplateEditor /></FeatureRoute>} />

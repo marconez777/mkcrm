@@ -1,0 +1,51 @@
+---
+title: "Visão Geral do Pipeline — Clínica ÓR"
+topic: kanban
+kind: map
+audience: agent
+updated: 2026-07-10
+summary: "Visão geral do pipeline da Clínica ÓR: arquitetura V7 determinística, estágios, regras temporais e gates."
+tenant: clinica-or
+clinic_id: cf038458-457d-4c1a-9ac4-c88c3c8353a1
+code_refs:
+  - supabase/functions/pipeline-classify/
+  - supabase/functions/pipeline-inactivity-tick/
+  - supabase/functions/pipeline-monthly-cycle-or/
+  - supabase/functions/report-finalizados-mensal-or/
+related_docs:
+  - docs/tenants/clinica-or/README.md
+  - docs/pipeline/HOWTO_NOVO_AGENTE_TENANT.md
+---
+
+# Visão Geral do Pipeline — Clínica ÓR
+
+## Introdução
+O Pipeline da **Clínica ÓR** (`clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`, pipeline `17c27f4d-8256-4ea7-b5b9-ed706494f686`) é um fluxo de atendimento kanban altamente automatizado. Ele integra um **Motor de Regras Determinísticas** (Rule Engine) com um **Classificador LLM V6** (linha de montagem de agentes de IA) para orquestrar o lead desde a entrada até o pós-atendimento.
+
+## Arquitetura de Decisão
+1. **Rule Engine (Determinístico):** Gerencia gatilhos de tempo, ações da secretária (Reator Humano), e agendamentos de sistema. É a **única** via de movimentação de cards.
+2. **Classificador LLM V7 (Apenas Leitura):** Uma esteira reduzida de 2 agentes que extraem contexto (Resumidor) e inferem tags passivas (Tipificador).
+
+## Fases do Pipeline (Stages)
+O funil possui estágios renomeados e ajustados para o ciclo de vida do paciente psiquiátrico/terapêutico:
+
+1. **Leads de entrada:** Triagem inicial.
+2. **Qualificação:** Momento de nutrição quente.
+3. **Sem Resposta:** Para onde o lead vai após 2 tentativas automáticas de contato sem sucesso.
+4. **Nutrição Inativa (Geladeira de Leads):** Congelamento após 7 dias no estágio "Sem Resposta".
+5. **Consulta agendada:** Paciente com horário marcado.
+6. **Consulta finalizada:** Paciente atendido.
+7. **Tratamento agendado:** Migrado do antigo "Procedimento agendado".
+8. **1ª Sessão Finalizada:** Quando o paciente inicia o ciclo de tratamento.
+9. **Paciente Antigo:** Estágio fixo onde o paciente permanece para novos agendamentos sem retroceder (possui um "Lock D3" contra IA).
+10. **Nutrição Antigos (>60d):** Geladeira para pacientes antigos sem contato há mais de 2 meses.
+
+## Regras Temporais de Fluxo (Ciclo de Vida)
+- **Qualificação → Sem Resposta:** Se não houver retorno do lead após X horas (ex: 48h) desde o último contato da clínica.
+- **Sem Resposta → Nutrição Inativa:** Após 7 dias estacionado.
+- **1ª Sessão Finalizada → Paciente Antigo:** Todo dia 1º do mês via cronjob (`pipeline-monthly-cycle-or`).
+- **Paciente Antigo → Nutrição Antigos (>60d):** Após 60 dias sem interações inbound.
+- **Qualquer Geladeira → Qualificação:** Ao receber uma mensagem inbound (webhook Evolution).
+
+## Segurança (Lock D3 e G10)
+A IA obedece a regras de bloqueio (Gates). O mais notável na Clínica ÓR é o **Guard D3 (Paciente Antigo)**: A IA e o Motor Automático nunca tiram o paciente deste estágio ao fazerem novos agendamentos; eles apenas anexam tags. Além disso, o **Gate G10** impede que a IA sobrescreva campos customizados (ex: datas de consulta) editados manualmente por humanos nos últimos 7 dias.

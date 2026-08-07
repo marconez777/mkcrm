@@ -15,8 +15,9 @@
 // NUNCA move card. NUNCA toca em appointments (G11).
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { getClinicOpenAI } from "../_shared/clinic-openai.ts";
+import { getClassifierAi, pickModel } from "../_shared/classifier-ai.ts";
 import { isClinicPipelineAllowed } from "../_shared/pipeline-allowlist.ts";
+import { getToggle, getSettingNumber } from "../_shared/app-settings.ts";
 import { generateText, Output, stepCountIs } from "npm:ai@^6";
 import { z } from "npm:zod@^3";
 
@@ -28,18 +29,37 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL = "gpt-5-mini";
+const MODEL_SPEC = { openai: "gpt-5-mini", lovable: "google/gemini-2.5-flash", google: "gemini-2.5-flash" };
 const DEFAULT_BATCH = 50;
 const MAX_MSGS = 30;
 
-const EXCLUDED_STAGES = new Set([
+// P16+P17: stages a EXCLUIR resolvidos por nome canônico via
+// stage_canonical_aliases (em vez de comparação literal de stage.name).
+// Antes: hardcoded "Nutrição inativa" (i minúsculo) e "Em tratamento"
+// (stage fantasma) — não batiam com nomes reais da clínica
+// (ex.: "Nutrição Inativa (Geladeira de Leads)").
+const EXCLUDED_CANONICALS = new Set<string>([
   "Paciente antigo",
-  "Nutrição inativa",
   "B2B / Stakeholders",
-  "B2B",
-  "Desqualificado",
-  "Lead não qualificado",
+  "Nutrição inativa",
+  "nutricao_inativa",
+  "geladeira_de_leads",
+  "Nutrição Antigos",
+  "nutricao_antigos",
 ]);
+
+async function loadExcludedStageIds(client: SupabaseClient): Promise<Set<string>> {
+  const { data } = await client
+    .from("stage_canonical_aliases")
+    .select("stage_id, canonical_name")
+    .in("canonical_name", Array.from(EXCLUDED_CANONICALS));
+  const out = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.stage_id) out.add(row.stage_id as string);
+  }
+  return out;
+}
+
 
 type Canon =
   | "Novo"
@@ -47,7 +67,6 @@ type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
   | "Sem resposta"
   | "Nutrição inativa"
   | "Paciente antigo"
@@ -59,7 +78,6 @@ const CANON_NAMES: Canon[] = [
   "Consulta agendada",
   "Tratamento agendado",
   "Consulta finalizada",
-  "Em tratamento",
   "Sem resposta",
   "Nutrição inativa",
   "Paciente antigo",
@@ -73,7 +91,6 @@ const AuditSchema = z.object({
     "Consulta agendada",
     "Tratamento agendado",
     "Consulta finalizada",
-    "Em tratamento",
     "Sem resposta",
     "Nutrição inativa",
     "Paciente antigo",
@@ -84,22 +101,14 @@ const AuditSchema = z.object({
   reasoning: z.string().max(400),
 });
 
+
+// F3: helpers unificados em _shared/app-settings.ts (wrappers retrocompatíveis).
 async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
+  return getToggle(client, key);
 }
 
 async function getBatchSize(client: SupabaseClient): Promise<number> {
-  const { data } = await client
-    .from("app_settings")
-    .select("value")
-    .eq("key", "automation.position_auditor.batch_size")
-    .maybeSingle();
-  if (!data) return DEFAULT_BATCH;
-  const n = parseInt(String(data.value).replace(/"/g, ""), 10);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 500) : DEFAULT_BATCH;
+  return getSettingNumber(client, "automation.position_auditor.batch_size", DEFAULT_BATCH, 500);
 }
 
 async function addTags(client: SupabaseClient, leadId: string, tags: string[]) {
@@ -126,10 +135,14 @@ ${CANON_NAMES.map((n) => `- ${n}`).join("\n")}
 
 Regras:
 - agrees_with_current=true se "${currentStageName}" continua sendo o stage adequado.
-- agrees_with_current=false só se o histórico evidencia transição clara (ex: consulta marcada, lead desistiu, virou paciente antigo).
+- agrees_with_current=false só se o histórico evidencia transição clara (ex: lead desistiu, virou paciente antigo).
 - confidence reflete sua certeza. Use ≤ 0.6 quando o histórico for ambíguo.
 - reasoning: 1 parágrafo curto em PT-BR justificando.
-- NUNCA sugira mover por mera intuição — exige evidência textual.`;
+- NUNCA sugira mover por mera intuição — exige evidência textual.
+
+🚨 TRANSIÇÃO AGENDAMENTO HUMANO (Junho/2026) — TRAVA ESTRITA:
+- Você NÃO pode sugerir stage_suggestion = "Consulta agendada", "Tratamento agendado", "Consulta finalizada" ou "1ª Sessão Finalizada". Esses estágios são 100% manuais (secretária).
+- NÃO questione a agenda da clínica nem presuma "deveria estar agendada". Se for o caso, mantenha agrees_with_current=true.`;
 }
 
 interface AuditCandidate {
@@ -145,6 +158,11 @@ async function selectCandidates(client: SupabaseClient, batchSize: number): Prom
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60_000).toISOString();
 
+  // P16+P17: resolve stages excluídos por canonical (geladeira, paciente
+  // antigo, etc.) por clínica — evita auditar leads que estão corretamente
+  // parados onde deveriam estar.
+  const excludedStageIds = await loadExcludedStageIds(client);
+
   // 1) Leads candidatos por critério temporal + stage não excluído + não desqualificado.
   const { data: leads, error } = await client
     .from("leads")
@@ -159,7 +177,8 @@ async function selectCandidates(client: SupabaseClient, batchSize: number): Prom
   for (const l of leads ?? []) {
     const stageName = (l as Record<string, unknown>).pipeline_stages as { name?: string } | null;
     const name = stageName?.name ?? "";
-    if (EXCLUDED_STAGES.has(name)) continue;
+    if (excludedStageIds.has(l.stage_id as string)) continue;
+
     const cf = (l as { custom_fields?: Record<string, unknown> }).custom_fields ?? {};
     if (cf?.qualificacao === "desqualificado") continue;
 
@@ -210,11 +229,11 @@ async function auditOne(client: SupabaseClient, c: AuditCandidate) {
   const ordered = (msgs ?? []).reverse();
   if (ordered.length === 0) return { skipped: "no_messages" };
 
-  const ai = await getClinicOpenAI(client, c.clinic_id);
-  if (!ai) return { skipped: "no_clinic_openai_key" };
+  const ai = await getClassifierAi(client, c.clinic_id);
+  if (!ai) return { skipped: "no_ai_provider" };
 
   const { output } = await generateText({
-    model: ai.model(MODEL),
+    model: ai.model(pickModel(ai.provider, MODEL_SPEC)),
     system: buildSystemPrompt(c.stage_name),
     prompt:
       `Lead id=${c.id}\n` +

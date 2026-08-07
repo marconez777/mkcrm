@@ -460,6 +460,7 @@ export type Database = {
       ai_agents: {
         Row: {
           api_key: string | null
+          api_key_set: boolean | null
           base_url: string | null
           builder_verified_at: string | null
           clinic_id: string
@@ -468,6 +469,7 @@ export type Database = {
           description: string | null
           draft_mode: boolean
           embedding_api_key: string | null
+          embedding_api_key_set: boolean | null
           embedding_model: string | null
           enabled: boolean
           id: string
@@ -482,6 +484,7 @@ export type Database = {
           provider: string
           rag_top_k: number
           reranker_api_key: string | null
+          reranker_api_key_set: boolean | null
           reranker_provider: string | null
           role: string | null
           silent: boolean
@@ -497,6 +500,7 @@ export type Database = {
         }
         Insert: {
           api_key?: string | null
+          api_key_set?: boolean | null
           base_url?: string | null
           builder_verified_at?: string | null
           clinic_id?: string
@@ -505,6 +509,7 @@ export type Database = {
           description?: string | null
           draft_mode?: boolean
           embedding_api_key?: string | null
+          embedding_api_key_set?: boolean | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
@@ -519,6 +524,7 @@ export type Database = {
           provider?: string
           rag_top_k?: number
           reranker_api_key?: string | null
+          reranker_api_key_set?: boolean | null
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
@@ -534,6 +540,7 @@ export type Database = {
         }
         Update: {
           api_key?: string | null
+          api_key_set?: boolean | null
           base_url?: string | null
           builder_verified_at?: string | null
           clinic_id?: string
@@ -542,6 +549,7 @@ export type Database = {
           description?: string | null
           draft_mode?: boolean
           embedding_api_key?: string | null
+          embedding_api_key_set?: boolean | null
           embedding_model?: string | null
           enabled?: boolean
           id?: string
@@ -556,6 +564,7 @@ export type Database = {
           provider?: string
           rag_top_k?: number
           reranker_api_key?: string | null
+          reranker_api_key_set?: boolean | null
           reranker_provider?: string | null
           role?: string | null
           silent?: boolean
@@ -1100,11 +1109,14 @@ export type Database = {
       ai_usage: {
         Row: {
           agent_id: string | null
+          agent_step: string | null
           automation_id: string | null
           clinic_id: string
           cost_usd: number | null
           created_at: string
           error: string | null
+          error_category: string | null
+          error_details: Json
           id: string
           input_tokens: number | null
           latency_ms: number | null
@@ -1112,7 +1124,9 @@ export type Database = {
           model: string
           operation: string
           output_tokens: number | null
+          provider: string | null
           replied: boolean
+          source: string
           status: string
           thread_id: string | null
           tools_called: number
@@ -1120,11 +1134,14 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          agent_step?: string | null
           automation_id?: string | null
           clinic_id?: string
           cost_usd?: number | null
           created_at?: string
           error?: string | null
+          error_category?: string | null
+          error_details?: Json
           id?: string
           input_tokens?: number | null
           latency_ms?: number | null
@@ -1132,7 +1149,9 @@ export type Database = {
           model: string
           operation?: string
           output_tokens?: number | null
+          provider?: string | null
           replied?: boolean
+          source?: string
           status?: string
           thread_id?: string | null
           tools_called?: number
@@ -1140,11 +1159,14 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          agent_step?: string | null
           automation_id?: string | null
           clinic_id?: string
           cost_usd?: number | null
           created_at?: string
           error?: string | null
+          error_category?: string | null
+          error_details?: Json
           id?: string
           input_tokens?: number | null
           latency_ms?: number | null
@@ -1152,7 +1174,9 @@ export type Database = {
           model?: string
           operation?: string
           output_tokens?: number | null
+          provider?: string | null
           replied?: boolean
+          source?: string
           status?: string
           thread_id?: string | null
           tools_called?: number
@@ -1189,16 +1213,68 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_service_types: {
+        Row: {
+          active: boolean
+          clinic_id: string
+          color_hex: string
+          created_at: string
+          default_duration_min: number
+          id: string
+          kind: string
+          label: string
+          position: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          clinic_id: string
+          color_hex?: string
+          created_at?: string
+          default_duration_min?: number
+          id?: string
+          kind: string
+          label: string
+          position?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          clinic_id?: string
+          color_hex?: string
+          created_at?: string
+          default_duration_min?: number
+          id?: string
+          kind?: string
+          label?: string
+          position?: number
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_service_types_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           clinic_id: string
           created_at: string
           created_by: string | null
+          duration_min: number
           id: string
           kind: string
           lead_id: string
           notes: string | null
           scheduled_at: string
+          service_type_id: string | null
           status: string
           updated_at: string
         }
@@ -1206,11 +1282,13 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string | null
+          duration_min?: number
           id?: string
           kind: string
           lead_id: string
           notes?: string | null
           scheduled_at: string
+          service_type_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1218,11 +1296,13 @@ export type Database = {
           clinic_id?: string
           created_at?: string
           created_by?: string | null
+          duration_min?: number
           id?: string
           kind?: string
           lead_id?: string
           notes?: string | null
           scheduled_at?: string
+          service_type_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -1239,6 +1319,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_type_id_fkey"
+            columns: ["service_type_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_service_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1513,6 +1600,7 @@ export type Database = {
           group_id: string
           id: string
           position: number
+          preview_mode: string
         }
         Insert: {
           content: string
@@ -1520,6 +1608,7 @@ export type Database = {
           group_id: string
           id?: string
           position: number
+          preview_mode?: string
         }
         Update: {
           content?: string
@@ -1527,6 +1616,7 @@ export type Database = {
           group_id?: string
           id?: string
           position?: number
+          preview_mode?: string
         }
         Relationships: [
           {
@@ -1732,6 +1822,44 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_appointment_types: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          kind_name: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind_name: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind_name?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_appointment_types_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_email_integrations: {
         Row: {
           clinic_id: string
@@ -1849,10 +1977,57 @@ export type Database = {
           },
         ]
       }
-      clinic_secrets: {
+      clinic_monthly_reports: {
         Row: {
           clinic_id: string
           created_at: string
+          email_sent_at: string | null
+          id: string
+          payload: Json
+          report_kind: string
+          report_month: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          email_sent_at?: string | null
+          id?: string
+          payload?: Json
+          report_kind?: string
+          report_month: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          email_sent_at?: string | null
+          id?: string
+          payload?: Json
+          report_kind?: string
+          report_month?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_monthly_reports_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinic_secrets: {
+        Row: {
+          active_ai_provider: string
+          clinic_id: string
+          created_at: string
+          gemini_api_key: string | null
+          gemini_key_last4: string | null
+          gemini_last_checked_at: string | null
+          gemini_last_error: string | null
+          gemini_status: string
           openai_api_key: string | null
           openai_key_last4: string | null
           openai_last_checked_at: string | null
@@ -1861,8 +2036,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_ai_provider?: string
           clinic_id: string
           created_at?: string
+          gemini_api_key?: string | null
+          gemini_key_last4?: string | null
+          gemini_last_checked_at?: string | null
+          gemini_last_error?: string | null
+          gemini_status?: string
           openai_api_key?: string | null
           openai_key_last4?: string | null
           openai_last_checked_at?: string | null
@@ -1871,8 +2052,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_ai_provider?: string
           clinic_id?: string
           created_at?: string
+          gemini_api_key?: string | null
+          gemini_key_last4?: string | null
+          gemini_last_checked_at?: string | null
+          gemini_last_error?: string | null
+          gemini_status?: string
           openai_api_key?: string | null
           openai_key_last4?: string | null
           openai_last_checked_at?: string | null
@@ -1972,37 +2159,52 @@ export type Database = {
         Row: {
           classifier_config: Json
           created_at: string
+          currency: string
           id: string
+          locale: string
           name: string
+          phone_country: string
           plan: string
           plan_id: string | null
+          region: string
           settings: Json
           slug: string
           status: string
+          timezone: string
           updated_at: string
         }
         Insert: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Update: {
           classifier_config?: Json
           created_at?: string
+          currency?: string
           id?: string
+          locale?: string
           name?: string
+          phone_country?: string
           plan?: string
           plan_id?: string | null
+          region?: string
           settings?: Json
           slug?: string
           status?: string
+          timezone?: string
           updated_at?: string
         }
         Relationships: [
@@ -3298,9 +3500,11 @@ export type Database = {
           name: string
           previous_token: string | null
           previous_token_expires_at: string | null
+          previous_token_set: boolean | null
           slug: string
           status: string
           token: string
+          token_set: boolean | null
           total_submissions: number
           updated_at: string
         }
@@ -3316,9 +3520,11 @@ export type Database = {
           name: string
           previous_token?: string | null
           previous_token_expires_at?: string | null
+          previous_token_set?: boolean | null
           slug: string
           status?: string
           token?: string
+          token_set?: boolean | null
           total_submissions?: number
           updated_at?: string
         }
@@ -3334,9 +3540,11 @@ export type Database = {
           name?: string
           previous_token?: string | null
           previous_token_expires_at?: string | null
+          previous_token_set?: boolean | null
           slug?: string
           status?: string
           token?: string
+          token_set?: boolean | null
           total_submissions?: number
           updated_at?: string
         }
@@ -3891,6 +4099,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          ai_review_fail_count: number
           ai_review_queued_at: string | null
           ai_review_reasons: string[]
           ai_summary: string | null
@@ -3903,6 +4112,7 @@ export type Database = {
           created_at: string
           custom_fields: Json
           custom_fields_last_human_edit: Json
+          custom_fields_legacy: Json
           deal_value: number | null
           email: string | null
           fbclid: string | null
@@ -3913,9 +4123,11 @@ export type Database = {
           landing_page: string | null
           last_classified_at: string | null
           last_human_activity_at: string | null
+          last_inbound_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
           last_processed_message_id_classifier: string | null
+          last_processed_message_id_classifier_dry: string | null
           last_processed_message_id_summarizer: string | null
           last_site_activity_at: string | null
           manual_lock_until: string | null
@@ -3923,6 +4135,12 @@ export type Database = {
           name: string | null
           needs_ai_review: boolean
           notes: string | null
+          origin_channel: string | null
+          origin_detail: string | null
+          origin_label: string | null
+          origin_locked_by_user: boolean
+          origin_source_type: string | null
+          origin_updated_at: string | null
           phone: string
           pinned_at: string | null
           pipeline_id: string | null
@@ -3938,6 +4156,7 @@ export type Database = {
           whatsapp_instance_id: string | null
         }
         Insert: {
+          ai_review_fail_count?: number
           ai_review_queued_at?: string | null
           ai_review_reasons?: string[]
           ai_summary?: string | null
@@ -3950,6 +4169,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json
           custom_fields_last_human_edit?: Json
+          custom_fields_legacy?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
@@ -3960,9 +4180,11 @@ export type Database = {
           landing_page?: string | null
           last_classified_at?: string | null
           last_human_activity_at?: string | null
+          last_inbound_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
+          last_processed_message_id_classifier_dry?: string | null
           last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
@@ -3970,6 +4192,12 @@ export type Database = {
           name?: string | null
           needs_ai_review?: boolean
           notes?: string | null
+          origin_channel?: string | null
+          origin_detail?: string | null
+          origin_label?: string | null
+          origin_locked_by_user?: boolean
+          origin_source_type?: string | null
+          origin_updated_at?: string | null
           phone: string
           pinned_at?: string | null
           pipeline_id?: string | null
@@ -3985,6 +4213,7 @@ export type Database = {
           whatsapp_instance_id?: string | null
         }
         Update: {
+          ai_review_fail_count?: number
           ai_review_queued_at?: string | null
           ai_review_reasons?: string[]
           ai_summary?: string | null
@@ -3997,6 +4226,7 @@ export type Database = {
           created_at?: string
           custom_fields?: Json
           custom_fields_last_human_edit?: Json
+          custom_fields_legacy?: Json
           deal_value?: number | null
           email?: string | null
           fbclid?: string | null
@@ -4007,9 +4237,11 @@ export type Database = {
           landing_page?: string | null
           last_classified_at?: string | null
           last_human_activity_at?: string | null
+          last_inbound_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
           last_processed_message_id_classifier?: string | null
+          last_processed_message_id_classifier_dry?: string | null
           last_processed_message_id_summarizer?: string | null
           last_site_activity_at?: string | null
           manual_lock_until?: string | null
@@ -4017,6 +4249,12 @@ export type Database = {
           name?: string | null
           needs_ai_review?: boolean
           notes?: string | null
+          origin_channel?: string | null
+          origin_detail?: string | null
+          origin_label?: string | null
+          origin_locked_by_user?: boolean
+          origin_source_type?: string | null
+          origin_updated_at?: string | null
           phone?: string
           pinned_at?: string | null
           pipeline_id?: string | null
@@ -4536,8 +4774,34 @@ export type Database = {
           },
         ]
       }
+      pipeline_provider_health: {
+        Row: {
+          blocked_until: string
+          clinic_id: string
+          last_error: string | null
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          blocked_until: string
+          clinic_id: string
+          last_error?: string | null
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          blocked_until?: string
+          clinic_id?: string
+          last_error?: string | null
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pipeline_run_items: {
         Row: {
+          auto_retry_count: number
+          auto_retry_pending: boolean
           clinic_id: string
           comment: string | null
           created_at: string
@@ -4556,6 +4820,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_retry_count?: number
+          auto_retry_pending?: boolean
           clinic_id: string
           comment?: string | null
           created_at?: string
@@ -4574,6 +4840,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_retry_count?: number
+          auto_retry_pending?: boolean
           clinic_id?: string
           comment?: string | null
           created_at?: string
@@ -4676,6 +4944,7 @@ export type Database = {
       }
       pipeline_stages: {
         Row: {
+          auto_tag_on_enter: string[]
           clinic_id: string
           color: string
           created_at: string
@@ -4687,6 +4956,7 @@ export type Database = {
           position: number
         }
         Insert: {
+          auto_tag_on_enter?: string[]
           clinic_id?: string
           color?: string
           created_at?: string
@@ -4698,6 +4968,7 @@ export type Database = {
           position: number
         }
         Update: {
+          auto_tag_on_enter?: string[]
           clinic_id?: string
           color?: string
           created_at?: string
@@ -4721,6 +4992,153 @@ export type Database = {
             columns: ["pipeline_id"]
             isOneToOne: false
             referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_tenant_classifiers: {
+        Row: {
+          active_agents: Json
+          allowed_intents: Json
+          classifier_version: string
+          clinic_id: string
+          created_at: string
+          enabled: boolean
+          locked_stages: Json
+          override_prompts: Json
+          updated_at: string
+        }
+        Insert: {
+          active_agents?: Json
+          allowed_intents?: Json
+          classifier_version?: string
+          clinic_id: string
+          created_at?: string
+          enabled?: boolean
+          locked_stages?: Json
+          override_prompts?: Json
+          updated_at?: string
+        }
+        Update: {
+          active_agents?: Json
+          allowed_intents?: Json
+          classifier_version?: string
+          clinic_id?: string
+          created_at?: string
+          enabled?: boolean
+          locked_stages?: Json
+          override_prompts?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_tenant_classifiers_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_tick_stats: {
+        Row: {
+          action: string
+          avg_ms_per_lead: number
+          candidates: number
+          duration_ms: number
+          error_message: string | null
+          errored: number
+          failure_reasons: Json
+          finished_at: string
+          id: string
+          moved: number
+          not_moved: number
+          ok: boolean
+          p95_ms_per_lead: number
+          phase: string | null
+          raw: Json | null
+          skipped_no_dest: number
+          started_at: string
+        }
+        Insert: {
+          action: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Update: {
+          action?: string
+          avg_ms_per_lead?: number
+          candidates?: number
+          duration_ms?: number
+          error_message?: string | null
+          errored?: number
+          failure_reasons?: Json
+          finished_at?: string
+          id?: string
+          moved?: number
+          not_moved?: number
+          ok?: boolean
+          p95_ms_per_lead?: number
+          phase?: string | null
+          raw?: Json | null
+          skipped_no_dest?: number
+          started_at?: string
+        }
+        Relationships: []
+      }
+      pipeline_whatsapp_instances: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          pipeline_id: string
+          whatsapp_instance_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          pipeline_id: string
+          whatsapp_instance_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          pipeline_id?: string
+          whatsapp_instance_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_whatsapp_instances_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -5175,54 +5593,6 @@ export type Database = {
           },
         ]
       }
-      settings: {
-        Row: {
-          connection_state: string | null
-          created_at: string
-          evolution_api_key: string | null
-          evolution_instance: string | null
-          evolution_url: string | null
-          id: number
-          last_health_check: string | null
-          last_poll_at: string | null
-          updated_at: string
-          webhook_last_error: string | null
-          webhook_last_set_at: string | null
-          webhook_ok: boolean | null
-          webhook_token: string
-        }
-        Insert: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Update: {
-          connection_state?: string | null
-          created_at?: string
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
-          id?: number
-          last_health_check?: string | null
-          last_poll_at?: string | null
-          updated_at?: string
-          webhook_last_error?: string | null
-          webhook_last_set_at?: string | null
-          webhook_ok?: boolean | null
-          webhook_token?: string
-        }
-        Relationships: []
-      }
       stage_ai_defaults: {
         Row: {
           agent_id: string | null
@@ -5352,9 +5722,58 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          environment: string
+          id: string
+          price_id: string
+          product_id: string
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          price_id: string
+          product_id: string
+          status?: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          price_id?: string
+          product_id?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       support_agent_config: {
         Row: {
           api_key: string | null
+          api_key_set: boolean | null
           created_at: string
           embedding_model: string
           enabled: boolean
@@ -5372,6 +5791,7 @@ export type Database = {
         }
         Insert: {
           api_key?: string | null
+          api_key_set?: boolean | null
           created_at?: string
           embedding_model?: string
           enabled?: boolean
@@ -5389,6 +5809,7 @@ export type Database = {
         }
         Update: {
           api_key?: string | null
+          api_key_set?: boolean | null
           created_at?: string
           embedding_model?: string
           enabled?: boolean
@@ -5645,6 +6066,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tag_usage_weekly: {
+        Row: {
+          applied_count: number
+          created_at: string
+          emit_count: number
+          id: string
+          tag: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          applied_count?: number
+          created_at?: string
+          emit_count?: number
+          id?: string
+          tag: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          applied_count?: number
+          created_at?: string
+          emit_count?: number
+          id?: string
+          tag?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: []
       }
       task_assignees: {
         Row: {
@@ -6540,6 +6991,7 @@ export type Database = {
           connection_state: string | null
           created_at: string
           evolution_api_key: string
+          evolution_api_key_set: boolean | null
           evolution_instance: string
           evolution_url: string
           id: string
@@ -6553,6 +7005,7 @@ export type Database = {
           last_poll_at: string | null
           last_reconnect_at: string | null
           name: string
+          phone_number: string | null
           session_stale_since: string | null
           updated_at: string
           watcher_agent_id: string | null
@@ -6561,6 +7014,7 @@ export type Database = {
           webhook_last_set_at: string | null
           webhook_ok: boolean | null
           webhook_token: string
+          webhook_token_set: boolean | null
         }
         Insert: {
           auto_logout_count?: number
@@ -6569,6 +7023,7 @@ export type Database = {
           connection_state?: string | null
           created_at?: string
           evolution_api_key: string
+          evolution_api_key_set?: boolean | null
           evolution_instance: string
           evolution_url: string
           id?: string
@@ -6582,6 +7037,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name: string
+          phone_number?: string | null
           session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
@@ -6590,6 +7046,7 @@ export type Database = {
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
           webhook_token?: string
+          webhook_token_set?: boolean | null
         }
         Update: {
           auto_logout_count?: number
@@ -6598,6 +7055,7 @@ export type Database = {
           connection_state?: string | null
           created_at?: string
           evolution_api_key?: string
+          evolution_api_key_set?: boolean | null
           evolution_instance?: string
           evolution_url?: string
           id?: string
@@ -6611,6 +7069,7 @@ export type Database = {
           last_poll_at?: string | null
           last_reconnect_at?: string | null
           name?: string
+          phone_number?: string | null
           session_stale_since?: string | null
           updated_at?: string
           watcher_agent_id?: string | null
@@ -6619,6 +7078,7 @@ export type Database = {
           webhook_last_set_at?: string | null
           webhook_ok?: boolean | null
           webhook_token?: string
+          webhook_token_set?: boolean | null
         }
         Relationships: [
           {
@@ -6781,6 +7241,47 @@ export type Database = {
         }
         Relationships: []
       }
+      v_ai_cost_daily: {
+        Row: {
+          calls: number | null
+          cost_usd: number | null
+          day: string | null
+          operation: string | null
+          tokens: number | null
+        }
+        Relationships: []
+      }
+      v_classify_health_daily: {
+        Row: {
+          calls: number | null
+          cost_usd: number | null
+          day: string | null
+          errors: number | null
+          latency_avg_ms: number | null
+          latency_p50_ms: number | null
+          latency_p95_ms: number | null
+          operation: string | null
+        }
+        Relationships: []
+      }
+      v_maestro_outcomes_daily: {
+        Row: {
+          day: string | null
+          n: number | null
+          outcome: string | null
+        }
+        Relationships: []
+      }
+      v_pipeline_auto_retry_daily: {
+        Row: {
+          day: string | null
+          exhausted: number | null
+          recovery_pct: number | null
+          retried_ok: number | null
+          retried_total: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _email_segment_filters_to_where: {
@@ -6830,16 +7331,16 @@ export type Database = {
       admin_get_ai_agent: {
         Args: { _id: string }
         Returns: {
-          api_key: string | null
-          base_url: string | null
-          builder_verified_at: string | null
+          api_key_set: boolean
+          base_url: string
+          builder_verified_at: string
           clinic_id: string
           created_at: string
           debounce_seconds: number
-          description: string | null
+          description: string
           draft_mode: boolean
-          embedding_api_key: string | null
-          embedding_model: string | null
+          embedding_api_key_set: boolean
+          embedding_model: string
           enabled: boolean
           id: string
           is_system: boolean
@@ -6847,17 +7348,17 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
-          niche: string | null
-          niche_other: string | null
+          niche: string
+          niche_other: string
           planning_mode: boolean
           provider: string
           rag_top_k: number
-          reranker_api_key: string | null
-          reranker_provider: string | null
-          role: string | null
+          reranker_api_key_set: boolean
+          reranker_provider: string
+          role: string
           silent: boolean
           stages_enabled: boolean
-          system_key: string | null
+          system_key: string
           system_prompt: string
           temperature: number
           tools: Json
@@ -6866,12 +7367,6 @@ export type Database = {
           use_hyde: boolean
           use_memory: boolean
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "ai_agents"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       admin_get_last_seen: {
         Args: { _user_ids: string[] }
@@ -6902,16 +7397,16 @@ export type Database = {
       admin_list_ai_agents: {
         Args: never
         Returns: {
-          api_key: string | null
-          base_url: string | null
-          builder_verified_at: string | null
+          api_key_set: boolean
+          base_url: string
+          builder_verified_at: string
           clinic_id: string
           created_at: string
           debounce_seconds: number
-          description: string | null
+          description: string
           draft_mode: boolean
-          embedding_api_key: string | null
-          embedding_model: string | null
+          embedding_api_key_set: boolean
+          embedding_model: string
           enabled: boolean
           id: string
           is_system: boolean
@@ -6919,17 +7414,17 @@ export type Database = {
           max_tool_calls: number
           model: string
           name: string
-          niche: string | null
-          niche_other: string | null
+          niche: string
+          niche_other: string
           planning_mode: boolean
           provider: string
           rag_top_k: number
-          reranker_api_key: string | null
-          reranker_provider: string | null
-          role: string | null
+          reranker_api_key_set: boolean
+          reranker_provider: string
+          role: string
           silent: boolean
           stages_enabled: boolean
-          system_key: string | null
+          system_key: string
           system_prompt: string
           temperature: number
           tools: Json
@@ -6938,12 +7433,6 @@ export type Database = {
           use_hyde: boolean
           use_memory: boolean
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "ai_agents"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       admin_overdue_list: {
         Args: never
@@ -6958,6 +7447,16 @@ export type Database = {
         }[]
       }
       admin_overview_metrics: { Args: never; Returns: Json }
+      admin_pipeline_errors_paginated: {
+        Args: {
+          p_clinic_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_since_hours?: number
+          p_step?: string
+        }
+        Returns: Json
+      }
       admin_plan_distribution: {
         Args: never
         Returns: {
@@ -7049,6 +7548,8 @@ export type Database = {
         }[]
       }
       cleanup_agent_caches: { Args: never; Returns: undefined }
+      cleanup_g10_expired: { Args: never; Returns: number }
+      cleanup_stale_ai_agent_drafts: { Args: never; Returns: number }
       cleanup_webhook_dedup: { Args: never; Returns: undefined }
       cleanup_webhook_events: { Args: never; Returns: undefined }
       clear_login_lockout: { Args: { _email: string }; Returns: undefined }
@@ -7073,6 +7574,13 @@ export type Database = {
       current_clinic_role: {
         Args: never
         Returns: Database["public"]["Enums"]["clinic_role"]
+      }
+      dispatch_pipeline_classifiers: {
+        Args: never
+        Returns: {
+          request_id: number
+          slug: string
+        }[]
       }
       engagement_broadcasts_summary: {
         Args: { _from: string; _to: string }
@@ -7152,7 +7660,7 @@ export type Database = {
       get_builder_agent_for_clinic: {
         Args: { _clinic_id: string }
         Returns: {
-          api_key: string
+          api_key_set: boolean
           base_url: string
           builder_verified_at: string
           id: string
@@ -7160,17 +7668,15 @@ export type Database = {
           provider: string
         }[]
       }
-      get_clinic_openai_status: {
+      get_clinic_ai_secrets: {
         Args: { _clinic_id: string }
         Returns: {
-          clinic_id: string
-          openai_key_last4: string
-          openai_last_checked_at: string
-          openai_last_error: string
-          openai_status: string
-          updated_at: string
+          active_ai_provider: string
+          gemini_api_key: string
+          openai_api_key: string
         }[]
       }
+      get_clinic_openai_status: { Args: { _clinic_id: string }; Returns: Json }
       get_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -7183,6 +7689,10 @@ export type Database = {
         }[]
       }
       get_openai_key: { Args: { _clinic_id: string }; Returns: string }
+      has_active_subscription: {
+        Args: { check_env?: string; user_uuid: string }
+        Returns: boolean
+      }
       has_clinic_access: { Args: { _clinic_id: string }; Returns: boolean }
       increment_unread: {
         Args: { p_lead_id: string; p_preview: string; p_ts: string }
@@ -7273,6 +7783,10 @@ export type Database = {
           similarity: number
           title: string
         }[]
+      }
+      merge_lead_custom_fields: {
+        Args: { p_lead_id: string; p_patch?: Json; p_remove_keys?: string[] }
+        Returns: Json
       }
       notify_pipeline_deterministic: {
         Args: { _action: string; _payload?: Json }
@@ -7384,6 +7898,7 @@ export type Database = {
       revert_builder_manual: { Args: { _version: number }; Returns: number }
       seed_system_agents: { Args: { _clinic_id: string }; Returns: undefined }
       support_chat_spent_this_month_usd: { Args: never; Returns: number }
+      try_classify_lock: { Args: { _lead_id: string }; Returns: boolean }
       verify_unsubscribe_token: {
         Args: { _clinic_id: string; _email: string; _token: string }
         Returns: boolean

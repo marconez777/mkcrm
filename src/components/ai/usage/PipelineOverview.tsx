@@ -13,6 +13,7 @@ import {
   Clock,
   Coins,
   ExternalLink,
+  GitBranch,
   HelpCircle,
   Inbox,
   Pause,
@@ -38,6 +39,11 @@ type UsageRow = {
   latency_ms: number | null;
   cost_usd: number | null;
   error: string | null;
+  source: string | null;
+  provider: string | null;
+  agent_step: string | null;
+  error_category: string | null;
+  error_details: Record<string, any> | null;
   created_at: string;
 };
 
@@ -56,28 +62,44 @@ type QueueStats = {
   done_last_hour: number;
 };
 
-const AGENT_META: Record<string, { label: string; emoji: string; explain: string; accent: string }> = {
+const AGENT_META: Record<string, { label: string; emoji: string; explain: string; accent: string; parallel?: boolean }> = {
   "classifier:summarizer": {
     label: "Resumidor",
     emoji: "📝",
     explain: "Lê o histórico do paciente e escreve um resumo factual do que aconteceu.",
     accent: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
   },
+  "classifier:agendador": {
+    label: "Agendador",
+    emoji: "📅",
+    explain: "Avalia intenção de marcar/desmarcar consulta — roda em paralelo.",
+    accent: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+    parallel: true,
+  },
   "classifier:typifier": {
     label: "Tipificador",
     emoji: "🏷️",
-    explain: "Decide tags e preenche campos personalizados baseando-se no resumo.",
+    explain: "Decide tags e preenche campos personalizados — roda em paralelo.",
     accent: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+    parallel: true,
+  },
+  "classifier:movimentador": {
+    label: "Movimentador",
+    emoji: "🎯",
+    explain: "Avalia o estágio do funil (stage) do lead — roda em paralelo.",
+    accent: "bg-pink-500/10 text-pink-700 dark:text-pink-300 border-pink-500/20",
+    parallel: true,
   },
   "classifier:maestro": {
     label: "Maestro",
-    emoji: "🎯",
-    explain: "Decide a etapa do funil e a intenção principal da conversa.",
+    emoji: "🎼",
+    explain: "Valida tudo e dá a decisão final: intent, stage e confiança.",
     accent: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
   },
 };
 
 const PIPELINE_OPS = Object.keys(AGENT_META);
+const PARALLEL_OPS = PIPELINE_OPS.filter((op) => AGENT_META[op].parallel);
 
 // ----------------- helpers -----------------
 function timeAgo(iso: string): string {
@@ -101,16 +123,44 @@ function friendlySkip(reason: string | null | undefined): { label: string; tone:
   if (!reason) return { label: "Classificada", tone: "info" };
   if (reason.startsWith("agent_error:")) return { label: "Erro no agente IA", tone: "error" };
   const map: Record<string, string> = {
-    clinic_not_allowlisted: "Clínica não habilitada",
+    clinic_not_allowlisted: "Empresa não habilitada",
     no_new_messages: "Sem mensagens novas",
     no_messages: "Lead sem mensagens",
     no_pipeline: "Sem pipeline configurado",
     lead_not_found: "Lead não encontrado",
-    no_clinic_openai_key: "Sem chave OpenAI da clínica",
+    no_clinic_openai_key: "Sem chave OpenAI da empresa",
     classifier_disabled: "Classificador desligado",
     classifier_throttled: "Limitada por throttle",
   };
   return { label: map[reason] ?? reason, tone: "warn" };
+}
+
+function friendlyErrorCategory(category: string | null | undefined): string {
+  const map: Record<string, string> = {
+    schema_validation: "Schema/JSON inválido",
+    quota_or_billing: "Cota/crédito",
+    rate_limit: "Rate limit",
+    timeout: "Timeout",
+    gateway_5xx: "Provider instável",
+    network: "Rede",
+    no_provider: "Sem provider",
+    unknown: "Desconhecido",
+  };
+  return category ? map[category] ?? category : "—";
+}
+
+function errorCategoryExplanation(category: string | null | undefined): string {
+  const map: Record<string, string> = {
+    schema_validation: "O modelo respondeu fora do formato esperado. A execução deve ser recuperável por retry/fallback e o lead não deve sair silenciosamente da fila.",
+    quota_or_billing: "O provider recusou por limite de crédito/cota. O guard bloqueia novas tentativas temporariamente para evitar ruído e gasto.",
+    rate_limit: "Volume alto de chamadas no provider; o sistema aplica backoff antes de tentar novamente.",
+    timeout: "A etapa demorou além do limite operacional e precisa de retry.",
+    gateway_5xx: "Falha temporária do provider/modelo.",
+    network: "Falha de rede entre a função e o provider.",
+    no_provider: "Nenhum provider de IA estava disponível.",
+    unknown: "Erro não classificado; ver mensagem bruta.",
+  };
+  return category ? map[category] ?? "Erro não mapeado; ver mensagem bruta." : "Sem erro registrado.";
 }
 
 // ----------------- component -----------------
@@ -131,7 +181,7 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
       // ai_usage rows: only pipeline ops, 24h
       let usageQ = supabase
         .from("ai_usage")
-        .select("id, lead_id, model, operation, status, input_tokens, output_tokens, total_tokens, latency_ms, cost_usd, error, created_at")
+        .select("id, lead_id, model, operation, status, input_tokens, output_tokens, total_tokens, latency_ms, cost_usd, error, source, provider, agent_step, error_category, error_details, created_at")
         .in("operation", PIPELINE_OPS)
         .gte("created_at", since24h)
         .order("created_at", { ascending: false })
@@ -248,7 +298,7 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
       byOp.set(r.operation, cur);
     }
     const successEvents = events.filter((e) => !e.payload?.skipped).length;
-    const classifiedRuns = Math.max(successEvents, Math.round(rows.length / 3));
+    const classifiedRuns = Math.max(successEvents, Math.round(rows.length / 5));
     return {
       cost,
       tokens,
@@ -271,6 +321,22 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
       .map(([reason, count]) => ({ reason, count, ...friendlySkip(reason) }))
       .sort((a, b) => b.count - a.count);
   }, [events]);
+
+  const errorGroups = useMemo(() => {
+    const map = new Map<string, { calls: number; leads: Set<string>; sample: string | null }>();
+    for (const r of rows) {
+      if (r.status === "success") continue;
+      const key = r.error_category ?? "unknown";
+      const cur = map.get(key) ?? { calls: 0, leads: new Set<string>(), sample: null };
+      cur.calls++;
+      if (r.lead_id) cur.leads.add(r.lead_id);
+      if (!cur.sample && r.error) cur.sample = r.error;
+      map.set(key, cur);
+    }
+    return Array.from(map.entries())
+      .map(([category, v]) => ({ category, calls: v.calls, leads: v.leads.size, sample: v.sample }))
+      .sort((a, b) => b.calls - a.calls);
+  }, [rows]);
 
   const recent = useMemo(() => events.slice(0, 30), [events]);
 
@@ -306,10 +372,10 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <h2 className="text-base font-semibold">Sua IA nas últimas 24h</h2>
-                  <InfoDot text="Visão simples do que a IA do pipeline fez no último dia. Cada lead passa por 3 mini-agentes que leem, classificam e decidem o que fazer." />
+                  <InfoDot text="Visão simples do que a IA do pipeline fez no último dia. Cada lead passa por 5 mini-agentes: Resumidor, depois Agendador + Tipificador + Movimentador em paralelo, e por fim o Maestro." />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Cada lead é lido pelos 3 agentes (Resumidor → Tipificador → Maestro) sempre que recebe novas mensagens.
+                  Cada lead é lido por 5 agentes (Resumidor → [Agendador ∥ Tipificador ∥ Movimentador] → Maestro) sempre que recebe novas mensagens.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -363,27 +429,42 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
         {/* AGENTS BREAKDOWN */}
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <h3 className="text-sm font-semibold">Os 3 agentes do pipeline</h3>
-            <InfoDot text="Cada classificação chama 3 modelos em sequência. Aqui você vê quanto cada um custou e quanto demorou." />
+            <h3 className="text-sm font-semibold">Os 5 agentes do pipeline</h3>
+            <InfoDot text="Cada classificação chama 5 modelos: o Resumidor abre, então Agendador + Tipificador + Movimentador rodam em paralelo, e o Maestro fecha. Aqui você vê quanto cada um custou e quanto demorou." />
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {totals.byOp.map((b) => {
-              const meta = AGENT_META[b.op];
+          {(() => {
+            const byOpMap = new Map(totals.byOp.map((b) => [b.op, b]));
+            const renderCard = (op: string, fullWidth = false) => {
+              const meta = AGENT_META[op];
+              const b = byOpMap.get(op) ?? { op, calls: 0, cost: 0, tokens: 0, lat: 0, errors: 0 };
               const avgLat = b.calls ? Math.round(b.lat / b.calls) : 0;
               const pctOfTotal = totals.cost ? (b.cost / totals.cost) * 100 : 0;
+              const noData = b.calls === 0;
               return (
-                <Card key={b.op} className={`p-4 ${meta.accent} border`}>
+                <Card key={op} className={`p-4 ${meta.accent} border ${fullWidth ? "w-full" : ""}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-lg">{meta.emoji}</div>
-                      <div className="mt-1 text-sm font-semibold">{meta.label}</div>
-                      <p className="mt-0.5 text-[11px] opacity-80">{meta.explain}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{meta.emoji}</span>
+                        <span className="text-sm font-semibold">{meta.label}</span>
+                        {meta.parallel && (
+                          <Badge variant="outline" className="border-current/40 text-[9px] uppercase tracking-wide opacity-70">
+                            paralelo
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] opacity-80">{meta.explain}</p>
                     </div>
-                    {b.errors > 0 && (
-                      <Badge variant="destructive" className="text-[10px]">
-                        {b.errors} erro{b.errors > 1 ? "s" : ""}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {b.errors > 0 && (
+                        <Badge variant="destructive" className="text-[10px]">
+                          {b.errors} erro{b.errors > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                      {noData && (
+                        <Badge variant="outline" className="text-[9px] opacity-60">sem dados</Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <Stat tiny label="Custo" value={fmtUSD(b.cost)} />
@@ -396,9 +477,35 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
                   <div className="mt-1 text-[10px] opacity-70">{pctOfTotal.toFixed(0)}% do custo total</div>
                 </Card>
               );
-            })}
-          </div>
+            };
+            return (
+              <div className="space-y-3">
+                {/* Linha 1: Resumidor */}
+                {renderCard("classifier:summarizer", true)}
+
+                {/* Linha 2: Paralelos */}
+                <div className="rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-muted/40 via-muted/10 to-transparent p-3 backdrop-blur-sm">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-background/60 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      <GitBranch className="h-3 w-3" />
+                      Execução paralela
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      despachados juntos pelo allSettled — latência ≈ a do mais lento
+                    </span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {PARALLEL_OPS.map((op) => renderCard(op))}
+                  </div>
+                </div>
+
+                {/* Linha 3: Maestro */}
+                {renderCard("classifier:maestro", true)}
+              </div>
+            );
+          })()}
         </div>
+
 
         {/* RECENT EXECUTIONS + SKIP REASONS */}
         <div className="grid gap-4 lg:grid-cols-3">
@@ -496,6 +603,28 @@ export function PipelineOverview({ clinicId }: { clinicId: string | null }) {
           </Card>
         </div>
 
+        {errorGroups.length > 0 && (
+          <Card className="p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Diagnóstico dos erros de IA</h3>
+              <InfoDot text="Agrupa as linhas técnicas de ai_usage por causa provável para evitar confundir múltiplas etapas do mesmo lead com problemas diferentes." />
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {errorGroups.map((g) => (
+                <div key={g.category} className="rounded-md border bg-card p-3 text-xs">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Badge variant="destructive" className="text-[10px]">{friendlyErrorCategory(g.category)}</Badge>
+                    <span className="text-muted-foreground">{g.calls} chamadas · {g.leads} lead{g.leads === 1 ? "" : "s"}</span>
+                  </div>
+                  <p className="text-muted-foreground">{errorCategoryExplanation(g.category)}</p>
+                  {g.sample && <p className="mt-1 truncate font-mono text-[10px]">{g.sample}</p>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {/* DRAWER */}
         <Sheet open={!!detailLeadId} onOpenChange={(o) => !o && setDetailLeadId(null)}>
           <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -581,7 +710,16 @@ function LeadRunDetail({
     | { stage_suggestion?: string; intent?: string; confidence?: number; is_b2b?: boolean; reasons?: string[] }
     | undefined;
   const agents = latest?.payload?.agents as
-    | { summarizer_model?: string; typifier_model?: string; maestro_model?: string; summary?: string; latency_ms?: any }
+    | {
+        summarizer_model?: string;
+        agendador_model?: string;
+        typifier_model?: string;
+        movimentador_model?: string;
+        maestro_model?: string;
+        summary?: string;
+        latency_ms?: Record<string, number>;
+        ran?: Record<string, boolean>;
+      }
     | undefined;
   const applied = latest?.payload?.applied as Record<string, any> | undefined;
   const skipped = latest?.payload?.skipped as string | undefined;
@@ -651,28 +789,28 @@ function LeadRunDetail({
         </div>
       )}
 
-      {/* 3 agentes timeline */}
+      {/* 5 agentes timeline */}
       <div>
-        <div className="mb-2 text-[11px] text-muted-foreground">Os 3 agentes desta execução</div>
-        <div className="space-y-2">
-          {PIPELINE_OPS.map((op) => {
+        <div className="mb-2 text-[11px] text-muted-foreground">Os 5 agentes desta execução</div>
+        {(() => {
+          const renderAgent = (op: string) => {
             const meta = AGENT_META[op];
             const r = runUsage.find((x) => x.operation === op);
-            const modelFromAgents =
-              op === "classifier:summarizer"
-                ? agents?.summarizer_model
-                : op === "classifier:typifier"
-                  ? agents?.typifier_model
-                  : agents?.maestro_model;
+            const modelKey = op.split(":")[1] + "_model";
+            const modelFromAgents = (agents as Record<string, unknown> | undefined)?.[modelKey] as string | undefined;
             const latMap = (agents?.latency_ms ?? {}) as Record<string, number>;
             const latKey = op.split(":")[1];
             const lat = r?.latency_ms ?? latMap[latKey];
+            const didRun = agents?.ran ? agents.ran[latKey] !== false : true;
             return (
-              <div key={op} className={`rounded-md border p-2 ${meta.accent}`}>
+              <div key={op} className={`rounded-md border p-2 ${meta.accent} ${!didRun && !r ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span>{meta.emoji}</span>
                     <span className="text-xs font-semibold">{meta.label}</span>
+                    {meta.parallel && (
+                      <span className="text-[9px] uppercase tracking-wide opacity-60">paralelo</span>
+                    )}
                   </div>
                   <span className="text-[10px] font-mono opacity-70">{r?.model ?? modelFromAgents ?? "—"}</span>
                 </div>
@@ -682,17 +820,39 @@ function LeadRunDetail({
                   <span>
                     {(r?.input_tokens ?? 0).toLocaleString()} → {(r?.output_tokens ?? 0).toLocaleString()} tokens
                   </span>
-                  {r?.status === "error" && <span className="font-semibold">erro</span>}
+                  {r?.status === "error" && <span className="font-semibold">erro · {friendlyErrorCategory(r.error_category)}</span>}
                 </div>
+                {r?.status === "error" && (
+                  <div className="mt-1 rounded bg-background/50 p-1.5 text-[10px] opacity-90">
+                    <div>{errorCategoryExplanation(r.error_category)}</div>
+                    {r.error && <div className="mt-1 truncate font-mono">{r.error}</div>}
+                  </div>
+                )}
               </div>
             );
-          })}
-        </div>
+          };
+          return (
+            <div className="space-y-2">
+              {renderAgent("classifier:summarizer")}
+              <div className="rounded-md border border-dashed border-primary/30 bg-gradient-to-br from-muted/30 to-transparent p-2">
+                <div className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-primary">
+                  <GitBranch className="h-2.5 w-2.5" />
+                  Execução paralela
+                </div>
+                <div className="space-y-1.5">
+                  {PARALLEL_OPS.map((op) => renderAgent(op))}
+                </div>
+              </div>
+              {renderAgent("classifier:maestro")}
+            </div>
+          );
+        })()}
         <div className="mt-2 text-right text-[11px] text-muted-foreground">
           Total desta execução:{" "}
           <span className="font-semibold tabular-nums text-foreground">{fmtUSD(totalCost)}</span>
         </div>
       </div>
+
 
       {/* Reasons */}
       {cls?.reasons && cls.reasons.length > 0 && (

@@ -1,0 +1,1 @@
+ALTER VIEW public.v_pipeline_auto_retry_daily SET (security_invoker = true);

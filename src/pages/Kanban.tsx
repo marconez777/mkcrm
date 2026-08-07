@@ -1,4 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -28,10 +29,12 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { useStages, useLeads } from "@/hooks/useCrm";
-import { manualLockUntilIso, customFieldsPatchForStage, unlockLeadManually } from "@/lib/manual-stage-move";
+import { customFieldsPatchForStage } from "@/lib/manual-stage-move";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead, Stage } from "@/types/crm";
-import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, Lock, CircleDollarSign, CalendarClock, AlertTriangle, Wand2 } from "lucide-react";
+import { originLabelOf } from "@/lib/lead-origin";
+import { Plus, MessageCircle, Phone, Loader2, ChevronLeft, ChevronRight, Minimize2, Maximize2, Rows3, Rows2, MoreVertical, Pencil, Trash2, ArrowRightLeft, Search, X, Columns3, Sparkles, CircleDollarSign, CalendarClock, AlertTriangle, Wand2, Calendar as CalendarIcon, Download, Compass } from "lucide-react";
+import { downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -46,12 +49,15 @@ import MoveColumnLeadsDialog from "@/components/kanban/MoveColumnLeadsDialog";
 import { useHorizontalScroll } from "@/hooks/useHorizontalScroll";
 
 import PipelineSwitcher from "@/components/kanban/PipelineSwitcher";
+import CalendarSheet from "@/components/kanban/calendar/CalendarSheet";
 import NewPipelineDialog from "@/components/kanban/NewPipelineDialog";
 
 import EditPipelineDialog from "@/components/kanban/EditPipelineDialog";
 import EditStageDialog from "@/components/kanban/EditStageDialog";
 import { usePipelines } from "@/hooks/usePipelines";
 import PipelineDateFilter, { EMPTY_DATE_FILTER, presetToValue, type DateFilterValue } from "@/components/kanban/PipelineDateFilter";
+import { useRegion } from "@/hooks/useRegion";
+import { formatMoney as fmtMoney } from "@/lib/format";
 
 function timeAgo(iso: string | null) {
   if (!iso) return "";
@@ -62,10 +68,6 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(sec / 86400)}d`;
 }
 
-function formatMoney(v: number | null) {
-  if (v == null) return null;
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-}
 
 const EMPTY_LEADS: Lead[] = [];
 
@@ -112,6 +114,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
   { lead, onOpen, onMove, onMoveToStage, stages, compact },
   _ref,
 ) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id, data: { type: "lead", lead } });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const initials = (lead.name || lead.phone).slice(0, 2).toUpperCase();
@@ -131,7 +134,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
           <DropdownMenuTrigger asChild>
             <button
               className="rounded p-1 text-muted-foreground hover:bg-accent"
-              title="Mais ações"
+              title={t("kanban.moreActions")}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
@@ -142,7 +145,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
             {onMoveToStage && otherStages.length > 0 && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <Columns3 className="mr-2 h-3.5 w-3.5" />Mover para coluna
+                  <Columns3 className="mr-2 h-3.5 w-3.5" />{t("kanban.moveToColumn")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
@@ -160,7 +163,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
               </DropdownMenuSub>
             )}
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMove(lead), 0); }}>
-              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover para outro funil
+              <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveToOtherPipeline")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -192,8 +195,8 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
       <div className={`flex items-center justify-between text-[11px] text-muted-foreground ${compact ? "mt-1" : "mt-2"}`}>
         <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {timeAgo(lead.last_message_at)}</span>
         {lead.created_at && (
-          <span title="Data de entrada do lead">
-            {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+          <span title={t("kanban.leadEntryDate")}>
+            {new Date(lead.created_at).toLocaleDateString()}
           </span>
         )}
       </div>
@@ -219,7 +222,7 @@ const LeadCard = memo(forwardRef<HTMLDivElement, LeadCardProps>(function LeadCar
     a.created_at === b.created_at &&
     a.deal_value === b.deal_value &&
     a.needs_ai_review === b.needs_ai_review &&
-    a.manual_lock_until === b.manual_lock_until &&
+    
     JSON.stringify(a.ai_review_reasons ?? []) === JSON.stringify(b.ai_review_reasons ?? []) &&
     JSON.stringify(a.custom_fields ?? {}) === JSON.stringify(b.custom_fields ?? {})
   );
@@ -256,6 +259,7 @@ function isFutureDateStr(raw: string | undefined | null): Date | null {
 }
 
 function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
+  const { t, i18n } = useTranslation();
   const cf = (lead.custom_fields ?? {}) as Record<string, any>;
   const qualif: string | undefined = cf.qualificacao;
   const proc: string | undefined = cf.procedimento_interesse;
@@ -267,7 +271,6 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const consultaDate = isFutureDateStr(consultaRaw);
   const procedimentoDate = isFutureDateStr(procedimentoRaw);
   const rawReasons = lead.ai_review_reasons ?? [];
-  const locked = lead.manual_lock_until && new Date(lead.manual_lock_until) > new Date();
   const pending = !!lead.needs_ai_review;
 
   // Tags a esconder: ruído interno + duplicatas dos chips já renderizados acima.
@@ -280,6 +283,7 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const reasons = rawReasons.filter((r) => {
     const k = r.toLowerCase();
     if (HIDDEN_REASONS.has(k)) return false;
+    if (k.startsWith("pipeline-classifier:")) return false;
     // redundância com chips de qualif/proc/pag/agenda
     if (k === "interesse" && qualif === "interessado") return false;
     if (k === "pagamento" && (pago || tentouPag)) return false;
@@ -291,36 +295,40 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
   const visibleReasons = compact ? reasons.slice(0, 2) : reasons.slice(0, 4);
   const extra = reasons.length - visibleReasons.length;
 
+  const originLabel = originLabelOf(lead);
+
   if (
     !qualif && !proc && !tentouPag && !pago && !agendou && !consultaDate && !procedimentoDate &&
-    !locked && !pending && reasons.length === 0
+    !pending && reasons.length === 0 && !originLabel
   ) return null;
 
-  const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const fmt = (d: Date) => d.toLocaleDateString(i18n.language, { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1">
-      {qualif === "desqualificado" && (
-        <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>Desqualif.</Chip>
+      {originLabel && (
+        <Chip tone="muted" icon={<Compass className="h-3 w-3" />}>{originLabel}</Chip>
       )}
-      {qualif === "interessado" && <Chip tone="success">Interessado</Chip>}
-      {qualif === "em_negociacao" && <Chip tone="warning">Negociação</Chip>}
+      {qualif === "desqualificado" && (
+        <Chip tone="danger" icon={<AlertTriangle className="h-3 w-3" />}>{t("kanban.tag.disqualified")}</Chip>
+      )}
+      {qualif === "interessado" && <Chip tone="success">{t("kanban.tag.interested")}</Chip>}
+      {qualif === "em_negociacao" && <Chip tone="warning">{t("kanban.tag.negotiation")}</Chip>}
       {proc && <Chip tone="neutral">{REASON_LABEL[`proc_${proc}`] ?? proc}</Chip>}
-      {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>Pago</Chip>}
-      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>Comprovante</Chip>}
+      {pago && <Chip tone="success" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.paid")}</Chip>}
+      {!pago && tentouPag && <Chip tone="warning" icon={<CircleDollarSign className="h-3 w-3" />}>{t("kanban.tag.proof")}</Chip>}
       {procedimentoDate && (
         <Chip tone="success" icon={<CalendarClock className="h-3 w-3" />}>
-          Procedimento {fmt(procedimentoDate)}
+          {t("kanban.tag.procedure", { date: fmt(procedimentoDate) })}
         </Chip>
       )}
       {!procedimentoDate && consultaDate && (
         <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>
-          Consulta {fmt(consultaDate)}
+          {t("kanban.tag.appointment", { date: fmt(consultaDate) })}
         </Chip>
       )}
-      {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>Agendando</Chip>}
-      {pending && <Chip tone="ai" icon={<Sparkles className="h-3 w-3" />}>IA na fila</Chip>}
-      {locked && <LockManualChip leadId={lead.id} lockUntil={lead.manual_lock_until!} />}
+      {!consultaDate && !procedimentoDate && agendou && <Chip tone="info" icon={<CalendarClock className="h-3 w-3" />}>{t("kanban.tag.scheduling")}</Chip>}
+      
       {!compact && visibleReasons.map((r) => (
         <Chip key={r} tone="muted">{shortReason(r)}</Chip>
       ))}
@@ -330,66 +338,6 @@ function AIBadges({ lead, compact }: { lead: Lead; compact?: boolean }) {
 }
 
 
-function LockManualChip({ leadId, lockUntil }: { leadId: string; lockUntil: string }) {
-  const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const untilLabel = useMemo(() => {
-    try {
-      return new Date(lockUntil).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    } catch { return ""; }
-  }, [lockUntil]);
-
-  const onConfirm = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBusy(true);
-    try {
-      await unlockLeadManually(supabase, leadId);
-      toast.success("Lead destravado. Automações liberadas.");
-      setOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao destravar");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        title={`Travado para automações até ${untilLabel}. Clique para destravar.`}
-        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer ${
-          hover ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-        }`}
-      >
-        <Lock className="h-3 w-3" />
-        {hover ? "Destravar" : "Lock manual"}
-      </button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Destravar este lead?</AlertDialogTitle>
-            <AlertDialogDescription>
-              As automações (classifier, auditores, B2B move) voltarão a poder mover este card.
-              {untilLabel && <> O lock atual expiraria em <strong>{untilLabel}</strong>.</>}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={(e) => e.stopPropagation()} disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirm} disabled={busy}>
-              {busy ? "Destravando..." : "Destravar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
 
 function Chip({ children, tone = "neutral", icon }: {
   children: React.ReactNode;
@@ -415,15 +363,19 @@ function Chip({ children, tone = "neutral", icon }: {
 
 
 function Column({
-  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onDelete, onMoveAll,
+  stage, leads, onOpenLead, onMoveLead, onMoveLeadToStage, allStages, collapsed, onToggleCollapse, compact, onEdit, onConfigureAi, onDelete, onMoveAll, onExport, aiBinding,
 }: {
   stage: Stage; leads: Lead[]; onOpenLead: (l: Lead) => void; onMoveLead: (l: Lead) => void;
   onMoveLeadToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
   collapsed: boolean; onToggleCollapse: () => void; compact: boolean;
-  onEdit: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void;
+  onEdit: (s: Stage) => void; onConfigureAi: (s: Stage) => void; onDelete: (s: Stage) => void; onMoveAll: (s: Stage) => void; onExport: (s: Stage) => void;
+  aiBinding?: { agentName: string; autoReply: boolean };
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "stage", stage } });
+  const region = useRegion();
   const totalValue = leads.reduce((s, l) => s + (l.deal_value ?? 0), 0);
+
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(stage.name);
   
@@ -440,19 +392,25 @@ function Column({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title="Mais ações" onClick={(e) => e.stopPropagation()}>
+        <button className="rounded p-1 text-muted-foreground hover:bg-accent" title={t("kanban.moreActions")} onClick={(e) => e.stopPropagation()}>
           <MoreVertical className="h-3.5 w-3.5" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(stage), 0); }}>
-          <Pencil className="mr-2 h-3.5 w-3.5" />Editar etapa
+          <Pencil className="mr-2 h-3.5 w-3.5" />{t("kanban.editStage")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onConfigureAi(stage), 0); }}>
+          <Sparkles className="mr-2 h-3.5 w-3.5" />{t("kanban.configureAi")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onMoveAll(stage), 0); }}>
-          <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />Mover todos os leads
+          <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />{t("kanban.moveAllLeads")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onExport(stage), 0); }}>
+          <Download className="mr-2 h-3.5 w-3.5" />Exportar para Excel
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(stage), 0); }} className="text-destructive focus:text-destructive">
-          <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir etapa
+          <Trash2 className="mr-2 h-3.5 w-3.5" />{t("kanban.deleteStage")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -461,7 +419,7 @@ function Column({
   if (collapsed) {
     return (
       <div data-column-id={stage.id} className="kanban-snap flex w-10 shrink-0 flex-col items-center rounded-lg border bg-muted/30 py-2">
-        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title="Expandir">
+        <button onClick={onToggleCollapse} className="mb-1 rounded p-1 hover:bg-accent" title={t("kanban.expand")}>
           <Maximize2 className="h-4 w-4" />
         </button>
         {menu}
@@ -494,18 +452,27 @@ function Column({
             <span
               className="truncate text-base font-bold"
               onDoubleClick={() => setRenaming(true)}
-              title="Duplo-clique para renomear"
+              title={t("kanban.doubleClickRename")}
             >
               {stage.name}
             </span>
           )}
           <span className="text-sm font-medium text-muted-foreground">{leads.length}</span>
+          {aiBinding?.autoReply && (
+            <span
+              className="ml-1 inline-flex items-center gap-0.5 rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+              title={t("kanban.aiAutoReplyActive", { agent: aiBinding.agentName })}
+            >
+              🤖 IA
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {totalValue > 0 && (
-            <span className="text-xs font-medium text-muted-foreground">{formatMoney(totalValue)}</span>
+            <span className="text-xs font-medium text-muted-foreground">{fmtMoney(totalValue, region.currency, region.locale)}</span>
           )}
-          <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title="Colapsar coluna">
+
+          <button onClick={onToggleCollapse} className="rounded p-1.5 text-muted-foreground hover:bg-accent" title={t("kanban.collapse")}>
             <Minimize2 className="h-4 w-4" />
           </button>
           {menu}
@@ -534,6 +501,7 @@ function VirtualizedColumnBody({
   onOpen: (l: Lead) => void; onMove: (l: Lead) => void;
   onMoveToStage: (l: Lead, stageId: string) => void; allStages: Stage[];
 }) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const setRefs = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el;
@@ -559,7 +527,7 @@ function VirtualizedColumnBody({
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         {leads.length === 0 ? (
-          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">vazio</div>
+          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">{t("kanban.empty")}</div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
             {items.map((v) => {
@@ -598,6 +566,7 @@ function VirtualizedColumnBody({
 }
 
 export default function KanbanPage() {
+  const { t } = useTranslation();
   const { stages: allStages } = useStages();
   const { leads: allLeads, setLeads } = useLeads();
   const { pipelines, current, currentId, setCurrentId } = usePipelines();
@@ -612,15 +581,43 @@ export default function KanbanPage() {
   
   const [creating, setCreating] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
+  const [editingStageTab, setEditingStageTab] = useState<"geral" | "ia">("geral");
   const [movingColumnStage, setMovingColumnStage] = useState<Stage | null>(null);
   const [deletingStage, setDeletingStage] = useState<Stage | null>(null);
   const [ui, setUi] = useState(loadUi);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => loadInitialDateFilter(loadUi()));
   const [editPipelineOpen, setEditPipelineOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [whatsappInstances, setWhatsappInstances] = useState<{ id: string; name: string }[]>([]);
   const sensors = useSensors(useSensor(CardOnlyPointerSensor, { activationConstraint: { distance: 6 } }));
   const { ref: scrollRef, overflow, scrollByPage } = useHorizontalScroll();
   const [query, setQuery] = useState("");
+  const [aiBindings, setAiBindings] = useState<Record<string, { agentName: string; autoReply: boolean }>>({});
+  const [aiRefreshTick, setAiRefreshTick] = useState(0);
+
+  useEffect(() => {
+    if (!currentId) { setAiBindings({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: stageRows } = await supabase
+        .from("pipeline_stages").select("id").eq("pipeline_id", currentId);
+      const ids = (stageRows ?? []).map((s: { id: string }) => s.id);
+      if (ids.length === 0) { if (!cancelled) setAiBindings({}); return; }
+      const { data } = await supabase
+        .from("stage_ai_defaults")
+        .select("stage_id, auto_reply, ai_agents:agent_id(name)")
+        .in("stage_id", ids);
+      if (cancelled) return;
+      const map: Record<string, { agentName: string; autoReply: boolean }> = {};
+      for (const row of (data ?? []) as Array<{ stage_id: string; auto_reply: boolean; ai_agents: { name: string } | null }>) {
+        if (row.ai_agents?.name) {
+          map[row.stage_id] = { agentName: row.ai_agents.name, autoReply: row.auto_reply };
+        }
+      }
+      setAiBindings(map);
+    })();
+    return () => { cancelled = true; };
+  }, [currentId, aiRefreshTick]);
 
   const stages = useMemo(() => allStages.filter((s) => s.pipeline_id === currentId), [allStages, currentId]);
   const allPipelineLeads = useMemo(() => allLeads.filter((l) => l.pipeline_id === currentId), [allLeads, currentId]);
@@ -670,6 +667,51 @@ export default function KanbanPage() {
     }
     return map;
   }, [stages, leads]);
+
+  const exportStageLeads = useCallback((stage: Stage) => {
+    const rows = (leadsByStage.get(stage.id) ?? []).map((l) => {
+      const last = l.last_message_at ? new Date(l.last_message_at) : null;
+      const days = last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null;
+      return {
+        nome: l.name ?? "",
+        telefone: l.phone ?? "",
+        ultima_mensagem: last ? last.toLocaleString("pt-BR") : "",
+        dias_sem_interagir: days ?? "",
+      };
+    });
+    if (rows.length === 0) { toast.info("Coluna vazia"); return; }
+    const slug = (stage.name || "coluna").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCsv(`leads-${slug}-${date}.csv`, rows, ["nome", "telefone", "ultima_mensagem", "dias_sem_interagir"]);
+    toast.success(`${rows.length} lead(s) exportados`);
+  }, [leadsByStage]);
+
+  const exportAllLeads = useCallback(() => {
+    const rows = leads.map((l) => {
+      const stage = allStages.find((s) => s.id === l.stage_id);
+      const last = l.last_message_at ? new Date(l.last_message_at) : null;
+      const days = last ? Math.floor((Date.now() - last.getTime()) / 86400000) : null;
+      let detalhes = "";
+      if (l.custom_fields && typeof l.custom_fields === "object") {
+        detalhes = Object.entries(l.custom_fields)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" | ");
+      }
+      return {
+        nome: l.name ?? "",
+        telefone: l.phone ?? "",
+        etapa: stage?.name ?? "",
+        detalhes: detalhes,
+        ultima_mensagem: last ? last.toLocaleString("pt-BR") : "",
+        dias_sem_interagir: days ?? "",
+      };
+    });
+    if (rows.length === 0) { toast.info("Nenhum lead para exportar"); return; }
+    const date = new Date().toISOString().slice(0, 10);
+    const pipelineName = current?.name ? current.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase() : "pipeline";
+    downloadCsv(`todos-leads-${pipelineName}-${date}.csv`, rows, ["nome", "telefone", "etapa", "detalhes", "ultima_mensagem", "dias_sem_interagir"]);
+    toast.success(`${rows.length} lead(s) exportados`);
+  }, [leads, allStages, current]);
 
   useEffect(() => {
     saveUi({
@@ -736,19 +778,18 @@ export default function KanbanPage() {
     const targetStage = stages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const manualLockUntil = manualLockUntilIso();
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; position: number; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     if (cfPatch) patch.custom_fields = cfPatch;
     await supabase.from("leads").update(patch).eq("id", lead.id);
     const target = stages.find((s) => s.id === targetStageId);
-    toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
+    toast.success(`${t("kanban.movedTo", { stage: target?.name ?? t("kanban.column").toLowerCase() })}${internalSync === true ? t("kanban.markedAdmin") : internalSync === false ? t("kanban.unmarkedAdmin") : ""}`, {
       action: previousStageId ? {
-        label: "Desfazer",
+        label: t("kanban.undo"),
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition, manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
+          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
@@ -779,9 +820,8 @@ export default function KanbanPage() {
     const targetStage = allStages.find((s) => s.id === targetStageId);
     const internalSync = computeInternalContactSync(lead, sourceStage, targetStage);
     setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: targetStageId, position: newPosition, ...(internalSync !== null ? { is_internal_contact: internalSync } : {}) } : l));
-    const manualLockUntil = manualLockUntilIso();
     const cfPatch = customFieldsPatchForStage(lead.custom_fields, targetStage);
-    const patch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition, manual_lock_until: manualLockUntil };
+    const patch: { stage_id: string; position: number; is_internal_contact?: boolean; custom_fields?: any } = { stage_id: targetStageId, position: newPosition };
     if (internalSync !== null) patch.is_internal_contact = internalSync;
     if (cfPatch) patch.custom_fields = cfPatch;
     const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
@@ -791,24 +831,25 @@ export default function KanbanPage() {
       return;
     }
     const target = allStages.find((s) => s.id === targetStageId);
-    toast.success(`Movido para "${target?.name ?? "etapa"}"${internalSync === true ? " · marcado como Administrativo" : internalSync === false ? " · removida marca Administrativo" : ""}`, {
+    toast.success(`${t("kanban.movedTo", { stage: target?.name ?? t("kanban.column").toLowerCase() })}${internalSync === true ? t("kanban.markedAdmin") : internalSync === false ? t("kanban.unmarkedAdmin") : ""}`, {
       action: previousStageId ? {
-        label: "Desfazer",
+        label: t("kanban.undo"),
         onClick: async () => {
           setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, stage_id: previousStageId, position: previousPosition, ...(internalSync !== null ? { is_internal_contact: !internalSync } : {}) } : l));
-          const undoPatch: { stage_id: string; position: number; manual_lock_until: string; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition, manual_lock_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() };
+          const undoPatch: { stage_id: string; position: number; is_internal_contact?: boolean } = { stage_id: previousStageId, position: previousPosition };
           if (internalSync !== null) undoPatch.is_internal_contact = !internalSync;
           await supabase.from("leads").update(undoPatch).eq("id", lead.id);
         },
       } : undefined,
       duration: 6000,
     });
-  }, [leads, allStages, setLeads]);
+  }, [leads, allStages, setLeads, t]);
 
 
   const openLeadCb = useCallback((l: Lead) => setOpenLead(l), []);
   const openMoveCb = useCallback((l: Lead) => setMovingLead(l), []);
-  const editStageCb = useCallback((s: Stage) => setEditingStage(s), []);
+  const editStageCb = useCallback((s: Stage) => { setEditingStageTab("geral"); setEditingStage(s); }, []);
+  const configureAiCb = useCallback((s: Stage) => { setEditingStageTab("ia"); setEditingStage(s); }, []);
   const requestDeleteStage = useCallback((s: Stage) => setDeletingStage(s), []);
 
   async function addColumn() {
@@ -824,13 +865,13 @@ export default function KanbanPage() {
     const stage = deletingStage;
     if (!stage) return;
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stage.id);
-    if (error) toast.error(error.message); else toast.success("Coluna excluída");
+    if (error) toast.error(error.message); else toast.success(t("kanban.columnDeleted"));
     setDeletingStage(null);
   }
 
   async function addLead() {
-    if (!newLead.phone.trim()) { toast.error("Telefone obrigatório"); return; }
-    if (!stages.length) { toast.error("Crie uma coluna primeiro"); return; }
+    if (!newLead.phone.trim()) { toast.error(t("kanban.phoneRequired")); return; }
+    if (!stages.length) { toast.error(t("kanban.createColumnFirst")); return; }
     setCreating(true);
     const stage = stages[0];
     const phone = newLead.phone.replace(/\D/g, "");
@@ -845,7 +886,7 @@ export default function KanbanPage() {
     if (error) { toast.error(error.message); return; }
     setNewLead({ name: "", phone: "" });
     setNewLeadOpen(false);
-    toast.success("Lead criado");
+    toast.success(t("kanban.leadCreated"));
   }
 
   return (
@@ -874,7 +915,7 @@ export default function KanbanPage() {
                 id="kanban-search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nome ou telefone…"
+                placeholder={t("kanban.searchPlaceholder")}
                 className="h-8 w-64 pl-7 pr-7 text-sm"
               />
               {query && (
@@ -882,29 +923,36 @@ export default function KanbanPage() {
                   type="button"
                   onClick={() => setQuery("")}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-accent"
-                  aria-label="Limpar busca"
+                  aria-label={t("kanban.clearSearch")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
             <PipelineDateFilter value={dateFilter} onChange={setDateFilter} />
-            <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label="Modo compacto" title="Modo compacto">
+            <Toggle pressed={ui.compact} onPressedChange={(v) => setUi((u) => ({ ...u, compact: v }))} size="sm" aria-label={t("kanban.compactMode")} title={t("kanban.compactMode")}>
               {ui.compact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
             </Toggle>
             {ui.collapsed.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setUi((u) => ({ ...u, collapsed: [] }))}>
-                Expandir todas ({ui.collapsed.length})
+                {t("kanban.expandAll")} ({ui.collapsed.length})
               </Button>
             )}
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setCalendarOpen(true)} disabled={!currentId}>
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {t("kanban.calendar")}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditPipelineOpen(true)} disabled={!current}>
-              <Pencil className="mr-1 h-4 w-4" />Editar
+              <Pencil className="mr-1 h-4 w-4" />{t("common.edit")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportAllLeads} disabled={!currentId || leads.length === 0} title="Exportar todos os leads filtrados">
+              <Download className="mr-1 h-4 w-4" />Exportar Todos
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewColOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />Coluna
+              <Plus className="mr-1 h-4 w-4" />{t("kanban.column")}
             </Button>
             <Button size="sm" onClick={() => setNewLeadOpen(true)} disabled={!currentId}>
-              <Plus className="mr-1 h-4 w-4" />{current?.kind === "internal" ? "Card" : "Lead"}
+              <Plus className="mr-1 h-4 w-4" />{current?.kind === "internal" ? t("kanban.card") : t("kanban.lead")}
             </Button>
           </div>
         </header>
@@ -913,12 +961,12 @@ export default function KanbanPage() {
           <>
             <div className="relative flex-1 overflow-hidden">
               {overflow.left && (
-                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à esquerda">
+                <button onClick={() => scrollByPage(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label={t("kanban.scrollLeft")}>
                   <ChevronLeft className="h-5 w-5" />
                 </button>
               )}
               {overflow.right && (
-                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label="Rolar à direita">
+                <button onClick={() => scrollByPage(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border bg-card p-2.5 shadow-lg transition hover:bg-accent" aria-label={t("kanban.scrollRight")}>
                   <ChevronRight className="h-5 w-5" />
                 </button>
               )}
@@ -938,12 +986,15 @@ export default function KanbanPage() {
                         onToggleCollapse={() => toggleCollapsed(s.id)}
                         compact={ui.compact}
                         onEdit={editStageCb}
+                        onConfigureAi={configureAiCb}
                         onDelete={requestDeleteStage}
                         onMoveAll={setMovingColumnStage}
+                        onExport={exportStageLeads}
+                        aiBinding={aiBindings[s.id]}
                       />
                     ))}
                     {stages.length === 0 && (
-                      <div className="m-auto text-sm text-muted-foreground">Nenhuma etapa. Crie sua primeira coluna.</div>
+                      <div className="m-auto text-sm text-muted-foreground">{t("kanban.noStages")}</div>
                     )}
                   </div>
                   <DragOverlay>
@@ -955,12 +1006,19 @@ export default function KanbanPage() {
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Crie seu primeiro funil para começar.
+            {t("kanban.noPipeline")}
           </div>
         )}
       </div>
 
-      <LeadDrawer lead={openLead} onClose={() => setOpenLead(null)} />
+      <LeadDrawer 
+        lead={openLead} 
+        onClose={() => setOpenLead(null)} 
+        onLeadUpdate={(patch) => {
+          setLeads((prev) => prev.map((l) => (l.id === openLead?.id ? { ...l, ...patch } : l)));
+          setOpenLead((prev) => (prev ? { ...prev, ...patch } : null));
+        }}
+      />
       <MoveLeadDialog
         open={!!movingLead}
         onOpenChange={(v) => !v && setMovingLead(null)}
@@ -971,24 +1029,24 @@ export default function KanbanPage() {
 
       <Dialog open={newColOpen} onOpenChange={setNewColOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Nova coluna</DialogTitle></DialogHeader>
-          <Input placeholder="Nome da etapa" value={newColName} onChange={(e) => setNewColName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && addColumn()} />
-          <DialogFooter><Button onClick={addColumn}>Criar</Button></DialogFooter>
+          <DialogHeader><DialogTitle>{t("kanban.newColumn")}</DialogTitle></DialogHeader>
+          <Input placeholder={t("kanban.columnName")} value={newColName} onChange={(e) => setNewColName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && addColumn()} />
+          <DialogFooter><Button onClick={addColumn}>{t("common.create")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={newLeadOpen} onOpenChange={setNewLeadOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Novo {current?.kind === "internal" ? "card" : "lead"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{current?.kind === "internal" ? t("kanban.newCard") : t("kanban.newLead")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5"><Label>Nome</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>{current?.kind === "internal" ? "Identificador" : "Telefone (com DDI)"}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{t("common.name")}</Label><Input value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>{current?.kind === "internal" ? t("kanban.identifier") : t("kanban.phone")}</Label><Input placeholder="5511999999999" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} /></div>
           </div>
-          <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Criar</Button></DialogFooter>
+          <DialogFooter><Button onClick={addLead} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t("common.create")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <EditStageDialog stage={editingStage} open={!!editingStage} onOpenChange={(v) => !v && setEditingStage(null)} />
+      <EditStageDialog stage={editingStage} open={!!editingStage} initialTab={editingStageTab} onOpenChange={(v) => !v && setEditingStage(null)} onSaved={() => setAiRefreshTick((t) => t + 1)} />
 
       <MoveColumnLeadsDialog
         open={!!movingColumnStage}
@@ -1023,31 +1081,22 @@ export default function KanbanPage() {
               <>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    {blocked ? "Não é possível excluir" : "Excluir coluna"}
+                    {blocked ? t("kanban.cannotDelete") : t("kanban.deleteColumn")}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    {blocked ? (
-                      <>
-                        A coluna <span className="font-medium text-foreground">"{deletingStage?.name}"</span> contém{" "}
-                        <span className="font-medium text-foreground">{used}</span>{" "}
-                        {used === 1 ? "lead" : "leads"}. Mova-{used === 1 ? "o" : "os"} para outra coluna antes de excluir.
-                      </>
-                    ) : (
-                      <>
-                        Tem certeza que deseja excluir a coluna{" "}
-                        <span className="font-medium text-foreground">"{deletingStage?.name}"</span>? Esta ação não pode ser desfeita.
-                      </>
-                    )}
+                    {blocked
+                      ? t("kanban.columnContains", { name: deletingStage?.name, count: used })
+                      : t("kanban.confirmDeleteColumn", { name: deletingStage?.name })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>{t("kanban.cancel")}</AlertDialogCancel>
                   {!blocked && (
                     <AlertDialogAction
                       onClick={confirmDeleteStage}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      Excluir
+                      {t("kanban.delete")}
                     </AlertDialogAction>
                   )}
                 </AlertDialogFooter>
@@ -1056,6 +1105,12 @@ export default function KanbanPage() {
           })()}
         </AlertDialogContent>
       </AlertDialog>
+      <CalendarSheet
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        pipelineId={currentId ?? null}
+        pipelineName={current?.name}
+      />
     </div>
   );
 }

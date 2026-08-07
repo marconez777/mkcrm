@@ -31,7 +31,8 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const CHUNK_SIZE = 1; // máx. leads por invocação; evita estourar a runtime com modelos superiores
 const CLASSIFY_TIMEOUT_MS = 120_000;
-const STALE_AFTER_MS = 3 * 60 * 1000; // 3min sem heartbeat = considerado morto
+const STALE_AFTER_MS = 6 * 60 * 1000; // 6min sem heartbeat = considerado morto (pipeline V6 de 5 agentes pode passar de 3min)
+
 
 type EdgeRuntimeShape = { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -79,19 +80,22 @@ async function assertAllowlisted(service: SupabaseClient, clinicId: string): Pro
   return !!data?.enabled;
 }
 
+type OnlyAgent = "summarizer" | "typifier" | "maestro" | "parallel" | "agendador" | "movimentador";
+const ONLY_AGENT_VALUES: OnlyAgent[] = ["summarizer", "typifier", "maestro", "parallel", "agendador", "movimentador"];
+
 interface StartInput {
   clinic_id: string;
   pipeline_id?: string;
   stage_ids?: string[];
   lead_ids?: string[];
   top_n?: number;
-  only_agent?: "summarizer" | "typifier" | "maestro";
+  only_agent?: OnlyAgent;
   parent_run_id?: string;
 }
 
 async function callClassify(
   leadId: string,
-  onlyAgent?: "summarizer" | "typifier" | "maestro",
+  onlyAgent?: OnlyAgent,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   let timeoutId: number | undefined;
   try {
@@ -227,8 +231,8 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
   const topN = topNRaw && topNRaw > 0 ? Math.floor(topNRaw) : null;
   const onlyAgent =
     typeof scope.only_agent === "string" &&
-    ["summarizer", "typifier", "maestro"].includes(scope.only_agent as string)
-      ? (scope.only_agent as "summarizer" | "typifier" | "maestro")
+    ONLY_AGENT_VALUES.includes(scope.only_agent as OnlyAgent)
+      ? (scope.only_agent as OnlyAgent)
       : undefined;
   const stepName = onlyAgent ? `classify:${onlyAgent}` : "classify";
   const totals = (run.totals ?? {}) as Record<string, number> & {
@@ -336,7 +340,23 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
           .update({ last_heartbeat_at: new Date().toISOString(), totals })
           .eq("id", runId);
 
-        const result = await callClassify(lead.id as string, onlyAgent);
+        // heartbeat periódico (a cada 30s) durante a chamada da IA — o pipeline
+        // V6 (5 agentes) pode passar de 3min, então mantemos o watchdog satisfeito.
+        const hbInterval = setInterval(() => {
+          service
+            .from("pipeline_runs")
+            .update({ last_heartbeat_at: new Date().toISOString() })
+            .eq("id", runId)
+            .then(() => {}, () => {});
+        }, 30_000);
+
+        let result: Awaited<ReturnType<typeof callClassify>>;
+        try {
+          result = await callClassify(lead.id as string, onlyAgent);
+        } finally {
+          clearInterval(hbInterval);
+        }
+
         const finishedAt = new Date().toISOString();
 
         let status: "ok" | "skipped" | "error" = "ok";
@@ -347,6 +367,10 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
         totals[status] = (totals[status] ?? 0) + 1;
 
         if (itemId) {
+          // Phase 6 — marcar erros transitórios para auto-retry.
+          const transientPattern =
+            /classify_timeout|No object generated|did not match schema|schema_retry_failed|fetch failed|quota|rate limit|429|5\d\d|ECONNRESET|timeout/i;
+          const isTransient = status === "error" && !!result.error && transientPattern.test(String(result.error));
           await service
             .from("pipeline_run_items")
             .update({
@@ -354,6 +378,7 @@ async function executeChunk(service: SupabaseClient, runId: string): Promise<{ m
               result: result.ok ? (result.result as Record<string, unknown>) ?? {} : null,
               error: result.error ?? null,
               finished_at: finishedAt,
+              auto_retry_pending: isTransient ? true : false,
             })
             .eq("id", itemId);
         }
@@ -418,7 +443,7 @@ Deno.serve(async (req) => {
       if (input.stage_ids?.length) scope.stage_ids = input.stage_ids;
       if (input.lead_ids?.length) scope.lead_ids = input.lead_ids;
       if (typeof input.top_n === "number" && input.top_n > 0) scope.top_n = Math.floor(input.top_n);
-      if (input.only_agent && ["summarizer", "typifier", "maestro"].includes(input.only_agent)) {
+      if (input.only_agent && ONLY_AGENT_VALUES.includes(input.only_agent)) {
         scope.only_agent = input.only_agent;
       }
 
@@ -529,6 +554,79 @@ Deno.serve(async (req) => {
       if (rt?.waitUntil) rt.waitUntil(p); else p;
       return jsonResp({ ok: true, run_id: runId, lead_count: leadIds.length });
     }
+
+    if (action === "retry_lead" || action === "retry_all_errors") {
+      const auth = await getUserFromAuth(req);
+      if (!auth) return jsonResp({ error: "unauthorized" }, 401);
+      const { data: rolesRow } = await service.from("user_roles").select("role").eq("user_id", auth.userId);
+      const isSuper = (rolesRow ?? []).some((r) => r.role === "super_admin");
+      if (!isSuper) return jsonResp({ error: "forbidden" }, 403);
+
+      await markStaleRunsAsError(service);
+
+      const sinceHours = Math.max(1, Math.min(720, Number(body.since_hours ?? 168)));
+      const sinceIso = new Date(Date.now() - sinceHours * 3600_000).toISOString();
+
+      let q = service
+        .from("pipeline_run_items")
+        .select("lead_id, clinic_id")
+        .eq("status", "error")
+        .not("lead_id", "is", null)
+        .gte("created_at", sinceIso);
+
+      if (action === "retry_lead") {
+        if (!body.lead_id) return jsonResp({ error: "lead_id_required" }, 400);
+        q = q.eq("lead_id", body.lead_id);
+      } else if (body.clinic_id) {
+        q = q.eq("clinic_id", body.clinic_id);
+      }
+
+      const { data: items, error: qErr } = await q.limit(5000);
+      if (qErr) return jsonResp({ error: qErr.message }, 500);
+
+      // dedup por lead, agrupa por clinic
+      const seen = new Set<string>();
+      const byClinic = new Map<string, string[]>();
+      for (const it of items ?? []) {
+        const lid = it.lead_id as string;
+        const cid = it.clinic_id as string;
+        if (!lid || !cid || seen.has(lid)) continue;
+        seen.add(lid);
+        if (!byClinic.has(cid)) byClinic.set(cid, []);
+        byClinic.get(cid)!.push(lid);
+      }
+
+      if (seen.size === 0) return jsonResp({ error: "no_leads_to_retry" }, 400);
+
+      const runIds: string[] = [];
+      let totalLeads = 0;
+      for (const [cid, leadIds] of byClinic) {
+        const { data: run, error: insErr } = await service
+          .from("pipeline_runs")
+          .insert({
+            clinic_id: cid,
+            status: "queued",
+            requested_by: auth.userId,
+            scope: { lead_ids: leadIds, source: action },
+          })
+          .select("id")
+          .single();
+        if (insErr) {
+          console.error("retry insert failed", cid, insErr.message);
+          continue;
+        }
+        const runId = run!.id as string;
+        runIds.push(runId);
+        totalLeads += leadIds.length;
+        const rt = getEdgeRuntime();
+        const p = runWorker(service, runId);
+        if (rt?.waitUntil) rt.waitUntil(p); else p;
+      }
+
+      return jsonResp({ ok: true, run_ids: runIds, leads_enqueued: totalLeads });
+    }
+
+
 
     if (action === "reset_ai_classifications") {
       const auth = await getUserFromAuth(req);

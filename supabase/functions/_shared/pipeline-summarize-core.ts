@@ -16,9 +16,11 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4
 import { generateText } from "npm:ai@^6";
 import { getClinicOpenAI } from "./clinic-openai.ts";
 import { isClinicPipelineAllowed } from "./pipeline-allowlist.ts";
+import { getToggle } from "./app-settings.ts";
 
 const MODEL = "gpt-5-mini";
 const MAX_MSGS_SUMMARY = 60;
+const MAX_INPUT_CHARS = 40_000; // P4: cap por caracteres para evitar estouro de context window
 const MIN_NEW_MSGS = 3;
 const MAX_SUMMARY_CHARS = 800;
 
@@ -29,19 +31,12 @@ export interface SummarizeResult {
   last_message_id?: string;
 }
 
-async function isEnabled(client: SupabaseClient, key: string): Promise<boolean> {
-  const { data } = await client.from("app_settings").select("value").eq("key", key).maybeSingle();
-  if (!data) return false;
-  const v = String(data.value).toLowerCase();
-  return v === "true" || v === "1" || v === '"true"';
-}
-
 export async function runSummarize(
   client: SupabaseClient,
   leadId: string,
   opts: { force?: boolean; reason?: string } = {},
 ): Promise<SummarizeResult> {
-  if (!(await isEnabled(client, "automation.summarizer.enabled"))) {
+  if (!(await getToggle(client, "automation.summarizer.enabled"))) {
     return { status: "skipped", reason: "toggle_off" };
   }
 
@@ -82,9 +77,19 @@ export async function runSummarize(
     return { status: "skipped", reason: `only_${newCount}_new_msgs` };
   }
 
-  const formatted = ordered
-    .map((m) => `[${(m.created_at as string).slice(0, 16)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 500)}`)
-    .join("\n");
+  // P4: dropa mensagens mais antigas até caber em MAX_INPUT_CHARS.
+  const lines = ordered.map((m) =>
+    `[${(m.created_at as string).slice(0, 16)}] ${m.from_me ? "ATENDENTE" : "LEAD"}: ${(m.content ?? "").slice(0, 500)}`
+  );
+  let totalChars = lines.reduce((s, l) => s + l.length + 1, 0);
+  let droppedCount = 0;
+  while (totalChars > MAX_INPUT_CHARS && lines.length > 1) {
+    const removed = lines.shift()!;
+    totalChars -= removed.length + 1;
+    droppedCount += 1;
+  }
+  const prefix = droppedCount > 0 ? `…+${droppedCount} mensagens anteriores omitidas (cap ${MAX_INPUT_CHARS} chars)\n` : "";
+  const formatted = prefix + lines.join("\n");
 
   const ai = await getClinicOpenAI(client, lead.clinic_id as string);
   if (!ai) return { status: "skipped", reason: "no_clinic_openai_key" };

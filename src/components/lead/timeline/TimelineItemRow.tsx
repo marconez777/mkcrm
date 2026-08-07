@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  Globe, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight,
+  Globe, GitBranch, StickyNote, CheckSquare, Activity, ChevronDown, ChevronRight, Bot
 } from "lucide-react";
 import type { TimelineCategory, TimelineItem } from "./types";
 
@@ -34,14 +34,128 @@ function relative(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+function EventDiagnosticPayload({ meta }: { meta: any }) {
+  if (!meta) return null;
+
+  if (meta.changes) {
+    const formatVal = (v: any) => {
+      if (v === null || v === undefined || v === "") return "—";
+      if (typeof v === "string" && v.startsWith("[") && v.endsWith("]")) {
+        try {
+           const p = JSON.parse(v);
+           if (Array.isArray(p)) return p.join(", ");
+        } catch {}
+      }
+      if (Array.isArray(v)) return v.join(", ");
+      
+      let strVal = typeof v === "string" ? v : String(v);
+      const isoMatch = strVal.match(/^"?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)"?$/);
+      if (isoMatch) {
+        const d = new Date(isoMatch[1]);
+        if (!isNaN(d.getTime())) return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      }
+      return strVal;
+    };
+
+    return (
+      <div className="mt-1 flex flex-col gap-2 rounded bg-muted px-3 py-2 text-[10px]">
+        {Object.entries(meta.changes).map(([key, diff]: [string, any]) => (
+          <div key={key} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+            <span className="font-semibold uppercase tracking-wider text-muted-foreground">{key}</span>
+            <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words">
+              {diff?.to && (
+                <div className="rounded bg-background p-1.5 text-foreground shadow-sm border">
+                  {formatVal(diff.to)}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (meta.reasons || meta.message_id) {
+    return (
+      <div className="mt-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+        {meta.reasons && (
+          <div className="mb-1 whitespace-pre-wrap break-words">
+            <span className="font-semibold">Motivo: </span>
+            {Array.isArray(meta.reasons) ? meta.reasons.join(", ") : meta.reasons}
+          </div>
+        )}
+        {meta.message_id && (
+          <div className="text-muted-foreground">Msg ID: {meta.message_id}</div>
+        )}
+      </div>
+    );
+  }
+
+  if (meta.res) {
+    const res = meta.res as any;
+    return (
+      <div className="mt-1 rounded bg-muted px-2 py-1.5 text-[10px]">
+        {res.moved !== undefined && (
+          <div className="whitespace-pre-wrap break-words">
+            <span className="font-semibold">Ação do Sistema: </span>
+            {res.moved ? "O lead foi movido automaticamente." : "Condição não atingida para mover."}
+          </div>
+        )}
+        {res.reason && (
+          <div className="mt-0.5 text-muted-foreground whitespace-pre-wrap break-words">
+            Detalhe: {res.reason}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const renderValue = (val: any): React.ReactNode => {
+    if (val === null || val === undefined) return "—";
+    if (typeof val === "object") {
+      return (
+        <div className="ml-2 mt-0.5 flex flex-col gap-0.5 border-l-2 border-border/50 pl-2">
+          {Object.entries(val).map(([k, v]) => (
+            <div key={k}>
+              <span className="font-medium text-muted-foreground">{k}: </span>
+              <span className="text-foreground">{renderValue(v)}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return String(val);
+  };
+
+  return (
+    <div className="mt-1 flex flex-col gap-1 whitespace-pre-wrap break-words rounded bg-muted px-3 py-2 text-[10px]">
+      <span className="font-semibold text-muted-foreground mb-1 border-b border-border/50 pb-1">Detalhes Adicionais</span>
+      {Object.entries(meta).map(([key, val]) => (
+        <div key={key}>
+          <span className="font-medium capitalize">{key}: </span>
+          {renderValue(val)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function TimelineItemRow({ item }: { item: TimelineItem }) {
   const [open, setOpen] = useState(false);
-  const Icon = ICON[item.category];
+  
+  let Icon = ICON[item.category];
+  let dotColor = DOT_COLOR[item.category];
+  
+  if (item.actorName === "Sistema" || item.title.includes("Robô:") || item.title.includes("Automação:")) {
+    Icon = Bot;
+    dotColor = "bg-slate-400";
+  }
+
   const expandable = !!item.meta && Object.keys(item.meta).length > 0;
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center pt-1">
-        <div className={cn("flex h-6 w-6 items-center justify-center rounded-full text-white", DOT_COLOR[item.category])}>
+        <div className={cn("flex h-6 w-6 items-center justify-center rounded-full text-white", dotColor)}>
           <Icon className="h-3.5 w-3.5" />
         </div>
         <div className="mt-1 w-px flex-1 bg-border" />
@@ -61,9 +175,9 @@ export default function TimelineItemRow({ item }: { item: TimelineItem }) {
               {expandable ? (open ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />) : null}
               <span className="truncate font-medium">{item.title}</span>
             </div>
-            {item.subtitle && <div className="mt-0.5 truncate text-muted-foreground">{item.subtitle}</div>}
+            {item.subtitle && <div className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-muted-foreground leading-relaxed">{item.subtitle}</div>}
             {item.actorName && !item.subtitle?.includes(item.actorName) && (
-              <div className="mt-0.5 text-[10px] text-muted-foreground">por {item.actorName}</div>
+              <div className="mt-1 text-[10px] text-muted-foreground font-medium">por {item.actorName}</div>
             )}
           </div>
           <span title={new Date(item.at).toLocaleString("pt-BR")} className="shrink-0 whitespace-nowrap text-muted-foreground">
@@ -71,7 +185,7 @@ export default function TimelineItemRow({ item }: { item: TimelineItem }) {
           </span>
         </button>
         {open && expandable && (
-          <pre className="mt-1 overflow-x-auto rounded bg-muted px-2 py-1 text-[10px]">{JSON.stringify(item.meta, null, 2)}</pre>
+          <EventDiagnosticPayload meta={item.meta} />
         )}
       </div>
     </div>

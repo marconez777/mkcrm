@@ -1,35 +1,112 @@
 ---
-title: "Pipeline — Mestre da Documentação (V6)"
+title: "Pipeline — Documentação para planejamento de automação (v4.2)"
 topic: kanban
 kind: map
 audience: agent
-updated: 2026-06-20
-summary: "Hub principal da documentação do MK CRM. Aponta para o diretório de execução atual da arquitetura de 5 Agentes."
+updated: 2026-06-18
+summary: "Hub da documentação do pipeline da Clínica ÓR (v4.2, 11 colunas). Inclui 8 decisões D1–D8, reator de ação humana, tag precisa_atencao_humana, lembretes via UI /automations, e agentes auditores A1/A2/A3 da Fase 2.5. Para o ESTADO REAL do que está rodando hoje, ver docs/pipeline/runtime/."
 related_docs:
   - docs/pipeline/runtime/README.md
+  - docs/pipeline/STAGES.md
+  - docs/pipeline/SCENARIOS.md
+  - docs/pipeline/DATABASE.md
+  - docs/pipeline/AUTOMATION_PLAN.md
+  - docs/pipeline/CUSTOM_FIELDS_E_TAGS.md
+  - docs/pipeline/LEAD_SAMPLES.md
+  - docs/estudo-geral.md
 ---
 
-# MK CRM — Pipeline Master Hub (V6)
+> ⚠️ **Esta pasta documenta o PLANO v4.2.** Para o estado realmente implementado e deployado (prompts atuais, gates aplicados, bugs corrigidos, tags em uso), use **[`docs/pipeline/runtime/`](./runtime/README.md)** como fonte de verdade.
 
-A arquitetura do MK CRM amadureceu para a **Versão 6**, utilizando um sistema distribuído de múltiplos agentes de IA focados em propósitos únicos.
+# Pipeline — Documentação base para automação (v4.2)
 
-## ⚠️ AVISO IMPORTANTE SOBRE A DOCUMENTAÇÃO
+Esta pasta consolida **tudo o que é preciso para planejar e implementar a automação do pipeline** sem precisar varrer o código. A Fase 0+1 do `AUTOMATION_PLAN.md` deve ser implementável **lendo apenas estes arquivos**.
 
-**Toda a documentação operacional e arquitetural que descreve o que está rodando em produção HOJE está na subpasta `runtime/`.**
+## Contexto
 
-Documentos antigos que tratam de V3, V4 e planejamento inicial foram movidos para a pasta `archive/`. Você nunca deve se basear na documentação do arquivo para escrever código.
+- **Agente anterior removido** (extractor, vision-tick, field-rules, reclassify-deep). Pipeline hoje é **100% manual**.
+- **Agente de WhatsApp (auto-reply)** continua ativo e independente.
+- Base empírica: estudo de 441 leads / 3.973 mensagens / 306 áudios da Clínica ÓR (`docs/estudo/`).
+- **v4.1**: incorpora o brief consolidado da clínica e fecha 8 decisões + 13 perguntas abertas.
+- **v4.2**: adiciona 3 agentes de auditoria (A1 position-auditor, A2 post-move-verifier, A3 history tool no classifier) na Fase 2.5. Nenhuma decisão D nova — são mecanismos de execução.
 
-### Como navegar nesta pasta?
+## Changelog v4.1 → v4.2
 
-| Se você precisa... | Vá para... |
+| Item | O que muda |
 |---|---|
-| Entender a arquitetura geral dos 5 Agentes de IA | [`runtime/ARCHITECTURE.md`](./runtime/ARCHITECTURE.md) |
-| Entender como a Classificação e Dispatch funcionam | [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md) |
-| Entender as 11 camadas protetoras (Gates de Segurança) | [`runtime/GATES.md`](./runtime/GATES.md) |
-| Entender como a Integração com WhatsApp resolve concorrência | [`runtime/WEBHOOK_EVOLUTION.md`](./runtime/WEBHOOK_EVOLUTION.md) |
-| Entender o tracking First-Party e UTMs | [`runtime/TRACKING.md`](./runtime/TRACKING.md) |
-| Entender os triggers no banco de dados que protegem o Humano | [`DATABASE_AND_TRIGGERS.md`](./DATABASE_AND_TRIGGERS.md) |
-| Criar novas telas usando o Lovable ou IAs geradoras | [`LOVABLE_INTEGRATION.md`](./LOVABLE_INTEGRATION.md) |
+| **A1** `pipeline-position-auditor` | Cron diário revisa leads parados ≥7d. Discordância → tag + task. **Não move card.** |
+| **A2** `pipeline-post-move-verifier` | Hook async em `pipeline-move` dá 2ª opinião barata em todo move `auto:*`. Warning sem reverter. |
+| **A3** Tool `get_lead_history` no classifier | Classifier pode puxar contexto histórico sob demanda (até 3 chamadas/execução). |
+| G11 | Estendido para cobrir A1/A2: nenhum agente auditor cria/edita `appointments` nem move stage. |
+| Tags novas | `auditor_sugere_<stage>` (A1), `post_move_warning` (A2). |
+| Toggles novos | `automation.position_auditor.*`, `automation.post_move_verifier.*`, `automation.classifier.history_tool_enabled`. |
 
-## Visão Geral em Uma Frase (V6)
-O sistema capta mensagens via webhook da Evolution API em tempo real (mitigando Race Conditions via Unique Constraint), processa a mensagem via **5 Agentes LLM concorrentes** (Resumidor, Agendador, Tipificador, Movimentador, Maestro), e aplica as intenções no Banco de Dados respeitando as leis estritas do **Motor Determinístico** (Gate D3 de Paciente Antigo, Gate G10 de Lock Humano de 7 dias, e Gate de Autoridade da Secretária).
+## Mudanças v3 → v4.1
+
+| # | Decisão | Resumo |
+|---|---|---|
+| D1 | "Procedimento pago" eliminada | Vira campo `status_financeiro`. Pipeline 12 → **11 colunas**. |
+| D2 | "Procedimento agendado" → **"Tratamento agendado"** | Termo "procedimento" sai do vocabulário operacional. |
+| D3 | Paciente antigo não sai do stage ao agendar | Controle por tags + campos + calendário. |
+| D4 | Inatividade tiered | 24h / 3d / 7d em vez de regra única de 5d. |
+| D5 | Move automático ao passar do horário | Humano reverte via `status_consulta`. |
+| D6 | Lembretes via UI `/automations` | Não há regra `auto:reminder-*` codificada. Usa `automations-tick` existente. |
+| D7 | Reator de ação humana | Quando humano move/edita, IA infere consequência ou trava. |
+| D8 | Tag `precisa_atencao_humana` | Fallback universal de "lead travado". Vira fila de retreino. |
+
+## Lista de colunas v4.1 (11)
+
+1. Leads de entrada
+2. Qualificação
+3. Consulta agendada
+4. Consulta finalizada
+5. **Tratamento agendado** (renomeada — D2)
+6. Em tratamento
+7. Paciente antigo *(final)*
+8. Sem resposta
+9. Nutrição inativa *(final)*
+10. B2B / Stakeholders *(terminal)*
+11. Desqualificado / Fora de escopo *(terminal)*
+
+## Como usar esta pasta
+
+| Quando você quiser… | Leia |
+|---|---|
+| Quais colunas existem, flags, locks por stage | [`STAGES.md`](./STAGES.md) |
+| Cenários reais + padrões + erros + reator humano | [`SCENARIOS.md`](./SCENARIOS.md) |
+| Tabelas, triggers, enums, campos novos | [`DATABASE.md`](./DATABASE.md) |
+| Catálogo de custom_fields, whitelist de tags | [`CUSTOM_FIELDS_E_TAGS.md`](./CUSTOM_FIELDS_E_TAGS.md) |
+| Amostra real pseudonimizada + casos a migrar | [`LEAD_SAMPLES.md`](./LEAD_SAMPLES.md) |
+| Plano de fases + 11 gates + reator humano + D1–D8 | [`AUTOMATION_PLAN.md`](./AUTOMATION_PLAN.md) |
+| Evidência detalhada por coluna do estudo | [`docs/estudo/`](../estudo/README.md) |
+
+## Arquitetura v4.1 em uma frase (planejamento)
+
+**1 Classifier (LLM) + 1 Summarizer (LLM incremental) + Rule Engine (código puro) + Reator humano (Postgres trigger + edge function).** Stages se movem por código determinístico via 11 gates de segurança. LLM só sugere; nunca decide movimento. Lembretes vivem em `/automations`.
+
+> ⚠️ **Estado real global (2026-06-20)**: o "1 Classifier" do plano evoluiu, em produção, para uma **linha de montagem V6 de 5 agentes** — Resumidor (`gpt-4o`) → [Agendador ∥ Tipificador ∥ Movimentador] (3× `gpt-5-mini` paralelos) → Maestro (`gpt-5`). Os 11 gates continuam valendo. Detalhes em [`runtime/CLASSIFIER.md`](./runtime/CLASSIFIER.md).
+
+> ⚠️ **Exceção Clínica ÓR (V7 - 2026-07-31)**: Para o tenant da Clínica ÓR (`clinic_id = cf038458-457d-4c1a-9ac4-c88c3c8353a1`), a arquitetura V6 foi desativada cirurgicamente no código. A ÓR usa a **Arquitetura V7**, que é 100% baseada em *Rule Engine* determinístico, bypassando o Agendador, Movimentador e Maestro. Ver [`docs/tenants/clinica-or/CLINICA_OR_CLASSIFIER.md`](../tenants/clinica-or/CLINICA_OR_CLASSIFIER.md).
+
+## Princípios
+
+1. **Tudo opt-in por regra** em `app_settings.automation.<rule>.enabled`. Off by default.
+2. **`lead_stage_history.source`** preenchido com `'auto:<rule>'`, `'manual'`, `'ui'`, `'reator:<inferencia>'`, ou `'system:<reason>'`.
+3. **Lock manual (7d)** bloqueia movimentação automática, não bloqueia escrita de tags/fields/summary. Renovado pelo reator.
+4. **Idempotência** via `lead_events` com chave estável.
+5. **Tags sempre MERGE**, custom_fields enum-validados, nunca tocar em `pipeline_id`.
+6. **Humano > IA** em conflitos de custom_fields nos últimos 7 dias.
+7. **Stages finais excluídos de scans temporais** + leads com appointment futuro excluídos do followup.
+8. **Status financeiro independente de stage** (D1).
+9. **Paciente antigo não move por automação** (D3).
+10. **Lembretes não em código** (D6).
+11. **IA com baixa confiança → `precisa_atencao_humana`** (D8).
+12. **Classifier nunca escreve em `appointments`** (G11).
+
+## Lembretes — onde configurar
+
+**Não em código.** Use a UI `/automations` (sistema existente). Cada tipo de procedimento ganha sua automation `before_appointment` com 2 offsets (1440min e 60min). Detalhes em `SCENARIOS.md` C9.
+
+## Próximo passo
+
+Quando quiser executar: _"vamos fazer a Fase 0"_. Migration (renomeia/elimina stages, cria campos novos, toggles em `app_settings`) + helpers + UI sai junta. Depois Fase 1.1+1.2 já entrega o fechamento do bug original ("pagou a consulta e ficou em Qualificação") + welcome message + transição por resposta humana.

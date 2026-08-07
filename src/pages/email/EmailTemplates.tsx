@@ -161,7 +161,7 @@ export default function EmailTemplates() {
   }
 
   async function sendTest(t: Tpl) {
-    if (!clinicId) { toast.error("Clínica não identificada"); return; }
+    if (!clinicId) { toast.error("Empresa não identificada"); return; }
     if (!testEmail) { toast.error("Informe um email para teste"); return; }
     setSendingTest(true);
     try {

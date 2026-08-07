@@ -49,6 +49,7 @@ export type Instance = {
   evolution_api_key: string;
   evolution_instance: string;
   webhook_token: string;
+  connection_state?: string | null;
   is_default?: boolean;
   clinic_id: string;
   last_inbound_webhook_at?: string | null;
@@ -177,26 +178,38 @@ export function phoneFromContact(it: any): string | null {
 
 export function extractText(msg: any): { type: string; content: string | null; mime?: string | null; fileName?: string | null } {
   if (!msg) return { type: "unknown", content: null };
-  if (msg.conversation) return { type: "text", content: msg.conversation };
-  if (msg.extendedTextMessage?.text)
-    return { type: "text", content: msg.extendedTextMessage.text };
-  // NOTE: campos `url` em imageMessage/videoMessage/etc são URLs CRIPTOGRAFADAS do WhatsApp
-  // (mmg.whatsapp.net) e não podem ser baixadas diretamente — sempre passar por downloadAndStoreMedia.
-  if (msg.imageMessage)
-    return { type: "image", content: msg.imageMessage.caption || "[Imagem]", mime: msg.imageMessage.mimetype ?? "image/jpeg" };
-  if (msg.videoMessage)
-    return { type: "video", content: msg.videoMessage.caption || "[Vídeo]", mime: msg.videoMessage.mimetype ?? "video/mp4" };
-  if (msg.audioMessage)
-    return { type: "audio", content: "[Áudio]", mime: msg.audioMessage.mimetype ?? "audio/ogg" };
-  if (msg.documentMessage)
+
+  // 1. Descascar envelopes especiais do WhatsApp (Mensagens temporárias e visualização única)
+  let coreMsg = msg;
+  if (coreMsg.ephemeralMessage?.message) coreMsg = coreMsg.ephemeralMessage.message;
+  if (coreMsg.viewOnceMessage?.message) coreMsg = coreMsg.viewOnceMessage.message;
+  if (coreMsg.viewOnceMessageV2?.message) coreMsg = coreMsg.viewOnceMessageV2.message;
+  if (coreMsg.documentWithCaptionMessage?.message) coreMsg = coreMsg.documentWithCaptionMessage.message;
+
+  // 2. Extrair o conteúdo real
+  if (coreMsg.conversation) return { type: "text", content: coreMsg.conversation };
+  if (coreMsg.extendedTextMessage?.text)
+    return { type: "text", content: coreMsg.extendedTextMessage.text };
+  if (coreMsg.reactionMessage?.text)
+    return { type: "reaction", content: `[Reagiu com: ${coreMsg.reactionMessage.text}]` };
+  if (coreMsg.templateMessage?.hydratedTemplate?.hydratedContentText)
+    return { type: "text", content: coreMsg.templateMessage.hydratedTemplate.hydratedContentText };
+  if (coreMsg.imageMessage)
+    return { type: "image", content: coreMsg.imageMessage.caption || "[Imagem]", mime: coreMsg.imageMessage.mimetype ?? "image/jpeg" };
+  if (coreMsg.videoMessage)
+    return { type: "video", content: coreMsg.videoMessage.caption || "[Vídeo]", mime: coreMsg.videoMessage.mimetype ?? "video/mp4" };
+  if (coreMsg.audioMessage)
+    return { type: "audio", content: "[Áudio]", mime: coreMsg.audioMessage.mimetype ?? "audio/ogg" };
+  if (coreMsg.documentMessage)
     return {
       type: "document",
-      content: msg.documentMessage.fileName || "[Documento]",
-      mime: msg.documentMessage.mimetype ?? "application/octet-stream",
-      fileName: msg.documentMessage.fileName ?? null,
+      content: coreMsg.documentMessage.fileName || "[Documento]",
+      mime: coreMsg.documentMessage.mimetype ?? "application/octet-stream",
+      fileName: coreMsg.documentMessage.fileName ?? null,
     };
-  if (msg.stickerMessage)
-    return { type: "sticker", content: "[Figurinha]", mime: msg.stickerMessage.mimetype ?? "image/webp" };
+  if (coreMsg.stickerMessage)
+    return { type: "sticker", content: "[Figurinha]", mime: coreMsg.stickerMessage.mimetype ?? "image/webp" };
+  
   return { type: "unknown", content: null };
 }
 
@@ -359,19 +372,33 @@ export async function ingestMessage(
 
   let createdLead = false;
   if (!lead) {
-    // Resolve funil de entrada: prioriza funil de vendas vinculado a esta instância.
-    // Fallback: primeiro funil de vendas da clínica (default → menor position → mais antigo).
+    // Resolve funil de entrada: prioriza funil de vendas vinculado a esta instância
+    // via junção N:M (pipeline_whatsapp_instances). Mantém retro-compat lendo também
+    // pipelines.whatsapp_instance_id. Fallback: primeiro funil de vendas da clínica.
     let pipelineId: string | null = null;
     let pipelineFallback = false;
     if (instanceId) {
-      const { data: pipe } = await supabase
-        .from("pipelines")
-        .select("id")
+      // 1) join N:M
+      const { data: joinRow } = await supabase
+        .from("pipeline_whatsapp_instances")
+        .select("pipeline_id, pipelines!inner(id, kind)")
         .eq("clinic_id", clinicId)
-        .eq("kind", "sales")
         .eq("whatsapp_instance_id", instanceId)
+        .eq("pipelines.kind", "sales")
         .maybeSingle();
-      pipelineId = (pipe as any)?.id ?? null;
+      pipelineId = (joinRow as any)?.pipeline_id ?? null;
+
+      // 2) retro-compat: vínculo legado direto na coluna
+      if (!pipelineId) {
+        const { data: pipe } = await supabase
+          .from("pipelines")
+          .select("id")
+          .eq("clinic_id", clinicId)
+          .eq("kind", "sales")
+          .eq("whatsapp_instance_id", instanceId)
+          .maybeSingle();
+        pipelineId = (pipe as any)?.id ?? null;
+      }
     }
     if (!pipelineId) {
       const { data: fallbackPipe } = await supabase

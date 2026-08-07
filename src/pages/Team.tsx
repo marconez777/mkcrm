@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllByIn } from "@/lib/fetch-all";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, UserPlus } from "lucide-react";
 
+
 type Member = {
   user_id: string;
   role: string;
@@ -20,6 +22,7 @@ type Member = {
 };
 
 export default function Team() {
+  const { t } = useTranslation();
   const { membership, loading } = useAuth();
   const isAdmin = membership?.role === "owner" || membership?.role === "admin";
   const [members, setMembers] = useState<Member[]>([]);
@@ -31,7 +34,8 @@ export default function Team() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"admin" | "professional" | "viewer">("professional");
 
-  useEffect(() => { document.title = "Equipe — MK CRM"; }, []);
+  useEffect(() => { document.title = t("team.pageTitle"); }, [t]);
+
 
   async function load() {
     if (!membership?.clinic_id) return;
@@ -68,12 +72,13 @@ export default function Team() {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success("Usuário criado");
+      toast.success(t("team.created"));
       setOpen(false);
       setEmail(""); setPassword(""); setFullName(""); setRole("professional");
       await load();
     } catch (e: any) {
-      toast.error(e.message ?? "Erro ao criar usuário");
+      toast.error(e.message ?? t("team.errorCreate"));
+
     } finally {
       setBusy(false);
     }
@@ -83,47 +88,47 @@ export default function Team() {
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Equipe</h1>
+          <h1 className="text-2xl font-semibold">{t("team.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Membros da clínica <strong>{membership.clinic?.name}</strong>
+            {t("team.membersOf")} <strong>{membership.clinic?.name}</strong>
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><UserPlus className="mr-2 h-4 w-4" />Novo usuário</Button>
+            <Button><UserPlus className="mr-2 h-4 w-4" />{t("team.newUser")}</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Cadastrar usuário</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{t("team.registerUser")}</DialogTitle></DialogHeader>
             <form onSubmit={createUser} className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nome completo" />
+                <Label>{t("team.name")}</Label>
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={t("team.namePh")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="pessoa@email.com" />
+                <Label>{t("team.email")}</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder={t("team.emailPh")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Senha</Label>
-                <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} placeholder="Mínimo 8 caracteres" />
-                <p className="text-xs text-muted-foreground">Repasse a senha de forma segura. O usuário pode alterá-la depois.</p>
+                <Label>{t("team.password")}</Label>
+                <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} placeholder={t("team.passwordPh")} />
+                <p className="text-xs text-muted-foreground">{t("team.passwordHint")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Papel</Label>
+                <Label>{t("team.role")}</Label>
                 <select
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={role}
                   onChange={(e) => setRole(e.target.value as any)}
                 >
-                  <option value="admin">Admin</option>
-                  <option value="professional">Profissional</option>
-                  <option value="viewer">Visualizador</option>
+                  <option value="admin">{t("team.roleAdmin")}</option>
+                  <option value="professional">{t("team.roleProfessional")}</option>
+                  <option value="viewer">{t("team.roleViewer")}</option>
                 </select>
               </div>
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{t("team.cancel")}</Button>
                 <Button type="submit" disabled={busy}>
-                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}Criar
+                  {busy && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}{t("team.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -131,29 +136,31 @@ export default function Team() {
         </Dialog>
       </div>
 
+
       <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Papel</TableHead>
-              <TableHead>Desde</TableHead>
+              <TableHead>{t("team.tableName")}</TableHead>
+              <TableHead>{t("team.tableEmail")}</TableHead>
+              <TableHead>{t("team.tableRole")}</TableHead>
+              <TableHead>{t("team.tableSince")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {members.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Nenhum membro</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">{t("team.empty")}</TableCell></TableRow>
             )}
             {members.map((m) => (
               <TableRow key={m.user_id}>
                 <TableCell className="font-medium">{m.profile?.full_name ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{m.profile?.email ?? "—"}</TableCell>
                 <TableCell><Badge variant="secondary">{m.role}</Badge></TableCell>
-                <TableCell className="text-muted-foreground">{new Date(m.created_at).toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell className="text-muted-foreground">{new Date(m.created_at).toLocaleDateString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>
+
         </Table>
       </div>
     </div>

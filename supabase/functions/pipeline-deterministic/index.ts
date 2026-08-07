@@ -12,6 +12,8 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { pipelineMove } from "../_shared/pipeline-move.ts";
+import { isAutoReplyMessage } from "../_shared/standard-messages.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,11 +28,13 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 type Action =
   | "novo-lead"
   | "secretary-replied"
+  | "reactivation-inbound"
   | "appointment-sync"
   | "field-changed"
   | "inactivity-tick"
   | "reactivation-tick"
-  | "human-reactor-tick";
+  | "human-reactor-tick"
+  | "monthly-sweep-tick";
 
 interface Body {
   action: Action;
@@ -49,9 +53,10 @@ type Canon =
   | "Consulta agendada"
   | "Tratamento agendado"
   | "Consulta finalizada"
-  | "Em tratamento"
+  | "1ª Sessão Finalizada"
   | "Sem resposta"
   | "Nutrição inativa"
+  | "Nutrição Antigos"
   | "Paciente antigo";
 
 /**
@@ -124,6 +129,18 @@ async function addTag(client: SupabaseClient, leadId: string, tag: string) {
     .eq("id", leadId);
 }
 
+async function removeTags(client: SupabaseClient, leadId: string, tagsToRemove: string[]) {
+  const { data: lead } = await client
+    .from("leads")
+    .select("tags")
+    .eq("id", leadId)
+    .single();
+  const current: string[] = lead?.tags ?? [];
+  const next = current.filter((t) => !tagsToRemove.includes(t));
+  if (next.length === current.length) return;
+  await client.from("leads").update({ tags: next }).eq("id", leadId);
+}
+
 async function logEvent(
   client: SupabaseClient,
   clinicId: string,
@@ -184,10 +201,14 @@ async function ruleSecretaryReplied(
   }
   const { data: msg } = await client
     .from("messages")
-    .select("id, lead_id, from_me, message_type")
+    .select("id, lead_id, from_me, message_type, content, is_automated")
     .eq("id", messageId)
     .single();
   if (!msg || !msg.from_me) return { skipped: "not_outbound" };
+  // Saudação automática do WhatsApp não conta como resposta da secretária.
+  if (msg.is_automated) return { skipped: "automated_message" };
+  if (isAutoReplyMessage(msg.content)) return { skipped: "auto_reply_greeting" };
+
 
   const { data: lead } = await client
     .from("leads")
@@ -217,6 +238,64 @@ async function ruleSecretaryReplied(
   });
   await logEvent(client, lead.clinic_id, lead.id, "auto:secretary-replied", {
     message_id: messageId,
+    res,
+  });
+  return { res };
+}
+
+/**
+ * auto:reactivation-inbound
+ * Quando um lead em "Nutrição inativa" ou "Nutrição Antigos" recebe uma
+ * mensagem inbound (from_me=false), o card deve sair da geladeira:
+ *   - Nutrição inativa  → Qualificação
+ *   - Nutrição Antigos  → Paciente antigo
+ * Respeita gates (manual_lock, etc.) via pipelineMove.
+ */
+async function ruleReactivationInbound(
+  client: SupabaseClient,
+  messageId: string,
+) {
+  if (!(await isEnabled(client, "automation.reactivation_inbound.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+  const { data: msg } = await client
+    .from("messages")
+    .select("id, lead_id, from_me")
+    .eq("id", messageId)
+    .single();
+  if (!msg || msg.from_me) return { skipped: "not_inbound" };
+
+  const { data: lead } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id, archived_at, is_internal_contact")
+    .eq("id", msg.lead_id)
+    .single();
+  if (!lead?.pipeline_id) return { skipped: "no_pipeline" };
+  if (lead.archived_at) return { skipped: "archived" };
+  if (lead.is_internal_contact) return { skipped: "internal_contact" };
+
+  const inativaId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição inativa");
+  const antigosId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, "Nutrição Antigos");
+
+  let targetCanon: Canon | null = null;
+  if (lead.stage_id === inativaId) targetCanon = "Qualificação";
+  else if (lead.stage_id === antigosId) targetCanon = "Paciente antigo";
+  else return { skipped: "not_in_nutricao" };
+
+  const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, targetCanon);
+  if (!toStageId) return { skipped: `stage_not_found:${targetCanon}` };
+
+  const res = await pipelineMove(client, {
+    leadId: lead.id,
+    toStageId,
+    source: "auto:reactivation-inbound",
+    reason: `Lead respondeu (msg ${messageId}) — saindo da geladeira`,
+    ruleKey: "automation.reactivation_inbound.enabled",
+    idempotencyKey: `reactivation-inbound:${messageId}`,
+  });
+  await logEvent(client, lead.clinic_id, lead.id, "auto:reactivation-inbound", {
+    message_id: messageId,
+    to_canon: targetCanon,
     res,
   });
   return { res };
@@ -265,7 +344,7 @@ async function ruleAppointmentSync(
       targetCanon = "Consulta finalizada";
       patch["status_consulta"] = "realizada";
     } else if (appt.kind === "procedimento") {
-      targetCanon = "Em tratamento";
+      targetCanon = "1ª Sessão Finalizada";
       const prev = Number(
         (lead.custom_fields as Record<string, unknown>)?.sessoes_realizadas ?? 0,
       );
@@ -283,6 +362,17 @@ async function ruleAppointmentSync(
 
   if (Object.keys(patch).length > 0) await patchCustomFields(client, lead.id, patch);
   if (extraTag) await addTag(client, lead.id, extraTag);
+
+  // PR10.3: auto-clear das tags de reagendamento quando o appointment efetivamente
+  // avança (agendado/realizado). Sem isso ruleConsultaPassou trava o lead
+  // indefinidamente se a secretária esquecer de limpar a tag.
+  if (appt.status === "agendado" || appt.status === "realizado") {
+    await removeTags(client, lead.id, [
+      "reagendamento_pendente",
+      "reagendamento_solicitado",
+      "aguardando_nova_data",
+    ]);
+  }
 
   if (!targetCanon) return { skipped: "no_target", patch };
   const toStageId = await resolveStageId(
@@ -357,17 +447,7 @@ async function ruleFieldChanged(
           ruleKey: "automation.ciclo_concluido.enabled",
           idempotencyKey: `ciclo:${leadId}`,
         });
-        // congela com manual_lock 90 dias
-        if ((res as { moved?: boolean }).moved) {
-          await client
-            .from("leads")
-            .update({
-              manual_lock_until: new Date(
-                Date.now() + 90 * 24 * 3600 * 1000,
-              ).toISOString(),
-            })
-            .eq("id", leadId);
-        }
+        // PR4 — removido manual_lock_until de 90 dias após ciclo concluído.
         await logEvent(client, lead.clinic_id, leadId, "auto:ciclo-concluido", {
           res,
         });
@@ -376,23 +456,74 @@ async function ruleFieldChanged(
     }
   }
 
-  // modality-guard (flag de atenção quando muda preferência)
+  // PR4 — modality-guard removido (campo modalidade_preferida descontinuado).
+
+  // PR4 — eh_paciente_antigo: regra canônica para mover paciente antigo.
   if (
-    oldCf?.modalidade_preferida !== newCf?.modalidade_preferida &&
-    newCf?.modalidade_preferida === "online" &&
-    (await isEnabled(client, "automation.modality_guard.enabled"))
+    oldCf?.eh_paciente_antigo !== true &&
+    newCf?.eh_paciente_antigo === true &&
+    (await isEnabled(client, "automation.paciente_antigo_canonical.enabled"))
   ) {
     const { data: lead } = await client
       .from("leads")
-      .select("id, clinic_id, tags")
+      .select("id, clinic_id, pipeline_id, stage_id")
       .eq("id", leadId)
       .single();
-    if (lead) {
-      await addTag(client, leadId, "modalidade_online");
-      await logEvent(client, lead.clinic_id, leadId, "auto:modality-guard", {
-        modalidade: "online",
+    if (lead?.pipeline_id) {
+      const pacAntigo = await resolveStageId(
+        client,
+        lead.clinic_id,
+        lead.pipeline_id,
+        "Paciente antigo",
+      );
+      if (pacAntigo && lead.stage_id !== pacAntigo) {
+        const res = await pipelineMove(client, {
+          leadId,
+          toStageId: pacAntigo,
+          source: "auto:paciente-antigo-canonical",
+          reason: "eh_paciente_antigo=true",
+          ruleKey: "automation.paciente_antigo_canonical.enabled",
+          idempotencyKey: `paciente-antigo:${leadId}`,
+        });
+        await logEvent(client, lead.clinic_id, leadId, "auto:paciente-antigo-canonical", { res });
+        out.paciente_antigo = res;
+      }
+    }
+  }
+
+  // === Transição Agendamento Humano (Junho/2026) ===
+  // Secretária preencheu data no Kanban → mover deterministicamente.
+  const apptSyncEnabled = await isEnabled(client, "automation.appointment_sync.enabled");
+  if (apptSyncEnabled) {
+    const moves: Array<{ field: string; canon: Canon; src: string; key: string }> = [
+      { field: "consulta_agendada_em",   canon: "Consulta agendada",   src: "auto:field-changed-consulta",     key: "field-changed-consulta" },
+      { field: "procedimento_agendado_em", canon: "Tratamento agendado", src: "auto:field-changed-procedimento", key: "field-changed-procedimento" },
+    ];
+    for (const m of moves) {
+      const before = oldCf?.[m.field];
+      const after  = newCf?.[m.field];
+      const wasEmpty = !before || before === "" || before === null;
+      const nowFilled = !!after && after !== "";
+      if (!(wasEmpty && nowFilled) && before === after) continue;
+      if (!nowFilled) continue;
+      const { data: lead } = await client
+        .from("leads")
+        .select("id, clinic_id, pipeline_id, stage_id")
+        .eq("id", leadId)
+        .single();
+      if (!lead?.pipeline_id) continue;
+      const toStageId = await resolveStageId(client, lead.clinic_id, lead.pipeline_id, m.canon);
+      if (!toStageId || lead.stage_id === toStageId) continue;
+      const res = await pipelineMove(client, {
+        leadId,
+        toStageId,
+        source: m.src,
+        reason: `${m.field} preenchido pela secretária → ${m.canon}`,
+        ruleKey: "automation.appointment_sync.enabled",
+        idempotencyKey: `${m.key}:${leadId}:${String(after).slice(0, 19)}`,
       });
-      out.modality = "tagged";
+      await logEvent(client, lead.clinic_id, leadId, m.src, { field: m.field, value: after, res });
+      out[m.key] = res;
     }
   }
 
@@ -422,7 +553,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   const { data: aliases } = await client
     .from("stage_canonical_aliases")
     .select("clinic_id, pipeline_id, canonical_name, stage_id")
-    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Paciente antigo"]);
+    .in("canonical_name", [...ACTIVE, "Nutrição inativa", "Nutrição Antigos", "Paciente antigo"]);
 
   const stageIdsActive = new Set(
     (aliases ?? [])
@@ -430,9 +561,12 @@ async function ruleInactivityTick(client: SupabaseClient) {
       .map((a) => a.stage_id),
   );
   const nutricaoByPipeline = new Map<string, string>();
+  const nutricaoAntigosByPipeline = new Map<string, string>();
   for (const a of aliases ?? []) {
     if (a.canonical_name === "Nutrição inativa") {
       nutricaoByPipeline.set(a.pipeline_id, a.stage_id);
+    } else if (a.canonical_name === "Nutrição Antigos") {
+      nutricaoAntigosByPipeline.set(a.pipeline_id, a.stage_id);
     }
   }
   if (stageIdsActive.size === 0) return { skipped: "no_active_stages_mapped" };
@@ -440,7 +574,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
   const { data: leads } = await client
     .from("leads")
     .select(
-      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_human_activity_at, tags",
+      "id, clinic_id, pipeline_id, stage_id, last_message_at, last_inbound_at, last_human_activity_at, tags",
     )
     .in("stage_id", Array.from(stageIdsActive))
     .is("archived_at", null)
@@ -449,10 +583,13 @@ async function ruleInactivityTick(client: SupabaseClient) {
 
   let tier24 = 0, tier3 = 0, tier7 = 0;
   for (const lead of leads ?? []) {
-    const lastMsg = lead.last_message_at ?? "1970-01-01";
+    // PR5: relógio de inatividade usa last_inbound_at (somente mensagens do
+    // paciente). Follow-ups da clínica não resetam mais o timer. Fallback p/
+    // last_message_at quando o lead ainda não tem inbound registrado.
+    const lastInbound = lead.last_inbound_at ?? lead.last_message_at ?? "1970-01-01";
     const lastHuman = lead.last_human_activity_at ?? "1970-01-01";
 
-    if (t7d && lastMsg < cutoff7d) {
+    if (t7d && lastInbound < cutoff7d) {
       const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
       if (nutricaoId && lead.stage_id !== nutricaoId) {
         const today = new Date().toISOString().slice(0, 10);
@@ -472,7 +609,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
           });
         }
       }
-    } else if (t3d && lastMsg < cutoff3d) {
+    } else if (t3d && lastInbound < cutoff3d) {
       const today = new Date().toISOString().slice(0, 10);
       // tag + event only (no move); idempotency via event lookup
       const { data: existing } = await client
@@ -484,6 +621,7 @@ async function ruleInactivityTick(client: SupabaseClient) {
         .maybeSingle();
       if (!existing) {
         await logEvent(client, lead.clinic_id, lead.id, "auto:followup-3d", {
+          last_inbound_at: lead.last_inbound_at,
           last_message_at: lead.last_message_at,
         });
         tier3++;
@@ -506,10 +644,19 @@ async function ruleInactivityTick(client: SupabaseClient) {
     }
   }
 
-  // V5 — SLA 60d em "Paciente antigo" → "Nutrição inativa".
+
+  // V5 — SLA 40d em "Paciente antigo" → "Nutrição Antigos".
+  // Também inclui leads sem nenhuma data de interação (last_inbound_at
+  // e last_message_at ambos NULL), que antes ficavam presos na coluna.
   // Branch independente p/ não interferir nos tiers 24h/3d/7d acima.
   let tier60pa = 0;
+  const perLead: Array<{ lead_id: string; ms: number; moved: boolean; reason?: string }> = [];
+  let skippedNoDest = 0;
+  let notMoved = 0;
+  let errored = 0;
+  const t60paStart = Date.now();
   const t60pa = await isEnabled(client, "automation.inactivity_paciente_antigo.enabled");
+  let candidates = 0;
   if (t60pa) {
     const cutoff60 = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
     const paAliases = (aliases ?? []).filter((a) => a.canonical_name === "Paciente antigo");
@@ -517,34 +664,93 @@ async function ruleInactivityTick(client: SupabaseClient) {
     if (paStageIds.size > 0) {
       const { data: paLeads } = await client
         .from("leads")
-        .select("id, clinic_id, pipeline_id, stage_id, last_message_at")
+        .select("id, clinic_id, pipeline_id, stage_id, last_inbound_at, last_message_at, custom_fields")
         .in("stage_id", Array.from(paStageIds))
         .is("archived_at", null)
         .eq("is_internal_contact", false)
-        .lt("last_message_at", cutoff60)
-        .limit(2000);
+        .or(
+          `last_inbound_at.lt.${cutoff60},` +
+          `and(last_inbound_at.is.null,last_message_at.lt.${cutoff60}),` +
+          `and(last_inbound_at.is.null,last_message_at.is.null)`
+        )
+        .limit(50);
+
+      candidates = paLeads?.length ?? 0;
+      console.log(JSON.stringify({ v: "det-v2", phase: "pa60:start", candidates, stages: paStageIds.size }));
+
       for (const lead of paLeads ?? []) {
-        const nutricaoId = nutricaoByPipeline.get(lead.pipeline_id);
-        if (!nutricaoId) continue;
+        const leadStart = Date.now();
+        const destId = nutricaoAntigosByPipeline.get(lead.pipeline_id);
+        if (!destId) {
+          skippedNoDest++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "no_destination_stage" });
+          continue;
+        }
+
+        const cf = (lead.custom_fields as Record<string, unknown>) ?? {};
+        const futureApptRaw = cf.consulta_agendada_em ?? cf.procedimento_agendado_em;
+        if (futureApptRaw) {
+          const appt = new Date(futureApptRaw as string);
+          if (!isNaN(appt.getTime()) && appt.getTime() > now) {
+            skippedNoDest++;
+            perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: "has_future_appointment" });
+            continue;
+          }
+        }
+
         const ym = new Date().toISOString().slice(0, 7);
-        const res = await pipelineMove(client, {
-          leadId: lead.id,
-          toStageId: nutricaoId,
-          source: "auto:inactivity-tick",
-          reason: "60d sem inbound em Paciente antigo — Nutrição inativa",
-          ruleKey: "automation.inactivity_paciente_antigo.enabled",
-          idempotencyKey: `inactivity:paciente_antigo:${lead.id}:${ym}`,
-        });
-        if ((res as { moved?: boolean }).moved) {
-          tier60pa++;
-          await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo", { res });
+        try {
+          const res = await pipelineMove(client, {
+            leadId: lead.id,
+            toStageId: destId,
+            source: "auto:inactivity-tick",
+            reason: "60d sem inbound em Paciente antigo — Nutrição Antigos",
+            ruleKey: "automation.inactivity_paciente_antigo.enabled",
+            idempotencyKey: `inactivity:paciente_antigo:antigos:60d:${lead.id}:${ym}`,
+          });
+          const ms = Date.now() - leadStart;
+          const moved = !!(res as { moved?: boolean }).moved;
+          if (moved) {
+            tier60pa++;
+            await logEvent(client, lead.clinic_id, lead.id, "auto:inactivity-paciente-antigo-nutricao-antigos", { res });
+          } else {
+            notMoved++;
+          }
+          perLead.push({ lead_id: lead.id, ms, moved, reason: moved ? undefined : (res as { reason?: string })?.reason ?? "not_moved" });
+        } catch (e) {
+          errored++;
+          perLead.push({ lead_id: lead.id, ms: Date.now() - leadStart, moved: false, reason: `error:${(e as Error).message?.slice(0, 120)}` });
         }
       }
     }
   }
 
-  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0 };
+  const totalMs = Date.now() - t60paStart;
+  const times = perLead.map((p) => p.ms).sort((a, b) => a - b);
+  const avg = times.length ? Math.round(times.reduce((s, n) => s + n, 0) / times.length) : 0;
+  const p95 = times.length ? times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] : 0;
+  const slow = [...perLead].sort((a, b) => b.ms - a.ms).slice(0, 5);
+  const failureReasons: Record<string, number> = {};
+  for (const p of perLead) if (!p.moved && p.reason) failureReasons[p.reason] = (failureReasons[p.reason] ?? 0) + 1;
+
+  console.log(JSON.stringify({
+    v: "det-v2",
+    phase: "pa60:done",
+    total_ms: totalMs,
+    candidates,
+    moved: tier60pa,
+    not_moved: notMoved,
+    skipped_no_dest: skippedNoDest,
+    errored,
+    avg_ms_per_lead: avg,
+    p95_ms_per_lead: p95,
+    slowest: slow,
+    failure_reasons: failureReasons,
+  }));
+
+  return { tier24, tier3, tier7, tier60pa, scanned: leads?.length ?? 0, pa60: { total_ms: totalMs, candidates, moved: tier60pa, not_moved: notMoved, skipped_no_dest: skippedNoDest, errored, avg_ms_per_lead: avg, p95_ms_per_lead: p95, failure_reasons: failureReasons } };
 }
+
 
 async function ruleReactivationTick(client: SupabaseClient) {
   if (!(await isEnabled(client, "automation.reactivation.enabled"))) {
@@ -618,15 +824,252 @@ async function ruleHumanReactorTick(client: SupabaseClient) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ruleConsultaPassou — PR6
+// Quando a data da consulta/procedimento já passou (+ buffer de 2h) e o lead
+// continua em "Consulta agendada" / "Tratamento agendado" sem reagendamento
+// pendente, presume-se que foi realizada e move-se para o stage final. No-show
+// continua sendo move manual da secretária.
+// ─────────────────────────────────────────────────────────────────────────────
+async function ruleConsultaPassou(client: SupabaseClient) {
+  // === Transição Agendamento Humano (Junho/2026) ===
+  // Desligada: com múltiplos procedimentos paralelos (consulta + cetamina), o
+  // cron automático finalizava cards ativos prematuramente. A secretária move
+  // manualmente para "Consulta finalizada" / "1ª Sessão Finalizada".
+  return { skipped: "disabled_by_human_transition" } as const;
+  // eslint-disable-next-line no-unreachable
+  if (!(await isEnabled(client, "automation.consulta_passou_finaliza.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+
+  const BUFFER_MS = 2 * 3600 * 1000;
+  const cutoffIso = new Date(Date.now() - BUFFER_MS).toISOString();
+
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("pipeline_id, stage_id, canonical_name")
+    .in("canonical_name", [
+      "Consulta agendada",
+      "Tratamento agendado",
+      "Consulta finalizada",
+      "1ª Sessão Finalizada",
+    ]);
+
+  type Pair = { fromCanon: "Consulta agendada" | "Tratamento agendado"; toCanon: "Consulta finalizada" | "1ª Sessão Finalizada"; tag: string; source: string };
+  const PAIRS: Pair[] = [
+    { fromCanon: "Consulta agendada", toCanon: "Consulta finalizada", tag: "consulta_realizada", source: "auto:consulta-passou" },
+    { fromCanon: "Tratamento agendado", toCanon: "1ª Sessão Finalizada", tag: "procedimento_realizado", source: "auto:procedimento-passou" },
+  ];
+
+  const REAGENDAMENTO_TAGS = new Set(["reagendamento_pendente", "reagendamento_solicitado", "aguardando_nova_data"]);
+
+  let moved = 0;
+  let scanned = 0;
+  const moves: unknown[] = [];
+
+  for (const pair of PAIRS) {
+    const fromStageIds = (aliases ?? [])
+      .filter((a) => a.canonical_name === pair.fromCanon)
+      .map((a) => a.stage_id);
+    if (fromStageIds.length === 0) continue;
+
+    const toByPipeline = new Map<string, string>();
+    for (const a of aliases ?? []) {
+      if (a.canonical_name === pair.toCanon) toByPipeline.set(a.pipeline_id, a.stage_id);
+    }
+
+    const { data: leads } = await client
+      .from("leads")
+      .select("id, clinic_id, pipeline_id, stage_id, tags, custom_fields")
+      .in("stage_id", fromStageIds)
+      .is("archived_at", null)
+      .eq("is_internal_contact", false)
+      .limit(2000);
+
+    for (const lead of leads ?? []) {
+      scanned++;
+      const cf = (lead.custom_fields ?? {}) as Record<string, unknown>;
+      const rawDate =
+        (cf.procedimento_agendado_em as string | undefined) ??
+        (cf.consulta_agendada_em as string | undefined);
+      if (!rawDate) continue;
+      const ts = Date.parse(rawDate);
+      if (!Number.isFinite(ts)) continue;
+      if (ts >= Date.now() - BUFFER_MS) continue; // ainda futuro / dentro do buffer
+
+      const tags = (lead.tags ?? []) as string[];
+      if (tags.some((t) => REAGENDAMENTO_TAGS.has(t))) continue;
+
+      const toStageId = toByPipeline.get(lead.pipeline_id);
+      if (!toStageId || lead.stage_id === toStageId) continue;
+
+      const ymd = new Date(ts).toISOString().slice(0, 10);
+      const res = await pipelineMove(client, {
+        leadId: lead.id,
+        toStageId,
+        source: pair.source,
+        reason: `${pair.fromCanon} → ${pair.toCanon}: data ${ymd} já passou (+2h buffer); no-show fica manual`,
+        ruleKey: "automation.consulta_passou_finaliza.enabled",
+        idempotencyKey: `consulta-passou:${lead.id}:${ymd}`,
+      });
+      if ((res as { moved?: boolean }).moved) {
+        await addTag(client, lead.id, pair.tag);
+        await logEvent(client, lead.clinic_id, lead.id, pair.source, {
+          from: pair.fromCanon,
+          to: pair.toCanon,
+          data_agendada: rawDate,
+        });
+        moved++;
+        moves.push({ lead_id: lead.id, to: pair.toCanon, data: rawDate });
+      }
+    }
+  }
+
+  return { moved, scanned, sample: moves.slice(0, 10) };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ruleMonthlySweep — Dia 1 de cada mês: leads em "Consulta finalizada" ou
+// "1ª Sessão Finalizada" cuja stage_changed_at < primeiro dia do mês corrente
+// viram "Paciente antigo" + eh_paciente_antigo=true.
+// Idempotência mensal: monthly-sweep:{lead_id}:{YYYY-MM}
+// Toggle: automation.monthly_sweep_paciente_antigo.enabled (default false)
+// ─────────────────────────────────────────────────────────────────────────────
+async function ruleMonthlySweep(client: SupabaseClient, opts?: { dryRun?: boolean }) {
+  const dryRun = !!opts?.dryRun;
+  if (!dryRun && !(await isEnabled(client, "automation.monthly_sweep_paciente_antigo.enabled"))) {
+    return { skipped: "toggle_off" };
+  }
+
+  const now = new Date();
+  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const ym = now.toISOString().slice(0, 7);
+
+  const { data: aliases } = await client
+    .from("stage_canonical_aliases")
+    .select("pipeline_id, stage_id, canonical_name")
+    .in("canonical_name", ["Consulta finalizada", "1ª Sessão Finalizada", "Paciente antigo"]);
+
+  const FROM_CANON = new Set(["Consulta finalizada", "1ª Sessão Finalizada"]);
+  const fromStageIds = (aliases ?? [])
+    .filter((a) => FROM_CANON.has(a.canonical_name))
+    .map((a) => a.stage_id);
+  const paByPipeline = new Map<string, string>();
+  for (const a of aliases ?? []) {
+    if (a.canonical_name === "Paciente antigo") paByPipeline.set(a.pipeline_id, a.stage_id);
+  }
+
+  if (fromStageIds.length === 0 || paByPipeline.size === 0) {
+    return { skipped: "no_stages_mapped" };
+  }
+
+  const { data: leads } = await client
+    .from("leads")
+    .select("id, clinic_id, pipeline_id, stage_id, stage_changed_at, custom_fields")
+    .in("stage_id", fromStageIds)
+    .lt("stage_changed_at", firstOfMonth)
+    .is("archived_at", null)
+    .eq("is_internal_contact", false)
+    .limit(5000);
+
+  let moved = 0;
+  let scanned = 0;
+  const sample: unknown[] = [];
+
+  for (const lead of leads ?? []) {
+    scanned++;
+    const toStageId = paByPipeline.get(lead.pipeline_id);
+    if (!toStageId || lead.stage_id === toStageId) continue;
+
+    if (dryRun) {
+      if (sample.length < 20) sample.push({ lead_id: lead.id, from: lead.stage_id, to: toStageId });
+      moved++;
+      continue;
+    }
+
+    const res = await pipelineMove(client, {
+      leadId: lead.id,
+      toStageId,
+      source: "auto:monthly-sweep",
+      reason: `Sweep mensal ${ym}: card de mês anterior → Paciente antigo`,
+      ruleKey: "automation.monthly_sweep_paciente_antigo.enabled",
+      idempotencyKey: `monthly-sweep:${lead.id}:${ym}`,
+    });
+
+    if ((res as { moved?: boolean }).moved) {
+      await patchCustomFields(client, lead.id, { eh_paciente_antigo: true });
+      await logEvent(client, lead.clinic_id, lead.id, "auto:monthly-sweep", {
+        ym,
+        from_stage_id: lead.stage_id,
+        to_stage_id: toStageId,
+      });
+      moved++;
+      if (sample.length < 20) sample.push({ lead_id: lead.id, to: toStageId });
+    }
+  }
+
+  return { ym, dryRun, moved, scanned, sample };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HTTP entry
 // ─────────────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const startedAt = new Date();
+  const t0 = Date.now();
+  let bodyAction = "unknown";
+  const client = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  async function persistTickStats(params: {
+    ok: boolean;
+    result?: unknown;
+    errorMessage?: string;
+  }) {
+    try {
+      // Extrai métricas da fase pa40 (quando presente).
+      const r = params.result as { inactivity?: { pa40?: Record<string, unknown> } } | undefined;
+      const pa40 = r?.inactivity?.pa40 ?? {};
+      const p = pa40 as {
+        total_ms?: number;
+        candidates?: number;
+        moved?: number;
+        not_moved?: number;
+        skipped_no_dest?: number;
+        errored?: number;
+        avg_ms_per_lead?: number;
+        p95_ms_per_lead?: number;
+        failure_reasons?: Record<string, number>;
+      };
+      await client.from("pipeline_tick_stats").insert({
+        action: bodyAction,
+        phase: r?.inactivity ? "inactivity" : null,
+        started_at: startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - t0,
+        ok: params.ok,
+        candidates: p.candidates ?? 0,
+        moved: p.moved ?? 0,
+        not_moved: p.not_moved ?? 0,
+        skipped_no_dest: p.skipped_no_dest ?? 0,
+        errored: p.errored ?? 0,
+        avg_ms_per_lead: p.avg_ms_per_lead ?? 0,
+        p95_ms_per_lead: p.p95_ms_per_lead ?? 0,
+        failure_reasons: p.failure_reasons ?? {},
+        error_message: params.errorMessage ?? null,
+        raw: (params.result ?? null) as never,
+      });
+    } catch (e) {
+      console.error("pipeline_tick_stats insert failed", (e as Error).message);
+    }
+  }
+
   try {
     const body = (await req.json()) as Body;
-    const client = createClient(SUPABASE_URL, SERVICE_KEY);
+    bodyAction = body.action ?? "unknown";
     let result: unknown;
 
     switch (body.action) {
@@ -637,6 +1080,10 @@ Deno.serve(async (req) => {
       case "secretary-replied":
         if (!body.message_id) throw new Error("message_id required");
         result = await ruleSecretaryReplied(client, body.message_id);
+        break;
+      case "reactivation-inbound":
+        if (!body.message_id) throw new Error("message_id required");
+        result = await ruleReactivationInbound(client, body.message_id);
         break;
       case "appointment-sync":
         if (!body.appointment_id) throw new Error("appointment_id required");
@@ -652,7 +1099,10 @@ Deno.serve(async (req) => {
         );
         break;
       case "inactivity-tick":
-        result = await ruleInactivityTick(client);
+        result = {
+          inactivity: await ruleInactivityTick(client),
+          consulta_passou: await ruleConsultaPassou(client),
+        };
         break;
       case "reactivation-tick":
         result = await ruleReactivationTick(client);
@@ -660,7 +1110,13 @@ Deno.serve(async (req) => {
       case "human-reactor-tick":
         result = await ruleHumanReactorTick(client);
         break;
+      case "monthly-sweep-tick": {
+        const dryRun = (body as unknown as { dry_run?: boolean }).dry_run === true;
+        result = await ruleMonthlySweep(client, { dryRun });
+        break;
+      }
       default:
+        await persistTickStats({ ok: false, errorMessage: "unknown_action" });
         return new Response(
           JSON.stringify({ error: "unknown_action" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -668,15 +1124,18 @@ Deno.serve(async (req) => {
     }
 
     console.log(JSON.stringify({ action: body.action, result }));
+    await persistTickStats({ ok: true, result });
     return new Response(JSON.stringify({ ok: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("pipeline-deterministic error", msg);
+    await persistTickStats({ ok: false, errorMessage: msg });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+

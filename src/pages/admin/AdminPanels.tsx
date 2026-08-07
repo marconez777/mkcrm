@@ -8,6 +8,8 @@ import BuilderManualPanel from "@/components/admin/BuilderManualPanel";
 import IntegrationsKeysCard from "@/components/admin/IntegrationsKeysCard";
 import IntegrationsDomainsTable from "@/components/admin/IntegrationsDomainsTable";
 import IntegrationsQuotaTable from "@/components/admin/IntegrationsQuotaTable";
+import CloudCostsPanel from "@/components/admin/CloudCostsPanel";
+import AiUsagePanel from "@/components/admin/AiUsagePanel";
 import { AdminPageHeader } from "@/layouts/AdminShell";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +27,7 @@ export function AdminPlans() {
 export function AdminUsage() {
   return (
     <>
-      <AdminPageHeader title="Uso & Limites" description="Uso real vs limite, por clínica." />
+      <AdminPageHeader title="Uso & Limites" description="Uso real vs limite, por empresa." />
       <UsageLimitsPanel />
     </>
   );
@@ -99,6 +101,24 @@ export function AdminIntegrations() {
         <IntegrationsDomainsTable clinics={clinics} />
         <IntegrationsQuotaTable />
       </div>
+    </>
+  );
+}
+
+export function AdminCloudCosts() {
+  return (
+    <>
+      <AdminPageHeader title="Custos de Cloud" description="Monitoramento de débitos e faturas da infraestrutura Lovable Cloud." />
+      <CloudCostsPanel />
+    </>
+  );
+}
+
+export function AdminAiUsage() {
+  return (
+    <>
+      <AdminPageHeader title="Consumo de IA" description="Custos detalhados dos agentes e consumo via Lovable Cloud AI." />
+      <AiUsagePanel />
     </>
   );
 }

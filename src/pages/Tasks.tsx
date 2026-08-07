@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -104,6 +105,7 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
   onDelete: (id: string) => void;
   onAddCard: (columnId: string, title: string) => void;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: column.id, data: { type: "column", column } });
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -129,8 +131,8 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setRenaming(true)}>Renomear</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onSelect={() => onDelete(column.id)}>Excluir coluna</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRenaming(true)}>{t("tasks.rename")}</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onSelect={() => onDelete(column.id)}>{t("tasks.deleteColumn")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -157,16 +159,16 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
               if (e.key === "Enter") { if (text.trim()) { onAddCard(column.id, text.trim()); setText(""); } }
               if (e.key === "Escape") { setAdding(false); setText(""); }
             }}
-            placeholder="Título do cartão"
+            placeholder={t("tasks.cardTitlePlaceholder")}
           />
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => { if (text.trim()) { onAddCard(column.id, text.trim()); setText(""); } }}>Adicionar</Button>
+            <Button size="sm" onClick={() => { if (text.trim()) { onAddCard(column.id, text.trim()); setText(""); } }}>{t("common.add")}</Button>
             <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setText(""); }}><X className="h-4 w-4" /></Button>
           </div>
         </div>
       ) : (
         <button onClick={() => setAdding(true)} className="mt-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted">
-          <Plus className="h-4 w-4" /> Adicionar um cartão
+          <Plus className="h-4 w-4" /> {t("tasks.addCard")}
         </button>
       )}
     </div>
@@ -174,6 +176,7 @@ function ColumnView({ column, cards, assigneesByTask, checklistByTask, attendant
 }
 
 export default function Tasks() {
+  const { t } = useTranslation();
   const [board, setBoard] = useState<TaskBoard | null>(null);
   const [columns, setColumns] = useState<TaskColumn[]>([]);
   const [tasks, setTasks] = useState<TCard[]>([]);
@@ -295,7 +298,7 @@ export default function Tasks() {
     <div className="flex h-full flex-col p-4">
       <header className="mb-4 flex items-center gap-2">
         <CalendarClock className="h-5 w-5 text-primary" />
-        <h1 className="text-xl font-semibold">Tarefas</h1>
+        <h1 className="text-xl font-semibold">{t("tasks.title")}</h1>
         {board && <span className="text-sm text-muted-foreground">· {board.name}</span>}
       </header>
 
@@ -310,7 +313,7 @@ export default function Tasks() {
               attendants={attendants}
               onOpenCard={(card) => setOpenCardId(card.id)}
               onRename={renameColumn}
-              onDelete={(id) => { if (confirm("Excluir coluna e seus cartões?")) deleteColumn(id); }}
+              onDelete={(id) => { if (confirm(t("tasks.confirmDeleteColumn"))) deleteColumn(id); }}
               onAddCard={handleAddCard}
             />
           ))}
@@ -321,16 +324,16 @@ export default function Tasks() {
                 <Input
                   autoFocus value={newCol} onChange={(e) => setNewCol(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddColumn(); if (e.key === "Escape") { setAddingCol(false); setNewCol(""); } }}
-                  placeholder="Nome da coluna"
+                  placeholder={t("tasks.columnNamePlaceholder")}
                 />
                 <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={handleAddColumn}>Adicionar</Button>
+                  <Button size="sm" onClick={handleAddColumn}>{t("common.add")}</Button>
                   <Button size="sm" variant="ghost" onClick={() => { setAddingCol(false); setNewCol(""); }}><X className="h-4 w-4" /></Button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setAddingCol(true)} className="flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted/30">
-                <Plus className="h-4 w-4" /> Adicionar coluna
+                <Plus className="h-4 w-4" /> {t("tasks.addColumn")}
               </button>
             )}
           </div>

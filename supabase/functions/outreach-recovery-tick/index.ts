@@ -115,7 +115,7 @@ async function loadCandidates(
 ): Promise<LeadCandidate[]> {
   let q = supabase
     .from("leads")
-    .select("id, clinic_id, stage_id, custom_fields, email, name, form_source, tags, manual_lock_until, archived_at, is_internal_contact")
+    .select("id, clinic_id, stage_id, custom_fields, email, name, form_source, tags, archived_at, is_internal_contact")
     .eq("clinic_id", clinicId)
     .is("archived_at", null)
     .eq("is_internal_contact", false)
@@ -126,10 +126,10 @@ async function loadCandidates(
     id: string; clinic_id: string; stage_id: string | null;
     custom_fields: Record<string, unknown> | null;
     email: string | null; name: string | null; form_source: string | null;
-    tags: string[] | null; manual_lock_until: string | null;
+    tags: string[] | null;
   }>;
-  const now = Date.now();
-  const filtered = rows.filter((l) => !l.manual_lock_until || new Date(l.manual_lock_until).getTime() < now);
+  // PR4 — manual_lock_until removido; sem filtro de lock.
+  const filtered = rows;
   if (filtered.length === 0) return [];
 
   const ids = filtered.map((l) => l.id);

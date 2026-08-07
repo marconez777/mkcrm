@@ -20,7 +20,7 @@ interface Props {
 
 const NICHE_OPTS = [
   { v: "other", l: "Outro / não sei" },
-  { v: "clinic", l: "Clínica / Saúde" },
+  { v: "clinic", l: "Empresa / Saúde" },
   { v: "dental", l: "Odontologia" },
   { v: "real_estate", l: "Imobiliária" },
   { v: "restaurant", l: "Restaurante" },
@@ -74,7 +74,7 @@ export function KbAssistant({ agentId, clinicId, agentNiche, onDocsChanged }: Pr
 
   const invokeBuilder = async (action: string, payload: any) => {
     if (!clinicId) {
-      toast.error("Clínica não identificada.");
+      toast.error("Empresa não identificada.");
       return { ok: false } as any;
     }
     const { data, error } = await supabase.functions.invoke("ai-builder", {

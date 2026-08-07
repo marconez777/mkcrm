@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Loader2, MessageCircle, Megaphone, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+
 
 type Period = "7" | "30" | "90";
 
@@ -63,7 +65,9 @@ function FunnelBar({ label, value, total, color }: { label: string; value: numbe
 }
 
 export default function MetricsEngagement() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>("30");
+
   const [loading, setLoading] = useState(false);
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
   const [sequences, setSequences] = useState<SequenceRow[]>([]);
@@ -118,8 +122,8 @@ export default function MetricsEngagement() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Engajamento</h1>
-          <p className="text-sm text-muted-foreground">Respostas e qualificação dos leads em disparos e sequências do WhatsApp.</p>
+          <h1 className="text-2xl font-semibold">{t("metricsEngagement.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("metricsEngagement.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border bg-card">
@@ -135,20 +139,20 @@ export default function MetricsEngagement() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <KpiCard label="Mensagens enviadas" value={totals.sent} icon={MessageCircle} />
-        <KpiCard label="Respostas" value={totals.replied} hint={`Taxa de resposta ${pct(totals.replied, totals.sent)}%`} icon={Megaphone} />
-        <KpiCard label="Qualificados" value={totals.qualified} hint={`Taxa de qualificação ${pct(totals.qualified, totals.sent)}%`} icon={TrendingUp} />
+        <KpiCard label={t("metricsEngagement.messagesSent")} value={totals.sent} icon={MessageCircle} />
+        <KpiCard label={t("metricsEngagement.replies")} value={totals.replied} hint={`${t("metricsEngagement.replyRate")} ${pct(totals.replied, totals.sent)}%`} icon={Megaphone} />
+        <KpiCard label={t("metricsEngagement.qualified")} value={totals.qualified} hint={`${t("metricsEngagement.qualifyRate")} ${pct(totals.qualified, totals.sent)}%`} icon={TrendingUp} />
       </div>
 
       <Tabs defaultValue="sequences">
         <TabsList>
-          <TabsTrigger value="sequences">Sequências ({sequences.length})</TabsTrigger>
-          <TabsTrigger value="broadcasts">Disparos ({broadcasts.length})</TabsTrigger>
+          <TabsTrigger value="sequences">{t("metricsEngagement.sequences")} ({sequences.length})</TabsTrigger>
+          <TabsTrigger value="broadcasts">{t("metricsEngagement.broadcasts")} ({broadcasts.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sequences" className="space-y-2">
           {sequences.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma sequência com envios no período.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("metricsEngagement.noSequences")}</p>
           )}
           {sequences.map((s) => {
             const open = expanded === s.sequence_id;
@@ -161,27 +165,27 @@ export default function MetricsEngagement() {
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium">{s.sequence_name}</span>
                       <Badge variant={s.enabled ? "default" : "secondary"} className="text-[10px]">
-                        {s.enabled ? "Ativa" : "Pausada"}
+                        {s.enabled ? t("metricsEngagement.active") : t("metricsEngagement.paused")}
                       </Badge>
                     </div>
                   </div>
                   <div className="hidden grid-cols-3 gap-6 text-xs text-muted-foreground sm:grid">
-                    <div><span className="text-foreground font-semibold">{s.sent_count}</span> enviadas</div>
-                    <div><span className="text-foreground font-semibold">{s.replied_count}</span> resp ({pct(s.replied_count, s.sent_count)}%)</div>
-                    <div><span className="text-foreground font-semibold">{s.qualified_count}</span> qualif ({pct(s.qualified_count, s.sent_count)}%)</div>
+                    <div><span className="text-foreground font-semibold">{s.sent_count}</span> {t("metricsEngagement.colSent")}</div>
+                    <div><span className="text-foreground font-semibold">{s.replied_count}</span> {t("metricsEngagement.colReplied")} ({pct(s.replied_count, s.sent_count)}%)</div>
+                    <div><span className="text-foreground font-semibold">{s.qualified_count}</span> {t("metricsEngagement.colQual")} ({pct(s.qualified_count, s.sent_count)}%)</div>
                   </div>
                 </button>
                 {open && (
                   <div className="space-y-4 border-t bg-muted/20 p-4">
                     {steps.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Sem envios desta sequência no período.</p>
+                      <p className="text-xs text-muted-foreground">{t("metricsEngagement.noStepData")}</p>
                     )}
                     {steps.map((st) => (
                       <div key={st.step_id} className="space-y-2 rounded-md border bg-card p-3">
-                        <div className="text-xs font-semibold">Passo {st.step_position + 1}</div>
-                        <FunnelBar label="Enviadas" value={st.sent_count} total={st.sent_count} color="bg-primary" />
-                        <FunnelBar label="Respostas" value={st.replied_count} total={st.sent_count} color="bg-emerald-500" />
-                        <FunnelBar label="Qualificados" value={st.qualified_count} total={st.sent_count} color="bg-amber-500" />
+                        <div className="text-xs font-semibold">{t("metricsEngagement.step")} {st.step_position + 1}</div>
+                        <FunnelBar label={t("metricsEngagement.barSent")} value={st.sent_count} total={st.sent_count} color="bg-primary" />
+                        <FunnelBar label={t("metricsEngagement.barReplies")} value={st.replied_count} total={st.sent_count} color="bg-emerald-500" />
+                        <FunnelBar label={t("metricsEngagement.barQualified")} value={st.qualified_count} total={st.sent_count} color="bg-amber-500" />
                       </div>
                     ))}
                   </div>
@@ -193,7 +197,7 @@ export default function MetricsEngagement() {
 
         <TabsContent value="broadcasts" className="space-y-2">
           {broadcasts.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nenhum disparo no período.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("metricsEngagement.noBroadcasts")}</p>
           )}
           {broadcasts.map((b) => (
             <Card key={b.broadcast_id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
@@ -202,18 +206,19 @@ export default function MetricsEngagement() {
                 <div className="text-xs text-muted-foreground">{new Date(b.created_at).toLocaleString()}</div>
               </div>
               <div className="grid grid-cols-3 gap-6 text-xs text-muted-foreground">
-                <div><span className="text-foreground font-semibold">{b.sent_count}</span> enviadas</div>
-                <div><span className="text-foreground font-semibold">{b.replied_count}</span> resp ({pct(b.replied_count, b.sent_count)}%)</div>
-                <div><span className="text-foreground font-semibold">{b.qualified_count}</span> qualif ({pct(b.qualified_count, b.sent_count)}%)</div>
+                <div><span className="text-foreground font-semibold">{b.sent_count}</span> {t("metricsEngagement.colSent")}</div>
+                <div><span className="text-foreground font-semibold">{b.replied_count}</span> {t("metricsEngagement.colReplied")} ({pct(b.replied_count, b.sent_count)}%)</div>
+                <div><span className="text-foreground font-semibold">{b.qualified_count}</span> {t("metricsEngagement.colQual")} ({pct(b.qualified_count, b.sent_count)}%)</div>
               </div>
             </Card>
           ))}
         </TabsContent>
       </Tabs>
 
-      <p className="text-xs text-muted-foreground">
-        <strong>Resposta:</strong> primeira mensagem do lead após o envio. <strong>Qualificação:</strong> lead avançou para uma coluna posterior no pipeline depois do envio (snapshot da coluna é registrado no momento do envio; registros antigos não contam).
+      <p className="text-xs text-muted-foreground whitespace-pre-line">
+        {t("metricsEngagement.footnote")}
       </p>
     </div>
   );
 }
+

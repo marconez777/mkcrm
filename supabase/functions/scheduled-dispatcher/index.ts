@@ -163,7 +163,8 @@ async function handlePendingReply(supabase: any, item: any, nowIso: string): Pro
     const latency = Date.now() - startedAt;
 
     if (!aiResp.ok) {
-      const errMsg = `ai-chat ${aiResp.status}: ${(aiData as any)?.error ?? "unknown"}`;
+      const detail = String((aiData as any)?.detail ?? "").replace(/\s+/g, " ").trim();
+      const errMsg = `ai-chat ${aiResp.status}: ${(aiData as any)?.error ?? "unknown"}${detail ? ` — ${detail.slice(0, 500)}` : ""}`;
       console.error(`[dispatcher] FAIL lead=${item.lead_id} ${errMsg} latency=${latency}ms attempt=${attempts}`);
       await logErrorUsage(supabase, item.agent_id, item.lead_id, thread?.id ?? null, agentRow?.model ?? null, errMsg, latency);
       await releaseOrAbandon(supabase, item.lead_id, item.agent_id, attempts, errMsg);
